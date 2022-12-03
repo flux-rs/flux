@@ -377,6 +377,14 @@ impl Path {
             .rev()
             .fold(self.loc.to_expr(), |e, f| Expr::path_proj(e, *f))
     }
+
+    pub fn to_loc(&self) -> Option<Loc> {
+        if self.projection.is_empty() {
+            Some(self.loc)
+        } else {
+            None
+        }
+    }
 }
 
 impl Loc {

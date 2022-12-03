@@ -13,6 +13,7 @@ pub struct EVarGen {
     evars: FxHashMap<CtxtId, IndexVec<EVid, EVarEntry>>,
 }
 
+#[derive(Debug)]
 pub struct EVarSol {
     evars: FxHashMap<CtxtId, IndexVec<EVid, EVarEntry>>,
 }

@@ -6,13 +6,14 @@ use flux_middle::{
     rty::{
         evars::{self, EVarSol},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binders, Constraint, Constraints, EVarGen, Expr, ExprKind, GenericArg,
+        BaseTy, BinOp, Binders, Constraint, Constraints, EVarGen, Expr, ExprKind, GenericArg, Path,
         PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
         VariantRet,
     },
     rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
+use rustc_hash::FxHashMap;
 use rustc_span::Span;
 
 use crate::{
@@ -35,7 +36,6 @@ struct InferCtxt<'a, 'tcx> {
     evar_gen: EVarGen,
     tag: Tag,
     scope: Scope,
-    locs_cx: evars::CtxtId,
     evars_cx: evars::CtxtId,
 }
 
@@ -136,11 +136,30 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_generic_args(&substs)
             .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
 
+        // Check requires predicates and collect type constraints
+        let mut requires = FxHashMap::default();
+        for constr in fn_sig.requires() {
+            match constr {
+                Constraint::Type(path, ty) => {
+                    requires.insert(path.to_loc().unwrap(), ty);
+                }
+                Constraint::Pred(pred) => {
+                    infcx.check_pred(rcx, pred);
+                }
+            }
+        }
+
         // Check arguments
         for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {
+                (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2)) => {
+                    let loc = path2.to_loc().unwrap();
+                    let bound = requires[&loc];
+                    infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
+                    infcx.check_type_constr(rcx, env, path1, bound)?;
+                }
                 (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
                     infcx.subtyping(rcx, &env.get(path), bound);
                     env.update(path, bound.clone());
@@ -154,16 +173,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             }
         }
 
-        // Check preconditions
-        let locs_sol = infcx.solve_locs();
-        for constraint in &fn_sig.requires().replace_evars(&locs_sol) {
-            infcx.check_constraint(rcx, env, constraint)?;
-        }
-
         // Replace evars
-        let mut evars_sol = infcx.solve();
-        evars_sol.extend(locs_sol);
-
+        let evars_sol = infcx.solve();
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
         let ret = fn_sig.ret().replace_evars(&evars_sol);
@@ -215,29 +226,35 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Self {
         let mut evar_gen = EVarGen::new();
         let scope = rcx.scope();
-        let locs_cx = evar_gen.new_ctxt();
         let evars_cx = evar_gen.new_ctxt();
-        Self { genv, kvar_gen, scope, evar_gen, locs_cx, evars_cx, tag }
+        Self { genv, kvar_gen, scope, evar_gen, evars_cx, tag }
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort) -> RefineArg {
-        match sort {
-            Sort::Func(fsort) if fsort.output().is_bool() => {
-                RefineArg::Abs((self.kvar_gen)(fsort.inputs()))
-            }
-            Sort::Loc => {
-                let evar = self.evar_gen.fresh_in_cx(self.locs_cx);
-                RefineArg::Expr(Expr::evar(evar))
-            }
-            _ => {
-                let evar = self.evar_gen.fresh_in_cx(self.evars_cx);
-                RefineArg::Expr(Expr::evar(evar))
-            }
+        if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
+            RefineArg::Abs((self.kvar_gen)(fsort.inputs()))
+        } else {
+            RefineArg::Expr(Expr::evar(self.evar_gen.fresh_in_cx(self.evars_cx)))
         }
     }
 
     fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
         rcx.check_pred(pred, self.tag)
+    }
+
+    fn check_type_constr(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        path: &Path,
+        ty: &Ty,
+    ) -> Result<(), OpaqueStructErr> {
+        let actual_ty = {
+            let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag);
+            env.lookup_path(rcx, gen, path)?
+        };
+        self.subtyping(rcx, &actual_ty, ty);
+        Ok(())
     }
 
     fn check_constraint(
@@ -248,18 +265,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Result<(), OpaqueStructErr> {
         let rcx = &mut rcx.breadcrumb();
         match constraint {
-            Constraint::Type(path, ty) => {
-                let actual_ty = {
-                    let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag);
-                    env.lookup_path(rcx, gen, path)?
-                };
-                self.subtyping(rcx, &actual_ty, ty);
-            }
+            Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty),
             Constraint::Pred(e) => {
                 rcx.check_pred(e, self.tag);
+                Ok(())
             }
         }
-        Ok(())
     }
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
@@ -291,7 +302,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
                 debug_assert_eq!(rk1, rk2);
-                self.unify_exprs(&path1.to_expr(), &path2.to_expr(), false)
+                debug_assert_eq!(path1, path2);
             }
             (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
                 debug_assert_eq!(loc1, loc2);
@@ -449,10 +460,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(mut self) -> EVarSol {
         self.evar_gen.solve(self.evars_cx).unwrap()
-    }
-
-    fn solve_locs(&mut self) -> EVarSol {
-        self.evar_gen.solve(self.locs_cx).unwrap()
     }
 }
 

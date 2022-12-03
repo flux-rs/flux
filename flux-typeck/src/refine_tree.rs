@@ -338,7 +338,7 @@ impl NodePtr {
 bitflags! {
     pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b01;
-        const INVARIANTS         = 0b10;
+        const INVARIANTS        = 0b10;
     }
 }
 
