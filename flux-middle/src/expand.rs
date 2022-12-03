@@ -2,10 +2,7 @@
 //! i.e. replacing {v:nat(v)} with {v:0<=v} in all the relevant signatures.
 //! As this is done _after_ wf-checking, there should be no user-visible errors during expansion...
 
-use std::{
-    collections::{HashMap, HashSet},
-    error::Error,
-};
+use std::collections::{HashMap, HashSet};
 
 use flux_errors::FluxSession;
 use rustc_errors::ErrorGuaranteed;
@@ -312,7 +309,7 @@ fn defn_deps(defns: &Defns, expr: &Expr, res: &mut HashSet<Symbol>) {
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
 
-fn sorted_defns(defns: &Defns) -> Result<Vec<Symbol>, Vec<Symbol>> {
+fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorGuaranteed> {
     // 1. Make the Symbol-Index
     let mut i2s: Vec<Symbol> = Vec::new();
     let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
@@ -341,17 +338,16 @@ fn sorted_defns(defns: &Defns) -> Result<Vec<Symbol>, Vec<Symbol>> {
         }
         Err(mut scc) => {
             let cycle = scc.pop().unwrap();
-            Err(cycle.iter().map(|i| i2s[*i]).collect())
+            let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
+            let span = defns.get(&cycle[0]).unwrap().expr.span;
+            Err(sess.emit_err(errors::DefinitionCycle::new(span, cycle)))
         }
     }
 }
 
 fn expand_defns(sess: &FluxSession, mut defns: Defns) -> Result<Defns, ErrorGuaranteed> {
     // 1. Topo-Sort the Defns
-    let ds = match sorted_defns(&defns) {
-        Ok(ds) => ds,
-        Err(cs) => panic!("Alias defn cycle {:?}", cs),
-    };
+    let ds = sorted_defns(sess, &defns)?;
 
     // 2. Expand each defn in the sorted order
     let mut exp_defns = FxHashMap::default();
@@ -363,4 +359,26 @@ fn expand_defns(sess: &FluxSession, mut defns: Defns) -> Result<Defns, ErrorGuar
         exp_defns.insert(d, exp_defn);
     }
     Ok(exp_defns)
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use rustc_span::{Span, Symbol};
+
+    #[derive(Diagnostic)]
+    #[diag(expand::definition_cycle, code = "FLUX")]
+    pub(super) struct DefinitionCycle {
+        #[primary_span]
+        #[label]
+        span: Span,
+        msg: String,
+    }
+
+    impl DefinitionCycle {
+        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
+            // let msg = format!("{} -> {}", cycle.join(" -> "), cycle[0]);
+            let msg = format!("{:?}", cycle);
+            Self { span, msg }
+        }
+    }
 }
