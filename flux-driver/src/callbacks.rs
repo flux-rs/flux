@@ -213,8 +213,8 @@ fn build_fhir_map(
         .or(err);
 
     // Register Defns as UIFs for sort-checking
-    err = // std::mem::take(&mut specs.dfns)
-         specs.dfns
+    err = specs
+        .dfns
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
