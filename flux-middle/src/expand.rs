@@ -15,6 +15,7 @@ use crate::fhir::{
     Qualifier, RefineArg, StructDef, Ty, VariantDef, VariantRet,
 };
 
+/// Use the `Defns` to inline all the uses of `dfn` in the specs in `fhir::Map`.
 pub fn expand_fhir_map(
     sess: &FluxSession,
     mut map: fhir::Map,
@@ -329,14 +330,10 @@ fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorG
     }
     let mut g = IndexGraph::from_adjacency_list(&adj_list);
     g.transpose();
-    // println!("TRACE: i2s = {:?}, adj_list = {:?}", i2s, adj_list);
 
     // 3. Topologically sort the graph
     match g.toposort_or_scc() {
-        Ok(is) => {
-            // println!("TRACE: topo-sort {:?}", is);
-            Ok(is.iter().map(|i| i2s[*i]).collect())
-        }
+        Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
         Err(mut scc) => {
             let cycle = scc.pop().unwrap();
             let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
@@ -352,7 +349,7 @@ fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorG
 }
 
 fn expand_defns(sess: &FluxSession, mut defns: Defns) -> Result<Defns, ErrorGuaranteed> {
-    // 1. Topo-Sort the Defns
+    // 1. Topologically sort the Defns
     let ds = sorted_defns(sess, &defns)?;
 
     // 2. Expand each defn in the sorted order
@@ -361,7 +358,6 @@ fn expand_defns(sess: &FluxSession, mut defns: Defns) -> Result<Defns, ErrorGuar
         let defn = defns.remove(&d).unwrap();
         let expr = expand_expr(&exp_defns, defn.expr);
         let exp_defn = Defn { expr, ..defn };
-        // println!("TRACE: exp_defn {:?}", exp_defn);
         exp_defns.insert(d, exp_defn);
     }
     Ok(exp_defns)
