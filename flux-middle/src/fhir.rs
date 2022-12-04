@@ -216,6 +216,7 @@ pub struct Expr {
     pub span: Span,
 }
 
+// no-clone begin
 #[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
