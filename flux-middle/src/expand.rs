@@ -75,14 +75,15 @@ type Defns = FxHashMap<Symbol, Defn>;
 
 fn subst_expr(subst: &Subst, e: &Expr) -> Expr {
     match &e.kind {
-        ExprKind::Var(name, _sym, _span) => {
+        ExprKind::Var(name, sym, span) => {
             if let Some(e) = subst.get(name) {
-                e.clone()
+                subst_expr(&FxHashMap::default(), e) // i.e. 'clone' e
             } else {
-                panic!("subst_expr: unbound variable: {:?}", e);
+                Expr { kind: ExprKind::Var(*name, *sym, *span), span: e.span }
             }
         }
-        ExprKind::Const(_, _) | ExprKind::Literal(_) => e.clone(),
+        ExprKind::Const(did, span) => Expr { kind: ExprKind::Const(*did, *span), span: e.span },
+        ExprKind::Literal(l) => Expr { kind: ExprKind::Literal(*l), span: e.span },
         ExprKind::BinaryOp(o, box [e1, e2]) => {
             let e1 = subst_expr(subst, e1);
             let e2 = subst_expr(subst, e2);

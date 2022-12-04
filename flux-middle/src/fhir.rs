@@ -210,14 +210,11 @@ pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
 
-#[derive(Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
 }
 
-// no-clone begin
-#[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
