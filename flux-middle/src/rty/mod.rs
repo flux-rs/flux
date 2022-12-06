@@ -14,10 +14,12 @@ use std::{borrow::Cow, fmt, sync::LazyLock};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, newtype_index};
 use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarFolder};
@@ -91,6 +93,16 @@ pub struct Qualifier {
     pub name: String,
     pub args: Vec<(Name, Sort)>,
     pub expr: Expr,
+}
+
+pub struct Defn {
+    pub name: Symbol,
+    pub args: Vec<(Name, Sort)>,
+    pub expr: Expr,
+}
+
+pub struct Defns {
+    defns: FxHashMap<Symbol, Defn>,
 }
 
 pub type Ty = Interned<TyS>;
@@ -1005,4 +1017,20 @@ mod pretty {
         RefineArgs,
         VariantDef,
     );
+}
+
+impl Defns {
+    // private function normalize (expand_defns) which does the SCC-expansion
+    pub fn new(/* fhir-defn */) -> Self {
+        todo!()
+    }
+
+    fn normalize(/* defns */) -> Self {
+        todo!()
+    }
+
+    // expand a particular app if there is a defn for it
+    pub fn app(/* fn, args */) -> Expr {
+        todo!()
+    }
 }

@@ -59,6 +59,10 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
     rty::AdtDef::new(tcx.adt_def(adt_def.def_id), sorts, invariants, adt_def.opaque)
 }
 
+pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
+    todo!()
+}
+
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv, name_map: NameMap::default() }

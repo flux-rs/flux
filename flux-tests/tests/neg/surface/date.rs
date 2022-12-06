@@ -23,38 +23,10 @@ pub struct Date {
 }
 
 pub fn test() {
-    let _ok_date = Date {
-      day: 9,
-      month: 8,
+    let _bad_date = Date { //~ ERROR precondition
+      day: 31,
+      month: 6, // June has 30 days
       year: 1977,
     };
 }
 
-// TODO: Tedious to duplicate the definitions if you want to use them in rust code.
-// Maybe some macro magic can unify?
-
-#[flux::sig(fn(m:usize) -> bool[is_month30(m)])]
-fn is_month30(m: usize) -> bool {
-    m == 4 || m == 6 || m == 9 || m == 11
-}
-
-#[flux::sig(fn(y:usize) -> bool[is_leap_year(y)])]
-fn is_leap_year(y: usize) -> bool {
-    y % 400 == 0 || (y % 4 == 0 && y % 100 != 0)
-}
-
-#[flux::sig(fn(d:usize, y:usize) -> bool[is_feb_day(d, y)])]
-fn is_feb_day(d: usize, y: usize) -> bool {
-    d <= 29 && (d != 29 || is_leap_year(y))
-}
-
-pub fn mk_date(day: usize, month: usize, year: usize) -> Option<Date> {
-    if 1 <= year && 1 <= month && month <= 12 && 1 <= day && day <= 31 {
-        if !is_month30(month) || day <= 30 {
-            if month != 2 || is_feb_day(day, year) {
-                return Some(Date { day, month, year });
-            }
-        }
-    }
-    return None;
-}

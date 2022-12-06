@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::{def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
-pub use rustc_span::symbol::Ident;
+pub use rustc_span::{symbol::Ident, Symbol};
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
@@ -35,6 +35,13 @@ pub struct GlobalEnv<'genv, 'tcx> {
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession, map: fhir::Map) -> Self {
         let check_asserts = CONFIG.check_asserts;
+
+        // HEREHEREHEREHERE
+        let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
+        for defn in map.defns() {
+            let defn = rty::conv::conv_defn(defn);
+            defns.insert(defn.name, defn);
+        }
 
         let mut adt_defs = FxHashMap::default();
         for adt_def in map.adts() {

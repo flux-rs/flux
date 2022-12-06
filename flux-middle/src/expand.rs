@@ -307,11 +307,11 @@ fn defn_deps(defns: &Defns, expr: &Expr, res: &mut HashSet<Symbol>) {
         }
     }
 }
+
 /// Returns
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-
 fn sorted_defns(sess: &FluxSession, defns: &Defns) -> Result<Vec<Symbol>, ErrorGuaranteed> {
     // 1. Make the Symbol-Index
     let mut i2s: Vec<Symbol> = Vec::new();
