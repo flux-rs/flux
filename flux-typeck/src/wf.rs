@@ -69,7 +69,7 @@ impl<'a> Wf<'a> {
     }
 
     pub fn check_defn(&self, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&defn.args);
+        let env = Env::new(&defn.args.params);
         self.check_expr(&env, &defn.expr, &defn.sort)
     }
 

@@ -305,7 +305,7 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
-    pub args: Vec<RefineParam>,
+    pub args: RefinedBy,
     pub sort: Sort,
     pub expr: Expr,
 }

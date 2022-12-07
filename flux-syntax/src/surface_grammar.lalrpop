@@ -43,7 +43,7 @@ pub UifDef: surface::UifDef = {
 pub Defn: surface::Defn = {
     <lo:@L>
     <name:Ident>
-    "(" <args:Comma<RefineParam>> ")"
+    "(" <args:RefinedBy> ")"
     "->"
     <sort:Sort>
     "{"

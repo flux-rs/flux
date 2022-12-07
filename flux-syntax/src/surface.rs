@@ -19,7 +19,7 @@ pub struct Qualifier {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Ident,
-    pub args: Vec<RefineParam>,
+    pub args: RefinedBy,
     pub sort: Sort,
     pub expr: Expr,
     pub span: Span,

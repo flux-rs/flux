@@ -37,14 +37,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession, map: fhir::Map) -> Self {
         let check_asserts = CONFIG.check_asserts;
 
-        // HEREHEREHEREHERENORMALIZE
-
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
         for defn in map.defns() {
             let defn = rty::conv::conv_defn(defn);
             defns.insert(defn.name, defn);
         }
         let defns = Defns::new(defns);
+        let defns = match defns.normalize() {
+            Ok(defns) => defns,
+            Err(_) => panic!("cyclic defns"),
+        };
 
         let mut adt_defs = FxHashMap::default();
         for adt_def in map.adts() {

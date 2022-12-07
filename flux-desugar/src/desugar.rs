@@ -4,7 +4,7 @@ use std::{borrow::Borrow, iter};
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
-    fhir::{self},
+    fhir::{self, RefinedBy},
     intern::List,
 };
 use flux_syntax::surface::{self, Res, TyCtxt};
@@ -33,11 +33,12 @@ pub fn desugar_defn(
     map: &fhir::Map,
     defn: surface::Defn,
 ) -> Result<fhir::Defn, ErrorGuaranteed> {
-    let binders = Binders::from_params(sess, &defn.args)?;
+    let binders = Binders::from_params(sess, &defn.args.params)?;
     let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(defn.expr)?;
     let name = defn.name.name;
     let sort = resolve_sort(sess, &defn.sort)?;
-    Ok(fhir::Defn { name, args: binders.into_params(), sort, expr })
+    let args = RefinedBy { params: binders.into_params(), span: defn.args.span };
+    Ok(fhir::Defn { name, args, sort, expr })
 }
 
 fn sort_ident(sort: &surface::Sort) -> Result<surface::Ident, ErrorGuaranteed> {

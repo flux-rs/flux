@@ -60,7 +60,10 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
 }
 
 pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
-    todo!("HEREHEREHEREHEREHERENORMALIZE")
+    let mut name_map = NameMap::default();
+    let sorts = name_map.conv_refined_by(&defn.args);
+    let expr = Binders::new(name_map.conv_expr(&defn.expr, 1), sorts);
+    rty::Defn { name: defn.name, expr }
 }
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {

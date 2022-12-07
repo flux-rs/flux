@@ -5,12 +5,12 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    AdtDef, BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig, GenericArg, Invariant, KVar,
-    Name, Pred, RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
+    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
-    rty::{self, VariantDef},
+    rty::VariantDef,
 };
 
 pub trait TypeVisitor: Sized {

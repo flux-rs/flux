@@ -9,7 +9,7 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, sync::LazyLock};
+use std::{borrow::Cow, collections::HashSet, fmt, sync::LazyLock};
 
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -1075,8 +1075,47 @@ impl Defns {
         Defns { defns }
     }
 
+    // fn normalize(&self, defns: &Defns) -> Self {
+    //     struct Normalize<'a>(&'a Defns);
+
+    //     impl<'a> TypeFolder for Normalize<'a> {
+    //         fn fold_expr(&mut self, expr: &Expr) -> Expr {
+    //             if let ExprKind::App(f, args) = expr.kind() {
+    //                 let exp_args: List<Expr> =
+    //                     args.iter().map(|arg| arg.super_fold_with(self)).collect();
+    //                 self.0.app(f, exp_args)
+    //             } else {
+    //                 expr.super_fold_with(self)
+    //             }
+    //         }
+    //     }
+    //     self.fold_with(&mut Normalize(defns))
+    // }
+
+    fn defn_deps(&self, expr: Binders<Expr>) -> HashSet<Symbol> {
+        todo!("HEREHEREHERE use normalize style to implement defn_deps")
+    }
+    //     match &expr.kind {
+    //         ExprKind::Const(_, _) | ExprKind::Var(_, _, _) | ExprKind::Literal(_) => (),
+    //         ExprKind::BinaryOp(_, box [e1, e2]) => {
+    //             defn_deps(defns, e1, res);
+    //             defn_deps(defns, e2, res);
+    //         }
+    //         ExprKind::IfThenElse(box [e1, e2, e3]) => {
+    //             defn_deps(defns, e1, res);
+    //             defn_deps(defns, e2, res);
+    //             defn_deps(defns, e3, res);
+    //         }
+    //         ExprKind::App(f, es) => {
+    //             if let Some(defn) = func_defn(defns, f.clone()) {
+    //                 res.insert(defn.name);
+    //             }
+    //             es.iter().for_each(|e| defn_deps(defns, e, res));
+    //         }
+    //     }
+    // }
     // private function normalize (expand_defns) which does the SCC-expansion
-    fn normalize(/* defns */) -> Self {
+    pub fn normalize(&self) -> Result<Self, errors::DefinitionCycle> {
         todo!()
     }
 
@@ -1101,6 +1140,28 @@ impl Defns {
             Self::expand_defn(defn, args)
         } else {
             Expr::app(*func, args)
+        }
+    }
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use rustc_span::{Span, Symbol};
+
+    #[derive(Diagnostic)]
+    #[diag(expand::definition_cycle, code = "FLUX")]
+    pub struct DefinitionCycle {
+        #[primary_span]
+        #[label]
+        span: Span,
+        msg: String,
+    }
+
+    impl DefinitionCycle {
+        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
+            // let msg = format!("{} -> {}", cycle.join(" -> "), cycle[0]);
+            let msg = format!("{:?}", cycle);
+            Self { span, msg }
         }
     }
 }

@@ -16,7 +16,7 @@ use crate::fhir::{
 };
 
 /// Use the `Defns` to inline all the uses of `dfn` in the specs in `fhir::Map`.
-pub fn expand_fhir_map(
+pub fn _expand_fhir_map(
     sess: &FluxSession,
     mut map: fhir::Map,
 ) -> Result<fhir::Map, ErrorGuaranteed> {

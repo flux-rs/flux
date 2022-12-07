@@ -79,7 +79,6 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     // Do defn-expansion _after_ the WF check, so errors are given at user-specification level
     let map = build_fhir_map(tcx, sess, &mut specs)?;
     check_wf(sess, &map)?;
-    let map = flux_middle::expand::expand_fhir_map(sess, map)?;
 
     let mut genv = GlobalEnv::new(tcx, sess, map);
     // Assert behavior from Crate config
