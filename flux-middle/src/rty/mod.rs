@@ -1165,7 +1165,7 @@ impl Defns {
         defn.expr.replace_bound_vars(&args)
     }
 
-    // expand a particular app if there is a defn for it
+    // expand a particular app if there is a known defn for it
     pub fn app(&self, func: &Symbol, args: List<Expr>) -> Expr {
         if let Some(defn) = self.func_defn(func) {
             Self::expand_defn(defn, args)
