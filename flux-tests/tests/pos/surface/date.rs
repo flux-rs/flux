@@ -23,11 +23,7 @@ pub struct Date {
 }
 
 pub fn test() {
-    let _ok_date = Date {
-      day: 9,
-      month: 8,
-      year: 1977,
-    };
+    let _ok_date = Date { day: 9, month: 8, year: 1977 };
 }
 
 // TODO: Tedious to duplicate the definitions if you want to use them in rust code.

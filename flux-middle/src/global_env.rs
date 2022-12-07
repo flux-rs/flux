@@ -42,8 +42,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             let defn = rty::conv::conv_defn(defn);
             defns.insert(defn.name, defn);
         }
-        let defns = Defns::new(defns);
-        let defns = match defns.normalize() {
+        let defns = match Defns::new(defns) {
             Ok(defns) => defns,
             Err(_) => panic!("cyclic defns"),
         };
@@ -83,7 +82,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             let def_id = struct_def.def_id;
             let refined_by = &self.map().refined_by(struct_def.def_id).unwrap().params;
             let variant =
-                rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def);
+                rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
+                    .map(|v| v.normalize(&self.defns));
             let variants = variant.map(|variant_def| vec![variant_def]);
             self.adt_variants.get_mut().insert(def_id, variants);
         }
@@ -93,6 +93,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         for enum_def in self.map.enums() {
             let def_id = enum_def.def_id;
             if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
+                let variants = variants
+                    .into_iter()
+                    .map(|variant| variant.normalize(&self.defns))
+                    .collect_vec();
                 self.adt_variants.get_mut().insert(def_id, Some(variants));
             }
         }
