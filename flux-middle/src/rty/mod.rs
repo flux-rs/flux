@@ -22,7 +22,10 @@ pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy}
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
-use self::{fold::TypeFoldable, subst::BVarFolder};
+use self::{
+    fold::{TypeFoldable, TypeFolder, TypeVisitor},
+    subst::BVarFolder,
+};
 pub use crate::{
     fhir::{FuncSort, RefKind, Sort},
     rustc::ty::Const,
@@ -97,8 +100,8 @@ pub struct Qualifier {
 
 pub struct Defn {
     pub name: Symbol,
-    pub args: Vec<(Name, Sort)>,
-    pub expr: Expr,
+    // pub args: Vec<(Name, Sort)>,
+    pub expr: Binders<Expr>,
 }
 
 pub struct Defns {
@@ -382,6 +385,54 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
+    }
+}
+
+impl TypeFoldable for Qualifier {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        Qualifier {
+            name: self.name.clone(),
+            args: self.args.clone(),
+            expr: self.expr.fold_with(folder),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.expr.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for AdtDef {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        AdtDef(Interned::new(AdtDefData {
+            def_id: self.def_id(),
+            sorts: self.sorts().to_vec(),
+            flags: *self.flags(),
+            nvariants: self.0.nvariants,
+            opaque: self.0.opaque,
+            invariants: self
+                .invariants()
+                .iter()
+                .map(|inv| inv.fold_with(folder))
+                .collect_vec(),
+        }))
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.invariants()
+            .iter()
+            .for_each(|inv| inv.visit_with(visitor));
+    }
+}
+
+impl TypeFoldable for Invariant {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        let pred = self.pred.fold_with(folder);
+        Invariant { pred }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.pred.visit_with(visitor);
     }
 }
 
@@ -1020,17 +1071,36 @@ mod pretty {
 }
 
 impl Defns {
-    // private function normalize (expand_defns) which does the SCC-expansion
-    pub fn new(/* fhir-defn */) -> Self {
-        todo!()
+    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Self {
+        Defns { defns }
     }
 
+    // private function normalize (expand_defns) which does the SCC-expansion
     fn normalize(/* defns */) -> Self {
         todo!()
     }
 
+    fn func_defn(&self, f: &Symbol) -> Option<&Defn> {
+        if let Some(defn) = self.defns.get(f) {
+            return Some(defn);
+        }
+        None
+    }
+
+    fn expand_defn(defn: &Defn, args: List<Expr>) -> Expr {
+        let args = args
+            .iter()
+            .map(|e| RefineArg::Expr(e.clone()))
+            .collect_vec();
+        defn.expr.replace_bound_vars(&args)
+    }
+
     // expand a particular app if there is a defn for it
-    pub fn app(/* fn, args */) -> Expr {
-        todo!()
+    pub fn app(&self, func: &Symbol, args: List<Expr>) -> Expr {
+        if let Some(defn) = self.func_defn(func) {
+            Self::expand_defn(defn, args)
+        } else {
+            Expr::app(*func, args)
+        }
     }
 }
