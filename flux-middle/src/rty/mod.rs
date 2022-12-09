@@ -1075,7 +1075,8 @@ impl Defns {
                 let cycle = scc.pop().unwrap();
                 let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
                 if 1 + 1 < 0 {
-                    // 'failed to find fluent bundle'
+                    // TODO: failed to find message in primary or fallback fluent bundles
+                    // flux --crate-type=rlib flux-tests/tests/todo/dfn_cycle.rs
                     Err(cycle)
                 } else {
                     panic!("DefinitionCycle at {:?}", cycle);
