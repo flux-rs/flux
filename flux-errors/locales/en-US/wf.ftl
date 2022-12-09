@@ -32,3 +32,7 @@ wf_invalid_param_in_func_pos =
 wf_unexpected_fun =
     mismatched sorts
     .label = expected `{$sort}`, found function
+
+wf_definition_cycle =
+    cycle in definitions
+    .label = {$msg}

@@ -10,7 +10,6 @@ use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::{symbol::Ident, Symbol};
 
-use self::errors::DefinitionCycle;
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     fhir::{self, VariantIdx},
@@ -49,7 +48,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
         let defns = Defns::new(defns).map_err(|cycle| {
             let span = map.defn(cycle[0]).unwrap().expr.span;
-            sess.emit_err(DefinitionCycle::new(span, cycle))
+            sess.emit_err(errors::DefinitionCycle::new(span, cycle))
         })?;
 
         let mut adt_defs = FxHashMap::default();
@@ -329,7 +328,7 @@ mod errors {
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(expand::definition_cycle, code = "FLUX")]
+    #[diag(wf::definition_cycle, code = "FLUX")]
     pub struct DefinitionCycle {
         #[primary_span]
         #[label]
@@ -339,8 +338,9 @@ mod errors {
 
     impl DefinitionCycle {
         pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
-            // let msg = format!("{} -> {}", cycle.join(" -> "), cycle[0]);
-            let msg = format!("{:?}", cycle);
+            let root = format!("`{}`", cycle[0]);
+            let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s)).collect();
+            let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
         }
     }

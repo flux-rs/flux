@@ -30,7 +30,6 @@ fluent_messages! {
     resolver => "../locales/en-US/resolver.ftl",
     annot_check => "../locales/en-US/annot_check.ftl",
     desugar => "../locales/en-US/desugar.ftl",
-    expand => "../locales/en-US/expand.ftl",
     wf => "../locales/en-US/wf.ftl",
     invariants => "../locales/en-US/invariants.ftl",
     refineck => "../locales/en-US/refineck.ftl",
