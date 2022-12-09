@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::hash_map};
 
 use flux_common::config::{AssertBehavior, CONFIG};
-use flux_errors::FluxSession;
+use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::FxHashMap;
@@ -10,6 +10,7 @@ use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::{symbol::Ident, Symbol};
 
+use self::errors::DefinitionCycle;
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     fhir::{self, VariantIdx},
@@ -34,7 +35,11 @@ pub struct GlobalEnv<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession, map: fhir::Map) -> Self {
+    pub fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'genv FluxSession,
+        map: fhir::Map,
+    ) -> Result<Self, ErrorGuaranteed> {
         let check_asserts = CONFIG.check_asserts;
 
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
@@ -42,10 +47,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             let defn = rty::conv::conv_defn(defn);
             defns.insert(defn.name, defn);
         }
-        let defns = match Defns::new(defns) {
-            Ok(defns) => defns,
-            Err(_) => panic!("cyclic defns"), // TODO: fix with proper emit_err (funny missing ftl problem)
-        };
+        let defns = Defns::new(defns).map_err(|cycle| {
+            let span = map.defn(cycle[0]).unwrap().expr.span;
+            sess.emit_err(DefinitionCycle::new(span, cycle))
+        })?;
 
         let mut adt_defs = FxHashMap::default();
         for adt_def in map.adts() {
@@ -74,7 +79,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         genv.register_enum_def_variants();
         genv.register_fn_sigs();
 
-        genv
+        Ok(genv)
     }
 
     fn register_struct_def_variants(&mut self) {
@@ -315,6 +320,28 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),
             rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
+        }
+    }
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use rustc_span::{Span, Symbol};
+
+    #[derive(Diagnostic)]
+    #[diag(expand::definition_cycle, code = "FLUX")]
+    pub struct DefinitionCycle {
+        #[primary_span]
+        #[label]
+        span: Span,
+        msg: String,
+    }
+
+    impl DefinitionCycle {
+        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
+            // let msg = format!("{} -> {}", cycle.join(" -> "), cycle[0]);
+            let msg = format!("{:?}", cycle);
+            Self { span, msg }
         }
     }
 }

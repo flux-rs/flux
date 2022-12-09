@@ -19,12 +19,11 @@ use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, newtype_index};
 use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
-use rustc_span::{Span, Symbol};
+use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 use toposort_scc::IndexGraph;
 
 use self::{
-    errors::DefinitionCycle,
     fold::{TypeFoldable, TypeFolder},
     subst::BVarFolder,
 };
@@ -103,7 +102,6 @@ pub struct Qualifier {
 pub struct Defn {
     pub name: Symbol,
     pub expr: Binders<Expr>,
-    pub span: Span,
 }
 
 pub struct Defns {
@@ -1027,7 +1025,7 @@ mod pretty {
 }
 
 impl Defns {
-    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Result<Self, DefinitionCycle> {
+    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Result<Self, Vec<Symbol>> {
         let raw = Defns { defns };
         raw.normalize()
     }
@@ -1051,7 +1049,7 @@ impl Defns {
     /// * either Ok(d1...dn) which are topologically sorted such that
     ///   forall i < j, di does not depend on i.e. "call" dj
     /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-    fn sorted_defns(&self) -> Result<Vec<Symbol>, errors::DefinitionCycle> {
+    fn sorted_defns(&self) -> Result<Vec<Symbol>, Vec<Symbol>> {
         // 1. Make the Symbol-Index
         let mut i2s: Vec<Symbol> = Vec::new();
         let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
@@ -1076,19 +1074,18 @@ impl Defns {
             Err(mut scc) => {
                 let cycle = scc.pop().unwrap();
                 let cycle: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
-                let span = self.defns.get(&cycle[0]).unwrap().span;
                 if 1 + 1 < 0 {
                     // 'failed to find fluent bundle'
-                    Err(errors::DefinitionCycle::new(span, cycle))
+                    Err(cycle)
                 } else {
-                    panic!("DefinitionCycle at {:?} with {:?}", span, cycle);
+                    panic!("DefinitionCycle at {:?}", cycle);
                 }
             }
         }
     }
 
     // private function normalize (expand_defns) which does the SCC-expansion
-    fn normalize(mut self) -> Result<Self, errors::DefinitionCycle> {
+    fn normalize(mut self) -> Result<Self, Vec<Symbol>> {
         // 1. Topologically sort the Defns
         let ds = self.sorted_defns()?;
 
@@ -1124,28 +1121,6 @@ impl Defns {
             Self::expand_defn(defn, args)
         } else {
             Expr::app(*func, args)
-        }
-    }
-}
-
-mod errors {
-    use flux_macros::Diagnostic;
-    use rustc_span::{Span, Symbol};
-
-    #[derive(Diagnostic)]
-    #[diag(expand::definition_cycle, code = "FLUX")]
-    pub struct DefinitionCycle {
-        #[primary_span]
-        #[label]
-        span: Span,
-        msg: String,
-    }
-
-    impl DefinitionCycle {
-        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
-            // let msg = format!("{} -> {}", cycle.join(" -> "), cycle[0]);
-            let msg = format!("{:?}", cycle);
-            Self { span, msg }
         }
     }
 }
