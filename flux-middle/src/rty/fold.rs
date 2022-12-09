@@ -5,11 +5,12 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
-    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    AdtDef, AdtDefData, BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig, GenericArg,
+    Invariant, KVar, Name, Pred, Qualifier, RefineArg, RefineArgs, RefineArgsData, Sort, Ty,
+    TyKind, VariantRet,
 };
 use crate::{
-    intern::{Internable, List},
+    intern::{Internable, Interned, List},
     rty::VariantDef,
 };
 
@@ -555,5 +556,62 @@ where
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.iter().for_each(|t| t.visit_with(visitor));
+    }
+}
+
+impl TypeFoldable for Qualifier {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        Qualifier {
+            name: self.name.clone(),
+            args: self.args.clone(),
+            expr: self.expr.fold_with(folder),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.expr.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for AdtDef {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        AdtDef(Interned::new(AdtDefData {
+            def_id: self.def_id(),
+            sorts: self.sorts().to_vec(),
+            flags: *self.flags(),
+            nvariants: self.0.nvariants,
+            opaque: self.0.opaque,
+            invariants: self
+                .invariants()
+                .iter()
+                .map(|inv| inv.fold_with(folder))
+                .collect_vec(),
+        }))
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.invariants()
+            .iter()
+            .for_each(|inv| inv.visit_with(visitor));
+    }
+}
+impl TypeFoldable for Invariant {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        let pred = self.pred.fold_with(folder);
+        Invariant { pred }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.pred.visit_with(visitor);
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>, ret: VariantRet) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
     }
 }

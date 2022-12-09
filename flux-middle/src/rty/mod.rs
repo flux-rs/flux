@@ -25,7 +25,7 @@ use toposort_scc::IndexGraph;
 
 use self::{
     errors::DefinitionCycle,
-    fold::{TypeFoldable, TypeFolder, TypeVisitor},
+    fold::{TypeFoldable, TypeFolder},
     subst::BVarFolder,
 };
 pub use crate::{
@@ -102,7 +102,6 @@ pub struct Qualifier {
 
 pub struct Defn {
     pub name: Symbol,
-    // pub args: Vec<(Name, Sort)>,
     pub expr: Binders<Expr>,
     pub span: Span,
 }
@@ -388,64 +387,6 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
-    }
-}
-
-impl TypeFoldable for Qualifier {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Qualifier {
-            name: self.name.clone(),
-            args: self.args.clone(),
-            expr: self.expr.fold_with(folder),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.expr.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for AdtDef {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        AdtDef(Interned::new(AdtDefData {
-            def_id: self.def_id(),
-            sorts: self.sorts().to_vec(),
-            flags: *self.flags(),
-            nvariants: self.0.nvariants,
-            opaque: self.0.opaque,
-            invariants: self
-                .invariants()
-                .iter()
-                .map(|inv| inv.fold_with(folder))
-                .collect_vec(),
-        }))
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.invariants()
-            .iter()
-            .for_each(|inv| inv.visit_with(visitor));
-    }
-}
-
-impl TypeFoldable for Invariant {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let pred = self.pred.fold_with(folder);
-        Invariant { pred }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.pred.visit_with(visitor);
-    }
-}
-
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: VariantRet) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
-    }
-
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
     }
 }
 

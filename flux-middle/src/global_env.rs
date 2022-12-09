@@ -44,7 +44,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
         let defns = match Defns::new(defns) {
             Ok(defns) => defns,
-            Err(_) => panic!("cyclic defns"),
+            Err(_) => panic!("cyclic defns"), // TODO: fix with proper emit_err (funny missing ftl problem)
         };
 
         let mut adt_defs = FxHashMap::default();
