@@ -464,7 +464,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
             _ => None,
         }
-        .ok_or_else(|| format!("unsupportec constant `{constant:?}`"))
+        .ok_or_else(|| format!("unsupported constant `{constant:?}`"))
     }
 
     fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<&'static str> {

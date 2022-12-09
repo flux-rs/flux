@@ -141,7 +141,7 @@ pub enum TyKind {
     ///
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
-    Discr(Place),
+    Discr(AdtDef, Place),
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -381,6 +381,10 @@ impl AdtDef {
         (0..self.0.nvariants).map(VariantIdx::from)
     }
 
+    pub fn nvariants(&self) -> usize {
+        self.0.nvariants
+    }
+
     pub fn invariants(&self) -> &[Invariant] {
         &self.0.invariants
     }
@@ -471,8 +475,8 @@ impl Ty {
         TyKind::Never.intern()
     }
 
-    pub fn discr(place: Place) -> Ty {
-        TyKind::Discr(place).intern()
+    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
+        TyKind::Discr(adt_def, place).intern()
     }
 
     pub fn is_box(&self) -> bool {
@@ -514,11 +518,19 @@ impl TyS {
         &self.kind
     }
 
-    pub fn expect_discr(&self) -> &Place {
-        if let TyKind::Discr(place) = self.kind() {
-            place
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
         } else {
             panic!("expected discr")
+        }
+    }
+
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &RefineArgs) {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
+            (adt_def, substs, idxs)
+        } else {
+            panic!("expected adt")
         }
     }
 
@@ -858,7 +870,7 @@ mod pretty {
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Never => w!("!"),
-                TyKind::Discr(place) => w!("discr({:?})", ^place),
+                TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => w!("{{ {:?} : {:?} }}", ty, pred),
             }
         }
