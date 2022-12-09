@@ -61,6 +61,13 @@ pub(crate) struct ConstSig {
     pub val: i128,
 }
 
+macro_rules! attr_name {
+    ($kind:ident) => {{
+        let _ = FluxAttrKind::$kind;
+        stringify!($kind)
+    }};
+}
+
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     pub(crate) fn collect(
         tcx: TyCtxt<'tcx>,
@@ -218,7 +225,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let fields = data
             .fields()
             .iter()
-            .map(|field| self.parse_field_spec(self.tcx.hir().attrs(field.hir_id)))
+            .map(|field| self.parse_field_spec(field, opaque))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
@@ -255,10 +262,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_field_spec(
         &mut self,
-        attrs: &[Attribute],
+        field: &rustc_hir::FieldDef,
+        opaque: bool,
     ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
+        let attrs = self.tcx.hir().attrs(field.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
+        if opaque && let Some(span) = attrs.contains(attr_name!(Field)) {
+            return Err(self.emit_err(errors::AttrOnOpaque::new(span, field)))
+        }
         Ok(attrs.field())
     }
 
@@ -438,13 +450,6 @@ enum FluxAttrKind {
     Ignore,
 }
 
-macro_rules! attr_name {
-    ($kind:ident) => {{
-        let _ = FluxAttrKind::$kind;
-        stringify!($kind)
-    }};
-}
-
 macro_rules! read_flag {
     ($self:expr, $kind:ident) => {{
         $self.map.get(attr_name!($kind)).is_some()
@@ -541,6 +546,15 @@ impl FluxAttrs {
 
     fn invariants(&mut self) -> Vec<surface::Expr> {
         read_attrs!(self, Invariant)
+    }
+
+    fn contains(&self, attr: &str) -> Option<Span> {
+        self.map.get(attr).and_then(|attrs| {
+            match &attrs[..] {
+                [attr] => Some(attr.span),
+                _ => None,
+            }
+        })
     }
 }
 
@@ -717,6 +731,22 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(parse::attr_on_opaque, code = "FLUX")]
+    pub(super) struct AttrOnOpaque {
+        #[primary_span]
+        span: Span,
+        #[label]
+        field_span: Span,
+    }
+
+    impl AttrOnOpaque {
+        pub(super) fn new(span: Span, field: &rustc_hir::FieldDef) -> Self {
+            let field_span = field.ident.span;
+            Self { span, field_span }
+        }
     }
 
     impl From<flux_syntax::ParseError> for SyntaxErr {

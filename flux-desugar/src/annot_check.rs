@@ -19,6 +19,10 @@ pub fn check_struct_def(
     struct_def: &StructDef<Res>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = struct_def.def_id.to_def_id();
+    // Opaque struct can't have field annotations so skip them
+    if struct_def.opaque {
+        return Ok(());
+    }
     let rust_adt_def = lowering::lower_adt_def(tcx, sess, tcx.adt_def(def_id))?;
     let rust_variant_def = &rust_adt_def.variants[0];
     iter::zip(&struct_def.fields, rust_variant_def.fields()).try_for_each_exhaust(
