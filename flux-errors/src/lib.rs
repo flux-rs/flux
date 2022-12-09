@@ -123,6 +123,7 @@ fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter
 }
 
 pub trait ResultExt<T, E> {
+    #[track_caller]
     fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
     where
         E: IntoDiagnostic<'a>;

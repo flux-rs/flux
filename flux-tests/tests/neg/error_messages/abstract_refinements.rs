@@ -29,3 +29,13 @@ fn test03(x: S) {}
 
 #[flux::sig(fn(S[|a| a]))] //~ ERROR mismatched sorts
 fn test04(x: S) {}
+
+#[flux::sig(fn(S[@p]) -> S[|x| p(x) || x == 0])] //~ ERROR illegal use of refinement parameter
+fn test05(x: S) -> S {
+    todo!()
+}
+
+#[flux::sig(fn(S[@p]) -> bool[p(0)])] //~ ERROR illegal use of refinement parameter
+fn test06(x: S) -> bool {
+    todo!()
+}
