@@ -3,7 +3,8 @@
 
 #[macro_export]
 macro_rules! rvec {
-    ($($e:expr),*) => {
+    () => { RVec::new() };
+    ($($e:expr),+) => {
        { let mut res = RVec::new();
          $( res.push($e); )*
          res }
