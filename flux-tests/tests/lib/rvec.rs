@@ -2,8 +2,8 @@
 
 #[macro_export]
 macro_rules! rvec {
-    ($($e:expr),*$(,)?) => {{
-        #[allow(unused_mut)]
+    () => { RVec::new() };
+    ($($e:expr),+$(,)?) => {{
         let mut res = RVec::new();
         $( res.push($e); )*
         res
