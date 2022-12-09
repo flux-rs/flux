@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_mut)]
 
 #[macro_export]
 macro_rules! rvec {

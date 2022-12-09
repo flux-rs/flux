@@ -5,10 +5,10 @@
 mod rvec;
 use rvec::RVec;
 
-#[flux::sig(fn() -> RVec<i32>[1])]
+#[flux::sig(fn() -> RVec<i32>[0])]
 pub fn vec_empty() -> RVec<i32> {
-    let mut mv = rvec![];
-    mv.push(1);
+    #[allow(unused_mut)]
+    let mv = rvec![];
     mv
 }
 
