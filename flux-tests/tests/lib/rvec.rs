@@ -2,12 +2,11 @@
 
 #[macro_export]
 macro_rules! rvec {
-    ($($e:expr),+) => {
+    ($($e:expr),*) => {
        { let mut res = RVec::new();
-         $( res.push($e); )+
+         $( res.push($e); )*
          res }
     }
-
 }
 
 #[flux::opaque]
