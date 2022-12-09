@@ -23,17 +23,17 @@ use rustc_session::{
 };
 use rustc_span::source_map::SourceMap;
 
-// These are sorted loosily following the order of the pipeline except for lowering which doesn't
+// These are sorted loosely following the order of the pipeline except for lowering which doesn't
 // quite fit this ordering.
 fluent_messages! {
     parse => "../locales/en-US/parse.ftl",
     resolver => "../locales/en-US/resolver.ftl",
     annot_check => "../locales/en-US/annot_check.ftl",
     desugar => "../locales/en-US/desugar.ftl",
+    expand => "../locales/en-US/expand.ftl",
     wf => "../locales/en-US/wf.ftl",
     invariants => "../locales/en-US/invariants.ftl",
     refineck => "../locales/en-US/refineck.ftl",
-
     lowering => "../locales/en-US/lowering.ftl",
 }
 

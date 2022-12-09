@@ -76,6 +76,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         return Ok(());
     }
 
+    // Do defn-expansion _after_ the WF check, so errors are given at user-specification level
     let map = build_fhir_map(tcx, sess, &mut specs)?;
     check_wf(sess, &map)?;
 
@@ -210,6 +211,19 @@ fn build_fhir_map(
         .err()
         .or(err);
 
+    // Register Defns as UIFs for sort-checking
+    err = specs
+        .dfns
+        .iter()
+        .try_for_each_exhaust(|defn| {
+            let name = defn.name;
+            let defn_uif = desugar::resolve_defn_uif(sess, defn)?;
+            map.insert_uif(name.name, defn_uif);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
     // Register AdtDefs
     err = specs
         .structs
@@ -255,6 +269,18 @@ fn build_fhir_map(
     if let Some(err) = err {
         return Err(err);
     }
+
+    // Register Defns
+    err = std::mem::take(&mut specs.dfns)
+        .into_iter()
+        .try_for_each_exhaust(|defn| {
+            let name = defn.name;
+            let defn = desugar::desugar_defn(tcx, sess, &map, defn)?;
+            map.insert_defn(name.name, defn);
+            Ok(())
+        })
+        .err()
+        .or(err);
 
     // Qualifiers
     err = std::mem::take(&mut specs.qualifs)
@@ -315,6 +341,10 @@ fn check_wf(sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> 
     let wf = Wf::new(sess, map);
 
     let mut err: Option<ErrorGuaranteed> = None;
+
+    for defn in map.defns() {
+        err = wf.check_defn(defn).err().or(err);
+    }
 
     for adt_def in map.adts() {
         err = wf.check_adt_def(adt_def).err().or(err);

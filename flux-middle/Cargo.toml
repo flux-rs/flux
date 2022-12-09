@@ -12,6 +12,7 @@ flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }
 flux-macros = { path = "../flux-macros" }
 itertools = "0.10"
+toposort-scc = "0.5.4"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

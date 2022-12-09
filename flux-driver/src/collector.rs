@@ -6,7 +6,7 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    parse_defn, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
     parse_type_alias, parse_uif_def, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
@@ -43,6 +43,7 @@ pub(crate) struct Specs {
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub uifs: Vec<surface::UifDef>,
+    pub dfns: Vec<surface::Defn>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
@@ -244,6 +245,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut uif_defs = attrs.uif_defs();
         self.specs.uifs.append(&mut uif_defs);
 
+        let mut dfns = attrs.defns();
+        self.specs.dfns.append(&mut dfns);
+
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
         Ok(())
@@ -308,7 +312,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
-            ("uf", MacArgs::Delimited(span, _, tokens)) => {
+            ("dfn", MacArgs::Delimited(span, _, tokens)) => {
+                let defn = self.parse(tokens.clone(), span.entire(), parse_defn)?;
+                FluxAttrKind::Defn(defn)
+            }
+            ("ufn", MacArgs::Delimited(span, _, tokens)) => {
                 let uif_def = self.parse(tokens.clone(), span.entire(), parse_uif_def)?;
                 FluxAttrKind::UifDef(uif_def)
             }
@@ -392,6 +400,7 @@ impl Specs {
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
             uifs: Vec::default(),
+            dfns: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
@@ -418,6 +427,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
     Qualifier(surface::Qualifier),
+    Defn(surface::Defn),
     UifDef(surface::UifDef),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
@@ -505,6 +515,10 @@ impl FluxAttrs {
         read_attrs!(self, UifDef)
     }
 
+    fn defns(&mut self) -> Vec<surface::Defn> {
+        read_attrs!(self, Defn)
+    }
+
     fn alias(&mut self) -> Option<surface::Alias> {
         read_attr!(self, TypeAlias)
     }
@@ -539,6 +553,7 @@ impl FluxAttrKind {
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
+            FluxAttrKind::Defn(_) => attr_name!(Defn),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),

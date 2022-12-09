@@ -5,8 +5,8 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    BaseTy, Binders, Constraint, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred, RefineArg,
-    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig, GenericArg, KVar, Name, Pred,
+    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, List},
@@ -51,6 +51,23 @@ pub trait TypeFoldable: Sized {
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.super_visit_with(visitor);
+    }
+
+    fn normalize(&self, defns: &Defns) -> Self {
+        struct Normalize<'a>(&'a Defns);
+
+        impl<'a> TypeFolder for Normalize<'a> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::App(f, args) = expr.kind() {
+                    let exp_args: List<Expr> =
+                        args.iter().map(|arg| arg.super_fold_with(self)).collect();
+                    self.0.app(f, exp_args)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut Normalize(defns))
     }
 
     /// Returns the set of all free variables.
