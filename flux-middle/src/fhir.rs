@@ -287,7 +287,7 @@ pub struct AdtDef {
     pub refined_by: RefinedBy,
     pub invariants: Vec<Expr>,
     pub opaque: bool,
-    pub(crate) sorts: Vec<Sort>,
+    sorts: Vec<Sort>,
 }
 
 #[derive(Debug)]
