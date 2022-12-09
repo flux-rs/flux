@@ -274,12 +274,16 @@ impl<'a> Wf<'a> {
                 if found != expected {
                     return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
                 }
-                self.check_param_uses(env, expr, false)
+                if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {
+                    self.check_param_uses(env, expr, false)?;
+                }
+                Ok(())
             }
             fhir::RefineArg::Abs(params, body, span) => {
                 if let fhir::Sort::Func(fsort) = expected {
                     env.with_binders(params, fsort.inputs(), |env| {
-                        self.check_expr(env, body, fsort.output())
+                        self.check_expr(env, body, fsort.output())?;
+                        self.check_param_uses(env, body, true)
                     })
                 } else {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))

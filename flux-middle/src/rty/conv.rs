@@ -311,8 +311,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let abs = self
                     .name_map
                     .with_binders(params, nbinders, |name_map, nbinders| {
-                        let body = name_map.conv_expr(body, nbinders);
-                        rty::Binders::new(rty::Pred::Expr(body), fsort.inputs())
+                        let pred = name_map.conv_pred(body, nbinders);
+                        rty::Binders::new(pred, fsort.inputs())
                     });
                 rty::RefineArg::Abs(abs)
             }

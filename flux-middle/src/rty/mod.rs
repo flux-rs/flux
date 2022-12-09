@@ -982,7 +982,11 @@ mod pretty {
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    if self.scope.is_empty() {
+                        w!("({:?})", join!(", ", &self.args))?;
+                    } else {
+                        w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    }
                 }
                 KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
                 KVarArgs::Hide => {}

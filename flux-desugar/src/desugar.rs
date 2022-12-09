@@ -539,9 +539,14 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             match b {
                 Binder::Single(name, sort) => return Ok(FuncRes::Param(*name, sort)),
                 Binder::Aggregate(_, fields) => {
-                    return Err(self
-                        .sess
-                        .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())))
+                    if fields.len() == 1 {
+                        let (name, sort) = fields.values().next().unwrap();
+                        return Ok(FuncRes::Param(*name, sort));
+                    } else {
+                        return Err(self
+                            .sess
+                            .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())));
+                    }
                 }
                 Binder::Unrefined => {
                     let def_ident = self.binders.def_ident(func).unwrap();
@@ -1020,6 +1025,7 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
         surface::BinOp::Or => fhir::BinOp::Or,
         surface::BinOp::And => fhir::BinOp::And,
         surface::BinOp::Eq => fhir::BinOp::Eq,
+        surface::BinOp::Ne => fhir::BinOp::Ne,
         surface::BinOp::Gt => fhir::BinOp::Gt,
         surface::BinOp::Ge => fhir::BinOp::Ge,
         surface::BinOp::Lt => fhir::BinOp::Lt,
