@@ -1,14 +1,13 @@
 #![allow(dead_code)]
-#![allow(unused_mut)]
 
 #[macro_export]
 macro_rules! rvec {
-    () => { RVec::new() };
-    ($($e:expr),+) => {
-       { let mut res = RVec::new();
-         $( res.push($e); )*
-         res }
-    }
+    ($($e:expr),*$(,)?) => {{
+        #[allow(unused_mut)]
+        let mut res = RVec::new();
+        $( res.push($e); )*
+        res
+    }}
 }
 
 #[flux::opaque]
