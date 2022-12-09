@@ -80,7 +80,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     let map = build_fhir_map(tcx, sess, &mut specs)?;
     check_wf(sess, &map)?;
 
-    let mut genv = GlobalEnv::new(tcx, sess, map);
+    let mut genv = GlobalEnv::new(tcx, sess, map)?;
     // Assert behavior from Crate config
     // TODO(atgeller) rest of settings from crate config
     if let Some(crate_config) = specs.crate_config {
