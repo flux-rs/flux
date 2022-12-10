@@ -35,7 +35,12 @@ fn test05(x: S) -> S {
     todo!()
 }
 
+// It should be possible to accept `p` in `bool[p(0)]` but it requires some refactoring.
+// In the meantime we explicitly test against it.
 #[flux::sig(fn(S[@p]) -> bool[p(0)])] //~ ERROR illegal use of refinement parameter
 fn test06(x: S) -> bool {
     todo!()
 }
+
+#[flux::sig(fn(S[|x, y| true]))] //~ ERROR parameter count mismatch
+fn test07(x: S) {}
