@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod rslice;
+
 #[macro_export]
 macro_rules! rvec {
     () => { RVec::new() };
