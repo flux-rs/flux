@@ -201,7 +201,7 @@ impl<'a> Wf<'a> {
             fhir::Ty::Exists(bty, binders, pred) => {
                 let sorts = self.sorts(bty);
                 if binders.len() != sorts.len() {
-                    return self.emit_err(errors::ParamCountMismatch::new(
+                    return self.emit_err(errors::ArgCountMismatch::new(
                         None,
                         String::from("type"),
                         sorts.len(),
@@ -250,7 +250,7 @@ impl<'a> Wf<'a> {
         expected: &'a [fhir::Sort],
     ) -> Result<(), ErrorGuaranteed> {
         if expected.len() != indices.indices.len() {
-            return self.emit_err(errors::ParamCountMismatch::new(
+            return self.emit_err(errors::ArgCountMismatch::new(
                 Some(indices.span),
                 String::from("type"),
                 expected.len(),
@@ -281,6 +281,13 @@ impl<'a> Wf<'a> {
             }
             fhir::RefineArg::Abs(params, body, span) => {
                 if let fhir::Sort::Func(fsort) = expected {
+                    if params.len() != fsort.inputs().len() {
+                        return self.emit_err(errors::ParamCountMismatch::new(
+                            *span,
+                            fsort.inputs().len(),
+                            params.len(),
+                        ));
+                    }
                     env.with_binders(params, fsort.inputs(), |env| {
                         self.check_expr(env, body, fsort.output())?;
                         self.check_param_uses(env, body, true)
@@ -296,8 +303,6 @@ impl<'a> Wf<'a> {
         self.check_expr(env, expr, &fhir::Sort::Bool)?;
         self.check_param_uses(env, expr, true)
     }
-
-    // fn check_abs(&self, env: &Env, arg: &)
 
     fn check_expr(
         &self,
@@ -395,7 +400,7 @@ impl<'a> Wf<'a> {
     ) -> Result<&fhir::Sort, ErrorGuaranteed> {
         let fsort = self.synth_func(env, func)?;
         if args.len() != fsort.inputs().len() {
-            return self.emit_err(errors::ParamCountMismatch::new(
+            return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
                 String::from("function"),
                 fsort.inputs().len(),
@@ -501,8 +506,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::param_count_mismatch, code = "FLUX")]
-    pub(super) struct ParamCountMismatch {
+    #[diag(wf::arg_count_mismatch, code = "FLUX")]
+    pub(super) struct ArgCountMismatch {
         #[primary_span]
         #[label]
         span: Option<Span>,
@@ -511,7 +516,7 @@ mod errors {
         thing: String,
     }
 
-    impl ParamCountMismatch {
+    impl ArgCountMismatch {
         pub(super) fn new(
             span: Option<Span>,
             thing: String,
@@ -591,6 +596,22 @@ mod errors {
     impl<'a> UnexpectedFun<'a> {
         pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
             Self { span, sort }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::param_count_mismatch, code = "FLUX")]
+    pub(super) struct ParamCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        expected: usize,
+        found: usize,
+    }
+
+    impl ParamCountMismatch {
+        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
+            Self { span, expected, found }
         }
     }
 }

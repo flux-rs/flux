@@ -2,7 +2,7 @@ wf_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
 
-wf_param_count_mismatch =
+wf_arg_count_mismatch =
     this {$thing} takes {$expected} refinement parameters but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
@@ -36,3 +36,13 @@ wf_unexpected_fun =
 wf_definition_cycle =
     cycle in definitions
     .label = {$msg}
+
+wf_param_count_mismatch =
+    parameter count mismatch
+    .label = this function has {$found ->
+        [one] {$found} parameter
+        *[other] {$found} parameters
+    }, but a function with {$expected ->
+        [one] {$expected} parameter
+        *[other] {$expected} parameters
+    } was expected
