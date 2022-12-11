@@ -140,7 +140,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for constr in fn_sig.requires() {
             match constr {
                 Constraint::Type(path, ty) => {
-                    requires.insert(path.to_loc().unwrap(), ty);
+                    requires.insert(path.clone(), ty);
                 }
                 Constraint::Pred(pred) => {
                     infcx.check_pred(rcx, pred);
@@ -154,7 +154,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2)) => {
-                    let bound = requires[&path2.to_loc().unwrap()];
+                    let bound = requires[path2];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
