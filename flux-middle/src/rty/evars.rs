@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 use flux_common::index::IndexVec;
+use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_index::newtype_index;
 
@@ -10,12 +11,12 @@ static NEXT_CTXT_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Default)]
 pub struct EVarGen {
-    evars: FxHashMap<CtxtId, IndexVec<EVid, EVarEntry>>,
+    evars: FxHashMap<CtxtId, IndexVec<EVid, EVarState>>,
 }
 
 #[derive(Debug)]
 pub struct EVarSol {
-    evars: FxHashMap<CtxtId, IndexVec<EVid, EVarEntry>>,
+    evars: FxHashMap<CtxtId, IndexVec<EVid, Expr>>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -25,9 +26,14 @@ pub struct EVar {
 }
 
 #[derive(Debug)]
-enum EVarEntry {
-    Unresolved,
-    Resolved(Expr),
+pub struct UnsolvedEvar {
+    pub evar: EVar,
+}
+
+#[derive(Debug)]
+enum EVarState {
+    Unsolved,
+    Unified(Expr),
 }
 
 newtype_index! {
@@ -55,34 +61,42 @@ impl EVarGen {
     }
 
     pub fn fresh_in_cx(&mut self, cx: CtxtId) -> EVar {
-        let evid = self.evars.get_mut(&cx).unwrap().push(EVarEntry::Unresolved);
+        let evid = self.evars.get_mut(&cx).unwrap().push(EVarState::Unsolved);
         EVar { id: evid, cx }
     }
 
     pub fn unify(&mut self, evar: EVar, expr: impl Into<Expr>, replace: bool) {
         let evars = self.evars.get_mut(&evar.cx).unwrap();
-        if matches!(evars[evar.id], EVarEntry::Unresolved) || replace {
-            evars[evar.id] = EVarEntry::Resolved(expr.into());
+        if matches!(evars[evar.id], EVarState::Unsolved) || replace {
+            evars[evar.id] = EVarState::Unified(expr.into());
         }
     }
 
-    pub fn solve(&mut self, cx: CtxtId) -> Option<EVarSol> {
-        let mut evars = FxHashMap::default();
-        evars.insert(cx, self.evars.remove(&cx)?);
-        Some(EVarSol { evars })
+    pub fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
+        let evars = self
+            .evars
+            .into_iter()
+            .map(|(cx, evars)| {
+                let evars = evars
+                    .into_iter_enumerated()
+                    .map(|(id, state)| {
+                        match state {
+                            EVarState::Unsolved => Err(UnsolvedEvar { evar: EVar { cx, id } }),
+                            EVarState::Unified(e) => Ok(e),
+                        }
+                    })
+                    .try_collect()?;
+                Ok((cx, evars))
+            })
+            .try_collect()?;
+
+        Ok(EVarSol { evars })
     }
 }
 
 impl EVarSol {
     pub(crate) fn get(&self, evar: EVar) -> Option<&Expr> {
-        match &self.evars.get(&evar.cx())?[evar.id] {
-            EVarEntry::Resolved(e) => Some(e),
-            EVarEntry::Unresolved => None,
-        }
-    }
-
-    pub fn extend(&mut self, other: Self) {
-        self.evars.extend(other.evars)
+        Some(&self.evars.get(&evar.cx())?[evar.id])
     }
 }
 

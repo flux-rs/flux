@@ -1108,6 +1108,7 @@ pub(crate) mod errors {
     use flux_middle::{
         global_env::{OpaqueStructErr, UnsupportedFnSig},
         pretty,
+        rty::evars::UnsolvedEvar,
     };
     use rustc_errors::IntoDiagnostic;
     use rustc_hir::def_id::DefId;
@@ -1175,6 +1176,12 @@ pub(crate) mod errors {
                 }
             }
             builder
+        }
+    }
+
+    impl From<UnsolvedEvar> for CheckerError {
+        fn from(_: UnsolvedEvar) -> Self {
+            CheckerError { kind: CheckerErrKind::Inference, span: None }
         }
     }
 

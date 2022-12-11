@@ -4,10 +4,11 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
     rty::{
-        evars::{self, EVarSol},
+        evars::{self, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Constraint, Constraints, EVarGen, Expr, ExprKind, GenericArg, Path, PolySig,
-        PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var, VariantRet,
+        BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
+        Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
+        VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -18,7 +19,6 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerError,
     fixpoint::{KVarEncoding, KVarGen},
-    param_infer::InferenceError,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
     type_env::{PathMap, TypeEnv},
 };
@@ -122,15 +122,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             })
             .collect_vec();
 
-        // Replace holes with fresh kvars in generic arguments
+        let mut infcx = self.infcx(rcx);
+
+        // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| {
-                arg.replace_holes(&mut |sorts| self.kvar_gen.fresh(sorts, KVarEncoding::Conj))
-            })
+            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
-
-        let mut infcx = self.infcx(rcx);
 
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
@@ -156,8 +154,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2)) => {
-                    let loc = path2.to_loc().unwrap();
-                    let bound = requires[&loc];
+                    let bound = requires[&path2.to_loc().unwrap()];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
@@ -175,7 +172,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
 
         // Replace evars
-        let evars_sol = infcx.solve();
+        let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
         let ret = fn_sig.ret().replace_evars(&evars_sol);
@@ -190,16 +187,16 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         variant: &PolyVariant,
         substs: &[GenericArg],
         fields: &[Ty],
-    ) -> Result<VariantRet, InferenceError> {
-        // Generate fresh kvars for generic types
+    ) -> Result<VariantRet, UnsolvedEvar> {
+        let mut infcx = self.infcx(rcx);
+
+        // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| {
-                arg.replace_holes(&mut |sorts| self.kvar_gen.fresh(sorts, KVarEncoding::Conj))
-            })
+            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
-        let mut infcx = self.infcx(rcx);
+        // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .replace_generic_args(&substs)
             .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
@@ -209,7 +206,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             infcx.subtyping(rcx, actual, formal);
         }
 
-        let evars_sol = infcx.solve();
+        // Replace evars
+        let evars_sol = infcx.solve()?;
         rcx.replace_evars(&evars_sol);
 
         Ok(variant.ret.replace_evars(&evars_sol))
@@ -233,11 +231,19 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Self { genv, kvar_gen, scope, evar_gen, evars_cx, tag }
     }
 
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Pred> {
+        self.kvar_gen.fresh(sorts, encoding)
+    }
+
+    fn fresh_evar(&mut self) -> EVar {
+        self.evar_gen.fresh_in_cx(self.evars_cx)
+    }
+
     fn fresh_evar_or_kvar(&mut self, sort: &Sort) -> RefineArg {
         if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-            RefineArg::Abs(self.kvar_gen.fresh(fsort.inputs(), KVarEncoding::Single))
+            RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
         } else {
-            RefineArg::Expr(Expr::evar(self.evar_gen.fresh_in_cx(self.evars_cx)))
+            RefineArg::Expr(Expr::evar(self.fresh_evar()))
         }
     }
 
@@ -461,8 +467,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn solve(mut self) -> EVarSol {
-        self.evar_gen.solve(self.evars_cx).unwrap()
+    fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
+        self.evar_gen.solve()
     }
 }
 
