@@ -708,6 +708,10 @@ impl KVar {
     pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
         KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
     }
+
+    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
+        self.args.iter().chain(&self.scope)
+    }
 }
 
 #[track_caller]

@@ -27,17 +27,24 @@ newtype_index! {
 
 #[derive(Default)]
 pub struct KVarStore {
-    kvars: IndexVec<rty::KVid, KVarSorts>,
+    kvars: IndexVec<rty::KVid, KVarDecl>,
 }
 
 #[derive(Clone)]
-struct KVarSorts {
+struct KVarDecl {
     args: Vec<rty::Sort>,
     scope: Vec<rty::Sort>,
+    encoding: KVarEncoding,
+}
+
+#[derive(Clone, Copy)]
+pub enum KVarEncoding {
+    Single,
+    Conj,
 }
 
 pub trait KVarGen {
-    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
+    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S, kind: KVarEncoding) -> Binders<rty::Pred>
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>;
 
@@ -232,24 +239,21 @@ where
     ) -> fixpoint::Pred {
         self.populate_kvid_map(kvar.kvid);
 
-        let sorts = self.kvars.get(kvar.kvid);
+        let decl = self.kvars.get(kvar.kvid);
 
-        let mut scope = iter::zip(&kvar.scope, &sorts.scope)
+        let all_args = iter::zip(kvar.all_args(), decl.all_args())
             .map(|(arg, sort)| self.imm(arg, sort, bindings))
             .collect_vec();
 
         let kvids = &self.kvid_map[&kvar.kvid];
-        let mut kvars = vec![];
-        for (kvid, arg, sort) in itertools::izip!(kvids, &kvar.args, &sorts.args) {
-            let arg = self.imm(arg, sort, bindings);
-
-            let mut args = vec![arg];
-            args.extend(scope.iter().copied());
-
-            kvars.push(fixpoint::Pred::KVar(*kvid, args));
-
-            scope.push(arg);
-        }
+        let kvars = kvids
+            .iter()
+            .enumerate()
+            .map(|(i, kvid)| {
+                let args = all_args.iter().skip(kvids.len() - i - 1).copied().collect();
+                fixpoint::Pred::KVar(*kvid, args)
+            })
+            .collect_vec();
 
         fixpoint::Pred::And(kvars)
     }
@@ -285,25 +289,27 @@ where
 
     fn populate_kvid_map(&mut self, kvid: rty::KVid) {
         self.kvid_map.entry(kvid).or_insert_with(|| {
-            let sorts = self.kvars.get(kvid);
+            let decl = self.kvars.get(kvid);
 
-            let mut scope = sorts.scope.iter().map(sort_to_fixpoint).collect_vec();
-
-            let mut kvids = vec![];
-            for sort in &sorts.args {
-                let sort = sort_to_fixpoint(sort);
-
-                let kvid = self.fixpoint_kvars.push({
-                    let mut sorts = vec![sort.clone()];
-                    sorts.extend(scope.iter().cloned());
-                    sorts
-                });
-                kvids.push(kvid);
-
-                scope.push(sort);
+            let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
+            match decl.encoding {
+                KVarEncoding::Single => {
+                    let kvid = self.fixpoint_kvars.push(all_args);
+                    vec![kvid]
+                }
+                KVarEncoding::Conj => {
+                    (0..decl.args.len())
+                        .map(|i| {
+                            let sorts = all_args
+                                .iter()
+                                .skip(decl.args.len() - i - 1)
+                                .cloned()
+                                .collect();
+                            self.fixpoint_kvars.push(sorts)
+                        })
+                        .collect_vec()
+                }
             }
-
-            kvids
         });
     }
 }
@@ -322,16 +328,27 @@ fn fixpoint_const_map(
         .collect()
 }
 
+impl KVarDecl {
+    fn all_args(&self) -> impl Iterator<Item = &fhir::Sort> {
+        self.args.iter().chain(&self.scope)
+    }
+}
+
 impl KVarStore {
     pub fn new() -> Self {
         Self { kvars: IndexVec::new() }
     }
 
-    fn get(&self, kvid: rty::KVid) -> &KVarSorts {
+    fn get(&self, kvid: rty::KVid) -> &KVarDecl {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
+    pub fn fresh<S>(
+        &mut self,
+        sorts: &[rty::Sort],
+        scope: S,
+        encoding: KVarEncoding,
+    ) -> Binders<rty::Pred>
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
@@ -348,20 +365,22 @@ impl KVarStore {
             .map(|idx| rty::Expr::bvar(BoundVar::innermost(idx)))
             .collect_vec();
 
-        let kvid = self
-            .kvars
-            .push(KVarSorts { args: sorts.to_vec(), scope: scope_sorts.clone() });
+        let kvid = self.kvars.push(KVarDecl {
+            args: sorts.to_vec(),
+            scope: scope_sorts.clone(),
+            encoding,
+        });
 
         Binders::new(rty::Pred::Kvar(rty::KVar::new(kvid, args, scope_exprs.clone())), sorts)
     }
 }
 
 impl KVarGen for KVarStore {
-    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
+    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S, kind: KVarEncoding) -> Binders<rty::Pred>
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        KVarStore::fresh(self, sorts, scope)
+        KVarStore::fresh(self, sorts, scope, kind)
     }
 }
 
@@ -369,11 +388,12 @@ impl<G> KVarGen for KVarGenScopeChain<'_, G>
 where
     G: KVarGen,
 {
-    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S) -> Binders<rty::Pred>
+    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S, kind: KVarEncoding) -> Binders<rty::Pred>
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        self.kvar_gen.fresh(sorts, self.scope.iter().chain(scope))
+        self.kvar_gen
+            .fresh(sorts, self.scope.iter().chain(scope), kind)
     }
 }
 

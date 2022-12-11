@@ -15,6 +15,7 @@ use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
+    fixpoint::KVarEncoding,
     param_infer::{self, InferenceError},
     refine_tree::{ConstrBuilder, RefineCtxt, UnpackFlags},
     type_env::{PathMap, TypeEnv},
@@ -23,7 +24,7 @@ use crate::{
 #[allow(clippy::type_complexity)]
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
+    fresh_kvar: Box<dyn FnMut(&[Sort], KVarEncoding) -> Binders<Pred> + 'a>,
     tag: Tag,
 }
 
@@ -66,7 +67,7 @@ impl Tag {
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
     where
-        F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
+        F: FnMut(&[Sort], KVarEncoding) -> Binders<Pred> + 'a,
     {
         ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
     }
@@ -127,11 +128,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .map(|arg| arg.replace_holes(&mut |sorts| (self.fresh_kvar)(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.fresh_kvar)?;
+        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut |sorts| {
+            (self.fresh_kvar)(sorts, KVarEncoding::Single)
+        })?;
         let fn_sig = fn_sig
             .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);
@@ -182,11 +185,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .map(|arg| arg.replace_holes(&mut |sorts| (self.fresh_kvar)(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.fresh_kvar)?;
+        let exprs = param_infer::infer_from_constructor(fields, variant, &mut |sorts| {
+            (self.fresh_kvar)(sorts, KVarEncoding::Single)
+        })?;
         let variant = variant
             .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);

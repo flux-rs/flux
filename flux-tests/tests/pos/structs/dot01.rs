@@ -19,9 +19,9 @@ pub fn mk_pairs_with_bound(a: i32) -> RVec<Pair> {
     let mut i = 0;
     let mut res = RVec::new();
     while i < a {
-        let p = Pair { x: i , y: a - i };
+        let p = Pair { x: i, y: a - i };
         res.push(p);
         i += 1;
     }
-    return res;
+    res
 }
