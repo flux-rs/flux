@@ -63,11 +63,11 @@ impl Tag {
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
-    pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
+    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, tag: Tag) -> Self
     where
-        F: KVarGen + 'a,
+        G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(fresh_kvar), tag }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), tag }
     }
 
     pub fn check_constraint(
