@@ -35,9 +35,15 @@ struct KVarDecl {
     encoding: KVarEncoding,
 }
 
+/// How an [rty::KVar] is encoded in the fixpoint constraint
 #[derive(Clone, Copy)]
 pub enum KVarEncoding {
+    /// Generate a single kvar appending the self arguments and the scope, i.e.,
+    /// a kvar `$k(a0, ...)[b0, ...]` becomes `$k(a0, ..., b0, ...)` in the fixpoint constraint.
     Single,
+    /// Generate a conjunction of kvars, one per argument in [rty::KVar::args].
+    /// Concretely, a kvar `$k(a0, a1, ..., an)[b0, ...]` becomes
+    /// `$k0(a0, a1, ..., an, b0, ...) ∧ $k1(a1, ..., an, b0, ...) ∧ ... ∧ $kn(an, b0, ...)`
     Conj,
 }
 

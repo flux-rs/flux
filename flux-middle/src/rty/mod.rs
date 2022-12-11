@@ -192,10 +192,8 @@ pub enum Pred {
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
 /// fixpoint makes a diference between the first and the rest of the variables, the first one being
-/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers using this first argument.
-/// Flux generalizes the self argument to be a list in order to deal with multiple indices. When
-/// generating the fixpoint constraint, the kvar will be split into multiple kvars, one for each
-/// argument in the list.
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
+/// Flux generalizes the self argument to be a list.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct KVar {
     pub kvid: KVid,
