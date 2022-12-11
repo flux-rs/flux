@@ -4,7 +4,7 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
     rty::{
-        evars::{EVarCx, EVarSol, UnsolvedEvar},
+        evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
         Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
@@ -35,7 +35,7 @@ struct InferCtxt<'a, 'tcx> {
     evar_gen: EVarGen,
     tag: Tag,
     scope: Scope,
-    evars_cx: EVarCx,
+    evars_cx: EVarCxId,
 }
 
 pub struct CallOutput {
