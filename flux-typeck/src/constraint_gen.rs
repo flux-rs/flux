@@ -4,7 +4,7 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
     rty::{
-        evars::{self, EVarSol, UnsolvedEvar},
+        evars::{EVarCx, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
         Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
@@ -35,7 +35,7 @@ struct InferCtxt<'a, 'tcx> {
     evar_gen: EVarGen,
     tag: Tag,
     scope: Scope,
-    evars_cx: evars::CtxtId,
+    evars_cx: EVarCx,
 }
 
 pub struct CallOutput {
@@ -302,7 +302,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 self.bty_subtyping(rcx, bty1, bty2);
                 for (i, (arg1, arg2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
-                    self.arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
+                    self.refine_arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
                 }
             }
             (TyKind::Indexed(bty1, idxs), TyKind::Exists(bty2, pred)) => {
@@ -345,53 +345,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.subtyping(rcx, ty1, ty2);
             }
             _ => unreachable!("`{ty1:?}` <: `{ty2:?}`"),
-        }
-    }
-
-    fn arg_subtyping(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        arg1: &RefineArg,
-        arg2: &RefineArg,
-        is_binder: bool,
-    ) {
-        if arg1 == arg2 {
-            return;
-        }
-        match (arg1, arg2) {
-            (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
-                self.unify_exprs(e1, e2, is_binder);
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
-            }
-            (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
-                debug_assert_eq!(abs1.params(), abs2.params());
-                let args = rcx
-                    .define_vars(abs1.params())
-                    .into_iter()
-                    .map(|var| RefineArg::Expr(var.into()))
-                    .collect_vec();
-                let pred1 = abs1.replace_bvars(&args);
-                let pred2 = abs2.replace_bvars(&args);
-                rcx.check_impl(&pred1, &pred2, self.tag);
-                rcx.check_impl(pred2, pred1, self.tag);
-            }
-            (RefineArg::Expr(expr), RefineArg::Abs(abs))
-            | (RefineArg::Abs(abs), RefineArg::Expr(expr)) => {
-                if let ExprKind::FreeVar(name) = expr.kind() {
-                    let args = rcx
-                        .define_vars(abs.params())
-                        .into_iter()
-                        .map(Expr::from)
-                        .collect_vec();
-                    let pred1 = Pred::App(Var::Free(*name), List::from(&args[..]));
-                    let args = args.into_iter().map(RefineArg::from).collect_vec();
-                    let pred2 = abs.replace_bvars(&args);
-                    rcx.check_impl(&pred1, &pred2, self.tag);
-                    rcx.check_impl(pred2, pred1, self.tag);
-                } else {
-                    unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
-                }
-            }
         }
     }
 
@@ -457,6 +410,53 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
             _ => unreachable!("incompatible generic args:  `{arg1:?}` `{arg2:?}"),
         };
+    }
+
+    fn refine_arg_subtyping(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        arg1: &RefineArg,
+        arg2: &RefineArg,
+        is_binder: bool,
+    ) {
+        if arg1 == arg2 {
+            return;
+        }
+        match (arg1, arg2) {
+            (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
+                self.unify_exprs(e1, e2, is_binder);
+                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
+            }
+            (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
+                debug_assert_eq!(abs1.params(), abs2.params());
+                let args = rcx
+                    .define_vars(abs1.params())
+                    .into_iter()
+                    .map(|var| RefineArg::Expr(var.into()))
+                    .collect_vec();
+                let pred1 = abs1.replace_bvars(&args);
+                let pred2 = abs2.replace_bvars(&args);
+                rcx.check_impl(&pred1, &pred2, self.tag);
+                rcx.check_impl(pred2, pred1, self.tag);
+            }
+            (RefineArg::Expr(expr), RefineArg::Abs(abs))
+            | (RefineArg::Abs(abs), RefineArg::Expr(expr)) => {
+                if let ExprKind::FreeVar(name) = expr.kind() {
+                    let args = rcx
+                        .define_vars(abs.params())
+                        .into_iter()
+                        .map(Expr::from)
+                        .collect_vec();
+                    let pred1 = Pred::App(Var::Free(*name), List::from(&args[..]));
+                    let args = args.into_iter().map(RefineArg::from).collect_vec();
+                    let pred2 = abs.replace_bvars(&args);
+                    rcx.check_impl(&pred1, &pred2, self.tag);
+                    rcx.check_impl(pred2, pred1, self.tag);
+                } else {
+                    unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
+                }
+            }
+        }
     }
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {

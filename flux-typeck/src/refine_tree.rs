@@ -226,6 +226,7 @@ impl RefineCtxt<'_> {
             self.assume_pred(invariant.pred.replace_bvars(idxs.args()));
         }
     }
+
     pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
     }
