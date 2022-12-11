@@ -17,8 +17,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 
-use crate::refine_tree::Scope;
-
 newtype_index! {
     pub struct TagIdx {
         DEBUG_FORMAT = "TagIdx({})"
@@ -44,18 +42,7 @@ pub enum KVarEncoding {
 }
 
 pub trait KVarGen {
-    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S, kind: KVarEncoding) -> Binders<rty::Pred>
-    where
-        S: IntoIterator<Item = (rty::Name, rty::Sort)>;
-
-    fn chaining<'a>(&'a mut self, scope: &'a Scope) -> KVarGenScopeChain<'a, Self> {
-        KVarGenScopeChain { kvar_gen: self, scope }
-    }
-}
-
-pub struct KVarGenScopeChain<'a, G: ?Sized> {
-    kvar_gen: &'a mut G,
-    scope: &'a Scope,
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred>;
 }
 
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
@@ -314,6 +301,21 @@ where
     }
 }
 
+impl<F> KVarGen for F
+where
+    F: FnMut(&[rty::Sort], KVarEncoding) -> Binders<rty::Pred>,
+{
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred> {
+        (self)(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred> {
+        <dyn KVarGen>::fresh(self, sorts, kind)
+    }
+}
+
 fn fixpoint_const_map(
     genv: &GlobalEnv,
     name_gen: &IndexGen<fixpoint::Name>,
@@ -372,28 +374,6 @@ impl KVarStore {
         });
 
         Binders::new(rty::Pred::Kvar(rty::KVar::new(kvid, args, scope_exprs.clone())), sorts)
-    }
-}
-
-impl KVarGen for KVarStore {
-    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S, kind: KVarEncoding) -> Binders<rty::Pred>
-    where
-        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
-    {
-        KVarStore::fresh(self, sorts, scope, kind)
-    }
-}
-
-impl<G> KVarGen for KVarGenScopeChain<'_, G>
-where
-    G: KVarGen,
-{
-    fn fresh<S>(&mut self, sorts: &[rty::Sort], scope: S, kind: KVarEncoding) -> Binders<rty::Pred>
-    where
-        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
-    {
-        self.kvar_gen
-            .fresh(sorts, self.scope.iter().chain(scope), kind)
     }
 }
 

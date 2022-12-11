@@ -21,7 +21,7 @@ use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
 use super::rty::{Loc, Name, Pred, Sort};
 use crate::{
     constraint_gen::ConstrGen,
-    fixpoint::{KVarEncoding, KVarGen},
+    fixpoint::{KVarEncoding, KVarStore},
     param_infer,
     refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
@@ -619,7 +619,7 @@ impl TypeEnvInfer {
         }
     }
 
-    pub fn into_bb_env(self, kvar_gen: &mut impl KVarGen) -> BasicBlockEnv {
+    pub fn into_bb_env(self, kvar_gen: &mut KVarStore) -> BasicBlockEnv {
         let mut bindings = self.bindings;
 
         let mut names = vec![];
@@ -652,9 +652,13 @@ impl TypeEnvInfer {
         let params = iter::zip(names, sorts).collect_vec();
 
         // Replace holes that weren't generalized by fresh kvars
-        let mut kvar_gen = kvar_gen.chaining(&self.scope);
-        let fresh_kvar =
-            &mut |sorts: &[Sort]| kvar_gen.fresh(sorts, params.iter().cloned(), KVarEncoding::Conj);
+        let fresh_kvar = &mut |sorts: &[Sort]| {
+            kvar_gen.fresh(
+                sorts,
+                self.scope.iter().chain(params.iter().cloned()),
+                KVarEncoding::Conj,
+            )
+        };
         bindings.fmap_mut(|binding| binding.replace_holes(fresh_kvar));
 
         BasicBlockEnv { params, constrs, bindings, scope: self.scope }
