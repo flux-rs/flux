@@ -23,7 +23,7 @@ use rustc_session::{
 };
 use rustc_span::source_map::SourceMap;
 
-// These are sorted loosily following the order of the pipeline except for lowering which doesn't
+// These are sorted loosely following the order of the pipeline except for lowering which doesn't
 // quite fit this ordering.
 fluent_messages! {
     parse => "../locales/en-US/parse.ftl",
@@ -33,7 +33,6 @@ fluent_messages! {
     wf => "../locales/en-US/wf.ftl",
     invariants => "../locales/en-US/invariants.ftl",
     refineck => "../locales/en-US/refineck.ftl",
-
     lowering => "../locales/en-US/lowering.ftl",
 }
 
@@ -124,6 +123,7 @@ fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter
 }
 
 pub trait ResultExt<T, E> {
+    #[track_caller]
     fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
     where
         E: IntoDiagnostic<'a>;

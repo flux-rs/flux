@@ -57,6 +57,7 @@ pub struct Qualifier {
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
+    defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     adts: FxHashMap<LocalDefId, AdtDef>,
@@ -223,10 +224,11 @@ pub enum ExprKind {
     IfThenElse(Box<[Expr; 3]>),
 }
 
+#[derive(Clone)]
 pub enum Func {
     /// A function comming from a refinement parameter.
     Var(Ident),
-    /// An _global_ uninterpreted function.
+    /// A _global_ uninterpreted function.
     Uif(Symbol, Span),
 }
 
@@ -298,6 +300,14 @@ pub struct RefinedBy {
 pub struct UifDef {
     pub name: Symbol,
     pub sort: FuncSort,
+}
+
+#[derive(Debug)]
+pub struct Defn {
+    pub name: Symbol,
+    pub args: RefinedBy,
+    pub sort: Sort,
+    pub expr: Expr,
 }
 
 impl AdtDef {
@@ -381,10 +391,8 @@ impl Map {
         self.assumes.insert(def_id);
     }
 
-    pub fn fn_sigs(&self) -> impl Iterator<Item = (DefId, &FnSig)> {
-        self.fns
-            .iter()
-            .map(|(def_id, fn_sig)| (def_id.to_def_id(), fn_sig))
+    pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
+        self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
     }
 
     pub fn assumed(&self, def_id: DefId) -> bool {
@@ -441,6 +449,19 @@ impl Map {
 
     pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&UifDef> {
         self.uifs.get(sym.borrow())
+    }
+
+    // Defn
+    pub fn insert_defn(&mut self, symb: Symbol, defn: Defn) {
+        self.defns.insert(symb, defn);
+    }
+
+    pub fn defns(&self) -> impl Iterator<Item = &Defn> {
+        self.defns.values()
+    }
+
+    pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
+        self.defns.get(sym.borrow())
     }
 
     // ADT

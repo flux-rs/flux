@@ -6,9 +6,8 @@ use flux_middle::{
     rty::{
         evars::{self, EVarSol},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binders, Constraint, Constraints, EVarGen, Expr, ExprKind, GenericArg, Path,
-        PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
-        VariantRet,
+        BaseTy, BinOp, Constraint, Constraints, EVarGen, Expr, ExprKind, GenericArg, Path, PolySig,
+        PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -18,21 +17,21 @@ use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
+    fixpoint::{KVarEncoding, KVarGen},
     param_infer::InferenceError,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
     type_env::{PathMap, TypeEnv},
 };
 
-#[allow(clippy::type_complexity)]
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
+    kvar_gen: Box<dyn KVarGen + 'a>,
     tag: Tag,
 }
 
 struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    kvar_gen: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
+    kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
     tag: Tag,
     scope: Scope,
@@ -76,11 +75,11 @@ impl Tag {
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
-    pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
+    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, tag: Tag) -> Self
     where
-        F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
+        G: KVarGen + 'a,
     {
-        ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), tag }
     }
 
     pub fn check_constraint(
@@ -126,7 +125,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes with fresh kvars in generic arguments
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .map(|arg| {
+                arg.replace_holes(&mut |sorts| self.kvar_gen.fresh(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         let mut infcx = self.infcx(rcx);
@@ -193,7 +194,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .map(|arg| {
+                arg.replace_holes(&mut |sorts| self.kvar_gen.fresh(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         let mut infcx = self.infcx(rcx);
@@ -213,7 +216,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     }
 
     fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
-        InferCtxt::new(self.genv, rcx, &mut self.fresh_kvar, self.tag)
+        InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, self.tag)
     }
 }
 
@@ -221,7 +224,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
-        kvar_gen: &'a mut (dyn FnMut(&[Sort]) -> Binders<Pred> + 'a),
+        kvar_gen: &'a mut (dyn KVarGen + 'a),
         tag: Tag,
     ) -> Self {
         let mut evar_gen = EVarGen::new();
@@ -232,7 +235,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort) -> RefineArg {
         if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-            RefineArg::Abs((self.kvar_gen)(fsort.inputs()))
+            RefineArg::Abs(self.kvar_gen.fresh(fsort.inputs(), KVarEncoding::Single))
         } else {
             RefineArg::Expr(Expr::evar(self.evar_gen.fresh_in_cx(self.evars_cx)))
         }

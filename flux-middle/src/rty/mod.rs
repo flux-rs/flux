@@ -10,19 +10,25 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, fmt, sync::LazyLock};
+use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, newtype_index};
 use rustc_middle::mir::Field;
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
+use toposort_scc::IndexGraph;
 
-use self::{fold::TypeFoldable, subst::BVarFolder};
+use self::{
+    fold::{TypeFoldable, TypeFolder},
+    subst::BVarFolder,
+};
 pub use crate::{
     fhir::{FuncSort, RefKind, Sort},
     rustc::ty::Const,
@@ -93,6 +99,15 @@ pub struct Qualifier {
     pub name: String,
     pub args: Vec<(Name, Sort)>,
     pub expr: Expr,
+}
+
+pub struct Defn {
+    pub name: Symbol,
+    pub expr: Binders<Expr>,
+}
+
+pub struct Defns {
+    defns: FxHashMap<Symbol, Defn>,
 }
 
 pub type Ty = Interned<TyS>;
@@ -179,10 +194,8 @@ pub enum Pred {
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
 /// fixpoint makes a diference between the first and the rest of the variables, the first one being
-/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers using this first argument.
-/// Flux generalizes the self argument to be a list in order to deal with multiple indices. When
-/// generating the fixpoint constraint, the kvar will be split into multiple kvars, one for each
-/// argument in the list.
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
+/// Flux generalizes the self argument to be a list.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct KVar {
     pub kvid: KVid,
@@ -376,16 +389,6 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
-    }
-}
-
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: VariantRet) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
-    }
-
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
     }
 }
 
@@ -705,6 +708,10 @@ impl KVar {
     pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
         KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
     }
+
+    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
+        self.args.iter().chain(&self.scope)
+    }
 }
 
 #[track_caller]
@@ -978,7 +985,11 @@ mod pretty {
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    if self.scope.is_empty() {
+                        w!("({:?})", join!(", ", &self.args))?;
+                    } else {
+                        w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    }
                 }
                 KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
                 KVarArgs::Hide => {}
@@ -1020,4 +1031,99 @@ mod pretty {
         RefineArgs,
         VariantDef,
     );
+}
+
+impl Defns {
+    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Result<Self, Vec<Symbol>> {
+        let raw = Defns { defns };
+        raw.normalize()
+    }
+
+    fn defn_deps(&self, expr: &Binders<Expr>) -> HashSet<Symbol> {
+        struct Deps<'a>(&'a mut HashSet<Symbol>);
+        impl<'a> TypeFolder for Deps<'a> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::App(f, _) = expr.kind() {
+                    self.0.insert(*f);
+                }
+                expr.super_fold_with(self)
+            }
+        }
+        let mut e_deps = HashSet::new();
+        expr.fold_with(&mut Deps(&mut e_deps));
+        e_deps
+    }
+
+    /// Returns
+    /// * either Ok(d1...dn) which are topologically sorted such that
+    ///   forall i < j, di does not depend on i.e. "call" dj
+    /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
+    fn sorted_defns(&self) -> Result<Vec<Symbol>, Vec<Symbol>> {
+        // 1. Make the Symbol-Index
+        let mut i2s: Vec<Symbol> = Vec::new();
+        let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
+        for (i, s) in self.defns.keys().enumerate() {
+            i2s.push(*s);
+            s2i.insert(*s, i);
+        }
+
+        // 2. Make the dependency graph
+        let mut adj_list: Vec<Vec<usize>> = vec![];
+        for name in i2s.iter() {
+            let defn = self.defns.get(name).unwrap();
+            let deps = self.defn_deps(&defn.expr);
+            adj_list.push(deps.iter().map(|s| *s2i.get(s).unwrap()).collect());
+        }
+        let mut g = IndexGraph::from_adjacency_list(&adj_list);
+        g.transpose();
+
+        // 3. Topologically sort the graph
+        match g.toposort_or_scc() {
+            Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
+            Err(mut scc) => {
+                let cycle = scc.pop().unwrap();
+                Err(cycle.iter().map(|i| i2s[*i]).collect())
+            }
+        }
+    }
+
+    // private function normalize (expand_defns) which does the SCC-expansion
+    fn normalize(mut self) -> Result<Self, Vec<Symbol>> {
+        // 1. Topologically sort the Defns
+        let ds = self.sorted_defns()?;
+
+        // 2. Expand each defn in the sorted order
+        let mut exp_defns = Defns { defns: FxHashMap::default() };
+        for d in ds {
+            let defn = self.defns.remove(&d).unwrap();
+            let expr = defn.expr.normalize(&exp_defns);
+            let exp_defn = Defn { expr, ..defn };
+            exp_defns.defns.insert(d, exp_defn);
+        }
+        Ok(exp_defns)
+    }
+
+    fn func_defn(&self, f: &Symbol) -> Option<&Defn> {
+        if let Some(defn) = self.defns.get(f) {
+            return Some(defn);
+        }
+        None
+    }
+
+    fn expand_defn(defn: &Defn, args: List<Expr>) -> Expr {
+        let args = args
+            .iter()
+            .map(|e| RefineArg::Expr(e.clone()))
+            .collect_vec();
+        defn.expr.replace_bvars(&args)
+    }
+
+    // expand a particular app if there is a known defn for it
+    pub fn app(&self, func: &Symbol, args: List<Expr>) -> Expr {
+        if let Some(defn) = self.func_defn(func) {
+            Self::expand_defn(defn, args)
+        } else {
+            Expr::app(*func, args)
+        }
+    }
 }

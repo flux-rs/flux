@@ -3,7 +3,10 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::{fhir, intern::List};
+use flux_middle::{
+    fhir::{self, RefinedBy},
+    intern::List,
+};
 use flux_syntax::surface::{self, Res, TyCtxt};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
@@ -22,6 +25,42 @@ pub fn desugar_qualifier(
     let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(qualifier.expr);
 
     Ok(fhir::Qualifier { name, args: binders.into_params(), expr: expr? })
+}
+
+pub fn desugar_defn(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &fhir::Map,
+    defn: surface::Defn,
+) -> Result<fhir::Defn, ErrorGuaranteed> {
+    let binders = Binders::from_params(sess, &defn.args.params)?;
+    let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(defn.expr)?;
+    let name = defn.name.name;
+    let sort = resolve_sort(sess, &defn.sort)?;
+    let args = RefinedBy { params: binders.into_params(), span: defn.args.span };
+    Ok(fhir::Defn { name, args, sort, expr })
+}
+
+fn sort_ident(sort: &surface::Sort) -> Result<surface::Ident, ErrorGuaranteed> {
+    match sort {
+        surface::Sort::Base(x) => Ok(*x),
+        surface::Sort::Func { .. } => panic!("Unexpected func-sort!"),
+        surface::Sort::Infer => panic!("Unexpected infer-sort!"),
+    }
+}
+
+pub fn resolve_defn_uif(
+    sess: &FluxSession,
+    defn: &surface::Defn,
+) -> Result<fhir::UifDef, ErrorGuaranteed> {
+    let inputs: Vec<surface::Ident> = defn
+        .args
+        .iter()
+        .map(|arg| sort_ident(&arg.sort))
+        .try_collect_exhaust()?;
+    let output: surface::Ident = sort_ident(&defn.sort)?;
+    let sort = resolve_func_sort(sess, &inputs[..], &output)?;
+    Ok(fhir::UifDef { name: defn.name.name, sort })
 }
 
 pub fn resolve_uif_def(
@@ -496,22 +535,31 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     }
 
     fn resolve_func(&self, func: surface::Ident) -> Result<FuncRes, ErrorGuaranteed> {
-        match (self.binders.get(func), self.map.uif(func.name)) {
-            (Some(Binder::Single(name, sort)), _) => Ok(FuncRes::Param(*name, sort)),
-            (Some(Binder::Aggregate(_, fields)), _) => {
-                Err(self
-                    .sess
-                    .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())))
+        if let Some(b) = self.binders.get(func) {
+            match b {
+                Binder::Single(name, sort) => return Ok(FuncRes::Param(*name, sort)),
+                Binder::Aggregate(_, fields) => {
+                    if fields.len() == 1 {
+                        let (name, sort) = fields.values().next().unwrap();
+                        return Ok(FuncRes::Param(*name, sort));
+                    } else {
+                        return Err(self
+                            .sess
+                            .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())));
+                    }
+                }
+                Binder::Unrefined => {
+                    let def_ident = self.binders.def_ident(func).unwrap();
+                    return Err(self
+                        .sess
+                        .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)));
+                }
             }
-            (Some(Binder::Unrefined), _) => {
-                let def_ident = self.binders.def_ident(func).unwrap();
-                Err(self
-                    .sess
-                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)))
-            }
-            (None, Some(uif)) => Ok(FuncRes::Uif(uif)),
-            (None, None) => Err(self.sess.emit_err(errors::UnresolvedVar::new(func))),
         }
+        if let Some(uif) = self.map.uif(func.name) {
+            return Ok(FuncRes::Uif(uif));
+        }
+        Err(self.sess.emit_err(errors::UnresolvedVar::new(func)))
     }
 
     fn desugar_lit(&self, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {
@@ -977,6 +1025,7 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
         surface::BinOp::Or => fhir::BinOp::Or,
         surface::BinOp::And => fhir::BinOp::And,
         surface::BinOp::Eq => fhir::BinOp::Eq,
+        surface::BinOp::Ne => fhir::BinOp::Ne,
         surface::BinOp::Gt => fhir::BinOp::Gt,
         surface::BinOp::Ge => fhir::BinOp::Ge,
         surface::BinOp::Lt => fhir::BinOp::Lt,

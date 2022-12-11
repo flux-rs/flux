@@ -59,6 +59,13 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
     rty::AdtDef::new(tcx.adt_def(adt_def.def_id), sorts, invariants, adt_def.opaque)
 }
 
+pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
+    let mut name_map = NameMap::default();
+    let sorts = name_map.conv_refined_by(&defn.args);
+    let expr = Binders::new(name_map.conv_expr(&defn.expr, 1), sorts);
+    rty::Defn { name: defn.name, expr }
+}
+
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv, name_map: NameMap::default() }
@@ -304,8 +311,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let abs = self
                     .name_map
                     .with_binders(params, nbinders, |name_map, nbinders| {
-                        let body = name_map.conv_expr(body, nbinders);
-                        rty::Binders::new(rty::Pred::Expr(body), fsort.inputs())
+                        let pred = name_map.conv_pred(body, nbinders);
+                        rty::Binders::new(pred, fsort.inputs())
                     });
                 rty::RefineArg::Abs(abs)
             }

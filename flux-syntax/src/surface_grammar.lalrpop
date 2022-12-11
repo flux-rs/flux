@@ -40,6 +40,19 @@ pub UifDef: surface::UifDef = {
     }
 }
 
+pub Defn: surface::Defn = {
+    <lo:@L>
+    <name:Ident>
+    "(" <args:RefinedBy> ")"
+    "->"
+    <sort:Sort>
+    "{"
+    <expr:Level1>
+    "}"
+    <hi:@R> => {
+        surface::Defn { name: name, args: args, sort: sort, expr: expr, span: mk_span(lo, hi) }
+    }
+}
 
 pub Qualifier: surface::Qualifier = {
     <lo:@L>
@@ -194,7 +207,7 @@ Level1 = NonAssoc<BinOp1, Level2>;  // <=>
 Level2 = LeftAssoc<BinOp2, Level3>; // =>
 Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
-Level5 = NonAssoc<BinOp5, Level6>;  // ==, >=, <=
+Level5 = NonAssoc<BinOp5, Level6>;  // ==, !=, >=, <=
 Level6 = LeftAssoc<BinOp6, Level7>; // +, -
 Level7 = LeftAssoc<BinOp7, Level8>; // *, %
 Level8: surface::Expr = {
@@ -270,6 +283,7 @@ BinOp4: surface::BinOp = {
 
 BinOp5: surface::BinOp = {
     "==" => surface::BinOp::Eq,
+    "!=" => surface::BinOp::Ne,
     ">" => surface::BinOp::Gt,
     ">=" => surface::BinOp::Ge,
     "<" => surface::BinOp::Lt,
@@ -332,6 +346,7 @@ extern {
         "ref" => Token::Ref,
         "@"  => Token::At,
         "==" => Token::EqEq,
+        "!=" => Token::Ne,
         "="  => Token::Eq,
         "&&" => Token::AndAnd,
         "||" => Token::OrOr,

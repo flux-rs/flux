@@ -6,7 +6,7 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    parse_defn, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
     parse_type_alias, parse_uif_def, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
@@ -43,6 +43,7 @@ pub(crate) struct Specs {
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub uifs: Vec<surface::UifDef>,
+    pub dfns: Vec<surface::Defn>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
@@ -58,6 +59,13 @@ pub(crate) struct FnSpec {
 pub(crate) struct ConstSig {
     pub _ty: surface::ConstSig,
     pub val: i128,
+}
+
+macro_rules! attr_name {
+    ($kind:ident) => {{
+        let _ = FluxAttrKind::$kind;
+        stringify!($kind)
+    }};
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
@@ -217,7 +225,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let fields = data
             .fields()
             .iter()
-            .map(|field| self.parse_field_spec(self.tcx.hir().attrs(field.hir_id)))
+            .map(|field| self.parse_field_spec(field, opaque))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
@@ -244,6 +252,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut uif_defs = attrs.uif_defs();
         self.specs.uifs.append(&mut uif_defs);
 
+        let mut dfns = attrs.defns();
+        self.specs.dfns.append(&mut dfns);
+
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
         Ok(())
@@ -251,10 +262,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_field_spec(
         &mut self,
-        attrs: &[Attribute],
+        field: &rustc_hir::FieldDef,
+        opaque: bool,
     ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
+        let attrs = self.tcx.hir().attrs(field.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
+        if opaque && let Some(span) = attrs.contains(attr_name!(Field)) {
+            return Err(self.emit_err(errors::AttrOnOpaque::new(span, field)))
+        }
         Ok(attrs.field())
     }
 
@@ -308,7 +324,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
-            ("uf", MacArgs::Delimited(span, _, tokens)) => {
+            ("dfn", MacArgs::Delimited(span, _, tokens)) => {
+                let defn = self.parse(tokens.clone(), span.entire(), parse_defn)?;
+                FluxAttrKind::Defn(defn)
+            }
+            ("ufn", MacArgs::Delimited(span, _, tokens)) => {
                 let uif_def = self.parse(tokens.clone(), span.entire(), parse_uif_def)?;
                 FluxAttrKind::UifDef(uif_def)
             }
@@ -392,6 +412,7 @@ impl Specs {
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
             uifs: Vec::default(),
+            dfns: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
@@ -418,6 +439,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
     Qualifier(surface::Qualifier),
+    Defn(surface::Defn),
     UifDef(surface::UifDef),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
@@ -426,13 +448,6 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore,
-}
-
-macro_rules! attr_name {
-    ($kind:ident) => {{
-        let _ = FluxAttrKind::$kind;
-        stringify!($kind)
-    }};
 }
 
 macro_rules! read_flag {
@@ -505,6 +520,10 @@ impl FluxAttrs {
         read_attrs!(self, UifDef)
     }
 
+    fn defns(&mut self) -> Vec<surface::Defn> {
+        read_attrs!(self, Defn)
+    }
+
     fn alias(&mut self) -> Option<surface::Alias> {
         read_attr!(self, TypeAlias)
     }
@@ -528,6 +547,15 @@ impl FluxAttrs {
     fn invariants(&mut self) -> Vec<surface::Expr> {
         read_attrs!(self, Invariant)
     }
+
+    fn contains(&self, attr: &str) -> Option<Span> {
+        self.map.get(attr).and_then(|attrs| {
+            match &attrs[..] {
+                [attr] => Some(attr.span),
+                _ => None,
+            }
+        })
+    }
 }
 
 impl FluxAttrKind {
@@ -539,6 +567,7 @@ impl FluxAttrKind {
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
+            FluxAttrKind::Defn(_) => attr_name!(Defn),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
@@ -702,6 +731,22 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(parse::attr_on_opaque, code = "FLUX")]
+    pub(super) struct AttrOnOpaque {
+        #[primary_span]
+        span: Span,
+        #[label]
+        field_span: Span,
+    }
+
+    impl AttrOnOpaque {
+        pub(super) fn new(span: Span, field: &rustc_hir::FieldDef) -> Self {
+            let field_span = field.ident.span;
+            Self { span, field_span }
+        }
     }
 
     impl From<flux_syntax::ParseError> for SyntaxErr {

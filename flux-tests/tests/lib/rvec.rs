@@ -1,5 +1,17 @@
 #![allow(dead_code)]
 
+pub mod rslice;
+
+#[macro_export]
+macro_rules! rvec {
+    () => { RVec::new() };
+    ($($e:expr),+$(,)?) => {{
+        let mut res = RVec::new();
+        $( res.push($e); )*
+        res
+    }}
+}
+
 #[flux::opaque]
 #[flux::refined_by(len: int)]
 pub struct RVec<T> {

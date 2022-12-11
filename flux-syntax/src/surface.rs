@@ -17,6 +17,15 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
+pub struct Defn {
+    pub name: Ident,
+    pub args: RefinedBy,
+    pub sort: Sort,
+    pub expr: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct UifDef {
     /// name of the uninterpreted function
     pub name: Ident,
@@ -233,6 +242,7 @@ pub enum BinOp {
     Le,
     Gt,
     Ge,
+    Ne,
     Add,
     Sub,
     Mod,
@@ -287,6 +297,7 @@ impl fmt::Debug for BinOp {
             BinOp::Or => write!(f, "||"),
             BinOp::And => write!(f, "&&"),
             BinOp::Eq => write!(f, "=="),
+            BinOp::Ne => write!(f, "!="),
             BinOp::Lt => write!(f, "<"),
             BinOp::Le => write!(f, "<="),
             BinOp::Gt => write!(f, ">"),

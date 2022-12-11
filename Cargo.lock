@@ -405,6 +405,7 @@ dependencies = [
  "flux-fixpoint",
  "flux-macros",
  "itertools",
+ "toposort-scc",
 ]
 
 [[package]]
@@ -1137,6 +1138,12 @@ checksum = "8d82e1a7758622a465f8cee077614c73484dac5b836c02ff6a40d5d1010324d7"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "toposort-scc"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c4db64c78ed1b303e5820f74bae56ff7a94b7f10ba8231d9ddaa484d80118c7"
 
 [[package]]
 name = "tracing"
