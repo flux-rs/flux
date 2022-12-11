@@ -39,7 +39,7 @@ use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
-    fixpoint::KVarStore,
+    fixpoint::{KVarEncoding, KVarStore},
     refine_tree::{RefineCtxt, RefineTree, Snapshot, UnpackFlags},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
@@ -77,7 +77,7 @@ pub trait Phase: Sized {
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
-    fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred>;
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Pred>;
 
     fn clear(&mut self, bb: BasicBlock);
 }
@@ -647,7 +647,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .try_collect()?;
                 let ty = self
                     .genv
-                    .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts));
+                    .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts, KVarEncoding::Conj));
                 let mut gen = self.phase.constr_gen(self.genv, rcx, Tag::Other);
                 for arg in args {
                     gen.subtyping(rcx, &arg, &ty);
@@ -956,7 +956,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         tag: Tag,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |sorts| Binders::new(Pred::Hole, sorts), tag)
+        ConstrGen::new(genv, |sorts: &[Sort], _| Binders::new(Pred::Hole, sorts), tag)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -974,7 +974,11 @@ impl Phase for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
-        let mut gen = ConstrGen::new(ck.genv, |sorts| Binders::new(Pred::Hole, sorts), Tag::Other);
+        let mut gen = ConstrGen::new(
+            ck.genv,
+            |sorts: &[Sort], _| Binders::new(Pred::Hole, sorts),
+            Tag::Other,
+        );
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
@@ -987,7 +991,7 @@ impl Phase for Inference<'_> {
         Ok(modified)
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred> {
+    fn fresh_kvar(&mut self, sorts: &[Sort], _: KVarEncoding) -> Binders<Pred> {
         Binders::new(Pred::Hole, sorts)
     }
 
@@ -1004,8 +1008,9 @@ impl Phase for Check<'_> {
         tag: Tag,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
-        let fresh_kvar = move |sorts: &[Sort]| self.kvars.fresh(sorts, scope.iter());
-        ConstrGen::new(genv, fresh_kvar, tag)
+        let kvar_gen =
+            move |sorts: &[Sort], encoding| self.kvars.fresh(sorts, scope.iter(), encoding);
+        ConstrGen::new(genv, kvar_gen, tag)
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -1024,17 +1029,18 @@ impl Phase for Check<'_> {
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
-        let fresh_kvar = |sorts: &[Sort]| ck.phase.kvars.fresh(sorts, bb_env.scope().iter());
+        let kvar_gen =
+            |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
-        let gen = &mut ConstrGen::new(ck.genv, fresh_kvar, tag);
+        let gen = &mut ConstrGen::new(ck.genv, kvar_gen, tag);
         env.check_goto(&mut rcx, gen, bb_env)
             .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
         Ok(!ck.visited.contains(target))
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort]) -> Binders<Pred> {
-        self.kvars.fresh(sorts, [])
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Pred> {
+        self.kvars.fresh(sorts, [], encoding)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {

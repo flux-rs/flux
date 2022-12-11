@@ -4,9 +4,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
     rty::{
-        fold::TypeFoldable, BaseTy, BinOp, Binders, Constraint, Constraints, Expr, ExprKind,
-        GenericArg, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
-        Var, VariantRet,
+        fold::TypeFoldable, BaseTy, BinOp, Constraint, Constraints, Expr, ExprKind, GenericArg,
+        PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Ty, TyKind, Var, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -15,15 +14,15 @@ use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
+    fixpoint::{KVarEncoding, KVarGen},
     param_infer::{self, InferenceError},
     refine_tree::{ConstrBuilder, RefineCtxt, UnpackFlags},
     type_env::{PathMap, TypeEnv},
 };
 
-#[allow(clippy::type_complexity)]
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    fresh_kvar: Box<dyn FnMut(&[Sort]) -> Binders<Pred> + 'a>,
+    kvar_gen: Box<dyn KVarGen + 'a>,
     tag: Tag,
 }
 
@@ -64,11 +63,11 @@ impl Tag {
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
-    pub fn new<F>(genv: &'a GlobalEnv<'a, 'tcx>, fresh_kvar: F, tag: Tag) -> Self
+    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, tag: Tag) -> Self
     where
-        F: FnMut(&[Sort]) -> Binders<Pred> + 'a,
+        G: KVarGen + 'a,
     {
-        ConstrGen { genv, fresh_kvar: Box::new(fresh_kvar), tag }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), tag }
     }
 
     pub fn check_constraint(
@@ -127,11 +126,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .map(|arg| {
+                arg.replace_holes(&mut |sorts| self.kvar_gen.fresh(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.fresh_kvar)?;
+        let exprs = param_infer::infer_from_fn_call(env, &actuals, fn_sig, &mut self.kvar_gen)?;
         let fn_sig = fn_sig
             .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);
@@ -182,11 +183,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh kvars for generic types
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut self.fresh_kvar))
+            .map(|arg| {
+                arg.replace_holes(&mut |sorts| self.kvar_gen.fresh(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         // Infer refinement parameters
-        let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.fresh_kvar)?;
+        let exprs = param_infer::infer_from_constructor(fields, variant, &mut self.kvar_gen)?;
         let variant = variant
             .replace_generic_args(&substs)
             .replace_bound_vars(&exprs);

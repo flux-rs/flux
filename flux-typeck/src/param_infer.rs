@@ -2,11 +2,14 @@ use std::iter;
 
 use flux_middle::rty::{
     subst::FVarSubst, BaseTy, Binders, Constraint, Expr, ExprKind, GenericArg, Name, Path, PolySig,
-    PolyVariant, Pred, RefineArg, Sort, Ty, TyKind, INNERMOST,
+    PolyVariant, RefineArg, Sort, Ty, TyKind, INNERMOST,
 };
 use rustc_hash::FxHashMap;
 
-use crate::type_env::PathMap;
+use crate::{
+    fixpoint::{KVarEncoding, KVarGen},
+    type_env::PathMap,
+};
 
 type Exprs = FxHashMap<usize, Expr>;
 
@@ -16,7 +19,7 @@ pub struct InferenceError(String);
 pub fn infer_from_constructor(
     fields: &[Ty],
     variant: &PolyVariant,
-    fresh_kvar: &mut impl FnMut(&[Sort]) -> Binders<Pred>,
+    kvar_gen: &mut impl KVarGen,
 ) -> Result<Vec<RefineArg>, InferenceError> {
     debug_assert_eq!(fields.len(), variant.as_ref().skip_binders().fields().len());
     let mut exprs = Exprs::default();
@@ -25,14 +28,14 @@ pub fn infer_from_constructor(
         infer_from_tys(&mut exprs, &FxHashMap::default(), actual, &FxHashMap::default(), formal);
     }
 
-    collect(variant, exprs, fresh_kvar)
+    collect(variant, exprs, kvar_gen)
 }
 
 pub fn infer_from_fn_call<M: PathMap>(
     env: &M,
     actuals: &[Ty],
     fn_sig: &PolySig,
-    fresh_kvar: &mut impl FnMut(&[Sort]) -> Binders<Pred>,
+    kvar_gen: &mut impl KVarGen,
 ) -> Result<Vec<RefineArg>, InferenceError> {
     debug_assert_eq!(actuals.len(), fn_sig.as_ref().skip_binders().args().len());
 
@@ -55,20 +58,20 @@ pub fn infer_from_fn_call<M: PathMap>(
         infer_from_tys(&mut exprs, env, actual, &requires, formal);
     }
 
-    collect(fn_sig, exprs, fresh_kvar)
+    collect(fn_sig, exprs, kvar_gen)
 }
 
 fn collect<T>(
     t: &Binders<T>,
     mut exprs: Exprs,
-    fresh_kvar: &mut impl FnMut(&[Sort]) -> Binders<Pred>,
+    kvar_gen: &mut impl KVarGen,
 ) -> Result<Vec<RefineArg>, InferenceError> {
     t.params()
         .iter()
         .enumerate()
         .map(|(idx, sort)| {
             if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-                Ok(RefineArg::Abs(fresh_kvar(fsort.inputs())))
+                Ok(RefineArg::Abs(kvar_gen.fresh(fsort.inputs(), KVarEncoding::Single)))
             } else {
                 let e = exprs
                     .remove(&idx)
