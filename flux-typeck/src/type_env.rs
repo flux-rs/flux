@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr, GenericArg, Path,
-        RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr,
+        GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -350,6 +350,11 @@ impl TypeEnv {
         self.bindings.lookup(genv, rcx, &down_place)?;
         Ok(())
     }
+
+    pub fn replace_evars(&mut self, evars: &EVarSol) {
+        self.bindings
+            .fmap_mut(|binding| binding.replace_evars(evars));
+    }
 }
 
 impl PathMap for TypeEnv {
@@ -573,7 +578,8 @@ impl TypeEnvInfer {
                     Ty::indexed(bty, idxs1.clone())
                 }
             }
-            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..) | TyKind::Exists(bty2, ..))
+            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..))
+            | (TyKind::Exists(bty1, _), TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let pred = Binders::new(Pred::Hole, bty.sorts());
@@ -646,7 +652,7 @@ impl TypeEnvInfer {
             .collect_vec();
         let kvar = kvar_store
             .fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
-            .replace_bound_vars(&exprs);
+            .replace_bvars(&exprs);
         constrs.push(kvar);
 
         let params = iter::zip(names, sorts).collect_vec();

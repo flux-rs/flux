@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred, RefKind,
-    RefineArg, RefineArgs, Sort, Ty, TyKind,
+    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred,
+    RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -21,8 +21,7 @@ use crate::{
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables
 /// and predicates generated during type-checking. The tree can then be converted into
 /// a horn constraint which implies the safety of a program. Rather than constructing the
-/// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`] and
-/// [`ConstrBuilder`].
+/// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`].
 pub struct RefineTree {
     root: NodePtr,
 }
@@ -57,13 +56,6 @@ pub struct Snapshot {
 #[derive(PartialEq, Eq)]
 pub struct Scope {
     bindings: IndexVec<Name, Sort>,
-}
-
-/// A *constr*aint *builder* is used to generate a constraint derived from subtyping when
-/// checking a function call or jumping to a basic block.
-pub struct ConstrBuilder<'a> {
-    tree: &'a mut RefineTree,
-    ptr: NodePtr,
 }
 
 struct Node {
@@ -136,17 +128,29 @@ impl RefineCtxt<'_> {
         self.ptr.push_foralls(slice::from_ref(sort)).pop().unwrap()
     }
 
+    pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
+        self.ptr.push_foralls(sorts)
+    }
+
+    pub fn assume_bound_pred(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
+        self.ptr.push_bound_guard(pred)
+    }
+
     pub fn assume_pred(&mut self, pred: impl Into<Pred>) {
         self.ptr.push_guard(pred);
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Pred>, tag: Tag) {
-        self.check_constr().push_head(pred, tag);
+        let pred = pred.into();
+        if !pred.is_trivially_true() {
+            self.ptr.push_node(NodeKind::Head(pred, tag));
+        }
     }
 
-    pub fn check_constr(&mut self) -> ConstrBuilder {
-        let ptr = self.ptr.push_node(NodeKind::Conj);
-        ConstrBuilder { tree: self._tree, ptr }
+    pub fn check_impl(&mut self, ped1: impl Into<Pred>, pred2: impl Into<Pred>, tag: Tag) {
+        self.ptr
+            .push_node(NodeKind::Guard(ped1.into()))
+            .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
     fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
@@ -219,8 +223,12 @@ impl RefineCtxt<'_> {
 
     fn assume_invariants(&mut self, bty: &BaseTy, idxs: &RefineArgs) {
         for invariant in bty.invariants() {
-            self.assume_pred(invariant.pred.replace_bound_vars(idxs.args()));
+            self.assume_pred(invariant.pred.replace_bvars(idxs.args()));
         }
+    }
+
+    pub fn replace_evars(&mut self, evars: &EVarSol) {
+        self.ptr.borrow_mut().replace_evars(evars);
     }
 }
 
@@ -263,44 +271,13 @@ impl Scope {
         name.index() < self.bindings.len()
     }
 
-    pub fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
-        iter.into_iter().all(|name| self.contains(name))
-    }
-
     /// Whether `t` has any free variables not in this scope
     pub fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())
     }
-}
 
-impl ConstrBuilder<'_> {
-    pub fn breadcrumb(&mut self) -> ConstrBuilder {
-        ConstrBuilder { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
-    }
-
-    pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
-        self.ptr.push_foralls(sorts)
-    }
-
-    pub fn push_guard(&mut self, p: impl Into<Pred>) {
-        self.ptr.push_guard(p.into());
-    }
-
-    pub fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
-        self.ptr.push_bound_guard(pred)
-    }
-
-    pub fn push_head(&mut self, pred: impl Into<Pred>, tag: Tag) {
-        let pred = pred.into();
-        if !pred.is_trivially_true() {
-            self.ptr.push_node(NodeKind::Head(pred, tag));
-        }
-    }
-
-    pub fn push_horn_clause(&mut self, body: impl Into<Pred>, head: impl Into<Pred>, tag: Tag) {
-        let mut constr = self.breadcrumb();
-        constr.push_guard(body);
-        constr.push_head(head, tag);
+    fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
+        iter.into_iter().all(|name| self.contains(name))
     }
 }
 
@@ -322,7 +299,7 @@ impl NodePtr {
             .into_iter()
             .map(|name| RefineArg::Expr(Expr::fvar(name)))
             .collect_vec();
-        self.push_guard(pred.replace_bound_vars(&args));
+        self.push_guard(pred.replace_bvars(&args));
         args
     }
 
@@ -362,7 +339,7 @@ impl NodePtr {
 bitflags! {
     pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b01;
-        const INVARIANTS         = 0b10;
+        const INVARIANTS        = 0b10;
     }
 }
 
@@ -389,6 +366,17 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
+    fn replace_evars(&mut self, evars: &EVarSol) {
+        match &mut self.kind {
+            NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
+            NodeKind::Head(pred, _) => *pred = pred.replace_evars(evars),
+            NodeKind::Conj | NodeKind::ForAll(_, _) => {}
+        }
+        for child in &self.children {
+            child.borrow_mut().replace_evars(evars)
+        }
+    }
+
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
             NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {

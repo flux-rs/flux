@@ -120,7 +120,13 @@ impl PathsTree {
     }
 
     fn get_node(&self, path: &Path) -> NodePtr {
-        let mut ptr = NodePtr::clone(&self.map.get(&path.loc).unwrap().ptr);
+        let mut ptr = NodePtr::clone(
+            &self
+                .map
+                .get(&path.loc)
+                .unwrap_or_else(|| panic!("key not found `{:?}`", path.loc))
+                .ptr,
+        );
         for f in path.projection() {
             ptr = {
                 let node = ptr.borrow();
@@ -241,7 +247,7 @@ impl PathsTree {
                                 continue 'outer;
                             }
                             TyKind::BoxPtr(loc, _) => {
-                                path = Path::from(Loc::Free(*loc));
+                                path = Path::from(Loc::from(*loc));
                                 continue 'outer;
                             }
                             TyKind::Ref(rk, ty) => {
@@ -260,7 +266,7 @@ impl PathsTree {
                             TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
-                                let loc = Loc::Free(fresh);
+                                let loc = Loc::from(fresh);
                                 *ptr.borrow_mut() = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
                                 self.insert(loc, boxed.clone(), LocKind::Box);
                                 path = Path::from(loc);
@@ -507,7 +513,6 @@ impl Node {
     ) -> Result<(), OpaqueStructErr> {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                let ty = ty.unconstr();
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) => {
                         let fields = downcast(
@@ -572,7 +577,7 @@ impl Node {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
                 if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
-                    let root = map.remove(&Loc::Free(*loc)).unwrap();
+                    let root = map.remove(&Loc::from(*loc)).unwrap();
                     debug_assert!(matches!(root.kind, LocKind::Box));
                     let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
                     let ty = gen.genv.mk_box(boxed_ty, alloc.clone());
@@ -752,7 +757,7 @@ fn downcast_struct(
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
-        .replace_bound_vars(args)
+        .replace_bvars(args)
         .replace_generic_args(substs)
         .fields
         .to_vec())

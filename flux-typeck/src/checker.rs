@@ -950,7 +950,7 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
 }
 
 impl Phase for Inference<'_> {
-    fn constr_gen<'a, 'rcx, 'tcx>(
+    fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         _rcx: &RefineCtxt,
@@ -1108,6 +1108,7 @@ pub(crate) mod errors {
     use flux_middle::{
         global_env::{OpaqueStructErr, UnsupportedFnSig},
         pretty,
+        rty::evars::UnsolvedEvar,
     };
     use rustc_errors::IntoDiagnostic;
     use rustc_hir::def_id::DefId;
@@ -1175,6 +1176,12 @@ pub(crate) mod errors {
                 }
             }
             builder
+        }
+    }
+
+    impl From<UnsolvedEvar> for CheckerError {
+        fn from(_: UnsolvedEvar) -> Self {
+            CheckerError { kind: CheckerErrKind::Inference, span: None }
         }
     }
 

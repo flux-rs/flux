@@ -129,7 +129,7 @@ impl TypeFolder for BVarFolder<'_> {
            && let RefineArg::Abs(pred_abs) = &self.args[bvar.index]
         {
             let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-            pred_abs.replace_bound_vars(&args)
+            pred_abs.replace_bvars(&args)
         } else {
             pred.super_fold_with(self)
         }

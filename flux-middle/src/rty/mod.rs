@@ -5,12 +5,14 @@
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
 pub mod conv;
+pub mod evars;
 mod expr;
 pub mod fold;
 pub mod subst;
 
 use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, sync::LazyLock};
 
+pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
@@ -229,17 +231,17 @@ impl<T> Binders<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-        let args = self
-            .params
-            .iter()
-            .map(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
-            .collect_vec();
-        self.replace_bound_vars(&args)
+    pub fn replace_bvars(&self, args: &[RefineArg]) -> T {
+        self.value.fold_with(&mut BVarFolder::new(args))
     }
 
-    pub fn replace_bound_vars(&self, args: &[RefineArg]) -> T {
-        self.value.fold_with(&mut BVarFolder::new(args))
+    pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> RefineArg) -> T {
+        let args = self.params.iter().map(f).collect_vec();
+        self.replace_bvars(&args)
+    }
+
+    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
+        self.replace_bvars_with(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
     }
 }
 
@@ -425,18 +427,17 @@ impl Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
 
-    pub fn unconstr(&self) -> &Ty {
-        match self.kind() {
-            TyKind::Constr(_, ty) => Self::unconstr(ty),
-            _ => self,
+    pub fn unconstr(&self) -> (Ty, Pred) {
+        fn go(this: &Ty, preds: &mut Vec<Pred>) -> Ty {
+            if let TyKind::Constr(prd, ty) = this.kind() {
+                preds.push(prd.clone());
+                go(ty, preds)
+            } else {
+                this.clone()
+            }
         }
-    }
-
-    pub fn bty(&self) -> Option<&BaseTy> {
-        match self.unconstr().kind() {
-            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => Some(bty),
-            _ => None,
-        }
+        let mut preds = vec![];
+        (go(self, &mut preds), Pred::And(List::from(preds)))
     }
 
     pub fn uninit() -> Ty {
@@ -660,6 +661,7 @@ impl Pred {
     pub fn is_trivially_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
             || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
+            || matches!(self, Pred::And(preds) if preds.is_empty())
     }
 
     /// A predicate is an atom if it "self-delimiting", i.e., it has a clear boundary
@@ -972,6 +974,7 @@ mod pretty {
             match self {
                 Var::Bound(bvar) => w!("{:?}", bvar),
                 Var::Free(name) => w!("{:?}", ^name),
+                Var::EVar(evar) => w!("{:?}", evar),
             }
         }
     }
@@ -1112,7 +1115,7 @@ impl Defns {
             .iter()
             .map(|e| RefineArg::Expr(e.clone()))
             .collect_vec();
-        defn.expr.replace_bound_vars(&args)
+        defn.expr.replace_bvars(&args)
     }
 
     // expand a particular app if there is a known defn for it
