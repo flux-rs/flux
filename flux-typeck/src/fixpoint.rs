@@ -318,7 +318,7 @@ where
 
 impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
     fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred> {
-        <dyn KVarGen>::fresh(self, sorts, kind)
+        (**self).fresh(sorts, kind)
     }
 }
 
