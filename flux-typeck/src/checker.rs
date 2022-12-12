@@ -183,6 +183,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let fn_sig = genv
             .lookup_fn_sig(def_id)
             .unwrap_or_else(|_| panic!("checking function with unsupported signature"))
+            .fn_sig
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);

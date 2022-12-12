@@ -71,7 +71,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Self { genv, name_map: NameMap::default() }
     }
 
-    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::Binders<rty::FnSig> {
+    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
         let mut cx = ConvCtxt::new(genv);
 
         let params = cx.conv_params(&fn_sig.params);
@@ -93,7 +93,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let ret = cx.conv_ty(&fn_sig.ret, 1);
 
-        rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), params)
+        rty::PolySig::new(rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), params))
     }
 
     pub(crate) fn conv_enum_def_variants(

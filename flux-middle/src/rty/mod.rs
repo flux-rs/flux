@@ -76,7 +76,10 @@ pub struct Binders<T> {
     value: T,
 }
 
-pub type PolySig = Binders<FnSig>;
+#[derive(Clone)]
+pub struct PolySig {
+    pub fn_sig: Binders<FnSig>,
+}
 
 #[derive(Clone)]
 pub struct FnSig {
@@ -305,6 +308,12 @@ impl RefineArg {
         } else {
             panic!("expected an `RefineArg::Expr`")
         }
+    }
+}
+
+impl PolySig {
+    pub fn new(fn_sig: Binders<FnSig>) -> PolySig {
+        PolySig { fn_sig }
     }
 }
 

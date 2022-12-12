@@ -111,7 +111,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
         // mutable references.
-        let actuals = iter::zip(actuals, fn_sig.as_ref().skip_binders().args())
+        let actuals = iter::zip(actuals, fn_sig.fn_sig.as_ref().skip_binders().args())
             .map(|(actual, formal)| {
                 if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
@@ -133,6 +133,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generic_args(&substs)
+            .fn_sig
             .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
 
         // Check requires predicates and collect type constraints

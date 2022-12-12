@@ -6,8 +6,8 @@ use rustc_hash::FxHashSet;
 
 use super::{
     evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig,
-    GenericArg, Invariant, KVar, Name, Pred, Qualifier, RefineArg, RefineArgs, RefineArgsData,
-    Sort, Ty, TyKind, VariantRet,
+    GenericArg, Invariant, KVar, Name, PolySig, Pred, Qualifier, RefineArg, RefineArgs,
+    RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -193,6 +193,16 @@ where
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_binders(self)
+    }
+}
+
+impl TypeFoldable for PolySig {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        PolySig::new(self.fn_sig.fold_with(folder))
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.fn_sig.visit_with(visitor);
     }
 }
 
