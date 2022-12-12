@@ -47,6 +47,17 @@ impl<'a> Env<'a> {
     }
 }
 
+impl<'a> From<&'a [(fhir::Ident, fhir::Sort)]> for Env<'a> {
+    fn from(params: &'a [(fhir::Ident, fhir::Sort)]) -> Self {
+        Env {
+            sorts: params
+                .iter()
+                .map(|(ident, sort)| (ident.name, sort))
+                .collect(),
+        }
+    }
+}
+
 impl<'a, T: Borrow<fhir::Name>> std::ops::Index<T> for Env<'a> {
     type Output = &'a fhir::Sort;
 
@@ -63,13 +74,13 @@ impl<'a> Wf<'a> {
     }
 
     pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&qualifier.args);
+        let env = Env::from(&qualifier.args[..]);
 
         self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
     pub fn check_defn(&self, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&defn.args.params);
+        let env = Env::from(&defn.args[..]);
         self.check_expr(&env, &defn.expr, &defn.sort)
     }
 

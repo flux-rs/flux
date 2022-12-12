@@ -60,8 +60,8 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
 }
 
 pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
-    let mut name_map = NameMap::default();
-    let sorts = name_map.conv_refined_by(&defn.args);
+    let name_map = NameMap::with_bvars(defn.args.iter().map(|(ident, _)| ident.name));
+    let sorts = defn.args.iter().map(|(_, sort)| sort.clone()).collect_vec();
     let expr = Binders::new(name_map.conv_expr(&defn.expr, 1), sorts);
     rty::Defn { name: defn.name, expr }
 }
@@ -218,10 +218,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let args = qualifier
             .args
             .iter()
-            .map(|param| {
+            .map(|(ident, sort)| {
                 let fresh = name_gen.fresh();
-                name_map.insert(param.name.name, fresh);
-                (fresh, param.sort.clone())
+                name_map.insert(ident.name, fresh);
+                (fresh, sort.clone())
             })
             .collect_vec();
 

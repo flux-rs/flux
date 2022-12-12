@@ -47,7 +47,7 @@ pub struct ConstInfo {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<RefineParam>,
+    pub args: Vec<(Ident, Sort)>,
     pub expr: Expr,
 }
 
@@ -305,7 +305,7 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
-    pub args: RefinedBy,
+    pub args: Vec<(Ident, Sort)>,
     pub sort: Sort,
     pub expr: Expr,
 }

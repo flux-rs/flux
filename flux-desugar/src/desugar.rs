@@ -3,10 +3,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::{
-    fhir::{self, RefinedBy},
-    intern::List,
-};
+use flux_middle::{fhir, intern::List};
 use flux_syntax::surface::{self, Res, TyCtxt};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
@@ -24,7 +21,7 @@ pub fn desugar_qualifier(
     let name = qualifier.name.name.to_ident_string();
     let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(qualifier.expr);
 
-    Ok(fhir::Qualifier { name, args: binders.into_params(), expr: expr? })
+    Ok(fhir::Qualifier { name, args: binders.into_args(), expr: expr? })
 }
 
 pub fn desugar_defn(
@@ -37,7 +34,7 @@ pub fn desugar_defn(
     let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(defn.expr)?;
     let name = defn.name.name;
     let sort = resolve_sort(sess, &defn.sort)?;
-    let args = RefinedBy { params: binders.into_params(), span: defn.args.span };
+    let args = binders.into_args();
     Ok(fhir::Defn { name, args, sort, expr })
 }
 
@@ -972,6 +969,19 @@ impl Binders {
         path.args.iter().try_for_each_exhaust(|ty| {
             self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
         })
+    }
+
+    fn into_args(self) -> Vec<(fhir::Ident, fhir::Sort)> {
+        let mut args = vec![];
+        for (ident, binder) in self.map {
+            if let Binder::Single(name, sort) = binder {
+                let name = fhir::Ident { name, source_info: to_src_info(ident) };
+                args.push((name, sort));
+            } else {
+                panic!()
+            }
+        }
+        args
     }
 
     fn into_params(self) -> Vec<fhir::RefineParam> {
