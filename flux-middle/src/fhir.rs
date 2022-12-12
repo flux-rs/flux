@@ -292,7 +292,7 @@ pub struct AdtDef {
 
 #[derive(Debug)]
 pub struct RefinedBy {
-    pub params: Vec<RefineParam>,
+    pub params: Vec<(Ident, Sort)>,
     pub span: Span,
 }
 
@@ -312,7 +312,7 @@ pub struct Defn {
 
 impl AdtDef {
     pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
-        let sorts = refined_by.iter().map(|param| param.sort.clone()).collect();
+        let sorts = refined_by.sorts().cloned().collect_vec();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
     }
 }
@@ -320,8 +320,12 @@ impl AdtDef {
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
 
-    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
-        self.params.iter()
+    // pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
+    //     self.params.iter()
+    // }
+
+    pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
+        self.params.iter().map(|(_, sort)| sort)
     }
 }
 

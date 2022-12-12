@@ -67,6 +67,11 @@ pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
 }
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
+    fn from_refined_by(genv: &'a GlobalEnv<'genv, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
+        let name_map = NameMap::with_bvars(refined_by.params.iter().map(|(ident, _)| ident.name));
+        Self { genv, name_map }
+    }
+
     fn from_params(genv: &'a GlobalEnv<'genv, 'tcx>, params: &[fhir::RefineParam]) -> Self {
         let name_map = NameMap::with_bvars(params.iter().map(|param| param.name.name));
         Self { genv, name_map }
@@ -147,10 +152,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
-        refined_by: &[fhir::RefineParam],
+        refined_by: &fhir::RefinedBy,
         struct_def: &fhir::StructDef,
     ) -> Option<rty::PolyVariant> {
-        let mut cx = ConvCtxt::from_params(genv, refined_by);
+        let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
+
         let def_id = struct_def.def_id;
         let rustc_adt = genv.tcx.adt_def(def_id);
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
@@ -180,10 +186,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 })
                 .collect_vec();
 
-            let sorts = refined_by
-                .iter()
-                .map(|param| param.sort.clone())
-                .collect_vec();
+            let sorts = refined_by.sorts().cloned().collect_vec();
             let idxs = sorts
                 .iter()
                 .enumerate()
@@ -405,18 +408,20 @@ impl NameMap {
         }
         r
     }
+
     fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant { pred: Binders::new(self.conv_expr(invariant, 1), sorts) }
     }
 
     fn conv_refined_by(&mut self, refined_by: &fhir::RefinedBy) -> Vec<rty::Sort> {
         refined_by
+            .params
             .iter()
             .enumerate()
-            .map(|(index, param)| {
+            .map(|(index, (ident, sort))| {
                 self.map
-                    .insert(param.name.name, Entry::Bound { index, level: 0 });
-                param.sort.clone()
+                    .insert(ident.name, Entry::Bound { index, level: 0 });
+                sort.clone()
             })
             .collect()
     }

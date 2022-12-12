@@ -84,7 +84,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn register_struct_def_variants(&mut self) {
         for struct_def in self.map.structs() {
             let def_id = struct_def.def_id;
-            let refined_by = &self.map().refined_by(struct_def.def_id).unwrap().params;
+            let refined_by = &self.map().refined_by(struct_def.def_id).unwrap();
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));

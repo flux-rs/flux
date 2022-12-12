@@ -84,7 +84,7 @@ pub fn desugar_adt_def(
         .map(|invariant| ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
-    let refined_by = fhir::RefinedBy { params: binders.into_params(), span: refined_by.span };
+    let refined_by = fhir::RefinedBy { params: binders.into_args(), span: refined_by.span };
     Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
 }
 
@@ -1056,10 +1056,11 @@ impl Binder {
                 let fields: FxIndexMap<_, _> = map
                     .refined_by(def_id)
                     .unwrap_or(fhir::RefinedBy::DUMMY)
+                    .params
                     .iter()
-                    .map(|param| {
-                        let fld = param.name.source_info.1;
-                        (fld, (name_gen.fresh(), param.sort.clone()))
+                    .map(|(ident, sort)| {
+                        let fld = ident.source_info.1;
+                        (fld, (name_gen.fresh(), sort.clone()))
                     })
                     .collect();
                 Binder::Aggregate(def_id, fields)
