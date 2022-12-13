@@ -77,6 +77,8 @@ enum NodeKind {
     ForAll(Name, Sort),
     Guard(Pred),
     Head(Pred, Tag),
+    Impl(Pred, Pred, Tag),
+    True,
 }
 
 impl RefineTree {
@@ -147,10 +149,9 @@ impl RefineCtxt<'_> {
         }
     }
 
-    pub fn check_impl(&mut self, ped1: impl Into<Pred>, pred2: impl Into<Pred>, tag: Tag) {
+    pub fn check_impl(&mut self, pred1: impl Into<Pred>, pred2: impl Into<Pred>, tag: Tag) {
         self.ptr
-            .push_node(NodeKind::Guard(ped1.into()))
-            .push_node(NodeKind::Head(pred2.into(), tag));
+            .push_node(NodeKind::Impl(pred1.into(), pred2.into(), tag));
     }
 
     fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
@@ -367,13 +368,31 @@ impl std::ops::Deref for NodePtr {
 
 impl Node {
     fn replace_evars(&mut self, evars: &EVarSol) {
-        for child in &self.children {
-            child.borrow_mut().replace_evars(evars)
-        }
+        self.children.drain_filter(|child| {
+            let mut node = child.borrow_mut();
+            node.replace_evars(evars);
+            matches!(node.kind, NodeKind::True)
+        });
         match &mut self.kind {
             NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
-            NodeKind::Head(pred, _) => *pred = pred.replace_evars(evars),
-            NodeKind::Conj | NodeKind::ForAll(_, _) => {}
+            NodeKind::Impl(pred1, pred2, tag) => {
+                let pred1 = pred1.replace_evars(evars);
+                let pred2 = pred2.replace_evars(evars);
+                if pred1 == pred2 {
+                    self.kind = NodeKind::True;
+                } else {
+                    self.kind = NodeKind::Impl(pred1, pred2, *tag)
+                }
+            }
+            NodeKind::Head(pred, _) => {
+                match pred.replace_evars(evars) {
+                    Pred::Expr(e) if e.is_trivial_equality() => {
+                        self.kind = NodeKind::True;
+                    }
+                    new_pred => *pred = new_pred,
+                }
+            }
+            NodeKind::Conj | NodeKind::ForAll(_, _) | NodeKind::True => {}
         }
     }
 
@@ -403,10 +422,25 @@ impl Node {
                     ),
                 ))
             }
+            NodeKind::Impl(pred1, pred2, tag) => {
+                let (bindings1, pred1) = cx.pred_to_fixpoint(pred1);
+                let (bindings2, pred2) = cx.pred_to_fixpoint(pred2);
+                Some(stitch(
+                    bindings1,
+                    fixpoint::Constraint::Guard(
+                        pred1,
+                        Box::new(stitch(
+                            bindings2,
+                            fixpoint::Constraint::Pred(pred2, Some(cx.tag_idx(*tag))),
+                        )),
+                    ),
+                ))
+            }
             NodeKind::Head(pred, tag) => {
                 let (bindings, pred) = cx.pred_to_fixpoint(pred);
                 Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
             }
+            NodeKind::True => None,
         }
     }
 
@@ -576,24 +610,29 @@ mod pretty {
                         (vec![pred.clone()], node.children.clone())
                     };
                     let guard = Pred::And(List::from_vec(preds)).simplify();
-                    if guard.is_atom() {
-                        w!("{:?} ⇒", guard)?;
-                    } else {
-                        w!("({:?}) ⇒", guard)?;
-                    }
+                    w!("{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
                     let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
-                    if pred.is_atom() {
-                        w!("{:?}", pred)?;
-                    } else {
-                        w!("({:?})", pred)?;
-                    }
+                    w!("{:?}", parens!(pred, !pred.is_atom()))?;
                     if cx.tags {
                         w!(" ~ {:?}", tag)?;
                     }
                     Ok(())
+                }
+                NodeKind::Impl(pred1, pred2, tag) => {
+                    let pred1 = if cx.simplify_exprs { pred1.simplify() } else { pred1.clone() };
+                    let pred2 = if cx.simplify_exprs { pred2.simplify() } else { pred2.clone() };
+                    w!("{:?} => ", parens!(pred1, !pred1.is_atom()))?;
+                    w!("{:?}", parens!(pred2, !pred2.is_atom()))?;
+                    if cx.tags {
+                        w!(" ~ {:?}", tag)?;
+                    }
+                    Ok(())
+                }
+                NodeKind::True => {
+                    w!("true")
                 }
             }
         }
@@ -646,7 +685,7 @@ mod pretty {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }
                             NodeKind::Guard(pred) => f(&format_args_cx!("{:?}", pred)),
-                            NodeKind::Conj | NodeKind::Head(..) => unreachable!(),
+                            _ => unreachable!(),
                         }
                     })
             )

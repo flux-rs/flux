@@ -85,6 +85,14 @@ macro_rules! _join {
 pub use crate::_join as join;
 
 #[macro_export]
+macro_rules! _parens {
+    ($val:expr, $parenthesize:expr) => {
+        $crate::pretty::Parens::new(&$val, $parenthesize)
+    };
+}
+pub use crate::_parens as parens;
+
+#[macro_export]
 macro_rules! _impl_debug_with_default_cx {
     ($($ty:ty $(=> $key:literal)?),* $(,)?) => {$(
         impl std::fmt::Debug for $ty  {
@@ -139,6 +147,11 @@ pub struct Join<'a, I> {
     iter: RefCell<Option<I>>,
 }
 
+pub struct Parens<'a, T> {
+    val: &'a T,
+    parenthesize: bool,
+}
+
 pub trait Pretty {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
@@ -150,6 +163,12 @@ pub trait Pretty {
 impl<'a, I> Join<'a, I> {
     pub fn new<T: IntoIterator<IntoIter = I>>(sep: &'a str, iter: T) -> Self {
         Self { sep, iter: RefCell::new(Some(iter.into_iter())) }
+    }
+}
+
+impl<'a, T> Parens<'a, T> {
+    pub fn new(val: &'a T, parenthesize: bool) -> Self {
+        Self { val, parenthesize }
     }
 }
 
@@ -262,6 +281,21 @@ where
                 write!(f, "{}", self.sep)?;
             }
             <T as Pretty>::fmt(&item, cx, f)?;
+        }
+        Ok(())
+    }
+}
+impl<'a, T> Pretty for Parens<'a, T>
+where
+    T: Pretty,
+{
+    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.parenthesize {
+            write!(f, "(")?;
+        }
+        <T as Pretty>::fmt(self.val, cx, f)?;
+        if self.parenthesize {
+            write!(f, ")")?;
         }
         Ok(())
     }

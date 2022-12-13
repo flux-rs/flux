@@ -225,9 +225,7 @@ impl Expr {
     pub fn neg(&self) -> Expr {
         ExprKind::UnaryOp(UnOp::Neg, self.clone()).intern()
     }
-}
 
-impl Expr {
     pub fn kind(&self) -> &ExprKind {
         &self.kind
     }
@@ -239,6 +237,10 @@ impl Expr {
 
     pub fn is_binary_op(&self) -> bool {
         !matches!(self.kind, ExprKind::BinaryOp(..))
+    }
+
+    pub fn is_trivial_equality(&self) -> bool {
+        matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq, e1, e2) if e1 == e2)
     }
 
     /// Simplify expression applying some simple rules like removing double negation. This is
