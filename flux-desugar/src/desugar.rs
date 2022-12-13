@@ -156,7 +156,7 @@ pub fn desugar_fn_sig(
     fn_sig: surface::FnSig<Res>,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
-    binders.gather_fn_sig_params(tcx, sess, map, &fn_sig)?;
+    binders.fn_sig_gather_params(tcx, sess, map, &fn_sig)?;
     let mut cx = DesugarCtxt::new(tcx, sess, map, binders);
 
     if let Some(e) = fn_sig.requires {
@@ -217,7 +217,7 @@ enum Binder {
     /// to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`, or
     /// by explicitly listing the indices for a type with multiple indices, e.g,
     /// `RMat[@row, @cols]`.
-    Single(fhir::Name, fhir::Sort),
+    Single(fhir::Name, fhir::Sort, bool),
     /// A binder that will desugar into multiple indices and _must_ be projected using
     /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
@@ -397,7 +397,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         ident: surface::Ident,
     ) -> Result<Vec<fhir::RefineArg>, ErrorGuaranteed> {
         match self.binders.get(ident) {
-            Some(Binder::Single(name, _)) => {
+            Some(Binder::Single(name, ..)) => {
                 let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(vec![fhir::RefineArg::Expr { expr, is_binder: true }])
@@ -534,7 +534,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn resolve_func(&self, func: surface::Ident) -> Result<FuncRes, ErrorGuaranteed> {
         if let Some(b) = self.binders.get(func) {
             match b {
-                Binder::Single(name, sort) => return Ok(FuncRes::Param(*name, sort)),
+                Binder::Single(name, sort, _) => return Ok(FuncRes::Param(*name, sort)),
                 Binder::Aggregate(_, fields) => {
                     if fields.len() == 1 {
                         let (name, sort) = fields.values().next().unwrap();
@@ -578,7 +578,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match (self.binders.get(ident), self.map.const_by_name(ident.name)) {
-            (Some(Binder::Single(name, _)), _) => {
+            (Some(Binder::Single(name, ..)), _) => {
                 fhir::ExprKind::Var(*name, ident.name, ident.span)
             }
             (Some(Binder::Aggregate(_, fields)), _) => {
@@ -616,7 +616,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         };
 
         match self.binders.get(ident) {
-            Some(Binder::Single(_, sort)) => {
+            Some(Binder::Single(_, sort, _)) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();
                 Err(self
                     .sess
@@ -643,7 +643,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
         match self.binders.get(loc) {
-            Some(&Binder::Single(name, _)) => {
+            Some(&Binder::Single(name, ..)) => {
                 Ok(fhir::Ident { name, source_info: to_src_info(loc) })
             }
             Some(binder @ (Binder::Aggregate(..) | Binder::Unrefined)) => {
@@ -714,7 +714,7 @@ impl Binders {
             binders.insert_binder(
                 sess,
                 param.name,
-                Binder::Single(binders.fresh(), resolve_sort(sess, &param.sort)?),
+                Binder::Single(binders.fresh(), resolve_sort(sess, &param.sort)?, true),
             )?;
         }
         Ok(binders)
@@ -749,7 +749,7 @@ impl Binders {
     ) -> Result<(R, Vec<fhir::Name>), ErrorGuaranteed> {
         let names = params.iter().map(|_| self.fresh()).collect_vec();
         let binders = iter::zip(&names, params)
-            .map(|(name, param)| (*param, Binder::Single(*name, fhir::Sort::Infer)))
+            .map(|(name, param)| (*param, Binder::Single(*name, fhir::Sort::Infer, false)))
             .collect_vec();
         let (r, _) = self.with_binders(binders, f)?;
         Ok((r, names))
@@ -821,7 +821,7 @@ impl Binders {
             })
     }
 
-    fn gather_fn_sig_params(
+    fn fn_sig_gather_params(
         &mut self,
         tcx: TyCtxt,
         sess: &FluxSession,
@@ -832,7 +832,7 @@ impl Binders {
             self.insert_binder(
                 sess,
                 param.name,
-                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?),
+                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?, true),
             )?;
         }
         for arg in &fn_sig.args {
@@ -858,7 +858,11 @@ impl Binders {
                 self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, map, path.ident))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                self.insert_binder(sess, *loc, Binder::Single(self.fresh(), fhir::Sort::Loc))?;
+                self.insert_binder(
+                    sess,
+                    *loc,
+                    Binder::Single(self.fresh(), fhir::Sort::Loc, false),
+                )?;
                 self.ty_gather_params(tcx, sess, map, None, ty, true)?;
             }
             surface::Arg::Ty(bind, ty) => self.ty_gather_params(tcx, sess, map, *bind, ty, true)?,
@@ -907,7 +911,7 @@ impl Binders {
                             if !allow_binder {
                                 return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
                             }
-                            self.insert_binder(sess, *ident, Binder::Single(name, sort))?;
+                            self.insert_binder(sess, *ident, Binder::Single(name, sort, false))?;
                         }
                     }
                 }
@@ -974,7 +978,7 @@ impl Binders {
     fn into_args(self) -> Vec<(fhir::Ident, fhir::Sort)> {
         let mut args = vec![];
         for (ident, binder) in self.map {
-            if let Binder::Single(name, sort) = binder {
+            if let Binder::Single(name, sort, _) = binder {
                 let name = fhir::Ident { name, source_info: to_src_info(ident) };
                 args.push((name, sort));
             } else {
@@ -988,12 +992,22 @@ impl Binders {
         let mut params = vec![];
         for (ident, binder) in self.map {
             match binder {
-                Binder::Single(name, sort) => {
-                    params.push(param_from_ident(ident, name, sort.clone()));
+                Binder::Single(name, sort, explicit) => {
+                    let kind = if explicit && sort.is_pred() {
+                        fhir::ParamKind::KVar
+                    } else {
+                        fhir::ParamKind::EVar
+                    };
+                    params.push(param_from_ident(ident, name, sort.clone(), kind));
                 }
                 Binder::Aggregate(_, fields) => {
                     for (_, (name, sort)) in fields {
-                        params.push(param_from_ident(ident, name, sort.clone()));
+                        params.push(param_from_ident(
+                            ident,
+                            name,
+                            sort.clone(),
+                            fhir::ParamKind::default_for(&sort),
+                        ));
                     }
                 }
                 Binder::Unrefined => {}
@@ -1023,9 +1037,10 @@ fn param_from_ident(
     ident: surface::Ident,
     name: fhir::Name,
     sort: fhir::Sort,
+    kind: fhir::ParamKind,
 ) -> fhir::RefineParam {
     let name = fhir::Ident { name, source_info: to_src_info(ident) };
-    fhir::RefineParam { name, sort }
+    fhir::RefineParam { name, sort, kind }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
@@ -1050,8 +1065,8 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
 impl Binder {
     fn from_res(name_gen: &IndexGen<fhir::Name>, map: &fhir::Map, res: surface::Res) -> Binder {
         match res {
-            Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool),
-            Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int),
+            Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool, false),
+            Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, false),
             Res::Adt(def_id) => {
                 let fields: FxIndexMap<_, _> = map
                     .refined_by(def_id)
@@ -1071,7 +1086,7 @@ impl Binder {
 
     fn deaggregate(self) -> Vec<(fhir::Name, fhir::Sort)> {
         match self {
-            Binder::Single(name, sort) => vec![(name, sort)],
+            Binder::Single(name, sort, _) => vec![(name, sort)],
             Binder::Aggregate(_, fields) => fields.into_values().collect(),
             Binder::Unrefined => vec![],
         }
@@ -1079,7 +1094,7 @@ impl Binder {
 
     fn names(self) -> Vec<fhir::Name> {
         match self {
-            Binder::Single(name, _) => vec![name],
+            Binder::Single(name, ..) => vec![name],
             Binder::Aggregate(_, fields) => fields.into_values().map(|(name, _)| name).collect(),
             Binder::Unrefined => vec![],
         }

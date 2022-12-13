@@ -367,13 +367,13 @@ impl std::ops::Deref for NodePtr {
 
 impl Node {
     fn replace_evars(&mut self, evars: &EVarSol) {
+        for child in &self.children {
+            child.borrow_mut().replace_evars(evars)
+        }
         match &mut self.kind {
             NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
             NodeKind::Head(pred, _) => *pred = pred.replace_evars(evars),
             NodeKind::Conj | NodeKind::ForAll(_, _) => {}
-        }
-        for child in &self.children {
-            child.borrow_mut().replace_evars(evars)
         }
     }
 
@@ -584,6 +584,7 @@ mod pretty {
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
+                    let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
                     if pred.is_atom() {
                         w!("{:?}", pred)?;
                     } else {

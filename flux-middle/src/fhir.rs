@@ -158,6 +158,16 @@ pub enum WeakKind {
     Arr,
 }
 
+impl ParamKind {
+    pub fn default_for(sort: &Sort) -> Self {
+        if sort.is_pred() {
+            ParamKind::KVar
+        } else {
+            ParamKind::EVar
+        }
+    }
+}
+
 impl From<RefKind> for WeakKind {
     fn from(rk: RefKind) -> WeakKind {
         match rk {
@@ -193,6 +203,13 @@ pub enum BaseTy {
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
+    pub kind: ParamKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ParamKind {
+    KVar,
+    EVar,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -319,10 +336,6 @@ impl AdtDef {
 
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
-
-    // pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
-    //     self.params.iter()
-    // }
 
     pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
         self.params.iter().map(|(_, sort)| sort)
@@ -505,7 +518,14 @@ impl fmt::Debug for FnSig {
                     p,
                     "<{}>",
                     self.params.iter().format_with(", ", |param, f| {
-                        f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                        match param.kind {
+                            ParamKind::KVar => {
+                                f(&format_args!("${:?}: {:?}", param.name, param.sort))
+                            }
+                            ParamKind::EVar => {
+                                f(&format_args!("?{:?}: {:?}", param.name, param.sort))
+                            }
+                        }
                     })
                 )?;
             }

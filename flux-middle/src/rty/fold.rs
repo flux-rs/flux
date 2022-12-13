@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, Interned, List},
-    rty::VariantDef,
+    rty::{Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -164,11 +164,27 @@ pub trait TypeFoldable: Sized {
         struct EVarFolder<'a>(&'a EVarSol);
 
         impl TypeFolder for EVarFolder<'_> {
+            fn fold_pred(&mut self, pred: &Pred) -> Pred {
+                if let Pred::App(Var::EVar(evar), args) = pred
+                   && let Some(sol) = self.0.get(*evar)
+                   && let RefineArg::Abs(pred_abs) = sol
+                {
+                    let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
+                    pred_abs.replace_bvars(&args)
+                } else {
+                    pred.super_fold_with(self)
+                }
+            }
+
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::EVar(evar) = expr.kind()
                    && let Some(sol) = self.0.get(*evar)
                 {
-                    sol.clone()
+                    if let RefineArg::Expr(e) = sol {
+                        e.clone()
+                    } else {
+                        panic!("expected expr for `{expr:?}` but found `{:?}` when substituting", sol)
+                    }
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -198,7 +214,7 @@ where
 
 impl TypeFoldable for PolySig {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        PolySig::new(self.fn_sig.fold_with(folder))
+        PolySig::new(self.fn_sig.fold_with(folder), &self.kinds[..])
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -607,6 +623,7 @@ impl TypeFoldable for AdtDef {
             .for_each(|inv| inv.visit_with(visitor));
     }
 }
+
 impl TypeFoldable for Invariant {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let pred = self.pred.fold_with(folder);

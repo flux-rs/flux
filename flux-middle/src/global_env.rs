@@ -174,8 +174,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let poly_variant = self.variant(def_id, variant_idx)?;
         let variant = poly_variant.as_ref().skip_binders();
         let sorts = poly_variant.params();
+        let kinds = sorts
+            .iter()
+            .map(|sort| rty::ParamKind::default_for(sort))
+            .collect_vec();
         let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        Ok(rty::PolySig::new(rty::Binders::new(sig, sorts)))
+        Ok(rty::PolySig::new(rty::Binders::new(sig, sorts), kinds))
     }
 
     pub fn variant(
@@ -259,7 +263,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|ty| self.refine_ty(ty, mk_pred))
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
-        rty::PolySig::new(rty::Binders::new(rty::FnSig::new(vec![], args, ret, vec![]), vec![]))
+        rty::PolySig::new(
+            rty::Binders::new(rty::FnSig::new(vec![], args, ret, vec![]), vec![]),
+            vec![],
+        )
     }
 
     pub fn refine_ty(

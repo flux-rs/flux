@@ -31,6 +31,7 @@ impl FVarSubst {
             .to_loc()
             .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
     }
+
     pub fn infer_from_refine_args(
         &mut self,
         params: &FxHashSet<Name>,

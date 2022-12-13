@@ -5,7 +5,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_index::newtype_index;
 
-use super::Expr;
+use super::RefineArg;
 
 static NEXT_CTXT_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -16,7 +16,7 @@ pub struct EVarGen {
 
 #[derive(Debug)]
 pub struct EVarSol {
-    evars: FxHashMap<EVarCxId, IndexVec<EVid, Expr>>,
+    evars: FxHashMap<EVarCxId, IndexVec<EVid, RefineArg>>,
 }
 
 /// An *e*xistential *var*riable is identified by a context and an id. Two evars
@@ -35,7 +35,7 @@ pub struct UnsolvedEvar {
 #[derive(Debug)]
 enum EVarState {
     Unsolved,
-    Unified(Expr),
+    Unified(RefineArg),
 }
 
 newtype_index! {
@@ -70,10 +70,10 @@ impl EVarGen {
         EVar { id: evid, cx }
     }
 
-    pub fn unify(&mut self, evar: EVar, expr: impl Into<Expr>, replace: bool) {
+    pub fn unify(&mut self, evar: EVar, arg: impl Into<RefineArg>, replace: bool) {
         let evars = self.evars.get_mut(&evar.cx).unwrap();
         if matches!(evars[evar.id], EVarState::Unsolved) || replace {
-            evars[evar.id] = EVarState::Unified(expr.into());
+            evars[evar.id] = EVarState::Unified(arg.into());
         }
     }
 
@@ -100,7 +100,7 @@ impl EVarGen {
 }
 
 impl EVarSol {
-    pub(crate) fn get(&self, evar: EVar) -> Option<&Expr> {
+    pub(crate) fn get(&self, evar: EVar) -> Option<&RefineArg> {
         Some(&self.evars.get(&evar.cx)?[evar.id])
     }
 }

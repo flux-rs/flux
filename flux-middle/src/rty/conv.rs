@@ -102,7 +102,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|param| param.sort.clone())
             .collect_vec();
-        rty::PolySig::new(rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts))
+        let kinds = fn_sig.params.iter().map(|param| param.kind).collect_vec();
+        rty::PolySig::new(
+            rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
+            kinds,
+        )
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -147,6 +151,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             iter::zip(&ret.indices.indices, bty.sorts())
                 .map(|(arg, sort)| self.conv_arg(arg, sort, 1)),
         );
+
         VariantRet { bty, args }
     }
 
