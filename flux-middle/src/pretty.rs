@@ -293,7 +293,7 @@ where
         if self.parenthesize {
             write!(f, "(")?;
         }
-        <T as Pretty>::fmt(&self.val, cx, f)?;
+        <T as Pretty>::fmt(self.val, cx, f)?;
         if self.parenthesize {
             write!(f, ")")?;
         }
