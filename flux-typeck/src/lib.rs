@@ -5,7 +5,8 @@
     if_let_guard,
     let_chains,
     type_alias_impl_trait,
-    box_patterns
+    box_patterns,
+    drain_filter
 )]
 
 extern crate rustc_data_structures;
