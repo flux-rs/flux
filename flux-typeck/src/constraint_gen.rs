@@ -174,7 +174,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace evars
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
-        // rcx.replace_evars(&evars_sol);
+        rcx.replace_evars(&evars_sol);
         let ret = fn_sig.ret().replace_evars(&evars_sol);
         let ensures = fn_sig.ensures().replace_evars(&evars_sol);
 
