@@ -168,7 +168,9 @@ pub enum Operand {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Place {
+    /// the "root" of the place, e.g. `_1` in `*_1.f.g.h`
     pub local: Local,
+    /// path taken to "get" the place e.g. `*.f.g.h` in `*_1.f.g.h` (except also have derefs)
     pub projection: Vec<PlaceElem>,
 }
 
