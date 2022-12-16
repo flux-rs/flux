@@ -287,19 +287,19 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         }
     }
 
-    fn desugar_ty(
+    fn desugar_base(
         &mut self,
         bind: Option<surface::Ident>,
-        ty: surface::Ty<Res>,
+        base: surface::BaseTy<Res>,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let ty = match ty.kind {
-            surface::TyKind::Path(surface::Path { ident: Res::Float(float_ty), .. }) => {
+        let ty = match base {
+            surface::BaseTy::Path(surface::Path { ident: Res::Float(float_ty), .. }) => {
                 fhir::Ty::Float(float_ty)
             }
-            surface::TyKind::Path(surface::Path { ident: Res::Param(param_ty), .. }) => {
+            surface::BaseTy::Path(surface::Path { ident: Res::Param(param_ty), .. }) => {
                 fhir::Ty::Param(param_ty)
             }
-            surface::TyKind::Path(path) => {
+            surface::BaseTy::Path(path) => {
                 match self.desugar_path(path)? {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
@@ -311,9 +311,27 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     BtyOrTy::Ty(ty) => ty,
                 }
             }
-            surface::TyKind::Indexed { path, indices } => {
+            surface::BaseTy::Array(ty, _) => {
+                let ty = self.desugar_ty(None, *ty)?;
+                fhir::Ty::BaseTy(fhir::BaseTy::Array(Box::new(ty), fhir::ArrayLen))
+            }
+            surface::BaseTy::Slice(ty) => {
+                fhir::Ty::BaseTy(fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, *ty)?)))
+            }
+        };
+        Ok(ty)
+    }
+
+    fn desugar_ty(
+        &mut self,
+        bind: Option<surface::Ident>,
+        ty: surface::Ty<Res>,
+    ) -> Result<fhir::Ty, ErrorGuaranteed> {
+        match ty.kind {
+            surface::TyKind::Base(base) => self.desugar_base(bind, base),
+            surface::TyKind::Indexed { base: path, indices } => {
                 match self.desugar_path(path)? {
-                    BtyOrTy::Bty(bty) => fhir::Ty::Indexed(bty, self.desugar_indices(indices)?),
+                    BtyOrTy::Bty(bty) => Ok(fhir::Ty::Indexed(bty, self.desugar_indices(indices)?)),
                     BtyOrTy::Ty(_) => {
                         return Err(self.sess.emit_err(errors::ParamCountMismatch::new(
                             indices.span,
@@ -323,9 +341,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     }
                 }
             }
-            surface::TyKind::Exists { bind: ident, path, pred } => {
+            surface::TyKind::Exists { bind: ident, base, pred } => {
                 let res = path.ident;
-                match self.desugar_path(path)? {
+                match self.desugar_base(None, base)? {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
@@ -335,7 +353,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                         .desugar_expr(pred)
                                 })?;
                             let idxs = self.desugar_bind(bind)?;
-                            fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
+                            Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
                         } else {
                             let binder = Binder::from_res(&self.binders.name_gen, self.map, res);
                             let (pred, binder) =
@@ -343,7 +361,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            fhir::Ty::Exists(bty, binder.names(), pred)
+                            Ok(fhir::Ty::Exists(bty, binder.names(), pred))
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -353,28 +371,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     }
                 }
             }
-            surface::TyKind::Ref(rk, ty) => {
-                fhir::Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(None, *ty)?))
-            }
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                 let ty = self.desugar_ty(None, *ty)?;
-                fhir::Ty::Constr(pred, Box::new(ty))
+                Ok(fhir::Ty::Constr(pred, Box::new(ty)))
             }
-            surface::TyKind::Array(ty, _) => {
-                let ty = self.desugar_ty(None, *ty)?;
-                fhir::Ty::Array(Box::new(ty), fhir::ArrayLen)
+            surface::TyKind::Ref(rk, ty) => {
+                Ok(fhir::Ty::Ref(desugar_ref_kind(rk), Box::new(self.desugar_ty(None, *ty)?)))
             }
-            surface::TyKind::Slice(ty) => fhir::Ty::Slice(Box::new(self.desugar_ty(None, *ty)?)),
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
                     .into_iter()
                     .map(|ty| self.desugar_ty(None, ty))
                     .try_collect_exhaust()?;
-                fhir::Ty::Tuple(tys)
+                Ok(fhir::Ty::Tuple(tys))
             }
-        };
-        Ok(ty)
+        }
     }
 
     fn desugar_indices(
@@ -880,7 +892,7 @@ impl Binders {
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
-            surface::TyKind::Indexed { path, indices } => {
+            surface::TyKind::Indexed { base: path, indices } => {
                 let binder = Binder::from_res(&self.name_gen, map, path.ident);
                 if bind.is_some() {
                     // This code is currently not reachable because the parser won't allow it as it conflicts with alias
@@ -947,7 +959,7 @@ impl Binders {
                 }
                 Ok(())
             }
-            surface::TyKind::Exists { path, .. } => {
+            surface::TyKind::Exists { base: path, .. } => {
                 if let Some(bind) = bind {
                     self.insert_binder(
                         sess,

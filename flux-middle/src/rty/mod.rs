@@ -403,14 +403,6 @@ impl Ty {
         TyKind::Ptr(rk, path.into()).intern()
     }
 
-    pub fn array(ty: Ty, c: Const) -> Ty {
-        Ty::indexed(BaseTy::Array(ty, c), RefineArgs::empty())
-    }
-
-    pub fn slice(ty: Ty) -> Ty {
-        Ty::indexed(BaseTy::Slice(ty), RefineArgs::empty())
-    }
-
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
         TyKind::BoxPtr(loc, alloc).intern()
     }
@@ -573,6 +565,16 @@ impl From<&Expr> for RefineArg {
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
         BaseTy::Adt(adt_def, substs.into())
+    }
+
+    pub fn array(ty: Ty, c: Const) -> BaseTy {
+        BaseTy::Array(ty, c)
+        // Ty::indexed(BaseTy::Array(ty, c), RefineArgs::empty())
+    }
+
+    pub fn slice(ty: Ty) -> BaseTy {
+        BaseTy::Slice(ty)
+        //Ty::indexed(BaseTy::Slice(ty), RefineArgs::empty())
     }
 
     fn is_integral(&self) -> bool {

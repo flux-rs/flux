@@ -143,26 +143,31 @@ pub struct Ty<R = Ident> {
 }
 
 #[derive(Debug)]
+pub enum BaseTy<T = Ident> {
+    Path(Path<T>),
+    Array(Box<Ty<T>>, ArrayLen),
+    Slice(Box<Ty<T>>),
+}
+
+#[derive(Debug)]
 pub enum TyKind<T = Ident> {
     /// ty
-    Path(Path<T>),
+    Base(BaseTy<T>),
     /// `t[e]`
     Indexed {
-        path: Path<T>,
+        base: BaseTy<T>,
         indices: Indices,
     },
     /// ty{b:e}
     Exists {
         bind: Ident,
-        path: Path<T>,
+        base: BaseTy<T>,
         pred: Expr,
     },
     /// Mutable or shared reference
     Ref(RefKind, Box<Ty<T>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
-    Array(Box<Ty<T>>, ArrayLen),
-    Slice(Box<Ty<T>>),
     Tuple(Vec<Ty<T>>),
 }
 
@@ -317,7 +322,7 @@ pub mod expand {
     use rustc_span::symbol::Ident;
 
     use super::{
-        AliasMap, Arg, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
+        AliasMap, Arg, BaseTy, BinOp, Expr, ExprKind, FnSig, Indices, Path, RefineArg, Ty, TyKind,
     };
 
     /// `expand_sig(aliases, sig)` replaces all the alias-applications in `sig`
@@ -342,13 +347,21 @@ pub mod expand {
     fn expand_arg(aliases: &AliasMap, arg: Arg) -> Result<Arg, ErrorGuaranteed> {
         match arg {
             Arg::Alias(x, path, indices) => {
-                match expand_alias(aliases, &path, &indices) {
-                    Some(TyKind::Exists { bind: e_bind, path: e_path, pred: e_pred }) => {
-                        Ok(expand_arg_exists(x, e_path, e_bind, e_pred))
-                    }
+                let span = path.span;
+                match expand_alias_path(aliases, &path, &indices) {
+                    Some(TyKind::Exists {
+                        bind: e_bind,
+                        base: BaseTy::Path(e_path),
+                        pred: e_pred,
+                    }) => Ok(expand_arg_exists(x, e_path, e_bind, e_pred)),
                     _ => {
-                        let span = path.span;
-                        Ok(Arg::Ty(None, Ty { kind: TyKind::Indexed { path, indices }, span }))
+                        Ok(Arg::Ty(
+                            None,
+                            Ty {
+                                kind: TyKind::Indexed { base: BaseTy::Path(path), indices },
+                                span,
+                            },
+                        ))
                     }
                 }
             }
@@ -364,16 +377,21 @@ pub mod expand {
         Arg::Constr(x, e_path, x_pred)
     }
 
-    fn expand_alias(aliases: &AliasMap, path: &Path, indices: &Indices) -> Option<TyKind> {
+    fn expand_alias_path(aliases: &AliasMap, path: &Path, indices: &Indices) -> Option<TyKind> {
         let id = path.ident;
-        match aliases.get(&id) {
-            Some(alias) /* if path.args.is_empty() */ => {
-                let subst = mk_sub(&alias.args, &indices.indices);
-                let ty = subst_ty(&subst, &alias.defn);
-                Some(ty.kind)
-            }
-            _ => None,
+        if let Some(alias) = aliases.get(&id) {
+            let subst = mk_sub(&alias.args, &indices.indices);
+            let ty = subst_ty(&subst, &alias.defn);
+            return Some(ty.kind);
         }
+        None
+    }
+
+    fn expand_alias(aliases: &AliasMap, base: &BaseTy, indices: &Indices) -> Option<TyKind> {
+        if let BaseTy::Path(path) = base {
+            return expand_alias_path(aliases, path, indices);
+        }
+        None
     }
 
     fn expand_path(aliases: &AliasMap, path: &Path) -> Path {
@@ -384,29 +402,37 @@ pub mod expand {
         }
     }
 
+    fn expand_base(aliases: &AliasMap, base: &BaseTy) -> BaseTy {
+        match base {
+            BaseTy::Path(path) => BaseTy::Path(expand_path(aliases, path)),
+            BaseTy::Array(ty, len) => BaseTy::Array(Box::new(expand_ty(aliases, ty)), *len),
+            BaseTy::Slice(ty) => BaseTy::Slice(Box::new(expand_ty(aliases, ty))),
+        }
+    }
+
     fn expand_ty(aliases: &AliasMap, ty: &Ty) -> Ty {
-        let kind = expand_kind(aliases, &ty.kind);
+        let kind = expand_kind(aliases, &ty.kind, ty.span);
         Ty { kind, span: ty.span }
     }
 
-    fn expand_kind(aliases: &AliasMap, k: &TyKind) -> TyKind {
+    fn expand_kind(aliases: &AliasMap, k: &TyKind, span: crate::Span) -> TyKind {
         match k {
-            TyKind::Path(p) => {
-                let indices = Indices { indices: vec![], span: p.span };
-                match expand_alias(aliases, p, &indices) {
+            TyKind::Base(base) => {
+                let indices = Indices { indices: vec![], span };
+                match expand_alias(aliases, base, &indices) {
                     Some(k) => k,
-                    None => TyKind::Path(expand_path(aliases, p)),
+                    None => TyKind::Base(expand_base(aliases, base)),
                 }
             }
-            TyKind::Exists { bind, path, pred } => {
-                TyKind::Exists { bind: *bind, path: expand_path(aliases, path), pred: pred.clone() }
+            TyKind::Exists { bind, base, pred } => {
+                TyKind::Exists { bind: *bind, base: expand_base(aliases, base), pred: pred.clone() }
             }
-            TyKind::Indexed { path, indices } => {
-                match expand_alias(aliases, path, indices) {
+            TyKind::Indexed { base, indices } => {
+                match expand_alias(aliases, base, indices) {
                     Some(k) => k,
                     None => {
                         TyKind::Indexed {
-                            path: expand_path(aliases, path),
+                            base: expand_base(aliases, base),
                             indices: indices.clone(),
                         }
                     }
@@ -416,8 +442,6 @@ pub mod expand {
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(pred.clone(), Box::new(expand_ty(aliases, t)))
             }
-            TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
-            TyKind::Slice(ty) => TyKind::Slice(Box::new(expand_ty(aliases, ty))),
             TyKind::Tuple(tys) => {
                 TyKind::Tuple(tys.iter().map(|t| expand_ty(aliases, t)).collect())
             }
@@ -522,19 +546,27 @@ pub mod expand {
         }
     }
 
+    fn subst_base(subst: &Subst, base: &BaseTy) -> BaseTy {
+        match base {
+            BaseTy::Path(path) => BaseTy::Path(subst_path(subst, path)),
+            BaseTy::Array(ty, len) => BaseTy::Array(Box::new(subst_ty(subst, ty)), *len),
+            BaseTy::Slice(ty) => BaseTy::Slice(Box::new(subst_ty(subst, ty))),
+        }
+    }
+
     fn subst_tykind(subst: &Subst, k: &TyKind) -> TyKind {
         match k {
-            TyKind::Path(p) => TyKind::Path(subst_path(subst, p)),
-            TyKind::Indexed { path, indices } => {
+            TyKind::Base(base) => TyKind::Base(subst_base(subst, base)),
+            TyKind::Indexed { base, indices } => {
                 TyKind::Indexed {
-                    path: subst_path(subst, path),
+                    base: subst_base(subst, base),
                     indices: subst_indices(subst, indices),
                 }
             }
-            TyKind::Exists { bind, path, pred } => {
+            TyKind::Exists { bind, base, pred } => {
                 TyKind::Exists {
                     bind: *bind,
-                    path: subst_path(subst, path),
+                    base: subst_base(subst, base),
                     pred: subst_expr(subst, pred),
                 }
             }
@@ -542,8 +574,6 @@ pub mod expand {
             TyKind::Constr(pred, t) => {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
-            TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
-            TyKind::Slice(ty) => TyKind::Slice(Box::new(subst_ty(subst, ty))),
             TyKind::Tuple(tys) => TyKind::Tuple(tys.iter().map(|t| subst_ty(subst, t)).collect()),
         }
     }

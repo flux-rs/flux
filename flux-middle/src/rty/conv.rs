@@ -277,8 +277,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let pred = self.name_map.conv_pred(pred, nbinders);
                 rty::Ty::constr(pred, self.conv_ty(ty, nbinders))
             }
-            fhir::Ty::Array(ty, _) => rty::Ty::array(self.conv_ty(ty, nbinders), rty::Const),
-            fhir::Ty::Slice(ty) => rty::Ty::slice(self.conv_ty(ty, nbinders)),
+
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
         }
@@ -331,6 +330,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             fhir::BaseTy::Bool => rty::BaseTy::Bool,
+            fhir::BaseTy::Array(ty, _) => {
+                rty::BaseTy::array(self.conv_ty(ty, nbinders), rty::Const)
+            }
+            fhir::BaseTy::Slice(ty) => rty::BaseTy::slice(self.conv_ty(ty, nbinders)),
             fhir::BaseTy::Adt(did, substs) => {
                 let mut i = 0;
                 let substs = List::from_vec(
