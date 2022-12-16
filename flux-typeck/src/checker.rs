@@ -22,8 +22,8 @@ use flux_middle::{
     rustc::{
         self,
         mir::{
-            self, AggregateKind, BasicBlock, Body, CastKind, Constant, Operand, Place, Rvalue,
-            SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
+            self, AggregateKind, AssertKind, BasicBlock, Body, CastKind, Constant, Operand, Place,
+            Rvalue, SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
             START_BLOCK,
         },
     },
@@ -485,7 +485,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         source_info: SourceInfo,
         cond: &Operand,
         expected: bool,
-        msg: &'static str,
+        msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, source_info, cond)?;
         let pred = if let TyKind::Indexed(BaseTy::Bool, idxs) = ty.kind() {
@@ -498,15 +498,25 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             unreachable!("unexpected ty `{ty:?}`")
         };
 
-        match self.genv.check_asserts() {
-            AssertBehavior::Ignore => Ok(Guard::None),
-            AssertBehavior::Assume => Ok(Guard::Pred(pred)),
-            AssertBehavior::Check => {
+        match msg {
+            AssertKind::BoundsCheck => {
                 self.phase
-                    .constr_gen(self.genv, rcx, Tag::Assert(msg, source_info.span))
+                    .constr_gen(self.genv, rcx, Tag::Assert("bounds check", source_info.span))
                     .check_pred(rcx, pred.clone());
+                return Ok(Guard::Pred(pred));
+            }
+            AssertKind::Other(assert_msg) => {
+                match self.genv.check_asserts() {
+                    AssertBehavior::Ignore => Ok(Guard::None),
+                    AssertBehavior::Assume => Ok(Guard::Pred(pred)),
+                    AssertBehavior::Check => {
+                        self.phase
+                            .constr_gen(self.genv, rcx, Tag::Assert(assert_msg, source_info.span))
+                            .check_pred(rcx, pred.clone());
 
-                Ok(Guard::Pred(pred))
+                        Ok(Guard::Pred(pred))
+                    }
+                }
             }
         }
     }
