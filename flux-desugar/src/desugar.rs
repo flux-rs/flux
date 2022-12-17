@@ -298,11 +298,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 match self.desugar_base(base)? {
                     BtyOrTy::Bty(bty) => Ok(fhir::Ty::Indexed(bty, self.desugar_indices(indices)?)),
                     BtyOrTy::Ty(_) => {
-                        return Err(self.sess.emit_err(errors::ParamCountMismatch::new(
+                        Err(self.sess.emit_err(errors::ParamCountMismatch::new(
                             indices.span,
                             0,
                             indices.indices.len(),
-                        )));
+                        )))
                     }
                 }
             }
@@ -329,9 +329,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                         }
                     }
                     BtyOrTy::Ty(_) => {
-                        return Err(self
+                        Err(self
                             .sess
-                            .emit_err(errors::ParamCountMismatch::new(ident.span, 0, 1)));
+                            .emit_err(errors::ParamCountMismatch::new(ident.span, 0, 1)))
                     }
                 }
             }

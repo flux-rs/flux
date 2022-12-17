@@ -503,7 +503,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.phase
                     .constr_gen(self.genv, rcx, Tag::Assert("bounds check", source_info.span))
                     .check_pred(rcx, pred.clone());
-                return Ok(Guard::Pred(pred));
+                Ok(Guard::Pred(pred))
             }
             AssertKind::Other(assert_msg) => {
                 match self.genv.check_asserts() {
