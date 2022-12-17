@@ -662,7 +662,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 for arg in args {
                     gen.subtyping(rcx, &arg, &ty);
                 }
-                Ok(Ty::array(ty, Const))
+                Ok(Ty::indexed(BaseTy::array(ty, Const), RefineArgs::empty()))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args

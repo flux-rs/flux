@@ -1,6 +1,6 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
-use flux_syntax::surface::{self, Ident, Path, Res, Ty};
+use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
 use hir::{def_id::DefId, ItemKind};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -137,14 +137,14 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
 
     fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
-            surface::TyKind::Path(path) => surface::TyKind::Path(self.resolve_path(path)?),
-            surface::TyKind::Indexed { base: path, indices } => {
-                let path = self.resolve_path(path)?;
-                surface::TyKind::Indexed { base: path, indices }
+            surface::TyKind::Base(base) => surface::TyKind::Base(self.resolve_base(base)?),
+            surface::TyKind::Indexed { base, indices } => {
+                let base = self.resolve_base(base)?;
+                surface::TyKind::Indexed { base, indices }
             }
-            surface::TyKind::Exists { bind, base: path, pred } => {
-                let path = self.resolve_path(path)?;
-                surface::TyKind::Exists { bind, base: path, pred }
+            surface::TyKind::Exists { bind, base, pred } => {
+                let base = self.resolve_base(base)?;
+                surface::TyKind::Exists { bind, base, pred }
             }
             surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty)?;
@@ -154,14 +154,7 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))
             }
-            surface::TyKind::Array(ty, len) => {
-                let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::Array(Box::new(ty), len)
-            }
-            surface::TyKind::Slice(ty) => {
-                let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::Slice(Box::new(ty))
-            }
+
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
                     .into_iter()
@@ -181,6 +174,20 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
             .map(|ty| self.resolve_ty(ty))
             .try_collect_exhaust()?;
         Ok(Path { ident, args, span: path.span })
+    }
+
+    fn resolve_base(&self, base: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
+        match base {
+            BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
+            BaseTy::Array(ty, len) => {
+                let ty = self.resolve_ty(*ty)?;
+                Ok(BaseTy::Array(Box::new(ty), len))
+            }
+            BaseTy::Slice(ty) => {
+                let ty = self.resolve_ty(*ty)?;
+                Ok(BaseTy::Slice(Box::new(ty)))
+            }
+        }
     }
 
     pub fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorGuaranteed> {

@@ -287,50 +287,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         }
     }
 
-    fn desugar_base(
-        &mut self,
-        bind: Option<surface::Ident>,
-        base: surface::BaseTy<Res>,
-    ) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let ty = match base {
-            surface::BaseTy::Path(surface::Path { ident: Res::Float(float_ty), .. }) => {
-                fhir::Ty::Float(float_ty)
-            }
-            surface::BaseTy::Path(surface::Path { ident: Res::Param(param_ty), .. }) => {
-                fhir::Ty::Param(param_ty)
-            }
-            surface::BaseTy::Path(path) => {
-                match self.desugar_path(path)? {
-                    BtyOrTy::Bty(bty) => {
-                        if let Some(bind) = bind {
-                            fhir::Ty::Indexed(bty, self.desugar_bind(bind)?)
-                        } else {
-                            fhir::Ty::BaseTy(bty)
-                        }
-                    }
-                    BtyOrTy::Ty(ty) => ty,
-                }
-            }
-            surface::BaseTy::Array(ty, _) => {
-                let ty = self.desugar_ty(None, *ty)?;
-                fhir::Ty::BaseTy(fhir::BaseTy::Array(Box::new(ty), fhir::ArrayLen))
-            }
-            surface::BaseTy::Slice(ty) => {
-                fhir::Ty::BaseTy(fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, *ty)?)))
-            }
-        };
-        Ok(ty)
-    }
-
     fn desugar_ty(
         &mut self,
         bind: Option<surface::Ident>,
         ty: surface::Ty<Res>,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match ty.kind {
-            surface::TyKind::Base(base) => self.desugar_base(bind, base),
-            surface::TyKind::Indexed { base: path, indices } => {
-                match self.desugar_path(path)? {
+            surface::TyKind::Base(base) => self.desugar_base_bind(bind, base),
+            surface::TyKind::Indexed { base, indices } => {
+                match self.desugar_base(base)? {
                     BtyOrTy::Bty(bty) => Ok(fhir::Ty::Indexed(bty, self.desugar_indices(indices)?)),
                     BtyOrTy::Ty(_) => {
                         return Err(self.sess.emit_err(errors::ParamCountMismatch::new(
@@ -342,8 +307,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 }
             }
             surface::TyKind::Exists { bind: ident, base, pred } => {
-                let res = path.ident;
-                match self.desugar_base(None, base)? {
+                let ebinder = Binder::from_base(&self.binders.name_gen, self.map, &base);
+                match self.desugar_base(base)? {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
@@ -355,9 +320,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             let idxs = self.desugar_bind(bind)?;
                             Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
                         } else {
-                            let binder = Binder::from_res(&self.binders.name_gen, self.map, res);
                             let (pred, binder) =
-                                self.binders.with_binder(ident, binder, |binders| {
+                                self.binders.with_binder(ident, ebinder, |binders| {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
@@ -478,6 +442,38 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         Ok(bty)
     }
 
+    fn desugar_base(&mut self, base: surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
+        let bty = match base {
+            surface::BaseTy::Path(path) => self.desugar_path(path)?,
+            surface::BaseTy::Array(ty, _) => {
+                let ty = self.desugar_ty(None, *ty)?;
+                let bty = fhir::BaseTy::Array(Box::new(ty), fhir::ArrayLen);
+                BtyOrTy::Bty(bty)
+            }
+            surface::BaseTy::Slice(ty) => {
+                let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, *ty)?));
+                BtyOrTy::Bty(bty)
+            }
+        };
+        Ok(bty)
+    }
+
+    fn desugar_base_bind(
+        &mut self,
+        bind: Option<surface::Ident>,
+        base: surface::BaseTy<Res>,
+    ) -> Result<fhir::Ty, ErrorGuaranteed> {
+        match self.desugar_base(base)? {
+            BtyOrTy::Bty(bty) => {
+                if let Some(bind) = bind {
+                    Ok(fhir::Ty::Indexed(bty, self.desugar_bind(bind)?))
+                } else {
+                    Ok(fhir::Ty::BaseTy(bty))
+                }
+            }
+            BtyOrTy::Ty(ty) => Ok(ty),
+        }
+    }
     fn desugar_variant_ret(
         &mut self,
         ret: surface::VariantRet<Res>,
@@ -882,6 +878,13 @@ impl Binders {
         Ok(())
     }
 
+    // fn base_res(base: &surface::BaseTy<Res>) -> Res {
+    //     match base {
+    //         surface::BaseTy::Path(path) => path.ident,
+    //         _ => panic!("FIXME"),
+    //     }
+    // }
+
     fn ty_gather_params(
         &mut self,
         tcx: TyCtxt,
@@ -892,8 +895,8 @@ impl Binders {
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
-            surface::TyKind::Indexed { base: path, indices } => {
-                let binder = Binder::from_res(&self.name_gen, map, path.ident);
+            surface::TyKind::Indexed { base, indices } => {
+                let binder = Binder::from_base(&self.name_gen, map, base);
                 if bind.is_some() {
                     // This code is currently not reachable because the parser won't allow it as it conflicts with alias
                     // applications. If we ever allow this we should think about the meaning of the syntax `x: T[@n]` and
@@ -926,24 +929,15 @@ impl Binders {
                         }
                     }
                 }
-                self.path_gather_params(tcx, sess, map, path, allow_binder)
+                self.base_gather_params(tcx, sess, map, base, allow_binder)
             }
-            surface::TyKind::Path(path) => {
+            surface::TyKind::Base(base) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(
-                        sess,
-                        bind,
-                        Binder::from_res(&self.name_gen, map, path.ident),
-                    )?;
+                    self.insert_binder(sess, bind, Binder::from_base(&self.name_gen, map, base))?;
                 }
-                self.path_gather_params(tcx, sess, map, path, allow_binder)
+                self.base_gather_params(tcx, sess, map, base, allow_binder)
             }
-            surface::TyKind::Array(ty, _) | surface::TyKind::Slice(ty) => {
-                if let Some(bind) = bind {
-                    self.insert_binder(sess, bind, Binder::Unrefined)?;
-                }
-                self.ty_gather_params(tcx, sess, map, None, ty, false)
-            }
+
             surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::Unrefined)?;
@@ -959,15 +953,11 @@ impl Binders {
                 }
                 Ok(())
             }
-            surface::TyKind::Exists { base: path, .. } => {
+            surface::TyKind::Exists { base, .. } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(
-                        sess,
-                        bind,
-                        Binder::from_res(&self.name_gen, map, path.ident),
-                    )?;
+                    self.insert_binder(sess, bind, Binder::from_base(&self.name_gen, map, base))?;
                 }
-                self.path_gather_params(tcx, sess, map, path, false)
+                self.base_gather_params(tcx, sess, map, base, false)
             }
         }
     }
@@ -984,6 +974,24 @@ impl Binders {
         path.args.iter().try_for_each_exhaust(|ty| {
             self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
         })
+    }
+
+    fn base_gather_params(
+        &mut self,
+        tcx: TyCtxt,
+        sess: &FluxSession,
+        map: &fhir::Map,
+        base: &surface::BaseTy<Res>,
+        allow_binder: bool,
+    ) -> Result<(), ErrorGuaranteed> {
+        match base {
+            surface::BaseTy::Path(path) => {
+                self.path_gather_params(tcx, sess, map, path, allow_binder)
+            }
+            surface::BaseTy::Array(ty, _) | surface::BaseTy::Slice(ty) => {
+                self.ty_gather_params(tcx, sess, map, None, ty, false)
+            }
+        }
     }
 
     fn into_params(self) -> Vec<fhir::RefineParam> {
@@ -1067,6 +1075,17 @@ impl Binder {
                 Binder::Aggregate(def_id, fields)
             }
             Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
+        }
+    }
+
+    fn from_base(
+        name_gen: &IndexGen<fhir::Name>,
+        map: &fhir::Map,
+        base: &surface::BaseTy<Res>,
+    ) -> Binder {
+        match base {
+            surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
+            surface::BaseTy::Array(_, _) | surface::BaseTy::Slice(_) => Binder::Unrefined,
         }
     }
 

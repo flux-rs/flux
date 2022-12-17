@@ -7,7 +7,7 @@ use flux_middle::rustc::{
     ty::{self as rustc_ty, Mutability},
 };
 use flux_syntax::surface::{
-    Arg, EnumDef, FnSig, Ident, Path, RefKind, Res, StructDef, Ty, TyKind, VariantDef,
+    Arg, BaseTy, EnumDef, FnSig, Ident, Path, RefKind, Res, StructDef, Ty, TyKind, VariantDef,
 };
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -182,16 +182,14 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     fn zip_ty(&self, ty: &Ty<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
         match (&ty.kind, rust_ty.kind()) {
-            (TyKind::Path(path), _)
-            | (TyKind::Indexed { base: path, .. }, _)
-            | (TyKind::Exists { base: path, .. }, _) => self.zip_path(path, rust_ty),
+            (TyKind::Base(base), _)
+            | (TyKind::Indexed { base, .. }, _)
+            | (TyKind::Exists { base, .. }, _) => self.zip_base(base, rust_ty, ty.span),
             (TyKind::Constr(_, ty), _) => self.zip_ty(ty, rust_ty),
             (TyKind::Ref(rk, ref_ty), rustc_ty::TyKind::Ref(rust_ty, mutability)) => {
                 self.zip_ty(ref_ty, rust_ty)?;
                 self.zip_mutability(ty.span, *rk, *mutability)
             }
-            (TyKind::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _))
-            | (TyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             (TyKind::Tuple(tys), rustc_ty::TyKind::Tuple(rust_tys))
                 if tys.len() == rust_tys.len() =>
             {
@@ -203,6 +201,27 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
                     self.tcx,
                     ty.span,
                     rust_ty,
+                    self.def_id,
+                )))
+            }
+        }
+    }
+
+    fn zip_base(
+        &self,
+        base: &BaseTy<Res>,
+        rust_ty: &rustc_ty::Ty,
+        flux_ty_span: Span,
+    ) -> Result<(), ErrorGuaranteed> {
+        match (base, rust_ty.kind()) {
+            (BaseTy::Path(path), _) => self.zip_path(path, rust_ty),
+            (BaseTy::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
+            (BaseTy::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
+            _ => {
+                Err(self.sess.emit_err(errors::PathMismatch::new(
+                    self.tcx,
+                    rust_ty,
+                    flux_ty_span,
                     self.def_id,
                 )))
             }
