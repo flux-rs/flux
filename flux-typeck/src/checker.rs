@@ -682,12 +682,34 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Len(_) => Ok(Ty::usize()),
+            Rvalue::Len(place) => self.check_place_len(rcx, env, src_info, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, src_info, op)?;
                 Ok(self.check_cast(*kind, &from, to))
             }
         }
+    }
+
+    fn check_place_len(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        src_info: SourceInfo,
+        place: &Place,
+    ) -> Result<Ty, CheckerError> {
+        let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+        let ty = env
+            .lookup_place(rcx, gen, place)
+            .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
+        let ixs = match ty.kind() {
+            TyKind::Indexed(BaseTy::Array(_, _), ixs) | TyKind::Indexed(BaseTy::Slice(_), ixs) => {
+                ixs
+            }
+            // | TyKind::Exists(BaseTy::Array(_, _), ixs)
+            // | TyKind::Exists(BaseTy::Slice(_), ixs)
+            _ => panic!("expected array or slice type"),
+        };
+        Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone()))
     }
 
     fn check_binary_op(
