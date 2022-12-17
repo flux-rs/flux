@@ -162,11 +162,3 @@ RUSTUP_TOOLCHAIN=nightly-2022-10-11 DYLD_FALLBACK_LIBRARY_PATH=~/.rustup/toolcha
 
 and then just run `cargo-flux check` (instead of `cargo check`) in the relevant crate directory
 to see what is happening.
-
-## TODO: `slices`
-
-- [ ] add test
-- [ ] lower 'assert'
-- [ ] index slice
-- [ ] refine Len primitive
-- [ ] force check for "slice-len-assert"
