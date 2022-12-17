@@ -617,14 +617,10 @@ impl BaseTy {
 
     pub fn sorts(&self) -> &[Sort] {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Array(..) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_)
-            | BaseTy::Str
-            | BaseTy::Array(..)
-            | BaseTy::Slice(_)
-            | BaseTy::Char => &[],
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char => &[],
         }
     }
 }

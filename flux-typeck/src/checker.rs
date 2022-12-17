@@ -710,7 +710,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             _ => panic!("expected array or slice type"),
         };
         let len_ty = Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone());
-        println!("TRACE: check_place_len: lenTy = {:?}, ixs = {:?} ", len_ty, ixs);
         Ok(len_ty)
     }
 
