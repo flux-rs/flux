@@ -651,10 +651,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
+                let idx = Expr::constant(rty::Constant::from(args.len()));
                 let args: Vec<Ty> = args
                     .iter()
                     .map(|op| self.check_operand(rcx, env, src_info, op))
                     .try_collect()?;
+
                 let ty = self
                     .genv
                     .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts, KVarEncoding::Conj));
@@ -662,7 +664,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 for arg in args {
                     gen.subtyping(rcx, &arg, &ty);
                 }
-                Ok(Ty::indexed(BaseTy::array(ty, Const), RefineArgs::empty()))
+
+                Ok(Ty::indexed(BaseTy::array(ty, Const), RefineArgs::one(idx)))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args
