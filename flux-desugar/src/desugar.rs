@@ -302,7 +302,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             indices.span,
                             0,
                             indices.indices.len(),
-                        )))
+                        )));
                     }
                 }
             }
@@ -331,7 +331,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     BtyOrTy::Ty(_) => {
                         return Err(self
                             .sess
-                            .emit_err(errors::ParamCountMismatch::new(ident.span, 0, 1)))
+                            .emit_err(errors::ParamCountMismatch::new(ident.span, 0, 1)));
                     }
                 }
             }

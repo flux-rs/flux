@@ -249,6 +249,7 @@ impl<'a> Wf<'a> {
         expected: &'a [fhir::Sort],
     ) -> Result<(), ErrorGuaranteed> {
         if expected.len() != indices.indices.len() {
+            panic!("FROG132");
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(indices.span),
                 String::from("type"),
