@@ -140,17 +140,21 @@ pub Ty: surface::Ty = {
 
 // FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
 ArgTyKind: surface::TyKind = {
+
     "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
+
     "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+
     "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
     <base:BaseTy>                                        => surface::TyKind::Base(<>),
     <base:BaseTy> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
 }
 
+#[inline]
 BaseTy: surface::BaseTy = {
 
-
+    <path:Path>                                        => surface::BaseTy::Path(<>),
     "[" <ty:Ty> ";"  <lo:@L> <ident:Ident> <hi:@R> "]" =>? {
         if ident.name.as_str() == "_" {
             Ok(surface::BaseTy::Array(Box::new(ty), surface::ArrayLen))
