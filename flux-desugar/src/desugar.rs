@@ -1085,7 +1085,9 @@ impl Binder {
     ) -> Binder {
         match base {
             surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
-            surface::BaseTy::Array(_, _) | surface::BaseTy::Slice(_) => Binder::Unrefined,
+            surface::BaseTy::Array(_, _) | surface::BaseTy::Slice(_) => {
+                Binder::from_res(name_gen, map, Res::Uint(surface::UintTy::Usize))
+            }
         }
     }
 
