@@ -3,7 +3,7 @@ wf_sort_mismatch =
     .label = expected `{$expected}`, found `{$found}`
 
 wf_arg_count_mismatch =
-    this {$thing} takes {$expected} FROG refinement parameters but {$found ->
+    this {$thing} takes {$expected} refinement parameters but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
