@@ -682,7 +682,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Len(place) => self.check_place_len(rcx, env, src_info, place),
+            Rvalue::Len(place) => self.check_len(rcx, env, src_info, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, src_info, op)?;
                 Ok(self.check_cast(*kind, &from, to))
@@ -690,7 +690,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn check_place_len(
+    fn check_len(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
@@ -701,16 +701,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = env
             .lookup_place(rcx, gen, place)
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
-        let ixs = match ty.kind() {
+        match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, _), ixs) | TyKind::Indexed(BaseTy::Slice(_), ixs) => {
-                ixs
+                Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone()))
             }
-            // | TyKind::Exists(BaseTy::Array(_, _), ixs)
-            // | TyKind::Exists(BaseTy::Slice(_), ixs)
+            TyKind::Exists(BaseTy::Array(_, _), ixs) | TyKind::Exists(BaseTy::Slice(_), ixs) => {
+                Ok(Ty::exists(BaseTy::Uint(UintTy::Usize), ixs.clone()))
+            }
             _ => panic!("expected array or slice type"),
-        };
-        let len_ty = Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone());
-        Ok(len_ty)
+        }
     }
 
     fn check_binary_op(
