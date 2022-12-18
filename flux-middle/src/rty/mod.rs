@@ -574,7 +574,6 @@ impl BaseTy {
 
     pub fn slice(ty: Ty) -> BaseTy {
         BaseTy::Slice(ty)
-        //Ty::indexed(BaseTy::Slice(ty), RefineArgs::empty())
     }
 
     fn is_integral(&self) -> bool {
