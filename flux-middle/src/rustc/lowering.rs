@@ -16,8 +16,8 @@ use rustc_middle::{
 
 use super::{
     mir::{
-        AggregateKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, CastKind, Constant,
-        FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
+        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, CastKind,
+        Constant, FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
@@ -467,14 +467,20 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         .ok_or_else(|| format!("unsupported constant `{constant:?}`"))
     }
 
-    fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<&'static str> {
+    fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<AssertKind> {
         use rustc_mir::AssertKind::*;
         match msg {
-            DivisionByZero(_) => Some("possible division by zero"),
-            RemainderByZero(_) => Some("possible remainder with a divisor of zero"),
-            Overflow(rustc_mir::BinOp::Div, _, _) => Some("possible division with overflow"),
-            Overflow(rustc_mir::BinOp::Rem, _, _) => Some("possible remainder with overflow"),
-            BoundsCheck { .. } => Some("index out of bounds"),
+            BoundsCheck { .. } => Some(AssertKind::BoundsCheck),
+            DivisionByZero(_) => Some(AssertKind::Other("possible division by zero")),
+            RemainderByZero(_) => {
+                Some(AssertKind::Other("possible remainder with a divisor of zero"))
+            }
+            Overflow(rustc_mir::BinOp::Div, _, _) => {
+                Some(AssertKind::Other("possible division with overflow"))
+            }
+            Overflow(rustc_mir::BinOp::Rem, _, _) => {
+                Some(AssertKind::Other("possible remainder with overflow"))
+            }
             _ => None,
         }
     }

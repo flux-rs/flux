@@ -22,8 +22,8 @@ use flux_middle::{
     rustc::{
         self,
         mir::{
-            self, AggregateKind, BasicBlock, Body, CastKind, Constant, Operand, Place, Rvalue,
-            SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
+            self, AggregateKind, AssertKind, BasicBlock, Body, CastKind, Constant, Operand, Place,
+            Rvalue, SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
             START_BLOCK,
         },
     },
@@ -485,7 +485,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         source_info: SourceInfo,
         cond: &Operand,
         expected: bool,
-        msg: &'static str,
+        msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, source_info, cond)?;
         let pred = if let TyKind::Indexed(BaseTy::Bool, idxs) = ty.kind() {
@@ -498,15 +498,25 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             unreachable!("unexpected ty `{ty:?}`")
         };
 
-        match self.genv.check_asserts() {
-            AssertBehavior::Ignore => Ok(Guard::None),
-            AssertBehavior::Assume => Ok(Guard::Pred(pred)),
-            AssertBehavior::Check => {
+        match msg {
+            AssertKind::BoundsCheck => {
                 self.phase
-                    .constr_gen(self.genv, rcx, Tag::Assert(msg, source_info.span))
+                    .constr_gen(self.genv, rcx, Tag::Assert("bounds check", source_info.span))
                     .check_pred(rcx, pred.clone());
-
                 Ok(Guard::Pred(pred))
+            }
+            AssertKind::Other(assert_msg) => {
+                match self.genv.check_asserts() {
+                    AssertBehavior::Ignore => Ok(Guard::None),
+                    AssertBehavior::Assume => Ok(Guard::Pred(pred)),
+                    AssertBehavior::Check => {
+                        self.phase
+                            .constr_gen(self.genv, rcx, Tag::Assert(assert_msg, source_info.span))
+                            .check_pred(rcx, pred.clone());
+
+                        Ok(Guard::Pred(pred))
+                    }
+                }
             }
         }
     }
@@ -641,10 +651,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
+                let idx = Expr::constant(rty::Constant::from(args.len()));
                 let args: Vec<Ty> = args
                     .iter()
                     .map(|op| self.check_operand(rcx, env, src_info, op))
                     .try_collect()?;
+
                 let ty = self
                     .genv
                     .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts, KVarEncoding::Conj));
@@ -652,7 +664,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 for arg in args {
                     gen.subtyping(rcx, &arg, &ty);
                 }
-                Ok(Ty::array(ty, Const))
+
+                Ok(Ty::indexed(BaseTy::array(ty, Const), RefineArgs::one(idx)))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args
@@ -669,11 +682,30 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Len(_) => Ok(Ty::usize()),
+            Rvalue::Len(place) => self.check_len(rcx, env, src_info, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, src_info, op)?;
                 Ok(self.check_cast(*kind, &from, to))
             }
+        }
+    }
+
+    fn check_len(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        src_info: SourceInfo,
+        place: &Place,
+    ) -> Result<Ty, CheckerError> {
+        let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
+        let ty = env
+            .lookup_place(rcx, gen, place)
+            .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Array(_, _), ixs) | TyKind::Indexed(BaseTy::Slice(_), ixs) => {
+                Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone()))
+            }
+            _ => panic!("expected array or slice type"),
         }
     }
 

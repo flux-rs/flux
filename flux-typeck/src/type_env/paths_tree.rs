@@ -337,6 +337,7 @@ impl PathsTree {
                         downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idxs.args())?;
                     ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
+                (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
                 _ => todo!("{elem:?} {ty:?}"),
             }
         }

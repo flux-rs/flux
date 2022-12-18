@@ -500,6 +500,12 @@ impl Constant {
     pub const ONE: Constant = Constant::Int(Sign::Positive, 1);
 }
 
+impl From<usize> for Constant {
+    fn from(u: usize) -> Self {
+        Constant::Int(Sign::Positive, u as u128)
+    }
+}
+
 impl From<u128> for Constant {
     fn from(c: u128) -> Self {
         Constant::Int(Sign::Positive, c)

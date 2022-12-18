@@ -91,7 +91,7 @@ pub enum TerminatorKind<'tcx> {
         cond: Operand,
         expected: bool,
         target: BasicBlock,
-        msg: &'static str,
+        msg: AssertKind,
     },
     Unreachable,
     FalseEdge {
@@ -103,6 +103,18 @@ pub enum TerminatorKind<'tcx> {
         unwind: Option<BasicBlock>,
     },
     Resume,
+}
+
+#[derive(Debug)]
+pub enum AssertKind {
+    BoundsCheck,
+    Other(&'static str),
+    // Overflow(BinOp, O, O),
+    // OverflowNeg(O),
+    // DivisionByZero(O),
+    // RemainderByZero(O),
+    // ResumedAfterReturn(GeneratorKind),
+    // ResumedAfterPanic(GeneratorKind),
 }
 
 pub struct Statement {
@@ -168,7 +180,9 @@ pub enum Operand {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Place {
+    /// the "root" of the place, e.g. `_1` in `*_1.f.g.h`
     pub local: Local,
+    /// path taken to "get" the place e.g. `*.f.g.h` in `*_1.f.g.h` (except also have derefs)
     pub projection: Vec<PlaceElem>,
 }
 
@@ -359,7 +373,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
             TerminatorKind::Assert { cond, target, expected, msg } => {
                 write!(
                     f,
-                    "assert({cond:?} is expected to be {expected:?}, \"{msg}\") -> {target:?}"
+                    "assert({cond:?} is expected to be {expected:?}, \"{msg:?}\") -> {target:?}"
                 )
             }
             TerminatorKind::FalseEdge { real_target, imaginary_target } => {
