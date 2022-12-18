@@ -705,9 +705,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TyKind::Indexed(BaseTy::Array(_, _), ixs) | TyKind::Indexed(BaseTy::Slice(_), ixs) => {
                 Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone()))
             }
-            // TyKind::Exists(BaseTy::Array(_, _), idxs) | TyKind::Exists(BaseTy::Slice(_), idxs) => {
-            //     Ok(Ty::exists(BaseTy::Uint(UintTy::Usize), idxs.clone()))
-            // }
             _ => panic!("expected array or slice type"),
         }
     }
