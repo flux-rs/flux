@@ -182,9 +182,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     fn zip_ty(&self, ty: &Ty<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
         match (&ty.kind, rust_ty.kind()) {
-            (TyKind::Base(base), _)
-            | (TyKind::Indexed { base, .. }, _)
-            | (TyKind::Exists { base, .. }, _) => self.zip_base(base, rust_ty, ty.span),
+            (TyKind::Base(bty), _)
+            | (TyKind::Indexed { bty, .. }, _)
+            | (TyKind::Exists { bty, .. }, _) => self.zip_base(bty, rust_ty, ty.span),
             (TyKind::Constr(_, ty), _) => self.zip_ty(ty, rust_ty),
             (TyKind::Ref(rk, ref_ty), rustc_ty::TyKind::Ref(rust_ty, mutability)) => {
                 self.zip_ty(ref_ty, rust_ty)?;
@@ -209,11 +209,11 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     fn zip_base(
         &self,
-        base: &BaseTy<Res>,
+        bty: &BaseTy<Res>,
         rust_ty: &rustc_ty::Ty,
         flux_ty_span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        match (base, rust_ty.kind()) {
+        match (bty, rust_ty.kind()) {
             (BaseTy::Path(path), _) => self.zip_path(path, rust_ty),
             (BaseTy::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
             (BaseTy::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),

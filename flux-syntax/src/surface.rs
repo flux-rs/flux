@@ -155,13 +155,13 @@ pub enum TyKind<T = Ident> {
     Base(BaseTy<T>),
     /// `t[e]`
     Indexed {
-        base: BaseTy<T>,
+        bty: BaseTy<T>,
         indices: Indices,
     },
     /// ty{b:e}
     Exists {
         bind: Ident,
-        base: BaseTy<T>,
+        bty: BaseTy<T>,
         pred: Expr,
     },
     /// Mutable or shared reference
@@ -351,16 +351,13 @@ pub mod expand {
                 match expand_alias_path(aliases, &path, &indices) {
                     Some(TyKind::Exists {
                         bind: e_bind,
-                        base: BaseTy::Path(e_path),
+                        bty: BaseTy::Path(e_path),
                         pred: e_pred,
                     }) => Ok(expand_arg_exists(x, e_path, e_bind, e_pred)),
                     _ => {
                         Ok(Arg::Ty(
                             None,
-                            Ty {
-                                kind: TyKind::Indexed { base: BaseTy::Path(path), indices },
-                                span,
-                            },
+                            Ty { kind: TyKind::Indexed { bty: BaseTy::Path(path), indices }, span },
                         ))
                     }
                 }
@@ -387,8 +384,8 @@ pub mod expand {
         None
     }
 
-    fn expand_alias(aliases: &AliasMap, base: &BaseTy, indices: &Indices) -> Option<TyKind> {
-        if let BaseTy::Path(path) = base {
+    fn expand_alias(aliases: &AliasMap, bty: &BaseTy, indices: &Indices) -> Option<TyKind> {
+        if let BaseTy::Path(path) = bty {
             return expand_alias_path(aliases, path, indices);
         }
         None
@@ -402,8 +399,8 @@ pub mod expand {
         }
     }
 
-    fn expand_base(aliases: &AliasMap, base: &BaseTy) -> BaseTy {
-        match base {
+    fn expand_bty(aliases: &AliasMap, bty: &BaseTy) -> BaseTy {
+        match bty {
             BaseTy::Path(path) => BaseTy::Path(expand_path(aliases, path)),
             BaseTy::Array(ty, len) => BaseTy::Array(Box::new(expand_ty(aliases, ty)), *len),
             BaseTy::Slice(ty) => BaseTy::Slice(Box::new(expand_ty(aliases, ty))),
@@ -417,24 +414,21 @@ pub mod expand {
 
     fn expand_kind(aliases: &AliasMap, k: &TyKind, span: crate::Span) -> TyKind {
         match k {
-            TyKind::Base(base) => {
+            TyKind::Base(bty) => {
                 let indices = Indices { indices: vec![], span };
-                match expand_alias(aliases, base, &indices) {
+                match expand_alias(aliases, bty, &indices) {
                     Some(k) => k,
-                    None => TyKind::Base(expand_base(aliases, base)),
+                    None => TyKind::Base(expand_bty(aliases, bty)),
                 }
             }
-            TyKind::Exists { bind, base, pred } => {
-                TyKind::Exists { bind: *bind, base: expand_base(aliases, base), pred: pred.clone() }
+            TyKind::Exists { bind, bty: base, pred } => {
+                TyKind::Exists { bind: *bind, bty: expand_bty(aliases, base), pred: pred.clone() }
             }
-            TyKind::Indexed { base, indices } => {
-                match expand_alias(aliases, base, indices) {
+            TyKind::Indexed { bty, indices } => {
+                match expand_alias(aliases, bty, indices) {
                     Some(k) => k,
                     None => {
-                        TyKind::Indexed {
-                            base: expand_base(aliases, base),
-                            indices: indices.clone(),
-                        }
+                        TyKind::Indexed { bty: expand_bty(aliases, bty), indices: indices.clone() }
                     }
                 }
             }
@@ -546,8 +540,8 @@ pub mod expand {
         }
     }
 
-    fn subst_base(subst: &Subst, base: &BaseTy) -> BaseTy {
-        match base {
+    fn subst_bty(subst: &Subst, bty: &BaseTy) -> BaseTy {
+        match bty {
             BaseTy::Path(path) => BaseTy::Path(subst_path(subst, path)),
             BaseTy::Array(ty, len) => BaseTy::Array(Box::new(subst_ty(subst, ty)), *len),
             BaseTy::Slice(ty) => BaseTy::Slice(Box::new(subst_ty(subst, ty))),
@@ -556,17 +550,17 @@ pub mod expand {
 
     fn subst_tykind(subst: &Subst, k: &TyKind) -> TyKind {
         match k {
-            TyKind::Base(base) => TyKind::Base(subst_base(subst, base)),
-            TyKind::Indexed { base, indices } => {
+            TyKind::Base(bty) => TyKind::Base(subst_bty(subst, bty)),
+            TyKind::Indexed { bty: base, indices } => {
                 TyKind::Indexed {
-                    base: subst_base(subst, base),
+                    bty: subst_bty(subst, base),
                     indices: subst_indices(subst, indices),
                 }
             }
-            TyKind::Exists { bind, base, pred } => {
+            TyKind::Exists { bind, bty, pred } => {
                 TyKind::Exists {
                     bind: *bind,
-                    base: subst_base(subst, base),
+                    bty: subst_bty(subst, bty),
                     pred: subst_expr(subst, pred),
                 }
             }

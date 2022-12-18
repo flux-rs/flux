@@ -137,14 +137,14 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
 
     fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
-            surface::TyKind::Base(base) => surface::TyKind::Base(self.resolve_base(base)?),
-            surface::TyKind::Indexed { base, indices } => {
-                let base = self.resolve_base(base)?;
-                surface::TyKind::Indexed { base, indices }
+            surface::TyKind::Base(bty) => surface::TyKind::Base(self.resolve_base(bty)?),
+            surface::TyKind::Indexed { bty, indices } => {
+                let bty = self.resolve_base(bty)?;
+                surface::TyKind::Indexed { bty, indices }
             }
-            surface::TyKind::Exists { bind, base, pred } => {
-                let base = self.resolve_base(base)?;
-                surface::TyKind::Exists { bind, base, pred }
+            surface::TyKind::Exists { bind, bty, pred } => {
+                let bty = self.resolve_base(bty)?;
+                surface::TyKind::Exists { bind, bty, pred }
             }
             surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty)?;
