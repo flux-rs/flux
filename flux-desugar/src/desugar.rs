@@ -1079,7 +1079,7 @@ impl Binder {
         match bty {
             surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
             surface::BaseTy::Array(_, _) | surface::BaseTy::Slice(_) => {
-                Binder::from_res(name_gen, map, Res::Uint(surface::UintTy::Usize))
+                Binder::Single(name_gen.fresh(), fhir::Sort::Int)
             }
         }
     }

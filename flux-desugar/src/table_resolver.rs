@@ -176,8 +176,8 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
         Ok(Path { ident, args, span: path.span })
     }
 
-    fn resolve_base(&self, base: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
-        match base {
+    fn resolve_base(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
+        match bty {
             BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
             BaseTy::Array(ty, len) => {
                 let ty = self.resolve_ty(*ty)?;

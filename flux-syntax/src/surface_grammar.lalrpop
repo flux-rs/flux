@@ -147,8 +147,8 @@ ArgTyKind: surface::TyKind = {
     "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
     "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
-    <base:BaseTy>                                        => surface::TyKind::Base(<>),
-    <base:BaseTy> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
+    <bty:BaseTy>                                        => surface::TyKind::Base(<>),
+    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
 }
 
 #[inline]
@@ -168,7 +168,7 @@ BaseTy: surface::BaseTy = {
 
 TyKind: surface::TyKind = {
     <ArgTyKind>,
-    <base:BaseTy> "[" <indices:Indices> "]" => surface::TyKind::Indexed { <> },
+    <bty:BaseTy> "[" <indices:Indices> "]" => surface::TyKind::Indexed { <> },
 }
 
 GenericArgs: Vec<surface::Ty> = {
