@@ -330,8 +330,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             fhir::BaseTy::Bool => rty::BaseTy::Bool,
-            fhir::BaseTy::Array(ty, _) => {
-                rty::BaseTy::array(self.conv_ty(ty, nbinders), rty::Const)
+            fhir::BaseTy::Array(ty, len) => {
+                rty::BaseTy::array(self.conv_ty(ty, nbinders), rty::Const { val: len.val })
             }
             fhir::BaseTy::Slice(ty) => rty::BaseTy::slice(self.conv_ty(ty, nbinders)),
             fhir::BaseTy::Adt(did, substs) => {

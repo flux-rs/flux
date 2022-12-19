@@ -445,10 +445,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_bty(&mut self, bty: surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match bty {
             surface::BaseTy::Path(path) => self.desugar_path(path)?,
-            surface::BaseTy::Array(ty, _) => {
+            surface::BaseTy::Array(ty, len) => {
                 let ty = self.desugar_ty(None, *ty)?;
-                let bty = fhir::BaseTy::Array(Box::new(ty), fhir::ArrayLen);
-                BtyOrTy::Bty(bty)
+                BtyOrTy::Bty(fhir::BaseTy::Array(Box::new(ty), fhir::ArrayLen { val: len.val }))
             }
             surface::BaseTy::Slice(ty) => {
                 let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, *ty)?));

@@ -141,7 +141,9 @@ pub enum Ty {
     Never,
 }
 
-pub struct ArrayLen;
+pub struct ArrayLen {
+    pub val: usize,
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum RefKind {

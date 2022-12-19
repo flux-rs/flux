@@ -172,7 +172,10 @@ pub enum TyKind<T = Ident> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ArrayLen;
+pub struct ArrayLen {
+    pub val: usize,
+    pub span: Span,
+}
 
 #[derive(Debug, Clone)]
 pub struct Indices {

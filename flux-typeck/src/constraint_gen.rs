@@ -368,7 +368,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(float_ty1, float_ty2);
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
+                debug_assert_eq!(len1.val, len2.val);
                 self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
