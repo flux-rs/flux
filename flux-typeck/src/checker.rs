@@ -705,7 +705,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let idxs = match ty.kind() {
             TyKind::Array(_, len) => {
                 let c =
-                    flux_fixpoint::Constant::Int(flux_fixpoint::Sign::Positive, len.val as u128);
+                    rty::Constant::from(len.val);
                 RefineArgs::one(Expr::constant(c))
             }
             TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
