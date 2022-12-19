@@ -2,6 +2,10 @@ annot_check_unresolved_location =
     cannot resolve `{$loc}`: only `&strg` variables can appear in ensures clauses
     .label = maybe annotate as `&strg`
 
+annot_check_array_len_mismatch =
+    array length mismatch
+    .label = refined signature has length {$len}, but rust signature says {$rust_len}
+
 annot_check_arg_count_mismatch =
     argument count mismatch
     .label = refined signature has {$flux_args} {$flux_args ->

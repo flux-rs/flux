@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns)]
+#![feature(rustc_private, box_patterns, let_chains)]
 
 extern crate flux_errors;
 extern crate rustc_ast;

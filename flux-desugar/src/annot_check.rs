@@ -196,6 +196,17 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
                 iter::zip(tys, rust_tys)
                     .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))
             }
+            (TyKind::Array(ty, len), rustc_ty::TyKind::Array(rust_ty, rust_len)) => {
+                self.zip_ty(ty, rust_ty)?;
+                if len.val != rust_len.val {
+                    return Err(self.sess.emit_err(errors::ArrayLenMismatch::new(
+                        len.span,
+                        len.val,
+                        rust_len.val,
+                    )));
+                }
+                Ok(())
+            }
             _ => {
                 Err(self.sess.emit_err(errors::InvalidRefinement::new(
                     self.tcx,
@@ -215,7 +226,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match (bty, rust_ty.kind()) {
             (BaseTy::Path(path), _) => self.zip_path(path, rust_ty),
-            (BaseTy::Array(ty, _), rustc_ty::TyKind::Array(rust_ty, _)) => self.zip_ty(ty, rust_ty),
+
             (BaseTy::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             _ => {
                 Err(self.sess.emit_err(errors::PathMismatch::new(
@@ -319,6 +330,21 @@ mod errors {
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
 
+    #[derive(Diagnostic)]
+    #[diag(annot_check::array_len_mismatch, code = "FLUX")]
+    pub struct ArrayLenMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        len: usize,
+        rust_len: usize,
+    }
+
+    impl ArrayLenMismatch {
+        pub fn new(span: Span, len: usize, rust_len: usize) -> Self {
+            Self { span, len, rust_len }
+        }
+    }
     #[derive(Diagnostic)]
     #[diag(annot_check::field_count_mismatch, code = "FLUX")]
     pub struct FieldCountMismatch {

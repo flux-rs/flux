@@ -420,6 +420,8 @@ impl TypeEnvInfer {
                     .collect_vec();
                 Ty::tuple(tys)
             }
+
+            TyKind::Array(ty, c) => Ty::array(Self::pack_ty(scope, ty), c.clone()),
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_, _)
             | TyKind::Never
@@ -444,7 +446,6 @@ impl TypeEnvInfer {
                 );
                 BaseTy::adt(adt_def.clone(), substs)
             }
-            BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
