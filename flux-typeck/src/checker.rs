@@ -703,11 +703,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
 
         let idxs = match ty.kind() {
-            TyKind::Array(_, len) => {
-                let c =
-                    rty::Constant::from(len.val);
-                RefineArgs::one(Expr::constant(c))
-            }
+            TyKind::Array(_, len) => RefineArgs::one(Expr::constant(rty::Constant::from(len.val))),
             TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
             _ => panic!("expected array or slice type"),
         };
