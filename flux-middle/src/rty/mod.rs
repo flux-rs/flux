@@ -422,14 +422,6 @@ impl Ty {
         TyKind::Ptr(rk, path.into()).intern()
     }
 
-    pub fn array(ty: Ty, c: Const) -> Ty {
-        Ty::indexed(BaseTy::Array(ty, c), RefineArgs::empty())
-    }
-
-    pub fn slice(ty: Ty) -> Ty {
-        Ty::indexed(BaseTy::Slice(ty), RefineArgs::empty())
-    }
-
     pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
         TyKind::BoxPtr(loc, alloc).intern()
     }
@@ -600,6 +592,15 @@ impl BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
+    pub fn array(ty: Ty, c: Const) -> BaseTy {
+        BaseTy::Array(ty, c)
+        // Ty::indexed(BaseTy::Array(ty, c), RefineArgs::empty())
+    }
+
+    pub fn slice(ty: Ty) -> BaseTy {
+        BaseTy::Slice(ty)
+    }
+
     fn is_integral(&self) -> bool {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
@@ -640,14 +641,10 @@ impl BaseTy {
 
     pub fn sorts(&self) -> &[Sort] {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) => &[Sort::Int],
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Array(..) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_)
-            | BaseTy::Str
-            | BaseTy::Array(..)
-            | BaseTy::Slice(_)
-            | BaseTy::Char => &[],
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char => &[],
         }
     }
 }
