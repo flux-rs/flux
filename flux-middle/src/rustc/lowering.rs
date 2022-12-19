@@ -623,6 +623,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             Ok(Ty::mk_tuple(tys))
         }
         rustc_ty::Array(ty, len) => {
+            // TODO(RJ) https://github.com/liquid-rust/flux/pull/255#discussion_r1052554570
             let param_env = ParamEnv::empty().with_reveal_all_normalized(tcx);
             let val = len.try_eval_usize(tcx, param_env).unwrap_or_else(|| {
                 panic!("failed to evaluate array length: {len:?} in {ty:?}", len = len, ty = ty)
