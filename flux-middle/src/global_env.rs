@@ -284,6 +284,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
                     .collect_vec();
                 return rty::Ty::tuple(tys);
             }
+            rustc::ty::TyKind::Array(ty, len) => {
+                return rty::Ty::array(self.refine_ty(ty, mk_pred), len.clone());
+            }
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.adt_def(*def_id);
                 let substs = substs
@@ -296,9 +299,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
-            rustc::ty::TyKind::Array(ty, len) => {
-                rty::BaseTy::Array(self.refine_ty(ty, mk_pred), len.clone())
-            }
+
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
         };

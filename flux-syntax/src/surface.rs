@@ -145,7 +145,6 @@ pub struct Ty<R = Ident> {
 #[derive(Debug)]
 pub enum BaseTy<T = Ident> {
     Path(Path<T>),
-    Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
 }
 
@@ -169,6 +168,7 @@ pub enum TyKind<T = Ident> {
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
     Tuple(Vec<Ty<T>>),
+    Array(Box<Ty<T>>, ArrayLen),
 }
 
 #[derive(Debug, Clone, Copy)]
