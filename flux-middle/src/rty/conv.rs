@@ -102,7 +102,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|param| param.sort.clone())
             .collect_vec();
-        let kinds = fn_sig.params.iter().map(|param| param.kind).collect_vec();
+        let kinds = fn_sig.params.iter().map(|param| param.mode).collect_vec();
         rty::PolySig::new(
             rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
             kinds,

@@ -7,7 +7,7 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
-        ParamKind, Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
+        InferMode, Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
         TyKind, VariantRet,
     },
     rustc::mir::BasicBlock,
@@ -200,7 +200,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let variant = variant
             .replace_generic_args(&substs)
             .replace_bvars_with(|sort| {
-                infcx.fresh_evar_or_kvar(sort, ParamKind::default_for(sort))
+                infcx.fresh_evar_or_kvar(sort, InferMode::default_for(sort))
             });
 
         // Check arguments
@@ -241,13 +241,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.evar_gen.fresh_in_cx(self.evars_cx)
     }
 
-    fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: ParamKind) -> RefineArg {
+    fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> RefineArg {
         match kind {
-            ParamKind::KVar => {
+            InferMode::KVar => {
                 let fsort = sort.as_func();
                 RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
             }
-            ParamKind::EVar => RefineArg::Expr(Expr::evar(self.fresh_evar())),
+            InferMode::EVar => RefineArg::Expr(Expr::evar(self.fresh_evar())),
         }
     }
 

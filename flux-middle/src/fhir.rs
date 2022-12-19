@@ -156,12 +156,12 @@ pub enum WeakKind {
     Arr,
 }
 
-impl ParamKind {
+impl InferMode {
     pub fn default_for(sort: &Sort) -> Self {
         if sort.is_pred() {
-            ParamKind::KVar
+            InferMode::KVar
         } else {
-            ParamKind::EVar
+            InferMode::EVar
         }
     }
 }
@@ -204,13 +204,20 @@ pub enum BaseTy {
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
-    pub kind: ParamKind,
+    pub mode: InferMode,
 }
 
+/// *Infer*ence *mode* for parameter at function calls
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ParamKind {
-    KVar,
+pub enum InferMode {
+    /// Generate a fresh evar for the parameter and solve it via syntactic unification. The
+    /// parameter must appear as an index for unification to succeed, but otherwise it can appear
+    /// (mostly) freely.
     EVar,
+    /// Generate a fresh kvar and let fixpoint infer it. This mode can only be used with abstract
+    /// refinements predicates. If the parameter is marked as kvar then it can only appear in
+    /// positions that result in a _horn_ constraint as required by fixpoint.
+    KVar,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -519,11 +526,11 @@ impl fmt::Debug for FnSig {
                     p,
                     "<{}>",
                     self.params.iter().format_with(", ", |param, f| {
-                        match param.kind {
-                            ParamKind::KVar => {
+                        match param.mode {
+                            InferMode::KVar => {
                                 f(&format_args!("${:?}: {:?}", param.name, param.sort))
                             }
-                            ParamKind::EVar => {
+                            InferMode::EVar => {
                                 f(&format_args!("?{:?}: {:?}", param.name, param.sort))
                             }
                         }

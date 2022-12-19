@@ -30,7 +30,7 @@ use self::{
     subst::BVarFolder,
 };
 pub use crate::{
-    fhir::{FuncSort, ParamKind, RefKind, Sort},
+    fhir::{FuncSort, InferMode, RefKind, Sort},
     rustc::ty::Const,
 };
 use crate::{
@@ -79,7 +79,7 @@ pub struct Binders<T> {
 #[derive(Clone)]
 pub struct PolySig {
     pub fn_sig: Binders<FnSig>,
-    pub kinds: List<ParamKind>,
+    pub kinds: List<InferMode>,
 }
 
 #[derive(Clone)]
@@ -313,13 +313,13 @@ impl RefineArg {
 }
 
 impl PolySig {
-    pub fn new(fn_sig: Binders<FnSig>, kinds: impl Into<List<ParamKind>>) -> PolySig {
+    pub fn new(fn_sig: Binders<FnSig>, kinds: impl Into<List<InferMode>>) -> PolySig {
         let kinds = kinds.into();
         debug_assert_eq!(fn_sig.params.len(), kinds.len());
         PolySig { fn_sig, kinds }
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, ParamKind) -> RefineArg) -> FnSig {
+    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> RefineArg) -> FnSig {
         let args = iter::zip(&self.fn_sig.params, &self.kinds)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
@@ -756,7 +756,7 @@ impl_internable!(
     [KVar],
     [Constraint],
     [RefineArg],
-    [ParamKind]
+    [InferMode]
 );
 
 #[macro_export]
@@ -852,8 +852,8 @@ mod pretty {
                         .enumerate()
                         .format_with(", ", |(i, sort), f| {
                             match self.kinds[i] {
-                                ParamKind::KVar => f(&format_args_cx!("${:?}", ^sort)),
-                                ParamKind::EVar => f(&format_args_cx!("?{:?}", ^sort)),
+                                InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
+                                InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
                             }
                         })
                 )?;

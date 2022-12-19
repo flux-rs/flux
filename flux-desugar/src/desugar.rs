@@ -216,8 +216,10 @@ enum Binder {
     /// A binder that needs to be desugared to a single index. They come from bindings
     /// to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`, or
     /// by explicitly listing the indices for a type with multiple indices, e.g,
-    /// `RMat[@row, @cols]`.
-    Single(fhir::Name, fhir::Sort, bool),
+    /// `RMat[@row, @cols]`. The boolean indicates whether the binder was declared _explicitly_
+    /// in the parameter list (i.e, fn<a: int>(...)). It will be false if it case declared with
+    /// @ syntax.
+    Single(fhir::Name, fhir::Sort, /*explicit*/ bool),
     /// A binder that will desugar into multiple indices and _must_ be projected using
     /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
@@ -1007,9 +1009,9 @@ impl Binders {
             match binder {
                 Binder::Single(name, sort, explicit) => {
                     let kind = if explicit && sort.is_pred() {
-                        fhir::ParamKind::KVar
+                        fhir::InferMode::KVar
                     } else {
-                        fhir::ParamKind::EVar
+                        fhir::InferMode::EVar
                     };
                     params.push(param_from_ident(ident, name, sort.clone(), kind));
                 }
@@ -1019,7 +1021,7 @@ impl Binders {
                             ident,
                             name,
                             sort.clone(),
-                            fhir::ParamKind::default_for(&sort),
+                            fhir::InferMode::default_for(&sort),
                         ));
                     }
                 }
@@ -1050,10 +1052,10 @@ fn param_from_ident(
     ident: surface::Ident,
     name: fhir::Name,
     sort: fhir::Sort,
-    kind: fhir::ParamKind,
+    kind: fhir::InferMode,
 ) -> fhir::RefineParam {
     let name = fhir::Ident { name, source_info: to_src_info(ident) };
-    fhir::RefineParam { name, sort, kind }
+    fhir::RefineParam { name, sort, mode: kind }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
