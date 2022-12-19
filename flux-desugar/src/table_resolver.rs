@@ -137,13 +137,13 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
 
     fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
-            surface::TyKind::Base(bty) => surface::TyKind::Base(self.resolve_base(bty)?),
+            surface::TyKind::Base(bty) => surface::TyKind::Base(self.resolve_bty(bty)?),
             surface::TyKind::Indexed { bty, indices } => {
-                let bty = self.resolve_base(bty)?;
+                let bty = self.resolve_bty(bty)?;
                 surface::TyKind::Indexed { bty, indices }
             }
             surface::TyKind::Exists { bind, bty, pred } => {
-                let bty = self.resolve_base(bty)?;
+                let bty = self.resolve_bty(bty)?;
                 surface::TyKind::Exists { bind, bty, pred }
             }
             surface::TyKind::Ref(rk, ty) => {
@@ -162,6 +162,10 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
                     .try_collect_exhaust()?;
                 surface::TyKind::Tuple(tys)
             }
+            surface::TyKind::Array(ty, len) => {
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::Array(Box::new(ty), len)
+            }
         };
         Ok(surface::Ty { kind, span: ty.span })
     }
@@ -176,13 +180,10 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
         Ok(Path { ident, args, span: path.span })
     }
 
-    fn resolve_base(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
+    fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
         match bty {
             BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
-            BaseTy::Array(ty, len) => {
-                let ty = self.resolve_ty(*ty)?;
-                Ok(BaseTy::Array(Box::new(ty), len))
-            }
+
             BaseTy::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 Ok(BaseTy::Slice(Box::new(ty)))

@@ -652,7 +652,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
                 let val = args.len();
-                let idx = Expr::constant(rty::Constant::from(val));
                 let args: Vec<Ty> = args
                     .iter()
                     .map(|op| self.check_operand(rcx, env, src_info, op))
@@ -666,7 +665,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     gen.subtyping(rcx, &arg, &ty);
                 }
 
-                Ok(Ty::indexed(BaseTy::array(ty, Const { val }), RefineArgs::one(idx)))
+                Ok(Ty::array(ty, Const { val }))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args

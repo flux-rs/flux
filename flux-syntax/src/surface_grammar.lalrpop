@@ -147,6 +147,15 @@ ArgTyKind: surface::TyKind = {
     "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
 
     "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+    "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
+        let span = mk_span(lo, hi);
+        if let surface::LitKind::Integer = lit.kind {
+            if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
+                return Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }))
+            }
+        }
+        return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+    },
     <bty:BaseTy>                                        => surface::TyKind::Base(<>),
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
 }
@@ -155,15 +164,7 @@ ArgTyKind: surface::TyKind = {
 BaseTy: surface::BaseTy = {
 
     <path:Path>                                        => surface::BaseTy::Path(<>),
-    "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
-        let span = mk_span(lo, hi);
-        if let surface::LitKind::Integer = lit.kind {
-            if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
-                return Ok(surface::BaseTy::Array(Box::new(ty), surface::ArrayLen { val, span }))
-            }
-        }
-        return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-    },
+
     "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
 
 }

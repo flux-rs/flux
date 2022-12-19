@@ -350,6 +350,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     .try_collect_exhaust()?;
                 Ok(fhir::Ty::Tuple(tys))
             }
+            surface::TyKind::Array(ty, len) => {
+                let ty = self.desugar_ty(None, *ty)?;
+                Ok(fhir::Ty::Array(Box::new(ty), fhir::ArrayLen { val: len.val }))
+            }
         }
     }
 
@@ -445,10 +449,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_bty(&mut self, bty: surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match bty {
             surface::BaseTy::Path(path) => self.desugar_path(path)?,
-            surface::BaseTy::Array(ty, len) => {
-                let ty = self.desugar_ty(None, *ty)?;
-                BtyOrTy::Bty(fhir::BaseTy::Array(Box::new(ty), fhir::ArrayLen { val: len.val }))
-            }
+
             surface::BaseTy::Slice(ty) => {
                 let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, *ty)?));
                 BtyOrTy::Bty(bty)
@@ -921,13 +922,13 @@ impl Binders {
                         }
                     }
                 }
-                self.base_gather_params(tcx, sess, map, bty, allow_binder)
+                self.bty_gather_params(tcx, sess, map, bty, allow_binder)
             }
             surface::TyKind::Base(bty) => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, map, bty))?;
                 }
-                self.base_gather_params(tcx, sess, map, bty, allow_binder)
+                self.bty_gather_params(tcx, sess, map, bty, allow_binder)
             }
 
             surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
@@ -945,11 +946,12 @@ impl Binders {
                 }
                 Ok(())
             }
+            surface::TyKind::Array(ty, _) => self.ty_gather_params(tcx, sess, map, None, ty, false),
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, map, bty))?;
                 }
-                self.base_gather_params(tcx, sess, map, bty, false)
+                self.bty_gather_params(tcx, sess, map, bty, false)
             }
         }
     }
@@ -968,7 +970,7 @@ impl Binders {
         })
     }
 
-    fn base_gather_params(
+    fn bty_gather_params(
         &mut self,
         tcx: TyCtxt,
         sess: &FluxSession,
@@ -980,9 +982,7 @@ impl Binders {
             surface::BaseTy::Path(path) => {
                 self.path_gather_params(tcx, sess, map, path, allow_binder)
             }
-            surface::BaseTy::Array(ty, _) | surface::BaseTy::Slice(ty) => {
-                self.ty_gather_params(tcx, sess, map, None, ty, false)
-            }
+            surface::BaseTy::Slice(ty) => self.ty_gather_params(tcx, sess, map, None, ty, false),
         }
     }
 
@@ -1077,9 +1077,7 @@ impl Binder {
     ) -> Binder {
         match bty {
             surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
-            surface::BaseTy::Array(_, _) | surface::BaseTy::Slice(_) => {
-                Binder::Single(name_gen.fresh(), fhir::Sort::Int)
-            }
+            surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int),
         }
     }
 
