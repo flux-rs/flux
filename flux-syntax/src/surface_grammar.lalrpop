@@ -149,12 +149,11 @@ ArgTyKind: surface::TyKind = {
     "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
         let span = mk_span(lo, hi);
-        if let surface::LitKind::Integer = lit.kind {
-            if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
-                return Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }))
-            }
+        if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
+            Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }))
+        } else {
+            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
-        return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
     <bty:BaseTy>                                        => surface::TyKind::Base(<>),
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
