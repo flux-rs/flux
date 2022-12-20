@@ -310,6 +310,7 @@ impl TypeFoldable for Ty {
                 TyKind::Exists(bty.fold_with(folder), pred.fold_with(folder)).intern()
             }
             TyKind::Tuple(tys) => Ty::tuple(tys.fold_with(folder)),
+            TyKind::Array(ty, c) => Ty::array(ty.fold_with(folder), c.clone()),
             TyKind::Ptr(rk, path) => {
                 Ty::ptr(
                     *rk,
@@ -345,6 +346,7 @@ impl TypeFoldable for Ty {
                 pred.visit_with(visitor);
             }
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
+            TyKind::Array(ty, _) => ty.visit_with(visitor),
             TyKind::Ref(_, ty) => ty.visit_with(visitor),
             TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
             TyKind::BoxPtr(loc, ty) => {
@@ -407,7 +409,6 @@ impl TypeFoldable for BaseTy {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
-            BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
@@ -421,7 +422,7 @@ impl TypeFoldable for BaseTy {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
-            BaseTy::Array(ty, _) | BaseTy::Slice(ty) => ty.visit_with(visitor),
+            BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool

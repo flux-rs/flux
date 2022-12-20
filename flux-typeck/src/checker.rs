@@ -652,7 +652,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
-                let idx = Expr::constant(rty::Constant::from(args.len()));
+                let val = args.len();
                 let args: Vec<Ty> = args
                     .iter()
                     .map(|op| self.check_operand(rcx, env, src_info, op))
@@ -666,7 +666,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     gen.subtyping(rcx, &arg, &ty);
                 }
 
-                Ok(Ty::indexed(BaseTy::array(ty, Const), RefineArgs::one(idx)))
+                Ok(Ty::array(ty, Const { val }))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args
@@ -702,12 +702,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = env
             .lookup_place(rcx, gen, place)
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
-        match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, _), ixs) | TyKind::Indexed(BaseTy::Slice(_), ixs) => {
-                Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), ixs.clone()))
-            }
+
+        let idxs = match ty.kind() {
+            TyKind::Array(_, len) => RefineArgs::one(Expr::constant(rty::Constant::from(len.val))),
+            TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
             _ => panic!("expected array or slice type"),
-        }
+        };
+
+        Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idxs))
     }
 
     fn check_binary_op(

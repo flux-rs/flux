@@ -98,7 +98,9 @@ pub enum TyKind {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Const;
+pub struct Const {
+    pub val: usize,
+}
 
 #[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {

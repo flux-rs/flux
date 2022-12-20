@@ -126,6 +126,7 @@ pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
     Exists(BaseTy, Binders<Pred>),
     Tuple(List<Ty>),
+    Array(Ty, Const),
     Uninit,
     Ptr(RefKind, Path),
     /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
@@ -172,7 +173,6 @@ pub enum BaseTy {
     Bool,
     Str,
     Char,
-    Array(Ty, Const),
     Slice(Ty),
     Adt(AdtDef, Substs),
     Float(FloatTy),
@@ -434,6 +434,10 @@ impl Ty {
         TyKind::Tuple(tys.into()).intern()
     }
 
+    pub fn array(ty: Ty, c: Const) -> Ty {
+        TyKind::Array(ty, c).intern()
+    }
+
     pub fn constr(p: impl Into<Pred>, ty: Ty) -> Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
@@ -592,11 +596,6 @@ impl BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
-    pub fn array(ty: Ty, c: Const) -> BaseTy {
-        BaseTy::Array(ty, c)
-        // Ty::indexed(BaseTy::Array(ty, c), RefineArgs::empty())
-    }
-
     pub fn slice(ty: Ty) -> BaseTy {
         BaseTy::Slice(ty)
     }
@@ -632,7 +631,6 @@ impl BaseTy {
             BaseTy::Int(_)
             | BaseTy::Bool
             | BaseTy::Str
-            | BaseTy::Array(_, _)
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
             | BaseTy::Char => &[],
@@ -641,7 +639,7 @@ impl BaseTy {
 
     pub fn sorts(&self) -> &[Sort] {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Array(..) | BaseTy::Slice(_) => &[Sort::Int],
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
             BaseTy::Float(_) | BaseTy::Str | BaseTy::Char => &[],
@@ -917,6 +915,7 @@ mod pretty {
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
+                TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => w!("{{ {:?} : {:?} }}", ty, pred),
@@ -968,7 +967,6 @@ mod pretty {
                 BaseTy::Char => w!("char")?,
                 BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
-                BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c)?,
                 BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
             }
             if let BaseTy::Adt(_, args) = self && !args.is_empty() {

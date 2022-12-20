@@ -145,7 +145,6 @@ pub struct Ty<R = Ident> {
 #[derive(Debug)]
 pub enum BaseTy<T = Ident> {
     Path(Path<T>),
-    Array(Box<Ty<T>>, ArrayLen),
     Slice(Box<Ty<T>>),
 }
 
@@ -169,10 +168,14 @@ pub enum TyKind<T = Ident> {
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<T>>),
     Tuple(Vec<Ty<T>>),
+    Array(Box<Ty<T>>, ArrayLen),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ArrayLen;
+pub struct ArrayLen {
+    pub val: usize,
+    pub span: Span,
+}
 
 #[derive(Debug, Clone)]
 pub struct Indices {
@@ -402,7 +405,6 @@ pub mod expand {
     fn expand_bty(aliases: &AliasMap, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Path(path) => BaseTy::Path(expand_path(aliases, path)),
-            BaseTy::Array(ty, len) => BaseTy::Array(Box::new(expand_ty(aliases, ty)), *len),
             BaseTy::Slice(ty) => BaseTy::Slice(Box::new(expand_ty(aliases, ty))),
         }
     }
@@ -439,6 +441,7 @@ pub mod expand {
             TyKind::Tuple(tys) => {
                 TyKind::Tuple(tys.iter().map(|t| expand_ty(aliases, t)).collect())
             }
+            TyKind::Array(ty, len) => TyKind::Array(Box::new(expand_ty(aliases, ty)), *len),
         }
     }
 
@@ -543,7 +546,6 @@ pub mod expand {
     fn subst_bty(subst: &Subst, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Path(path) => BaseTy::Path(subst_path(subst, path)),
-            BaseTy::Array(ty, len) => BaseTy::Array(Box::new(subst_ty(subst, ty)), *len),
             BaseTy::Slice(ty) => BaseTy::Slice(Box::new(subst_ty(subst, ty))),
         }
     }
@@ -569,6 +571,7 @@ pub mod expand {
                 TyKind::Constr(subst_expr(subst, pred), Box::new(subst_ty(subst, t)))
             }
             TyKind::Tuple(tys) => TyKind::Tuple(tys.iter().map(|t| subst_ty(subst, t)).collect()),
+            TyKind::Array(ty, len) => TyKind::Array(Box::new(subst_ty(subst, ty)), *len),
         }
     }
 }

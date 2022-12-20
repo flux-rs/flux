@@ -229,6 +229,7 @@ impl<'a> Wf<'a> {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
+            fhir::Ty::Array(ty, _) => self.check_type(env, ty),
             fhir::Ty::Constr(pred, ty) => {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
@@ -250,7 +251,7 @@ impl<'a> Wf<'a> {
                     .map(|ty| self.check_type(env, ty))
                     .try_collect_exhaust()
             }
-            fhir::BaseTy::Slice(ty) | fhir::BaseTy::Array(ty, _) => self.check_type(env, ty),
+            fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
         }
     }
@@ -392,10 +393,9 @@ impl<'a> Wf<'a> {
 
     fn sorts(&self, bty: &fhir::BaseTy) -> &'a [fhir::Sort] {
         match bty {
-            fhir::BaseTy::Int(_)
-            | fhir::BaseTy::Uint(_)
-            | flux_middle::fhir::BaseTy::Array(_, _)
-            | flux_middle::fhir::BaseTy::Slice(_) => &[fhir::Sort::Int],
+            fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | flux_middle::fhir::BaseTy::Slice(_) => {
+                &[fhir::Sort::Int]
+            }
             fhir::BaseTy::Bool => &[fhir::Sort::Bool],
             fhir::BaseTy::Adt(def_id, _) => self.map.sorts_of(*def_id).unwrap_or_default(),
         }

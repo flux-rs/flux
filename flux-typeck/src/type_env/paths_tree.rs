@@ -278,7 +278,7 @@ impl PathsTree {
                     PlaceElem::Index(_) => {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
-                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
+                            TyKind::Array(arr_ty, _) => {
                                 let (rk, ty) =
                                     Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
                                 return Ok(LookupResult {

@@ -340,6 +340,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     self.subtyping(rcx, ty1, ty2);
                 }
             }
+            (TyKind::Array(ty1, len1), TyKind::Array(ty2, len2)) => {
+                debug_assert_eq!(len1.val, len2.val);
+                self.subtyping(rcx, ty1, ty2);
+            }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2, self.tag);
                 self.subtyping(rcx, ty1, ty2);
@@ -371,10 +375,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
             }
-            (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
-                self.subtyping(rcx, ty1, ty2);
-            }
+
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
                 self.subtyping(rcx, ty1, ty2);
             }

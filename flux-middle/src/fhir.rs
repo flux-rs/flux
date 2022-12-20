@@ -138,10 +138,13 @@ pub enum Ty {
     Ref(RefKind, Box<Ty>),
     Param(ParamTy),
     Tuple(Vec<Ty>),
+    Array(Box<Ty>, ArrayLen),
     Never,
 }
 
-pub struct ArrayLen;
+pub struct ArrayLen {
+    pub val: usize,
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum RefKind {
@@ -196,7 +199,6 @@ pub enum BaseTy {
     Uint(UintTy),
     Bool,
     Adt(DefId, Vec<Ty>),
-    Array(Box<Ty>, ArrayLen),
     Slice(Box<Ty>),
 }
 
@@ -597,6 +599,7 @@ impl fmt::Debug for Ty {
             Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
             Ty::Param(param) => write!(f, "{param}"),
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
+            Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Never => write!(f, "!"),
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
@@ -618,7 +621,6 @@ impl fmt::Debug for BaseTy {
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => write!(f, "bool")?,
             BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
-            BaseTy::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]")?,
             BaseTy::Slice(ty) => write!(f, "[{ty:?}]")?,
         }
         if let BaseTy::Adt(_, substs) = self && !substs.is_empty() {

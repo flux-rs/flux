@@ -279,6 +279,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .collect_vec();
                 rty::Ty::tuple(tys)
             }
+            fhir::Ty::Array(ty, len) => {
+                rty::Ty::array(self.conv_ty(ty, nbinders), rty::Const { val: len.val })
+            }
             fhir::Ty::Never => rty::Ty::never(),
             fhir::Ty::Constr(pred, ty) => {
                 let pred = self.name_map.conv_pred(pred, nbinders);
@@ -337,9 +340,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             fhir::BaseTy::Bool => rty::BaseTy::Bool,
-            fhir::BaseTy::Array(ty, _) => {
-                rty::BaseTy::array(self.conv_ty(ty, nbinders), rty::Const)
-            }
             fhir::BaseTy::Slice(ty) => rty::BaseTy::slice(self.conv_ty(ty, nbinders)),
             fhir::BaseTy::Adt(did, substs) => {
                 let mut i = 0;
