@@ -15,7 +15,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{mir::SourceInfo, ty::TyCtxt};
 
 use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
 use super::rty::{Loc, Name, Pred, Sort};
@@ -81,10 +81,11 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
+        src_info: Option<SourceInfo>,
     ) -> Result<Ty, OpaqueStructErr> {
         Ok(self
             .bindings
-            .lookup(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place, src_info)?
             .fold(rcx, gen, true)
             .ty())
     }
@@ -94,10 +95,11 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         path: &Path,
+        src_info: Option<SourceInfo>,
     ) -> Result<Ty, OpaqueStructErr> {
         Ok(self
             .bindings
-            .lookup(gen.genv, rcx, path)?
+            .lookup(gen.genv, rcx, path, src_info)?
             .fold(rcx, gen, false)
             .ty())
     }
@@ -112,10 +114,11 @@ impl TypeEnv {
         gen: &mut ConstrGen,
         rk: RefKind,
         place: &Place,
+        src_info: SourceInfo,
     ) -> Result<Ty, OpaqueStructErr> {
         let ty = match self
             .bindings
-            .lookup(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place, Some(src_info))?
             .fold(rcx, gen, true)
         {
             FoldResult::Strg(path, _) => Ty::ptr(rk, path),
@@ -133,10 +136,11 @@ impl TypeEnv {
         gen: &mut ConstrGen,
         place: &Place,
         new_ty: Ty,
+        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         match self
             .bindings
-            .lookup(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place, src_info)?
             .fold(rcx, gen, true)
         {
             FoldResult::Strg(path, _) => {
@@ -157,10 +161,11 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
+        src_info: Option<SourceInfo>,
     ) -> Result<Ty, OpaqueStructErr> {
         match self
             .bindings
-            .lookup(gen.genv, rcx, place)?
+            .lookup(gen.genv, rcx, place, src_info)?
             .fold(rcx, gen, true)
         {
             FoldResult::Strg(path, ty) => {
@@ -281,13 +286,14 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         bb_env: &BasicBlockEnv,
+        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         self.bindings.close_boxes(rcx, gen, &bb_env.scope);
 
         // Look up paths to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
             self.bindings
-                .lookup(gen.genv, rcx, &path)?
+                .lookup(gen.genv, rcx, &path, src_info)?
                 .fold(rcx, gen, false);
         }
 
@@ -344,10 +350,12 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         place: &Place,
         variant_idx: VariantIdx,
+        src_info: SourceInfo,
     ) -> Result<(), OpaqueStructErr> {
         let mut down_place = place.clone();
         down_place.projection.push(PlaceElem::Downcast(variant_idx));
-        self.bindings.lookup(genv, rcx, &down_place)?;
+        self.bindings
+            .lookup(genv, rcx, &down_place, Some(src_info))?;
         Ok(())
     }
 
@@ -466,7 +474,13 @@ impl TypeEnvInfer {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub fn join(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, mut other: TypeEnv) -> bool {
+    pub fn join(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        mut other: TypeEnv,
+        src_info: Option<SourceInfo>,
+    ) -> bool {
         other.bindings.close_boxes(rcx, gen, &self.scope);
 
         // Unfold
@@ -542,12 +556,12 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             let binding = match (&binding1, &binding2) {
                 (Binding::Owned(ty1), Binding::Owned(ty2)) => {
-                    Binding::Owned(self.join_ty(ty1, ty2))
+                    Binding::Owned(self.join_ty(ty1, ty2, src_info))
                 }
                 (Binding::Owned(ty1), Binding::Blocked(ty2))
                 | (Binding::Blocked(ty1), Binding::Owned(ty2))
                 | (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
-                    Binding::Blocked(self.join_ty(ty1, ty2))
+                    Binding::Blocked(self.join_ty(ty1, ty2, src_info))
                 }
             };
             modified |= binding1 != binding;
@@ -557,7 +571,7 @@ impl TypeEnvInfer {
         modified
     }
 
-    fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
+    fn join_ty(&self, ty1: &Ty, ty2: &Ty, src_info: Option<SourceInfo>) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -571,7 +585,7 @@ impl TypeEnvInfer {
                 Ty::box_ptr(*loc1, alloc1.clone())
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
-                let bty = self.join_bty(bty1, bty2);
+                let bty = self.join_bty(bty1, bty2, src_info);
                 if self.scope.has_free_vars(idxs2) || idxs1.args() != idxs2.args() {
                     let pred = Binders::new(Pred::Hole, bty.sorts());
                     Ty::exists(bty, pred)
@@ -582,13 +596,13 @@ impl TypeEnvInfer {
             (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..))
             | (TyKind::Exists(bty1, _), TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
-                let bty = self.join_bty(bty1, bty2);
+                let bty = self.join_bty(bty1, bty2, src_info);
                 let pred = Binders::new(Pred::Hole, bty.sorts());
                 Ty::exists(bty, pred)
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
-                Ty::mk_ref(*rk1, self.join_ty(ty1, ty2))
+                Ty::mk_ref(*rk1, self.join_ty(ty1, ty2, src_info))
             }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
@@ -597,7 +611,7 @@ impl TypeEnvInfer {
             (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
                 assert!(
                     tys1.is_empty() && tys2.is_empty(),
-                    "join of non-empty tuples is not supported yet"
+                    "join of non-empty tuples is not supported yet {src_info:?}"
                 );
                 Ty::tuple(vec![])
             }
@@ -605,11 +619,11 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
+    fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy, src_info: Option<SourceInfo>) -> BaseTy {
         if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
             debug_assert_eq!(def1.def_id(), def2.def_id());
             let substs = iter::zip(substs1, substs2)
-                .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
+                .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2, src_info))
                 .collect();
             BaseTy::adt(def1.clone(), List::from_vec(substs))
         } else {
@@ -618,9 +632,16 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
+    fn join_generic_arg(
+        &self,
+        arg1: &GenericArg,
+        arg2: &GenericArg,
+        src_info: Option<SourceInfo>,
+    ) -> GenericArg {
         match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
+                GenericArg::Ty(self.join_ty(ty1, ty2, src_info))
+            }
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
             _ => panic!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
         }
