@@ -21,14 +21,6 @@ struct Env<'a> {
 }
 
 impl<'a> Env<'a> {
-    fn new(params: &'a [fhir::RefineParam]) -> Env {
-        let sorts = params
-            .iter()
-            .map(|param| (param.name.name, &param.sort))
-            .collect();
-        Env { sorts }
-    }
-
     fn with_binders<R>(
         &mut self,
         binders: &[fhir::Name],
@@ -44,6 +36,27 @@ impl<'a> Env<'a> {
             self.sorts.remove(binder);
         }
         r
+    }
+}
+
+impl<'a> From<&'a [fhir::RefineParam]> for Env<'a> {
+    fn from(params: &'a [fhir::RefineParam]) -> Env {
+        let sorts = params
+            .iter()
+            .map(|param| (param.name.name, &param.sort))
+            .collect();
+        Env { sorts }
+    }
+}
+
+impl<'a> From<&'a [(fhir::Ident, fhir::Sort)]> for Env<'a> {
+    fn from(params: &'a [(fhir::Ident, fhir::Sort)]) -> Self {
+        Env {
+            sorts: params
+                .iter()
+                .map(|(ident, sort)| (ident.name, sort))
+                .collect(),
+        }
     }
 }
 
@@ -63,18 +76,18 @@ impl<'a> Wf<'a> {
     }
 
     pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&qualifier.args);
+        let env = Env::from(&qualifier.args[..]);
 
         self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
     pub fn check_defn(&self, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&defn.args.params);
+        let env = Env::from(&defn.args[..]);
         self.check_expr(&env, &defn.expr, &defn.sort)
     }
 
     pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
-        let env = Env::new(&adt_def.refined_by.params);
+        let env = Env::from(&adt_def.refined_by.params[..]);
         adt_def
             .invariants
             .iter()
@@ -86,7 +99,7 @@ impl<'a> Wf<'a> {
     }
 
     pub fn check_fn_sig(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&fn_sig.params);
+        let mut env = Env::from(&fn_sig.params[..]);
 
         let args = fn_sig
             .args
@@ -121,7 +134,7 @@ impl<'a> Wf<'a> {
         refined_by: &fhir::RefinedBy,
         def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&refined_by.params);
+        let mut env = Env::from(&refined_by.params[..]);
         if let fhir::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
                 if let Some(ty) = ty {
@@ -141,7 +154,7 @@ impl<'a> Wf<'a> {
     }
 
     fn check_variant(&self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::new(&variant.params);
+        let mut env = Env::from(&variant.params[..]);
         let fields = variant
             .fields
             .iter()

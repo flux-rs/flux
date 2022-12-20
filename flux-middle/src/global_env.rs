@@ -84,7 +84,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn register_struct_def_variants(&mut self) {
         for struct_def in self.map.structs() {
             let def_id = struct_def.def_id;
-            let refined_by = &self.map().refined_by(struct_def.def_id).unwrap().params;
+            let refined_by = &self.map().refined_by(struct_def.def_id).unwrap();
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));
@@ -174,8 +174,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let poly_variant = self.variant(def_id, variant_idx)?;
         let variant = poly_variant.as_ref().skip_binders();
         let sorts = poly_variant.params();
+        let modes = sorts.iter().map(rty::InferMode::default_for).collect_vec();
         let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        Ok(rty::Binders::new(sig, sorts))
+        Ok(rty::PolySig::new(rty::Binders::new(sig, sorts), modes))
     }
 
     pub fn variant(
@@ -259,7 +260,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|ty| self.refine_ty(ty, mk_pred))
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
-        rty::PolySig::new(rty::FnSig::new(vec![], args, ret, vec![]), vec![])
+        rty::PolySig::new(
+            rty::Binders::new(rty::FnSig::new(vec![], args, ret, vec![]), vec![]),
+            vec![],
+        )
     }
 
     pub fn refine_ty(

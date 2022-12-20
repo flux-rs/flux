@@ -614,6 +614,7 @@ mod pretty {
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
+                    let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
                     w!("{:?}", parens!(pred, !pred.is_atom()))?;
                     if cx.tags {
                         w!(" ~ {:?}", tag)?;
@@ -621,6 +622,8 @@ mod pretty {
                     Ok(())
                 }
                 NodeKind::Impl(pred1, pred2, tag) => {
+                    let pred1 = if cx.simplify_exprs { pred1.simplify() } else { pred1.clone() };
+                    let pred2 = if cx.simplify_exprs { pred2.simplify() } else { pred2.clone() };
                     w!("{:?} => ", parens!(pred1, !pred1.is_atom()))?;
                     w!("{:?}", parens!(pred2, !pred2.is_atom()))?;
                     if cx.tags {

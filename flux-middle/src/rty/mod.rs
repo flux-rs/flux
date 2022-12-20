@@ -10,7 +10,7 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, sync::LazyLock};
+use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
@@ -30,7 +30,7 @@ use self::{
     subst::BVarFolder,
 };
 pub use crate::{
-    fhir::{FuncSort, RefKind, Sort},
+    fhir::{FuncSort, InferMode, RefKind, Sort},
     rustc::ty::Const,
 };
 use crate::{
@@ -76,7 +76,11 @@ pub struct Binders<T> {
     value: T,
 }
 
-pub type PolySig = Binders<FnSig>;
+#[derive(Clone)]
+pub struct PolySig {
+    pub fn_sig: Binders<FnSig>,
+    pub modes: List<InferMode>,
+}
 
 #[derive(Clone)]
 pub struct FnSig {
@@ -305,6 +309,21 @@ impl RefineArg {
         } else {
             panic!("expected an `RefineArg::Expr`")
         }
+    }
+}
+
+impl PolySig {
+    pub fn new(fn_sig: Binders<FnSig>, modes: impl Into<List<InferMode>>) -> PolySig {
+        let modes = modes.into();
+        debug_assert_eq!(fn_sig.params.len(), modes.len());
+        PolySig { fn_sig, modes }
+    }
+
+    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> RefineArg) -> FnSig {
+        let args = iter::zip(&self.fn_sig.params, &self.modes)
+            .map(|(sort, kind)| f(sort, *kind))
+            .collect_vec();
+        self.fn_sig.replace_bvars(&args)
     }
 }
 
@@ -554,6 +573,12 @@ impl From<&Pred> for Pred {
     }
 }
 
+impl From<&RefineArg> for RefineArg {
+    fn from(arg: &RefineArg) -> Self {
+        arg.clone()
+    }
+}
+
 impl From<Expr> for RefineArg {
     fn from(expr: Expr) -> Self {
         RefineArg::Expr(expr)
@@ -729,6 +754,7 @@ impl_internable!(
     [KVar],
     [Constraint],
     [RefineArg],
+    [InferMode]
 );
 
 #[macro_export]
@@ -808,6 +834,29 @@ mod pretty {
                 )?;
             }
             write!(f, "{:?}", self.value)
+        }
+    }
+
+    impl Pretty for PolySig {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if !self.fn_sig.params.is_empty() {
+                write!(
+                    f,
+                    "for<{}> ",
+                    self.fn_sig
+                        .params
+                        .iter()
+                        .enumerate()
+                        .format_with(", ", |(i, sort), f| {
+                            match self.modes[i] {
+                                InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
+                                InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
+                            }
+                        })
+                )?;
+            }
+            w!("{:?}", &self.fn_sig.value)
         }
     }
 
@@ -1017,6 +1066,7 @@ mod pretty {
     impl_debug_with_default_cx!(
         Constraint,
         TyS => "ty",
+        PolySig,
         BaseTy,
         Pred,
         KVar,

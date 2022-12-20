@@ -47,7 +47,7 @@ pub struct ConstInfo {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<RefineParam>,
+    pub args: Vec<(Ident, Sort)>,
     pub expr: Expr,
 }
 
@@ -159,6 +159,16 @@ pub enum WeakKind {
     Arr,
 }
 
+impl InferMode {
+    pub fn default_for(sort: &Sort) -> Self {
+        if sort.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+}
+
 impl From<RefKind> for WeakKind {
     fn from(rk: RefKind) -> WeakKind {
         match rk {
@@ -196,6 +206,20 @@ pub enum BaseTy {
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
+    pub mode: InferMode,
+}
+
+/// *Infer*ence *mode* for parameter at function calls
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InferMode {
+    /// Generate a fresh evar for the parameter and solve it via syntactic unification. The
+    /// parameter must appear as an index for unification to succeed, but otherwise it can appear
+    /// (mostly) freely.
+    EVar,
+    /// Generate a fresh kvar and let fixpoint infer it. This mode can only be used with abstract
+    /// refinements predicates. If the parameter is marked as kvar then it can only appear in
+    /// positions that result in a _horn_ constraint as required by fixpoint.
+    KVar,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -295,7 +319,7 @@ pub struct AdtDef {
 
 #[derive(Debug)]
 pub struct RefinedBy {
-    pub params: Vec<RefineParam>,
+    pub params: Vec<(Ident, Sort)>,
     pub span: Span,
 }
 
@@ -308,14 +332,14 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
-    pub args: RefinedBy,
+    pub args: Vec<(Ident, Sort)>,
     pub sort: Sort,
     pub expr: Expr,
 }
 
 impl AdtDef {
     pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
-        let sorts = refined_by.iter().map(|param| param.sort.clone()).collect();
+        let sorts = refined_by.sorts().cloned().collect_vec();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
     }
 }
@@ -323,8 +347,8 @@ impl AdtDef {
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
 
-    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
-        self.params.iter()
+    pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
+        self.params.iter().map(|(_, sort)| sort)
     }
 }
 
@@ -504,7 +528,14 @@ impl fmt::Debug for FnSig {
                     p,
                     "<{}>",
                     self.params.iter().format_with(", ", |param, f| {
-                        f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                        match param.mode {
+                            InferMode::KVar => {
+                                f(&format_args!("${:?}: {:?}", param.name, param.sort))
+                            }
+                            InferMode::EVar => {
+                                f(&format_args!("?{:?}: {:?}", param.name, param.sort))
+                            }
+                        }
                     })
                 )?;
             }

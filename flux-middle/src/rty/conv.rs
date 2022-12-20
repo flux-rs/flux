@@ -60,21 +60,25 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
 }
 
 pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
-    let mut name_map = NameMap::default();
-    let sorts = name_map.conv_refined_by(&defn.args);
+    let name_map = NameMap::with_bvars(defn.args.iter().map(|(ident, _)| ident.name));
+    let sorts = defn.args.iter().map(|(_, sort)| sort.clone()).collect_vec();
     let expr = Binders::new(name_map.conv_expr(&defn.expr, 1), sorts);
     rty::Defn { name: defn.name, expr }
 }
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
-    pub(crate) fn new(genv: &'a GlobalEnv<'genv, 'tcx>) -> Self {
-        Self { genv, name_map: NameMap::default() }
+    fn from_refined_by(genv: &'a GlobalEnv<'genv, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
+        let name_map = NameMap::with_bvars(refined_by.params.iter().map(|(ident, _)| ident.name));
+        Self { genv, name_map }
     }
 
-    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::Binders<rty::FnSig> {
-        let mut cx = ConvCtxt::new(genv);
+    fn from_params(genv: &'a GlobalEnv<'genv, 'tcx>, params: &[fhir::RefineParam]) -> Self {
+        let name_map = NameMap::with_bvars(params.iter().map(|param| param.name.name));
+        Self { genv, name_map }
+    }
 
-        let params = cx.conv_params(&fn_sig.params);
+    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
+        let mut cx = ConvCtxt::from_params(genv, &fn_sig.params);
 
         let mut requires = vec![];
         for constr in &fn_sig.requires {
@@ -93,18 +97,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let ret = cx.conv_ty(&fn_sig.ret, 1);
 
-        rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), params)
+        let sorts = fn_sig
+            .params
+            .iter()
+            .map(|param| param.sort.clone())
+            .collect_vec();
+        let modes = fn_sig.params.iter().map(|param| param.mode).collect_vec();
+        rty::PolySig::new(
+            rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
+            modes,
+        )
     }
 
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
     ) -> Option<Vec<PolyVariant>> {
-        let mut cx = ConvCtxt::new(genv);
         let variants: Vec<PolyVariant> = enum_def
             .variants
             .iter()
-            .map(|variant| cx.conv_variant(variant))
+            .map(|variant| ConvCtxt::conv_variant(genv, variant))
             .collect();
 
         // Return `None` if there are *no* refined variants as, in that case,
@@ -117,14 +129,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_variant(&mut self, variant: &fhir::VariantDef) -> PolyVariant {
-        let sorts = self.conv_params(&variant.params);
+    fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> PolyVariant {
+        let mut cx = ConvCtxt::from_params(genv, &variant.params);
         let fields = variant
             .fields
             .iter()
-            .map(|ty| self.conv_ty(ty, 1))
+            .map(|ty| cx.conv_ty(ty, 1))
             .collect_vec();
-        let variant = rty::VariantDef::new(fields, self.conv_variant_ret(&variant.ret));
+        let sorts = variant
+            .params
+            .iter()
+            .map(|param| param.sort.clone())
+            .collect_vec();
+        let variant = rty::VariantDef::new(fields, cx.conv_variant_ret(&variant.ret));
         Binders::new(variant, sorts)
     }
 
@@ -134,16 +151,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             iter::zip(&ret.indices.indices, bty.sorts())
                 .map(|(arg, sort)| self.conv_arg(arg, sort, 1)),
         );
+
         VariantRet { bty, args }
     }
 
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
-        refined_by: &[fhir::RefineParam],
+        refined_by: &fhir::RefinedBy,
         struct_def: &fhir::StructDef,
     ) -> Option<rty::PolyVariant> {
-        let mut cx = ConvCtxt::new(genv);
-        let sorts = cx.conv_params(refined_by);
+        let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
+
         let def_id = struct_def.def_id;
         let rustc_adt = genv.tcx.adt_def(def_id);
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
@@ -173,6 +191,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 })
                 .collect_vec();
 
+            let sorts = refined_by.sorts().cloned().collect_vec();
             let idxs = sorts
                 .iter()
                 .enumerate()
@@ -186,18 +205,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         } else {
             None
         }
-    }
-
-    fn conv_params(&mut self, params: &[fhir::RefineParam]) -> Vec<rty::Sort> {
-        params
-            .iter()
-            .enumerate()
-            .map(|(index, param)| {
-                self.name_map
-                    .insert(param.name.name, Entry::Bound { index, level: 0 });
-                param.sort.clone()
-            })
-            .collect()
     }
 
     fn conv_constr(&mut self, constr: &fhir::Constraint, nbinders: u32) -> rty::Constraint {
@@ -219,10 +226,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let args = qualifier
             .args
             .iter()
-            .map(|param| {
+            .map(|(ident, sort)| {
                 let fresh = name_gen.fresh();
-                name_map.insert(param.name.name, fresh);
-                (fresh, param.sort.clone())
+                name_map.insert(ident.name, fresh);
+                (fresh, sort.clone())
             })
             .collect_vec();
 
@@ -371,6 +378,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 }
 
 impl NameMap {
+    fn with_bvars(iter: impl IntoIterator<Item = fhir::Name>) -> Self {
+        Self {
+            map: iter
+                .into_iter()
+                .enumerate()
+                .map(|(index, name)| (name, Entry::Bound { index, level: 0 }))
+                .collect(),
+        }
+    }
+
     fn insert(&mut self, name: fhir::Name, var: impl Into<Entry>) {
         self.map.insert(name, var.into());
     }
@@ -399,18 +416,20 @@ impl NameMap {
         }
         r
     }
+
     fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant { pred: Binders::new(self.conv_expr(invariant, 1), sorts) }
     }
 
     fn conv_refined_by(&mut self, refined_by: &fhir::RefinedBy) -> Vec<rty::Sort> {
         refined_by
+            .params
             .iter()
             .enumerate()
-            .map(|(index, param)| {
+            .map(|(index, (ident, sort))| {
                 self.map
-                    .insert(param.name.name, Entry::Bound { index, level: 0 });
-                param.sort.clone()
+                    .insert(ident.name, Entry::Bound { index, level: 0 });
+                sort.clone()
             })
             .collect()
     }

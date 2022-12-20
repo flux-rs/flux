@@ -7,8 +7,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
-        Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind, Var,
-        VariantRet,
+        InferMode, Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
+        TyKind, VariantRet,
     },
     rustc::mir::BasicBlock,
 };
@@ -111,7 +111,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
         // mutable references.
-        let actuals = iter::zip(actuals, fn_sig.as_ref().skip_binders().args())
+        let actuals = iter::zip(actuals, fn_sig.fn_sig.as_ref().skip_binders().args())
             .map(|(actual, formal)| {
                 if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
@@ -133,7 +133,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generic_args(&substs)
-            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
+            .replace_bvars_with(|sort, kind| infcx.fresh_evar_or_kvar(sort, kind));
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -199,7 +199,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .replace_generic_args(&substs)
-            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort));
+            .replace_bvars_with(|sort| {
+                infcx.fresh_evar_or_kvar(sort, InferMode::default_for(sort))
+            });
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -239,11 +241,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.evar_gen.fresh_in_cx(self.evars_cx)
     }
 
-    fn fresh_evar_or_kvar(&mut self, sort: &Sort) -> RefineArg {
-        if let Sort::Func(fsort) = sort && fsort.output().is_bool() {
-            RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
-        } else {
-            RefineArg::Expr(Expr::evar(self.fresh_evar()))
+    fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> RefineArg {
+        match kind {
+            InferMode::KVar => {
+                let fsort = sort.as_func();
+                RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
+            }
+            InferMode::EVar => RefineArg::Expr(Expr::evar(self.fresh_evar())),
         }
     }
 
@@ -423,9 +427,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         if arg1 == arg2 {
             return;
         }
+        self.unify_args(arg1, arg2, is_binder);
         match (arg1, arg2) {
             (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
-                self.unify_exprs(e1, e2, is_binder);
                 rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
             }
             (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
@@ -442,13 +446,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (RefineArg::Expr(expr), RefineArg::Abs(abs))
             | (RefineArg::Abs(abs), RefineArg::Expr(expr)) => {
-                if let ExprKind::FreeVar(name) = expr.kind() {
+                if let Option::Some(var) = expr.to_var() {
                     let args = rcx
                         .define_vars(abs.params())
                         .into_iter()
                         .map(Expr::from)
                         .collect_vec();
-                    let pred1 = Pred::App(Var::Free(*name), List::from(&args[..]));
+                    let pred1 = Pred::App(var, List::from(&args[..]));
                     let args = args.into_iter().map(RefineArg::from).collect_vec();
                     let pred2 = abs.replace_bvars(&args);
                     rcx.check_impl(&pred1, &pred2, self.tag);
@@ -457,6 +461,15 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
                 }
             }
+        }
+    }
+
+    fn unify_args(&mut self, arg1: &RefineArg, arg2: &RefineArg, replace: bool) {
+        if let RefineArg::Expr(e) = arg2
+           && let ExprKind::EVar(evar) = e.kind()
+           && !self.scope.has_free_vars(arg1)
+        {
+            self.evar_gen.unify(*evar, arg1, replace)
         }
     }
 
