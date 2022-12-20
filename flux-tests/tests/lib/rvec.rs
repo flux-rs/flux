@@ -70,6 +70,12 @@ impl<T> RVec<T> {
     }
 
     #[flux::assume]
+    #[flux::sig(fn(&mut RVec<T>[@n]) -> &mut [T][n])]
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.inner.as_mut_slice()
+    }
+
+    #[flux::assume]
     #[flux::sig(fn(T, n: usize) -> RVec<T>[n])]
     pub fn from_elem_n(elem: T, n: usize) -> Self
     where
