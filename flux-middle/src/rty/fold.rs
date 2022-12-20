@@ -214,7 +214,7 @@ where
 
 impl TypeFoldable for PolySig {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        PolySig::new(self.fn_sig.fold_with(folder), &self.kinds[..])
+        PolySig::new(self.fn_sig.fold_with(folder), &self.modes[..])
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {

@@ -1008,12 +1008,12 @@ impl Binders {
         for (ident, binder) in self.map {
             match binder {
                 Binder::Single(name, sort, explicit) => {
-                    let kind = if explicit && sort.is_pred() {
+                    let mode = if explicit && sort.is_pred() {
                         fhir::InferMode::KVar
                     } else {
                         fhir::InferMode::EVar
                     };
-                    params.push(param_from_ident(ident, name, sort.clone(), kind));
+                    params.push(param_from_ident(ident, name, sort.clone(), mode));
                 }
                 Binder::Aggregate(_, fields) => {
                     for (_, (name, sort)) in fields {
@@ -1052,10 +1052,10 @@ fn param_from_ident(
     ident: surface::Ident,
     name: fhir::Name,
     sort: fhir::Sort,
-    kind: fhir::InferMode,
+    mode: fhir::InferMode,
 ) -> fhir::RefineParam {
     let name = fhir::Ident { name, source_info: to_src_info(ident) };
-    fhir::RefineParam { name, sort, mode: kind }
+    fhir::RefineParam { name, sort, mode }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {

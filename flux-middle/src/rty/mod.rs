@@ -79,7 +79,7 @@ pub struct Binders<T> {
 #[derive(Clone)]
 pub struct PolySig {
     pub fn_sig: Binders<FnSig>,
-    pub kinds: List<InferMode>,
+    pub modes: List<InferMode>,
 }
 
 #[derive(Clone)]
@@ -313,14 +313,14 @@ impl RefineArg {
 }
 
 impl PolySig {
-    pub fn new(fn_sig: Binders<FnSig>, kinds: impl Into<List<InferMode>>) -> PolySig {
-        let kinds = kinds.into();
-        debug_assert_eq!(fn_sig.params.len(), kinds.len());
-        PolySig { fn_sig, kinds }
+    pub fn new(fn_sig: Binders<FnSig>, modes: impl Into<List<InferMode>>) -> PolySig {
+        let modes = modes.into();
+        debug_assert_eq!(fn_sig.params.len(), modes.len());
+        PolySig { fn_sig, modes }
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> RefineArg) -> FnSig {
-        let args = iter::zip(&self.fn_sig.params, &self.kinds)
+        let args = iter::zip(&self.fn_sig.params, &self.modes)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
         self.fn_sig.replace_bvars(&args)
@@ -851,7 +851,7 @@ mod pretty {
                         .iter()
                         .enumerate()
                         .format_with(", ", |(i, sort), f| {
-                            match self.kinds[i] {
+                            match self.modes[i] {
                                 InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
                                 InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
                             }

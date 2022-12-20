@@ -174,9 +174,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let poly_variant = self.variant(def_id, variant_idx)?;
         let variant = poly_variant.as_ref().skip_binders();
         let sorts = poly_variant.params();
-        let kinds = sorts.iter().map(rty::InferMode::default_for).collect_vec();
+        let modes = sorts.iter().map(rty::InferMode::default_for).collect_vec();
         let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        Ok(rty::PolySig::new(rty::Binders::new(sig, sorts), kinds))
+        Ok(rty::PolySig::new(rty::Binders::new(sig, sorts), modes))
     }
 
     pub fn variant(
