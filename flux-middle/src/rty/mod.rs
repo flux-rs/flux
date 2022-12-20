@@ -13,7 +13,7 @@ pub mod subst;
 use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Loc, Name, Path, Var, INNERMOST};
+pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -1088,8 +1088,10 @@ impl Defns {
         struct Deps<'a>(&'a mut HashSet<Symbol>);
         impl<'a> TypeFolder for Deps<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(f, _) = expr.kind() {
-                    self.0.insert(*f);
+                if let ExprKind::App(func, _) = expr.kind()
+                   && let Func::Uif(sym) = func
+                {
+                    self.0.insert(*sym);
                 }
                 expr.super_fold_with(self)
             }
@@ -1168,7 +1170,7 @@ impl Defns {
         if let Some(defn) = self.func_defn(func) {
             Self::expand_defn(defn, args)
         } else {
-            Expr::app(*func, args)
+            Expr::app(Func::Uif(*func), args)
         }
     }
 }

@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, Interned, List},
-    rty::{Var, VariantDef},
+    rty::{Func, Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -59,10 +59,12 @@ pub trait TypeFoldable: Sized {
 
         impl<'a> TypeFolder for Normalize<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(f, args) = expr.kind() {
+                if let ExprKind::App(func, args) = expr.kind()
+                   && let Func::Uif(sym) = func
+                {
                     let exp_args: List<Expr> =
                         args.iter().map(|arg| arg.super_fold_with(self)).collect();
-                    self.0.app(f, exp_args)
+                    self.0.app(sym, exp_args)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -456,15 +458,7 @@ impl TypeFoldable for Pred {
             Pred::Kvar(kvar) => Pred::Kvar(kvar.fold_with(folder)),
             Pred::Expr(e) => Pred::Expr(e.fold_with(folder)),
             Pred::Hole => Pred::Hole,
-            Pred::App(func, args) => {
-                let args = args.fold_with(folder);
-                let func = func
-                    .to_expr()
-                    .fold_with(folder)
-                    .to_var()
-                    .expect("folding produced invalid var");
-                Pred::App(func, args)
-            }
+            Pred::App(func, args) => Pred::App(func.fold_with(folder), args.fold_with(folder)),
         }
     }
 
@@ -475,7 +469,7 @@ impl TypeFoldable for Pred {
             Pred::Kvar(kvar) => kvar.visit_with(visitor),
             Pred::Hole => {}
             Pred::App(func, args) => {
-                func.to_expr().visit_with(visitor);
+                func.visit_with(visitor);
                 args.visit_with(visitor);
             }
         }
@@ -517,7 +511,7 @@ impl TypeFoldable for Expr {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
-            ExprKind::App(func, args) => Expr::app(*func, args.fold_with(folder)),
+            ExprKind::App(func, args) => Expr::app(func.fold_with(folder), args.fold_with(folder)),
             ExprKind::IfThenElse(p, e1, e2) => {
                 Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
             }
@@ -539,7 +533,8 @@ impl TypeFoldable for Expr {
             ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
                 e.visit_with(visitor);
             }
-            ExprKind::App(_, args) => {
+            ExprKind::App(func, args) => {
+                func.visit_with(visitor);
                 for e in args {
                     e.visit_with(visitor);
                 }
@@ -559,6 +554,34 @@ impl TypeFoldable for Expr {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_expr(self)
+    }
+}
+
+impl TypeFoldable for Func {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            Func::Var(var) => Func::Var(var.fold_with(folder)),
+            Func::Uif(sym) => Func::Uif(*sym),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        if let Func::Var(var) = self {
+            var.visit_with(visitor);
+        }
+    }
+}
+
+impl TypeFoldable for Var {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        self.to_expr()
+            .fold_with(folder)
+            .to_var()
+            .expect("folding produced invalid var")
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.to_expr().visit_with(visitor)
     }
 }
 

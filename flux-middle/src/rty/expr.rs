@@ -30,12 +30,18 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Symbol, List<Expr>),
+    App(Func, List<Expr>),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
     PathProj(Expr, Field),
     IfThenElse(Expr, Expr, Expr),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum Func {
+    Var(Var),
+    Uif(Symbol),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -173,7 +179,7 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(func: Symbol, args: impl Into<List<Expr>>) -> Expr {
+    pub fn app(func: Func, args: impl Into<List<Expr>>) -> Expr {
         ExprKind::App(func, args.into()).intern()
     }
 
@@ -634,12 +640,22 @@ mod pretty {
                         w!("({:?}).{:?}", e, field)
                     }
                 }
-                ExprKind::App(f, exprs) => {
-                    w!("{}({:?})", ^f, join!(", ", exprs))
+                ExprKind::App(func, exprs) => {
+                    w!("{:?}({:?})", func, join!(", ", exprs))
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
+            }
+        }
+    }
+
+    impl Pretty for Func {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Func::Var(f) => w!("{:?}", f),
+                Func::Uif(f) => w!("{}", ^f),
             }
         }
     }

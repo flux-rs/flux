@@ -470,12 +470,7 @@ impl NameMap {
                 )
             }
             fhir::ExprKind::App(func, args) => {
-                match func {
-                    fhir::Func::Uif(sym, _) => {
-                        rty::Expr::app(*sym, self.conv_exprs(args, nbinders))
-                    }
-                    fhir::Func::Var(..) => unreachable!("refinement variable in wrong position"),
-                }
+                rty::Expr::app(self.conv_func(func, nbinders), self.conv_exprs(args, nbinders))
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(
@@ -484,6 +479,13 @@ impl NameMap {
                     self.conv_expr(e2, nbinders),
                 )
             }
+        }
+    }
+
+    fn conv_func(&self, func: &fhir::Func, nbinders: u32) -> rty::Func {
+        match func {
+            fhir::Func::Var(ident) => rty::Func::Var(self.get(ident.name, nbinders)),
+            fhir::Func::Uif(sym, _) => rty::Func::Uif(*sym),
         }
     }
 

@@ -506,9 +506,9 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
         rty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
         rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
         rty::ExprKind::App(func, args) => {
+            let func = func_to_fixpoint(func, name_map);
             let args = exprs_to_fixpoint(args, name_map, const_map);
-            let uif = fixpoint::Func::Uif(func.to_string());
-            fixpoint::Expr::App(uif, args)
+            fixpoint::Expr::App(func, args)
         }
         rty::ExprKind::IfThenElse(p, e1, e2) => {
             fixpoint::Expr::IfThenElse(Box::new([
@@ -522,6 +522,21 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
         | rty::ExprKind::BoundVar(_)
         | rty::ExprKind::PathProj(..) => {
             panic!("unexpected expr: `{expr:?}`")
+        }
+    }
+}
+
+fn func_to_fixpoint(func: &rty::Func, name_map: &NameMap) -> fixpoint::Func {
+    match func {
+        rty::Func::Var(rty::Var::Free(name)) => {
+            let name = name_map
+                .get(name)
+                .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
+            fixpoint::Func::Var(*name)
+        }
+        rty::Func::Uif(func) => fixpoint::Func::Uif(func.to_string()),
+        rty::Func::Var(var) => {
+            panic!("unexpected var `{var:?}` in function application")
         }
     }
 }
