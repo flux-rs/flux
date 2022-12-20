@@ -9,6 +9,9 @@ macro_rules! rvec {
         let mut res = RVec::new();
         $( res.push($e); )*
         res
+    }};
+    ($elem:expr; $n:expr) => {{
+        RVec::from_elem_n($elem, $n)
     }}
 }
 
