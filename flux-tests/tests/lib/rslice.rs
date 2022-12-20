@@ -13,9 +13,14 @@ pub struct RSlice<'a, T> {
 impl<'a, T> RSlice<'a, T> {
     #[flux::assume]
     #[flux::sig(fn(vec: &mut RVec<T>[@n]) -> RSlice<T>[n, |i,j| true])]
-    pub fn from_vec(vec: &'a mut RVec<T>) -> RSlice<T> {
-        let inner = &mut vec.inner;
-        RSlice { data: inner.as_mut_ptr(), len: inner.len(), _marker: PhantomData }
+    pub fn from_vec(vec: &mut RVec<T>) -> RSlice<T> {
+        RSlice::from_slice(vec.as_mut_slice())
+    }
+
+    #[flux::assume]
+    #[flux::sig(fn(slice: &mut [T][@n]) -> RSlice<T>[n, |i,j| true])]
+    pub fn from_slice(slice: &mut [T]) -> RSlice<T> {
+        RSlice { data: slice.as_mut_ptr(), len: slice.len(), _marker: PhantomData }
     }
 
     #[flux::assume]
@@ -26,5 +31,17 @@ impl<'a, T> RSlice<'a, T> {
     )]
     pub fn subslice(&mut self, left: usize, right: usize) -> RSlice<'a, T> {
         unsafe { RSlice { data: self.data.add(left), len: right - left + 1, _marker: PhantomData } }
+    }
+
+    #[flux::assume]
+    #[flux::sig(fn(&mut RSlice<T>[@n, |i,j| true]) -> &mut [T][n])]
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        unsafe { std::slice::from_raw_parts_mut(self.data, self.len) }
+    }
+
+    #[flux::assume]
+    #[flux::sig(fn(&RSlice<T>[@n, |i,j| true]) -> &[T][n])]
+    pub fn as_slice(&self) -> &[T] {
+        unsafe { std::slice::from_raw_parts(self.data, self.len) }
     }
 }
