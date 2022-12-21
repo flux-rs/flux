@@ -7,7 +7,7 @@ use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy};
+use super::{evars::EVar, BaseTy, KVar};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -36,6 +36,8 @@ pub enum ExprKind {
     Tuple(List<Expr>),
     PathProj(Expr, Field),
     IfThenElse(Expr, Expr, Expr),
+    KVar(KVar),
+    Hole,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -175,12 +177,20 @@ impl Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
+    pub fn hole() -> Expr {
+        ExprKind::Hole.intern()
+    }
+
+    pub fn kvar(kvar: KVar) -> Expr {
+        ExprKind::KVar(kvar).intern()
+    }
+
     pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(func: Func, args: impl Into<List<Expr>>) -> Expr {
-        ExprKind::App(func, args.into()).intern()
+    pub fn app(func: impl Into<Func>, args: impl Into<List<Expr>>) -> Expr {
+        ExprKind::App(func.into(), args.into()).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -233,6 +243,21 @@ impl Expr {
 
     pub fn kind(&self) -> &ExprKind {
         &self.kind
+    }
+
+    /// An expression is an atom if it "self-delimiting", i.e., it has a clear boundary
+    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
+    pub fn is_atom(&self) -> bool {
+        !self.is_binary_op()
+    }
+
+    /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
+    /// mostly for filtering predicates when pretty printing but also to avoid adding unnecesary
+    /// predicates to the constraint.
+    pub fn is_trivially_true(&self) -> bool {
+        self.is_true()
+            || self.is_trivial_equality()
+            || matches!(self.kind(), ExprKind::KVar(kvar) if kvar.args.is_empty())
     }
 
     /// Whether the expression is literally the constant true.
@@ -489,6 +514,12 @@ macro_rules! impl_ops {
 }
 impl_ops!(Add: add, Sub: sub, Mul: mul, Div: div);
 
+impl From<Var> for Func {
+    fn from(var: Var) -> Self {
+        Func::Var(var)
+    }
+}
+
 impl From<i32> for Expr {
     fn from(value: i32) -> Self {
         if value < 0 {
@@ -645,6 +676,12 @@ mod pretty {
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
+                }
+                ExprKind::Hole => {
+                    w!("*")
+                }
+                ExprKind::KVar(kvar) => {
+                    w!("{:?}", kvar)
                 }
             }
         }

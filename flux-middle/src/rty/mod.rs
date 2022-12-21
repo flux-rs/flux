@@ -95,7 +95,7 @@ pub type Constraints = List<Constraint>;
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Constraint {
     Type(Path, Ty),
-    Pred(Pred),
+    Pred(Expr),
 }
 
 #[derive(Debug)]
@@ -124,7 +124,7 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
-    Exists(BaseTy, Binders<Pred>),
+    Exists(BaseTy, Binders<Expr>),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Uninit,
@@ -137,7 +137,7 @@ pub enum TyKind {
     ///    the capability to deallocate the memory stays with the pointer).
     BoxPtr(Name, Ty),
     Ref(RefKind, Ty),
-    Constr(Pred, Ty),
+    Constr(Expr, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -163,7 +163,7 @@ struct RefineArgsData {
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum RefineArg {
     Expr(Expr),
-    Abs(Binders<Pred>),
+    Abs(Binders<Expr>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -185,15 +185,6 @@ pub enum GenericArg {
     Ty(Ty),
     /// We treat lifetime opaquely
     Lifetime,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Pred {
-    Hole,
-    Kvar(KVar),
-    Expr(Expr),
-    And(List<Pred>),
-    App(Var, List<Expr>),
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
@@ -438,21 +429,21 @@ impl Ty {
         TyKind::Array(ty, c).intern()
     }
 
-    pub fn constr(p: impl Into<Pred>, ty: Ty) -> Ty {
+    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
 
-    pub fn unconstr(&self) -> (Ty, Pred) {
-        fn go(this: &Ty, preds: &mut Vec<Pred>) -> Ty {
-            if let TyKind::Constr(prd, ty) = this.kind() {
-                preds.push(prd.clone());
+    pub fn unconstr(&self) -> (Ty, Expr) {
+        fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
+            if let TyKind::Constr(pred, ty) = this.kind() {
+                preds.push(pred.clone());
                 go(ty, preds)
             } else {
                 this.clone()
             }
         }
         let mut preds = vec![];
-        (go(self, &mut preds), Pred::And(List::from(preds)))
+        (go(self, &mut preds), Expr::and(preds))
     }
 
     pub fn uninit() -> Ty {
@@ -463,7 +454,7 @@ impl Ty {
         TyKind::Indexed(bty, args).intern()
     }
 
-    pub fn exists(bty: BaseTy, pred: Binders<Pred>) -> Ty {
+    pub fn exists(bty: BaseTy, pred: Binders<Expr>) -> Ty {
         TyKind::Exists(bty, pred).intern()
     }
 
@@ -499,15 +490,15 @@ impl Ty {
     }
 
     pub fn bool() -> Ty {
-        Ty::exists(BaseTy::Bool, Binders::new(Pred::tt(), vec![Sort::Bool]))
+        Ty::exists(BaseTy::Bool, Binders::new(Expr::tt(), vec![Sort::Bool]))
     }
 
     pub fn int(int_ty: IntTy) -> Ty {
-        Ty::exists(BaseTy::Int(int_ty), Binders::new(Pred::tt(), vec![Sort::Int]))
+        Ty::exists(BaseTy::Int(int_ty), Binders::new(Expr::tt(), vec![Sort::Int]))
     }
 
     pub fn uint(uint_ty: UintTy) -> Ty {
-        Ty::exists(BaseTy::Uint(uint_ty), Binders::new(Pred::tt(), vec![Sort::Int]))
+        Ty::exists(BaseTy::Uint(uint_ty), Binders::new(Expr::tt(), vec![Sort::Int]))
     }
 
     pub fn usize() -> Ty {
@@ -558,18 +549,6 @@ impl TyS {
 
     pub fn is_uninit(&self) -> bool {
         matches!(self.kind(), TyKind::Uninit)
-    }
-}
-
-impl From<Expr> for Pred {
-    fn from(e: Expr) -> Self {
-        Pred::Expr(e)
-    }
-}
-
-impl From<&Pred> for Pred {
-    fn from(pred: &Pred) -> Self {
-        pred.clone()
     }
 }
 
@@ -671,53 +650,33 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
     }
 }
 
-impl Pred {
-    pub fn tt() -> Pred {
-        Pred::Expr(Expr::tt())
-    }
+// impl Pred {
+//     /// Simple syntactic check to see if the predicate is true. This is used mostly for filtering
+//     /// predicates when pretty printing but also to avoid adding unnecesary predicates to the constraint.
+//     pub fn is_trivially_true(&self) -> bool {
+//         matches!(self, Pred::Expr(e) if e.is_true())
+//             || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
+//             || matches!(self, Pred::And(preds) if preds.is_empty())
+//     }
 
-    /// Simple syntactic check to see if the predicate is true. This is used mostly for filtering
-    /// predicates when pretty printing but also to avoid adding unnecesary predicates to the constraint.
-    pub fn is_trivially_true(&self) -> bool {
-        matches!(self, Pred::Expr(e) if e.is_true())
-            || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
-            || matches!(self, Pred::And(preds) if preds.is_empty())
-    }
+//     /// A predicate is an atom if it "self-delimiting", i.e., it has a clear boundary
+//     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
+//     pub fn is_atom(&self) -> bool {
+//         match self {
+//             Pred::Hole | Pred::Kvar(_) | Pred::App(..) => true,
+//             Pred::Expr(expr) => expr.is_binary_op(),
+//             Pred::And(preds) => {
+//                 match &preds[..] {
+//                     [] => true,
+//                     [pred] => pred.is_atom(),
+//                     _ => false,
+//                 }
+//             }
+//         }
+//     }
+// }
 
-    /// A predicate is an atom if it "self-delimiting", i.e., it has a clear boundary
-    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
-    pub fn is_atom(&self) -> bool {
-        match self {
-            Pred::Hole | Pred::Kvar(_) | Pred::App(..) => true,
-            Pred::Expr(expr) => expr.is_binary_op(),
-            Pred::And(preds) => {
-                match &preds[..] {
-                    [] => true,
-                    [pred] => pred.is_atom(),
-                    _ => false,
-                }
-            }
-        }
-    }
-
-    /// Simplify expression applying some simple rules like removing double negation. This is
-    /// only used for pretty printing.
-    pub fn simplify(&self) -> Pred {
-        match self {
-            Pred::And(preds) => {
-                let preds = preds
-                    .iter()
-                    .map(Pred::simplify)
-                    .filter(|p| !p.is_trivially_true());
-                Pred::And(List::from_iter(preds))
-            }
-            Pred::Expr(e) => Pred::Expr(e.simplify()),
-            _ => self.clone(),
-        }
-    }
-}
-
-impl Binders<Pred> {
+impl Binders<Expr> {
     /// See [`Pred::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
@@ -749,7 +708,6 @@ impl_internable!(
     TyS,
     [Ty],
     [GenericArg],
-    [Pred],
     [Field],
     [KVar],
     [Constraint],
@@ -812,7 +770,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for Binders<Pred> {
+    impl Pretty for Binders<Expr> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("|{:?}| {:?}", join!(", ", &self.params), &self.value)
@@ -986,31 +944,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for Pred {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                Pred::Kvar(kvar) => w!("{:?}", kvar),
-                Pred::Expr(expr) => w!("{:?}", expr),
-                Pred::Hole => w!("*"),
-                Pred::And(preds) => {
-                    if preds.is_empty() {
-                        w!("true")
-                    } else {
-                        w!("{:?}", join!(" ∧ ", preds))
-                    }
-                }
-                Pred::App(func, args) => {
-                    w!("{:?}({:?})", func, join!(", ", args))
-                }
-            }
-        }
-
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).fully_qualified_paths(true)
-        }
-    }
-
     impl Pretty for Var {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1068,7 +1001,6 @@ mod pretty {
         TyS => "ty",
         PolySig,
         BaseTy,
-        Pred,
         KVar,
         FnSig,
         GenericArg,

@@ -7,8 +7,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
-        TyKind, VariantRet,
+        InferMode, Path, PolySig, PolyVariant, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
+        VariantRet,
     },
     rustc::mir::{BasicBlock, SourceInfo},
 };
@@ -93,7 +93,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .check_constraint(rcx, env, constraint, src_info)
     }
 
-    pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
+    pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
 
@@ -236,7 +236,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Self { genv, kvar_gen, scope, evar_gen, evars_cx, tag }
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Pred> {
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr> {
         self.kvar_gen.fresh(sorts, encoding)
     }
 
@@ -254,7 +254,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
+    fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag)
     }
 
@@ -457,7 +457,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                         .into_iter()
                         .map(Expr::from)
                         .collect_vec();
-                    let pred1 = Pred::App(var, List::from(&args[..]));
+                    let pred1 = Expr::app(var, List::from(&args[..]));
                     let args = args.into_iter().map(RefineArg::from).collect_vec();
                     let pred2 = abs.replace_bvars(&args);
                     rcx.check_impl(&pred1, &pred2, self.tag);

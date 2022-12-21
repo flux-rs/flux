@@ -132,7 +132,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     fn default_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
         let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
-        Ok(self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Pred::tt(), sorts)))
+        Ok(self.refine_fn_sig(&fn_sig, &mut |sorts| Binders::new(rty::Expr::tt(), sorts)))
     }
 
     pub fn variances_of(&self, did: DefId) -> &[Variance] {
@@ -209,7 +209,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
-        self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
+        self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Expr::tt(), sorts))
     }
 
     pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {
@@ -238,7 +238,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             let substs = substs
                 .iter()
                 .map(|arg| {
-                    self.refine_generic_arg(arg, &mut |sorts| Binders::new(rty::Pred::tt(), sorts))
+                    self.refine_generic_arg(arg, &mut |sorts| Binders::new(rty::Expr::tt(), sorts))
                 })
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
@@ -252,7 +252,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_fn_sig(
         &self,
         fn_sig: &rustc::ty::FnSig,
-        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
+        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Expr>,
     ) -> rty::PolySig {
         let args = fn_sig
             .inputs()
@@ -269,7 +269,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_ty(
         &self,
         ty: &rustc::ty::Ty,
-        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
+        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Expr>,
     ) -> rty::Ty {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Never => return rty::Ty::never(),
@@ -319,7 +319,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn refine_generic_arg(
         &self,
         ty: &rustc::ty::GenericArg,
-        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Pred>,
+        mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Expr>,
     ) -> rty::GenericArg {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),
