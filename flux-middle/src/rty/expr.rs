@@ -266,7 +266,7 @@ impl Expr {
     }
 
     pub fn is_binary_op(&self) -> bool {
-        !matches!(self.kind, ExprKind::BinaryOp(..))
+        matches!(self.kind, ExprKind::BinaryOp(..))
     }
 
     pub fn is_trivial_equality(&self) -> bool {
@@ -649,16 +649,16 @@ mod pretty {
                 }
                 ExprKind::UnaryOp(op, e) => {
                     if e.is_binary_op() {
-                        w!("{:?}{:?}", op, e)
-                    } else {
                         w!("{:?}({:?})", op, e)
+                    } else {
+                        w!("{:?}{:?}", op, e)
                     }
                 }
                 ExprKind::TupleProj(e, field) => {
                     if e.is_binary_op() {
-                        w!("{:?}.{:?}", e, ^field)
-                    } else {
                         w!("({:?}).{:?}", e, ^field)
+                    } else {
+                        w!("{:?}.{:?}", e, ^field)
                     }
                 }
                 ExprKind::Tuple(exprs) => {
@@ -666,9 +666,9 @@ mod pretty {
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_binary_op() {
-                        w!("{:?}.{:?}", e, field)
-                    } else {
                         w!("({:?}).{:?}", e, field)
+                    } else {
+                        w!("{:?}.{:?}", e, field)
                     }
                 }
                 ExprKind::App(func, exprs) => {
