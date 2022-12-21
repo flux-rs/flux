@@ -47,7 +47,7 @@ pub Defn: surface::Defn = {
     "->"
     <sort:Sort>
     "{"
-    <expr:Level1>
+    <expr:Expr>
     "}"
     <hi:@R> => {
         surface::Defn { name: name, args: args, sort: sort, expr: expr, span: mk_span(lo, hi) }
@@ -59,7 +59,7 @@ pub Qualifier: surface::Qualifier = {
     <name:Ident>
     "(" <args:Comma<RefineParam>> ")"
     "{"
-    <expr:Level1>
+    <expr:Expr>
     "}"
     <hi:@R> => {
         surface::Qualifier { name: name, args: args, expr: expr, span: mk_span(lo, hi) }
@@ -192,7 +192,7 @@ Refinement: surface::Expr = {
         kind: surface::ExprKind::Var(var),
         span: mk_span(lo, hi),
     },
-    "{" <Level1> "}" => <>
+    "{" <Expr> "}" => <>
 };
 
 Indices: surface::Indices = {
@@ -201,8 +201,8 @@ Indices: surface::Indices = {
 
 RefineArg: surface::RefineArg = {
     <lo:@L> "@" <bind:Ident> <hi:@R>               => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
-    <Level1>                                       => surface::RefineArg::Expr(<>),
-    <lo:@L> "|"<params: Comma<Ident>> "|" <body:Level1> <hi:@R> => {
+    <Expr>                                         => surface::RefineArg::Expr(<>),
+    <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
     }
 };
@@ -216,7 +216,16 @@ Level4 = LeftAssoc<BinOp4, Level5>; // &&
 Level5 = NonAssoc<BinOp5, Level6>;  // ==, !=, >=, <=
 Level6 = LeftAssoc<BinOp6, Level7>; // +, -
 Level7 = LeftAssoc<BinOp7, Level8>; // *, %
-Level8: surface::Expr = {
+Level8 = {
+    <lo:@L> <op:UnOp> <e:Level9> <hi:@R> => {
+        surface::Expr {
+            kind: surface::ExprKind::UnaryOp(op, Box::new(e)),
+            span: mk_span(lo, hi),
+        }
+    },
+    <Level9>
+}
+Level9: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
@@ -242,13 +251,11 @@ Level8: surface::Expr = {
             span: mk_span(lo, hi),
         }
     },
-
-
     <lo:@L> <var:Ident> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::Var(var),
         span: mk_span(lo, hi),
     },
-    "(" <Level1> ")" => <>
+    "(" <Level1> ")"
 }
 
 
@@ -306,6 +313,11 @@ BinOp7: surface::BinOp = {
     "%" => surface::BinOp::Mod,
 }
 
+UnOp: surface::UnOp = {
+    "!" => surface::UnOp::Not,
+    "-" => surface::UnOp::Neg,
+}
+
 Lit: surface::Lit = {
     <lo:@L> <lit:"literal"> <hi:@R> => surface::Lit {
         kind: lit.kind,
@@ -360,6 +372,7 @@ extern {
         "<=>" => Token::Iff,
         "+"  => Token::Plus,
         "-"  => Token::Minus,
+        "!"  => Token::Not,
         "*"  => Token::Star,
         "|"  => Token::Caret,
         "("  => Token::OpenDelim(Delimiter::Parenthesis),
@@ -369,9 +382,9 @@ extern {
         "["  => Token::OpenDelim(Delimiter::Bracket),
         "]"  => Token::CloseDelim(Delimiter::Bracket),
         "<"  => Token::Lt,
-        "<="  => Token::Le,
+        "<=" => Token::Le,
         ">"  => Token::Gt,
-        ">="  => Token::Ge,
+        ">=" => Token::Ge,
         ":"  => Token::Colon,
         "."  => Token::Dot,
         ";"  => Token::Semi,
