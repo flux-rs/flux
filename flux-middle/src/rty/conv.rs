@@ -469,6 +469,7 @@ impl NameMap {
                     self.conv_expr(e2, nbinders),
                 )
             }
+            fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(e, nbinders)),
             fhir::ExprKind::App(func, args) => {
                 match func {
                     fhir::Func::Uif(sym, _) => {

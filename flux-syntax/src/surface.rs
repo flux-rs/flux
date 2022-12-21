@@ -228,6 +228,7 @@ pub enum ExprKind {
     Dot(Box<Expr>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
+    UnaryOp(UnOp, Box<Expr>),
     App(Ident, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
 }
@@ -255,6 +256,12 @@ pub enum BinOp {
     Sub,
     Mod,
     Mul,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum UnOp {
+    Not,
+    Neg,
 }
 
 impl RefinedBy {
@@ -495,6 +502,9 @@ pub mod expand {
                     ),
                     span: e.span,
                 }
+            }
+            ExprKind::UnaryOp(op, e) => {
+                Expr { kind: ExprKind::UnaryOp(*op, Box::new(subst_expr(subst, e))), span: e.span }
             }
             ExprKind::Dot(e1, fld) => {
                 Expr { kind: ExprKind::Dot(Box::new(subst_expr(subst, e1)), *fld), span: e.span }

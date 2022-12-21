@@ -23,7 +23,7 @@ use std::{
 };
 
 use flux_common::format::PadAdapter;
-pub use flux_fixpoint::BinOp;
+pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -247,6 +247,7 @@ pub enum ExprKind {
     Var(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
+    UnaryOp(UnOp, Box<Expr>),
     App(Func, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
 }
@@ -672,6 +673,7 @@ impl fmt::Debug for Expr {
         match &self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
             ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
