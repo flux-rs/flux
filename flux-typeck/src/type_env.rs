@@ -609,9 +609,9 @@ impl TypeEnvInfer {
                 Ty::param(*param_ty1)
             }
             (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
-                let tys: Vec<Ty> = iter::zip(tys1, tys2)
+                let tys = iter::zip(tys1, tys2)
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2, src_info))
-                    .collect();
+                    .collect_vec();
                 Ty::tuple(tys)
             }
             _ => unreachable!("`{ty1:?}` -- `{ty2:?}`"),
