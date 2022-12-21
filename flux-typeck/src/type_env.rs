@@ -609,11 +609,10 @@ impl TypeEnvInfer {
                 Ty::param(*param_ty1)
             }
             (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
-                assert!(
-                    tys1.is_empty() && tys2.is_empty(),
-                    "join of non-empty tuples is not supported yet {src_info:?}"
-                );
-                Ty::tuple(vec![])
+                let tys = iter::zip(tys1, tys2)
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2, src_info))
+                    .collect_vec();
+                Ty::tuple(tys)
             }
             _ => unreachable!("`{ty1:?}` -- `{ty2:?}`"),
         }
