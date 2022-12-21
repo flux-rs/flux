@@ -470,9 +470,9 @@ impl<'a> Wf<'a> {
                     .try_for_each_exhaust(|e| self.check_param_uses(env, e, is_pred))
             }
             fhir::ExprKind::App(func, args) => {
-                if !is_top_level_conj && let fhir::Func::Var(var) = func {
-                    return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));
-                }
+                // if !is_top_level_conj && let fhir::Func::Var(var) = func {
+                //     return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));
+                // }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
             }
