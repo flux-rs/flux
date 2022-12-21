@@ -345,6 +345,7 @@ impl<'a> Wf<'a> {
             fhir::ExprKind::Var(var, ..) => Ok(env[var]),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
+            fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
             fhir::ExprKind::Const(_, _) => Ok(&fhir::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, e.span),
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
@@ -386,6 +387,24 @@ impl<'a> Wf<'a> {
             | fhir::BinOp::Div => {
                 self.check_expr(env, e1, &fhir::Sort::Int)?;
                 self.check_expr(env, e2, &fhir::Sort::Int)?;
+                Ok(&fhir::Sort::Int)
+            }
+        }
+    }
+
+    fn synth_unary_op(
+        &self,
+        env: &Env<'a>,
+        op: fhir::UnOp,
+        e: &fhir::Expr,
+    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
+        match op {
+            fhir::UnOp::Not => {
+                self.check_expr(env, e, &fhir::Sort::Bool)?;
+                Ok(&fhir::Sort::Bool)
+            }
+            fhir::UnOp::Neg => {
+                self.check_expr(env, e, &fhir::Sort::Int)?;
                 Ok(&fhir::Sort::Int)
             }
         }
@@ -469,6 +488,7 @@ impl<'a> Wf<'a> {
                     .iter()
                     .try_for_each_exhaust(|e| self.check_param_uses(env, e, is_pred))
             }
+            fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses(env, e, false),
             fhir::ExprKind::App(func, args) => {
                 // if !is_top_level_conj && let fhir::Func::Var(var) = func {
                 //     return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));

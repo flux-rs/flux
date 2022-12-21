@@ -16,6 +16,7 @@ pub enum Token {
     OrOr,
     Plus,
     Minus,
+    Not,
     Star,
     Colon,
     Comma,
@@ -131,6 +132,7 @@ impl Cursor {
             TokenKind::BinOp(BinOpToken::And) => Token::And,
             TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) => Token::Star,
+            TokenKind::Not => Token::Not,
             _ => Token::Invalid,
         };
         (Location(span.lo() - self.offset), token, Location(span.hi() - self.offset))

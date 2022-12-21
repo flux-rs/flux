@@ -10,7 +10,7 @@ use flux_middle::{
         InferMode, Path, PolySig, PolyVariant, Pred, RefKind, RefineArg, RefineArgs, Sort, Ty,
         TyKind, VariantRet,
     },
-    rustc::mir::BasicBlock,
+    rustc::mir::{BasicBlock, SourceInfo},
 };
 use itertools::{izip, Itertools};
 use rustc_hash::FxHashMap;
@@ -87,8 +87,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
+        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
-        self.infcx(rcx).check_constraint(rcx, env, constraint)
+        self.infcx(rcx)
+            .check_constraint(rcx, env, constraint, src_info)
     }
 
     pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
@@ -106,6 +108,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
+        src_info: SourceInfo,
     ) -> Result<CallOutput, CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
@@ -156,7 +159,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2)) => {
                     let bound = requires[path2];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
-                    infcx.check_type_constr(rcx, env, path1, bound)?;
+                    infcx.check_type_constr(rcx, env, path1, bound, Some(src_info))?;
                 }
                 (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
                     infcx.subtyping(rcx, &env.get(path), bound);
@@ -261,10 +264,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         env: &mut TypeEnv,
         path: &Path,
         ty: &Ty,
+        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         let actual_ty = {
             let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag);
-            env.lookup_path(rcx, gen, path)?
+            env.lookup_path(rcx, gen, path, src_info)?
         };
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
@@ -275,10 +279,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
+        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         let rcx = &mut rcx.breadcrumb();
         match constraint {
-            Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty),
+            Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty, src_info),
             Constraint::Pred(e) => {
                 rcx.check_pred(e, self.tag);
                 Ok(())

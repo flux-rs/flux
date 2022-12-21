@@ -509,6 +509,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 let e2 = self.desugar_expr(e2);
                 fhir::ExprKind::BinaryOp(desugar_bin_op(op), Box::new([e1?, e2?]))
             }
+            surface::ExprKind::UnaryOp(op, box e) => {
+                fhir::ExprKind::UnaryOp(desugar_un_op(op), Box::new(self.desugar_expr(e)?))
+            }
             surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(args)?;
@@ -1080,6 +1083,13 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
         surface::BinOp::Sub => fhir::BinOp::Sub,
         surface::BinOp::Mod => fhir::BinOp::Mod,
         surface::BinOp::Mul => fhir::BinOp::Mul,
+    }
+}
+
+fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
+    match op {
+        surface::UnOp::Not => fhir::UnOp::Not,
+        surface::UnOp::Neg => fhir::UnOp::Neg,
     }
 }
 

@@ -9,7 +9,7 @@ use flux_middle::{
         AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefineArg, Sort, Substs, Ty, TyKind,
         VariantIdx,
     },
-    rustc::mir::{Field, Place, PlaceElem},
+    rustc::mir::{Field, Place, PlaceElem, SourceInfo},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -215,6 +215,7 @@ impl PathsTree {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
+        src_info: Option<SourceInfo>,
     ) -> Result<LookupResult<'a>, OpaqueStructErr> {
         let mut path = Path::from(key.loc());
         let place_proj = &mut key.proj();
@@ -257,6 +258,7 @@ impl PathsTree {
                                     WeakKind::from(*rk),
                                     ty,
                                     place_proj,
+                                    src_info,
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
@@ -272,21 +274,27 @@ impl PathsTree {
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
-                            _ => panic!("Unsupported Deref: {elem:?} {ty:?}"),
+                            _ => panic!("Unsupported Deref: {elem:?} {ty:?} at {src_info:?}"),
                         }
                     }
                     PlaceElem::Index(_) => {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Array(arr_ty, _) => {
-                                let (rk, ty) =
-                                    Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
+                                let (rk, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::Arr,
+                                    arr_ty,
+                                    place_proj,
+                                    src_info,
+                                )?;
                                 return Ok(LookupResult {
                                     tree: self,
                                     kind: LookupKind::Weak(rk, ty),
                                 });
                             }
-                            _ => panic!("Unsupported Index: {elem:?} {ty:?}"),
+                            _ => panic!("Unsupported Index: {elem:?} {ty:?} at {src_info:?}"),
                         }
                     }
                 }
@@ -305,6 +313,7 @@ impl PathsTree {
         mut rk: WeakKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
+        src_info: Option<SourceInfo>,
     ) -> Result<(WeakKind, Ty), OpaqueStructErr> {
         use PlaceElem::*;
         let mut ty = ty.clone();
@@ -338,7 +347,7 @@ impl PathsTree {
                     ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
                 }
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
-                _ => todo!("{elem:?} {ty:?}"),
+                _ => todo!("lookup_ty {elem:?} {ty:?} at {src_info:?}"),
             }
         }
         Ok((rk, ty))

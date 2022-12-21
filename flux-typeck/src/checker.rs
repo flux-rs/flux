@@ -306,7 +306,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     &mut self
                         .phase
                         .constr_gen(self.genv, rcx, Tag::Assign(stmt.source_info.span));
-                env.write_place(rcx, gen, place, ty)
+                env.write_place(rcx, gen, place, ty, Some(stmt.source_info))
                     .map_err(|err| CheckerError::from(err).with_src_info(stmt.source_info))?;
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -375,7 +375,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Call(terminator.source_info.span));
-                env.write_place(rcx, &mut gen, destination, ret)
+                env.write_place(rcx, &mut gen, destination, ret, Some(terminator.source_info))
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
                 if let Some(target) = target {
@@ -394,7 +394,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Fold(terminator.source_info.span));
-                let _ = env.move_place(rcx, &mut gen, place);
+                let _ = env.move_place(rcx, &mut gen, place, Some(terminator.source_info));
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
@@ -403,7 +403,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let mut gen =
                     self.phase
                         .constr_gen(self.genv, rcx, Tag::Assign(terminator.source_info.span));
-                env.write_place(rcx, &mut gen, place, ty)
+                env.write_place(rcx, &mut gen, place, ty, Some(terminator.source_info))
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
                 Ok(vec![(*target, Guard::None)])
             }
@@ -427,13 +427,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         };
         let gen = &mut self.phase.constr_gen(self.genv, rcx, tag);
         let ret_place_ty = env
-            .lookup_place(rcx, gen, Place::RETURN)
+            .lookup_place(rcx, gen, Place::RETURN, src_info)
             .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
         gen.subtyping(rcx, &ret_place_ty, &self.ret);
 
         for constraint in &self.ensures {
-            gen.check_constraint(rcx, env, constraint)
+            gen.check_constraint(rcx, env, constraint, src_info)
                 .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
         }
         Ok(vec![])
@@ -464,7 +464,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let output = self
             .phase
             .constr_gen(self.genv, rcx, Tag::Call(src_info.span))
-            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
+            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals, src_info)
             .map_err(|err| err.with_src_info(src_info))?;
 
         for constr in &output.ensures {
@@ -592,7 +592,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(self.genv, &mut rcx, &place, variant_idx)
+                    env.downcast(self.genv, &mut rcx, &place, variant_idx, src_info)
                         .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
                 }
             }
@@ -635,12 +635,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::MutRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
-                env.borrow(rcx, gen, RefKind::Mut, place)
+                env.borrow(rcx, gen, RefKind::Mut, place, src_info)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
-                env.borrow(rcx, gen, RefKind::Shr, place)
+                env.borrow(rcx, gen, RefKind::Shr, place, src_info)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, src_info, *un_op, op),
@@ -678,7 +678,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Discriminant(place) => {
                 let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
                 let ty = env
-                    .lookup_place(rcx, gen, place)
+                    .lookup_place(rcx, gen, place, Some(src_info))
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -700,7 +700,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<Ty, CheckerError> {
         let gen = &mut self.phase.constr_gen(self.genv, rcx, Tag::Other);
         let ty = env
-            .lookup_place(rcx, gen, place)
+            .lookup_place(rcx, gen, place, Some(src_info))
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
 
         let idxs = match ty.kind() {
@@ -898,7 +898,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let gen = &mut self
                     .phase
                     .constr_gen(self.genv, rcx, Tag::Fold(src_info.span));
-                env.lookup_place(rcx, gen, p)
+                env.lookup_place(rcx, gen, p, Some(src_info))
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
             }
             Operand::Move(p) => {
@@ -906,7 +906,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let gen = &mut self
                     .phase
                     .constr_gen(self.genv, rcx, Tag::Fold(src_info.span));
-                env.move_place(rcx, gen, p)
+                env.move_place(rcx, gen, p, Some(src_info))
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
             }
             Operand::Constant(c) => Self::check_constant(c),
@@ -1002,7 +1002,7 @@ impl Phase for Inference<'_> {
         ck: &mut Checker<Inference>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        _src_info: Option<SourceInfo>,
+        src_info: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
@@ -1015,7 +1015,7 @@ impl Phase for Inference<'_> {
             Tag::Other,
         );
         let modified = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
+            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env, src_info),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
                 true
@@ -1068,7 +1068,7 @@ impl Phase for Check<'_> {
             |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let gen = &mut ConstrGen::new(ck.genv, kvar_gen, tag);
-        env.check_goto(&mut rcx, gen, bb_env)
+        env.check_goto(&mut rcx, gen, bb_env, src_info)
             .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
         Ok(!ck.visited.contains(target))
