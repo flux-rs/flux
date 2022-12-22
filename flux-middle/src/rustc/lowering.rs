@@ -558,6 +558,20 @@ pub fn lower_variant_def(
 pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
     let fn_sig = tcx.fn_sig(def_id);
     let span = tcx.def_span(def_id);
+    let fn_sig = if !fn_sig.has_projections() {
+        fn_sig
+    } else {
+        let param_env = tcx.param_env_reveal_all_normalized(def_id);
+        match tcx.try_normalize_erasing_regions(param_env, fn_sig) {
+            Ok(fn_sig) => fn_sig,
+            Err(_) => {
+                return Err(errors::UnsupportedFnSig {
+                    span,
+                    reason: "Sorry, projections are not yet supported!".to_string(),
+                })
+            }
+        }
+    };
     lower_fn_sig(tcx, fn_sig).map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
