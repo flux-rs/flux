@@ -30,7 +30,6 @@ pub RefinedBy: surface::RefinedBy = {
 
 pub UifDef: surface::UifDef = {
     <lo:@L>
-    "fn"
     <name:Ident>
     "(" <inputs:Comma<Ident>> ")"
     "->"
