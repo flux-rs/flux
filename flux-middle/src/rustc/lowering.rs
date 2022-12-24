@@ -572,7 +572,7 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
                 .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
         }
         Err(_) => {
-            return Err(errors::UnsupportedFnSig {
+            Err(errors::UnsupportedFnSig {
                 span,
                 reason: "Sorry, projections are not yet supported!".to_string(),
             })
