@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
-#![flux::ufn(fn valid(int) -> bool)]
+#![flux::def(valid(x:int) -> bool)]
 
 #[flux::assume]
 #[flux::sig(fn(x:i32) -> bool[valid(x)])]

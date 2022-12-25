@@ -6,8 +6,8 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_defn, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
-    parse_type_alias, parse_uif_def, parse_variant, surface, ParseResult,
+    parse_def, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
+    parse_type_alias, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -324,13 +324,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
-            ("dfn", MacArgs::Delimited(span, _, tokens)) => {
-                let defn = self.parse(tokens.clone(), span.entire(), parse_defn)?;
-                FluxAttrKind::Defn(defn)
-            }
-            ("ufn", MacArgs::Delimited(span, _, tokens)) => {
-                let uif_def = self.parse(tokens.clone(), span.entire(), parse_uif_def)?;
-                FluxAttrKind::UifDef(uif_def)
+            ("def", MacArgs::Delimited(span, _, tokens)) => {
+                let def = self.parse(tokens.clone(), span.entire(), parse_def)?;
+                match def {
+                    surface::Def::Defn(defn) => FluxAttrKind::Defn(defn),
+                    surface::Def::UifDef(uif_def) => FluxAttrKind::UifDef(uif_def),
+                }
             }
             ("cfg", MacArgs::Delimited(_, _, _)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
