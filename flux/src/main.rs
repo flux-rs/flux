@@ -8,7 +8,6 @@ const CMD_RUSTC: &str = "rustc";
 fn main() -> io::Result<()> {
     logger::install()?;
 
-    println!("TRACE: unsound_incr = {}", CONFIG.unsound_incremental);
     // HACK(nilehmann)
     // * Setting RUSTC_WRAPPER causes Cargo to pass 'rustc' as the first argument. We igore the
     //   argument and use it to determine if the binary is being called from cargo.
@@ -20,7 +19,7 @@ fn main() -> io::Result<()> {
     for arg in env::args() {
         if arg.starts_with("-C") || arg.starts_with("--codegen") {
             is_codegen = true;
-        } else if is_codegen && arg.starts_with("incremental=") && !CONFIG.unsound_incremental {
+        } else if is_codegen && arg.starts_with("incremental=") {
             is_codegen = false;
         } else {
             if is_codegen {
@@ -34,7 +33,6 @@ fn main() -> io::Result<()> {
             }
         }
     }
-
     let exit_code = flux_driver::run_compiler(args, in_cargo);
     // Exit with the exit code returned by the compiler.
     exit(exit_code)
