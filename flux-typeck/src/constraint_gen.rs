@@ -357,7 +357,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.assume_pred(p1);
                 self.subtyping(rcx, ty1, ty2);
             }
-            _ => unreachable!("`{ty1:?}` <: `{ty2:?}`"),
+            _ => unreachable!("`{ty1:?}` <: `{ty2:?}` at {:?}", self.tag.span()),
         }
     }
 
