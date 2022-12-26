@@ -1,4 +1,4 @@
-use flux_common::iter::IterExt;
+use flux_common::{config::CONFIG, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
@@ -131,8 +131,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
     }
 
+    fn is_target(&self, def_id: LocalDefId) -> bool {
+        let def_id_str = format!("{def_id:?}");
+        let res = def_id_str.contains(&CONFIG.check_target);
+        println!("TRACE: is_target {def_id:?} = {res}");
+        res
+    }
+
     fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_ignored(def_id) {
+        if self.is_ignored(def_id) || !self.is_target(def_id) {
             return Ok(());
         }
 
@@ -144,7 +151,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        println!("TRACE: incremental check {def_id:?}");
         if self.is_assumed(def_id) {
             return Ok(());
         }

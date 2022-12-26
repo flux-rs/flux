@@ -1,8 +1,6 @@
 mod logger;
 use std::{env, io, process::exit};
 
-use flux_common::config::CONFIG;
-
 const CMD_RUSTC: &str = "rustc";
 
 fn main() -> io::Result<()> {
