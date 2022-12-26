@@ -14,6 +14,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_span::Span;
 
 use crate::{
     constraint_gen::ConstrGen,
@@ -217,6 +218,7 @@ impl PathsTree {
         key: &impl LookupKey,
         src_info: Option<SourceInfo>,
     ) -> Result<LookupResult<'a>, OpaqueStructErr> {
+        let span = src_info.map(|src_info| src_info.span);
         let mut path = Path::from(key.loc());
         let place_proj = &mut key.proj();
 
@@ -227,7 +229,7 @@ impl PathsTree {
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
 
             for field in path.projection() {
-                ptr = ptr.proj(genv, rcx, *field)?;
+                ptr = ptr.proj(genv, rcx, *field, span)?;
                 path_proj.push(*field);
             }
 
@@ -235,13 +237,13 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        ptr = ptr.proj(genv, rcx, field)?;
+                        ptr = ptr.proj(genv, rcx, field, span)?;
                     }
                     PlaceElem::Downcast(variant_idx) => {
                         ptr.downcast(genv, rcx, variant_idx)?;
                     }
                     PlaceElem::Deref => {
-                        let ty = ptr.borrow().expect_owned();
+                        let ty = ptr.borrow().expect_owned(span);
                         match ty.kind() {
                             TyKind::Ptr(_, ptr_path) => {
                                 path = ptr_path.clone();
@@ -278,7 +280,7 @@ impl PathsTree {
                         }
                     }
                     PlaceElem::Index(_) => {
-                        let ty = ptr.borrow().expect_owned();
+                        let ty = ptr.borrow().expect_owned(span);
                         match ty.kind() {
                             TyKind::Array(arr_ty, _) => {
                                 let (rk, ty) = Self::lookup_ty(
@@ -435,10 +437,10 @@ impl Node {
     }
 
     #[track_caller]
-    fn expect_owned(&self) -> Ty {
+    fn expect_owned(&self, span: Option<Span>) -> Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => ty.clone(),
-            _ => panic!("expected type"),
+            _ => panic!("expected type at {span:?}"),
         }
     }
 
@@ -499,9 +501,10 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
+        span: Option<Span>,
     ) -> Result<&NodePtr, OpaqueStructErr> {
         if let Node::Leaf(_) = self {
-            self.split(genv, rcx)?;
+            self.split(genv, rcx, span)?;
         }
         match self {
             Node::Internal(kind, children) => {
@@ -560,7 +563,7 @@ impl Node {
         &mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        span: Span,
+        span: Option<Span>,
     ) -> Result<(), OpaqueStructErr> {
         let ty = self.expect_owned(span);
         match ty.kind() {
@@ -688,8 +691,9 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
+        span: Option<Span>,
     ) -> Result<NodePtr, OpaqueStructErr> {
-        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field)?))
+        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field, span)?))
     }
 
     fn downcast(
