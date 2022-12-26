@@ -460,7 +460,7 @@ impl Node {
                 other.fold(map, rcx, gen, false, false);
             }
             (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx).unwrap();
+                self.split(gen.genv, rcx, gen.span()).unwrap();
                 self.join_with(gen, rcx, other);
             }
             (
@@ -556,8 +556,13 @@ impl Node {
         Ok(())
     }
 
-    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
-        let ty = self.expect_owned();
+    fn split(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        span: Span,
+    ) -> Result<(), OpaqueStructErr> {
+        let ty = self.expect_owned(span);
         match ty.kind() {
             TyKind::Tuple(tys) => {
                 let children = tys
