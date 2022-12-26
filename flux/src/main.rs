@@ -1,11 +1,14 @@
 mod logger;
 use std::{env, io, process::exit};
 
+use flux_common::config::CONFIG;
+
 const CMD_RUSTC: &str = "rustc";
 
 fn main() -> io::Result<()> {
     logger::install()?;
 
+    println!("TRACE: unsound_incr = {}", CONFIG.unsound_incremental);
     // HACK(nilehmann)
     // * Setting RUSTC_WRAPPER causes Cargo to pass 'rustc' as the first argument. We igore the
     //   argument and use it to determine if the binary is being called from cargo.
@@ -17,7 +20,7 @@ fn main() -> io::Result<()> {
     for arg in env::args() {
         if arg.starts_with("-C") || arg.starts_with("--codegen") {
             is_codegen = true;
-        } else if is_codegen && arg.starts_with("incremental=") {
+        } else if is_codegen && arg.starts_with("incremental=") && !CONFIG.unsound_incremental {
             is_codegen = false;
         } else {
             if is_codegen {

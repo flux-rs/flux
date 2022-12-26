@@ -144,6 +144,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        println!("TRACE: incremental check {def_id:?}");
         if self.is_assumed(def_id) {
             return Ok(());
         }
