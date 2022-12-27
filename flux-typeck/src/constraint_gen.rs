@@ -29,12 +29,6 @@ pub struct ConstrGen<'a, 'tcx> {
     tag: Tag,
 }
 
-impl ConstrGen<'_, '_> {
-    pub fn span(&self) -> Option<Span> {
-        self.tag.span()
-    }
-}
-
 struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: &'a mut (dyn KVarGen + 'a),
@@ -226,6 +220,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
     fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
         InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, self.tag)
+    }
+
+    pub fn span(&self) -> Option<Span> {
+        self.tag.span()
     }
 }
 
