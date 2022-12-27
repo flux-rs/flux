@@ -132,7 +132,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn is_target(&self, def_id: LocalDefId) -> bool {
-        format!("{def_id:?}").contains(&CONFIG.check_target)
+        let def_path = self.genv.tcx.def_path_str(def_id.to_def_id());
+        def_path.contains(&CONFIG.check_def)
     }
 
     fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
