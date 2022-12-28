@@ -204,31 +204,6 @@ fn build_fhir_map(
         map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
-    // Register UIFs
-    err = std::mem::take(&mut specs.uifs)
-        .into_iter()
-        .try_for_each_exhaust(|uif_def| {
-            let name = uif_def.name;
-            let uif_def = desugar::resolve_uif_def(sess, uif_def)?;
-            map.insert_uif(name.name, uif_def);
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    // Register Defns as UIFs for sort-checking
-    err = specs
-        .dfns
-        .iter()
-        .try_for_each_exhaust(|defn| {
-            let name = defn.name;
-            let defn_uif = desugar::resolve_defn_uif(sess, defn)?;
-            map.insert_uif(name.name, defn_uif);
-            Ok(())
-        })
-        .err()
-        .or(err);
-
     // Register AdtDefs
     err = specs
         .structs
@@ -264,6 +239,31 @@ fn build_fhir_map(
                 false,
             )?;
             map.insert_adt(*def_id, adt_def);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    // Register UIFs
+    err = std::mem::take(&mut specs.uifs)
+        .into_iter()
+        .try_for_each_exhaust(|uif_def| {
+            let name = uif_def.name;
+            let uif_def = desugar::resolve_uif_def(sess, uif_def)?;
+            map.insert_uif(name.name, uif_def);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    // Register Defns as UIFs for sort-checking
+    err = specs
+        .dfns
+        .iter()
+        .try_for_each_exhaust(|defn| {
+            let name = defn.name;
+            let defn_uif = desugar::resolve_defn_uif(sess, defn)?;
+            map.insert_uif(name.name, defn_uif);
             Ok(())
         })
         .err()

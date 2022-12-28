@@ -166,3 +166,4 @@ to see what is happening.
 ## TODO: dot-in-def
 
 - [] test
+- [] `resolve_sort :: Surface::Sort -> FHir::Sort` needs some table of AdtDef
