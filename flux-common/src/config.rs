@@ -42,6 +42,7 @@ pub struct Config {
     pub check_asserts: AssertBehavior,
     pub dump_mir: bool,
     pub pointer_width: u64,
+    pub check_def: String,
 }
 
 pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
@@ -54,6 +55,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("check_asserts", "assume")?
             .set_default("check_asserts", "assume")?
             .set_default("pointer_width", 64)?
+            .set_default("check_def", "")?
             .add_source(Environment::with_prefix("LR").ignore_empty(true))
             .build()?
             .try_deserialize()
