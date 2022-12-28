@@ -30,15 +30,15 @@ fn test03(x: S) {}
 #[flux::sig(fn(S[|a| a]))] //~ ERROR mismatched sorts
 fn test04(x: S) {}
 
-#[flux::sig(fn(S[@p]) -> S[|x| p(x) || x == 0])] //~ ERROR illegal use of refinement parameter
-fn test05(x: S) -> S {
+#[flux::sig(fn<p: int -> bool>() -> S[|x| p(x) || x == 0])] //~ ERROR illegal use of refinement parameter
+fn test05() -> S {
     todo!()
 }
 
 // It should be possible to accept `p` in `bool[p(0)]` but it requires some refactoring.
 // In the meantime we explicitly test against it.
-#[flux::sig(fn(S[@p]) -> bool[p(0)])] //~ ERROR illegal use of refinement parameter
-fn test06(x: S) -> bool {
+#[flux::sig(fn<p: int -> bool>() -> bool[p(0)])] //~ ERROR illegal use of refinement parameter
+fn test06() -> bool {
     todo!()
 }
 

@@ -650,32 +650,6 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
     }
 }
 
-// impl Pred {
-//     /// Simple syntactic check to see if the predicate is true. This is used mostly for filtering
-//     /// predicates when pretty printing but also to avoid adding unnecesary predicates to the constraint.
-//     pub fn is_trivially_true(&self) -> bool {
-//         matches!(self, Pred::Expr(e) if e.is_true())
-//             || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
-//             || matches!(self, Pred::And(preds) if preds.is_empty())
-//     }
-
-//     /// A predicate is an atom if it "self-delimiting", i.e., it has a clear boundary
-//     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
-//     pub fn is_atom(&self) -> bool {
-//         match self {
-//             Pred::Hole | Pred::Kvar(_) | Pred::App(..) => true,
-//             Pred::Expr(expr) => expr.is_binary_op(),
-//             Pred::And(preds) => {
-//                 match &preds[..] {
-//                     [] => true,
-//                     [pred] => pred.is_atom(),
-//                     _ => false,
-//                 }
-//             }
-//         }
-//     }
-// }
-
 impl Binders<Expr> {
     /// See [`Pred::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
