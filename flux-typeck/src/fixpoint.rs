@@ -221,6 +221,17 @@ where
             .collect_vec();
 
         let kvids = &self.kvid_map[&kvar.kvid];
+
+        if all_args.is_empty() {
+            let fresh = self.fresh_name();
+            bindings.push((
+                fresh,
+                fixpoint::Sort::Unit,
+                fixpoint::Expr::eq(fixpoint::Expr::Var(fresh), fixpoint::Expr::Unit),
+            ));
+            return fixpoint::Pred::KVar(kvids[0], vec![fresh]);
+        }
+
         let kvars = kvids
             .iter()
             .enumerate()
@@ -231,6 +242,36 @@ where
             .collect_vec();
 
         fixpoint::Pred::And(kvars)
+    }
+
+    fn populate_kvid_map(&mut self, kvid: rty::KVid) {
+        self.kvid_map.entry(kvid).or_insert_with(|| {
+            let decl = self.kvars.get(kvid);
+
+            let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
+
+            if all_args.is_empty() {
+                let sorts = vec![fixpoint::Sort::Unit];
+                let kvid = self.fixpoint_kvars.push(sorts);
+                return vec![kvid];
+            }
+
+            match decl.encoding {
+                KVarEncoding::Single => {
+                    let kvid = self.fixpoint_kvars.push(all_args);
+                    vec![kvid]
+                }
+                KVarEncoding::Conj => {
+                    let n = usize::max(decl.args.len(), 1);
+                    (0..n)
+                        .map(|i| {
+                            let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
+                            self.fixpoint_kvars.push(sorts)
+                        })
+                        .collect_vec()
+                }
+            }
+        });
     }
 
     fn imm(
@@ -249,43 +290,14 @@ where
             rty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
             _ => {
                 let fresh = self.fresh_name();
-                let pred = fixpoint::Expr::BinaryOp(
-                    fixpoint::BinOp::Eq,
-                    Box::new([
-                        fixpoint::Expr::Var(fresh),
-                        expr_to_fixpoint(arg, &self.name_map, &self.const_map),
-                    ]),
+                let pred = fixpoint::Expr::eq(
+                    fixpoint::Expr::Var(fresh),
+                    expr_to_fixpoint(arg, &self.name_map, &self.const_map),
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
                 fresh
             }
         }
-    }
-
-    fn populate_kvid_map(&mut self, kvid: rty::KVid) {
-        self.kvid_map.entry(kvid).or_insert_with(|| {
-            let decl = self.kvars.get(kvid);
-
-            let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
-            match decl.encoding {
-                KVarEncoding::Single => {
-                    let kvid = self.fixpoint_kvars.push(all_args);
-                    vec![kvid]
-                }
-                KVarEncoding::Conj => {
-                    (0..decl.args.len())
-                        .map(|i| {
-                            let sorts = all_args
-                                .iter()
-                                .skip(decl.args.len() - i - 1)
-                                .cloned()
-                                .collect();
-                            self.fixpoint_kvars.push(sorts)
-                        })
-                        .collect_vec()
-                }
-            }
-        });
     }
 }
 

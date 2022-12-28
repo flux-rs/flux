@@ -62,10 +62,16 @@ pub fn resolve_defn_uif(
 
 pub fn resolve_uif_def(
     sess: &FluxSession,
-    uif_def: surface::UifDef,
+    defn: surface::UifDef,
 ) -> Result<fhir::UifDef, ErrorGuaranteed> {
-    let sort = resolve_func_sort(sess, &uif_def.inputs, &uif_def.output)?;
-    Ok(fhir::UifDef { name: uif_def.name.name, sort })
+    let inputs: Vec<surface::Ident> = defn
+        .args
+        .iter()
+        .map(|arg| sort_ident(&arg.sort))
+        .try_collect_exhaust()?;
+    let output: surface::Ident = sort_ident(&defn.sort)?;
+    let sort = resolve_func_sort(sess, &inputs[..], &output)?;
+    Ok(fhir::UifDef { name: defn.name.name, sort })
 }
 
 pub fn desugar_adt_def(

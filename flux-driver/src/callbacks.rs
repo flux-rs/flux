@@ -1,4 +1,4 @@
-use flux_common::iter::IterExt;
+use flux_common::{config::CONFIG, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
@@ -131,8 +131,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
     }
 
+    fn is_target(&self, def_id: LocalDefId) -> bool {
+        let def_path = self.genv.tcx.def_path_str(def_id.to_def_id());
+        def_path.contains(&CONFIG.check_def)
+    }
+
     fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_ignored(def_id) {
+        if self.is_ignored(def_id) || !self.is_target(def_id) {
             return Ok(());
         }
 

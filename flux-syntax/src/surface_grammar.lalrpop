@@ -28,29 +28,18 @@ pub RefinedBy: surface::RefinedBy = {
     <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
 }
 
-pub UifDef: surface::UifDef = {
-    <lo:@L>
-    "fn"
-    <name:Ident>
-    "(" <inputs:Comma<Ident>> ")"
-    "->"
-    <output:Ident>
-    <hi:@R> => {
-        surface::UifDef { name, inputs, output, span: mk_span(lo, hi) }
-    }
-}
-
-pub Defn: surface::Defn = {
+pub Def: surface::Def = {
     <lo:@L>
     <name:Ident>
     "(" <args:RefinedBy> ")"
     "->"
     <sort:Sort>
-    "{"
-    <expr:Expr>
-    "}"
+    <expr: ("{" <Expr> "}")?>
     <hi:@R> => {
-        surface::Defn { name: name, args: args, sort: sort, expr: expr, span: mk_span(lo, hi) }
+        match expr {
+            None => surface::Def::UifDef(surface::UifDef { name, args, sort, span: mk_span(lo, hi) }),
+            Some(expr) => surface::Def::Defn(surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }),
+        }
     }
 }
 

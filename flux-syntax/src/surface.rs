@@ -17,6 +17,12 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
+pub enum Def {
+    Defn(Defn),
+    UifDef(UifDef),
+}
+
+#[derive(Debug)]
 pub struct Defn {
     pub name: Ident,
     pub args: RefinedBy,
@@ -30,9 +36,9 @@ pub struct UifDef {
     /// name of the uninterpreted function
     pub name: Ident,
     /// input sorts
-    pub inputs: Vec<Ident>,
+    pub args: RefinedBy,
     /// output sort
-    pub output: Ident,
+    pub sort: Sort,
     /// definition source position
     pub span: Span,
 }
