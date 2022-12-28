@@ -307,13 +307,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
         };
-        let sorts = bty.sorts();
-        if sorts.is_empty() {
-            rty::Ty::indexed(bty, rty::RefineArgs::empty())
-        } else {
-            let pred = mk_pred(sorts);
-            rty::Ty::exists(bty, pred)
-        }
+        let pred = mk_pred(bty.sorts());
+        rty::Ty::exists(bty, pred)
     }
 
     pub fn refine_generic_arg(

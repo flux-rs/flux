@@ -680,7 +680,6 @@ impl Pred {
     /// predicates when pretty printing but also to avoid adding unnecesary predicates to the constraint.
     pub fn is_trivially_true(&self) -> bool {
         matches!(self, Pred::Expr(e) if e.is_true())
-            || matches!(self, Pred::Kvar(kvar) if kvar.args.is_empty())
             || matches!(self, Pred::And(preds) if preds.is_empty())
     }
 
