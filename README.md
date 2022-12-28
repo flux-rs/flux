@@ -5,7 +5,6 @@
 
 See the [blog](https://liquid-rust.github.io/) for details on refinement types and rust.
 
-
 ## Requirements
 
 - [rustup](https://rustup.rs/)

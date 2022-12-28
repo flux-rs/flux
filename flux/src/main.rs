@@ -31,7 +31,6 @@ fn main() -> io::Result<()> {
             }
         }
     }
-
     let exit_code = flux_driver::run_compiler(args, in_cargo);
     // Exit with the exit code returned by the compiler.
     exit(exit_code)
