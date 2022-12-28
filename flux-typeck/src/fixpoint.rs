@@ -48,7 +48,7 @@ pub enum KVarEncoding {
 }
 
 pub trait KVarGen {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred>;
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr>;
 }
 
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
@@ -183,7 +183,7 @@ where
 
     pub fn pred_to_fixpoint(
         &mut self,
-        pred: &rty::Pred,
+        pred: &rty::Expr,
     ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
         let mut bindings = vec![];
         let pred = self.pred_to_fixpoint_internal(pred, &mut bindings);
@@ -192,36 +192,18 @@ where
 
     fn pred_to_fixpoint_internal(
         &mut self,
-        pred: &rty::Pred,
+        expr: &rty::Expr,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Pred {
-        match pred {
-            rty::Pred::And(preds) => {
-                fixpoint::Pred::And(
-                    preds
-                        .iter()
-                        .map(|p| self.pred_to_fixpoint_internal(p, bindings))
-                        .collect(),
-                )
+        match expr.kind() {
+            rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
+                fixpoint::Pred::And(vec![
+                    self.pred_to_fixpoint_internal(e1, bindings),
+                    self.pred_to_fixpoint_internal(e2, bindings),
+                ])
             }
-            rty::Pred::Expr(expr) => {
-                let expr = expr_to_fixpoint(expr, &self.name_map, &self.const_map);
-                fixpoint::Pred::Expr(expr)
-            }
-            rty::Pred::Kvar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
-            rty::Pred::App(rty::Var::Free(name), args) => {
-                let name = self
-                    .name_map
-                    .get(name)
-                    .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
-                let func = fixpoint::Func::Var(*name);
-                let args = exprs_to_fixpoint(args, &self.name_map, &self.const_map);
-                fixpoint::Pred::Expr(fixpoint::Expr::App(func, args))
-            }
-            rty::Pred::App(var, _) => {
-                panic!("unexpected var `{var:?}` in pred application")
-            }
-            rty::Pred::Hole => panic!("unexpected hole"),
+            rty::ExprKind::KVar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
+            _ => fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map, &self.const_map)),
         }
     }
 
@@ -321,21 +303,21 @@ where
 
 impl<F> KVarGen for F
 where
-    F: FnMut(&[rty::Sort], KVarEncoding) -> Binders<rty::Pred>,
+    F: FnMut(&[rty::Sort], KVarEncoding) -> Binders<rty::Expr>,
 {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred> {
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr> {
         (self)(sorts, kind)
     }
 }
 
 impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred> {
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr> {
         (**self).fresh(sorts, kind)
     }
 }
 
 impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Pred> {
+    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr> {
         (**self).fresh(sorts, kind)
     }
 }
@@ -374,7 +356,7 @@ impl KVarStore {
         sorts: &[rty::Sort],
         scope: S,
         encoding: KVarEncoding,
-    ) -> Binders<rty::Pred>
+    ) -> Binders<rty::Expr>
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
@@ -397,7 +379,8 @@ impl KVarStore {
             encoding,
         });
 
-        Binders::new(rty::Pred::Kvar(rty::KVar::new(kvid, args, scope_exprs.clone())), sorts)
+        let kvar = rty::KVar::new(kvid, args, scope_exprs.clone());
+        Binders::new(rty::Expr::kvar(kvar), sorts)
     }
 }
 
@@ -518,9 +501,9 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
         rty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
         rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
         rty::ExprKind::App(func, args) => {
+            let func = func_to_fixpoint(func, name_map);
             let args = exprs_to_fixpoint(args, name_map, const_map);
-            let uif = fixpoint::Func::Uif(func.to_string());
-            fixpoint::Expr::App(uif, args)
+            fixpoint::Expr::App(func, args)
         }
         rty::ExprKind::IfThenElse(p, e1, e2) => {
             fixpoint::Expr::IfThenElse(Box::new([
@@ -530,10 +513,27 @@ fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) 
             ]))
         }
         rty::ExprKind::EVar(_)
+        | rty::ExprKind::Hole
+        | rty::ExprKind::KVar(_)
         | rty::ExprKind::Local(_)
         | rty::ExprKind::BoundVar(_)
         | rty::ExprKind::PathProj(..) => {
             panic!("unexpected expr: `{expr:?}`")
+        }
+    }
+}
+
+fn func_to_fixpoint(func: &rty::Func, name_map: &NameMap) -> fixpoint::Func {
+    match func {
+        rty::Func::Var(rty::Var::Free(name)) => {
+            let name = name_map
+                .get(name)
+                .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
+            fixpoint::Func::Var(*name)
+        }
+        rty::Func::Uif(func) => fixpoint::Func::Uif(func.to_string()),
+        rty::Func::Var(var) => {
+            panic!("unexpected var `{var:?}` in function application")
         }
     }
 }

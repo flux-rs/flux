@@ -343,33 +343,33 @@ fn build_fhir_map(
 }
 
 fn check_wf(sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
-    let wf = Wf::new(sess, map);
-
     let mut err: Option<ErrorGuaranteed> = None;
 
     for defn in map.defns() {
-        err = wf.check_defn(defn).err().or(err);
+        err = Wf::check_defn(sess, map, defn).err().or(err);
     }
 
     for adt_def in map.adts() {
-        err = wf.check_adt_def(adt_def).err().or(err);
+        err = Wf::check_adt_def(sess, map, adt_def).err().or(err);
     }
 
     for qualifier in map.qualifiers() {
-        err = wf.check_qualifier(qualifier).err().or(err);
+        err = Wf::check_qualifier(sess, map, qualifier).err().or(err);
     }
 
     for struct_def in map.structs() {
         let refined_by = map.refined_by(struct_def.def_id).unwrap();
-        err = wf.check_struct_def(refined_by, struct_def).err().or(err);
+        err = Wf::check_struct_def(sess, map, refined_by, struct_def)
+            .err()
+            .or(err);
     }
 
     for enum_def in map.enums() {
-        err = wf.check_enum_def(enum_def).err().or(err);
+        err = Wf::check_enum_def(sess, map, enum_def).err().or(err);
     }
 
     for (_, fn_sig) in map.fn_sigs() {
-        err = wf.check_fn_sig(fn_sig).err().or(err);
+        err = Wf::check_fn_sig(sess, map, fn_sig).err().or(err);
     }
 
     if let Some(err) = err {

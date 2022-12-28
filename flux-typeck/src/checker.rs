@@ -17,7 +17,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
-        Int, IntTy, PolySig, Pred, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        Int, IntTy, PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -77,7 +77,7 @@ pub trait Phase: Sized {
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Pred>;
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr>;
 
     fn clear(&mut self, bb: BasicBlock);
 }
@@ -457,7 +457,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .iter()
             .map(|arg| {
                 self.genv
-                    .refine_generic_arg(arg, &mut |sorts| Binders::new(Pred::Hole, sorts))
+                    .refine_generic_arg(arg, &mut |sorts| Binders::new(Expr::hole(), sorts))
             })
             .collect_vec();
 
@@ -776,7 +776,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match sig.out {
             sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
             sigs::Output::Exists(mk) => {
-                let pred = Pred::Expr(mk(Expr::nu(), [e1, e2]));
+                let pred = mk(Expr::nu(), [e1, e2]);
                 Ty::exists(bty, Binders::new(pred, vec![Sort::Int]))
             }
         }
@@ -813,7 +813,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match sig.out {
             sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
             sigs::Output::Exists(mk) => {
-                let pred = Pred::Expr(mk(Expr::nu(), [e1, e2]));
+                let pred = mk(Expr::nu(), [e1, e2]);
                 Ty::exists(bty, Binders::new(pred, vec![Sort::Bool]))
             }
         }
@@ -880,7 +880,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             CastKind::FloatToInt | CastKind::IntToFloat => {
                 self.genv
-                    .refine_ty(to, &mut |sorts| Binders::new(Pred::tt(), sorts))
+                    .refine_ty(to, &mut |sorts| Binders::new(Expr::tt(), sorts))
             }
         }
     }
@@ -991,7 +991,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         tag: Tag,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |sorts: &[Sort], _| Binders::new(Pred::Hole, sorts), tag)
+        ConstrGen::new(genv, |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts), tag)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -1011,7 +1011,7 @@ impl Phase for Inference<'_> {
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
         let mut gen = ConstrGen::new(
             ck.genv,
-            |sorts: &[Sort], _| Binders::new(Pred::Hole, sorts),
+            |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts),
             Tag::Other,
         );
         let modified = match ck.phase.bb_envs.entry(target) {
@@ -1026,8 +1026,8 @@ impl Phase for Inference<'_> {
         Ok(modified)
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], _: KVarEncoding) -> Binders<Pred> {
-        Binders::new(Pred::Hole, sorts)
+    fn fresh_kvar(&mut self, sorts: &[Sort], _: KVarEncoding) -> Binders<Expr> {
+        Binders::new(Expr::hole(), sorts)
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -1074,7 +1074,7 @@ impl Phase for Check<'_> {
         Ok(!ck.visited.contains(target))
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Pred> {
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr> {
         self.kvars.fresh(sorts, [], encoding)
     }
 

@@ -805,11 +805,11 @@ fn downcast_enum(
         .replace_generic_args(substs);
 
     debug_assert_eq!(variant_def.ret.args.len(), args.len());
-    let constr = Expr::and(iter::zip(&variant_def.ret.args, args).map(|(arg1, arg2)| {
+    let constr = Expr::and(iter::zip(&variant_def.ret.args, args).filter_map(|(arg1, arg2)| {
         if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-            Expr::eq(e1, e2)
+            Some(Expr::eq(e1, e2))
         } else {
-            todo!()
+            None
         }
     }));
     rcx.assume_pred(constr);
