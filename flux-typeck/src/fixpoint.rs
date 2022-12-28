@@ -186,24 +186,32 @@ where
         pred: &rty::Expr,
     ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
         let mut bindings = vec![];
-        let pred = self.pred_to_fixpoint_internal(pred, &mut bindings);
-        (bindings, pred)
+        let mut preds = vec![];
+        self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds);
+        (bindings, fixpoint::Pred::And(preds))
     }
 
     fn pred_to_fixpoint_internal(
         &mut self,
         expr: &rty::Expr,
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    ) -> fixpoint::Pred {
+        preds: &mut Vec<fixpoint::Pred>,
+    ) {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                fixpoint::Pred::And(vec![
-                    self.pred_to_fixpoint_internal(e1, bindings),
-                    self.pred_to_fixpoint_internal(e2, bindings),
-                ])
+                self.pred_to_fixpoint_internal(e1, bindings, preds);
+                self.pred_to_fixpoint_internal(e2, bindings, preds);
             }
-            rty::ExprKind::KVar(kvar) => self.kvar_to_fixpoint(kvar, bindings),
-            _ => fixpoint::Pred::Expr(expr_to_fixpoint(expr, &self.name_map, &self.const_map)),
+            rty::ExprKind::KVar(kvar) => {
+                preds.push(self.kvar_to_fixpoint(kvar, bindings));
+            }
+            _ => {
+                preds.push(fixpoint::Pred::Expr(expr_to_fixpoint(
+                    expr,
+                    &self.name_map,
+                    &self.const_map,
+                )));
+            }
         }
     }
 
