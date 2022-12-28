@@ -255,9 +255,7 @@ impl Expr {
     /// mostly for filtering predicates when pretty printing but also to avoid adding unnecesary
     /// predicates to the constraint.
     pub fn is_trivially_true(&self) -> bool {
-        self.is_true()
-            || self.is_trivial_equality()
-            || matches!(self.kind(), ExprKind::KVar(kvar) if kvar.args.is_empty())
+        self.is_true() || self.is_trivial_equality()
     }
 
     /// Whether the expression is literally the constant true.
@@ -333,7 +331,7 @@ impl Expr {
         }
     }
 
-    pub fn to_name(&self) -> Option<Name> {
+    pub fn to_fvar(&self) -> Option<Name> {
         match self.kind() {
             ExprKind::FreeVar(name) => Some(*name),
             _ => None,
@@ -380,11 +378,8 @@ impl Var {
 }
 
 impl Path {
-    pub fn new<T>(loc: Loc, projection: T) -> Path
-    where
-        List<Field>: From<T>,
-    {
-        Path { loc, projection: Interned::from(projection) }
+    pub fn new(loc: Loc, projection: impl Into<List<Field>>) -> Path {
+        Path { loc, projection: projection.into() }
     }
 
     pub fn from_place(place: &Place) -> Option<Path> {

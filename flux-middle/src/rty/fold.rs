@@ -316,7 +316,7 @@ impl TypeFoldable for Ty {
                 Ty::box_ptr(
                     Expr::fvar(*loc)
                         .fold_with(folder)
-                        .to_name()
+                        .to_fvar()
                         .expect("folding produced an invalid name"),
                     alloc.fold_with(folder),
                 )
