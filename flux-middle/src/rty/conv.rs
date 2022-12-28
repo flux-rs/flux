@@ -462,6 +462,7 @@ impl NameMap {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
             fhir::ExprKind::Var(name, ..) => self.get(*name, nbinders).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
+            fhir::ExprKind::Dot(box e, fld) => todo!("conv_expr: Dot"),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(
                     *op,

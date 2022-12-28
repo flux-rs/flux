@@ -231,7 +231,9 @@ enum Binder {
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
     /// index are treated specially as they can be used either with a projection or the
     /// binder directly.
-    Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
+    // Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
+    Aggregate(DefId, FxIndexMap<Symbol, fhir::RefinedByParam>),
+
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
@@ -633,21 +635,22 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 .sess
                 .emit_err(errors::InvalidDotVar { span: expr.span }))
         };
+        let span = expr.span.to(fld.span);
 
         match self.binders.get(ident) {
-            Some(Binder::Single(_, sort, _)) => {
+            Some(Binder::Single(name, sort, _)) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();
                 Err(self
                     .sess
                     .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, ident, fld)))
             }
             Some(Binder::Aggregate(def_id, fields)) => {
-                let (name, _) = fields.get(&fld.name).ok_or_else(|| {
+                let (fld, _) = fields.get(&fld.name).ok_or_else(|| {
                     self.sess
                         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
-                let span = ident.span.to(fld.span);
-                let kind = fhir::ExprKind::Var(*name, ident.name, span);
+                let expr = self.desugar_var(ident)?;
+                let kind = fhir::ExprKind::Dot(Box::new(expr), fld);
                 Ok(fhir::Expr { kind, span })
             }
             Some(Binder::Unrefined) => {

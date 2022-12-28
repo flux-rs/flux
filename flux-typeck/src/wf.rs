@@ -344,6 +344,7 @@ impl<'a> Wf<'a> {
         match &e.kind {
             fhir::ExprKind::Var(var, ..) => Ok(env[var]),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
+            fhir::ExprKind::Dot(box e, fld) => self.synth_dot(env, e, fld),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
             fhir::ExprKind::Const(_, _) => Ok(&fhir::Sort::Int), // TODO: generalize const sorts
@@ -507,6 +508,7 @@ impl<'a> Wf<'a> {
                     .iter()
                     .try_for_each_exhaust(|e| self.check_param_uses(env, e, false))
             }
+            fhir::ExprKind::Dot(box e, _) => self.check_param_uses(env, e, false),
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
         }
     }

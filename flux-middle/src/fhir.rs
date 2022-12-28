@@ -47,7 +47,7 @@ pub struct ConstInfo {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<(Ident, Sort)>,
+    pub args: Vec<RefinedByParam>,
     pub expr: Expr,
 }
 
@@ -246,6 +246,7 @@ pub struct Expr {
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
+    Dot(Box<Expr>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -321,9 +322,11 @@ pub struct AdtDef {
 
 #[derive(Debug)]
 pub struct RefinedBy {
-    pub params: Vec<(Ident, Sort)>,
+    pub params: Vec<RefinedByParam>,
     pub span: Span,
 }
+
+pub type RefinedByParam = (Ident, Sort);
 
 #[derive(Debug)]
 pub struct UifDef {
@@ -334,7 +337,7 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
-    pub args: Vec<(Ident, Sort)>,
+    pub args: Vec<RefinedByParam>,
     pub sort: Sort,
     pub expr: Expr,
 }
@@ -676,6 +679,7 @@ impl fmt::Debug for Expr {
             ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
+            ExprKind::Dot(box e, field) => write!(f, "{e:?}.{field:?}"),
             ExprKind::Const(x, _) => write!(f, "{x:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
             ExprKind::IfThenElse(box [p, e1, e2]) => {
