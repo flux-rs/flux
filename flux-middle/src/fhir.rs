@@ -229,6 +229,7 @@ pub enum Sort {
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
+    Adt(DefId),
     Infer,
 }
 
