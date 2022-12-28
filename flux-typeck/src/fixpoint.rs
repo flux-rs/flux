@@ -268,7 +268,7 @@ where
 
             let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
 
-            if all_args.len() == 0 {
+            if all_args.is_empty() {
                 let sorts = vec![fixpoint::Sort::Unit];
                 let kvid = self.fixpoint_kvars.push(sorts);
                 return vec![kvid];
