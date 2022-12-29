@@ -229,7 +229,7 @@ pub enum Sort {
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
-    // TODO:def-adt Adt(DefId),
+    Adt(DefId),
     Infer,
 }
 
@@ -512,6 +512,16 @@ impl Map {
         Some(&adt_def.refined_by)
     }
 
+    pub fn field_sort(&self, def_id: DefId, field: Ident) -> Option<&Sort> {
+        let adt_def = &self.refined_by(def_id)?.params;
+        for (sym, sort) in adt_def {
+            if sym.name == field.name {
+                return Some(sort);
+            }
+        }
+        None
+    }
+
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {
         &self.adts[&def_id]
     }
@@ -722,6 +732,7 @@ impl fmt::Display for Sort {
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
             Sort::Infer => write!(f, "_"),
+            Sort::Adt(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
         }
     }
 }

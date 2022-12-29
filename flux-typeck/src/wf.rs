@@ -340,6 +340,20 @@ impl<'a> Wf<'a> {
         }
     }
 
+    fn synth_dot(
+        &self,
+        env: &Env<'a>,
+        e: &'a fhir::Expr,
+        field: &fhir::Ident,
+    ) -> Result<&fhir::Sort, ErrorGuaranteed> {
+        if let fhir::Sort::Adt(def_id) = self.synth_expr(env, e)? {
+            if let Some(sort) = self.map.field_sort(*def_id, *field) {
+                return Ok(sort);
+            }
+        }
+        panic!("TRACE: error: synth_dot: InvalidDotAccess expr: {:?}, field: {:?}", e, field)
+    }
+
     fn synth_expr(&self, env: &Env<'a>, e: &'a fhir::Expr) -> Result<&fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
             fhir::ExprKind::Var(var, ..) => Ok(env[var]),

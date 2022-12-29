@@ -437,7 +437,9 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             }
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Infer | rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
+        rty::Sort::Adt(_) | rty::Sort::Infer | rty::Sort::Loc => {
+            unreachable!("unexpected sort {sort:?}")
+        }
     }
 }
 

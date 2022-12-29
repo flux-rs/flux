@@ -232,7 +232,7 @@ enum Binder {
     /// index are treated specially as they can be used either with a projection or the
     /// binder directly.
     // Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
-    Aggregate(DefId, FxIndexMap<Symbol, fhir::RefinedByParam>),
+    Aggregate(fhir::Name, DefId, FxIndexMap<Symbol, fhir::RefinedByParam>),
 
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
@@ -387,24 +387,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         ident: surface::Ident,
     ) -> Result<Vec<fhir::RefineArg>, ErrorGuaranteed> {
         match self.binders.get(ident) {
-            Some(Binder::Single(name, ..)) => {
+            Some(Binder::Single(name, ..)) | Some(Binder::Aggregate(name, _, _)) => {
                 let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(vec![fhir::RefineArg::Expr { expr, is_binder: true }])
             }
-            Some(Binder::Aggregate(_, fields)) => {
-                let indices = fields
-                    .values()
-                    .map(|(name, _)| {
-                        let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
-                        fhir::RefineArg::Expr {
-                            expr: fhir::Expr { kind, span: ident.span },
-                            is_binder: true,
-                        }
-                    })
-                    .collect();
-                Ok(indices)
-            }
+            // let indices = fields
+            //     .values()
+            //     .map(|(name, _)| {
+            //         let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
+            //         fhir::RefineArg::Expr {
+            //             expr: fhir::Expr { kind, span: ident.span },
+            //             is_binder: true,
+            //         }
+            //     })
+            //     .collect();
+            // Ok(indices)
             Some(Binder::Unrefined) => Ok(vec![]),
             None => Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
         }
@@ -556,9 +554,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         if let Some(b) = self.binders.get(func) {
             match b {
                 Binder::Single(name, sort, _) => return Ok(FuncRes::Param(*name, sort)),
-                Binder::Aggregate(_, fields) => {
+                Binder::Aggregate(name, _, fields) => {
                     if fields.len() == 1 {
-                        let (name, sort) = fields.values().next().unwrap();
+                        let (_, sort) = fields.values().next().unwrap();
                         return Ok(FuncRes::Param(*name, sort));
                     } else {
                         return Err(self
@@ -599,18 +597,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match (self.binders.get(ident), self.map.const_by_name(ident.name)) {
-            (Some(Binder::Single(name, ..)), _) => {
+            (Some(Binder::Single(name, ..)), _) | (Some(Binder::Aggregate(name, _, _)), _) => {
                 fhir::ExprKind::Var(*name, ident.name, ident.span)
-            }
-            (Some(Binder::Aggregate(_, fields)), _) => {
-                if fields.len() == 1 {
-                    let (name, _) = fields.values().next().unwrap();
-                    fhir::ExprKind::Var(*name, ident.name, ident.span)
-                } else {
-                    return Err(self
-                        .sess
-                        .emit_err(errors::InvalidAggregateUse::new(ident, fields.keys())));
-                }
             }
             (Some(Binder::Unrefined), _) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();
@@ -638,19 +626,19 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         let span = expr.span.to(fld.span);
 
         match self.binders.get(ident) {
-            Some(Binder::Single(name, sort, _)) => {
+            Some(Binder::Single(_name, sort, _)) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();
                 Err(self
                     .sess
                     .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, ident, fld)))
             }
-            Some(Binder::Aggregate(def_id, fields)) => {
+            Some(Binder::Aggregate(_, def_id, fields)) => {
                 let (fld, _) = fields.get(&fld.name).ok_or_else(|| {
                     self.sess
                         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
                 let expr = self.desugar_var(ident)?;
-                let kind = fhir::ExprKind::Dot(Box::new(expr), fld);
+                let kind = fhir::ExprKind::Dot(Box::new(expr), *fld);
                 Ok(fhir::Expr { kind, span })
             }
             Some(Binder::Unrefined) => {
@@ -1026,15 +1014,12 @@ impl Binders {
                     };
                     params.push(param_from_ident(ident, name, sort.clone(), mode));
                 }
-                Binder::Aggregate(_, fields) => {
-                    for (_, (name, sort)) in fields {
-                        params.push(param_from_ident(
-                            ident,
-                            name,
-                            sort.clone(),
-                            fhir::InferMode::default_for(&sort),
-                        ));
-                    }
+                Binder::Aggregate(name, def_id, _fields) => {
+                    let sort = fhir::Sort::Adt(def_id);
+                    let mode = fhir::InferMode::default_for(&sort);
+                    // for (_, (name, sort)) in fields {
+                    params.push(param_from_ident(ident, name, sort, mode));
+                    // }
                 }
                 Binder::Unrefined => {}
             }
@@ -1101,17 +1086,21 @@ impl Binder {
             Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool, false),
             Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, false),
             Res::Adt(def_id) => {
+                let name = name_gen.fresh();
                 let fields: FxIndexMap<_, _> = map
                     .refined_by(def_id)
                     .unwrap_or(fhir::RefinedBy::DUMMY)
                     .params
                     .iter()
                     .map(|(ident, sort)| {
-                        let fld = ident.source_info.1;
-                        (fld, (name_gen.fresh(), sort.clone()))
+                        let source_info = ident.source_info;
+                        let fld = source_info.1;
+                        let name = name_gen.fresh();
+                        let fld_ident = fhir::Ident { name, source_info };
+                        (fld, (fld_ident, sort.clone()))
                     })
                     .collect();
-                Binder::Aggregate(def_id, fields)
+                Binder::Aggregate(name, def_id, fields)
             }
             Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
         }
@@ -1131,7 +1120,12 @@ impl Binder {
     fn deaggregate(self) -> Vec<(fhir::Name, fhir::Sort)> {
         match self {
             Binder::Single(name, sort, _) => vec![(name, sort)],
-            Binder::Aggregate(_, fields) => fields.into_values().collect(),
+            Binder::Aggregate(_, _, fields) => {
+                fields
+                    .into_values()
+                    .map(|(ident, sort)| (ident.name, sort))
+                    .collect()
+            }
             Binder::Unrefined => vec![],
         }
     }
@@ -1139,7 +1133,9 @@ impl Binder {
     fn names(self) -> Vec<fhir::Name> {
         match self {
             Binder::Single(name, ..) => vec![name],
-            Binder::Aggregate(_, fields) => fields.into_values().map(|(name, _)| name).collect(),
+            Binder::Aggregate(_, _, fields) => {
+                fields.into_values().map(|(ident, _)| ident.name).collect()
+            }
             Binder::Unrefined => vec![],
         }
     }
