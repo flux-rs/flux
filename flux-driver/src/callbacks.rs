@@ -115,11 +115,11 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, ignores }
     }
 
-    fn is_assumed(&self, def_id: LocalDefId) -> bool {
-        self.genv.map().assumed(def_id.to_def_id())
+    fn is_trusted(&self, def_id: LocalDefId) -> bool {
+        self.genv.map().is_trusted(def_id.to_def_id())
     }
 
-    /// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
+    /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
     /// any enclosing mod has been marked as `ignore`
     fn is_ignored(&self, def_id: LocalDefId) -> bool {
         let parent_def_id = self.genv.tcx.parent_module_from_def_id(def_id);
@@ -131,13 +131,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
     }
 
-    fn is_target(&self, def_id: LocalDefId) -> bool {
+    fn matches_check_def(&self, def_id: LocalDefId) -> bool {
         let def_path = self.genv.tcx.def_path_str(def_id.to_def_id());
         def_path.contains(&CONFIG.check_def)
     }
 
     fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_ignored(def_id) || !self.is_target(def_id) {
+        if self.is_ignored(def_id) || !self.matches_check_def(def_id) {
             return Ok(());
         }
 
@@ -149,7 +149,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_assumed(def_id) {
+        if self.is_trusted(def_id) {
             return Ok(());
         }
 
@@ -322,8 +322,8 @@ fn build_fhir_map(
     err = std::mem::take(&mut specs.fns)
         .into_iter()
         .try_for_each_exhaust(|(def_id, spec)| {
-            if spec.assume {
-                map.add_assumed(def_id);
+            if spec.trusted {
+                map.add_trusted(def_id);
             }
             if let Some(fn_sig) = spec.fn_sig {
                 let fn_sig = surface::expand::expand_sig(&aliases, fn_sig)?;

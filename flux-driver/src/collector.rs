@@ -52,7 +52,7 @@ pub(crate) struct Specs {
 
 pub(crate) struct FnSpec {
     pub fn_sig: Option<surface::FnSig>,
-    pub assume: bool,
+    pub trusted: bool,
 }
 
 #[derive(Debug)]
@@ -121,10 +121,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-fun attrs
 
-        let assume = attrs.assume();
+        let trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
 
-        self.specs.fns.insert(def_id, FnSpec { fn_sig, assume });
+        self.specs.fns.insert(def_id, FnSpec { fn_sig, trusted });
         Ok(())
     }
 
@@ -356,7 +356,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             }
             ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
-            ("assume", MacArgs::Empty) => FluxAttrKind::Assume,
+            ("trusted", MacArgs::Empty) => FluxAttrKind::Trusted,
             _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
@@ -433,7 +433,7 @@ struct FluxAttr {
 
 #[derive(Debug)]
 enum FluxAttrKind {
-    Assume,
+    Trusted,
     Opaque,
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
@@ -491,8 +491,8 @@ impl FluxAttrs {
             .map(|(name, attrs)| (*name, &attrs[1..]))
     }
 
-    fn assume(&mut self) -> bool {
-        read_flag!(self, Assume)
+    fn trusted(&mut self) -> bool {
+        read_flag!(self, Trusted)
     }
 
     fn ignore(&mut self) -> bool {
@@ -560,7 +560,7 @@ impl FluxAttrs {
 impl FluxAttrKind {
     fn name(&self) -> &'static str {
         match self {
-            FluxAttrKind::Assume => attr_name!(Assume),
+            FluxAttrKind::Trusted => attr_name!(Trusted),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),

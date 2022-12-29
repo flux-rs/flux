@@ -3,7 +3,7 @@
 
 // We need this right now to not deal with the enum `Some`
 
-#[flux::assume]
+#[flux::trusted]
 fn some<T>(x: T) -> Option<T> {
     Option::Some(x)
 }

@@ -4,7 +4,6 @@ use config::Environment;
 use serde::Deserialize;
 pub use toml::Value;
 
-// serde small case
 #[derive(Debug, Deserialize, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AssertBehavior {

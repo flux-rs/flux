@@ -48,7 +48,7 @@ pub enum Token {
     Strg,
     Type,
     Ignore,
-    Assume,
+    Trusted,
     Check,
     If,
     Else,
