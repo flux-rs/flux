@@ -69,7 +69,7 @@ pub FnSig: surface::FnSig = {
     <params:("<" <Comma<RefineParam>> ">")?>
     "(" <args:Args> ")"
     <returns:("->" <Ty>)?>
-    <requires:("requires" <Level1>)?>
+    <requires:("requires" <Expr>)?>
     <ensures:("ensures" <Ensures>)?>
     <hi:@R>
     => {
@@ -111,7 +111,7 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(<>),
-    <bind:Ident> ":" <path:Path> "{" <pred:Level1> "}"     => surface::Arg::Constr(<>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}"     => surface::Arg::Constr(<>),
     <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(<>),
     <bind:Ident> ":" <lo:@L> <kind:ArgTyKind> <hi:@R> => {
         let ty = surface::Ty { kind, span: mk_span(lo, hi) };
@@ -129,13 +129,10 @@ pub Ty: surface::Ty = {
 
 // FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
 ArgTyKind: surface::TyKind = {
-
     "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
-
     "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
     "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
-
-    "{" <ty:Ty> ":" <pred:Level1> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+    "{" <ty:Ty> ":" <pred:Expr> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
         let span = mk_span(lo, hi);
         if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
@@ -144,17 +141,14 @@ ArgTyKind: surface::TyKind = {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
     },
-    <bty:BaseTy>                                        => surface::TyKind::Base(<>),
-    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Level1> "}" => surface::TyKind::Exists { <> },
+    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
+    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
 }
 
 #[inline]
 BaseTy: surface::BaseTy = {
-
-    <path:Path>                                        => surface::BaseTy::Path(<>),
-
+    <path:Path>     => surface::BaseTy::Path(<>),
     "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
-
 }
 
 TyKind: surface::TyKind = {
@@ -163,7 +157,8 @@ TyKind: surface::TyKind = {
 }
 
 GenericArgs: Vec<surface::Ty> = {
-    "<" <Comma<Ty>> ">"
+    "<" <Comma<Ty>> ">",
+    "<" <Comma<Ty>> ">(?=>)",
 }
 
 Path: surface::Path = {
@@ -189,8 +184,8 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R>               => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
-    <Expr>                                         => surface::RefineArg::Expr(<>),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
+    <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
     }
@@ -203,18 +198,19 @@ Level2 = LeftAssoc<BinOp2, Level3>; // =>
 Level3 = LeftAssoc<BinOp3, Level4>; // ||
 Level4 = LeftAssoc<BinOp4, Level5>; // &&
 Level5 = NonAssoc<BinOp5, Level6>;  // ==, !=, >=, <=
-Level6 = LeftAssoc<BinOp6, Level7>; // +, -
-Level7 = LeftAssoc<BinOp7, Level8>; // *, %
-Level8 = {
-    <lo:@L> <op:UnOp> <e:Level9> <hi:@R> => {
+Level6 = LeftAssoc<BinOp6, Level7>; // >>, <<
+Level7 = LeftAssoc<BinOp7, Level8>; // +, -
+Level8 = LeftAssoc<BinOp8, Level9>; // *, %
+Level9 = {
+    <lo:@L> <op:UnOp> <e:Level10> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::UnaryOp(op, Box::new(e)),
             span: mk_span(lo, hi),
         }
     },
-    <Level9>
+    <Level10>
 }
-Level9: surface::Expr = {
+Level10: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
@@ -293,11 +289,18 @@ BinOp5: surface::BinOp = {
 }
 
 BinOp6: surface::BinOp = {
+    // TODO(nilehmann) return right shift operator when we support it
+    <lo:@L> ">(?=>)" ">" <hi:@R> =>? {
+        Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+    }
+}
+
+BinOp7: surface::BinOp = {
     "+" => surface::BinOp::Add,
     "-" => surface::BinOp::Sub,
 }
 
-BinOp7: surface::BinOp = {
+BinOp8: surface::BinOp = {
     "*" => surface::BinOp::Mul,
     "%" => surface::BinOp::Mod,
 }
@@ -373,6 +376,7 @@ extern {
         "<"  => Token::Lt,
         "<=" => Token::Le,
         ">"  => Token::Gt,
+        ">(?=>)"  => Token::GtFollowedByGt,
         ">=" => Token::Ge,
         ":"  => Token::Colon,
         "."  => Token::Dot,
