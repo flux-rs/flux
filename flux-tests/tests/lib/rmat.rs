@@ -5,7 +5,7 @@ pub struct RMat<T> {
 }
 
 impl<T> RMat<T> {
-    #[flux::assume]
+    #[flux::trusted]
     fn clone(n: usize, elem: T) -> Vec<T>
     where
         T: Copy,
@@ -17,7 +17,7 @@ impl<T> RMat<T> {
         res
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(rows: usize, cols: usize, T) -> RMat<T>[rows, cols])]
     pub fn new(rows: usize, cols: usize, elem: T) -> RMat<T>
     where
@@ -31,20 +31,20 @@ impl<T> RMat<T> {
         Self { inner }
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(&RMat<T>[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &T)]
     pub fn get(&self, i: usize, j: usize) -> &T {
         &self.inner[i][j]
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(&mut RMat<T>[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &mut T)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut T {
         &mut self.inner[i][j]
     }
 }
 
-#[flux::assume]
+#[flux::trusted]
 #[flux::sig(fn() -> usize{v:false})]
 pub fn die() -> usize {
     panic!("die")

@@ -5,7 +5,7 @@
 fn assert(_: bool) {}
 
 // We should not check the body of the function
-#[flux::assume]
+#[flux::trusted]
 fn foo() {
     assert(0 > 1);
 }

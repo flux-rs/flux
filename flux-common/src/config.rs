@@ -4,7 +4,6 @@ use config::Environment;
 use serde::Deserialize;
 pub use toml::Value;
 
-// serde small case
 #[derive(Debug, Deserialize, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AssertBehavior {
@@ -19,7 +18,7 @@ impl std::str::FromStr for AssertBehavior {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ignore" => Ok(AssertBehavior::Ignore),
-            "assume" => Ok(AssertBehavior::Assume),
+            "trusted" => Ok(AssertBehavior::Assume),
             "check" => Ok(AssertBehavior::Check),
             _ => Err(()),
         }

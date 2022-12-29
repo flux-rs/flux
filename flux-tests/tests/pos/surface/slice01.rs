@@ -6,7 +6,7 @@ pub fn foo(arr: &[i32], i: usize) -> i32 {
     arr[i]
 }
 
-#[flux::assume]
+#[flux::trusted]
 #[flux::sig(fn(arr: &[T][@n]) -> usize[n])]
 fn len<T>(arr: &[T]) -> usize {
     arr.len()

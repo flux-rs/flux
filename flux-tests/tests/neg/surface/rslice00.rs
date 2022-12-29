@@ -29,7 +29,7 @@ fn add(x: &mut [i32], y: &[i32]) {
     }
 }
 
-#[flux::assume]
+#[flux::trusted]
 #[flux::sig(fn(x: &[T][@n]) -> usize[n])]
 fn len<T>(x: &[T]) -> usize {
     x.len()
