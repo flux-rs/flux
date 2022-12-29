@@ -31,7 +31,15 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
 
 #[derive(Default, Debug)]
 struct NameMap {
-    map: FxHashMap<fhir::Name, Entry>,
+    map: FxHashMap<NameMapKey, Entry>,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+enum NameMapKey {
+    /// names that correspond to flat sorts like `int` or `bool`
+    Flat(fhir::Name),
+    /// names that correspond to fields of multi-indexed (ADT) sorts
+    Field(fhir::Name, fhir::Name),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -59,8 +67,8 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
     rty::AdtDef::new(tcx.adt_def(adt_def.def_id), sorts, invariants, adt_def.opaque)
 }
 
-pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
-    let name_map = NameMap::with_bvars(defn.args.iter().map(|(ident, _)| ident.name));
+pub(crate) fn conv_defn(map: &fhir::Map, defn: &fhir::Defn) -> rty::Defn {
+    let name_map = NameMap::with_bvars(map, defn.args.clone());
     let sorts = defn.args.iter().map(|(_, sort)| sort.clone()).collect_vec();
     let expr = Binders::new(name_map.conv_expr(&defn.expr, 1), sorts);
     rty::Defn { name: defn.name, expr }
@@ -68,12 +76,15 @@ pub(crate) fn conv_defn(defn: &fhir::Defn) -> rty::Defn {
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn from_refined_by(genv: &'a GlobalEnv<'genv, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
-        let name_map = NameMap::with_bvars(refined_by.params.iter().map(|(ident, _)| ident.name));
+        let name_map = NameMap::with_bvars(&genv.map(), refined_by.params.clone());
         Self { genv, name_map }
     }
 
     fn from_params(genv: &'a GlobalEnv<'genv, 'tcx>, params: &[fhir::RefineParam]) -> Self {
-        let name_map = NameMap::with_bvars(params.iter().map(|param| param.name.name));
+        let name_map = NameMap::with_bvars(
+            genv.map(),
+            params.iter().map(|param| (param.name, param.sort.clone())),
+        );
         Self { genv, name_map }
     }
 
@@ -228,7 +239,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|(ident, sort)| {
                 let fresh = name_gen.fresh();
-                name_map.insert(ident.name, fresh);
+                name_map.insert(NameMapKey::Flat(ident.name), fresh);
                 (fresh, sort.clone())
             })
             .collect_vec();
@@ -256,13 +267,22 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::Ty::indexed(bty, idxs)
             }
             fhir::Ty::Exists(bty, binders, pred) => {
+                let refined_by = match bty {
+                    fhir::BaseTy::Adt(def_id, _) => self.genv.map().refined_by(*def_id),
+                    _ => None,
+                };
                 let bty = self.conv_base_ty(bty, nbinders);
-                self.name_map
-                    .with_binders(binders, nbinders, |name_map, nbinders| {
+                self.name_map.with_binders(
+                    self.genv.map(),
+                    binders,
+                    refined_by,
+                    nbinders,
+                    |name_map, nbinders| {
                         let pred = name_map.conv_pred(pred, nbinders);
                         let pred = rty::Binders::new(pred, bty.sorts());
                         rty::Ty::exists(bty, pred)
-                    })
+                    },
+                )
             }
             fhir::Ty::Ptr(loc) => {
                 rty::Ty::ptr(rty::RefKind::Mut, self.name_map.get(loc.name, nbinders).to_path())
@@ -317,12 +337,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = sort.as_func();
-                let abs = self
-                    .name_map
-                    .with_binders(params, nbinders, |name_map, nbinders| {
+                let abs = self.name_map.with_binders(
+                    self.genv.map(),
+                    params,
+                    None,
+                    nbinders,
+                    |name_map, nbinders| {
                         let pred = name_map.conv_pred(body, nbinders);
                         rty::Binders::new(pred, fsort.inputs())
-                    });
+                    },
+                );
                 rty::RefineArg::Abs(abs)
             }
         }
@@ -377,23 +401,57 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 }
 
+fn flatten_params(
+    map: &fhir::Map,
+    params: impl IntoIterator<Item = fhir::RefinedByParam>,
+) -> Vec<NameMapKey> {
+    params
+        .into_iter()
+        .flat_map(|(ident, sort)| {
+            match sort {
+                fhir::Sort::Adt(def_id) => {
+                    let refined_by = map.refined_by(def_id).unwrap_or_else(|| {
+                        panic!("flatten_refinedby_params: bad adt-sort {def_id:?}")
+                    });
+                    refined_by
+                        .params
+                        .iter()
+                        .map(|(fld, _)| NameMapKey::Field(ident.name, fld.name))
+                        .collect_vec()
+                }
+                _ => vec![NameMapKey::Flat(ident.name)],
+            }
+        })
+        .collect()
+}
+
 impl NameMap {
-    fn with_bvars(iter: impl IntoIterator<Item = fhir::Name>) -> Self {
+    fn with_bvars<'a>(
+        map: &fhir::Map,
+        iter: impl IntoIterator<Item = fhir::RefinedByParam>,
+    ) -> Self {
         Self {
-            map: iter
+            map: flatten_params(map, iter)
                 .into_iter()
                 .enumerate()
-                .map(|(index, name)| (name, Entry::Bound { index, level: 0 }))
+                .map(|(index, key)| (key, Entry::Bound { index, level: 0 }))
                 .collect(),
         }
+        // Self {
+        // map: iter
+        //     .into_iter()
+        //     .enumerate()
+        //     .map(|(index, name)| (name, Entry::Bound { index, level: 0 }))
+        //     .collect(),
+        // }
     }
 
-    fn insert(&mut self, name: fhir::Name, var: impl Into<Entry>) {
-        self.map.insert(name, var.into());
+    fn insert(&mut self, key: NameMapKey, var: impl Into<Entry>) {
+        self.map.insert(key, var.into());
     }
 
     fn get(&self, name: fhir::Name, nbinders: u32) -> rty::Var {
-        match self.map[&name] {
+        match self.map[&NameMapKey::Flat(name)] {
             Entry::Bound { level, index } => {
                 rty::Var::Bound(rty::BoundVar::new(index, DebruijnIndex::new(nbinders - level - 1)))
             }
@@ -401,18 +459,31 @@ impl NameMap {
         }
     }
 
+    /// with_binders must be called with either
+    /// (a) a set of FLAT-sorted `binders` (so refined_by is None) OR
+    /// (b) a single ADT-sorted `binders` (len == 1) where `refined_by` only contains FLAT sorts
     fn with_binders<R>(
         &mut self,
+        map: &fhir::Map,
         binders: &[fhir::Name],
+        refined_by: Option<&fhir::RefinedBy>,
         nbinders: u32,
         f: impl FnOnce(&mut Self, u32) -> R,
     ) -> R {
+        let binders = if let Some(refined_by) = refined_by  && binders.len() == 1 {
+            flatten_params(map, refined_by.params.clone())
+        } else {
+            binders.iter().map(|name| NameMapKey::Flat(*name)).collect()
+        };
+        // push new binders into the map
         for (index, binder) in binders.iter().enumerate() {
             self.insert(*binder, Entry::Bound { index, level: nbinders });
         }
+        // run 'f'
         let r = f(self, nbinders + 1);
+        // pop the binders from the map
         for binder in binders {
-            self.map.remove(binder);
+            self.map.remove(&binder);
         }
         r
     }
@@ -421,6 +492,8 @@ impl NameMap {
         rty::Invariant { pred: Binders::new(self.conv_expr(invariant, 1), sorts) }
     }
 
+    /// `conv_refined_by` is used to get the `rty::Sort`s of the *flat-sorted* parameters of an ADT,
+    /// i.e. we require that the `RefinedBy` do not contain `Adt(...)` sorts.
     fn conv_refined_by(&mut self, refined_by: &fhir::RefinedBy) -> Vec<rty::Sort> {
         refined_by
             .params
@@ -428,7 +501,7 @@ impl NameMap {
             .enumerate()
             .map(|(index, (ident, sort))| {
                 self.map
-                    .insert(ident.name, Entry::Bound { index, level: 0 });
+                    .insert(NameMapKey::Flat(ident.name), Entry::Bound { index, level: 0 });
                 sort.clone()
             })
             .collect()

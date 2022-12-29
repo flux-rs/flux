@@ -43,7 +43,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
         for defn in map.defns() {
-            let defn = rty::conv::conv_defn(defn);
+            let defn = rty::conv::conv_defn(&map, defn);
             defns.insert(defn.name, defn);
         }
         let defns = Defns::new(defns).map_err(|cycle| {
