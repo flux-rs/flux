@@ -424,7 +424,6 @@ fn flatten_params(
         })
         .collect()
 }
-
 impl NameMap {
     fn with_bvars<'a>(
         map: &fhir::Map,
@@ -450,13 +449,23 @@ impl NameMap {
         self.map.insert(key, var.into());
     }
 
-    fn get(&self, name: fhir::Name, nbinders: u32) -> rty::Var {
-        match self.map[&NameMapKey::Flat(name)] {
+    fn entry_var(entry: Entry, nbinders: u32) -> rty::Var {
+        match entry {
             Entry::Bound { level, index } => {
                 rty::Var::Bound(rty::BoundVar::new(index, DebruijnIndex::new(nbinders - level - 1)))
             }
             Entry::Free(name) => rty::Var::Free(name),
         }
+    }
+
+    fn get(&self, name: fhir::Name, nbinders: u32) -> rty::Var {
+        let entry = self.map[&NameMapKey::Flat(name)];
+        Self::entry_var(entry, nbinders)
+    }
+
+    fn get_fld(&self, name: fhir::Name, fld: fhir::Name, nbinders: u32) -> rty::Var {
+        let entry = self.map[&NameMapKey::Field(name, fld)];
+        Self::entry_var(entry, nbinders)
     }
 
     /// with_binders must be called with either
@@ -470,6 +479,7 @@ impl NameMap {
         nbinders: u32,
         f: impl FnOnce(&mut Self, u32) -> R,
     ) -> R {
+        // flatten the binders if needed
         let binders = if let Some(refined_by) = refined_by  && binders.len() == 1 {
             flatten_params(map, refined_by.params.clone())
         } else {
@@ -535,7 +545,7 @@ impl NameMap {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
             fhir::ExprKind::Var(name, ..) => self.get(*name, nbinders).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
-            fhir::ExprKind::Dot(box e, fld) => todo!("conv_expr: Dot"),
+            fhir::ExprKind::Dot(box e, fld) => self.conv_dot(e, fld, nbinders),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(
                     *op,
@@ -564,6 +574,13 @@ impl NameMap {
 
     fn conv_exprs(&self, exprs: &[fhir::Expr], nbinders: u32) -> List<rty::Expr> {
         List::from_iter(exprs.iter().map(|e| self.conv_expr(e, nbinders)))
+    }
+
+    fn conv_dot(&self, expr: &fhir::Expr, fld: &fhir::Ident, nbinders: u32) -> rty::Expr {
+        match &expr.kind {
+            fhir::ExprKind::Var(name, ..) => self.get_fld(*name, fld.name, nbinders).to_expr(),
+            _ => panic!("conv_dot with non-var expr {expr:?}, {fld:?} at {:?}", expr.span),
+        }
     }
 }
 
