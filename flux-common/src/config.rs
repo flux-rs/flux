@@ -18,7 +18,7 @@ impl std::str::FromStr for AssertBehavior {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ignore" => Ok(AssertBehavior::Ignore),
-            "trusted" => Ok(AssertBehavior::Assume),
+            "assume" => Ok(AssertBehavior::Assume),
             "check" => Ok(AssertBehavior::Check),
             _ => Err(()),
         }
