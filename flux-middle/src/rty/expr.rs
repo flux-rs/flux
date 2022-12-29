@@ -76,15 +76,14 @@ pub struct BoundVar {
 }
 
 newtype_index! {
-    pub struct Name {
-        DEBUG_FORMAT = "a{}",
-    }
+    #[debug_format = "a{}"]
+    pub struct Name {}
 }
 
 newtype_index! {
+    #[debug_format = "DebruijnIndex({})"]
     pub struct DebruijnIndex {
-        DEBUG_FORMAT = "DebruijnIndex({})",
-        const INNERMOST = 0,
+        const INNERMOST = 0;
     }
 }
 

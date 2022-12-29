@@ -281,9 +281,8 @@ pub struct Ident {
 }
 
 newtype_index! {
-    pub struct Name {
-        DEBUG_FORMAT = "x{}",
-    }
+    #[debug_format = "s{}"]
+    pub struct Name {}
 }
 
 impl BaseTy {

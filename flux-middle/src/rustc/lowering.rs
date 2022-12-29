@@ -14,7 +14,6 @@ use rustc_middle::{
         ParamEnv, TyCtxt, TypeVisitable,
     },
 };
-use rustc_trait_selection::traits::query::normalize::AtExt;
 
 use super::{
     mir::{

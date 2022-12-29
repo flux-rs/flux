@@ -18,9 +18,8 @@ use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 
 newtype_index! {
-    pub struct TagIdx {
-        DEBUG_FORMAT = "TagIdx({})"
-    }
+    #[debug_format = "TagIdx({})"]
+    pub struct TagIdx {}
 }
 
 #[derive(Default)]
