@@ -13,6 +13,7 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_span;
 extern crate rustc_target;
+extern crate rustc_trait_selection;
 
 pub mod fhir;
 pub mod global_env;
