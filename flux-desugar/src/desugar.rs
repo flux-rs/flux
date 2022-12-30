@@ -193,7 +193,7 @@ pub fn desugar_fn_sig(
         .try_collect_exhaust();
 
     let params = cx.binders.into_params();
-    println!("TRACE: desugar_fn_sig {params:?}");
+    // println!("TRACE: desugar_fn_sig {params:?}");
 
     Ok(fhir::FnSig { params, requires: cx.requires, args, ret: ret?, ensures: ensures? })
 }
@@ -330,7 +330,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                 })?;
 
                             let res = fhir::Ty::Exists(bty, binder.names(), pred);
-                            println!("TRACE: HEREHEREHEREHEREHEREHERE desugar_ty {res:?}");
                             Ok(res)
                         }
                     }
@@ -616,6 +615,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         expr: surface::Expr,
         fld: surface::Ident,
     ) -> Result<fhir::Expr, ErrorGuaranteed> {
+        // let fld0 = &fld;
+        // let expr0 = &expr;
         // This error never occurs because the parser forces `expr` to be an ident, but we report an error just in case.
         let surface::ExprKind::Var(ident) = expr.kind else {
             return Err(self
@@ -631,13 +632,18 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                     .sess
                     .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, ident, fld)))
             }
-            Some(Binder::Aggregate(_, def_id, fields)) => {
-                let (fld, _) = fields.get(&fld.name).ok_or_else(|| {
+            Some(Binder::Aggregate(_, def_id, _fields)) => {
+                // let (fld, _) = fields.get(&fld.name).ok_or_else(|| {
+                //     self.sess
+                //         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
+                // })?;
+                let (fld, _) = self.map.lookup_field(def_id, &fld.name).ok_or_else(|| {
                     self.sess
                         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
                 let expr = self.desugar_var(ident)?;
                 let kind = fhir::ExprKind::Dot(Box::new(expr), *fld);
+                // println!("TRACE: desugar_dot: {expr0:?} {fld0:?} -> {kind:?} with {fields:?}");
                 Ok(fhir::Expr { kind, span })
             }
             Some(Binder::Unrefined) => {
@@ -793,7 +799,7 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
-        println!("TRACE: insert_binder {ident:?} with {binder:?}");
+        // println!("TRACE: insert_binder {ident:?} with {binder:?}");
         match self.map.entry(ident) {
             IndexEntry::Occupied(entry) => {
                 Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
@@ -839,6 +845,7 @@ impl Binders {
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         for param in &fn_sig.params {
+            // println!("TRACE: fn_sig_gather_params {param:?}");
             self.insert_binder(
                 sess,
                 param.name,
@@ -1014,19 +1021,18 @@ impl Binders {
                     };
                     params.push(param_from_ident(ident, name, sort.clone(), mode));
                 }
-                Binder::Aggregate(name, def_id, fields) => {
-                    if fields.len() == 1 {
-                        for (_, (_, sort)) in fields {
-                            let mode = fhir::InferMode::default_for(&sort);
-                            params.push(param_from_ident(ident, name, sort, mode));
-                        }
-                    } else {
-                        let sort = fhir::Sort::Adt(def_id);
-                        let mode = fhir::InferMode::default_for(&sort);
-                        // for (_, (name, sort)) in fields {
-                        params.push(param_from_ident(ident, name, sort, mode));
-                        // }
-                    }
+                Binder::Aggregate(name, def_id, _fields) => {
+                    // if fields.len() == 1 {
+                    //     let (_, (_, sort)) = fields.into_iter().next().unwrap();
+                    //     let mode = fhir::InferMode::default_for(&sort);
+                    //     params.push(param_from_ident(ident, name, sort, mode));
+                    // } else {
+                    let sort = fhir::Sort::Adt(def_id);
+                    let mode = fhir::InferMode::default_for(&sort);
+                    // for (_, (name, sort)) in fields {
+                    params.push(param_from_ident(ident, name, sort, mode));
+                    // }
+                    // }
                 }
                 Binder::Unrefined => {}
             }
@@ -1094,20 +1100,28 @@ impl Binder {
             Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, false),
             Res::Adt(def_id) => {
                 let name = name_gen.fresh();
-                let fields: FxIndexMap<_, _> = map
+                let params = &map
                     .refined_by(def_id)
                     .unwrap_or(fhir::RefinedBy::DUMMY)
-                    .params
-                    .iter()
-                    .map(|(ident, sort)| {
-                        let source_info = ident.source_info;
-                        let fld = source_info.1;
-                        let name = name_gen.fresh();
-                        let fld_ident = fhir::Ident { name, source_info };
-                        (fld, (fld_ident, sort.clone()))
-                    })
-                    .collect();
-                Binder::Aggregate(name, def_id, fields)
+                    .params;
+                if params.len() == 0 {
+                    Binder::Unrefined
+                } else if params.len() == 1 {
+                    let (_, sort) = params[0].clone();
+                    Binder::Single(name, sort, false)
+                } else {
+                    let fields: FxIndexMap<_, _> = params
+                        .iter()
+                        .map(|(ident, sort)| {
+                            let source_info = ident.source_info;
+                            let fld = source_info.1;
+                            let name = name_gen.fresh();
+                            let fld_ident = fhir::Ident { name, source_info };
+                            (fld, (fld_ident, sort.clone()))
+                        })
+                        .collect();
+                    Binder::Aggregate(name, def_id, fields)
+                }
             }
             Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
         }
@@ -1139,10 +1153,10 @@ impl Binder {
 
     fn names(self) -> Vec<fhir::Name> {
         match self {
-            Binder::Single(name, ..) => vec![name],
-            Binder::Aggregate(_, _, fields) => {
-                fields.into_values().map(|(ident, _)| ident.name).collect()
-            }
+            Binder::Single(name, ..) | Binder::Aggregate(name, _, _) => vec![name],
+            // Binder::Aggregate(_, _, fields) => {
+            //     fields.into_values().map(|(ident, _)| ident.name).collect()
+            // }
             Binder::Unrefined => vec![],
         }
     }

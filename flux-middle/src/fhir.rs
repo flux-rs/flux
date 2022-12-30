@@ -243,6 +243,7 @@ pub struct Expr {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
@@ -318,6 +319,7 @@ pub struct AdtDef {
     pub invariants: Vec<Expr>,
     pub opaque: bool,
     sorts: Vec<Sort>,
+    packed: Vec<Sort>,
 }
 
 #[derive(Debug)]
@@ -345,7 +347,8 @@ pub struct Defn {
 impl AdtDef {
     pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
         let sorts = refined_by.sorts().cloned().collect_vec();
-        AdtDef { def_id, refined_by, invariants, opaque, sorts }
+        let packed = vec![Sort::Adt(def_id)];
+        AdtDef { def_id, refined_by, invariants, opaque, sorts, packed }
     }
 }
 
@@ -502,9 +505,28 @@ impl Map {
         self.adts.insert(def_id, sort_info);
     }
 
-    pub fn sorts_of(&self, def_id: DefId) -> Option<&[Sort]> {
+    pub fn sorts_of(&self, def_id: DefId, packed: bool) -> Option<&[Sort]> {
         let info = self.adts.get(&def_id.as_local()?)?;
-        Some(&info.sorts)
+        if packed && info.sorts.len() > 1 {
+            Some(&info.packed)
+        } else {
+            Some(&info.sorts)
+        }
+    }
+
+    /// 'packed' is true when the caller expects a _single_ sort as, e.g.,
+    /// there is a single index.
+    pub fn sorts(&self, bty: &BaseTy, packed: bool) -> &[Sort] {
+        match bty {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
+            BaseTy::Bool => &[Sort::Bool],
+            BaseTy::Adt(def_id, _) => self.sorts_of(*def_id, packed).unwrap_or_default(),
+        }
+    }
+
+    pub fn sort_of(&self, def_id: DefId) -> Option<Sort> {
+        let info = self.adts.get(&def_id.as_local()?)?;
+        Some(Sort::Adt(info.def_id))
     }
 
     pub fn refined_by(&self, def_id: DefId) -> Option<&RefinedBy> {
@@ -512,11 +534,13 @@ impl Map {
         Some(&adt_def.refined_by)
     }
 
-    pub fn field_sort(&self, def_id: DefId, field: Ident) -> Option<&Sort> {
-        let adt_def = &self.refined_by(def_id)?.params;
-        for (sym, sort) in adt_def {
-            if sym.name == field.name {
-                return Some(sort);
+    pub fn lookup_field(&self, def_id: &DefId, fld: &Symbol) -> Option<&RefinedByParam> {
+        let fields = &self.refined_by(*def_id)?.params;
+        // println!("TRACE: {def_id:?} fields = {fields:?}");
+        // for (sym, sort) in fields {
+        for param in fields {
+            if param.0.source_info.1 == *fld {
+                return Some(param);
             }
         }
         None

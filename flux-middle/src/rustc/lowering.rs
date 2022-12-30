@@ -650,7 +650,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val }))
         }
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
-        _ => Err(UnsupportedType { reason: format!("TRACE unsupported type `{ty:?}`") }),
+        _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }
 }
 

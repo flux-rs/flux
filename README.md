@@ -166,4 +166,6 @@ to see what is happening.
 ## TODO: dot-in-def
 
 - [] test
+- `build_fhir_map` is where the action is
 - [] `resolve_sort :: Surface::Sort -> FHir::Sort` needs some table of AdtDef
+- [] `desugar_dot`

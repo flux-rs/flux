@@ -28,6 +28,7 @@ impl<'a> Env<'a> {
         sorts: &'a [fhir::Sort],
         f: impl FnOnce(&Self) -> R,
     ) -> R {
+        // println!("TRACE: Env::with_binders {binders:?} {sorts:?}");
         debug_assert_eq!(binders.len(), sorts.len());
         for (binder, sort) in iter::zip(binders, sorts) {
             self.sorts.insert(*binder, sort);
@@ -101,7 +102,7 @@ impl<'a> Wf<'a> {
 
     pub fn check_fn_sig(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::from(&fn_sig.params[..]);
-        println!("TRACE: env = {env:?} fn_sig = {fn_sig:?}");
+        // println!("TRACE: env = {env:?} fn_sig = {fn_sig:?}");
 
         let args = fn_sig
             .args
@@ -161,8 +162,8 @@ impl<'a> Wf<'a> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices =
-            self.check_indices(&mut env, &variant.ret.indices, self.sorts(&variant.ret.bty));
+        let bty = &variant.ret.bty;
+        let indices = self.check_indices(&mut env, bty, &variant.ret.indices);
         fields?;
         indices?;
         Ok(())
@@ -210,17 +211,21 @@ impl<'a> Wf<'a> {
         match ty {
             fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
             fhir::Ty::Indexed(bty, refine) => {
-                self.check_indices(env, refine, self.sorts(bty))?;
+                self.check_indices(env, bty, refine)?;
                 self.check_base_ty(env, bty)
             }
             fhir::Ty::Exists(bty, binders, pred) => {
-                let sorts = self.sorts(bty);
-                if binders.len() != sorts.len() {
+                let packed = binders.len() == 1;
+                let sorts = self.map.sorts(bty, packed);
+                let expected = sorts.len();
+                let found = binders.len();
+                if expected != found {
+                    // panic!("TRACE: mismatch 1 at {:?}", pred.span);
                     return self.emit_err(errors::ArgCountMismatch::new(
                         None,
                         String::from("type"),
-                        sorts.len(),
-                        binders.len(),
+                        expected,
+                        found,
                     ));
                 }
                 self.check_base_ty(env, bty)?;
@@ -258,12 +263,50 @@ impl<'a> Wf<'a> {
         }
     }
 
+    // fn check_indices(
+    //     &self,
+    //     env: &mut Env<'a>,
+    //     bty: &fhir::BaseTy,
+    //     indices: &fhir::Indices,
+    // ) -> Result<(), ErrorGuaranteed> {
+    //     // let (adt, expected) = self.sorts(bty);
+    //     let packed = indices.indices.len() == 1;
+    //     let expected = self.sorts(bty, packed);
+
+    //     if let Some(def_id) = adt && indices.indices.len() == 1 && expected.len() > 1 {
+    //         if let fhir::RefineArg::Expr { expr, .. } = &indices.indices[0] {
+    //             // check that the single index is of the bty-adt
+    //             let found = self.synth_expr(env, expr)?;
+    //             let expected = fhir::Sort::Adt(def_id);
+    //             if *found != expected {
+    //                 return self.emit_err(errors::SortMismatch::new(indices.span, &expected, found));
+    //             }
+    //             return Ok(())
+    //         }
+    //     }
+    //     // OLD CODE self.check_indices(env, indices, expected)
+    //     if expected.len() != indices.indices.len() {
+    //         panic!("AAARGH bty = {bty:?}, indices = {indices:?}, expected = {expected:?}");
+    //         return self.emit_err(errors::ArgCountMismatch::new(
+    //             Some(indices.span),
+    //             String::from("type"),
+    //             expected.len(),
+    //             indices.indices.len(),
+    //         ));
+    //     }
+    //     izip!(indices, expected)
+    //         .map(|(idx, expected)| self.check_arg(env, idx, expected))
+    //         .try_collect_exhaust()
+    // }
+
     fn check_indices(
         &self,
         env: &mut Env<'a>,
+        bty: &fhir::BaseTy,
         indices: &fhir::Indices,
-        expected: &'a [fhir::Sort],
     ) -> Result<(), ErrorGuaranteed> {
+        let packed = indices.indices.len() == 1;
+        let expected = self.map.sorts(bty, packed);
         if expected.len() != indices.indices.len() {
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(indices.span),
@@ -287,11 +330,11 @@ impl<'a> Wf<'a> {
             fhir::RefineArg::Expr { expr, .. } => {
                 let found = self.synth_expr(env, expr)?;
                 if found != expected {
-                    panic!(
-                        "TRACE: check_arg env = {env:?}, expr = {expr:?}, found = {found:?} at {:?}",
-                        expr.span
-                    )
-                    // return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
+                    // panic!(
+                    //     "check_arg {env:?}, expr = {expr:?}, found = {found:?} at {:?}",
+                    //     expr.span
+                    // );
+                    return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
                 }
                 if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {
                     self.check_param_uses(env, expr, false)?;
@@ -333,6 +376,7 @@ impl<'a> Wf<'a> {
         if found == expected {
             Ok(())
         } else {
+            // panic!("TRACE: panic 2");
             self.emit_err(errors::SortMismatch::new(e.span, expected, found))
         }
     }
@@ -342,6 +386,7 @@ impl<'a> Wf<'a> {
         if found == &fhir::Sort::Loc {
             Ok(())
         } else {
+            // panic!("TRACE: panic 3 at {:?}", loc.source_info.0);
             self.emit_err(errors::SortMismatch::new(loc.source_info.0, &fhir::Sort::Loc, found))
         }
     }
@@ -349,15 +394,19 @@ impl<'a> Wf<'a> {
     fn synth_dot(
         &self,
         env: &Env<'a>,
-        e: &'a fhir::Expr,
-        field: &fhir::Ident,
+        expr: &'a fhir::Expr,
+        fld: &fhir::Ident,
     ) -> Result<&fhir::Sort, ErrorGuaranteed> {
-        if let fhir::Sort::Adt(def_id) = self.synth_expr(env, e)? {
-            if let Some(sort) = self.map.field_sort(*def_id, *field) {
+        let e_sort = self.synth_expr(env, expr)?;
+        if let fhir::Sort::Adt(def_id) = e_sort {
+            if let Some((_, sort)) = self.map.lookup_field(def_id, &fld.source_info.1) {
                 return Ok(sort);
             }
         }
-        panic!("TRACE: error: synth_dot: InvalidDotAccess expr: {:?}, field: {:?}", e, field)
+        panic!(
+            "TODO: error: synth_dot: InvalidDotAccess expr: {:?}, ({e_sort:?}) field: {:?} at {:?}",
+            expr, fld, expr.span
+        )
     }
 
     fn synth_expr(&self, env: &Env<'a>, e: &'a fhir::Expr) -> Result<&fhir::Sort, ErrorGuaranteed> {
@@ -431,15 +480,18 @@ impl<'a> Wf<'a> {
         }
     }
 
-    fn sorts(&self, bty: &fhir::BaseTy) -> &'a [fhir::Sort] {
-        match bty {
-            fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | flux_middle::fhir::BaseTy::Slice(_) => {
-                &[fhir::Sort::Int]
-            }
-            fhir::BaseTy::Bool => &[fhir::Sort::Bool],
-            fhir::BaseTy::Adt(def_id, _) => self.map.sorts_of(*def_id).unwrap_or_default(),
-        }
-    }
+    // /// 'packed' is true when the caller expects a _single_ sort as, e.g.,
+    // /// there is a single index.
+    // fn sorts(&self, bty: &fhir::BaseTy, packed: bool) -> &'a [fhir::Sort] {
+    //     self.map.sorts(bty, packed)
+    //     // match bty {
+    //     //     fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | flux_middle::fhir::BaseTy::Slice(_) => {
+    //     //         &[fhir::Sort::Int]
+    //     //     }
+    //     //     fhir::BaseTy::Bool => &[fhir::Sort::Bool],
+    //     //     fhir::BaseTy::Adt(def_id, _) => self.map.sorts_of(*def_id, packed).unwrap_or_default(),
+    //     // }
+    // }
 
     #[track_caller]
     fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
@@ -455,6 +507,7 @@ impl<'a> Wf<'a> {
     ) -> Result<&fhir::Sort, ErrorGuaranteed> {
         let fsort = self.synth_func(env, func)?;
         if args.len() != fsort.inputs().len() {
+            // panic!("TRACE: panic mismatch 2");
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
                 String::from("function"),
