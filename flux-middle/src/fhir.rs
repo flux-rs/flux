@@ -536,12 +536,7 @@ impl Map {
 
     pub fn lookup_field(&self, def_id: &DefId, fld: &Symbol) -> Option<&RefinedByParam> {
         let fields = &self.refined_by(*def_id)?.params;
-        for param in fields {
-            if param.0.source_info.1 == *fld {
-                return Some(param);
-            }
-        }
-        None
+        fields.iter().find(|&param| param.0.source_info.1 == *fld)
     }
 
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {

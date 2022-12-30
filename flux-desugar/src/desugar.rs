@@ -1094,7 +1094,7 @@ impl Binder {
                     .refined_by(def_id)
                     .unwrap_or(fhir::RefinedBy::DUMMY)
                     .params;
-                if params.len() == 0 {
+                if params.is_empty() {
                     Binder::Unrefined
                 } else if params.len() == 1 {
                     let (_, sort) = params[0].clone();

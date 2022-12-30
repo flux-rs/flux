@@ -76,7 +76,7 @@ pub(crate) fn conv_defn(map: &fhir::Map, defn: &fhir::Defn) -> rty::Defn {
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn from_refined_by(genv: &'a GlobalEnv<'genv, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
-        let name_map = NameMap::with_bvars(&genv.map(), refined_by.params.clone());
+        let name_map = NameMap::with_bvars(genv.map(), refined_by.params.clone());
         Self { genv, name_map }
     }
 
@@ -131,7 +131,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let (sorts, modes) = ConvCtxt::conv_params(genv, &fn_sig.params);
 
-        let sorts = sorts.into_iter().map(|sort| sort.clone()).collect_vec();
         rty::PolySig::new(
             rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
             modes,
@@ -450,10 +449,7 @@ fn flatten_params(
         .collect()
 }
 impl NameMap {
-    fn with_bvars<'a>(
-        map: &fhir::Map,
-        iter: impl IntoIterator<Item = fhir::RefinedByParam>,
-    ) -> Self {
+    fn with_bvars(map: &fhir::Map, iter: impl IntoIterator<Item = fhir::RefinedByParam>) -> Self {
         Self {
             map: flatten_params(map, iter)
                 .into_iter()
