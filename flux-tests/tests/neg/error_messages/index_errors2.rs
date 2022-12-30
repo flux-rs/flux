@@ -9,6 +9,10 @@ pub struct Pair {
     pub y: i32,
 }
 
+// Factored into separate file (from index_errors.rs) as
+// rustc seems to mysteriously drop this, perhaps due to
+// many other previous/other errors.
+
 #[flux::sig(fn(Pair[@p]) -> i32[p])] //~ ERROR mismatched sorts
 pub fn mytuple2(p: Pair) -> i32 {
     p.x
