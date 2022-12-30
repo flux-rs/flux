@@ -14,7 +14,7 @@ use rustc_middle::{
         ParamEnv, TyCtxt, TypeVisitable,
     },
 };
-use rustc_trait_selection::traits::query::normalize::AtExt;
+use rustc_trait_selection::traits::NormalizeExt;
 
 use super::{
     mir::{
@@ -23,7 +23,7 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, Binder, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
+        AdtDef, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
         GenericParamDef, GenericParamDefKind, Generics, PolyFnSig, Ty, VariantDef,
     },
 };
@@ -561,23 +561,13 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
     let fn_sig = tcx.fn_sig(def_id);
     let span = tcx.def_span(def_id);
     let param_env = tcx.param_env(def_id);
-    match tcx
+    let result = tcx
         .infer_ctxt()
         .build()
         .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
-        .normalize(fn_sig)
-    {
-        Ok(fn_sig) => {
-            lower_fn_sig(tcx, fn_sig.value)
-                .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
-        }
-        Err(_) => {
-            Err(errors::UnsupportedFnSig {
-                span,
-                reason: "Sorry, projections are not yet supported!".to_string(),
-            })
-        }
-    }
+        .normalize(fn_sig);
+    lower_fn_sig(tcx, result.value)
+        .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
 fn lower_fn_sig<'tcx>(
@@ -603,10 +593,9 @@ fn lower_binder<S, T>(
     let mut vars = vec![];
     for var in binder.bound_vars() {
         match var {
-            rustc_ty::BoundVariableKind::Region(rustc_ty::BoundRegionKind::BrNamed(
-                def_id,
-                symbol,
-            )) => vars.push(BoundVariableKind::Region(BoundRegionKind::BrNamed(def_id, symbol))),
+            rustc_ty::BoundVariableKind::Region(kind) => {
+                vars.push(BoundVariableKind::Region(lower_bound_region_kind(kind)?))
+            }
             _ => {
                 return Err(UnsupportedType {
                     reason: format!("unsupported bound variable {var:?}"),
@@ -683,7 +672,9 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
     use rustc_middle::ty::RegionKind;
     match region.kind() {
         RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
-        RegionKind::ReLateBound(debruijn, bregion) => Ok(Region::ReLateBound(debruijn, bregion)),
+        RegionKind::ReLateBound(debruijn, bregion) => {
+            Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
+        }
         RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
         RegionKind::ReFree(_)
         | RegionKind::ReStatic
@@ -691,6 +682,23 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
         | RegionKind::ReErased => {
             Err(UnsupportedType { reason: format!("unsupported region `{region:?}`") })
         }
+    }
+}
+
+fn lower_bound_region(
+    bregion: rustc_middle::ty::BoundRegion,
+) -> Result<BoundRegion, UnsupportedType> {
+    Ok(BoundRegion { kind: lower_bound_region_kind(bregion.kind)?, var: bregion.var })
+}
+
+fn lower_bound_region_kind(
+    kind: rustc_middle::ty::BoundRegionKind,
+) -> Result<BoundRegionKind, UnsupportedType> {
+    match kind {
+        rustc_ty::BoundRegionKind::BrNamed(def_id, sym) => {
+            Ok(BoundRegionKind::BrNamed(def_id, sym))
+        }
+        _ => Err(UnsupportedType { reason: format!("unsupported boudn region kind `{kind:?}`") }),
     }
 }
 

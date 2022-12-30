@@ -218,10 +218,9 @@ enum Binder {
     /// A binder that needs to be desugared to a single index. They come from bindings
     /// to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`, or
     /// by explicitly listing the indices for a type with multiple indices, e.g,
-    /// `RMat[@row, @cols]`. The boolean indicates whether the binder was declared _explicitly_
-    /// in the parameter list (i.e, fn<a: int>(...)). It will be false if it case declared with
-    /// @ syntax.
-    Single(fhir::Name, fhir::Sort, /*explicit*/ bool),
+    /// `RMat[@row, @cols]`. The boolean indicates whether the binder was declared _implicitly_
+    /// with the `@` syntax.
+    Single(fhir::Name, fhir::Sort, /*implicit*/ bool),
     /// A binder that will desugar into multiple indices and _must_ be projected using
     /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
     /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
@@ -721,7 +720,7 @@ impl Binders {
             binders.insert_binder(
                 sess,
                 param.name,
-                Binder::Single(binders.fresh(), resolve_sort(sess, &param.sort)?, true),
+                Binder::Single(binders.fresh(), resolve_sort(sess, &param.sort)?, false),
             )?;
         }
         Ok(binders)
@@ -839,7 +838,7 @@ impl Binders {
             self.insert_binder(
                 sess,
                 param.name,
-                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?, true),
+                Binder::Single(self.fresh(), resolve_sort(sess, &param.sort)?, false),
             )?;
         }
         for arg in &fn_sig.args {
@@ -918,7 +917,7 @@ impl Binders {
                             if !allow_binder {
                                 return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
                             }
-                            self.insert_binder(sess, *ident, Binder::Single(name, sort, false))?;
+                            self.insert_binder(sess, *ident, Binder::Single(name, sort, true))?;
                         }
                     }
                 }
@@ -1003,31 +1002,31 @@ impl Binders {
         let mut params = vec![];
         for (ident, binder) in self.map {
             match binder {
-                Binder::Single(name, sort, explicit) => {
-                    let mode = if explicit && sort.is_pred() {
-                        fhir::InferMode::KVar
-                    } else {
-                        fhir::InferMode::EVar
-                    };
-                    params.push(param_from_ident(ident, name, sort.clone(), mode));
+                Binder::Single(name, sort, implicit) => {
+                    params.push(param_from_ident(
+                        ident,
+                        name,
+                        sort.clone(),
+                        infer_mode(implicit, &sort),
+                    ));
                 }
-                Binder::Aggregate(name, def_id, _fields) => {
-                    // if fields.len() == 1 {
-                    //     let (_, (_, sort)) = fields.into_iter().next().unwrap();
-                    //     let mode = fhir::InferMode::default_for(&sort);
-                    //     params.push(param_from_ident(ident, name, sort, mode));
-                    // } else {
+                Binder::Aggregate(name, def_id, _) => {
                     let sort = fhir::Sort::Adt(def_id);
                     let mode = fhir::InferMode::default_for(&sort);
-                    // for (_, (name, sort)) in fields {
                     params.push(param_from_ident(ident, name, sort, mode));
-                    // }
-                    // }
                 }
                 Binder::Unrefined => {}
             }
         }
         params
+    }
+}
+
+fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
+    if !implicit && sort.is_pred() {
+        fhir::InferMode::KVar
+    } else {
+        fhir::InferMode::EVar
     }
 }
 
@@ -1086,7 +1085,7 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 impl Binder {
     fn from_res(name_gen: &IndexGen<fhir::Name>, map: &fhir::Map, res: surface::Res) -> Binder {
         match res {
-            Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool, false),
+            Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool, true),
             Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, false),
             Res::Adt(def_id) => {
                 let name = name_gen.fresh();
@@ -1124,7 +1123,7 @@ impl Binder {
     ) -> Binder {
         match bty {
             surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
-            surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, false),
+            surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, true),
         }
     }
 

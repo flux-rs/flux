@@ -7,7 +7,7 @@
 mod rvec;
 use rvec::RVec;
 
-#[flux::assume]
+#[flux::trusted]
 #[flux::sig(fn(lo: usize, hi: usize{lo < hi}) -> usize{x: lo <= x && x < hi})]
 fn gen_range(_low: usize, _high: usize) -> usize {
     unimplemented!();

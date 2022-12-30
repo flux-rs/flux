@@ -117,17 +117,16 @@ pub enum Sign {
 }
 
 newtype_index! {
-    pub struct KVid {
-        DEBUG_FORMAT = "$k{}",
-    }
+    #[debug_format = "$k{}"]
+    pub struct KVid {}
 }
 
 newtype_index! {
+    #[debug_format = "a{}"]
     pub struct Name {
-        DEBUG_FORMAT = "a{}",
-        const NAME0 = 0,
-        const NAME1 = 1,
-        const NAME2 = 2,
+        const NAME0 = 0;
+        const NAME1 = 1;
+        const NAME2 = 2;
     }
 }
 

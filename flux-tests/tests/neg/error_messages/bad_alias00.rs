@@ -3,7 +3,7 @@
 #![feature(custom_inner_attributes)]
 #![flux::def(foo(x:int, y:int) -> int)]
 
-#[flux::assume]
+#[flux::trusted]
 #[flux::sig(fn(x: i32, y:i32) -> i32[foo(x, y)])]
 fn foo(x: i32, y: i32) -> i32 {
     x + y

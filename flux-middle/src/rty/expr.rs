@@ -7,7 +7,7 @@ use rustc_index::newtype_index;
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy};
+use super::{evars::EVar, BaseTy, KVar};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -30,12 +30,20 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Symbol, List<Expr>),
+    App(Func, List<Expr>),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
     PathProj(Expr, Field),
     IfThenElse(Expr, Expr, Expr),
+    KVar(KVar),
+    Hole,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum Func {
+    Var(Var),
+    Uif(Symbol),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -68,15 +76,14 @@ pub struct BoundVar {
 }
 
 newtype_index! {
-    pub struct Name {
-        DEBUG_FORMAT = "a{}",
-    }
+    #[debug_format = "a{}"]
+    pub struct Name {}
 }
 
 newtype_index! {
+    #[debug_format = "DebruijnIndex({})"]
     pub struct DebruijnIndex {
-        DEBUG_FORMAT = "DebruijnIndex({})",
-        const INNERMOST = 0,
+        const INNERMOST = 0;
     }
 }
 
@@ -169,12 +176,20 @@ impl Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
+    pub fn hole() -> Expr {
+        ExprKind::Hole.intern()
+    }
+
+    pub fn kvar(kvar: KVar) -> Expr {
+        ExprKind::KVar(kvar).intern()
+    }
+
     pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(func: Symbol, args: impl Into<List<Expr>>) -> Expr {
-        ExprKind::App(func, args.into()).intern()
+    pub fn app(func: impl Into<Func>, args: impl Into<List<Expr>>) -> Expr {
+        ExprKind::App(func.into(), args.into()).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -229,13 +244,26 @@ impl Expr {
         &self.kind
     }
 
+    /// An expression is an atom if it "self-delimiting", i.e., it has a clear boundary
+    /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
+    pub fn is_atom(&self) -> bool {
+        !self.is_binary_op()
+    }
+
+    /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
+    /// mostly for filtering predicates when pretty printing but also to avoid adding unnecesary
+    /// predicates to the constraint.
+    pub fn is_trivially_true(&self) -> bool {
+        self.is_true() || self.is_trivial_equality()
+    }
+
     /// Whether the expression is literally the constant true.
     pub fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
 
     pub fn is_binary_op(&self) -> bool {
-        !matches!(self.kind, ExprKind::BinaryOp(..))
+        matches!(self.kind, ExprKind::BinaryOp(..))
     }
 
     pub fn is_trivial_equality(&self) -> bool {
@@ -302,7 +330,7 @@ impl Expr {
         }
     }
 
-    pub fn to_name(&self) -> Option<Name> {
+    pub fn to_fvar(&self) -> Option<Name> {
         match self.kind() {
             ExprKind::FreeVar(name) => Some(*name),
             _ => None,
@@ -349,11 +377,8 @@ impl Var {
 }
 
 impl Path {
-    pub fn new<T>(loc: Loc, projection: T) -> Path
-    where
-        List<Field>: From<T>,
-    {
-        Path { loc, projection: Interned::from(projection) }
+    pub fn new(loc: Loc, projection: impl Into<List<Field>>) -> Path {
+        Path { loc, projection: projection.into() }
     }
 
     pub fn from_place(place: &Place) -> Option<Path> {
@@ -482,6 +507,12 @@ macro_rules! impl_ops {
     )*};
 }
 impl_ops!(Add: add, Sub: sub, Mul: mul, Div: div);
+
+impl From<Var> for Func {
+    fn from(var: Var) -> Self {
+        Func::Var(var)
+    }
+}
 
 impl From<i32> for Expr {
     fn from(value: i32) -> Self {
@@ -612,16 +643,16 @@ mod pretty {
                 }
                 ExprKind::UnaryOp(op, e) => {
                     if e.is_binary_op() {
-                        w!("{:?}{:?}", op, e)
-                    } else {
                         w!("{:?}({:?})", op, e)
+                    } else {
+                        w!("{:?}{:?}", op, e)
                     }
                 }
                 ExprKind::TupleProj(e, field) => {
                     if e.is_binary_op() {
-                        w!("{:?}.{:?}", e, ^field)
-                    } else {
                         w!("({:?}).{:?}", e, ^field)
+                    } else {
+                        w!("{:?}.{:?}", e, ^field)
                     }
                 }
                 ExprKind::Tuple(exprs) => {
@@ -629,17 +660,33 @@ mod pretty {
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_binary_op() {
-                        w!("{:?}.{:?}", e, field)
-                    } else {
                         w!("({:?}).{:?}", e, field)
+                    } else {
+                        w!("{:?}.{:?}", e, field)
                     }
                 }
-                ExprKind::App(f, exprs) => {
-                    w!("{}({:?})", ^f, join!(", ", exprs))
+                ExprKind::App(func, exprs) => {
+                    w!("{:?}({:?})", func, join!(", ", exprs))
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
+                ExprKind::Hole => {
+                    w!("*")
+                }
+                ExprKind::KVar(kvar) => {
+                    w!("{:?}", kvar)
+                }
+            }
+        }
+    }
+
+    impl Pretty for Func {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Func::Var(f) => w!("{:?}", f),
+                Func::Uif(f) => w!("{}", ^f),
             }
         }
     }

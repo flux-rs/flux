@@ -244,7 +244,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     self.conv_ty(ty, nbinders),
                 )
             }
-            fhir::Constraint::Pred(pred) => rty::Constraint::Pred(self.name_map.conv_pred(pred, 1)),
+            fhir::Constraint::Pred(pred) => rty::Constraint::Pred(self.name_map.conv_expr(pred, 1)),
         }
     }
 
@@ -275,7 +275,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 if sorts.is_empty() {
                     rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
-                    let pred = rty::Binders::new(rty::Pred::tt(), sorts);
+                    let pred = rty::Binders::new(rty::Expr::tt(), sorts);
                     rty::Ty::exists(bty, pred)
                 }
             }
@@ -292,7 +292,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let bty = self.conv_base_ty(bty, nbinders);
                 self.name_map
                     .with_binders(binders, refined_by, nbinders, |name_map, nbinders| {
-                        let pred = name_map.conv_pred(pred, nbinders);
+                        let pred = name_map.conv_expr(pred, nbinders);
                         let pred = rty::Binders::new(pred, bty.sorts());
                         rty::Ty::exists(bty, pred)
                     })
@@ -317,7 +317,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Ty::Never => rty::Ty::never(),
             fhir::Ty::Constr(pred, ty) => {
-                let pred = self.name_map.conv_pred(pred, nbinders);
+                let pred = self.name_map.conv_expr(pred, nbinders);
                 rty::Ty::constr(pred, self.conv_ty(ty, nbinders))
             }
 
@@ -365,12 +365,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = sort.as_func();
-                let abs =
-                    self.name_map
-                        .with_binders(params, None, nbinders, |name_map, nbinders| {
-                            let pred = name_map.conv_pred(body, nbinders);
-                            rty::Binders::new(pred, fsort.inputs())
-                        });
+                let abs = self
+                    .name_map
+                    .with_binders(params, nbinders, |name_map, nbinders| {
+                        let pred = name_map.conv_expr(body, nbinders);
+                        rty::Binders::new(pred, fsort.inputs())
+                    });
                 rty::RefineArg::Abs(abs)
             }
         }
@@ -539,29 +539,6 @@ impl NameMap {
             .collect()
     }
 
-    fn conv_pred(&self, expr: &fhir::Expr, nbinders: u32) -> rty::Pred {
-        fn go(this: &NameMap, expr: &fhir::Expr, nbinders: u32, preds: &mut Vec<rty::Pred>) {
-            match &expr.kind {
-                fhir::ExprKind::BinaryOp(fhir::BinOp::And, box [e1, e2]) => {
-                    go(this, e1, nbinders, preds);
-                    go(this, e2, nbinders, preds);
-                }
-                fhir::ExprKind::App(fhir::Func::Var(func), args) => {
-                    let func = this.get(func.name, nbinders);
-                    let args = this.conv_exprs(args, nbinders);
-                    preds.push(rty::Pred::App(func, args));
-                }
-                _ => {
-                    preds.push(rty::Pred::Expr(this.conv_expr(expr, nbinders)));
-                }
-            }
-        }
-        let mut preds = vec![];
-        go(self, expr, nbinders, &mut preds);
-
-        rty::Pred::And(List::from_vec(preds))
-    }
-
     fn conv_expr(&self, expr: &fhir::Expr, nbinders: u32) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
@@ -577,12 +554,7 @@ impl NameMap {
             }
             fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(e, nbinders)),
             fhir::ExprKind::App(func, args) => {
-                match func {
-                    fhir::Func::Uif(sym, _) => {
-                        rty::Expr::app(*sym, self.conv_exprs(args, nbinders))
-                    }
-                    fhir::Func::Var(..) => unreachable!("refinement variable in wrong position"),
-                }
+                rty::Expr::app(self.conv_func(func, nbinders), self.conv_exprs(args, nbinders))
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(
@@ -591,6 +563,13 @@ impl NameMap {
                     self.conv_expr(e2, nbinders),
                 )
             }
+        }
+    }
+
+    fn conv_func(&self, func: &fhir::Func, nbinders: u32) -> rty::Func {
+        match func {
+            fhir::Func::Var(ident) => rty::Func::Var(self.get(ident.name, nbinders)),
+            fhir::Func::Uif(sym, _) => rty::Func::Uif(*sym),
         }
     }
 

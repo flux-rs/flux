@@ -9,19 +9,19 @@ pub struct Range {
 }
 
 impl Range {
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(a: i32, b: i32{b >= a}) -> Range[a, b])]
     pub fn new(a: i32, b: i32) -> Range {
         Range { a, b }
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(&Range[@r]) -> i32[r.a])]
     pub fn fst(&self) -> i32 {
         self.a
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(&Range[@r]) -> i32[r.b])]
     pub fn snd(&self) -> i32 {
         self.b

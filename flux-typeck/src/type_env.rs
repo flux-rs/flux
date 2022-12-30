@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr,
-        GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        ExprKind, GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -18,7 +18,7 @@ use rustc_hash::FxHashSet;
 use rustc_middle::{mir::SourceInfo, ty::TyCtxt};
 
 use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
-use super::rty::{Loc, Name, Pred, Sort};
+use super::rty::{Loc, Name, Sort};
 use crate::{
     constraint_gen::ConstrGen,
     fixpoint::{KVarEncoding, KVarStore},
@@ -44,7 +44,7 @@ pub struct TypeEnvInfer {
 
 pub struct BasicBlockEnv {
     params: Vec<(Name, Sort)>,
-    constrs: Vec<Pred>,
+    constrs: Vec<Expr>,
     scope: Scope,
     bindings: PathsTree,
 }
@@ -415,7 +415,7 @@ impl TypeEnvInfer {
             TyKind::Indexed(bty, idxs) => {
                 let bty = TypeEnvInfer::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
-                    let pred = Binders::new(Pred::Hole, bty.sorts());
+                    let pred = Binders::new(Expr::hole(), bty.sorts());
                     Ty::exists(bty, pred)
                 } else {
                     Ty::indexed(bty, idxs.clone())
@@ -587,7 +587,7 @@ impl TypeEnvInfer {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2, src_info);
                 if self.scope.has_free_vars(idxs2) || idxs1.args() != idxs2.args() {
-                    let pred = Binders::new(Pred::Hole, bty.sorts());
+                    let pred = Binders::new(Expr::hole(), bty.sorts());
                     Ty::exists(bty, pred)
                 } else {
                     Ty::indexed(bty, idxs1.clone())
@@ -597,7 +597,7 @@ impl TypeEnvInfer {
             | (TyKind::Exists(bty1, _), TyKind::Exists(bty2, ..))
             | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
                 let bty = self.join_bty(bty1, bty2, src_info);
-                let pred = Binders::new(Pred::Hole, bty.sorts());
+                let pred = Binders::new(Expr::hole(), bty.sorts());
                 Ty::exists(bty, pred)
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
@@ -665,7 +665,7 @@ impl TypeEnvInfer {
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
             .into_iter()
-            .filter(|pred| !matches!(pred, Pred::Hole))
+            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole))
             .collect_vec();
         let exprs = names
             .iter()
@@ -699,7 +699,7 @@ fn generalize(
     ty: &Ty,
     names: &mut Vec<Name>,
     sorts: &mut Vec<Sort>,
-    preds: &mut Vec<Pred>,
+    preds: &mut Vec<Expr>,
 ) -> Ty {
     match ty.kind() {
         TyKind::Indexed(bty, idxs) => {
@@ -734,7 +734,7 @@ fn generalize_bty(
     bty: &BaseTy,
     names: &mut Vec<Name>,
     sorts: &mut Vec<Sort>,
-    preds: &mut Vec<Pred>,
+    preds: &mut Vec<Expr>,
 ) -> BaseTy {
     match bty {
         BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {

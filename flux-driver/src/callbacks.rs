@@ -115,11 +115,11 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, ignores }
     }
 
-    fn is_assumed(&self, def_id: LocalDefId) -> bool {
-        self.genv.map().assumed(def_id.to_def_id())
+    fn is_trusted(&self, def_id: LocalDefId) -> bool {
+        self.genv.map().is_trusted(def_id.to_def_id())
     }
 
-    /// `is_ignored` transitively follows the `def_id` 's parent-chain to check if
+    /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
     /// any enclosing mod has been marked as `ignore`
     fn is_ignored(&self, def_id: LocalDefId) -> bool {
         let parent_def_id = self.genv.tcx.parent_module_from_def_id(def_id);
@@ -131,13 +131,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
     }
 
-    fn is_target(&self, def_id: LocalDefId) -> bool {
+    fn matches_check_def(&self, def_id: LocalDefId) -> bool {
         let def_path = self.genv.tcx.def_path_str(def_id.to_def_id());
         def_path.contains(&CONFIG.check_def)
     }
 
     fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_ignored(def_id) || !self.is_target(def_id) {
+        if self.is_ignored(def_id) || !self.matches_check_def(def_id) {
             return Ok(());
         }
 
@@ -149,7 +149,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_assumed(def_id) {
+        if self.is_trusted(def_id) {
             return Ok(());
         }
 
@@ -322,8 +322,8 @@ fn build_fhir_map(
     err = std::mem::take(&mut specs.fns)
         .into_iter()
         .try_for_each_exhaust(|(def_id, spec)| {
-            if spec.assume {
-                map.add_assumed(def_id);
+            if spec.trusted {
+                map.add_trusted(def_id);
             }
             if let Some(fn_sig) = spec.fn_sig {
                 let fn_sig = surface::expand::expand_sig(&aliases, fn_sig)?;
@@ -343,33 +343,33 @@ fn build_fhir_map(
 }
 
 fn check_wf(sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
-    let wf = Wf::new(sess, map);
-
     let mut err: Option<ErrorGuaranteed> = None;
 
     for defn in map.defns() {
-        err = wf.check_defn(defn).err().or(err);
+        err = Wf::check_defn(sess, map, defn).err().or(err);
     }
 
     for adt_def in map.adts() {
-        err = wf.check_adt_def(adt_def).err().or(err);
+        err = Wf::check_adt_def(sess, map, adt_def).err().or(err);
     }
 
     for qualifier in map.qualifiers() {
-        err = wf.check_qualifier(qualifier).err().or(err);
+        err = Wf::check_qualifier(sess, map, qualifier).err().or(err);
     }
 
     for struct_def in map.structs() {
         let refined_by = map.refined_by(struct_def.def_id).unwrap();
-        err = wf.check_struct_def(refined_by, struct_def).err().or(err);
+        err = Wf::check_struct_def(sess, map, refined_by, struct_def)
+            .err()
+            .or(err);
     }
 
     for enum_def in map.enums() {
-        err = wf.check_enum_def(enum_def).err().or(err);
+        err = Wf::check_enum_def(sess, map, enum_def).err().or(err);
     }
 
     for (_, fn_sig) in map.fn_sigs() {
-        err = wf.check_fn_sig(fn_sig).err().or(err);
+        err = Wf::check_fn_sig(sess, map, fn_sig).err().or(err);
     }
 
     if let Some(err) = err {

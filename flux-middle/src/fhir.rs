@@ -64,7 +64,7 @@ pub struct Map {
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
-    assumes: FxHashSet<LocalDefId>,
+    trusted: FxHashSet<LocalDefId>,
 }
 
 #[derive(Debug)]
@@ -284,9 +284,8 @@ pub struct Ident {
 }
 
 newtype_index! {
-    pub struct Name {
-        DEBUG_FORMAT = "x{}",
-    }
+    #[debug_format = "s{}"]
+    pub struct Name {}
 }
 
 impl BaseTy {
@@ -422,17 +421,17 @@ impl Map {
         self.fns.insert(def_id, fn_sig);
     }
 
-    pub fn add_assumed(&mut self, def_id: LocalDefId) {
-        self.assumes.insert(def_id);
+    pub fn add_trusted(&mut self, def_id: LocalDefId) {
+        self.trusted.insert(def_id);
     }
 
     pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
         self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
     }
 
-    pub fn assumed(&self, def_id: DefId) -> bool {
+    pub fn is_trusted(&self, def_id: DefId) -> bool {
         if let Some(def_id) = def_id.as_local() {
-            self.assumes.contains(&def_id)
+            self.trusted.contains(&def_id)
         } else {
             false
         }

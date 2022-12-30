@@ -14,6 +14,7 @@ use rustc_span::Span;
 pub struct Wf<'a> {
     sess: &'a FluxSession,
     map: &'a fhir::Map,
+    modes: FxHashMap<fhir::Name, fhir::InferMode>,
 }
 
 #[derive(Debug)]
@@ -71,55 +72,72 @@ impl<'a, T: Borrow<fhir::Name>> std::ops::Index<T> for Env<'a> {
     }
 }
 
-impl<'a> Wf<'a> {
-    pub fn new(sess: &'a FluxSession, map: &'a fhir::Map) -> Wf<'a> {
-        Wf { sess, map }
-    }
-
-    pub fn check_qualifier(&self, qualifier: &fhir::Qualifier) -> Result<(), ErrorGuaranteed> {
+impl Wf<'_> {
+    pub fn check_qualifier(
+        sess: &FluxSession,
+        map: &fhir::Map,
+        qualifier: &fhir::Qualifier,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(sess, map);
         let env = Env::from(&qualifier.args[..]);
 
-        self.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
+        wf.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
-    pub fn check_defn(&self, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
+    pub fn check_defn(
+        sess: &FluxSession,
+        map: &fhir::Map,
+        defn: &fhir::Defn,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(sess, map);
         let env = Env::from(&defn.args[..]);
-        self.check_expr(&env, &defn.expr, &defn.sort)
+        wf.check_expr(&env, &defn.expr, &defn.sort)
     }
 
-    pub fn check_adt_def(&self, adt_def: &fhir::AdtDef) -> Result<(), ErrorGuaranteed> {
+    pub fn check_adt_def(
+        sess: &FluxSession,
+        map: &fhir::Map,
+        adt_def: &fhir::AdtDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(sess, map);
         let env = Env::from(&adt_def.refined_by.params[..]);
         adt_def
             .invariants
             .iter()
-            .try_for_each_exhaust(|invariant| {
-                self.check_expr(&env, invariant, &fhir::Sort::Bool)
-            })?;
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
 
         Ok(())
     }
 
-    pub fn check_fn_sig(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+    pub fn check_fn_sig(
+        sess: &FluxSession,
+        map: &fhir::Map,
+        fn_sig: &fhir::FnSig,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut wf = Wf::new(sess, map);
+        for param in &fn_sig.params {
+            wf.modes.insert(param.name.name, param.mode);
+        }
         let mut env = Env::from(&fn_sig.params[..]);
 
         let args = fn_sig
             .args
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
+            .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty));
 
         let requires = fn_sig
             .requires
             .iter()
-            .try_for_each_exhaust(|constr| self.check_constr(&mut env, constr));
+            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
 
         let ensures = fn_sig
             .ensures
             .iter()
-            .try_for_each_exhaust(|constr| self.check_constr(&mut env, constr));
+            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
 
-        let ret = self.check_type(&mut env, &fn_sig.ret);
+        let ret = wf.check_type(&mut env, &fn_sig.ret);
 
-        let constrs = self.check_constrs(fn_sig);
+        let constrs = wf.check_constrs(fn_sig);
 
         args?;
         ret?;
@@ -131,15 +149,17 @@ impl<'a> Wf<'a> {
     }
 
     pub fn check_struct_def(
-        &self,
+        sess: &FluxSession,
+        map: &fhir::Map,
         refined_by: &fhir::RefinedBy,
         def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(sess, map);
         let mut env = Env::from(&refined_by.params[..]);
         if let fhir::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
                 if let Some(ty) = ty {
-                    self.check_type(&mut env, ty)
+                    wf.check_type(&mut env, ty)
                 } else {
                     Ok(())
                 }
@@ -148,10 +168,22 @@ impl<'a> Wf<'a> {
         Ok(())
     }
 
-    pub fn check_enum_def(&self, def: &fhir::EnumDef) -> Result<(), ErrorGuaranteed> {
+    pub fn check_enum_def(
+        sess: &FluxSession,
+        map: &fhir::Map,
+
+        def: &fhir::EnumDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(sess, map);
         def.variants
             .iter()
-            .try_for_each_exhaust(|variant| self.check_variant(variant))
+            .try_for_each_exhaust(|variant| wf.check_variant(variant))
+    }
+}
+
+impl<'a> Wf<'a> {
+    fn new(sess: &'a FluxSession, map: &'a fhir::Map) -> Wf<'a> {
+        Wf { sess, map, modes: FxHashMap::default() }
     }
 
     fn check_variant(&self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
@@ -558,7 +590,10 @@ impl<'a> Wf<'a> {
             }
             fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses(env, e, false),
             fhir::ExprKind::App(func, args) => {
-                if !is_top_level_conj && let fhir::Func::Var(var) = func {
+                if !is_top_level_conj
+                   && let fhir::Func::Var(var) = func
+                   && let fhir::InferMode::KVar = self.modes[&var.name]
+                {
                     return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));
                 }
                 args.iter()
