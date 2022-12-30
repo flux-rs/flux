@@ -11,7 +11,7 @@ use flux_syntax::{
 };
 use itertools::Itertools;
 use rustc_ast::{
-    tokenstream::TokenStream, AttrItem, AttrKind, Attribute, MacArgs, MetaItemKind, NestedMetaItem,
+    tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -191,7 +191,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let variants = def
             .variants
             .iter()
-            .map(|variant| self.parse_variant_spec(self.tcx.hir().attrs(variant.id)))
+            .map(|variant| self.parse_variant_spec(self.tcx.hir().attrs(variant.hir_id)))
             .try_collect_exhaust()?;
 
         let variants = match variants {
@@ -309,54 +309,60 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
-            ("alias", MacArgs::Delimited(span, _, tokens)) => {
-                let alias = self.parse(tokens.clone(), span.entire(), parse_type_alias)?;
+            ("alias", AttrArgs::Delimited(dargs)) => {
+                let alias =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_type_alias)?;
                 FluxAttrKind::TypeAlias(alias)
             }
-            ("sig", MacArgs::Delimited(span, _, tokens)) => {
-                let fn_sig = self.parse(tokens.clone(), span.entire(), parse_fn_surface_sig)?;
+            ("sig", AttrArgs::Delimited(dargs)) => {
+                let fn_sig =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_fn_surface_sig)?;
                 FluxAttrKind::FnSig(fn_sig)
             }
-            ("constant", MacArgs::Empty) => {
+            ("constant", AttrArgs::Empty) => {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
-            ("qualifier", MacArgs::Delimited(span, _, tokens)) => {
-                let qualifer = self.parse(tokens.clone(), span.entire(), parse_qualifier)?;
+            ("qualifier", AttrArgs::Delimited(dargs)) => {
+                let qualifer =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_qualifier)?;
                 FluxAttrKind::Qualifier(qualifer)
             }
-            ("def", MacArgs::Delimited(span, _, tokens)) => {
-                let def = self.parse(tokens.clone(), span.entire(), parse_def)?;
+            ("def", AttrArgs::Delimited(dargs)) => {
+                let def = self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_def)?;
                 match def {
                     surface::Def::Defn(defn) => FluxAttrKind::Defn(defn),
                     surface::Def::UifDef(uif_def) => FluxAttrKind::UifDef(uif_def),
                 }
             }
-            ("cfg", MacArgs::Delimited(_, _, _)) => {
+            ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
                     .emit(self.sess)?
                     .try_into_crate_cfg()
                     .emit(self.sess)?;
                 FluxAttrKind::CrateConfig(crate_cfg)
             }
-            ("refined_by", MacArgs::Delimited(span, _, tokens)) => {
-                let refined_by = self.parse(tokens.clone(), span.entire(), parse_refined_by)?;
+            ("refined_by", AttrArgs::Delimited(dargs)) => {
+                let refined_by =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_refined_by)?;
                 FluxAttrKind::RefinedBy(refined_by)
             }
-            ("field", MacArgs::Delimited(span, _, tokens)) => {
-                let ty = self.parse(tokens.clone(), span.entire(), parse_ty)?;
+            ("field", AttrArgs::Delimited(dargs)) => {
+                let ty = self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_ty)?;
                 FluxAttrKind::Field(ty)
             }
-            ("variant", MacArgs::Delimited(span, _, tokens)) => {
-                let variant = self.parse(tokens.clone(), span.entire(), parse_variant)?;
+            ("variant", AttrArgs::Delimited(dargs)) => {
+                let variant =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_variant)?;
                 FluxAttrKind::Variant(variant)
             }
-            ("invariant", MacArgs::Delimited(span, _, tokens)) => {
-                let invariant = self.parse(tokens.clone(), span.entire(), parse_expr)?;
+            ("invariant", AttrArgs::Delimited(dargs)) => {
+                let invariant =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_expr)?;
                 FluxAttrKind::Invariant(invariant)
             }
-            ("ignore", MacArgs::Empty) => FluxAttrKind::Ignore,
-            ("opaque", MacArgs::Empty) => FluxAttrKind::Opaque,
-            ("trusted", MacArgs::Empty) => FluxAttrKind::Trusted,
+            ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
+            ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
+            ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted,
             _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
@@ -661,7 +667,7 @@ impl FluxAttrCFG {
                 }
                 Err(errors::CFGError { span, message: "bad setting name".to_string() })
             }
-            NestedMetaItem::Literal(_) => {
+            NestedMetaItem::Lit(_) => {
                 Err(errors::CFGError {
                     span: nested_item.span(),
                     message: "unsupported item".to_string(),

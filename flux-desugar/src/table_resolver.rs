@@ -375,7 +375,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
     fn collect_from_ty(&mut self, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(ty),
-            hir::TyKind::Ptr(mut_ty) | hir::TyKind::Rptr(_, mut_ty) => {
+            hir::TyKind::Ptr(mut_ty) | hir::TyKind::Ref(_, mut_ty) => {
                 self.collect_from_ty(mut_ty.ty)
             }
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),

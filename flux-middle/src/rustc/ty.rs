@@ -7,8 +7,8 @@ use rustc_hir::def_id::DefId;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegion, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid,
-        ScalarInt, UintTy,
+        BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt,
+        UintTy,
     },
 };
 use rustc_span::Symbol;
@@ -27,7 +27,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum BoundRegionKind {
     BrNamed(DefId, Symbol),
 }
@@ -113,6 +113,12 @@ pub enum Region {
     ReVar(RegionVid),
     ReLateBound(DebruijnIndex, BoundRegion),
     ReEarlyBound(EarlyBoundRegion),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct BoundRegion {
+    pub var: BoundVar,
+    pub kind: BoundRegionKind,
 }
 
 impl<T> Binder<T> {

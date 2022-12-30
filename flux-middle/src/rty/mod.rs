@@ -199,9 +199,8 @@ pub struct KVar {
 }
 
 newtype_index! {
-    pub struct KVid {
-        DEBUG_FORMAT = "$k{}"
-    }
+    #[debug_format = "$k{}"]
+    pub struct KVid {}
 }
 
 impl<T> Binders<T> {
