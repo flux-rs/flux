@@ -6,12 +6,12 @@ use rustc_hash::FxHashSet;
 
 use super::{
     evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig,
-    GenericArg, Invariant, KVar, Name, PolySig, Pred, Qualifier, RefineArg, RefineArgs,
-    RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg, RefineArgs, RefineArgsData,
+    Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, Interned, List},
-    rty::{Var, VariantDef},
+    rty::{Func, Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -31,10 +31,6 @@ pub trait TypeFolder: Sized {
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         expr.super_fold_with(self)
-    }
-
-    fn fold_pred(&mut self, pred: &Pred) -> Pred {
-        pred.super_fold_with(self)
     }
 
     fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
@@ -59,10 +55,12 @@ pub trait TypeFoldable: Sized {
 
         impl<'a> TypeFolder for Normalize<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(f, args) = expr.kind() {
+                if let ExprKind::App(func, args) = expr.kind()
+                   && let Func::Uif(sym) = func
+                {
                     let exp_args: List<Expr> =
                         args.iter().map(|arg| arg.super_fold_with(self)).collect();
-                    self.0.app(f, exp_args)
+                    self.0.app(sym, exp_args)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -91,24 +89,24 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`holes`]: Pred::Hole
     /// [`predicate`]: Pred
-    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Binders<Pred>) -> Self {
+    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Binders<Expr>) -> Self {
         struct ReplaceHoles<'a, F>(&'a mut F, &'a [Sort]);
 
         impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
         where
-            F: FnMut(&[Sort]) -> Binders<Pred>,
+            F: FnMut(&[Sort]) -> Binders<Expr>,
         {
             fn fold_binders<T: TypeFoldable>(&mut self, t: &Binders<T>) -> Binders<T> {
                 t.super_fold_with(&mut ReplaceHoles(&mut self.0, &t.params))
             }
 
-            fn fold_pred(&mut self, pred: &Pred) -> Pred {
-                if let Pred::Hole = pred {
+            fn fold_expr(&mut self, e: &Expr) -> Expr {
+                if let ExprKind::Hole = e.kind() {
                     let binders = self.0(self.1);
                     debug_assert_eq!(&binders.params[..], self.1);
                     binders.skip_binders()
                 } else {
-                    pred.super_fold_with(self)
+                    e.super_fold_with(self)
                 }
             }
         }
@@ -129,7 +127,7 @@ pub trait TypeFoldable: Sized {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 if let TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) = ty.kind() {
                     let sorts = bty.sorts();
-                    Ty::exists(bty.super_fold_with(self), Binders::new(Pred::Hole, sorts))
+                    Ty::exists(bty.super_fold_with(self), Binders::new(Expr::hole(), sorts))
                 } else {
                     ty.super_fold_with(self)
                 }
@@ -164,18 +162,6 @@ pub trait TypeFoldable: Sized {
         struct EVarFolder<'a>(&'a EVarSol);
 
         impl TypeFolder for EVarFolder<'_> {
-            fn fold_pred(&mut self, pred: &Pred) -> Pred {
-                if let Pred::App(Var::EVar(evar), args) = pred
-                   && let Some(sol) = self.0.get(*evar)
-                   && let RefineArg::Abs(pred_abs) = sol
-                {
-                    let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-                    pred_abs.replace_bvars(&args)
-                } else {
-                    pred.super_fold_with(self)
-                }
-            }
-
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::EVar(evar) = expr.kind()
                    && let Some(sol) = self.0.get(*evar)
@@ -185,6 +171,12 @@ pub trait TypeFoldable: Sized {
                     } else {
                         panic!("expected expr for `{expr:?}` but found `{:?}` when substituting", sol)
                     }
+                } else if let ExprKind::App(Func::Var(Var::EVar(evar)), args) = expr.kind()
+                    && let Some(sol) = self.0.get(*evar)
+                    && let RefineArg::Abs(abs) = sol
+                {
+                    let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
+                    abs.replace_bvars(&args)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -324,7 +316,7 @@ impl TypeFoldable for Ty {
                 Ty::box_ptr(
                     Expr::fvar(*loc)
                         .fold_with(folder)
-                        .to_name()
+                        .to_fvar()
                         .expect("folding produced an invalid name"),
                     alloc.fold_with(folder),
                 )
@@ -449,43 +441,6 @@ impl TypeFoldable for GenericArg {
     }
 }
 
-impl TypeFoldable for Pred {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Pred::And(preds) => Pred::And(preds.fold_with(folder)),
-            Pred::Kvar(kvar) => Pred::Kvar(kvar.fold_with(folder)),
-            Pred::Expr(e) => Pred::Expr(e.fold_with(folder)),
-            Pred::Hole => Pred::Hole,
-            Pred::App(func, args) => {
-                let args = args.fold_with(folder);
-                let func = func
-                    .to_expr()
-                    .fold_with(folder)
-                    .to_var()
-                    .expect("folding produced invalid var");
-                Pred::App(func, args)
-            }
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        match self {
-            Pred::And(preds) => preds.visit_with(visitor),
-            Pred::Expr(e) => e.visit_with(visitor),
-            Pred::Kvar(kvar) => kvar.visit_with(visitor),
-            Pred::Hole => {}
-            Pred::App(func, args) => {
-                func.to_expr().visit_with(visitor);
-                args.visit_with(visitor);
-            }
-        }
-    }
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_pred(self)
-    }
-}
-
 impl TypeFoldable for KVar {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let KVar { kvid, args, scope } = self;
@@ -517,10 +472,12 @@ impl TypeFoldable for Expr {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
-            ExprKind::App(func, args) => Expr::app(*func, args.fold_with(folder)),
+            ExprKind::App(func, args) => Expr::app(func.fold_with(folder), args.fold_with(folder)),
             ExprKind::IfThenElse(p, e1, e2) => {
                 Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
             }
+            ExprKind::Hole => Expr::hole(),
+            ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
         }
     }
 
@@ -539,7 +496,8 @@ impl TypeFoldable for Expr {
             ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
                 e.visit_with(visitor);
             }
-            ExprKind::App(_, args) => {
+            ExprKind::App(func, args) => {
+                func.visit_with(visitor);
                 for e in args {
                     e.visit_with(visitor);
                 }
@@ -549,7 +507,9 @@ impl TypeFoldable for Expr {
                 e1.visit_with(visitor);
                 e2.visit_with(visitor);
             }
+            ExprKind::KVar(kvar) => kvar.visit_with(visitor),
             ExprKind::Constant(_)
+            | ExprKind::Hole
             | ExprKind::BoundVar(_)
             | ExprKind::EVar(_)
             | ExprKind::Local(_)
@@ -559,6 +519,35 @@ impl TypeFoldable for Expr {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_expr(self)
+    }
+}
+
+impl TypeFoldable for Func {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            Func::Var(var) => Func::Var(var.fold_with(folder)),
+            Func::Uif(sym) => Func::Uif(*sym),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            Func::Var(var) => var.visit_with(visitor),
+            Func::Uif(_) => {}
+        }
+    }
+}
+
+impl TypeFoldable for Var {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        self.to_expr()
+            .fold_with(folder)
+            .to_var()
+            .expect("folding produced invalid var")
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.to_expr().visit_with(visitor)
     }
 }
 

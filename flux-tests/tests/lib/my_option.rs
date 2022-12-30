@@ -6,25 +6,25 @@ pub enum MyOption<T> {
 }
 
 impl<T> MyOption<T> {
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(T) -> MyOption<T>[true])]
     pub fn some(val: T) -> MyOption<T> {
         MyOption::Some(val)
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn() -> MyOption<T>[false])]
     pub fn none() -> MyOption<T> {
         MyOption::None
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(&MyOption<T>[@b]) -> bool[b])]
     pub fn is_some(&self) -> bool {
         matches!(self, MyOption::Some(_))
     }
 
-    #[flux::assume]
+    #[flux::trusted]
     #[flux::sig(fn(MyOption<T>[true]) -> T)]
     pub fn unwrap(self) -> T {
         match self {

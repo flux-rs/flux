@@ -1,4 +1,4 @@
-use std::iter::Peekable;
+use std::{collections::VecDeque, iter::Peekable};
 
 pub use rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 use rustc_ast::{
@@ -27,6 +27,7 @@ pub enum Token {
     Le,
     Ne,
     Gt,
+    GtFollowedByGt,
     Ge,
     At,
     Fn,
@@ -47,7 +48,7 @@ pub enum Token {
     Strg,
     Type,
     Ignore,
-    Assume,
+    Trusted,
     Check,
     If,
     Else,
@@ -57,6 +58,7 @@ pub(crate) struct Cursor {
     stack: Vec<Frame>,
     offset: BytePos,
     symbs: Symbols,
+    tokens: VecDeque<(Location, Token, Location)>,
 }
 
 struct Symbols {
@@ -80,6 +82,7 @@ impl Cursor {
         Cursor {
             stack: vec![Frame { cursor: stream.into_trees().peekable(), close: None }],
             offset,
+            tokens: VecDeque::new(),
             symbs: Symbols {
                 fn_: Symbol::intern("fn"),
                 ref_: Symbol::intern("ref"),
@@ -90,7 +93,7 @@ impl Cursor {
         }
     }
 
-    fn map_token(&self, token: token::Token) -> (Location, Token, Location) {
+    fn map_token(&mut self, token: token::Token) {
         let span = token.span;
         let token = match token.kind {
             TokenKind::Lt => Token::Lt,
@@ -132,17 +135,23 @@ impl Cursor {
             TokenKind::BinOp(BinOpToken::And) => Token::And,
             TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
             TokenKind::BinOp(BinOpToken::Star) => Token::Star,
+            TokenKind::BinOp(BinOpToken::Shr) => {
+                self.push_token(span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1));
+                self.push_token(span.lo() + BytePos(1), Token::Gt, span.hi());
+                return;
+            }
             TokenKind::Not => Token::Not,
             _ => Token::Invalid,
         };
-        (Location(span.lo() - self.offset), token, Location(span.hi() - self.offset))
+        self.push_token(span.lo(), token, span.hi())
     }
-}
 
-impl Iterator for Cursor {
-    type Item = (Location, Token, Location);
+    fn push_token(&mut self, lo: BytePos, token: Token, hi: BytePos) {
+        self.tokens
+            .push_back((Location(lo - self.offset), token, Location(hi - self.offset)))
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn advance(&mut self) -> Option<()> {
         let top = self.stack.last_mut()?;
 
         match top.cursor.next() {
@@ -153,12 +162,13 @@ impl Iterator for Cursor {
                             let lo = Location(token.span.lo() - self.offset);
                             let hi = Location(next.span.hi() - self.offset);
                             top.cursor.next();
-                            return Some((lo, Token::Iff, hi));
+                            self.tokens.push_back((lo, Token::Iff, hi));
+                            return Some(());
                         }
                         _ => {}
                     }
                 }
-                Some(self.map_token(token))
+                self.map_token(token)
             }
             Some(TokenTree::Delimited(span, delim, tokens)) => {
                 let close = (
@@ -169,10 +179,22 @@ impl Iterator for Cursor {
                 self.stack
                     .push(Frame { cursor: tokens.into_trees().peekable(), close: Some(close) });
                 let token = token::Token { kind: TokenKind::OpenDelim(delim), span: span.open };
-                Some(self.map_token(token))
+                self.map_token(token)
             }
-            None => self.stack.pop().unwrap().close,
+            None => self.tokens.push_back(self.stack.pop()?.close?),
         }
+        Some(())
+    }
+}
+
+impl Iterator for Cursor {
+    type Item = (Location, Token, Location);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.tokens.is_empty() {
+            self.advance();
+        }
+        self.tokens.pop_front()
     }
 }
 

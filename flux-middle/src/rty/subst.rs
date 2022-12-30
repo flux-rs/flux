@@ -124,18 +124,6 @@ impl TypeFolder for BVarFolder<'_> {
         }
     }
 
-    fn fold_pred(&mut self, pred: &Pred) -> Pred {
-        if let Pred::App(Var::Bound(bvar), args) = pred
-           && bvar.debruijn == self.outer_binder
-           && let RefineArg::Abs(pred_abs) = &self.args[bvar.index]
-        {
-            let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-            pred_abs.replace_bvars(&args)
-        } else {
-            pred.super_fold_with(self)
-        }
-    }
-
     fn fold_expr(&mut self, e: &Expr) -> Expr {
         if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
             if let RefineArg::Expr(e) = &self.args[bvar.index] {
@@ -143,6 +131,12 @@ impl TypeFolder for BVarFolder<'_> {
             } else {
                 panic!("expected expr for `{bvar:?}` but found `{:?}` when substituting", self.args[bvar.index])
             }
+        } else if let ExprKind::App(Func::Var(Var::Bound(bvar)), args) = e.kind()
+           && bvar.debruijn == self.outer_binder
+           && let RefineArg::Abs(abs) = &self.args[bvar.index]
+        {
+            let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
+            abs.replace_bvars(&args)
         } else {
             e.super_fold_with(self)
         }

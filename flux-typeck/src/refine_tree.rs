@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, Pred,
-    RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
+    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, RefKind,
+    RefineArg, RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -75,9 +75,9 @@ struct WeakNodePtr(Weak<RefCell<Node>>);
 enum NodeKind {
     Conj,
     ForAll(Name, Sort),
-    Guard(Pred),
-    Head(Pred, Tag),
-    Impl(Pred, Pred, Tag),
+    Guard(Expr),
+    Head(Expr, Tag),
+    Impl(Expr, Expr, Tag),
     True,
 }
 
@@ -134,22 +134,22 @@ impl RefineCtxt<'_> {
         self.ptr.push_foralls(sorts)
     }
 
-    pub fn assume_bound_pred(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
+    pub fn assume_bound_pred(&mut self, pred: &Binders<Expr>) -> Vec<RefineArg> {
         self.ptr.push_bound_guard(pred)
     }
 
-    pub fn assume_pred(&mut self, pred: impl Into<Pred>) {
+    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.ptr.push_guard(pred);
     }
 
-    pub fn check_pred(&mut self, pred: impl Into<Pred>, tag: Tag) {
+    pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }
 
-    pub fn check_impl(&mut self, pred1: impl Into<Pred>, pred2: impl Into<Pred>, tag: Tag) {
+    pub fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
             .push_node(NodeKind::Impl(pred1.into(), pred2.into(), tag));
     }
@@ -287,14 +287,14 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_guard(&mut self, pred: impl Into<Pred>) {
+    fn push_guard(&mut self, pred: impl Into<Expr>) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             *self = self.push_node(NodeKind::Guard(pred));
         }
     }
 
-    fn push_bound_guard(&mut self, pred: &Binders<Pred>) -> Vec<RefineArg> {
+    fn push_bound_guard(&mut self, pred: &Binders<Expr>) -> Vec<RefineArg> {
         let args = self
             .push_foralls(pred.params())
             .into_iter()
@@ -385,11 +385,11 @@ impl Node {
                 }
             }
             NodeKind::Head(pred, _) => {
-                match pred.replace_evars(evars) {
-                    Pred::Expr(e) if e.is_trivial_equality() => {
-                        self.kind = NodeKind::True;
-                    }
-                    new_pred => *pred = new_pred,
+                let new_pred = pred.replace_evars(evars);
+                if new_pred.is_trivial_equality() {
+                    self.kind = NodeKind::True
+                } else {
+                    *pred = new_pred;
                 }
             }
             NodeKind::Conj | NodeKind::ForAll(_, _) | NodeKind::True => {}
@@ -513,7 +513,7 @@ mod pretty {
     };
 
     use flux_common::format::PadAdapter;
-    use flux_middle::{intern::List, pretty::*};
+    use flux_middle::pretty::*;
     use itertools::Itertools;
 
     use super::*;
@@ -553,8 +553,8 @@ mod pretty {
         children
     }
 
-    fn preds_chain(ptr: &NodePtr) -> (Vec<Pred>, Vec<NodePtr>) {
-        fn go(ptr: &NodePtr, mut preds: Vec<Pred>) -> (Vec<Pred>, Vec<NodePtr>) {
+    fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
+        fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
             if let NodeKind::Guard(pred) = &node.kind {
                 preds.push(pred.clone());
@@ -609,7 +609,7 @@ mod pretty {
                     } else {
                         (vec![pred.clone()], node.children.clone())
                     };
-                    let guard = Pred::And(List::from_vec(preds)).simplify();
+                    let guard = Expr::and(preds).simplify();
                     w!("{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
