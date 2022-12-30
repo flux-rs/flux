@@ -20,11 +20,6 @@ pub fn mytuple1(p: Pair) -> i32 {
     p.x
 }
 
-#[flux::sig(fn(Pair[@p]) -> i32[p])] //~ ERROR invalid use of refinement parameter
-pub fn mytuple2(p: Pair) -> i32 {
-    p.x
-}
-
 #[flux::sig(fn(Pair[@p1]) -> i32[p.x])] //~ ERROR cannot find value
 pub fn mytuple3(p: Pair) -> i32 {
     p.x
@@ -50,7 +45,7 @@ fn ris(f: f32) -> i32 {
     0
 }
 
-#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR no field `a` on refinement
+#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR invalid use of refinement parameter
 pub fn use_chair(c: Chair) -> i32 {
     c.x
 }

@@ -85,7 +85,29 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             genv.map(),
             params.iter().map(|param| (param.name, param.sort.clone())),
         );
+        // println!("TRACE: from_params {params:?} -> {name_map:?}");
         Self { genv, name_map }
+    }
+
+    fn conv_params(
+        genv: &GlobalEnv,
+        params: &[fhir::RefineParam],
+    ) -> (Vec<rty::Sort>, Vec<rty::InferMode>) {
+        let mut sorts = vec![];
+        let mut modes = vec![];
+        for param in params {
+            if let fhir::Sort::Adt(def_id) = param.sort {
+                let unpacked_sorts = genv.map().sorts_of(def_id, false).unwrap();
+                for sort in unpacked_sorts {
+                    sorts.push(sort.clone());
+                    modes.push(param.mode);
+                }
+            } else {
+                sorts.push(param.sort.clone());
+                modes.push(param.mode);
+            }
+        }
+        (sorts, modes)
     }
 
     pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
@@ -108,20 +130,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let ret = cx.conv_ty(&fn_sig.ret, 1);
 
-        let mut sorts = vec![];
-        let mut modes = vec![];
-        for param in &fn_sig.params {
-            if let fhir::Sort::Adt(def_id) = param.sort {
-                let unpacked_sorts = genv.map().sorts_of(def_id, false).unwrap();
-                for sort in unpacked_sorts {
-                    sorts.push(sort.clone());
-                    modes.push(param.mode);
-                }
-            } else {
-                sorts.push(param.sort.clone());
-                modes.push(param.mode);
-            }
-        }
+        let (sorts, modes) = ConvCtxt::conv_params(genv, &fn_sig.params);
 
         let sorts = sorts.into_iter().map(|sort| sort.clone()).collect_vec();
         // println!("TRACE: conv_fn_sig sorts = {:?}", sorts);
@@ -160,11 +169,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|ty| cx.conv_ty(ty, 1))
             .collect_vec();
-        let sorts = variant
-            .params
-            .iter()
-            .map(|param| param.sort.clone())
-            .collect_vec();
+        // let sorts = variant
+        //     .params
+        //     .iter()
+        //     .map(|param| param.sort.clone())
+        //     .collect_vec();
+        let sorts = ConvCtxt::conv_params(genv, &variant.params).0;
         let variant = rty::VariantDef::new(fields, cx.conv_variant_ret(&variant.ret));
         Binders::new(variant, sorts)
     }
