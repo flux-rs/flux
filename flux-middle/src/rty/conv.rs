@@ -365,12 +365,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = sort.as_func();
-                let abs = self
-                    .name_map
-                    .with_binders(params, nbinders, |name_map, nbinders| {
-                        let pred = name_map.conv_expr(body, nbinders);
-                        rty::Binders::new(pred, fsort.inputs())
-                    });
+                let abs =
+                    self.name_map
+                        .with_binders(params, None, nbinders, |name_map, nbinders| {
+                            let pred = name_map.conv_expr(body, nbinders);
+                            rty::Binders::new(pred, fsort.inputs())
+                        });
                 rty::RefineArg::Abs(abs)
             }
         }
