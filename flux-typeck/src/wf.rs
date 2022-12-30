@@ -16,6 +16,7 @@ pub struct Wf<'a> {
     map: &'a fhir::Map,
 }
 
+#[derive(Debug)]
 struct Env<'a> {
     sorts: FxHashMap<fhir::Name, &'a fhir::Sort>,
 }
@@ -66,7 +67,7 @@ impl<'a, T: Borrow<fhir::Name>> std::ops::Index<T> for Env<'a> {
     fn index(&self, var: T) -> &Self::Output {
         self.sorts
             .get(var.borrow())
-            .unwrap_or_else(|| panic!("no enty found for key: `{:?}`", var.borrow()))
+            .unwrap_or_else(|| panic!("no entry found for key: `{:?}`", var.borrow()))
     }
 }
 
@@ -100,6 +101,7 @@ impl<'a> Wf<'a> {
 
     pub fn check_fn_sig(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::from(&fn_sig.params[..]);
+        println!("TRACE: env = {env:?} fn_sig = {fn_sig:?}");
 
         let args = fn_sig
             .args
@@ -285,7 +287,11 @@ impl<'a> Wf<'a> {
             fhir::RefineArg::Expr { expr, .. } => {
                 let found = self.synth_expr(env, expr)?;
                 if found != expected {
-                    return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
+                    panic!(
+                        "TRACE: check_arg env = {env:?}, expr = {expr:?}, found = {found:?} at {:?}",
+                        expr.span
+                    )
+                    // return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
                 }
                 if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {
                     self.check_param_uses(env, expr, false)?;

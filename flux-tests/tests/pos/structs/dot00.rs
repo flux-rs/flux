@@ -10,7 +10,7 @@ pub struct Pair {
 }
 
 // forall a0: int, a1: int. fn(Pair<a0, a1>) -> i32<a0 + a1 + 1>
-#[flux::sig(fn(Pair[@p]) -> i32[p.x + p.yy + 1])]
+#[flux::sig(fn(Pair[@p]) -> i32[p.x + p.y + 1])]
 pub fn sum_pair(p: Pair) -> i32 {
     p.x + p.y + 1
 }

@@ -192,13 +192,10 @@ pub fn desugar_fn_sig(
         })
         .try_collect_exhaust();
 
-    Ok(fhir::FnSig {
-        params: cx.binders.into_params(),
-        requires: cx.requires,
-        args,
-        ret: ret?,
-        ensures: ensures?,
-    })
+    let params = cx.binders.into_params();
+    println!("TRACE: desugar_fn_sig {params:?}");
+
+    Ok(fhir::FnSig { params, requires: cx.requires, args, ret: ret?, ensures: ensures? })
 }
 
 pub struct DesugarCtxt<'a, 'tcx> {
@@ -233,7 +230,6 @@ enum Binder {
     /// binder directly.
     // Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
     Aggregate(fhir::Name, DefId, FxIndexMap<Symbol, fhir::RefinedByParam>),
-
     /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
@@ -332,7 +328,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            Ok(fhir::Ty::Exists(bty, binder.names(), pred))
+
+                            let res = fhir::Ty::Exists(bty, binder.names(), pred);
+                            println!("TRACE: HEREHEREHEREHEREHEREHERE desugar_ty {res:?}");
+                            Ok(res)
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -794,6 +793,7 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
+        println!("TRACE: insert_binder {ident:?} with {binder:?}");
         match self.map.entry(ident) {
             IndexEntry::Occupied(entry) => {
                 Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
@@ -1014,12 +1014,19 @@ impl Binders {
                     };
                     params.push(param_from_ident(ident, name, sort.clone(), mode));
                 }
-                Binder::Aggregate(name, def_id, _fields) => {
-                    let sort = fhir::Sort::Adt(def_id);
-                    let mode = fhir::InferMode::default_for(&sort);
-                    // for (_, (name, sort)) in fields {
-                    params.push(param_from_ident(ident, name, sort, mode));
-                    // }
+                Binder::Aggregate(name, def_id, fields) => {
+                    if fields.len() == 1 {
+                        for (_, (_, sort)) in fields {
+                            let mode = fhir::InferMode::default_for(&sort);
+                            params.push(param_from_ident(ident, name, sort, mode));
+                        }
+                    } else {
+                        let sort = fhir::Sort::Adt(def_id);
+                        let mode = fhir::InferMode::default_for(&sort);
+                        // for (_, (name, sort)) in fields {
+                        params.push(param_from_ident(ident, name, sort, mode));
+                        // }
+                    }
                 }
                 Binder::Unrefined => {}
             }
