@@ -17,13 +17,3 @@ pub struct Pair {
 pub fn mytuple2(p: Pair) -> i32 {
     p.x
 }
-
-#[flux::sig(fn(Pair[@p]) -> i32[p.z])] //~ ERROR no field `z` on refinement parameters for struct `Pair`
-pub fn mytuple4(p: Pair) -> i32 {
-    p.x
-}
-
-#[flux::sig(fn(p: i32) -> i32[p.z])] //~ ERROR `int` is a primitive sort
-pub fn bob(p: i32) -> i32 {
-    p
-}
