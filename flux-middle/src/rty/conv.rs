@@ -85,7 +85,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             genv.map(),
             params.iter().map(|param| (param.name, param.sort.clone())),
         );
-        // println!("TRACE: from_params {params:?} -> {name_map:?}");
         Self { genv, name_map }
     }
 
@@ -133,9 +132,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let (sorts, modes) = ConvCtxt::conv_params(genv, &fn_sig.params);
 
         let sorts = sorts.into_iter().map(|sort| sort.clone()).collect_vec();
-        // println!("TRACE: conv_fn_sig sorts = {:?}", sorts);
-
-        // let modes = fn_sig.params.iter().map(|param| param.mode).collect_vec();
         rty::PolySig::new(
             rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
             modes,
@@ -341,7 +337,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let packed = idxs.indices.len() == 1;
         let sorts = map.sorts(bty, packed);
 
-        // println!("TRACE: conv_indices indices = {idxs:?}, sorts = {sorts:?}");
         if let [fhir::RefineArg::Expr {expr, is_binder}] = &idxs.indices[..] &&
            let [fhir::Sort::Adt(def_id)] = sorts &&
            let Some(refined_by) = map.refined_by(*def_id) &&
@@ -489,14 +484,12 @@ impl NameMap {
     }
 
     fn get(&self, name: fhir::Name, nbinders: u32) -> rty::Var {
-        // println!("TRACE: get: map = {:?}, name = {name:?}", self.map);
         let entry = self.map[&NameMapKey::Flat(name)];
         Self::entry_var(entry, nbinders)
     }
 
     fn get_fld(&self, name: fhir::Name, fld: fhir::Name, nbinders: u32) -> rty::Var {
         let key = NameMapKey::Field(name, fld);
-        // println!("TRACE: get_fld: map = {:?}, key = {key:?}", self.map);
         let entry = self.map[&key];
         Self::entry_var(entry, nbinders)
     }
@@ -513,9 +506,7 @@ impl NameMap {
     ) -> R {
         let keys = if let Some(refined_by) = refined_by && binders.len() == 1 && refined_by.params.len() > 1 {
             // flatten the binders if packed
-            let res = refined_by.params.iter().map(|(fld, _)| NameMapKey::Field(binders[0], fld.name)).collect_vec();
-            // println!("TRACE: with_binders: {binders:?}, {refined_by:?} --> {res:?}");
-            res
+            refined_by.params.iter().map(|(fld, _)| NameMapKey::Field(binders[0], fld.name)).collect_vec()
         } else { // already flat
             binders.iter().map(|name| NameMapKey::Flat(*name)).collect()
         };
@@ -578,10 +569,7 @@ impl NameMap {
     fn conv_expr(&self, expr: &fhir::Expr, nbinders: u32) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(name, ..) => {
-                // println!("TRACE: conv_expr: name = {name:?} at {:?}", expr.span);
-                self.get(*name, nbinders).to_expr()
-            }
+            fhir::ExprKind::Var(name, ..) => self.get(*name, nbinders).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::Dot(box e, fld) => self.conv_dot(e, fld, nbinders),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {

@@ -193,7 +193,6 @@ pub fn desugar_fn_sig(
         .try_collect_exhaust();
 
     let params = cx.binders.into_params();
-    // println!("TRACE: desugar_fn_sig {params:?}");
 
     Ok(fhir::FnSig { params, requires: cx.requires, args, ret: ret?, ensures: ensures? })
 }
@@ -615,8 +614,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         expr: surface::Expr,
         fld: surface::Ident,
     ) -> Result<fhir::Expr, ErrorGuaranteed> {
-        // let fld0 = &fld;
-        // let expr0 = &expr;
         // This error never occurs because the parser forces `expr` to be an ident, but we report an error just in case.
         let surface::ExprKind::Var(ident) = expr.kind else {
             return Err(self
@@ -633,17 +630,12 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                     .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, ident, fld)))
             }
             Some(Binder::Aggregate(_, def_id, _fields)) => {
-                // let (fld, _) = fields.get(&fld.name).ok_or_else(|| {
-                //     self.sess
-                //         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
-                // })?;
                 let (fld, _) = self.map.lookup_field(def_id, &fld.name).ok_or_else(|| {
                     self.sess
                         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
                 let expr = self.desugar_var(ident)?;
                 let kind = fhir::ExprKind::Dot(Box::new(expr), *fld);
-                // println!("TRACE: desugar_dot: {expr0:?} {fld0:?} -> {kind:?} with {fields:?}");
                 Ok(fhir::Expr { kind, span })
             }
             Some(Binder::Unrefined) => {
@@ -799,7 +791,6 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
-        // println!("TRACE: insert_binder {ident:?} with {binder:?}");
         match self.map.entry(ident) {
             IndexEntry::Occupied(entry) => {
                 Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
@@ -845,7 +836,6 @@ impl Binders {
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         for param in &fn_sig.params {
-            // println!("TRACE: fn_sig_gather_params {param:?}");
             self.insert_binder(
                 sess,
                 param.name,

@@ -28,7 +28,6 @@ impl<'a> Env<'a> {
         sorts: &'a [fhir::Sort],
         f: impl FnOnce(&Self) -> R,
     ) -> R {
-        // println!("TRACE: Env::with_binders {binders:?} {sorts:?}");
         debug_assert_eq!(binders.len(), sorts.len());
         for (binder, sort) in iter::zip(binders, sorts) {
             self.sorts.insert(*binder, sort);
@@ -102,7 +101,6 @@ impl<'a> Wf<'a> {
 
     pub fn check_fn_sig(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::from(&fn_sig.params[..]);
-        // println!("TRACE: env = {env:?} fn_sig = {fn_sig:?}");
 
         let args = fn_sig
             .args
@@ -220,7 +218,6 @@ impl<'a> Wf<'a> {
                 let expected = sorts.len();
                 let found = binders.len();
                 if expected != found {
-                    // panic!("TRACE: mismatch 1 at {:?}", pred.span);
                     return self.emit_err(errors::ArgCountMismatch::new(
                         None,
                         String::from("type"),
@@ -376,7 +373,6 @@ impl<'a> Wf<'a> {
         if found == expected {
             Ok(())
         } else {
-            // panic!("TRACE: panic 2");
             self.emit_err(errors::SortMismatch::new(e.span, expected, found))
         }
     }
@@ -386,7 +382,6 @@ impl<'a> Wf<'a> {
         if found == &fhir::Sort::Loc {
             Ok(())
         } else {
-            // panic!("TRACE: panic 3 at {:?}", loc.source_info.0);
             self.emit_err(errors::SortMismatch::new(loc.source_info.0, &fhir::Sort::Loc, found))
         }
     }
@@ -403,7 +398,7 @@ impl<'a> Wf<'a> {
                 return Ok(sort);
             }
         }
-        panic!(
+        unreachable!(
             "TODO: error: synth_dot: InvalidDotAccess expr: {:?}, ({e_sort:?}) field: {:?} at {:?}",
             expr, fld, expr.span
         )
@@ -507,7 +502,6 @@ impl<'a> Wf<'a> {
     ) -> Result<&fhir::Sort, ErrorGuaranteed> {
         let fsort = self.synth_func(env, func)?;
         if args.len() != fsort.inputs().len() {
-            // panic!("TRACE: panic mismatch 2");
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
                 String::from("function"),

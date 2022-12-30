@@ -536,8 +536,6 @@ impl Map {
 
     pub fn lookup_field(&self, def_id: &DefId, fld: &Symbol) -> Option<&RefinedByParam> {
         let fields = &self.refined_by(*def_id)?.params;
-        // println!("TRACE: {def_id:?} fields = {fields:?}");
-        // for (sym, sort) in fields {
         for param in fields {
             if param.0.source_info.1 == *fld {
                 return Some(param);
