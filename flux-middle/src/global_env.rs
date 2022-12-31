@@ -339,7 +339,7 @@ mod errors {
     impl DefinitionCycle {
         pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
             let root = format!("`{}`", cycle[0]);
-            let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s)).collect();
+            let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
         }
