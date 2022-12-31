@@ -318,7 +318,6 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             }
         });
         iter::zip(args, rust_args)
-            .into_iter()
             .try_for_each_exhaust(|(arg, rust_arg)| self.zip_ty(arg, rust_arg))
     }
 }
