@@ -124,7 +124,7 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
-    Exists(BaseTy, Binders<Expr>),
+    Exists(Binders<Exists>),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Uninit,
@@ -147,6 +147,13 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Exists {
+    pub bty: BaseTy,
+    pub args: RefineArgs,
+    pub pred: Expr,
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -218,6 +225,10 @@ impl<T> Binders<T> {
 
     pub fn skip_binders(self) -> T {
         self.value
+    }
+
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binders<S> {
+        Binders { params: self.params, value: f(self.value) }
     }
 }
 
@@ -453,8 +464,8 @@ impl Ty {
         TyKind::Indexed(bty, args).intern()
     }
 
-    pub fn exists(bty: BaseTy, pred: Binders<Expr>) -> Ty {
-        TyKind::Exists(bty, pred).intern()
+    pub fn exists(exists: Binders<Exists>) -> Ty {
+        TyKind::Exists(exists).intern()
     }
 
     pub fn param(param: ParamTy) -> Ty {
@@ -481,23 +492,16 @@ impl Ty {
         TyKind::Discr(adt_def, place).intern()
     }
 
-    pub fn is_box(&self) -> bool {
-        match self.kind() {
-            TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) => bty.is_box(),
-            _ => false,
-        }
-    }
-
     pub fn bool() -> Ty {
-        Ty::exists(BaseTy::Bool, Binders::new(Expr::tt(), vec![Sort::Bool]))
+        Ty::exists(Exists::full(BaseTy::Bool, Binders::new(Expr::tt(), vec![Sort::Bool])))
     }
 
     pub fn int(int_ty: IntTy) -> Ty {
-        Ty::exists(BaseTy::Int(int_ty), Binders::new(Expr::tt(), vec![Sort::Int]))
+        Ty::exists(Exists::full(BaseTy::Int(int_ty), Binders::new(Expr::tt(), vec![Sort::Int])))
     }
 
     pub fn uint(uint_ty: UintTy) -> Ty {
-        Ty::exists(BaseTy::Uint(uint_ty), Binders::new(Expr::tt(), vec![Sort::Int]))
+        Ty::exists(Exists::full(BaseTy::Uint(uint_ty), Binders::new(Expr::tt(), vec![Sort::Int])))
     }
 
     pub fn usize() -> Ty {
@@ -538,16 +542,44 @@ impl TyS {
 
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
-        matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_integral())
+        self.as_bty_skipping_binders()
+            .map(|bty| bty.is_integral())
+            .unwrap_or_default()
     }
 
     /// Whether the type is a `bool`
     pub fn is_bool(&self) -> bool {
-        matches!(self.kind(), TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) if bty.is_bool())
+        self.as_bty_skipping_binders()
+            .map(|bty| bty.is_bool())
+            .unwrap_or_default()
     }
 
     pub fn is_uninit(&self) -> bool {
         matches!(self.kind(), TyKind::Uninit)
+    }
+
+    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+        match self.kind() {
+            TyKind::Indexed(bty, _) => Some(bty),
+            TyKind::Exists(exists) => Some(&exists.as_ref().skip_binders().bty),
+            _ => None,
+        }
+    }
+}
+
+impl Exists {
+    fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
+        Self { bty, args, pred }
+    }
+
+    pub fn full(bty: BaseTy, pred: Binders<Expr>) -> Binders<Self> {
+        debug_assert_eq!(bty.sorts(), pred.params());
+        let args = RefineArgs::multi(
+            (0..pred.params().len())
+                .map(|i| RefineArg::Expr(Expr::bvar(BoundVar::innermost(i))))
+                .collect(),
+        );
+        pred.map(|pred| Exists { bty, args, pred })
     }
 }
 
@@ -832,11 +864,11 @@ mod pretty {
                     }
                     Ok(())
                 }
-                TyKind::Exists(bty, pred) => {
+                TyKind::Exists(Binders { params, value: Exists { bty, args, pred } }) => {
                     if pred.is_trivially_true() {
-                        w!("{:?}{{}}", bty)
+                        w!("{{{:?}. {:?}[{:?}]}}", join!(", ", params), bty, args)
                     } else {
-                        w!("{:?}{{{:?}}}", bty, &pred.value)
+                        w!("{{{:?}. {:?}[{:?}] | {:?}}}", join!(", ", params), bty, args, pred)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),

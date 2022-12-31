@@ -267,7 +267,7 @@ impl PathsTree {
                                     kind: LookupKind::Weak(rk, ty),
                                 });
                             }
-                            TyKind::Indexed(BaseTy::Adt(_, substs), _) if ty.is_box() => {
+                            TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::from(fresh);
@@ -325,7 +325,7 @@ impl PathsTree {
                     rk = rk.min(WeakKind::from(*rk2));
                     ty = ty2.clone();
                 }
-                (Deref, TyKind::Indexed(BaseTy::Adt(_, substs), _)) if ty.is_box() => {
+                (Deref, TyKind::Indexed(BaseTy::Adt(adt, substs), _)) if adt.is_box() => {
                     let (boxed, _) = box_args(substs);
                     ty = boxed.clone();
                 }

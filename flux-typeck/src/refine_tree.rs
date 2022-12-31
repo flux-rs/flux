@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, RefKind,
-    RefineArg, RefineArgs, Sort, Ty, TyKind,
+    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Expr, GenericArg, Name, RefKind,
+    RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -134,10 +134,6 @@ impl RefineCtxt<'_> {
         self.ptr.push_foralls(sorts)
     }
 
-    pub fn assume_bound_pred(&mut self, pred: &Binders<Expr>) -> Vec<RefineArg> {
-        self.ptr.push_bound_guard(pred)
-    }
-
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.ptr.push_guard(pred);
     }
@@ -177,16 +173,18 @@ impl RefineCtxt<'_> {
                 }
                 Ty::indexed(bty, idxs.clone())
             }
-            TyKind::Exists(bty, pred) => {
+            TyKind::Exists(exists) => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes the refered type too specific. We only have this as a workaround to
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let idxs = RefineArgs::multi(self.ptr.push_bound_guard(pred));
-                    let bty = self.unpack_bty(bty, in_mut_ref, flags);
-                    self.assume_invariants(&bty, &idxs);
-                    Ty::indexed(bty, idxs)
+                    let exists =
+                        exists.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
+                    self.ptr.push_guard(exists.pred);
+                    let bty = self.unpack_bty(&exists.bty, in_mut_ref, flags);
+                    self.assume_invariants(&bty, &exists.args);
+                    Ty::indexed(bty, exists.args)
                 } else {
                     ty.clone()
                 }
@@ -292,16 +290,6 @@ impl NodePtr {
         if !pred.is_trivially_true() {
             *self = self.push_node(NodeKind::Guard(pred));
         }
-    }
-
-    fn push_bound_guard(&mut self, pred: &Binders<Expr>) -> Vec<RefineArg> {
-        let args = self
-            .push_foralls(pred.params())
-            .into_iter()
-            .map(|name| RefineArg::Expr(Expr::fvar(name)))
-            .collect_vec();
-        self.push_guard(pred.replace_bvars(&args));
-        args
     }
 
     fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {

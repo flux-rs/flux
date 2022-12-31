@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr,
-        ExprKind, GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Exists,
+        Expr, ExprKind, GenericArg, Path, RefKind, RefineArg, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -416,7 +416,7 @@ impl TypeEnvInfer {
                 let bty = TypeEnvInfer::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
                     let pred = Binders::new(Expr::hole(), bty.sorts());
-                    Ty::exists(bty, pred)
+                    Ty::exists(Exists::full(bty, pred))
                 } else {
                     Ty::indexed(bty, idxs.clone())
                 }
@@ -431,7 +431,7 @@ impl TypeEnvInfer {
 
             TyKind::Array(ty, c) => Ty::array(Self::pack_ty(scope, ty), c.clone()),
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
-            TyKind::Exists(_, _)
+            TyKind::Exists(_)
             | TyKind::Never
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
@@ -588,17 +588,29 @@ impl TypeEnvInfer {
                 let bty = self.join_bty(bty1, bty2, src_info);
                 if self.scope.has_free_vars(idxs2) || idxs1.args() != idxs2.args() {
                     let pred = Binders::new(Expr::hole(), bty.sorts());
-                    Ty::exists(bty, pred)
+                    Ty::exists(Exists::full(bty, pred))
                 } else {
                     Ty::indexed(bty, idxs1.clone())
                 }
             }
-            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..))
-            | (TyKind::Exists(bty1, _), TyKind::Exists(bty2, ..))
-            | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
+            (TyKind::Exists(exists), TyKind::Indexed(bty2, ..)) => {
+                let bty1 = &exists.as_ref().skip_binders().bty;
                 let bty = self.join_bty(bty1, bty2, src_info);
                 let pred = Binders::new(Expr::hole(), bty.sorts());
-                Ty::exists(bty, pred)
+                Ty::exists(Exists::full(bty, pred))
+            }
+            (TyKind::Indexed(bty1, _), TyKind::Exists(exists)) => {
+                let bty2 = &exists.as_ref().skip_binders().bty;
+                let bty = self.join_bty(bty1, bty2, src_info);
+                let pred = Binders::new(Expr::hole(), bty.sorts());
+                Ty::exists(Exists::full(bty, pred))
+            }
+            (TyKind::Exists(exists1), TyKind::Exists(exists2)) => {
+                let bty1 = &exists1.as_ref().skip_binders().bty;
+                let bty2 = &exists2.as_ref().skip_binders().bty;
+                let bty = self.join_bty(bty1, bty2, src_info);
+                let pred = Binders::new(Expr::hole(), bty.sorts());
+                Ty::exists(Exists::full(bty, pred))
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
@@ -706,20 +718,17 @@ fn generalize(
             let bty = generalize_bty(name_gen, bty, names, sorts, preds);
             Ty::indexed(bty, idxs.clone())
         }
-        TyKind::Exists(bty, pred) => {
-            let bty = generalize_bty(name_gen, bty, names, sorts, preds);
-
-            let mut idxs = vec![];
-            let pred = pred.replace_bvars_with_fresh_fvars(|sort| {
+        TyKind::Exists(exists) => {
+            let exists = exists.replace_bvars_with_fresh_fvars(|sort| {
                 let fresh = name_gen.fresh();
                 names.push(fresh);
                 sorts.push(sort.clone());
-                idxs.push(RefineArg::Expr(Expr::fvar(fresh)));
                 fresh
             });
-            preds.push(pred);
+            let bty = generalize_bty(name_gen, &exists.bty, names, sorts, preds);
+            preds.push(exists.pred);
 
-            Ty::indexed(bty, RefineArgs::multi(idxs))
+            Ty::indexed(bty, exists.args)
         }
         TyKind::Ref(RefKind::Shr, ty) => {
             let ty = generalize(name_gen, ty, names, sorts, preds);

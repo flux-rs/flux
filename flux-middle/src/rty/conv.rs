@@ -247,7 +247,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
                     let pred = rty::Binders::new(rty::Expr::tt(), sorts);
-                    rty::Ty::exists(bty, pred)
+                    rty::Ty::exists(rty::Exists::full(bty, pred))
                 }
             }
             fhir::Ty::Indexed(bty, idxs) => {
@@ -261,7 +261,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .with_binders(binders, nbinders, |name_map, nbinders| {
                         let pred = name_map.conv_expr(pred, nbinders);
                         let pred = rty::Binders::new(pred, bty.sorts());
-                        rty::Ty::exists(bty, pred)
+                        rty::Ty::exists(rty::Exists::full(bty, pred))
                     })
             }
             fhir::Ty::Ptr(loc) => {
