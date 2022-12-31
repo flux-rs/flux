@@ -241,12 +241,14 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty, nbinders: u32) -> rty::Ty {
         match ty {
             fhir::Ty::BaseTy(bty) => {
-                let bty = self.conv_base_ty(bty, nbinders);
-                let sorts = bty.sorts();
-                if sorts.is_empty() {
+                if let fhir::BaseTy::Adt(def_id, _) = bty
+                   && self.genv.map().sorts_of(*def_id).unwrap_or(&[]).is_empty()
+                {
+                    let bty = self.conv_base_ty(bty, nbinders);
                     rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
-                    let pred = rty::Binders::new(rty::Expr::tt(), sorts);
+                    let bty = self.conv_base_ty(bty, nbinders + 1);
+                    let pred = rty::Binders::new(rty::Expr::tt(), bty.sorts());
                     rty::Ty::exists(rty::Exists::full(bty, pred))
                 }
             }
@@ -256,9 +258,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::Ty::indexed(bty, idxs)
             }
             fhir::Ty::Exists(bty, binders, pred) => {
-                let bty = self.conv_base_ty(bty, nbinders);
+                let this = self as *mut Self;
                 self.name_map
                     .with_binders(binders, nbinders, |name_map, nbinders| {
+                        let bty = unsafe { (&mut *this).conv_base_ty(bty, nbinders) };
                         let pred = name_map.conv_expr(pred, nbinders);
                         let pred = rty::Binders::new(pred, bty.sorts());
                         rty::Ty::exists(rty::Exists::full(bty, pred))

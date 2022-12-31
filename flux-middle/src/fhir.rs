@@ -281,7 +281,7 @@ pub struct Ident {
 }
 
 newtype_index! {
-    #[debug_format = "s{}"]
+    #[debug_format = "a{}"]
     pub struct Name {}
 }
 
