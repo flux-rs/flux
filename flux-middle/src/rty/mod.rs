@@ -568,7 +568,7 @@ impl TyS {
 }
 
 impl Exists {
-    fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
+    pub fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
         Self { bty, args, pred }
     }
 

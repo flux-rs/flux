@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Exists,
-        Expr, ExprKind, GenericArg, Path, RefKind, RefineArg, Ty, TyKind,
+        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
+        Exists, Expr, ExprKind, GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -586,11 +586,24 @@ impl TypeEnvInfer {
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2, src_info);
-                if self.scope.has_free_vars(idxs2) || idxs1.args() != idxs2.args() {
-                    let pred = Binders::new(Expr::hole(), bty.sorts());
-                    Ty::exists(Exists::full(bty, pred))
+                let mut sorts = vec![];
+                let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sorts())
+                    .enumerate()
+                    .map(|(i, (arg1, arg2, sort))| {
+                        if !self.scope.has_free_vars(arg2) && arg1 == arg2 {
+                            arg1.clone()
+                        } else {
+                            sorts.push(sort.clone());
+                            RefineArg::Expr(Expr::bvar(BoundVar::innermost(i)))
+                        }
+                    })
+                    .collect();
+                let args = RefineArgs::multi(args);
+                if sorts.is_empty() {
+                    Ty::indexed(bty, args)
                 } else {
-                    Ty::indexed(bty, idxs1.clone())
+                    let exists = Exists::new(bty, args, Expr::hole());
+                    Ty::exists(Binders::new(exists, sorts))
                 }
             }
             (TyKind::Exists(exists), TyKind::Indexed(bty2, ..)) => {
