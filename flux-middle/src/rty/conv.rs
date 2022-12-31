@@ -347,13 +347,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
 impl BoundVarEnv {
     fn new(iter: impl IntoIterator<Item = fhir::Name>) -> Self {
-        let layer = iter.into_iter().collect();
-        Self { layers: vec![layer] }
+        Self { layers: vec![iter.into_iter().collect()] }
     }
 
     fn push_layer(&mut self, binders: &[fhir::Name]) {
-        let layer = binders.iter().map(|name| *name).collect();
-        self.layers.push(layer);
+        self.layers.push(binders.iter().copied().collect());
     }
 
     fn pop_layer(&mut self) {
