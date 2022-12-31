@@ -588,13 +588,12 @@ impl TypeEnvInfer {
                 let bty = self.join_bty(bty1, bty2, src_info);
                 let mut sorts = vec![];
                 let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sorts())
-                    .enumerate()
-                    .map(|(i, (arg1, arg2, sort))| {
+                    .map(|(arg1, arg2, sort)| {
                         if !self.scope.has_free_vars(arg2) && arg1 == arg2 {
                             arg1.clone()
                         } else {
                             sorts.push(sort.clone());
-                            RefineArg::Expr(Expr::bvar(BoundVar::innermost(i)))
+                            RefineArg::Expr(Expr::bvar(BoundVar::innermost(sorts.len() - 1)))
                         }
                     })
                     .collect();
