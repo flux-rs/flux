@@ -103,6 +103,10 @@ impl RefineTree {
         }
     }
 
+    pub fn simplify(&mut self) {
+        self.root.borrow_mut().simplify();
+    }
+
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
         self.root
             .borrow()
@@ -355,32 +359,57 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn replace_evars(&mut self, evars: &EVarSol) {
-        self.children.drain_filter(|child| {
-            let mut node = child.borrow_mut();
-            node.replace_evars(evars);
-            matches!(node.kind, NodeKind::True)
-        });
-        match &mut self.kind {
-            NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
-            NodeKind::Impl(pred1, pred2, tag) => {
-                let pred1 = pred1.replace_evars(evars);
-                let pred2 = pred2.replace_evars(evars);
+    fn simplify(&mut self) {
+        for child in &self.children {
+            child.borrow_mut().simplify();
+        }
+
+        match &self.kind {
+            NodeKind::Head(pred, _) => {
+                if pred.is_trivially_true() {
+                    self.kind = NodeKind::True;
+                }
+            }
+            NodeKind::Impl(pred1, pred2, _) => {
                 if pred1 == pred2 {
                     self.kind = NodeKind::True;
-                } else {
-                    self.kind = NodeKind::Impl(pred1, pred2, *tag)
                 }
+            }
+            NodeKind::True => {}
+            NodeKind::Guard(pred) => {
+                self.children.drain_filter(|child| {
+                    matches!(child.borrow().kind, NodeKind::True)
+                        || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
+                });
+            }
+            NodeKind::Conj | NodeKind::ForAll(..) => {
+                self.children
+                    .drain_filter(|child| matches!(&child.borrow().kind, NodeKind::True));
+            }
+        }
+        if !self.is_leaf() && self.children.is_empty() {
+            self.kind = NodeKind::True;
+        }
+    }
+
+    fn is_leaf(&self) -> bool {
+        matches!(self.kind, NodeKind::Head(..) | NodeKind::Impl(..) | NodeKind::True)
+    }
+
+    fn replace_evars(&mut self, sol: &EVarSol) {
+        for child in &self.children {
+            child.borrow_mut().replace_evars(sol);
+        }
+        match &mut self.kind {
+            NodeKind::Guard(pred) => *pred = pred.replace_evars(sol),
+            NodeKind::Impl(pred1, pred2, _) => {
+                *pred1 = pred1.replace_evars(sol);
+                *pred2 = pred2.replace_evars(sol);
             }
             NodeKind::Head(pred, _) => {
-                let new_pred = pred.replace_evars(evars);
-                if new_pred.is_trivial_equality() {
-                    self.kind = NodeKind::True
-                } else {
-                    *pred = new_pred;
-                }
+                *pred = pred.replace_evars(sol);
             }
-            NodeKind::Conj | NodeKind::ForAll(_, _) | NodeKind::True => {}
+            NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 

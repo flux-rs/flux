@@ -254,7 +254,8 @@ impl Expr {
     /// mostly for filtering predicates when pretty printing but also to avoid adding unnecesary
     /// predicates to the constraint.
     pub fn is_trivially_true(&self) -> bool {
-        self.is_true() || self.is_trivial_equality()
+        self.is_true()
+            || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
     }
 
     /// Whether the expression is literally the constant true.
@@ -264,10 +265,6 @@ impl Expr {
 
     pub fn is_binary_op(&self) -> bool {
         matches!(self.kind, ExprKind::BinaryOp(..))
-    }
-
-    pub fn is_trivial_equality(&self) -> bool {
-        matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq, e1, e2) if e1 == e2)
     }
 
     /// Simplify expression applying some simple rules like removing double negation. This is
