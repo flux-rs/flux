@@ -360,12 +360,21 @@ impl BoundVarEnv {
         self.layers.pop();
     }
 
+    fn get_bvar(&self, name: fhir::Name) -> rty::BoundVar {
+        for (level, layer) in self.layers.iter().rev().enumerate() {
+            if let Some(index) = layer.get_index_of(&name) {
+                return rty::BoundVar::new(index, DebruijnIndex::new(level as u32));
+            }
+        }
+        panic!("no entry found for key: `{name:?}`");
+    }
+
     fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant { pred: Binders::new(self.conv_expr(invariant), sorts) }
     }
 }
 
-trait NameMap {
+trait ExprConvCtxt {
     fn get(&self, name: fhir::Name) -> rty::Var;
 
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
@@ -398,23 +407,15 @@ trait NameMap {
     }
 }
 
-impl NameMap for FxHashMap<fhir::Name, rty::Name> {
+impl ExprConvCtxt for FxHashMap<fhir::Name, rty::Name> {
     fn get(&self, name: fhir::Name) -> rty::Var {
         rty::Var::Free(self[&name])
     }
 }
 
-impl NameMap for BoundVarEnv {
+impl ExprConvCtxt for BoundVarEnv {
     fn get(&self, name: fhir::Name) -> rty::Var {
-        for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(index) = layer.get_index_of(&name) {
-                return rty::Var::Bound(rty::BoundVar::new(
-                    index,
-                    DebruijnIndex::new(level as u32),
-                ));
-            }
-        }
-        panic!("no entry found for key: `{name:?}`");
+        rty::Var::Bound(self.get_bvar(name))
     }
 }
 
