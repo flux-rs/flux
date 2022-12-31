@@ -169,7 +169,7 @@ pub trait TypeFoldable: Sized {
                     if let RefineArg::Expr(e) = sol {
                         e.clone()
                     } else {
-                        panic!("expected expr for `{expr:?}` but found `{:?}` when substituting", sol)
+                        panic!("expected expr for `{expr:?}` but found `{sol:?}` when substituting")
                     }
                 } else if let ExprKind::App(Func::Var(Var::EVar(evar)), args) = expr.kind()
                     && let Some(sol) = self.0.get(*evar)
