@@ -359,10 +359,6 @@ impl<'a> Wf<'a> {
             fhir::RefineArg::Expr { expr, .. } => {
                 let found = self.synth_expr(env, expr)?;
                 if found != expected {
-                    // panic!(
-                    //     "check_arg {env:?}, expr = {expr:?}, found = {found:?} at {:?}",
-                    //     expr.span
-                    // );
                     return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
                 }
                 if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {

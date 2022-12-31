@@ -193,7 +193,7 @@ pub fn desugar_fn_sig(
         .try_collect_exhaust();
 
     let params = cx.binders.into_params();
-
+    // println!("TRACE: desugar_fn_sig {params:?}");
     Ok(fhir::FnSig { params, requires: cx.requires, args, ret: ret?, ensures: ensures? })
 }
 
@@ -1003,17 +1003,18 @@ impl Binders {
         for (ident, binder) in self.map {
             match binder {
                 Binder::Single(name, sort, implicit) => {
-                    params.push(param_from_ident(
-                        ident,
-                        name,
-                        sort.clone(),
-                        infer_mode(implicit, &sort),
-                    ));
+                    let param =
+                        param_from_ident(ident, name, sort.clone(), infer_mode(implicit, &sort));
+
+                    // println!("TRACE: into_params (SNG) - param = {:?}", param);
+                    params.push(param);
                 }
                 Binder::Aggregate(name, def_id, _) => {
                     let sort = fhir::Sort::Adt(def_id);
                     let mode = fhir::InferMode::default_for(&sort);
-                    params.push(param_from_ident(ident, name, sort, mode));
+                    let param = param_from_ident(ident, name, sort, mode);
+                    // println!("TRACE: into_params (AGG) - param = {:?}", param);
+                    params.push(param);
                 }
                 Binder::Unrefined => {}
             }
@@ -1097,7 +1098,7 @@ impl Binder {
                     Binder::Unrefined
                 } else if params.len() == 1 {
                     let (_, sort) = params[0].clone();
-                    Binder::Single(name, sort, false)
+                    Binder::Single(name, sort, true)
                 } else {
                     let fields: FxIndexMap<_, _> = params
                         .iter()
