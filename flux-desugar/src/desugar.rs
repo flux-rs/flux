@@ -432,7 +432,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn desugar_path(&mut self, path: surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match path.ident {
+        let bty = match path.res {
             Res::Bool => BtyOrTy::Bty(fhir::BaseTy::Bool),
             Res::Int(int_ty) => BtyOrTy::Bty(fhir::BaseTy::Int(int_ty)),
             Res::Uint(uint_ty) => BtyOrTy::Bty(fhir::BaseTy::Uint(uint_ty)),
@@ -870,7 +870,7 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, map, path.ident))?;
+                self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, map, path.res))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(
@@ -972,7 +972,7 @@ impl Binders {
         path: &surface::Path<Res>,
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
-        let allow_binder = allow_binder && is_box(tcx, path.ident);
+        let allow_binder = allow_binder && is_box(tcx, path.res);
         path.args.iter().try_for_each_exhaust(|ty| {
             self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
         })
@@ -1145,7 +1145,7 @@ impl Binder {
         bty: &surface::BaseTy<Res>,
     ) -> Binder {
         match bty {
-            surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
+            surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.res),
             surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, true),
         }
     }

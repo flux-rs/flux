@@ -90,10 +90,10 @@ pub Variant: surface::VariantDef = {
 }
 
 VariantRet: surface::VariantRet = {
-    <path: Path> "[" <indices: Indices> "]" => {
+    <path:Path> "[" <indices: Indices> "]" => {
         surface::VariantRet { <> }
     },
-    <path: Path> <lo:@L> <hi:@R> => {
+    <path:Path> <lo:@L> <hi:@R> => {
         let indices = surface::Indices { indices: vec![], span: mk_span(lo, hi) };
         surface::VariantRet { path, indices }
     }
@@ -162,7 +162,9 @@ GenericArgs: Vec<surface::Ty> = {
 }
 
 Path: surface::Path = {
-    <lo:@L> <ident:Ident> <args:GenericArgs?> <hi:@R> => surface::Path { ident, args: args.unwrap_or_default(), span: mk_span(lo, hi) }
+    <lo:@L> <segments:Sep1<"::", Ident>> <args:GenericArgs?> <hi:@R> => {
+        surface::Path { segments, args: args.unwrap_or_default(), span: mk_span(lo, hi), res: () }
+    }
 }
 
 Refinement: surface::Expr = {
@@ -336,6 +338,14 @@ Sep<S, T>: Vec<T> = {
     }
 }
 
+Sep1<S, T>: Vec<T> = {
+    <v:(<T> S)*> <e:T> => {
+        let mut v = v;
+        v.push(e);
+        v
+    }
+}
+
 Comma<T> = Sep<",", T>;
 
 Binding<A, B>: (A, B) = <A> ":" <B>;
@@ -387,5 +397,6 @@ extern {
         "%"  => Token::Percent,
         "if"   => Token::If,
         "else" => Token::Else,
+        "::" => Token::ModSep
     }
 }

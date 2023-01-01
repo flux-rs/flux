@@ -650,7 +650,7 @@ impl BaseTy {
         static GE0: LazyLock<Invariant> = LazyLock::new(|| {
             Invariant {
                 pred: Binders::new(
-                    Expr::binary_op(BinOp::Ge, Expr::bvar(BoundVar::NU), Expr::zero()),
+                    Expr::binary_op(BinOp::Ge, BoundVar::NU, Expr::zero()),
                     vec![Sort::Int],
                 ),
             }
