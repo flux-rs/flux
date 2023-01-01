@@ -46,6 +46,12 @@ newtype_index! {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct EVarCxId(u64);
 
+impl EVar {
+    pub fn cx(&self) -> EVarCxId {
+        self.cx
+    }
+}
+
 impl EVarGen {
     pub fn new() -> Self {
         EVarGen { evars: FxHashMap::default() }

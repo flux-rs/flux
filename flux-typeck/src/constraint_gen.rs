@@ -7,12 +7,12 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, RefKind, RefineArg, RefineArgs, Sort, Ty, TyKind,
-        VariantRet,
+        InferMode, Path, PolySig, PolyVariant, RefKind, RefineArg, Sort, Ty, TyKind, VariantRet,
     },
     rustc::mir::{BasicBlock, SourceInfo},
 };
 use itertools::{izip, Itertools};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_span::Span;
 
@@ -34,8 +34,7 @@ struct InferCtxt<'a, 'tcx> {
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
     tag: Tag,
-    scope: Scope,
-    evars_cx: EVarCxId,
+    scopes: FxIndexMap<EVarCxId, Scope>,
 }
 
 pub struct CallOutput {
@@ -89,8 +88,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         constraint: &Constraint,
         src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
-        self.infcx(rcx)
-            .check_constraint(rcx, env, constraint, src_info)
+        let mut infcx = self.infcx(rcx);
+        infcx.check_constraint(rcx, env, constraint, src_info)?;
+        rcx.replace_evars(&infcx.solve().unwrap());
+        Ok(())
     }
 
     pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
@@ -98,7 +99,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     }
 
     pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        self.infcx(rcx).subtyping(rcx, ty1, ty2)
+        let mut infcx = self.infcx(rcx);
+        infcx.subtyping(rcx, ty1, ty2);
+        rcx.replace_evars(&infcx.solve().unwrap());
     }
 
     pub fn check_fn_call(
@@ -235,9 +238,17 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         tag: Tag,
     ) -> Self {
         let mut evar_gen = EVarGen::new();
-        let scope = rcx.scope();
-        let evars_cx = evar_gen.new_ctxt();
-        Self { genv, kvar_gen, scope, evar_gen, evars_cx, tag }
+        let mut scopes = FxIndexMap::default();
+        scopes.insert(evar_gen.new_ctxt(), rcx.scope());
+        Self { genv, kvar_gen, scopes, evar_gen, tag }
+    }
+
+    fn push_scope(&mut self, rcx: &RefineCtxt) {
+        self.scopes.insert(self.evar_gen.new_ctxt(), rcx.scope());
+    }
+
+    fn pop_scope(&mut self) {
+        self.scopes.pop();
     }
 
     fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr> {
@@ -245,7 +256,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn fresh_evar(&mut self) -> EVar {
-        self.evar_gen.fresh_in_cx(self.evars_cx)
+        let cx = self.scopes.last().unwrap().0;
+        self.evar_gen.fresh_in_cx(*cx)
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> RefineArg {
@@ -297,18 +309,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
         let rcx = &mut rcx.breadcrumb();
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Exists(bty1, p1), TyKind::Exists(bty2, p2)) if p1 == p2 => {
-                self.bty_subtyping(rcx, bty1, bty2);
-                return;
-            }
-            (TyKind::Exists(bty, pred), _) => {
-                let idxs = rcx.assume_bound_pred(pred);
-                let ty1 = Ty::indexed(bty.clone(), RefineArgs::multi(idxs));
-                self.subtyping(rcx, &ty1, ty2);
-                return;
-            }
-            _ => {}
+        if let TyKind::Exists(exists) = ty1.kind() {
+            let exists = exists.replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
+            rcx.assume_pred(exists.pred);
+            self.subtyping(rcx, &Ty::indexed(exists.bty, exists.args), ty2);
+            return;
         }
 
         match (ty1.kind(), ty2.kind()) {
@@ -318,9 +323,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     self.refine_arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
                 }
             }
-            (TyKind::Indexed(bty1, idxs), TyKind::Exists(bty2, pred)) => {
-                self.bty_subtyping(rcx, bty1, bty2);
-                rcx.check_pred(pred.replace_bvars(idxs.args()), self.tag);
+            (TyKind::Indexed(..), TyKind::Exists(exists)) => {
+                self.push_scope(rcx);
+                let exists =
+                    exists.replace_bvars_with(|_| RefineArg::Expr(Expr::evar(self.fresh_evar())));
+                rcx.check_pred(exists.pred, self.tag);
+                self.subtyping(rcx, ty1, &Ty::indexed(exists.bty, exists.args));
+                self.pop_scope();
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
                 debug_assert_eq!(rk1, rk2);
@@ -476,7 +485,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn unify_args(&mut self, arg1: &RefineArg, arg2: &RefineArg, replace: bool) {
         if let RefineArg::Expr(e) = arg2
            && let ExprKind::EVar(evar) = e.kind()
-           && !self.scope.has_free_vars(arg1)
+           && let scope = &self.scopes[&evar.cx()]
+           && !scope.has_free_vars(arg1)
         {
             self.evar_gen.unify(*evar, arg1, replace)
         }
@@ -484,7 +494,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
         if let ExprKind::EVar(evar) = e2.kind()
-           && !self.scope.has_free_vars(e1)
+           && let scope = &self.scopes[&evar.cx()]
+           && !scope.has_free_vars(e1)
         {
             self.evar_gen.unify(*evar, e1, replace);
         }

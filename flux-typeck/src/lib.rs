@@ -50,7 +50,9 @@ pub fn check<'tcx>(
 ) -> Result<(), ErrorGuaranteed> {
     let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
     let mut kvars = fixpoint::KVarStore::new();
-    let refine_tree = Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
+    let mut refine_tree =
+        Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
+    refine_tree.simplify();
 
     if CONFIG.dump_constraint {
         dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();

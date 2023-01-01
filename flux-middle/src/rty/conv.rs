@@ -230,13 +230,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
         match ty {
             fhir::Ty::BaseTy(bty) => {
-                let bty = self.conv_base_ty(bty);
-                let sorts = bty.sorts();
-                if sorts.is_empty() {
+                if let fhir::BaseTy::Adt(def_id, _) = bty
+                   && self.genv.map().sorts_of(*def_id).unwrap_or(&[]).is_empty()
+                {
+                    let bty = self.conv_base_ty(bty);
                     rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
-                    let pred = rty::Binders::new(rty::Expr::tt(), sorts);
-                    rty::Ty::exists(bty, pred)
+                    self.env.push_layer(&[]);
+                    let bty = self.conv_base_ty(bty);
+                    let ty = rty::Ty::full_exists(bty, rty::Expr::tt());
+                    self.env.pop_layer();
+                    ty
                 }
             }
             fhir::Ty::Indexed(bty, idxs) => {
@@ -245,11 +249,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::Ty::indexed(bty, idxs)
             }
             fhir::Ty::Exists(bty, binders, pred) => {
-                let bty = self.conv_base_ty(bty);
                 self.env.push_layer(binders);
+                let bty = self.conv_base_ty(bty);
                 let pred = self.env.conv_expr(pred);
-                let pred = rty::Binders::new(pred, bty.sorts());
-                let ty = rty::Ty::exists(bty, pred);
+                let ty = rty::Ty::full_exists(bty, pred);
                 self.env.pop_layer();
                 ty
             }
