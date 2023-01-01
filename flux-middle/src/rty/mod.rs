@@ -279,6 +279,16 @@ impl RefineArgs {
         RefineArgsData { args: vec![arg.into()], is_binder: BitSet::new_empty(1) }.intern()
     }
 
+    /// Return a list of bound variables. The returned value will have escaping vars which
+    /// need to be put inside a [`Binders`]
+    pub fn bound(n: usize) -> RefineArgs {
+        RefineArgs::multi(
+            (0..n)
+                .map(|i| RefineArg::Expr(Expr::bvar(BoundVar::innermost(i))))
+                .collect(),
+        )
+    }
+
     pub fn is_binder(&self, i: usize) -> bool {
         self.0.is_binder.contains(i)
     }
@@ -468,6 +478,27 @@ impl Ty {
         TyKind::Exists(exists).intern()
     }
 
+    /// Makes a *fully applied* existential, i.e., an existential that has binders for all the
+    /// indices of the [`BaseTy`]. For example, if we have
+    ///
+    /// ```ignore
+    /// #[flux::refined_by(a: int, b: int)]
+    /// struct Pair {
+    ///     #[flux::field(i32[@a])]
+    ///     fst: i32,
+    ///     #[flux::field(i32[@b])]
+    ///     snd: i32,
+    /// }
+    /// ```
+    /// Then, a fully applied existential for `Pair` binds both indices: `{int,int. Pair[^0.0, ^0.1] | p}`.
+    ///
+    /// Note that the arguments `bty` and `pred` are both expected to have escaping vars, which will
+    /// be closed by wrapping them inside a [`Binders`].
+    pub fn full_exists(bty: BaseTy, pred: Expr) -> Self {
+        let sorts = List::from(bty.sorts());
+        Ty::exists(Binders::new(Exists::new(bty, RefineArgs::bound(sorts.len()), pred), sorts))
+    }
+
     pub fn param(param: ParamTy) -> Ty {
         TyKind::Param(param).intern()
     }
@@ -493,15 +524,15 @@ impl Ty {
     }
 
     pub fn bool() -> Ty {
-        Ty::exists(Exists::full(BaseTy::Bool, Binders::new(Expr::tt(), vec![Sort::Bool])))
+        Ty::full_exists(BaseTy::Bool, Expr::tt())
     }
 
     pub fn int(int_ty: IntTy) -> Ty {
-        Ty::exists(Exists::full(BaseTy::Int(int_ty), Binders::new(Expr::tt(), vec![Sort::Int])))
+        Ty::full_exists(BaseTy::Int(int_ty), Expr::tt())
     }
 
     pub fn uint(uint_ty: UintTy) -> Ty {
-        Ty::exists(Exists::full(BaseTy::Uint(uint_ty), Binders::new(Expr::tt(), vec![Sort::Int])))
+        Ty::full_exists(BaseTy::Uint(uint_ty), Expr::tt())
     }
 
     pub fn usize() -> Ty {
@@ -570,16 +601,6 @@ impl TyS {
 impl Exists {
     pub fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
         Self { bty, args, pred }
-    }
-
-    pub fn full(bty: BaseTy, pred: Binders<Expr>) -> Binders<Self> {
-        debug_assert_eq!(bty.sorts(), pred.params());
-        let args = RefineArgs::multi(
-            (0..pred.params().len())
-                .map(|i| RefineArg::Expr(Expr::bvar(BoundVar::innermost(i))))
-                .collect(),
-        );
-        pred.map(|pred| Exists { bty, args, pred })
     }
 }
 

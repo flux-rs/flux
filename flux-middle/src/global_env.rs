@@ -308,7 +308,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
         };
         let pred = mk_pred(bty.sorts());
-        rty::Ty::exists(rty::Exists::full(bty, pred))
+        let exists = pred.map(|pred| {
+            let args = rty::RefineArgs::bound(bty.sorts().len());
+            rty::Exists::new(bty, args, pred)
+        });
+        rty::Ty::exists(exists)
     }
 
     pub fn refine_generic_arg(

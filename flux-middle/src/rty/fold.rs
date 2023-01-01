@@ -115,24 +115,17 @@ pub trait TypeFoldable: Sized {
     }
 
     /// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces
-    /// all existing [`predicates`] with a [`hole`].
-    /// For example, `Vec<i32{v: v > 0}>[n]` becomes `Vec<i32{v: *}>{v: *}`.
+    /// all existing with a [`hole`].
+    /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: Pred::Hole
-    /// [`predicates`]: Pred
     fn with_holes(&self) -> Self {
         struct WithHoles;
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 match ty.kind() {
-                    TyKind::Indexed(bty, _) => {
-                        let sorts = bty.sorts();
-                        Ty::exists(Exists::full(
-                            bty.fold_with(self),
-                            Binders::new(Expr::hole(), sorts),
-                        ))
-                    }
+                    TyKind::Indexed(bty, _) => Ty::full_exists(bty.fold_with(self), Expr::hole()),
                     TyKind::Exists(exists) => {
                         Ty::exists(exists.as_ref().map(|exists| {
                             Exists {

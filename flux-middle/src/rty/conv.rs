@@ -238,8 +238,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 } else {
                     self.env.push_layer(&[]);
                     let bty = self.conv_base_ty(bty);
-                    let pred = rty::Binders::new(rty::Expr::tt(), bty.sorts());
-                    let ty = rty::Ty::exists(rty::Exists::full(bty, pred));
+                    let ty = rty::Ty::full_exists(bty, rty::Expr::tt());
                     self.env.pop_layer();
                     ty
                 }
@@ -253,8 +252,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 self.env.push_layer(binders);
                 let bty = self.conv_base_ty(bty);
                 let pred = self.env.conv_expr(pred);
-                let pred = rty::Binders::new(pred, bty.sorts());
-                let ty = rty::Ty::exists(rty::Exists::full(bty, pred));
+                let ty = rty::Ty::full_exists(bty, pred);
                 self.env.pop_layer();
                 ty
             }

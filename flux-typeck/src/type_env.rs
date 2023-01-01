@@ -415,8 +415,7 @@ impl TypeEnvInfer {
             TyKind::Indexed(bty, idxs) => {
                 let bty = TypeEnvInfer::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
-                    let pred = Binders::new(Expr::hole(), bty.sorts());
-                    Ty::exists(Exists::full(bty, pred))
+                    Ty::full_exists(bty, Expr::hole())
                 } else {
                     Ty::indexed(bty, idxs.clone())
                 }
@@ -608,21 +607,18 @@ impl TypeEnvInfer {
             (TyKind::Exists(exists), TyKind::Indexed(bty2, ..)) => {
                 let bty1 = &exists.as_ref().skip_binders().bty;
                 let bty = self.join_bty(bty1, bty2, src_info);
-                let pred = Binders::new(Expr::hole(), bty.sorts());
-                Ty::exists(Exists::full(bty, pred))
+                Ty::full_exists(bty, Expr::hole())
             }
             (TyKind::Indexed(bty1, _), TyKind::Exists(exists)) => {
                 let bty2 = &exists.as_ref().skip_binders().bty;
                 let bty = self.join_bty(bty1, bty2, src_info);
-                let pred = Binders::new(Expr::hole(), bty.sorts());
-                Ty::exists(Exists::full(bty, pred))
+                Ty::full_exists(bty, Expr::hole())
             }
             (TyKind::Exists(exists1), TyKind::Exists(exists2)) => {
                 let bty1 = &exists1.as_ref().skip_binders().bty;
                 let bty2 = &exists2.as_ref().skip_binders().bty;
                 let bty = self.join_bty(bty1, bty2, src_info);
-                let pred = Binders::new(Expr::hole(), bty.sorts());
-                Ty::exists(Exists::full(bty, pred))
+                Ty::full_exists(bty, Expr::hole())
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);

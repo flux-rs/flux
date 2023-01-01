@@ -251,8 +251,8 @@ impl Expr {
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
-    /// mostly for filtering predicates when pretty printing but also to avoid adding unnecesary
-    /// predicates to the constraint.
+    /// mostly for filtering predicates when pretty printing but also to simplify the constraint
+    /// before encoding it into fixpoint.
     pub fn is_trivially_true(&self) -> bool {
         self.is_true()
             || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)

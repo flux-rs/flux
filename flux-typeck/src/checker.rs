@@ -16,9 +16,8 @@ use flux_common::{
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Exists, Expr, Float,
-        FnSig, Int, IntTy, PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
+        Int, IntTy, PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -776,10 +775,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         match sig.out {
             sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
-            sigs::Output::Exists(mk) => {
-                let pred = Binders::new(mk(Expr::nu(), [e1, e2]), vec![Sort::Int]);
-                Ty::exists(Exists::full(bty, pred))
-            }
+            sigs::Output::Exists(mk) => Ty::full_exists(bty, mk(Expr::nu(), [e1, e2])),
         }
     }
 
@@ -810,13 +806,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 .check_pred(rcx, constr([e1.clone(), e2.clone()]));
         }
 
-        let bty = BaseTy::Bool;
         match sig.out {
-            sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
-            sigs::Output::Exists(mk) => {
-                let pred = mk(Expr::nu(), [e1, e2]);
-                Ty::exists(Exists::full(bty, Binders::new(pred, vec![Sort::Bool])))
-            }
+            sigs::Output::Indexed(mk) => Ty::indexed(BaseTy::Bool, RefineArgs::one(mk([e1, e2]))),
+            sigs::Output::Exists(mk) => Ty::full_exists(BaseTy::Bool, mk(Expr::nu(), [e1, e2])),
         }
     }
 
