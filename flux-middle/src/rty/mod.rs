@@ -886,10 +886,10 @@ mod pretty {
                     Ok(())
                 }
                 TyKind::Exists(Binders { params, value: Exists { bty, args, pred } }) => {
-                    if pred.is_trivially_true() {
-                        w!("{{{:?}. {:?}[{:?}]}}", join!(", ", params), bty, args)
+                    if pred.is_true() {
+                        w!("{{[{:?}]. {:?}[{:?}]}}", join!(", ", params), bty, args)
                     } else {
-                        w!("{{{:?}. {:?}[{:?}] | {:?}}}", join!(", ", params), bty, args, pred)
+                        w!("{{[{:?}]. {:?}[{:?}] | {:?}}}", join!(", ", params), bty, args, pred)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),

@@ -115,7 +115,7 @@ pub trait TypeFoldable: Sized {
     }
 
     /// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces
-    /// all existing with a [`hole`].
+    /// all existing predicates with a [`hole`].
     /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: Pred::Hole
