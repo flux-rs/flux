@@ -44,40 +44,40 @@ pub struct UifDef {
 }
 
 #[derive(Debug)]
-pub struct Alias<T = Ident> {
+pub struct Alias<R = ()> {
     pub name: Ident,
     pub args: Vec<Ident>,
-    pub defn: Ty<T>,
+    pub defn: Ty<R>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct StructDef<T = Ident> {
+pub struct StructDef<R = ()> {
     pub def_id: LocalDefId,
     pub refined_by: Option<RefinedBy>,
-    pub fields: Vec<Option<Ty<T>>>,
+    pub fields: Vec<Option<Ty<R>>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
-pub struct EnumDef<T = Ident> {
+pub struct EnumDef<R = ()> {
     pub def_id: LocalDefId,
     pub refined_by: Option<RefinedBy>,
-    pub variants: Vec<VariantDef<T>>,
+    pub variants: Vec<VariantDef<R>>,
     pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
-pub struct VariantDef<T = Ident> {
-    pub fields: Vec<Ty<T>>,
-    pub ret: VariantRet<T>,
+pub struct VariantDef<R = ()> {
+    pub fields: Vec<Ty<R>>,
+    pub ret: VariantRet<R>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct VariantRet<T = Ident> {
-    pub path: Path<T>,
+pub struct VariantRet<R = ()> {
+    pub path: Path<R>,
     /// Binders are not allowed at this position, but we parse this as a list of indices
     /// for better error reporting.
     pub indices: Indices,
@@ -114,67 +114,67 @@ pub struct ConstSig {
 }
 
 #[derive(Debug)]
-pub struct FnSig<T = Ident> {
+pub struct FnSig<R = ()> {
     /// List of explicit refinement parameters
     pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
-    pub args: Vec<Arg<T>>,
+    pub args: Vec<Arg<R>>,
     /// example `i32{v:v >= 0}`
-    pub returns: Option<Ty<T>>,
+    pub returns: Option<Ty<R>>,
     /// example: `*x: i32{v. v = n+1}`
-    pub ensures: Vec<(Ident, Ty<T>)>,
+    pub ensures: Vec<(Ident, Ty<R>)>,
     /// source span
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum Arg<T = Ident> {
+pub enum Arg<R = ()> {
     /// example `a: i32{a > 0}`
-    Constr(Ident, Path<T>, Expr),
+    Constr(Ident, Path<R>, Expr),
     /// example `x: nat` or `x: lb[0]`
-    Alias(Ident, Path<T>, Indices),
+    Alias(Ident, Path<R>, Indices),
     /// example `v: &strg i32`
-    StrgRef(Ident, Ty<T>),
+    StrgRef(Ident, Ty<R>),
     /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v : v > 0}`.
     /// The binder has a different meaning depending on the type.
-    Ty(Option<Ident>, Ty<T>),
+    Ty(Option<Ident>, Ty<R>),
 }
 
 #[derive(Debug)]
-pub struct Ty<R = Ident> {
+pub struct Ty<R = ()> {
     pub kind: TyKind<R>,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum BaseTy<T = Ident> {
-    Path(Path<T>),
-    Slice(Box<Ty<T>>),
+pub enum BaseTy<R = ()> {
+    Path(Path<R>),
+    Slice(Box<Ty<R>>),
 }
 
 #[derive(Debug)]
-pub enum TyKind<T = Ident> {
+pub enum TyKind<R = ()> {
     /// ty
-    Base(BaseTy<T>),
+    Base(BaseTy<R>),
     /// `t[e]`
     Indexed {
-        bty: BaseTy<T>,
+        bty: BaseTy<R>,
         indices: Indices,
     },
     /// ty{b:e}
     Exists {
         bind: Ident,
-        bty: BaseTy<T>,
+        bty: BaseTy<R>,
         pred: Expr,
     },
     /// Mutable or shared reference
-    Ref(RefKind, Box<Ty<T>>),
+    Ref(RefKind, Box<Ty<R>>),
     /// Constrained type: an exists without binder
-    Constr(Expr, Box<Ty<T>>),
-    Tuple(Vec<Ty<T>>),
-    Array(Box<Ty<T>>, ArrayLen),
+    Constr(Expr, Box<Ty<R>>),
+    Tuple(Vec<Ty<R>>),
+    Array(Box<Ty<R>>, ArrayLen),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -198,10 +198,11 @@ pub enum RefineArg {
 }
 
 #[derive(Debug)]
-pub struct Path<R = Ident> {
-    pub ident: R,
+pub struct Path<R = ()> {
+    pub segments: Vec<Ident>,
     pub args: Vec<Ty<R>>,
     pub span: Span,
+    pub res: R,
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -272,16 +273,6 @@ pub enum UnOp {
 
 impl RefinedBy {
     pub const DUMMY: &RefinedBy = &RefinedBy { params: vec![], span: rustc_span::DUMMY_SP };
-}
-
-impl Path<Res> {
-    pub fn is_bool(&self) -> bool {
-        matches!(self.ident, Res::Bool)
-    }
-
-    pub fn is_float(&self) -> bool {
-        matches!(self.ident, Res::Float(_))
-    }
 }
 
 impl RefinedBy {
@@ -391,8 +382,9 @@ pub mod expand {
     }
 
     fn expand_alias_path(aliases: &AliasMap, path: &Path, indices: &Indices) -> Option<TyKind> {
-        let id = path.ident;
-        if let Some(alias) = aliases.get(&id) {
+        if let [id] = &path.segments[..]
+           && let Some(alias) = aliases.get(id)
+        {
             let subst = mk_sub(&alias.args, &indices.indices);
             let ty = subst_ty(&subst, &alias.defn);
             return Some(ty.kind);
@@ -409,9 +401,10 @@ pub mod expand {
 
     fn expand_path(aliases: &AliasMap, path: &Path) -> Path {
         Path {
-            ident: path.ident,
+            segments: path.segments.clone(),
             args: path.args.iter().map(|t| expand_ty(aliases, t)).collect(),
             span: path.span,
+            res: path.res,
         }
     }
 
@@ -537,7 +530,7 @@ pub mod expand {
         for t in &p.args {
             args.push(subst_ty(subst, t));
         }
-        Path { ident: p.ident, args, span: p.span }
+        Path { segments: p.segments.clone(), args, span: p.span, res: p.res }
     }
 
     fn subst_ty(subst: &Subst, ty: &Ty) -> Ty {

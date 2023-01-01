@@ -1,20 +1,26 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
-use hir::{def_id::DefId, ItemKind};
+use hir::{def_id::DefId, ItemKind, PathSegment};
+use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::{ParamTy, TyCtxt, TyKind};
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 
 pub struct Resolver<'genv, 'tcx> {
     sess: &'genv FluxSession,
     table: NameResTable<'genv, 'tcx>,
 }
 
+#[derive(Hash, Eq, PartialEq)]
+pub struct ResKey {
+    s: String,
+}
+
 struct NameResTable<'sess, 'tcx> {
-    res: FxHashMap<Symbol, Res>,
+    res: FxHashMap<ResKey, Res>,
     generics: FxHashMap<DefId, ParamTy>,
     sess: &'sess FluxSession,
     tcx: TyCtxt<'tcx>,
@@ -171,13 +177,15 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
     }
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
-        let ident = self.resolve_ident(path.ident)?;
+        let Some(&res) = self.table.get(&ResKey::from_path(&path)) else {
+            return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)))
+        };
         let args = path
             .args
             .into_iter()
             .map(|ty| self.resolve_ty(ty))
             .try_collect_exhaust()?;
-        Ok(Path { ident, args, span: path.span })
+        Ok(Path { segments: path.segments, args, span: path.span, res })
     }
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
@@ -188,14 +196,6 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
                 let ty = self.resolve_ty(*ty)?;
                 Ok(BaseTy::Slice(Box::new(ty)))
             }
-        }
-    }
-
-    pub fn resolve_ident(&self, ident: Ident) -> Result<Res, ErrorGuaranteed> {
-        if let Some(res) = self.table.get(ident.name) {
-            Ok(*res)
-        } else {
-            Err(self.sess.emit_err(errors::UnresolvedPath::new(ident)))
         }
     }
 }
@@ -213,7 +213,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
                 table.insert_generics(tcx, generics);
                 table
                     .res
-                    .insert(item.ident.name, Res::Adt(def_id.to_def_id()));
+                    .insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for field in data.fields() {
                     table.collect_from_ty(field.ty)?;
@@ -223,7 +223,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
                 table.insert_generics(tcx, generics);
                 table
                     .res
-                    .insert(item.ident.name, Res::Adt(def_id.to_def_id()));
+                    .insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for variant in data.variants {
                     for field in variant.data.fields() {
@@ -273,8 +273,8 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
     }
 
-    fn get(&self, sym: Symbol) -> Option<&Res> {
-        self.res.get(&sym)
+    fn get(&self, key: &ResKey) -> Option<&Res> {
+        self.res.get(key)
     }
 
     fn get_param_ty(&self, def_id: DefId) -> Option<ParamTy> {
@@ -305,16 +305,6 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             self.collect_from_ty(ty)?;
         }
 
-        Ok(())
-    }
-
-    fn insert_res_for_ident(
-        &mut self,
-        ident: Ident,
-        res: rustc_hir::def::Res,
-    ) -> Result<(), ErrorGuaranteed> {
-        let res = self.res_from_hir_res(res, ident.span)?;
-        self.res.insert(ident.name, res);
         Ok(())
     }
 
@@ -389,22 +379,18 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
                     }));
                 };
 
-                let (ident, args) = match path.segments {
-                    [hir::PathSegment { ident, args, .. }] => (ident, args),
-                    _ => {
-                        return Err(self.sess.emit_err(errors::UnsupportedSignature {
-                            span: qpath.span(),
-                            note: "multi-segment paths are not supported yet".to_string(),
-                        }));
-                    }
-                };
-                self.insert_res_for_ident(*ident, path.res)?;
+                let key = ResKey::from_hir_path(self.sess, path)?;
+                let res = self.res_from_hir_res(path.res, path.span)?;
+                self.res.insert(key, res);
 
-                args.map(|args| args.args)
-                    .iter()
-                    .copied()
-                    .flatten()
-                    .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))
+                if let [.., PathSegment { args, .. }] = path.segments {
+                    args.map(|args| args.args)
+                        .iter()
+                        .copied()
+                        .flatten()
+                        .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
+                }
+                Ok(())
             }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
@@ -432,10 +418,35 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
     }
 }
 
+impl ResKey {
+    fn from_ident(ident: Ident) -> Self {
+        ResKey { s: format!("{ident}") }
+    }
+
+    fn from_path(path: &Path) -> ResKey {
+        let s = path.segments.iter().join("::");
+        ResKey { s }
+    }
+
+    fn from_hir_path(sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self, ErrorGuaranteed> {
+        if let [prefix @ .., _] = path.segments
+           && prefix.iter().any(|segment| segment.args.is_some())
+        {
+            return Err(sess.emit_err(errors::UnsupportedSignature {
+                span: path.span,
+                note: "path segments with generic arguments are not supported".to_string(),
+            }));
+        }
+        let s = path.segments.iter().map(|segment| segment.ident).join("::");
+        Ok(ResKey { s })
+    }
+}
+
 mod errors {
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
-    use rustc_span::{symbol::Ident, Span};
+    use itertools::Itertools;
+    use rustc_span::Span;
 
     #[derive(Diagnostic)]
     #[diag(resolver::unsupported_signature, code = "FLUX")]
@@ -452,12 +463,12 @@ mod errors {
     pub struct UnresolvedPath {
         #[primary_span]
         pub span: Span,
-        pub path: Ident,
+        pub path: String,
     }
 
     impl UnresolvedPath {
-        pub fn new(ident: surface::Ident) -> Self {
-            Self { span: ident.span, path: ident }
+        pub fn new(path: &surface::Path) -> Self {
+            Self { span: path.span, path: path.segments.iter().join("::") }
         }
     }
 }

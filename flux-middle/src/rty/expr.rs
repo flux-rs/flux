@@ -545,6 +545,12 @@ impl From<Name> for Expr {
     }
 }
 
+impl From<BoundVar> for Expr {
+    fn from(bvar: BoundVar) -> Self {
+        Expr::bvar(bvar)
+    }
+}
+
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])
