@@ -308,7 +308,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
         };
         let pred = mk_pred(bty.sorts());
-        rty::Ty::exists(bty, pred)
+        let exists = pred.map(|pred| {
+            let args = rty::RefineArgs::bound(bty.sorts().len());
+            rty::Exists::new(bty, args, pred)
+        });
+        rty::Ty::exists(exists)
     }
 
     pub fn refine_generic_arg(
@@ -339,7 +343,7 @@ mod errors {
     impl DefinitionCycle {
         pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
             let root = format!("`{}`", cycle[0]);
-            let names: Vec<String> = cycle.iter().map(|s| format!("`{}`", s)).collect();
+            let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
         }

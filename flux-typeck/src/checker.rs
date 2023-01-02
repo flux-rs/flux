@@ -775,10 +775,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         match sig.out {
             sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
-            sigs::Output::Exists(mk) => {
-                let pred = mk(Expr::nu(), [e1, e2]);
-                Ty::exists(bty, Binders::new(pred, vec![Sort::Int]))
-            }
+            sigs::Output::Exists(mk) => Ty::full_exists(bty, mk(Expr::nu(), [e1, e2])),
         }
     }
 
@@ -809,13 +806,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 .check_pred(rcx, constr([e1.clone(), e2.clone()]));
         }
 
-        let bty = BaseTy::Bool;
         match sig.out {
-            sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
-            sigs::Output::Exists(mk) => {
-                let pred = mk(Expr::nu(), [e1, e2]);
-                Ty::exists(bty, Binders::new(pred, vec![Sort::Bool]))
-            }
+            sigs::Output::Indexed(mk) => Ty::indexed(BaseTy::Bool, RefineArgs::one(mk([e1, e2]))),
+            sigs::Output::Exists(mk) => Ty::full_exists(BaseTy::Bool, mk(Expr::nu(), [e1, e2])),
         }
     }
 

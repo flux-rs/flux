@@ -251,10 +251,11 @@ impl Expr {
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
-    /// mostly for filtering predicates when pretty printing but also to avoid adding unnecesary
-    /// predicates to the constraint.
+    /// mostly for filtering predicates when pretty printing but also to simplify the constraint
+    /// before encoding it into fixpoint.
     pub fn is_trivially_true(&self) -> bool {
-        self.is_true() || self.is_trivial_equality()
+        self.is_true()
+            || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
     }
 
     /// Whether the expression is literally the constant true.
@@ -264,10 +265,6 @@ impl Expr {
 
     pub fn is_binary_op(&self) -> bool {
         matches!(self.kind, ExprKind::BinaryOp(..))
-    }
-
-    pub fn is_trivial_equality(&self) -> bool {
-        matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq, e1, e2) if e1 == e2)
     }
 
     /// Simplify expression applying some simple rules like removing double negation. This is
@@ -545,6 +542,12 @@ impl From<Path> for Expr {
 impl From<Name> for Expr {
     fn from(name: Name) -> Self {
         Expr::fvar(name)
+    }
+}
+
+impl From<BoundVar> for Expr {
+    fn from(bvar: BoundVar) -> Self {
+        Expr::bvar(bvar)
     }
 }
 

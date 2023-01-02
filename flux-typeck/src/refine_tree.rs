@@ -8,8 +8,8 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Binders, Expr, GenericArg, Name, RefKind,
-    RefineArg, RefineArgs, Sort, Ty, TyKind,
+    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Expr, GenericArg, Name, RefKind,
+    RefineArgs, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -103,6 +103,10 @@ impl RefineTree {
         }
     }
 
+    pub fn simplify(&mut self) {
+        self.root.borrow_mut().simplify();
+    }
+
     pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
         self.root
             .borrow()
@@ -132,10 +136,6 @@ impl RefineCtxt<'_> {
 
     pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
         self.ptr.push_foralls(sorts)
-    }
-
-    pub fn assume_bound_pred(&mut self, pred: &Binders<Expr>) -> Vec<RefineArg> {
-        self.ptr.push_bound_guard(pred)
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
@@ -177,16 +177,18 @@ impl RefineCtxt<'_> {
                 }
                 Ty::indexed(bty, idxs.clone())
             }
-            TyKind::Exists(bty, pred) => {
+            TyKind::Exists(exists) => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes the refered type too specific. We only have this as a workaround to
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let idxs = RefineArgs::multi(self.ptr.push_bound_guard(pred));
-                    let bty = self.unpack_bty(bty, in_mut_ref, flags);
-                    self.assume_invariants(&bty, &idxs);
-                    Ty::indexed(bty, idxs)
+                    let exists =
+                        exists.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
+                    self.ptr.push_guard(exists.pred);
+                    let bty = self.unpack_bty(&exists.bty, in_mut_ref, flags);
+                    self.assume_invariants(&bty, &exists.args);
+                    Ty::indexed(bty, exists.args)
                 } else {
                     ty.clone()
                 }
@@ -294,16 +296,6 @@ impl NodePtr {
         }
     }
 
-    fn push_bound_guard(&mut self, pred: &Binders<Expr>) -> Vec<RefineArg> {
-        let args = self
-            .push_foralls(pred.params())
-            .into_iter()
-            .map(|name| RefineArg::Expr(Expr::fvar(name)))
-            .collect_vec();
-        self.push_guard(pred.replace_bvars(&args));
-        args
-    }
-
     fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {
         let name_gen = self.name_gen();
         let mut names = vec![];
@@ -367,32 +359,57 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn replace_evars(&mut self, evars: &EVarSol) {
-        self.children.drain_filter(|child| {
-            let mut node = child.borrow_mut();
-            node.replace_evars(evars);
-            matches!(node.kind, NodeKind::True)
-        });
-        match &mut self.kind {
-            NodeKind::Guard(pred) => *pred = pred.replace_evars(evars),
-            NodeKind::Impl(pred1, pred2, tag) => {
-                let pred1 = pred1.replace_evars(evars);
-                let pred2 = pred2.replace_evars(evars);
+    fn simplify(&mut self) {
+        for child in &self.children {
+            child.borrow_mut().simplify();
+        }
+
+        match &self.kind {
+            NodeKind::Head(pred, _) => {
+                if pred.is_trivially_true() {
+                    self.kind = NodeKind::True;
+                }
+            }
+            NodeKind::Impl(pred1, pred2, _) => {
                 if pred1 == pred2 {
                     self.kind = NodeKind::True;
-                } else {
-                    self.kind = NodeKind::Impl(pred1, pred2, *tag)
                 }
+            }
+            NodeKind::True => {}
+            NodeKind::Guard(pred) => {
+                self.children.drain_filter(|child| {
+                    matches!(child.borrow().kind, NodeKind::True)
+                        || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
+                });
+            }
+            NodeKind::Conj | NodeKind::ForAll(..) => {
+                self.children
+                    .drain_filter(|child| matches!(&child.borrow().kind, NodeKind::True));
+            }
+        }
+        if !self.is_leaf() && self.children.is_empty() {
+            self.kind = NodeKind::True;
+        }
+    }
+
+    fn is_leaf(&self) -> bool {
+        matches!(self.kind, NodeKind::Head(..) | NodeKind::Impl(..) | NodeKind::True)
+    }
+
+    fn replace_evars(&mut self, sol: &EVarSol) {
+        for child in &self.children {
+            child.borrow_mut().replace_evars(sol);
+        }
+        match &mut self.kind {
+            NodeKind::Guard(pred) => *pred = pred.replace_evars(sol),
+            NodeKind::Impl(pred1, pred2, _) => {
+                *pred1 = pred1.replace_evars(sol);
+                *pred2 = pred2.replace_evars(sol);
             }
             NodeKind::Head(pred, _) => {
-                let new_pred = pred.replace_evars(evars);
-                if new_pred.is_trivial_equality() {
-                    self.kind = NodeKind::True
-                } else {
-                    *pred = new_pred;
-                }
+                *pred = pred.replace_evars(sol);
             }
-            NodeKind::Conj | NodeKind::ForAll(_, _) | NodeKind::True => {}
+            NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 

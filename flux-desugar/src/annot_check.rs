@@ -240,7 +240,7 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
     }
 
     fn zip_path(&self, path: &Path<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
-        match (&path.ident, rust_ty.kind()) {
+        match (&path.res, rust_ty.kind()) {
             (Res::Adt(def_id1), rustc_ty::TyKind::Adt(def_id2, substs)) if def_id1 == def_id2 => {
                 let generics = self.tcx.generics_of(def_id1);
                 let max_args = generics.own_counts().types;
@@ -318,7 +318,6 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
             }
         });
         iter::zip(args, rust_args)
-            .into_iter()
             .try_for_each_exhaust(|(arg, rust_arg)| self.zip_ty(arg, rust_arg))
     }
 }

@@ -5,9 +5,9 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, Defns, Expr, ExprKind, FnSig,
-    GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg, RefineArgs, RefineArgsData,
-    Sort, Ty, TyKind, VariantRet,
+    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, Defns, Exists, Expr, ExprKind,
+    FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg, RefineArgs,
+    RefineArgsData, Sort, Ty, TyKind, VariantRet,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -97,7 +97,7 @@ pub trait TypeFoldable: Sized {
             F: FnMut(&[Sort]) -> Binders<Expr>,
         {
             fn fold_binders<T: TypeFoldable>(&mut self, t: &Binders<T>) -> Binders<T> {
-                t.super_fold_with(&mut ReplaceHoles(&mut self.0, &t.params))
+                t.super_fold_with(&mut ReplaceHoles(&mut *self.0, &t.params))
             }
 
             fn fold_expr(&mut self, e: &Expr) -> Expr {
@@ -115,21 +115,27 @@ pub trait TypeFoldable: Sized {
     }
 
     /// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces
-    /// all existing [`predicates`] with a [`hole`].
-    /// For example, `Vec<i32{v: v > 0}>[n]` becomes `Vec<i32{v: *}>{v: *}`.
+    /// all existing predicates with a [`hole`].
+    /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: Pred::Hole
-    /// [`predicates`]: Pred
     fn with_holes(&self) -> Self {
         struct WithHoles;
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                if let TyKind::Indexed(bty, _) | TyKind::Exists(bty, _) = ty.kind() {
-                    let sorts = bty.sorts();
-                    Ty::exists(bty.super_fold_with(self), Binders::new(Expr::hole(), sorts))
-                } else {
-                    ty.super_fold_with(self)
+                match ty.kind() {
+                    TyKind::Indexed(bty, _) => Ty::full_exists(bty.fold_with(self), Expr::hole()),
+                    TyKind::Exists(exists) => {
+                        Ty::exists(exists.as_ref().map(|exists| {
+                            Exists {
+                                bty: exists.bty.fold_with(self),
+                                args: exists.args.fold_with(self),
+                                pred: Expr::hole(),
+                            }
+                        }))
+                    }
+                    _ => ty.super_fold_with(self),
                 }
             }
         }
@@ -169,7 +175,7 @@ pub trait TypeFoldable: Sized {
                     if let RefineArg::Expr(e) = sol {
                         e.clone()
                     } else {
-                        panic!("expected expr for `{expr:?}` but found `{:?}` when substituting", sol)
+                        panic!("expected expr for `{expr:?}` but found `{sol:?}` when substituting")
                     }
                 } else if let ExprKind::App(Func::Var(Var::EVar(evar)), args) = expr.kind()
                     && let Some(sol) = self.0.get(*evar)
@@ -298,9 +304,7 @@ impl TypeFoldable for Ty {
             TyKind::Indexed(bty, idxs) => {
                 Ty::indexed(bty.fold_with(folder), idxs.fold_with(folder))
             }
-            TyKind::Exists(bty, pred) => {
-                TyKind::Exists(bty.fold_with(folder), pred.fold_with(folder)).intern()
-            }
+            TyKind::Exists(exists) => TyKind::Exists(exists.fold_with(folder)).intern(),
             TyKind::Tuple(tys) => Ty::tuple(tys.fold_with(folder)),
             TyKind::Array(ty, c) => Ty::array(ty.fold_with(folder), c.clone()),
             TyKind::Ptr(rk, path) => {
@@ -333,9 +337,8 @@ impl TypeFoldable for Ty {
                 bty.visit_with(visitor);
                 idxs.visit_with(visitor);
             }
-            TyKind::Exists(bty, pred) => {
-                bty.visit_with(visitor);
-                pred.visit_with(visitor);
+            TyKind::Exists(exists) => {
+                exists.visit_with(visitor);
             }
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             TyKind::Array(ty, _) => ty.visit_with(visitor),
@@ -355,6 +358,22 @@ impl TypeFoldable for Ty {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_ty(self)
+    }
+}
+
+impl TypeFoldable for Exists {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Exists {
+        Exists::new(
+            self.bty.fold_with(folder),
+            self.args.fold_with(folder),
+            self.pred.fold_with(folder),
+        )
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.bty.visit_with(visitor);
+        self.args.visit_with(visitor);
+        self.pred.visit_with(visitor);
     }
 }
 

@@ -213,8 +213,10 @@ pub struct DesugarCtxt<'a, 'tcx> {
 /// [`Binder`].
 struct Binders {
     name_gen: IndexGen<fhir::Name>,
-    map: FxIndexMap<surface::Ident, Binder>,
+    layers: Vec<Layer>,
 }
+
+type Layer = FxIndexMap<surface::Ident, Binder>;
 
 /// The different kind of binders that can appear in the surface syntax
 #[derive(Debug, Clone)]
@@ -231,7 +233,7 @@ enum Binder {
     /// index are treated specially as they can be used either with a projection or the
     /// binder directly.
     Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
-    /// A binder to an unrefined type (a type that cannot be refined). We try to catch this
+    /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
     /// `T[@a]` or as an existential `T{v : v > 0}`, but unrefined binders can appear when
@@ -430,7 +432,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn desugar_path(&mut self, path: surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match path.ident {
+        let bty = match path.res {
             Res::Bool => BtyOrTy::Bty(fhir::BaseTy::Bool),
             Res::Int(int_ty) => BtyOrTy::Bty(fhir::BaseTy::Int(int_ty)),
             Res::Uint(uint_ty) => BtyOrTy::Bty(fhir::BaseTy::Uint(uint_ty)),
@@ -720,7 +722,7 @@ fn resolve_base_sort(
 
 impl Binders {
     fn new() -> Binders {
-        Binders { name_gen: IndexGen::new(), map: FxIndexMap::default() }
+        Binders { name_gen: IndexGen::new(), layers: vec![Layer::default()] }
     }
 
     fn from_params<'a>(
@@ -743,11 +745,11 @@ impl Binders {
     }
 
     fn def_ident(&self, ident: impl Borrow<surface::Ident>) -> Option<surface::Ident> {
-        Some(*self.map.get_key_value(ident.borrow())?.0)
+        self.iter_layers(|layer| Some(*layer.get_key_value(ident.borrow())?.0))
     }
 
     fn get(&self, ident: impl Borrow<surface::Ident>) -> Option<&Binder> {
-        self.map.get(ident.borrow())
+        self.iter_layers(|layer| layer.get(ident.borrow()))
     }
 
     fn with_binder<R>(
@@ -778,20 +780,15 @@ impl Binders {
         binders: impl IntoIterator<Item = (surface::Ident, Binder)>,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
     ) -> Result<(R, Vec<Binder>), ErrorGuaranteed> {
-        let mut old = vec![];
+        self.push_layer();
         for (ident, binder) in binders {
-            old.push((ident, self.map.insert(ident, binder)));
+            self.top_layer().insert(ident, binder);
         }
         let r = f(self)?;
-        let binders = old
+        let binders = self
+            .pop_layer()
             .into_iter()
-            .map(|(ident, binder)| {
-                if let Some(binder) = binder {
-                    self.map.insert(ident, binder).unwrap()
-                } else {
-                    self.map.remove(&ident).unwrap()
-                }
-            })
+            .map(|(_, binder)| binder)
             .collect_vec();
         Ok((r, binders))
     }
@@ -802,7 +799,7 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
-        match self.map.entry(ident) {
+        match self.top_layer().entry(ident) {
             IndexEntry::Occupied(entry) => {
                 Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
             }
@@ -873,7 +870,7 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, map, path.ident))?;
+                self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, map, path.res))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(
@@ -975,7 +972,7 @@ impl Binders {
         path: &surface::Path<Res>,
         allow_binder: bool,
     ) -> Result<(), ErrorGuaranteed> {
-        let allow_binder = allow_binder && is_box(tcx, path.ident);
+        let allow_binder = allow_binder && is_box(tcx, path.res);
         path.args.iter().try_for_each_exhaust(|ty| {
             self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
         })
@@ -999,7 +996,7 @@ impl Binders {
 
     fn into_args(self) -> Vec<(fhir::Ident, fhir::Sort)> {
         let mut args = vec![];
-        for (ident, binder) in self.map {
+        for (ident, binder) in self.into_top_layer() {
             if let Binder::Single(name, sort, _) = binder {
                 let name = fhir::Ident { name, source_info: to_src_info(ident) };
                 args.push((name, sort));
@@ -1012,7 +1009,7 @@ impl Binders {
 
     fn into_params(self) -> Vec<fhir::RefineParam> {
         let mut params = vec![];
-        for (ident, binder) in self.map {
+        for (ident, binder) in self.into_top_layer() {
             match binder {
                 Binder::Single(name, sort, implicit) => {
                     params.push(param_from_ident(
@@ -1037,6 +1034,27 @@ impl Binders {
         }
         params
     }
+
+    fn into_top_layer(mut self) -> Layer {
+        debug_assert_eq!(self.layers.len(), 1);
+        self.layers.pop().unwrap()
+    }
+
+    fn top_layer(&mut self) -> &mut Layer {
+        self.layers.last_mut().unwrap()
+    }
+
+    fn iter_layers<'a, T>(&'a self, f: impl FnMut(&'a Layer) -> Option<T>) -> Option<T> {
+        self.layers.iter().rev().find_map(f)
+    }
+
+    fn push_layer(&mut self) {
+        self.layers.push(Layer::default());
+    }
+
+    fn pop_layer(&mut self) -> Layer {
+        self.layers.pop().unwrap()
+    }
 }
 
 fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
@@ -1059,7 +1077,7 @@ impl<T: Borrow<surface::Ident>> std::ops::Index<T> for Binders {
     type Output = Binder;
 
     fn index(&self, index: T) -> &Self::Output {
-        &self.map[index.borrow()]
+        self.get(index).unwrap()
     }
 }
 
@@ -1127,7 +1145,7 @@ impl Binder {
         bty: &surface::BaseTy<Res>,
     ) -> Binder {
         match bty {
-            surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.ident),
+            surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.res),
             surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, true),
         }
     }

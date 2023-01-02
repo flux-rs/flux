@@ -52,6 +52,7 @@ pub enum Token {
     Check,
     If,
     Else,
+    ModSep,
 }
 
 pub(crate) struct Cursor {
@@ -141,6 +142,7 @@ impl Cursor {
                 return;
             }
             TokenKind::Not => Token::Not,
+            TokenKind::ModSep => Token::ModSep,
             _ => Token::Invalid,
         };
         self.push_token(span.lo(), token, span.hi())

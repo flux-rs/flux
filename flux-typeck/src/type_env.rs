@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, Expr,
-        ExprKind, GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
+        Exists, Expr, ExprKind, GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -415,8 +415,7 @@ impl TypeEnvInfer {
             TyKind::Indexed(bty, idxs) => {
                 let bty = TypeEnvInfer::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
-                    let pred = Binders::new(Expr::hole(), bty.sorts());
-                    Ty::exists(bty, pred)
+                    Ty::full_exists(bty, Expr::hole())
                 } else {
                     Ty::indexed(bty, idxs.clone())
                 }
@@ -431,7 +430,7 @@ impl TypeEnvInfer {
 
             TyKind::Array(ty, c) => Ty::array(Self::pack_ty(scope, ty), c.clone()),
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
-            TyKind::Exists(_, _)
+            TyKind::Exists(_)
             | TyKind::Never
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
@@ -586,19 +585,40 @@ impl TypeEnvInfer {
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2, src_info);
-                if self.scope.has_free_vars(idxs2) || idxs1.args() != idxs2.args() {
-                    let pred = Binders::new(Expr::hole(), bty.sorts());
-                    Ty::exists(bty, pred)
+                let mut sorts = vec![];
+                let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sorts())
+                    .map(|(arg1, arg2, sort)| {
+                        if !self.scope.has_free_vars(arg2) && arg1 == arg2 {
+                            arg1.clone()
+                        } else {
+                            sorts.push(sort.clone());
+                            RefineArg::Expr(Expr::bvar(BoundVar::innermost(sorts.len() - 1)))
+                        }
+                    })
+                    .collect();
+                let args = RefineArgs::multi(args);
+                if sorts.is_empty() {
+                    Ty::indexed(bty, args)
                 } else {
-                    Ty::indexed(bty, idxs1.clone())
+                    let exists = Exists::new(bty, args, Expr::hole());
+                    Ty::exists(Binders::new(exists, sorts))
                 }
             }
-            (TyKind::Exists(bty1, _), TyKind::Indexed(bty2, ..))
-            | (TyKind::Exists(bty1, _), TyKind::Exists(bty2, ..))
-            | (TyKind::Indexed(bty1, _), TyKind::Exists(bty2, ..)) => {
+            (TyKind::Exists(exists), TyKind::Indexed(bty2, ..)) => {
+                let bty1 = &exists.as_ref().skip_binders().bty;
                 let bty = self.join_bty(bty1, bty2, src_info);
-                let pred = Binders::new(Expr::hole(), bty.sorts());
-                Ty::exists(bty, pred)
+                Ty::full_exists(bty, Expr::hole())
+            }
+            (TyKind::Indexed(bty1, _), TyKind::Exists(exists)) => {
+                let bty2 = &exists.as_ref().skip_binders().bty;
+                let bty = self.join_bty(bty1, bty2, src_info);
+                Ty::full_exists(bty, Expr::hole())
+            }
+            (TyKind::Exists(exists1), TyKind::Exists(exists2)) => {
+                let bty1 = &exists1.as_ref().skip_binders().bty;
+                let bty2 = &exists2.as_ref().skip_binders().bty;
+                let bty = self.join_bty(bty1, bty2, src_info);
+                Ty::full_exists(bty, Expr::hole())
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
@@ -649,18 +669,14 @@ impl TypeEnvInfer {
     pub fn into_bb_env(self, kvar_store: &mut KVarStore) -> BasicBlockEnv {
         let mut bindings = self.bindings;
 
-        let mut names = vec![];
-        let mut sorts = vec![];
-        let mut preds = vec![];
-        let name_gen = self.scope.name_gen();
+        let mut generalizer = Generalizer::new(self.scope.name_gen());
         bindings.fmap_mut(|binding| {
             match binding {
-                Binding::Owned(ty) => {
-                    Binding::Owned(generalize(&name_gen, ty, &mut names, &mut sorts, &mut preds))
-                }
+                Binding::Owned(ty) => Binding::Owned(generalizer.generalize_ty(ty)),
                 Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
             }
         });
+        let (names, sorts, preds) = generalizer.into_parts();
 
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
@@ -692,57 +708,61 @@ impl TypeEnvInfer {
     }
 }
 
-/// This is effectively doing the same as [`RefineCtxt::unpack`] but for moving existentials
-/// to the top level in a [`BasicBlockEnv`]. Maybe we should find a way to abstract over it.
-fn generalize(
-    name_gen: &IndexGen<Name>,
-    ty: &Ty,
-    names: &mut Vec<Name>,
-    sorts: &mut Vec<Sort>,
-    preds: &mut Vec<Expr>,
-) -> Ty {
-    match ty.kind() {
-        TyKind::Indexed(bty, idxs) => {
-            let bty = generalize_bty(name_gen, bty, names, sorts, preds);
-            Ty::indexed(bty, idxs.clone())
-        }
-        TyKind::Exists(bty, pred) => {
-            let bty = generalize_bty(name_gen, bty, names, sorts, preds);
-
-            let mut idxs = vec![];
-            let pred = pred.replace_bvars_with_fresh_fvars(|sort| {
-                let fresh = name_gen.fresh();
-                names.push(fresh);
-                sorts.push(sort.clone());
-                idxs.push(RefineArg::Expr(Expr::fvar(fresh)));
-                fresh
-            });
-            preds.push(pred);
-
-            Ty::indexed(bty, RefineArgs::multi(idxs))
-        }
-        TyKind::Ref(RefKind::Shr, ty) => {
-            let ty = generalize(name_gen, ty, names, sorts, preds);
-            Ty::mk_ref(RefKind::Shr, ty)
-        }
-        _ => ty.clone(),
-    }
+struct Generalizer {
+    name_gen: IndexGen<Name>,
+    names: Vec<Name>,
+    sorts: Vec<Sort>,
+    preds: Vec<Expr>,
 }
 
-fn generalize_bty(
-    name_gen: &IndexGen<Name>,
-    bty: &BaseTy,
-    names: &mut Vec<Name>,
-    sorts: &mut Vec<Sort>,
-    preds: &mut Vec<Expr>,
-) -> BaseTy {
-    match bty {
-        BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-            let (boxed, alloc) = box_args(substs);
-            let boxed = generalize(name_gen, boxed, names, sorts, preds);
-            BaseTy::adt(adt_def.clone(), vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())])
+impl Generalizer {
+    fn new(name_gen: IndexGen<Name>) -> Self {
+        Self { name_gen, names: vec![], sorts: vec![], preds: vec![] }
+    }
+
+    fn into_parts(self) -> (Vec<Name>, Vec<Sort>, Vec<Expr>) {
+        (self.names, self.sorts, self.preds)
+    }
+
+    /// This is effectively doing the same as [`RefineCtxt::unpack`] but for moving existentials
+    /// to the top level in a [`BasicBlockEnv`]. Maybe we should find a way to abstract over it.
+    fn generalize_ty(&mut self, ty: &Ty) -> Ty {
+        match ty.kind() {
+            TyKind::Indexed(bty, idxs) => {
+                let bty = self.generalize_bty(bty);
+                Ty::indexed(bty, idxs.clone())
+            }
+            TyKind::Exists(exists) => {
+                let exists = exists.replace_bvars_with_fresh_fvars(|sort| {
+                    let fresh = self.name_gen.fresh();
+                    self.names.push(fresh);
+                    self.sorts.push(sort.clone());
+                    fresh
+                });
+                let bty = self.generalize_bty(&exists.bty);
+                self.preds.push(exists.pred);
+                Ty::indexed(bty, exists.args)
+            }
+            TyKind::Ref(RefKind::Shr, ty) => {
+                let ty = self.generalize_ty(ty);
+                Ty::mk_ref(RefKind::Shr, ty)
+            }
+            _ => ty.clone(),
         }
-        _ => bty.clone(),
+    }
+
+    fn generalize_bty(&mut self, bty: &BaseTy) -> BaseTy {
+        match bty {
+            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                let (boxed, alloc) = box_args(substs);
+                let boxed = self.generalize_ty(boxed);
+                BaseTy::adt(
+                    adt_def.clone(),
+                    vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                )
+            }
+            _ => bty.clone(),
+        }
     }
 }
 
