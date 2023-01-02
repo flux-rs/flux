@@ -92,6 +92,15 @@ impl<T> RVec<T> {
         }
         vec
     }
+
+    #[flux::trusted]
+    #[flux::sig(fn(self: &strg RVec<T>[@n], other: &[T][@m]) -> () ensures self: RVec<T>[n + m])]
+    pub fn extend_from_slice(&mut self, other: &[T])
+    where
+        T: Clone,
+    {
+        self.inner.extend_from_slice(other)
+    }
 }
 
 #[flux::opaque]
