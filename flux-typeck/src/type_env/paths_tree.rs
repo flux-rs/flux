@@ -204,10 +204,11 @@ impl PathsTree {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         other: &mut PathsTree,
+        src_info: Option<SourceInfo>,
     ) {
         for (loc, root1) in &self.map {
             let node2 = &mut *other.map[loc].ptr.borrow_mut();
-            root1.ptr.borrow_mut().join_with(gen, rcx, node2);
+            root1.ptr.borrow_mut().join_with(gen, rcx, node2, src_info);
         }
     }
 
@@ -451,19 +452,26 @@ impl Node {
         }
     }
 
-    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
+    fn join_with(
+        &mut self,
+        gen: &mut ConstrGen,
+        rcx: &mut RefineCtxt,
+        other: &mut Node,
+        src_info: Option<SourceInfo>,
+    ) {
         let map = &mut FxHashMap::default();
+        let span = src_info.map(|info| info.span);
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self);
+                other.join_with(gen, rcx, self, src_info);
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
                 other.fold(map, rcx, gen, false, false);
             }
             (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx, gen.span()).unwrap();
-                self.join_with(gen, rcx, other);
+                self.split(gen.genv, rcx, span).unwrap();
+                self.join_with(gen, rcx, other, src_info);
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -472,7 +480,7 @@ impl Node {
                 if variant1 == variant2 {
                     for (ptr1, ptr2) in iter::zip(children1, children2) {
                         ptr1.borrow_mut()
-                            .join_with(gen, rcx, &mut ptr2.borrow_mut());
+                            .join_with(gen, rcx, &mut ptr2.borrow_mut(), src_info);
                     }
                 } else {
                     self.fold(map, rcx, gen, false, false);
@@ -490,7 +498,7 @@ impl Node {
 
                 for (ptr1, ptr2) in iter::zip(children1, children2) {
                     ptr1.borrow_mut()
-                        .join_with(gen, rcx, &mut ptr2.borrow_mut());
+                        .join_with(gen, rcx, &mut ptr2.borrow_mut(), src_info);
                 }
             }
         };
