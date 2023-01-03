@@ -41,12 +41,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> Result<Self, ErrorGuaranteed> {
         let check_asserts = CONFIG.check_asserts;
 
+        let uifs = map.uifs().map(|uif| uif.name).collect_vec();
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
         for defn in map.defns() {
             let defn = rty::conv::conv_defn(defn);
             defns.insert(defn.name, defn);
         }
-        let defns = Defns::new(defns).map_err(|cycle| {
+        let defns = Defns::new(uifs, defns).map_err(|cycle| {
             let span = map.defn(cycle[0]).unwrap().expr.span;
             sess.emit_err(errors::DefinitionCycle::new(span, cycle))
         })?;
