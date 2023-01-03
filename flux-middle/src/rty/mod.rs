@@ -1077,14 +1077,11 @@ impl Defns {
         for name in i2s.iter() {
             let defn = self.defns.get(name).unwrap();
             let deps = self.defn_deps(&defn.expr);
-            adj_list.push(
-                deps.iter()
-                    .map(|s| {
-                        *s2i.get(s)
-                            .unwrap_or_else(|| panic!("Yikes, cannot find {s:?}"))
-                    })
-                    .collect(),
-            );
+            let ddeps: Vec<usize> = deps
+                .iter()
+                .filter_map(|s| s2i.get(s).copied())
+                .collect_vec();
+            adj_list.push(ddeps)
         }
         let mut g = IndexGraph::from_adjacency_list(&adj_list);
         g.transpose();
@@ -1107,10 +1104,11 @@ impl Defns {
         // 2. Expand each defn in the sorted order
         let mut exp_defns = Defns { defns: FxHashMap::default() };
         for d in ds {
-            let defn = self.defns.remove(&d).unwrap();
-            let expr = defn.expr.normalize(&exp_defns);
-            let exp_defn = Defn { expr, ..defn };
-            exp_defns.defns.insert(d, exp_defn);
+            if let Some(defn) = self.defns.remove(&d) {
+                let expr = defn.expr.normalize(&exp_defns);
+                let exp_defn = Defn { expr, ..defn };
+                exp_defns.defns.insert(d, exp_defn);
+            }
         }
         Ok(exp_defns)
     }
