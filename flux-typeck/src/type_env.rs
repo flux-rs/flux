@@ -311,13 +311,14 @@ impl TypeEnv {
             .fmap(|binding| subst.apply(binding))
             .flatten();
 
+        let span = src_info.map(|src_info| src_info.span);
         // Convert pointers to borrows
         for (path, binding2) in &bb_env {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned(gen.span());
+                        let ty = self.bindings.get(ptr_path).expect_owned(span);
                         gen.subtyping(rcx, &ty, bound);
 
                         self.bindings
@@ -326,7 +327,7 @@ impl TypeEnv {
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                     }
                     (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned(gen.span());
+                        let ty = self.bindings.get(ptr_path).expect_owned(span);
                         self.bindings.block(ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
@@ -489,7 +490,7 @@ impl TypeEnvInfer {
 
         let paths = self.bindings.paths();
 
-        let span = gen.span();
+        let span = src_info.map(|info| info.span);
         // Convert pointers to borrows
         for path in &paths {
             let binding1 = self.bindings.get(path);
