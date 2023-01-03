@@ -7,7 +7,6 @@ use flux_common::{
 };
 use flux_fixpoint as fixpoint;
 use flux_middle::{
-    fhir,
     global_env::GlobalEnv,
     rty::{self, Binders, BoundVar},
 };
@@ -136,8 +135,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers
-            .iter()
+            .qualifiers()
             .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
             .collect();
 
@@ -147,12 +145,7 @@ where
             .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
-        let uifs = self
-            .genv
-            .map()
-            .uifs()
-            .map(uif_def_to_fixpoint)
-            .collect_vec();
+        let uifs = self.genv.uifs().map(uif_def_to_fixpoint).collect_vec();
 
         let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
         if CONFIG.dump_constraint {
@@ -344,7 +337,7 @@ fn fixpoint_const_map(
 }
 
 impl KVarDecl {
-    fn all_args(&self) -> impl Iterator<Item = &fhir::Sort> {
+    fn all_args(&self) -> impl Iterator<Item = &rty::Sort> {
         self.args.iter().chain(&self.scope)
     }
 }
@@ -427,7 +420,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             }
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Infer | rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
+        rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
     }
 }
 
@@ -454,7 +447,7 @@ fn dump_constraint<C: std::fmt::Debug>(
     write!(file, "{c:?}")
 }
 
-fn uif_def_to_fixpoint(uif_def: &fhir::UifDef) -> fixpoint::UifDef {
+fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
     let sort = func_sort_to_fixpoint(&uif_def.sort);
     fixpoint::UifDef::new(uif_def.name.to_string(), sort)
 }

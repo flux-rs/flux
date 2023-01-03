@@ -210,9 +210,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .replace_generic_args(&substs)
-            .replace_bvars_with(|sort| {
-                infcx.fresh_evar_or_kvar(sort, InferMode::default_for(sort))
-            });
+            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {

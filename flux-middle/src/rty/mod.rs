@@ -30,13 +30,27 @@ use self::{
     subst::BVarFolder,
 };
 pub use crate::{
-    fhir::{FuncSort, InferMode, RefKind, Sort},
+    fhir::{InferMode, RefKind},
     rustc::ty::Const,
 };
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::Place,
 };
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum Sort {
+    Int,
+    Bool,
+    Loc,
+    Tuple(List<Sort>),
+    Func(FuncSort),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct FuncSort {
+    pub inputs_and_output: List<Sort>,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -108,6 +122,11 @@ pub struct Qualifier {
 pub struct Defn {
     pub name: Symbol,
     pub expr: Binders<Expr>,
+}
+
+pub struct UifDef {
+    pub name: Symbol,
+    pub sort: FuncSort,
 }
 
 pub struct Defns {
@@ -694,6 +713,51 @@ impl Sort {
     pub fn is_loc(&self) -> bool {
         matches!(self, Self::Loc)
     }
+
+    /// Whether the sort is a function with return sort bool
+    pub fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
+    #[track_caller]
+    pub fn as_func(&self) -> &FuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            panic!("expected `Sort::Func`")
+        }
+    }
+}
+
+impl FuncSort {
+    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
+        inputs.push(output);
+        FuncSort { inputs_and_output: List::from_vec(inputs) }
+    }
+
+    pub fn inputs(&self) -> &[Sort] {
+        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
+    }
+
+    pub fn output(&self) -> &Sort {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    }
 }
 
 impl rustc_errors::IntoDiagnosticArg for Sort {
@@ -738,7 +802,8 @@ impl_internable!(
     [KVar],
     [Constraint],
     [RefineArg],
-    [InferMode]
+    [InferMode],
+    [Sort]
 );
 
 #[macro_export]
@@ -778,6 +843,26 @@ mod pretty {
 
     use super::*;
     use crate::pretty::*;
+
+    impl Pretty for Sort {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Sort::Bool => w!("bool"),
+                Sort::Int => w!("int"),
+                Sort::Loc => w!("loc"),
+                Sort::Func(fsort) => w!("{:?}", fsort),
+                Sort::Tuple(sorts) => w!("({:?})", join!(",", sorts)),
+            }
+        }
+    }
+
+    impl Pretty for FuncSort {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("({:?}) -> {:?}", join!(",", self.inputs()), self.output())
+        }
+    }
 
     impl<T> Pretty for Binders<T>
     where
@@ -1001,13 +1086,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for Sort {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(f, "{}", ^self)
-        }
-    }
-
     impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1033,6 +1111,7 @@ mod pretty {
         RefineArg,
         RefineArgs,
         VariantDef,
+        Sort,
     );
 }
 

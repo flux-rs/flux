@@ -24,7 +24,8 @@ pub struct OpaqueStructErr(pub DefId);
 pub struct GlobalEnv<'genv, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'genv FluxSession,
-    pub qualifiers: Vec<rty::Qualifier>,
+    qualifiers: Vec<rty::Qualifier>,
+    uifs: FxHashMap<Symbol, rty::UifDef>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     map: fhir::Map,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
@@ -57,11 +58,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             adt_defs.insert(adt_def.def_id(), adt_def);
         }
 
-        let mut qualifiers = vec![];
-        for qualifier in map.qualifiers() {
-            let qualifier = rty::conv::ConvCtxt::conv_qualifier(qualifier).normalize(&defns);
-            qualifiers.push(qualifier);
-        }
+        let qualifiers = map
+            .qualifiers()
+            .map(|qualifier| rty::conv::ConvCtxt::conv_qualifier(qualifier).normalize(&defns))
+            .collect();
+
+        let uifs = map
+            .uifs()
+            .map(|uif| (uif.name, rty::conv::conv_uif(uif)))
+            .collect();
 
         let mut genv = GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
@@ -72,6 +77,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             sess,
             check_asserts,
             map,
+            uifs,
             defns,
         };
         genv.register_struct_def_variants();
@@ -115,6 +121,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn map(&self) -> &fhir::Map {
         &self.map
+    }
+
+    pub fn qualifiers(&self) -> impl Iterator<Item = &rty::Qualifier> {
+        self.qualifiers.iter()
+    }
+
+    pub fn uifs(&self) -> impl Iterator<Item = &rty::UifDef> {
+        self.uifs.values()
     }
 
     pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
@@ -174,7 +188,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let poly_variant = self.variant(def_id, variant_idx)?;
         let variant = poly_variant.as_ref().skip_binders();
         let sorts = poly_variant.params();
-        let modes = sorts.iter().map(rty::InferMode::default_for).collect_vec();
+        let modes = sorts
+            .iter()
+            .map(rty::Sort::default_infer_mode)
+            .collect_vec();
         let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
         Ok(rty::PolySig::new(rty::Binders::new(sig, sorts), modes))
     }

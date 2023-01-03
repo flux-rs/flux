@@ -159,16 +159,6 @@ pub enum WeakKind {
     Arr,
 }
 
-impl InferMode {
-    pub fn default_for(sort: &Sort) -> Self {
-        if sort.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-}
-
 impl From<RefKind> for WeakKind {
     fn from(rk: RefKind) -> WeakKind {
         match rk {
@@ -364,15 +354,6 @@ impl Sort {
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
-    }
-
-    #[track_caller]
-    pub fn as_func(&self) -> &FuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            panic!("expected `Sort::Func`")
-        }
     }
 }
 
