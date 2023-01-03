@@ -75,3 +75,7 @@ pub fn desugar_fn_sig(
     // Desugar
     desugar::desugar_fn_sig(tcx, sess, map, fn_sig)
 }
+
+pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
+    fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
+}

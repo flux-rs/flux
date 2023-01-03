@@ -28,6 +28,7 @@ pub struct Task<Tag> {
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
     pub uifs: Vec<UifDef>,
+    pub sorts: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -66,8 +67,9 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         constraint: Constraint<Tag>,
         qualifiers: Vec<Qualifier>,
         uifs: Vec<UifDef>,
+        sorts: Vec<String>,
     ) -> Self {
-        Task { constants, kvars, constraint, qualifiers, uifs }
+        Task { constants, kvars, constraint, qualifiers, uifs, sorts }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
@@ -108,6 +110,10 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
 
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
+
+        for sort in &self.sorts {
+            writeln!(f, "(data {sort} 0 = [\n| {sort}0 {{ }} \n| {sort}1 {{ }}])")?;
+        }
 
         for (name, sort) in &self.constants {
             write!(f, "(constant {name:?} {sort:?})")?;

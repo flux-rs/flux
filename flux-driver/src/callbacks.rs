@@ -197,6 +197,11 @@ fn build_fhir_map(
 
     let mut err: Option<ErrorGuaranteed> = None;
 
+    // Register Sorts
+    for sort_decl in std::mem::take(&mut specs.sort_decls) {
+        map.insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
+    }
+
     // Register Consts
     for (def_id, const_sig) in std::mem::take(&mut specs.consts) {
         let did = def_id.to_def_id();
@@ -209,7 +214,7 @@ fn build_fhir_map(
         .into_iter()
         .try_for_each_exhaust(|uif_def| {
             let name = uif_def.name;
-            let uif_def = desugar::resolve_uif_def(sess, uif_def)?;
+            let uif_def = desugar::resolve_uif_def(sess, &map, uif_def)?;
             map.insert_uif(name.name, uif_def);
             Ok(())
         })
@@ -222,7 +227,7 @@ fn build_fhir_map(
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            let defn_uif = desugar::resolve_defn_uif(sess, defn)?;
+            let defn_uif = desugar::resolve_defn_uif(sess, &map, defn)?;
             map.insert_uif(name.name, defn_uif);
             Ok(())
         })

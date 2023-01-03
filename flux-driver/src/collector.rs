@@ -6,8 +6,8 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_def, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by, parse_ty,
-    parse_type_alias, parse_variant, surface, ParseResult,
+    parse_def, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by,
+    parse_sort_decl, parse_ty, parse_type_alias, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -44,6 +44,7 @@ pub(crate) struct Specs {
     pub qualifs: Vec<surface::Qualifier>,
     pub uifs: Vec<surface::UifDef>,
     pub dfns: Vec<surface::Defn>,
+    pub sort_decls: Vec<surface::SortDecl>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
@@ -173,6 +174,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.specs.sort_decls.extend(attrs.sort_decls());
         if attrs.ignore() {
             self.specs.ignores.insert(IgnoreKey::Module(def_id));
         }
@@ -246,14 +248,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             self.specs.ignores.insert(IgnoreKey::Crate);
         }
 
-        let mut qualifiers = attrs.qualifiers();
-        self.specs.qualifs.append(&mut qualifiers);
-
-        let mut uif_defs = attrs.uif_defs();
-        self.specs.uifs.append(&mut uif_defs);
-
-        let mut dfns = attrs.defns();
-        self.specs.dfns.append(&mut dfns);
+        self.specs.qualifs.extend(attrs.qualifiers());
+        self.specs.sort_decls.extend(attrs.sort_decls());
+        self.specs.uifs.extend(attrs.uif_defs());
+        self.specs.dfns.extend(attrs.defns());
 
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
@@ -360,6 +358,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_expr)?;
                 FluxAttrKind::Invariant(invariant)
             }
+            ("sort", AttrArgs::Delimited(dargs)) => {
+                let invariant =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_sort_decl)?;
+                FluxAttrKind::SortDecl(invariant)
+            }
             ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted,
@@ -416,6 +419,7 @@ impl Specs {
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
+            sort_decls: Vec::default(),
             uifs: Vec::default(),
             dfns: Vec::default(),
             aliases: FxHashMap::default(),
@@ -452,6 +456,7 @@ enum FluxAttrKind {
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
+    SortDecl(surface::SortDecl),
     Ignore,
 }
 
@@ -521,6 +526,10 @@ impl FluxAttrs {
         read_attrs!(self, Qualifier)
     }
 
+    fn sort_decls(&mut self) -> Vec<surface::SortDecl> {
+        read_attrs!(self, SortDecl)
+    }
+
     fn uif_defs(&mut self) -> Vec<surface::UifDef> {
         read_attrs!(self, UifDef)
     }
@@ -580,6 +589,7 @@ impl FluxAttrKind {
             FluxAttrKind::Ignore => attr_name!(Ignore),
             FluxAttrKind::UifDef(_) => attr_name!(UifDef),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
+            FluxAttrKind::SortDecl(_) => attr_name!(SortDecl),
         }
     }
 }

@@ -51,12 +51,19 @@ pub struct Qualifier {
     pub expr: Expr,
 }
 
+#[derive(Debug)]
+pub struct SortDecl {
+    pub name: Symbol,
+    pub span: Span,
+}
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
     uifs: FxHashMap<Symbol, UifDef>,
+    sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
@@ -230,6 +237,8 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(FuncSort),
     Infer,
+    /// User defined sort
+    User(Symbol),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -514,6 +523,20 @@ impl Map {
     pub fn adts(&self) -> impl Iterator<Item = &AdtDef> {
         self.adts.values()
     }
+
+    // Sorts
+
+    pub fn insert_sort_decl(&mut self, sort_decl: SortDecl) {
+        self.sort_decls.insert(sort_decl.name, sort_decl);
+    }
+
+    pub fn sort_decls(&self) -> impl Iterator<Item = &SortDecl> {
+        self.sort_decls.values()
+    }
+
+    pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
+        self.sort_decls.get(name.borrow())
+    }
 }
 
 impl_internable!([Sort]);
@@ -716,6 +739,7 @@ impl fmt::Display for Sort {
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
             Sort::Infer => write!(f, "_"),
+            Sort::User(name) => write!(f, "{name}"),
         }
     }
 }

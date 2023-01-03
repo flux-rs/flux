@@ -154,7 +154,15 @@ where
             .map(uif_def_to_fixpoint)
             .collect_vec();
 
-        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
+        let sorts = self
+            .genv
+            .map()
+            .sort_decls()
+            .map(|sort_decl| sort_decl.name.to_string())
+            .collect_vec();
+
+        let task =
+            fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
         if CONFIG.dump_constraint {
             dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
         }
@@ -426,6 +434,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
+        rty::Sort::User(name) => fixpoint::Sort::User(name.to_ident_string()),
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Infer | rty::Sort::Loc => unreachable!("unexpected sort {sort:?}"),
     }
