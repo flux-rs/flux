@@ -232,6 +232,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         args: &[Ty],
         arr_ty: &rustc::ty::Ty,
+        src_info: SourceInfo,
     ) -> Result<Ty, CheckerError> {
         let genv = self.genv;
 
@@ -240,16 +241,17 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let arr_ty =
             genv.refine_ty(arr_ty, &mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj));
 
+        let span = src_info.span;
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path), bound);
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.update(path, bound.clone());
                     env.block(path);
                 }
                 (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path), bound);
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.block(path);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),

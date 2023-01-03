@@ -657,7 +657,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .map(|op| self.check_operand(rcx, env, src_info, op))
                     .try_collect()?;
                 let mut gen = self.phase.constr_gen(self.genv, rcx, Tag::Other);
-                gen.check_mk_array(rcx, env, &args, ty)
+                gen.check_mk_array(rcx, env, &args, ty, src_info)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args
