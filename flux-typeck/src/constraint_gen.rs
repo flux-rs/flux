@@ -154,6 +154,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             }
         }
 
+        let span = src_info.span;
         // Check arguments
         for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
             let (formal, pred) = formal.unconstr();
@@ -165,12 +166,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound, Some(src_info))?;
                 }
                 (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path), bound);
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.update(path, bound.clone());
                     env.block(path);
                 }
                 (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path), bound);
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.block(path);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),

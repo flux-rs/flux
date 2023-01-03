@@ -16,6 +16,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use rustc_middle::{mir::SourceInfo, ty::TyCtxt};
+use rustc_span::Span;
 
 use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
 use super::rty::{Loc, Name, Sort};
@@ -28,7 +29,7 @@ use crate::{
 };
 
 pub trait PathMap {
-    fn get(&self, path: &Path) -> Ty;
+    fn get(&self, path: &Path, span: Option<Span>) -> Ty;
     fn update(&mut self, path: &Path, ty: Ty);
 }
 
@@ -316,7 +317,7 @@ impl TypeEnv {
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned();
+                        let ty = self.bindings.get(ptr_path).expect_owned(gen.span());
                         gen.subtyping(rcx, &ty, bound);
 
                         self.bindings
@@ -325,7 +326,7 @@ impl TypeEnv {
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                     }
                     (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned();
+                        let ty = self.bindings.get(ptr_path).expect_owned(gen.span());
                         self.bindings.block(ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
@@ -366,8 +367,8 @@ impl TypeEnv {
 }
 
 impl PathMap for TypeEnv {
-    fn get(&self, path: &Path) -> Ty {
-        self.bindings.get(path).expect_owned()
+    fn get(&self, path: &Path, span: Option<Span>) -> Ty {
+        self.bindings.get(path).expect_owned(span)
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
@@ -379,7 +380,7 @@ impl<S> PathMap for std::collections::HashMap<Path, Ty, S>
 where
     S: std::hash::BuildHasher,
 {
-    fn get(&self, path: &Path) -> Ty {
+    fn get(&self, path: &Path, _span: Option<Span>) -> Ty {
         self.get(path).unwrap().clone()
     }
 
@@ -488,6 +489,7 @@ impl TypeEnvInfer {
 
         let paths = self.bindings.paths();
 
+        let span = gen.span();
         // Convert pointers to borrows
         for path in &paths {
             let binding1 = self.bindings.get(path);
@@ -497,8 +499,8 @@ impl TypeEnvInfer {
                     (TyKind::Ptr(RefKind::Shr, path1), TyKind::Ptr(RefKind::Shr, path2))
                         if path1 != path2 =>
                     {
-                        let ty1 = self.bindings.get(path1).expect_owned();
-                        let ty2 = other.bindings.get(path2).expect_owned();
+                        let ty1 = self.bindings.get(path1).expect_owned(span);
+                        let ty2 = other.bindings.get(path2).expect_owned(span);
 
                         self.bindings.block(path1);
                         other.bindings.block(path2);
@@ -507,20 +509,20 @@ impl TypeEnvInfer {
                         other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty2));
                     }
                     (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned();
+                        let ty = self.bindings.get(ptr_path).expect_owned(span);
                         self.bindings.block(ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(RefKind::Shr, ptr_path)) => {
-                        let ty = other.bindings.get(ptr_path).expect_owned();
+                        let ty = other.bindings.get(ptr_path).expect_owned(span);
                         other.bindings.block(ptr_path);
                         other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2))
                         if path1 != path2 =>
                     {
-                        let ty1 = self.bindings.get(path1).expect_owned().with_holes();
-                        let ty2 = other.bindings.get(path2).expect_owned().with_holes();
+                        let ty1 = self.bindings.get(path1).expect_owned(span).with_holes();
+                        let ty2 = other.bindings.get(path2).expect_owned(span).with_holes();
 
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));

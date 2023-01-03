@@ -715,10 +715,10 @@ impl NodePtr {
 }
 
 impl Binding {
-    pub fn expect_owned(&self) -> Ty {
+    pub fn expect_owned(&self, span: Option<Span>) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
-            Binding::Blocked(_) => panic!("expected owned"),
+            Binding::Blocked(_) => panic!("expected owned at {span:?}"),
         }
     }
 
