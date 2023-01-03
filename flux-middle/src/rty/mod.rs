@@ -10,14 +10,7 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{
-    borrow::Cow,
-    collections::HashSet,
-    fmt,
-    hash::{BuildHasherDefault, Hash},
-    iter,
-    sync::LazyLock,
-};
+use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
@@ -118,7 +111,6 @@ pub struct Defn {
 }
 
 pub struct Defns {
-    uifs: Vec<Symbol>,
     defns: FxHashMap<Symbol, Defn>,
 }
 
@@ -1045,8 +1037,8 @@ mod pretty {
 }
 
 impl Defns {
-    pub fn new(uifs: Vec<Symbol>, defns: FxHashMap<Symbol, Defn>) -> Result<Self, Vec<Symbol>> {
-        let raw = Defns { uifs, defns };
+    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Result<Self, Vec<Symbol>> {
+        let raw = Defns { defns };
         raw.normalize()
     }
 
@@ -1076,9 +1068,7 @@ impl Defns {
         let mut i2s: Vec<Symbol> = Vec::new();
         let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
 
-        // for (i, s) in self.defns.keys().enumerate() {
-
-        for (i, s) in self.uifs.iter().chain(self.defns.keys()).enumerate() {
+        for (i, s) in self.defns.keys().enumerate() {
             i2s.push(*s);
             s2i.insert(*s, i);
         }
@@ -1086,19 +1076,13 @@ impl Defns {
         // 2. Make the dependency graph
         let mut adj_list: Vec<Vec<usize>> = vec![];
         for name in i2s.iter() {
-            // let defn = self.defns.get(name).unwrap();
-            let deps = match self.defns.get(name) {
-                Some(defn) => self.defn_deps(&defn.expr),
-                None => HashSet::new(),
-            };
-            adj_list.push(
-                deps.iter()
-                    .map(|s| {
-                        *s2i.get(s)
-                            .unwrap_or_else(|| panic!("Yikes, cannot find {s:?}"))
-                    })
-                    .collect(),
-            );
+            let defn = self.defns.get(name).unwrap();
+            let deps = self.defn_deps(&defn.expr);
+            let ddeps: Vec<usize> = deps
+                .iter()
+                .filter_map(|s| s2i.get(s).copied())
+                .collect_vec();
+            adj_list.push(ddeps)
         }
         let mut g = IndexGraph::from_adjacency_list(&adj_list);
         g.transpose();
@@ -1119,7 +1103,7 @@ impl Defns {
         let ds = self.sorted_defns()?;
 
         // 2. Expand each defn in the sorted order
-        let mut exp_defns = Defns { uifs: self.uifs, defns: FxHashMap::default() };
+        let mut exp_defns = Defns { defns: FxHashMap::default() };
         for d in ds {
             if let Some(defn) = self.defns.remove(&d) {
                 let expr = defn.expr.normalize(&exp_defns);
