@@ -1067,7 +1067,6 @@ impl Defns {
         // 1. Make the Symbol-Index
         let mut i2s: Vec<Symbol> = Vec::new();
         let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
-
         for (i, s) in self.defns.keys().enumerate() {
             i2s.push(*s);
             s2i.insert(*s, i);
