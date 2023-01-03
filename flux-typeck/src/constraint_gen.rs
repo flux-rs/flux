@@ -225,10 +225,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
         InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, self.tag)
     }
-
-    pub fn span(&self) -> Option<Span> {
-        self.tag.span()
-    }
 }
 
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {

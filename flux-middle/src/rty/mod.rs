@@ -1077,7 +1077,14 @@ impl Defns {
         for name in i2s.iter() {
             let defn = self.defns.get(name).unwrap();
             let deps = self.defn_deps(&defn.expr);
-            adj_list.push(deps.iter().map(|s| *s2i.get(s).unwrap()).collect());
+            adj_list.push(
+                deps.iter()
+                    .map(|s| {
+                        *s2i.get(s)
+                            .unwrap_or_else(|| panic!("Yikes, cannot find {s:?}"))
+                    })
+                    .collect(),
+            );
         }
         let mut g = IndexGraph::from_adjacency_list(&adj_list);
         g.transpose();
