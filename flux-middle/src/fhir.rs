@@ -342,6 +342,15 @@ impl AdtDef {
         let sorts = refined_by.sorts().cloned().collect_vec();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
     }
+
+    pub fn field_index(&self, fld: Symbol) -> usize {
+        self.refined_by
+            .params
+            .iter()
+            .find_position(|(ident, _)| ident.source_info.1 == fld)
+            .unwrap()
+            .0
+    }
 }
 
 impl RefinedBy {

@@ -44,7 +44,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
         for defn in map.defns() {
-            let defn = rty::conv::conv_defn(defn);
+            let defn = rty::conv::conv_defn(&map, defn);
             defns.insert(defn.name, defn);
         }
         let defns = Defns::new(defns).map_err(|cycle| {
@@ -54,13 +54,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let mut adt_defs = FxHashMap::default();
         for adt_def in map.adts() {
-            let adt_def = rty::conv::conv_adt_def(tcx, adt_def).normalize(&defns);
+            let adt_def = rty::conv::conv_adt_def(tcx, &map, adt_def).normalize(&defns);
             adt_defs.insert(adt_def.def_id(), adt_def);
         }
 
         let qualifiers = map
             .qualifiers()
-            .map(|qualifier| rty::conv::ConvCtxt::conv_qualifier(qualifier).normalize(&defns))
+            .map(|qualifier| rty::conv::ConvCtxt::conv_qualifier(&map, qualifier).normalize(&defns))
             .collect();
 
         let uifs = map
