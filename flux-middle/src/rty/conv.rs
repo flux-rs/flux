@@ -7,7 +7,7 @@
 //!    refinement predicates, aka abstract refinements, since the syntax in [`crate::rty`] has
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted
-use std::{iter, ops::Range};
+use std::{borrow::Borrow, iter, ops::Range};
 
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -28,10 +28,12 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
     env: Env,
 }
 
-type EnvLayer = FxHashMap<fhir::Name, Range<usize>>;
-
 struct Env {
-    layers: Vec<EnvLayer>,
+    layers: Vec<Layer>,
+}
+
+struct Layer {
+    names: FxHashMap<fhir::Name, Range<usize>>,
 }
 
 pub(crate) fn conv_adt_def(tcx: TyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
@@ -326,46 +328,32 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 }
 
 impl Env {
-    fn new<'a>(iter: impl IntoIterator<Item = (fhir::Name, &'a fhir::Sort)>) -> Self {
-        let mut layer = FxHashMap::default();
-        let mut i = 0;
-        for (name, sort) in iter.into_iter() {
-            let nsorts = conv_sort(sort).len();
-            layer.insert(name, i..(i + nsorts));
-            i += nsorts;
-        }
+    fn new(layer: Layer) -> Self {
         Self { layers: vec![layer] }
     }
 
     fn from_args(slice: &[(fhir::Ident, fhir::Sort)]) -> Self {
-        Self::new(slice.iter().map(|(ident, sort)| (ident.name, sort)))
+        Self::new(Layer::new(slice.iter().map(|(ident, sort)| (&ident.name, sort))))
     }
 
     fn from_params(params: &[fhir::RefineParam]) -> Self {
-        Self::new(params.iter().map(|param| (param.name.name, &param.sort)))
+        Self::new(Layer::new(params.iter().map(|param| (&param.name.name, &param.sort))))
     }
 
     fn from_refined_by(refined_by: &fhir::RefinedBy) -> Self {
-        Self::new(
+        Self::new(Layer::new(
             refined_by
                 .params
                 .iter()
-                .map(|(ident, sort)| (ident.name, sort)),
-        )
+                .map(|(ident, sort)| (&ident.name, sort)),
+        ))
     }
 
     fn push_layer<'a>(
         &mut self,
         binders: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>,
     ) {
-        let mut layer = FxHashMap::default();
-        let mut i = 0;
-        for (name, sort) in binders.into_iter() {
-            let nsorts = conv_sort(sort).len();
-            layer.insert(*name, i..(i + nsorts));
-            i += nsorts;
-        }
-        self.layers.push(layer);
+        self.layers.push(Layer::new(binders));
     }
 
     fn pop_layer(&mut self) {
@@ -429,6 +417,23 @@ impl Env {
 
     fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant { pred: Binders::new(self.conv_expr(invariant), sorts) }
+    }
+}
+
+impl Layer {
+    fn new<'a>(iter: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>) -> Self {
+        let mut names = FxHashMap::default();
+        let mut i = 0;
+        for (name, sort) in iter.into_iter() {
+            let nsorts = conv_sort(sort).len();
+            names.insert(*name, i..(i + nsorts));
+            i += nsorts;
+        }
+        Self { names }
+    }
+
+    fn get(&self, name: impl Borrow<fhir::Name>) -> Option<&Range<usize>> {
+        self.names.get(name.borrow())
     }
 }
 
