@@ -329,7 +329,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            Ok(fhir::Ty::Exists(bty, name, pred))
+                            let bind = fhir::Ident::new(name, to_src_info(ident));
+                            Ok(fhir::Ty::Exists(bty, bind, pred))
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -511,7 +512,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
             surface::ExprKind::Dot(var, fld) => {
                 if let fhir::ExprKind::Var(name, span, sym) = self.desugar_var(var)?.kind {
-                    let var = fhir::Ident { name, source_info: (sym, span) };
+                    let var = fhir::Ident::new(name, (sym, span));
                     fhir::ExprKind::Dot(var, fld.name, fld.span)
                 } else {
                     return Err(self
@@ -526,8 +527,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                         fhir::ExprKind::App(fhir::Func::Uif(func.name, func.span), args)
                     }
                     FuncRes::Param(name, _) => {
-                        let func =
-                            fhir::Func::Var(fhir::Ident { name, source_info: to_src_info(func) });
+                        let func = fhir::Func::Var(fhir::Ident::new(name, to_src_info(func)));
                         fhir::ExprKind::App(func, args)
                     }
                 }

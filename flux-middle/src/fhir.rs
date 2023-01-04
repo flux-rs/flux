@@ -123,7 +123,7 @@ pub enum Ty {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, Index),
-    Exists(BaseTy, Name, Expr),
+    Exists(BaseTy, Ident, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -309,6 +309,10 @@ impl Lit {
 }
 
 impl Ident {
+    pub fn new(name: Name, source_info: SourceInfo) -> Self {
+        Ident { name, source_info }
+    }
+
     pub fn span(&self) -> Span {
         self.source_info.0
     }

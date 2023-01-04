@@ -233,7 +233,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::Ty::Indexed(bty, idx) => self.conv_indexed(bty, idx),
             fhir::Ty::Exists(bty, bind, pred) => {
                 self.env
-                    .push_layer(Layer::new(self.genv.map(), [(bind, &bty.sort())]));
+                    .push_layer(Layer::new(self.genv.map(), [(&bind.name, &bty.sort())]));
                 let bty = self.conv_base_ty(bty);
                 let pred = self.env.conv_expr(pred);
                 self.env.pop_layer();
