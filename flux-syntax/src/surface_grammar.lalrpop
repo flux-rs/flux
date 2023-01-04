@@ -226,9 +226,8 @@ Level10: surface::Expr = {
         }
     },
     <lo:@L> <var:Ident> "." <fld:Ident> <hi:@R> => {
-        let expr  = surface::Expr { kind: surface::ExprKind::Var(var), span: var.span};
         surface::Expr {
-            kind: surface::ExprKind::Dot(Box::new(expr), fld),
+            kind: surface::ExprKind::Dot(var, fld),
             span: mk_span(lo, hi),
         }
     },

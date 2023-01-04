@@ -520,7 +520,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             surface::ExprKind::UnaryOp(op, box e) => {
                 fhir::ExprKind::UnaryOp(desugar_un_op(op), Box::new(self.desugar_expr(e)?))
             }
-            surface::ExprKind::Dot(e, fld) => return self.desugar_dot(*e, fld),
+            surface::ExprKind::Dot(var, fld) => return self.desugar_dot(var, fld),
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(args)?;
                 match self.resolve_func(func)? {
@@ -625,39 +625,32 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_dot(
         &self,
-        expr: surface::Expr,
+        var: surface::Ident,
         fld: surface::Ident,
     ) -> Result<fhir::Expr, ErrorGuaranteed> {
-        // This error never occurs because the parser forces `expr` to be an ident, but we report an error just in case.
-        let surface::ExprKind::Var(ident) = expr.kind else {
-            return Err(self
-                .sess
-                .emit_err(errors::InvalidDotVar { span: expr.span }))
-        };
-
-        match self.binders.get(ident) {
+        match self.binders.get(var) {
             Some(Binder::Single(_, sort, _)) => {
-                let def_ident = self.binders.def_ident(ident).unwrap();
+                let def_ident = self.binders.def_ident(var).unwrap();
                 Err(self
                     .sess
-                    .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, ident, fld)))
+                    .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, var, fld)))
             }
             Some(Binder::Aggregate(def_id, fields)) => {
                 let (name, _) = fields.get(&fld.name).ok_or_else(|| {
                     self.sess
                         .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
                 })?;
-                let span = ident.span.to(fld.span);
-                let kind = fhir::ExprKind::Var(*name, ident.name, span);
+                let span = var.span.to(fld.span);
+                let kind = fhir::ExprKind::Var(*name, var.name, span);
                 Ok(fhir::Expr { kind, span })
             }
             Some(Binder::Unrefined) => {
-                let def_ident = self.binders.def_ident(ident).unwrap();
+                let def_ident = self.binders.def_ident(var).unwrap();
                 Err(self
                     .sess
-                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, ident)))
+                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, var)))
             }
-            None => Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
+            None => Err(self.sess.emit_err(errors::UnresolvedVar::new(var))),
         }
     }
 
