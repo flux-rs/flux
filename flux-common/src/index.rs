@@ -50,6 +50,13 @@ impl<I: Idx> IndexGen<I> {
         I::new(index)
     }
 
+    pub fn fresh_n(&self, n: usize) -> Vec<I> {
+        let index = self
+            .count
+            .fetch_add(n, std::sync::atomic::Ordering::Relaxed);
+        (0..n).map(|i| I::new(i + index)).collect()
+    }
+
     /// Skip `n` indices
     pub fn skip(&self, n: usize) {
         self.count

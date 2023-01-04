@@ -219,6 +219,7 @@ pub enum Sort {
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
+    Adt(DefId),
     Infer,
 }
 
@@ -281,6 +282,14 @@ impl BaseTy {
     /// [`Bool`]: BaseTy::Bool
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+
+    pub fn sorts<'a>(&self, map: &'a Map) -> &'a [Sort] {
+        match self {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
+            BaseTy::Bool => &[Sort::Bool],
+            BaseTy::Adt(def_id, _) => map.sorts_of(*def_id).unwrap_or_else(|| &[]),
+        }
     }
 }
 
@@ -354,6 +363,15 @@ impl Sort {
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    #[track_caller]
+    pub fn as_func(&self) -> &FuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            panic!("expected `Sort::Func`")
+        }
     }
 }
 
@@ -696,6 +714,7 @@ impl fmt::Display for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
+            Sort::Adt(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::Infer => write!(f, "_"),
         }
     }
