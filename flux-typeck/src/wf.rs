@@ -500,11 +500,11 @@ impl<'a> Wf<'a> {
             fhir::Func::Var(var) => {
                 let sort = &env[&var.name];
                 if let Some(fsort) = self.is_coercible_to_func(sort) {
-                    Ok(fsort.clone())
+                    Ok(fsort)
                 } else {
                     Err(self
                         .sess
-                        .emit_err(errors::ExpectedFun::new(var.source_info.0, &sort)))
+                        .emit_err(errors::ExpectedFun::new(var.source_info.0, sort)))
                 }
             }
             fhir::Func::Uif(func, span) => {
@@ -523,14 +523,10 @@ impl<'a> Wf<'a> {
         if sort1 == sort2 {
             return true;
         }
-        if let fhir::Sort::Adt(def_id) = sort1
-            && let Some([sort1]) = self.map.sorts_of(*def_id)
-        {
+        if let Some(sort1) = self.is_single_sorted_adt(sort1) {
             return sort1 == sort2;
         }
-        if let fhir::Sort::Adt(def_id) = sort2
-            && let Some([sort2]) = self.map.sorts_of(*def_id)
-        {
+        if let Some(sort2) = self.is_single_sorted_adt(sort2) {
             return sort1 == sort2;
         }
 
@@ -540,10 +536,18 @@ impl<'a> Wf<'a> {
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
         if let fhir::Sort::Func(fsort) = sort {
             Some(fsort.clone())
-        } else if let fhir::Sort::Adt(def_id) = sort
-            && let Some([fhir::Sort::Func(fsort)]) = self.map.sorts_of(*def_id)
-        {
+        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_sorted_adt(sort) {
             Some(fsort.clone())
+        } else {
+            None
+        }
+    }
+
+    fn is_single_sorted_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
+        if let fhir::Sort::Adt(def_id) = sort
+            && let Some([sort]) = self.map.sorts_of(*def_id)
+        {
+            Some(sort)
         } else {
             None
         }

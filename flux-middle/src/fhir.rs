@@ -650,7 +650,7 @@ impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             IndexKind::Single(idx) => {
-                write!(f, "{:?}", idx)
+                write!(f, "{idx:?}")
             }
             IndexKind::Aggregate(def_id, flds) => {
                 write!(
