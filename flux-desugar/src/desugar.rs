@@ -478,9 +478,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(fhir::VariantRet { bty, idx })
             }
             BtyOrTy::Ty(_) => {
-                // This shouldn't happen because during zip_resolve we are checking
+                // This shouldn't happen because during annot_check we are checking
                 // the path resolves to the correct type.
-                panic!("variant output desugared to a unrefined type")
+                panic!("variant output desugared to an unrefined type")
             }
         }
     }
@@ -600,28 +600,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         Ok(fhir::Expr { kind, span: ident.span })
     }
 
-    // fn desugar_dot(
-    //     &self,
-    //     var: surface::Ident,
-    //     fld: surface::Ident,
-    // ) -> Result<fhir::Expr, ErrorGuaranteed> {
-    //     match self.binders.get(var) {
-    //         Some(Binder::Single(_, sort, _)) => {
-    //             let def_ident = self.binders.def_ident(var).unwrap();
-    //             Err(self
-    //                 .sess
-    //                 .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, var, fld)))
-    //         }
-    //         Some(Binder::Unrefined) => {
-    //             let def_ident = self.binders.def_ident(var).unwrap();
-    //             Err(self
-    //                 .sess
-    //                 .emit_err(errors::InvalidUnrefinedParam::new(def_ident, var)))
-    //         }
-    //         None => Err(self.sess.emit_err(errors::UnresolvedVar::new(var))),
-    //     }
-    // }
-
     fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
         match self.binders.get(loc) {
             Some(&Binder::Single(name, ..)) => {
@@ -630,7 +608,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             Some(binder @ Binder::Unrefined) => {
                 // This shouldn't happen because loc bindings in input position should
                 // already be inserted as Binder::Single when gathering parameters and
-                // locs in ensure clauses are guaranteed to be locs during the resolving phase.
+                // locs in ensure clauses are guaranteed to be locs during annot_check.
                 panic!("aggregate or unrefined binder used in loc position: `{binder:?}`")
             }
             None => Err(self.sess.emit_err(errors::UnresolvedVar::new(loc))),

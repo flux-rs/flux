@@ -297,18 +297,10 @@ impl BaseTy {
             BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
         }
     }
-
-    pub fn deaggregate_sorts<'a>(&self, map: &'a Map) -> &'a [Sort] {
-        match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
-            BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Adt(def_id, _) => map.sorts_of(*def_id).unwrap_or(&[]),
-        }
-    }
 }
 
 impl Index {
-    pub fn deaggregate(&self) -> &[RefineArg] {
+    pub fn flatten(&self) -> &[RefineArg] {
         match &self.kind {
             IndexKind::Single(arg) => std::slice::from_ref(arg),
             IndexKind::Aggregate(_, args) => args,
@@ -393,12 +385,28 @@ impl RefinedBy {
 }
 
 impl Sort {
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
+    }
+
+    pub fn unit() -> Self {
+        Self::tuple(vec![])
+    }
+
     /// Returns `true` if the sort is [`Bool`].
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+
+    /// Returns `true` if the sort is [`Loc`].
+    ///
+    /// [`Loc`]: Sort::Loc
+    #[must_use]
+    pub fn is_loc(&self) -> bool {
+        matches!(self, Self::Loc)
     }
 
     /// Whether the sort is a function with return sort bool
@@ -412,6 +420,14 @@ impl Sort {
             sort
         } else {
             panic!("expected `Sort::Func`")
+        }
+    }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
         }
     }
 }
@@ -434,6 +450,12 @@ impl FuncSort {
 
     pub fn output(&self) -> &Sort {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 

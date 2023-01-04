@@ -294,7 +294,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         match &idx.kind {
-            fhir::IndexKind::Single(arg) => self.check_arg(env, arg, expected),
+            fhir::IndexKind::Single(arg) => self.check_refine_arg(env, arg, expected),
             fhir::IndexKind::Aggregate(def_id, args) => {
                 self.check_aggregate(env, *def_id, args, idx.span)?;
                 let found = fhir::Sort::Adt(*def_id);
@@ -323,11 +323,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             ));
         }
         izip!(args, sorts)
-            .map(|(arg, expected)| self.check_arg(env, arg, expected))
+            .map(|(arg, expected)| self.check_refine_arg(env, arg, expected))
             .try_collect_exhaust()
     }
 
-    fn check_arg(
+    fn check_refine_arg(
         &self,
         env: &mut Env,
         arg: &fhir::RefineArg,
@@ -536,15 +536,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    /// Whether `sort1` can be coerced to `sort2`
+    /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
+    /// [`Adt`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
+    /// versa, i.e., we can automatically project the field out of the adt or inject a value into the
+    /// adt. Note that two adts with a single field of the same sort are not coercible.
+    ///
+    /// [`Adt`]: fhir::Sort::Adt
     fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
         if sort1 == sort2 {
             return true;
         }
-        if let Some(sort1) = self.is_single_sort_adt(sort1) {
+        if let Some(sort1) = self.is_single_field_adt(sort1) {
             return sort1 == sort2;
         }
-        if let Some(sort2) = self.is_single_sort_adt(sort2) {
+        if let Some(sort2) = self.is_single_field_adt(sort2) {
             return sort1 == sort2;
         }
 
@@ -554,14 +559,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
         if let fhir::Sort::Func(fsort) = sort {
             Some(fsort.clone())
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_sort_adt(sort) {
+        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_adt(sort) {
             Some(fsort.clone())
         } else {
             None
         }
     }
 
-    fn is_single_sort_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
+    fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
         if let fhir::Sort::Adt(def_id) = sort && let Some([sort]) = self.map.sorts_of(*def_id) {
             Some(sort)
         } else {

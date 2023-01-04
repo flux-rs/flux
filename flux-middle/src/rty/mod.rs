@@ -10,7 +10,7 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
+use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
@@ -31,27 +31,13 @@ use self::{
     subst::BVarFolder,
 };
 pub use crate::{
-    fhir::{InferMode, RefKind},
+    fhir::{FuncSort, InferMode, RefKind, Sort},
     rustc::ty::Const,
 };
 use crate::{
     intern::{impl_internable, Interned, List},
     rustc::mir::Place,
 };
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Sort {
-    Int,
-    Bool,
-    Loc,
-    Tuple(List<Sort>),
-    Func(FuncSort),
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FuncSort {
-    pub inputs_and_output: List<Sort>,
-}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -710,75 +696,6 @@ impl BaseTy {
     }
 }
 
-impl Sort {
-    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
-        Sort::Tuple(sorts.into())
-    }
-
-    pub fn unit() -> Self {
-        Self::tuple(vec![])
-    }
-
-    /// Returns `true` if the sort is [`Loc`].
-    ///
-    /// [`Loc`]: Sort::Loc
-    #[must_use]
-    pub fn is_loc(&self) -> bool {
-        matches!(self, Self::Loc)
-    }
-
-    /// Whether the sort is a function with return sort bool
-    pub fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
-    }
-
-    /// Returns `true` if the sort is [`Bool`].
-    ///
-    /// [`Bool`]: Sort::Bool
-    #[must_use]
-    pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
-    }
-
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
-    #[track_caller]
-    pub fn as_func(&self) -> &FuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            panic!("expected `Sort::Func`")
-        }
-    }
-}
-
-impl FuncSort {
-    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
-        inputs.push(output);
-        FuncSort { inputs_and_output: List::from_vec(inputs) }
-    }
-
-    pub fn inputs(&self) -> &[Sort] {
-        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
-    }
-
-    pub fn output(&self) -> &Sort {
-        &self.inputs_and_output[self.inputs_and_output.len() - 1]
-    }
-}
-
-impl rustc_errors::IntoDiagnosticArg for Sort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
-    }
-}
-
 impl Binders<Expr> {
     /// See [`Pred::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
@@ -816,7 +733,6 @@ impl_internable!(
     [Constraint],
     [RefineArg],
     [InferMode],
-    [Sort]
 );
 
 #[macro_export]
@@ -857,26 +773,6 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    impl Pretty for Sort {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                Sort::Bool => w!("bool"),
-                Sort::Int => w!("int"),
-                Sort::Loc => w!("loc"),
-                Sort::Func(fsort) => w!("{:?}", fsort),
-                Sort::Tuple(sorts) => w!("({:?})", join!(",", sorts)),
-            }
-        }
-    }
-
-    impl Pretty for FuncSort {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("({:?}) -> {:?}", join!(",", self.inputs()), self.output())
-        }
-    }
-
     impl<T> Pretty for Binders<T>
     where
         T: Pretty,
@@ -891,6 +787,12 @@ mod pretty {
                 )?;
             }
             w!("{:?}", &self.value)
+        }
+    }
+
+    impl Pretty for Sort {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            std::fmt::Display::fmt(self, f)
         }
     }
 
@@ -1124,7 +1026,6 @@ mod pretty {
         RefineArg,
         RefineArgs,
         VariantDef,
-        Sort,
     );
 }
 

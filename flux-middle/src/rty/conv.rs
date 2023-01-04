@@ -39,7 +39,7 @@ struct Layer {
 
 pub(crate) fn conv_adt_def(tcx: TyCtxt, map: &fhir::Map, adt_def: &fhir::AdtDef) -> rty::AdtDef {
     let env = Env::from_refined_by(map, &adt_def.refined_by);
-    let sorts = conv_sorts(map, adt_def.refined_by.params.iter().map(|(_, sort)| sort));
+    let sorts = flatten_sorts(map, adt_def.refined_by.params.iter().map(|(_, sort)| sort));
 
     let invariants = adt_def
         .invariants
@@ -52,7 +52,7 @@ pub(crate) fn conv_adt_def(tcx: TyCtxt, map: &fhir::Map, adt_def: &fhir::AdtDef)
 
 pub(crate) fn conv_defn(map: &fhir::Map, defn: &fhir::Defn) -> rty::Defn {
     let env = Env::from_args(map, &defn.args);
-    let sorts = conv_sorts(map, defn.args.iter().map(|(_, sort)| sort));
+    let sorts = flatten_sorts(map, defn.args.iter().map(|(_, sort)| sort));
     let expr = Binders::new(env.conv_expr(&defn.expr), sorts);
     rty::Defn { name: defn.name, expr }
 }
@@ -88,7 +88,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let ret = cx.conv_ty(&fn_sig.ret);
 
-        let sorts = conv_sorts(genv.map(), fn_sig.params.iter().map(|param| &param.sort));
+        let sorts = flatten_sorts(genv.map(), fn_sig.params.iter().map(|param| &param.sort));
         let modes = cx.conv_infer_modes(&fn_sig.params);
         rty::PolySig::new(
             rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
@@ -133,7 +133,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> PolyVariant {
         let mut cx = ConvCtxt::from_params(genv, &variant.params);
         let fields = variant.fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
-        let sorts = conv_sorts(genv.map(), variant.params.iter().map(|param| &param.sort));
+        let sorts = flatten_sorts(genv.map(), variant.params.iter().map(|param| &param.sort));
         let variant = rty::VariantDef::new(fields, cx.conv_variant_ret(&variant.ret));
         Binders::new(variant, sorts)
     }
@@ -141,8 +141,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_variant_ret(&mut self, ret: &fhir::VariantRet) -> VariantRet {
         let bty = self.conv_base_ty(&ret.bty);
         let args = List::from_iter(
-            iter::zip(ret.idx.deaggregate(), ret.bty.deaggregate_sorts(self.genv.map()))
-                .flat_map(|(arg, sort)| self.conv_refine_arg(arg, sort)),
+            iter::zip(ret.idx.flatten(), flatten_sort(self.genv.map(), &ret.bty.sort()))
+                .flat_map(|(arg, sort)| self.conv_refine_arg(arg, &sort)),
         );
 
         VariantRet { bty, args }
@@ -184,7 +184,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 })
                 .collect_vec();
 
-            let sorts = conv_sorts(genv.map(), refined_by.sorts());
+            let sorts = flatten_sorts(genv.map(), refined_by.sorts());
             let idxs =
                 (0..sorts.len()).map(|idx| rty::Expr::bvar(rty::BoundVar::innermost(idx)).into());
             let ret = VariantRet {
@@ -212,7 +212,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub fn conv_qualifier(map: &fhir::Map, qualifier: &fhir::Qualifier) -> rty::Qualifier {
         let env = Env::from_args(map, &qualifier.args);
-        let sorts = conv_sorts(map, qualifier.args.iter().map(|(_, sort)| sort));
+        let sorts = flatten_sorts(map, qualifier.args.iter().map(|(_, sort)| sort));
         let body = Binders::new(env.conv_expr(&qualifier.expr), sorts);
         rty::Qualifier { name: qualifier.name.clone(), body }
     }
@@ -220,7 +220,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
         match ty {
             fhir::Ty::BaseTy(bty) => {
-                if bty.deaggregate_sorts(self.genv.map()).is_empty() {
+                if flatten_sort(self.genv.map(), &bty.sort()).is_empty() {
                     let bty = self.conv_base_ty(bty);
                     rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
@@ -270,10 +270,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn conv_indexed(&mut self, bty: &fhir::BaseTy, idx: &fhir::Index) -> rty::Ty {
         let mut args = vec![];
-        for (arg, sort) in iter::zip(idx.deaggregate(), bty.deaggregate_sorts(self.genv.map())) {
+        for (arg, sort) in iter::zip(idx.flatten(), flatten_sort(self.genv.map(), &bty.sort())) {
             let is_binder = matches!(arg, fhir::RefineArg::Expr { is_binder: true, .. });
             args.extend(
-                self.conv_refine_arg(arg, sort)
+                self.conv_refine_arg(arg, &sort)
                     .into_iter()
                     .map(|arg| (arg, is_binder)),
             );
@@ -303,7 +303,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 self.env
                     .push_layer(Layer::new(self.genv.map(), iter::zip(params, fsort.inputs())));
                 let pred = self.env.conv_expr(body);
-                let abs = rty::Binders::new(pred, conv_sorts(self.genv.map(), fsort.inputs()));
+                let abs = rty::Binders::new(pred, flatten_sorts(self.genv.map(), fsort.inputs()));
                 self.env.pop_layer();
                 vec![rty::RefineArg::Abs(abs)]
             }
@@ -493,34 +493,36 @@ impl Layer {
 }
 
 pub fn conv_uif(map: &fhir::Map, uif: &fhir::UifDef) -> rty::UifDef {
-    rty::UifDef { name: uif.name, sort: conv_func_sort(map, &uif.sort) }
+    rty::UifDef { name: uif.name, sort: flatten_func_sort(map, &uif.sort) }
 }
 
-fn conv_sorts<'a>(
+fn flatten_sorts<'a>(
     map: &fhir::Map,
     sorts: impl IntoIterator<Item = &'a fhir::Sort>,
 ) -> Vec<rty::Sort> {
     sorts
         .into_iter()
-        .flat_map(|sort| conv_sort(map, sort))
+        .flat_map(|sort| flatten_sort(map, sort))
         .collect()
 }
 
-fn conv_sort(map: &fhir::Map, sort: &fhir::Sort) -> Vec<rty::Sort> {
+fn flatten_sort(map: &fhir::Map, sort: &fhir::Sort) -> Vec<rty::Sort> {
     match sort {
         fhir::Sort::Int => vec![rty::Sort::Int],
         fhir::Sort::Bool => vec![rty::Sort::Bool],
         fhir::Sort::Loc => vec![rty::Sort::Loc],
-        fhir::Sort::Tuple(sorts) => vec![rty::Sort::Tuple(List::from_vec(conv_sorts(map, sorts)))],
-        fhir::Sort::Func(fsort) => vec![rty::Sort::Func(conv_func_sort(map, fsort))],
-        fhir::Sort::Adt(def_id) => conv_sorts(map, map.sorts_of(*def_id).unwrap_or(&[])),
+        fhir::Sort::Tuple(sorts) => {
+            vec![rty::Sort::Tuple(List::from_vec(flatten_sorts(map, sorts)))]
+        }
+        fhir::Sort::Func(fsort) => vec![rty::Sort::Func(flatten_func_sort(map, fsort))],
+        fhir::Sort::Adt(def_id) => flatten_sorts(map, map.sorts_of(*def_id).unwrap_or(&[])),
         fhir::Sort::Infer => unreachable!("sorts must be known at this point"),
     }
 }
 
-fn conv_func_sort(map: &fhir::Map, fsort: &fhir::FuncSort) -> rty::FuncSort {
+fn flatten_func_sort(map: &fhir::Map, fsort: &fhir::FuncSort) -> rty::FuncSort {
     rty::FuncSort {
-        inputs_and_output: List::from_vec(conv_sorts(map, fsort.inputs_and_output.iter())),
+        inputs_and_output: List::from_vec(flatten_sorts(map, fsort.inputs_and_output.iter())),
     }
 }
 
