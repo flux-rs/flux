@@ -65,7 +65,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let uifs = map
             .uifs()
-            .map(|uif| (uif.name, rty::conv::conv_uif(uif)))
+            .map(|uif| (uif.name, rty::conv::conv_uif(&map, uif)))
             .collect();
 
         let mut genv = GlobalEnv {

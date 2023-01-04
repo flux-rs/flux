@@ -842,7 +842,6 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
-                let binder = Binder::from_bty(&self.name_gen, bty);
                 if bind.is_some() {
                     // This code is currently not reachable because the parser won't allow it as it conflicts with alias
                     // applications. If we ever allow this we should think about the meaning of the syntax `x: T[@n]` and
@@ -852,12 +851,13 @@ impl Binders {
                     unreachable!("[sanity check] this code is unreachable but we are leaving a not in case it is not anymore");
                 }
                 if let [surface::RefineArg::Bind(ident, span)] = indices.indices[..] {
+                    let binder = Binder::from_bty(&self.name_gen, bty);
                     if !allow_binder {
                         return Err(sess.emit_err(errors::IllegalBinder::new(span)));
                     }
                     self.insert_binder(sess, ident, binder)?;
                 } else {
-                    let refined_by = binder.deaggregate();
+                    let refined_by = sorts(map, bty).unwrap();
                     let exp = refined_by.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -866,12 +866,17 @@ impl Binders {
                         );
                     }
 
-                    for (idx, (name, sort)) in iter::zip(&indices.indices, refined_by) {
+                    for (idx, sort) in iter::zip(&indices.indices, refined_by) {
                         if let surface::RefineArg::Bind(ident, span) = idx {
                             if !allow_binder {
                                 return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
                             }
-                            self.insert_binder(sess, *ident, Binder::Single(name, sort, true))?;
+                            let name = self.name_gen.fresh();
+                            self.insert_binder(
+                                sess,
+                                *ident,
+                                Binder::Single(name, sort.clone(), true),
+                            )?;
                         }
                     }
                 }
@@ -1069,19 +1074,27 @@ impl Binder {
         }
     }
 
-    fn deaggregate(self) -> Vec<(fhir::Name, fhir::Sort)> {
-        match self {
-            Binder::Single(name, sort, _) => vec![(name, sort)],
-            Binder::Unrefined => vec![],
-        }
-    }
-
     fn names(self) -> Vec<fhir::Name> {
         match self {
             Binder::Single(name, ..) => vec![name],
             Binder::Unrefined => vec![],
         }
     }
+}
+
+fn sorts<'a>(map: &'a fhir::Map, bty: &surface::BaseTy<Res>) -> Option<&'a [fhir::Sort]> {
+    let sorts = match bty {
+        surface::BaseTy::Path(path) => {
+            match path.res {
+                Res::Bool => &[fhir::Sort::Bool],
+                Res::Int(_) | Res::Uint(_) => &[fhir::Sort::Int],
+                Res::Adt(def_id) => map.sorts_of(def_id).unwrap_or(&[]),
+                Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => return None,
+            }
+        }
+        surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
+    };
+    Some(sorts)
 }
 
 fn to_src_info(ident: surface::Ident) -> fhir::SourceInfo {

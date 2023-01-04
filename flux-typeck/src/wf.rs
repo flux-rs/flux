@@ -113,6 +113,7 @@ impl Wf<'_> {
         map: &fhir::Map,
         fn_sig: &fhir::FnSig,
     ) -> Result<(), ErrorGuaranteed> {
+        println!("{:?}", fn_sig);
         let mut wf = Wf::new(sess, map);
         for param in &fn_sig.params {
             wf.modes.insert(param.name.name, param.mode);
@@ -316,7 +317,7 @@ impl<'a> Wf<'a> {
         match arg {
             fhir::RefineArg::Expr { expr, .. } => {
                 let found = self.synth_expr(env, expr)?;
-                if found != expected {
+                if !self.is_coercible(found, expected) {
                     return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
                 }
                 if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {
@@ -356,7 +357,7 @@ impl<'a> Wf<'a> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         let found = self.synth_expr(env, e)?;
-        if found == expected {
+        if self.is_coercible(found, expected) {
             Ok(())
         } else {
             self.emit_err(errors::SortMismatch::new(e.span, expected, found))
@@ -505,6 +506,24 @@ impl<'a> Wf<'a> {
                     .sort)
             }
         }
+    }
+
+    fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
+        if sort1 == sort2 {
+            return true;
+        }
+        if let fhir::Sort::Adt(def_id) = sort1
+           && let Some([sort1]) = self.map.sorts_of(*def_id)
+        {
+            return sort1 == sort2;
+        }
+        if let fhir::Sort::Adt(def_id) = sort2
+           && let Some([sort2]) = self.map.sorts_of(*def_id)
+        {
+            return sort1 == sort2;
+        }
+
+        false
     }
 
     /// Checks that refinement parameters are used in allowed positions.
