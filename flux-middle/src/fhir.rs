@@ -95,7 +95,7 @@ pub struct VariantDef {
 #[derive(Debug)]
 pub struct VariantRet {
     pub bty: BaseTy,
-    pub indices: Indices,
+    pub idx: Index,
 }
 
 pub struct FnSig {
@@ -122,12 +122,12 @@ pub enum Ty {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
-    Indexed(BaseTy, Indices),
+    Indexed(BaseTy, Index),
     /// Existential types in fhir are represented with an explicit list of binders for
     /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
     /// for two indices. There's currently no equivalent surface syntax and existentials for
     /// types with multiple indices have to use projection syntax.
-    Exists(BaseTy, Vec<Name>, Expr),
+    Exists(BaseTy, Name, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -159,16 +159,6 @@ pub enum WeakKind {
     Arr,
 }
 
-impl InferMode {
-    pub fn default_for(sort: &Sort) -> Self {
-        if sort.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-}
-
 impl From<RefKind> for WeakKind {
     fn from(rk: RefKind) -> WeakKind {
         match rk {
@@ -178,9 +168,14 @@ impl From<RefKind> for WeakKind {
     }
 }
 
-pub struct Indices {
-    pub indices: Vec<RefineArg>,
+pub struct Index {
+    pub kind: IndexKind,
     pub span: Span,
+}
+
+pub enum IndexKind {
+    Single(RefineArg),
+    Aggregate(DefId, Vec<RefineArg>),
 }
 
 pub enum RefineArg {
@@ -229,6 +224,7 @@ pub enum Sort {
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
+    Adt(DefId),
     Infer,
 }
 
@@ -245,6 +241,7 @@ pub struct Expr {
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
+    Dot(Ident, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -292,20 +289,37 @@ impl BaseTy {
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
+
+    pub fn sort(&self) -> Sort {
+        match self {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
+        }
+    }
 }
 
-impl<'a> IntoIterator for &'a Indices {
-    type Item = &'a RefineArg;
-
-    type IntoIter = std::slice::Iter<'a, RefineArg>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.indices.iter()
+impl Index {
+    pub fn flatten(&self) -> &[RefineArg] {
+        match &self.kind {
+            IndexKind::Single(arg) => std::slice::from_ref(arg),
+            IndexKind::Aggregate(_, args) => args,
+        }
     }
 }
 
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
+}
+
+impl Ident {
+    pub fn span(&self) -> Span {
+        self.source_info.0
+    }
+
+    pub fn sym(&self) -> Symbol {
+        self.source_info.1
+    }
 }
 
 #[derive(Debug)]
@@ -342,6 +356,24 @@ impl AdtDef {
         let sorts = refined_by.sorts().cloned().collect_vec();
         AdtDef { def_id, refined_by, invariants, opaque, sorts }
     }
+
+    pub fn field_index(&self, fld: Symbol) -> Option<usize> {
+        self.refined_by
+            .params
+            .iter()
+            .find_position(|(ident, _)| ident.source_info.1 == fld)
+            .map(|res| res.0)
+    }
+
+    pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
+        self.refined_by.params.iter().find_map(|(ident, sort)| {
+            if ident.source_info.1 == fld {
+                Some(sort)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl RefinedBy {
@@ -353,12 +385,28 @@ impl RefinedBy {
 }
 
 impl Sort {
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
+    }
+
+    pub fn unit() -> Self {
+        Self::tuple(vec![])
+    }
+
     /// Returns `true` if the sort is [`Bool`].
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+
+    /// Returns `true` if the sort is [`Loc`].
+    ///
+    /// [`Loc`]: Sort::Loc
+    #[must_use]
+    pub fn is_loc(&self) -> bool {
+        matches!(self, Self::Loc)
     }
 
     /// Whether the sort is a function with return sort bool
@@ -372,6 +420,14 @@ impl Sort {
             sort
         } else {
             panic!("expected `Sort::Func`")
+        }
+    }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
         }
     }
 }
@@ -394,6 +450,12 @@ impl FuncSort {
 
     pub fn output(&self) -> &Sort {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
@@ -583,16 +645,8 @@ impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
-            Ty::Indexed(bty, idxs) => {
-                write!(f, "{bty:?}")?;
-                if !idxs.indices.is_empty() {
-                    write!(f, "[{:?}]", idxs.indices.iter().format(", "))?;
-                }
-                Ok(())
-            }
-            Ty::Exists(bty, binders, p) => {
-                write!(f, "{bty:?}{{{binders:?} : {p:?}}}")
-            }
+            Ty::Indexed(bty, idx) => write!(f, "{bty:?}{idx:?}"),
+            Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
@@ -604,6 +658,24 @@ impl fmt::Debug for Ty {
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
+        }
+    }
+}
+
+impl fmt::Debug for Index {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            IndexKind::Single(idx) => {
+                write!(f, "{idx:?}")
+            }
+            IndexKind::Aggregate(def_id, flds) => {
+                write!(
+                    f,
+                    "[{}{{ {:?} }}]",
+                    pretty::def_id_to_string(*def_id),
+                    flds.iter().format(", ")
+                )
+            }
         }
     }
 }
@@ -627,12 +699,6 @@ impl fmt::Debug for BaseTy {
             write!(f, "<{:?}>", substs.iter().format(", "))?;
         }
         Ok(())
-    }
-}
-
-impl fmt::Debug for Indices {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:?}]", self.indices.iter().format(", "))
     }
 }
 
@@ -679,6 +745,7 @@ impl fmt::Debug for Expr {
             ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
+            ExprKind::Dot(var, fld, _) => write!(f, "{var:?}.{fld}"),
         }
     }
 }
@@ -715,6 +782,7 @@ impl fmt::Display for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
+            Sort::Adt(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::Infer => write!(f, "_"),
         }
     }

@@ -232,7 +232,7 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Var(Ident),
-    Dot(Box<Expr>, Ident),
+    Dot(Ident, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -505,8 +505,11 @@ pub mod expand {
             ExprKind::UnaryOp(op, e) => {
                 Expr { kind: ExprKind::UnaryOp(*op, Box::new(subst_expr(subst, e))), span: e.span }
             }
-            ExprKind::Dot(e1, fld) => {
-                Expr { kind: ExprKind::Dot(Box::new(subst_expr(subst, e1)), *fld), span: e.span }
+            ExprKind::Dot(var, fld) => {
+                if subst.contains_key(var) {
+                    panic!("invalid substitution")
+                }
+                Expr { kind: ExprKind::Dot(*var, *fld), span: e.span }
             }
             ExprKind::App(f, es) => {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();

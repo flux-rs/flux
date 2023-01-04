@@ -429,6 +429,14 @@ impl BoundVar {
     pub fn innermost(index: usize) -> BoundVar {
         BoundVar::new(index, INNERMOST)
     }
+
+    pub fn to_expr(self) -> Expr {
+        Expr::bvar(self)
+    }
+
+    pub fn to_var(self) -> Var {
+        Var::Bound(self)
+    }
 }
 
 impl DebruijnIndex {

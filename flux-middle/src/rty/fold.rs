@@ -598,15 +598,11 @@ where
 
 impl TypeFoldable for Qualifier {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Qualifier {
-            name: self.name.clone(),
-            args: self.args.clone(),
-            expr: self.expr.fold_with(folder),
-        }
+        Qualifier { name: self.name.clone(), body: self.body.fold_with(folder) }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.expr.visit_with(visitor)
+        self.body.visit_with(visitor)
     }
 }
 

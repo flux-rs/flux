@@ -10,10 +10,11 @@ mod expr;
 pub mod fold;
 pub mod subst;
 
-use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
+use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
+use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -101,13 +102,17 @@ pub enum Constraint {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<(Name, Sort)>,
-    pub expr: Expr,
+    pub body: Binders<Expr>,
 }
 
 pub struct Defn {
     pub name: Symbol,
     pub expr: Binders<Expr>,
+}
+
+pub struct UifDef {
+    pub name: Symbol,
+    pub sort: FuncSort,
 }
 
 pub struct Defns {
@@ -208,6 +213,19 @@ pub struct KVar {
 newtype_index! {
     #[debug_format = "$k{}"]
     pub struct KVid {}
+}
+
+impl Qualifier {
+    pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
+        let name_gen = IndexGen::new();
+        let mut args = vec![];
+        let body = self.body.replace_bvars_with_fresh_fvars(|sort| {
+            let fresh = name_gen.fresh();
+            args.push((fresh, sort.clone()));
+            fresh
+        });
+        (args, body)
+    }
 }
 
 impl<T> Binders<T> {
@@ -678,30 +696,6 @@ impl BaseTy {
     }
 }
 
-impl Sort {
-    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
-        Sort::Tuple(sorts.into())
-    }
-
-    pub fn unit() -> Self {
-        Self::tuple(vec![])
-    }
-
-    /// Returns `true` if the sort is [`Loc`].
-    ///
-    /// [`Loc`]: Sort::Loc
-    #[must_use]
-    pub fn is_loc(&self) -> bool {
-        matches!(self, Self::Loc)
-    }
-}
-
-impl rustc_errors::IntoDiagnosticArg for Sort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
-    }
-}
-
 impl Binders<Expr> {
     /// See [`Pred::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
@@ -738,7 +732,7 @@ impl_internable!(
     [KVar],
     [Constraint],
     [RefineArg],
-    [InferMode]
+    [InferMode],
 );
 
 #[macro_export]
@@ -793,6 +787,12 @@ mod pretty {
                 )?;
             }
             w!("{:?}", &self.value)
+        }
+    }
+
+    impl Pretty for Sort {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            std::fmt::Display::fmt(self, f)
         }
     }
 
@@ -998,13 +998,6 @@ mod pretty {
                 KVarArgs::Hide => {}
             }
             Ok(())
-        }
-    }
-
-    impl Pretty for Sort {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(f, "{}", ^self)
         }
     }
 
