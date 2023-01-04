@@ -389,7 +389,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn bind_into_arg(&self, ident: surface::Ident) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match self.binders.get(ident) {
             Some(Binder::Single(name, ..)) => {
-                let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
+                let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, to_src_info(ident)));
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(fhir::RefineArg::Expr { expr, is_binder: true })
             }
@@ -511,8 +511,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 fhir::ExprKind::UnaryOp(desugar_un_op(op), Box::new(self.desugar_expr(e)?))
             }
             surface::ExprKind::Dot(var, fld) => {
-                if let fhir::ExprKind::Var(name, span, sym) = self.desugar_var(var)?.kind {
-                    let var = fhir::Ident::new(name, (sym, span));
+                if let fhir::ExprKind::Var(var) = self.desugar_var(var)?.kind {
                     fhir::ExprKind::Dot(var, fld.name, fld.span)
                 } else {
                     return Err(self
@@ -587,7 +586,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match (self.binders.get(ident), self.map.const_by_name(ident.name)) {
             (Some(Binder::Single(name, ..)), _) => {
-                fhir::ExprKind::Var(*name, ident.name, ident.span)
+                fhir::ExprKind::Var(fhir::Ident::new(*name, to_src_info(ident)))
             }
             (Some(Binder::Unrefined), _) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();

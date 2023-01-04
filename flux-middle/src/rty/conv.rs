@@ -284,10 +284,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_refine_arg(&mut self, arg: &fhir::RefineArg, sort: &fhir::Sort) -> Vec<rty::RefineArg> {
         match arg {
             fhir::RefineArg::Expr {
-                expr: fhir::Expr { kind: fhir::ExprKind::Var(name, ..), .. },
+                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
                 ..
             } => {
-                let (_, bvars) = self.env.get(name);
+                let (_, bvars) = self.env.get(var.name);
                 bvars
                     .into_iter()
                     .map(|bvar| rty::RefineArg::Expr(bvar.to_expr()))
@@ -418,7 +418,7 @@ impl Env<'_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(name, ..) => self.expect_one_var(*name).to_expr(),
+            fhir::ExprKind::Var(var) => self.expect_one_var(var.name).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))

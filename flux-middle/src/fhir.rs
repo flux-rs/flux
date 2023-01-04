@@ -236,7 +236,7 @@ pub struct Expr {
 
 pub enum ExprKind {
     Const(DefId, Span),
-    Var(Name, Symbol, Span),
+    Var(Ident),
     Dot(Ident, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),

@@ -394,7 +394,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
-            fhir::ExprKind::Var(var, ..) => Ok(env[var].clone()),
+            fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
