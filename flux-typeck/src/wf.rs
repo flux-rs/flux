@@ -9,6 +9,7 @@ use flux_middle::fhir;
 use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
 pub struct Wf<'a> {
@@ -17,20 +18,20 @@ pub struct Wf<'a> {
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
 }
 
-struct Env<'a> {
-    sorts: FxHashMap<fhir::Name, &'a fhir::Sort>,
+struct Env {
+    sorts: FxHashMap<fhir::Name, fhir::Sort>,
 }
 
-impl<'a> Env<'a> {
+impl Env {
     fn with_binders<R>(
         &mut self,
         binders: &[fhir::Name],
-        sorts: &'a [fhir::Sort],
+        sorts: &[fhir::Sort],
         f: impl FnOnce(&Self) -> R,
     ) -> R {
         debug_assert_eq!(binders.len(), sorts.len());
         for (binder, sort) in iter::zip(binders, sorts) {
-            self.sorts.insert(*binder, sort);
+            self.sorts.insert(*binder, sort.clone());
         }
         let r = f(self);
         for binder in binders {
@@ -40,29 +41,29 @@ impl<'a> Env<'a> {
     }
 }
 
-impl<'a> From<&'a [fhir::RefineParam]> for Env<'a> {
-    fn from(params: &'a [fhir::RefineParam]) -> Env {
+impl From<&[fhir::RefineParam]> for Env {
+    fn from(params: &[fhir::RefineParam]) -> Env {
         let sorts = params
             .iter()
-            .map(|param| (param.name.name, &param.sort))
+            .map(|param| (param.name.name, param.sort.clone()))
             .collect();
         Env { sorts }
     }
 }
 
-impl<'a> From<&'a [(fhir::Ident, fhir::Sort)]> for Env<'a> {
-    fn from(params: &'a [(fhir::Ident, fhir::Sort)]) -> Self {
+impl From<&[(fhir::Ident, fhir::Sort)]> for Env {
+    fn from(params: &[(fhir::Ident, fhir::Sort)]) -> Self {
         Env {
             sorts: params
                 .iter()
-                .map(|(ident, sort)| (ident.name, sort))
+                .map(|(ident, sort)| (ident.name, sort.clone()))
                 .collect(),
         }
     }
 }
 
-impl<'a, T: Borrow<fhir::Name>> std::ops::Index<T> for Env<'a> {
-    type Output = &'a fhir::Sort;
+impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
+    type Output = fhir::Sort;
 
     fn index(&self, var: T) -> &Self::Output {
         self.sorts
@@ -113,7 +114,6 @@ impl Wf<'_> {
         map: &fhir::Map,
         fn_sig: &fhir::FnSig,
     ) -> Result<(), ErrorGuaranteed> {
-        println!("{:?}", fn_sig);
         let mut wf = Wf::new(sess, map);
         for param in &fn_sig.params {
             wf.modes.insert(param.name.name, param.mode);
@@ -192,8 +192,7 @@ impl<'a> Wf<'a> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices =
-            self.check_indices(&mut env, &variant.ret.indices, self.sorts(&variant.ret.bty));
+        let indices = self.check_index(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
         fields?;
         indices?;
         Ok(())
@@ -224,7 +223,7 @@ impl<'a> Wf<'a> {
 
     fn check_constr(
         &self,
-        env: &mut Env<'a>,
+        env: &mut Env,
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
         match constr {
@@ -237,25 +236,17 @@ impl<'a> Wf<'a> {
         }
     }
 
-    fn check_type(&self, env: &mut Env<'a>, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
+    fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match ty {
             fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
             fhir::Ty::Indexed(bty, refine) => {
-                self.check_indices(env, refine, self.sorts(bty))?;
+                self.check_index(env, refine, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
-            fhir::Ty::Exists(bty, binders, pred) => {
-                let sorts = self.sorts(bty);
-                if binders.len() != sorts.len() {
-                    return self.emit_err(errors::ArgCountMismatch::new(
-                        None,
-                        String::from("type"),
-                        sorts.len(),
-                        binders.len(),
-                    ));
-                }
+            fhir::Ty::Exists(bty, name, pred) => {
+                let sort = bty.sort();
                 self.check_base_ty(env, bty)?;
-                env.with_binders(binders, sorts, |env| self.check_pred(env, pred))
+                env.with_binders(&[*name], &[sort], |env| self.check_pred(env, pred))
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
             fhir::Ty::Tuple(tys) => {
@@ -276,7 +267,7 @@ impl<'a> Wf<'a> {
         }
     }
 
-    fn check_base_ty(&self, env: &mut Env<'a>, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
+    fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
         match bty {
             fhir::BaseTy::Adt(_, substs) => {
                 substs
@@ -289,36 +280,57 @@ impl<'a> Wf<'a> {
         }
     }
 
-    fn check_indices(
+    fn check_index(
         &self,
-        env: &mut Env<'a>,
-        indices: &fhir::Indices,
-        expected: &'a [fhir::Sort],
+        env: &mut Env,
+        idx: &fhir::Index,
+        expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        if expected.len() != indices.indices.len() {
+        match &idx.kind {
+            fhir::IndexKind::Single(arg) => self.check_arg(env, arg, expected),
+            fhir::IndexKind::Aggregate(def_id, args) => {
+                self.check_aggregate(env, *def_id, args, idx.span)?;
+                let found = fhir::Sort::Adt(*def_id);
+                if &found != expected {
+                    return self.emit_err(errors::SortMismatch::new(idx.span, expected, &found));
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn check_aggregate(
+        &self,
+        env: &mut Env,
+        def_id: DefId,
+        args: &[fhir::RefineArg],
+        span: Span,
+    ) -> Result<(), ErrorGuaranteed> {
+        let sorts = self.map.sorts_of(def_id).unwrap_or(&[]);
+        if args.len() != sorts.len() {
             return self.emit_err(errors::ArgCountMismatch::new(
-                Some(indices.span),
+                Some(span),
                 String::from("type"),
-                expected.len(),
-                indices.indices.len(),
+                sorts.len(),
+                args.len(),
             ));
         }
-        izip!(indices, expected)
-            .map(|(idx, expected)| self.check_arg(env, idx, expected))
+        izip!(args, sorts)
+            .map(|(arg, expected)| self.check_arg(env, arg, expected))
             .try_collect_exhaust()
     }
 
     fn check_arg(
         &self,
-        env: &mut Env<'a>,
+        env: &mut Env,
         arg: &fhir::RefineArg,
-        expected: &'a fhir::Sort,
+        expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             fhir::RefineArg::Expr { expr, .. } => {
                 let found = self.synth_expr(env, expr)?;
-                if !self.is_coercible(found, expected) {
-                    return self.emit_err(errors::SortMismatch::new(expr.span, expected, found));
+                if !self.is_coercible(&found, expected) {
+                    return self.emit_err(errors::SortMismatch::new(expr.span, expected, &found));
                 }
                 if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {
                     self.check_param_uses(env, expr, false)?;
@@ -326,7 +338,7 @@ impl<'a> Wf<'a> {
                 Ok(())
             }
             fhir::RefineArg::Abs(params, body, span) => {
-                if let fhir::Sort::Func(fsort) = expected {
+                if let Some(fsort) = self.is_coercible_to_func(expected) {
                     if params.len() != fsort.inputs().len() {
                         return self.emit_err(errors::ParamCountMismatch::new(
                             *span,
@@ -357,15 +369,15 @@ impl<'a> Wf<'a> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         let found = self.synth_expr(env, e)?;
-        if self.is_coercible(found, expected) {
+        if self.is_coercible(&found, expected) {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(e.span, expected, found))
+            self.emit_err(errors::SortMismatch::new(e.span, expected, &found))
         }
     }
 
     fn check_loc(&self, env: &Env, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
-        let found = env[&loc.name];
+        let found = &env[&loc.name];
         if found == &fhir::Sort::Loc {
             Ok(())
         } else {
@@ -373,46 +385,57 @@ impl<'a> Wf<'a> {
         }
     }
 
-    fn synth_expr(&self, env: &Env<'a>, e: &'a fhir::Expr) -> Result<&fhir::Sort, ErrorGuaranteed> {
+    fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
-            fhir::ExprKind::Var(var, ..) => Ok(env[var]),
+            fhir::ExprKind::Var(var, ..) => Ok(env[var].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
-            fhir::ExprKind::Const(_, _) => Ok(&fhir::Sort::Int), // TODO: generalize const sorts
+            fhir::ExprKind::Const(_, _) => Ok(fhir::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, e.span),
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 self.check_expr(env, p, &fhir::Sort::Bool)?;
                 let sort = self.synth_expr(env, e1)?;
-                self.check_expr(env, e2, sort)?;
+                self.check_expr(env, e2, &sort)?;
                 Ok(sort)
             }
-            fhir::ExprKind::Dot(_, _, _) => todo!(),
+            fhir::ExprKind::Dot(var, fld, _) => {
+                if let fhir::Sort::Adt(def_id) = &env[var.name] {
+                    Ok(self
+                        .map
+                        .adt(def_id.expect_local())
+                        .field_sort(*fld)
+                        .unwrap()
+                        .clone())
+                } else {
+                    todo!()
+                }
+            }
         }
     }
 
     fn synth_binary_op(
         &self,
-        env: &Env<'a>,
+        env: &Env,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
-    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
+    ) -> Result<fhir::Sort, ErrorGuaranteed> {
         match op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
                 self.check_expr(env, e1, &fhir::Sort::Bool)?;
                 self.check_expr(env, e2, &fhir::Sort::Bool)?;
-                Ok(&fhir::Sort::Bool)
+                Ok(fhir::Sort::Bool)
             }
             fhir::BinOp::Eq | fhir::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
-                self.check_expr(env, e2, s)?;
-                Ok(&fhir::Sort::Bool)
+                self.check_expr(env, e2, &s)?;
+                Ok(fhir::Sort::Bool)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
                 self.check_expr(env, e1, &fhir::Sort::Int)?;
                 self.check_expr(env, e2, &fhir::Sort::Int)?;
-                Ok(&fhir::Sort::Bool)
+                Ok(fhir::Sort::Bool)
             }
             fhir::BinOp::Add
             | fhir::BinOp::Sub
@@ -421,36 +444,26 @@ impl<'a> Wf<'a> {
             | fhir::BinOp::Div => {
                 self.check_expr(env, e1, &fhir::Sort::Int)?;
                 self.check_expr(env, e2, &fhir::Sort::Int)?;
-                Ok(&fhir::Sort::Int)
+                Ok(fhir::Sort::Int)
             }
         }
     }
 
     fn synth_unary_op(
         &self,
-        env: &Env<'a>,
+        env: &Env,
         op: fhir::UnOp,
         e: &fhir::Expr,
-    ) -> Result<&'a fhir::Sort, ErrorGuaranteed> {
+    ) -> Result<fhir::Sort, ErrorGuaranteed> {
         match op {
             fhir::UnOp::Not => {
                 self.check_expr(env, e, &fhir::Sort::Bool)?;
-                Ok(&fhir::Sort::Bool)
+                Ok(fhir::Sort::Bool)
             }
             fhir::UnOp::Neg => {
                 self.check_expr(env, e, &fhir::Sort::Int)?;
-                Ok(&fhir::Sort::Int)
+                Ok(fhir::Sort::Int)
             }
-        }
-    }
-
-    fn sorts(&self, bty: &fhir::BaseTy) -> &'a [fhir::Sort] {
-        match bty {
-            fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | flux_middle::fhir::BaseTy::Slice(_) => {
-                &[fhir::Sort::Int]
-            }
-            fhir::BaseTy::Bool => &[fhir::Sort::Bool],
-            fhir::BaseTy::Adt(def_id, _) => self.map.sorts_of(*def_id).unwrap_or_default(),
         }
     }
 
@@ -461,11 +474,11 @@ impl<'a> Wf<'a> {
 
     fn synth_app(
         &self,
-        env: &Env<'a>,
+        env: &Env,
         func: &fhir::Func,
         args: &[fhir::Expr],
         span: Span,
-    ) -> Result<&fhir::Sort, ErrorGuaranteed> {
+    ) -> Result<fhir::Sort, ErrorGuaranteed> {
         let fsort = self.synth_func(env, func)?;
         if args.len() != fsort.inputs().len() {
             return self.emit_err(errors::ArgCountMismatch::new(
@@ -479,51 +492,61 @@ impl<'a> Wf<'a> {
         iter::zip(args, fsort.inputs())
             .try_for_each_exhaust(|(arg, formal)| self.check_expr(env, arg, formal))?;
 
-        Ok(fsort.output())
+        Ok(fsort.output().clone())
     }
 
-    fn synth_func(
-        &self,
-        env: &Env<'a>,
-        func: &fhir::Func,
-    ) -> Result<&fhir::FuncSort, ErrorGuaranteed> {
+    fn synth_func(&self, env: &Env, func: &fhir::Func) -> Result<fhir::FuncSort, ErrorGuaranteed> {
         match func {
             fhir::Func::Var(var) => {
-                match env[&var.name] {
-                    fhir::Sort::Func(sort) => Ok(sort),
-                    sort => {
-                        Err(self
-                            .sess
-                            .emit_err(errors::ExpectedFun::new(var.source_info.0, sort)))
-                    }
+                let sort = &env[&var.name];
+                if let Some(fsort) = self.is_coercible_to_func(sort) {
+                    Ok(fsort.clone())
+                } else {
+                    Err(self
+                        .sess
+                        .emit_err(errors::ExpectedFun::new(var.source_info.0, &sort)))
                 }
             }
             fhir::Func::Uif(func, span) => {
-                Ok(&self
+                Ok(self
                     .map
                     .uif(func)
                     .unwrap_or_else(|| panic!("no definition found for uif `{func:?}` - {span:?}"))
-                    .sort)
+                    .sort
+                    .clone())
             }
         }
     }
 
+    /// Whether `sort1` can be coerced to `sort2`
     fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
         if sort1 == sort2 {
             return true;
         }
         if let fhir::Sort::Adt(def_id) = sort1
-           && let Some([sort1]) = self.map.sorts_of(*def_id)
+            && let Some([sort1]) = self.map.sorts_of(*def_id)
         {
             return sort1 == sort2;
         }
         if let fhir::Sort::Adt(def_id) = sort2
-           && let Some([sort2]) = self.map.sorts_of(*def_id)
+            && let Some([sort2]) = self.map.sorts_of(*def_id)
         {
             return sort1 == sort2;
         }
 
         false
+    }
+
+    fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
+        if let fhir::Sort::Func(fsort) = sort {
+            Some(fsort.clone())
+        } else if let fhir::Sort::Adt(def_id) = sort
+            && let Some([fhir::Sort::Func(fsort)]) = self.map.sorts_of(*def_id)
+        {
+            Some(fsort.clone())
+        } else {
+            None
+        }
     }
 
     /// Checks that refinement parameters are used in allowed positions.
@@ -546,13 +569,13 @@ impl<'a> Wf<'a> {
                    && let fhir::Func::Var(var) = func
                    && let fhir::InferMode::KVar = self.modes[&var.name]
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, env[var.name]));
+                    return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, &env[var.name]));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
             }
             fhir::ExprKind::Var(name, _, span) => {
-                if let sort @ fhir::Sort::Func(_) = env[name] {
+                if let sort @ fhir::Sort::Func(_) = &env[name] {
                     return self.emit_err(errors::InvalidParamPos::new(*span, sort));
                 }
                 Ok(())
@@ -563,15 +586,20 @@ impl<'a> Wf<'a> {
                     .try_for_each_exhaust(|e| self.check_param_uses(env, e, false))
             }
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
-            fhir::ExprKind::Dot(_, _, _) => todo!(),
+            fhir::ExprKind::Dot(var, _, _) => {
+                if let sort @ fhir::Sort::Func(_) = &env[var.name] {
+                    return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
+                }
+                Ok(())
+            }
         }
     }
 }
 
-fn synth_lit(lit: fhir::Lit) -> &'static fhir::Sort {
+fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
     match lit {
-        fhir::Lit::Int(_) => &fhir::Sort::Int,
-        fhir::Lit::Bool(_) => &fhir::Sort::Bool,
+        fhir::Lit::Int(_) => fhir::Sort::Int,
+        fhir::Lit::Bool(_) => fhir::Sort::Bool,
     }
 }
 

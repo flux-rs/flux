@@ -89,11 +89,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let ret = cx.conv_ty(&fn_sig.ret);
 
         let sorts = conv_sorts(genv.map(), fn_sig.params.iter().map(|param| &param.sort));
-        let modes = fn_sig.params.iter().map(|param| param.mode).collect_vec();
+        let modes = cx.conv_infer_modes(&fn_sig.params);
         rty::PolySig::new(
             rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
             modes,
         )
+    }
+
+    fn conv_infer_modes(&self, params: &[fhir::RefineParam]) -> Vec<rty::InferMode> {
+        params
+            .iter()
+            .flat_map(|param| {
+                let n = if let fhir::Sort::Adt(def_id) = &param.sort {
+                    self.genv.map().sorts_of(*def_id).unwrap_or(&[]).len()
+                } else {
+                    1
+                };
+                (0..n).map(|_| param.mode)
+            })
+            .collect()
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -127,7 +141,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_variant_ret(&mut self, ret: &fhir::VariantRet) -> VariantRet {
         let bty = self.conv_base_ty(&ret.bty);
         let args = List::from_iter(
-            iter::zip(&ret.indices.indices, ret.bty.sorts(self.genv.map()))
+            iter::zip(ret.idx.deaggregate(), ret.bty.deaggregate_sorts(self.genv.map()))
                 .flat_map(|(arg, sort)| self.conv_refine_arg(arg, sort)),
         );
 
@@ -206,7 +220,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
         match ty {
             fhir::Ty::BaseTy(bty) => {
-                if bty.sorts(self.genv.map()).is_empty() {
+                if bty.deaggregate_sorts(self.genv.map()).is_empty() {
                     let bty = self.conv_base_ty(bty);
                     rty::Ty::indexed(bty, rty::RefineArgs::empty())
                 } else {
@@ -218,15 +232,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
             }
             fhir::Ty::Indexed(bty, idxs) => {
-                let idxs = self.conv_indices(idxs, bty.sorts(self.genv.map()));
+                let idxs = self.conv_idx(idxs, bty.deaggregate_sorts(self.genv.map()));
                 let bty = self.conv_base_ty(bty);
                 rty::Ty::indexed(bty, idxs)
             }
-            fhir::Ty::Exists(bty, binders, pred) => {
-                self.env.push_layer(Layer::new(
-                    self.genv.map(),
-                    iter::zip(binders, bty.sorts(self.genv.map())),
-                ));
+            fhir::Ty::Exists(bty, name, pred) => {
+                self.env
+                    .push_layer(Layer::new(self.genv.map(), [(name, &bty.sort())]));
                 let bty = self.conv_base_ty(bty);
                 let pred = self.env.conv_expr(pred);
                 let ty = rty::Ty::full_exists(bty, pred);
@@ -260,9 +272,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_indices(&mut self, idxs: &fhir::Indices, sorts: &[fhir::Sort]) -> rty::RefineArgs {
+    fn conv_idx(&mut self, idx: &fhir::Index, sorts: &[fhir::Sort]) -> rty::RefineArgs {
         let mut args = vec![];
-        for (arg, sort) in iter::zip(&idxs.indices, sorts) {
+        for (arg, sort) in iter::zip(idx.deaggregate(), sorts) {
             let is_binder = matches!(arg, fhir::RefineArg::Expr { is_binder: true, .. });
             args.extend(
                 self.conv_refine_arg(arg, sort)
@@ -423,9 +435,13 @@ impl Env<'_> {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
             }
             fhir::ExprKind::Dot(var, fld, _) => {
-                let (sort, vars) = self.get(var);
+                let (sort, vars) = self.get(var.name);
                 if let fhir::Sort::Adt(def_id) = sort {
-                    let idx = self.map.adt(def_id.expect_local()).field_index(*fld);
+                    let idx = self
+                        .map
+                        .adt(def_id.expect_local())
+                        .field_index(*fld)
+                        .unwrap_or_else(|| panic!("field not found `{fld:?}`"));
                     vars[idx].to_expr()
                 } else {
                     todo!()

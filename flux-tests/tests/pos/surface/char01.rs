@@ -1,10 +1,10 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-// #[flux::sig(fn(c1: char, c2: char, c3: char) -> char)]
-// pub fn char00(c1: char, c2: char, c3: char) -> char {
-//     c1.max(c2).max(c3)
-// }
+#[flux::sig(fn(c1: char, c2: char, c3: char) -> char)]
+pub fn char00(c1: char, c2: char, c3: char) -> char {
+    c1.max(c2).max(c3)
+}
 
 #[flux::sig(fn(vec: Vec<char>) -> usize)]
 pub fn char01(vec: Vec<char>) -> usize {
