@@ -226,20 +226,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 } else {
                     self.env.push_layer(Layer::empty());
                     let bty = self.conv_base_ty(bty);
-                    let ty = rty::Ty::full_exists(bty, rty::Expr::tt());
                     self.env.pop_layer();
-                    ty
+                    rty::Ty::full_exists(bty, rty::Expr::tt())
                 }
             }
             fhir::Ty::Indexed(bty, idx) => self.conv_indexed(bty, idx),
-            fhir::Ty::Exists(bty, name, pred) => {
+            fhir::Ty::Exists(bty, bind, pred) => {
                 self.env
-                    .push_layer(Layer::new(self.genv.map(), [(name, &bty.sort())]));
+                    .push_layer(Layer::new(self.genv.map(), [(bind, &bty.sort())]));
                 let bty = self.conv_base_ty(bty);
                 let pred = self.env.conv_expr(pred);
-                let ty = rty::Ty::full_exists(bty, pred);
                 self.env.pop_layer();
-                ty
+                rty::Ty::full_exists(bty, pred)
             }
             fhir::Ty::Ptr(loc) => {
                 rty::Ty::ptr(

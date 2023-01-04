@@ -123,10 +123,6 @@ pub enum Ty {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, Index),
-    /// Existential types in fhir are represented with an explicit list of binders for
-    /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
-    /// for two indices. There's currently no equivalent surface syntax and existentials for
-    /// types with multiple indices have to use projection syntax.
     Exists(BaseTy, Name, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`

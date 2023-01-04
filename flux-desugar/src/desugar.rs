@@ -311,7 +311,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 }
             }
             surface::TyKind::Exists { bind: ident, bty, pred } => {
-                let binder = Binder::from_bty(&self.binders.name_gen, &bty);
                 match self.desugar_bty(bty)? {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
@@ -323,12 +322,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             let idxs = self.desugar_bind(bind)?;
                             Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
                         } else {
+                            let name = self.binders.fresh();
+                            let binder = Binder::Single(name, bty.sort(), false);
                             let pred =
                                 self.binders.with_binder(ident, binder.clone(), |binders| {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            Ok(fhir::Ty::Exists(bty, binder.name().unwrap(), pred))
+                            Ok(fhir::Ty::Exists(bty, name, pred))
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -1060,13 +1061,6 @@ impl Binder {
         match bty {
             surface::BaseTy::Path(path) => Binder::from_res(name_gen, path.res),
             surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, true),
-        }
-    }
-
-    fn name(self) -> Option<fhir::Name> {
-        match self {
-            Binder::Single(name, ..) => Some(name),
-            Binder::Unrefined => None,
         }
     }
 }

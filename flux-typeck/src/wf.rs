@@ -250,10 +250,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_index(env, refine, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
-            fhir::Ty::Exists(bty, name, pred) => {
+            fhir::Ty::Exists(bty, bind, pred) => {
                 let sort = bty.sort();
                 self.check_base_ty(env, bty)?;
-                env.with_binders(&[*name], &[sort], |env| self.check_pred(env, pred))
+                env.with_binders(&[*bind], &[sort], |env| self.check_pred(env, pred))
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
             fhir::Ty::Tuple(tys) => {
