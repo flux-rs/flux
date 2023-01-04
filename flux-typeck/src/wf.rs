@@ -386,6 +386,7 @@ impl<'a> Wf<'a> {
                 self.check_expr(env, e2, sort)?;
                 Ok(sort)
             }
+            fhir::ExprKind::Dot(_, _, _) => todo!(),
         }
     }
 
@@ -543,6 +544,7 @@ impl<'a> Wf<'a> {
                     .try_for_each_exhaust(|e| self.check_param_uses(env, e, false))
             }
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
+            fhir::ExprKind::Dot(_, _, _) => todo!(),
         }
     }
 }

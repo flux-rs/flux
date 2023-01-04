@@ -29,9 +29,6 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
     env: BoundVarEnv,
 }
 
-// pub struct BoundVarLayer {
-//     map: FxHashMap<fhir::Name, Range<usize>>,
-// }
 type BoundVarLayer = FxHashMap<fhir::Name, Range<usize>>;
 
 struct BoundVarEnv {
@@ -446,6 +443,9 @@ trait ExprConvCtxt {
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
+            }
+            fhir::ExprKind::Dot(_var, _fld, _) => {
+                todo!()
             }
         }
     }

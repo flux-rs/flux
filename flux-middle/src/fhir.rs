@@ -236,6 +236,7 @@ pub struct Expr {
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Name, Symbol, Span),
+    Dot(Name, Symbol, Span),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -678,6 +679,7 @@ impl fmt::Debug for Expr {
             ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
+            ExprKind::Dot(e, fld, _) => write!(f, "{e:?}.{fld}"),
         }
     }
 }
