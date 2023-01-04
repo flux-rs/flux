@@ -796,7 +796,7 @@ mod errors {
     }
 
     #[derive(Subdiagnostic)]
-    #[note(desugar::def_span_note)]
+    #[note(wf::def_span_note)]
     struct DefSpanNote {
         #[primary_span]
         sp: MultiSpan,

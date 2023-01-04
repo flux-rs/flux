@@ -316,16 +316,6 @@ impl Index {
     }
 }
 
-// impl<'a> IntoIterator for &'a Index {
-//     type Item = &'a RefineArg;
-
-//     type IntoIter = std::slice::Iter<'a, RefineArg>;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         self.indices.iter()
-//     }
-// }
-
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
@@ -634,7 +624,7 @@ impl fmt::Debug for Ty {
         match self {
             Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
             Ty::Indexed(bty, idx) => write!(f, "{bty:?}{idx:?}"),
-            Ty::Exists(bty, binders, p) => write!(f, "{bty:?}{{{binders:?} : {p:?}}}"),
+            Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
@@ -733,7 +723,7 @@ impl fmt::Debug for Expr {
             ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
-            ExprKind::Dot(e, fld, _) => write!(f, "{e:?}.{fld}"),
+            ExprKind::Dot(var, fld, _) => write!(f, "{var:?}.{fld}"),
         }
     }
 }

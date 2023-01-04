@@ -1129,7 +1129,6 @@ static SORTS: std::sync::LazyLock<Sorts> =
 
 mod errors {
     use flux_macros::Diagnostic;
-    // use flux_middle::fhir;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
