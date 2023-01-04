@@ -78,7 +78,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
     // Do defn-expansion _after_ the WF check, so errors are given at user-specification level
     let map = build_fhir_map(tcx, sess, &mut specs)?;
-    check_wf(sess, &map)?;
+    check_wf(tcx, sess, &map)?;
 
     let mut genv = GlobalEnv::new(tcx, sess, map)?;
     // Assert behavior from Crate config
@@ -342,34 +342,34 @@ fn build_fhir_map(
     }
 }
 
-fn check_wf(sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
+fn check_wf(tcx: TyCtxt, sess: &FluxSession, map: &fhir::Map) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
     for defn in map.defns() {
-        err = Wf::check_defn(sess, map, defn).err().or(err);
+        err = Wf::check_defn(tcx, sess, map, defn).err().or(err);
     }
 
     for adt_def in map.adts() {
-        err = Wf::check_adt_def(sess, map, adt_def).err().or(err);
+        err = Wf::check_adt_def(tcx, sess, map, adt_def).err().or(err);
     }
 
     for qualifier in map.qualifiers() {
-        err = Wf::check_qualifier(sess, map, qualifier).err().or(err);
+        err = Wf::check_qualifier(tcx, sess, map, qualifier).err().or(err);
     }
 
     for struct_def in map.structs() {
         let refined_by = map.refined_by(struct_def.def_id).unwrap();
-        err = Wf::check_struct_def(sess, map, refined_by, struct_def)
+        err = Wf::check_struct_def(tcx, sess, map, refined_by, struct_def)
             .err()
             .or(err);
     }
 
     for enum_def in map.enums() {
-        err = Wf::check_enum_def(sess, map, enum_def).err().or(err);
+        err = Wf::check_enum_def(tcx, sess, map, enum_def).err().or(err);
     }
 
     for (_, fn_sig) in map.fn_sigs() {
-        err = Wf::check_fn_sig(sess, map, fn_sig).err().or(err);
+        err = Wf::check_fn_sig(tcx, sess, map, fn_sig).err().or(err);
     }
 
     if let Some(err) = err {

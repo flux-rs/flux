@@ -10,9 +10,11 @@ use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
-pub struct Wf<'a> {
+pub struct Wf<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     map: &'a fhir::Map,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
@@ -72,34 +74,37 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
     }
 }
 
-impl Wf<'_> {
+impl Wf<'_, '_> {
     pub fn check_qualifier(
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         qualifier: &fhir::Qualifier,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(sess, map);
+        let wf = Wf::new(tcx, sess, map);
         let env = Env::from(&qualifier.args[..]);
 
         wf.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
     pub fn check_defn(
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         defn: &fhir::Defn,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(sess, map);
+        let wf = Wf::new(tcx, sess, map);
         let env = Env::from(&defn.args[..]);
         wf.check_expr(&env, &defn.expr, &defn.sort)
     }
 
     pub fn check_adt_def(
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         adt_def: &fhir::AdtDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(sess, map);
+        let wf = Wf::new(tcx, sess, map);
         let env = Env::from(&adt_def.refined_by.params[..]);
         adt_def
             .invariants
@@ -110,11 +115,12 @@ impl Wf<'_> {
     }
 
     pub fn check_fn_sig(
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         fn_sig: &fhir::FnSig,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut wf = Wf::new(sess, map);
+        let mut wf = Wf::new(tcx, sess, map);
         for param in &fn_sig.params {
             wf.modes.insert(param.name.name, param.mode);
         }
@@ -149,12 +155,13 @@ impl Wf<'_> {
     }
 
     pub fn check_struct_def(
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
         refined_by: &fhir::RefinedBy,
         def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(sess, map);
+        let wf = Wf::new(tcx, sess, map);
         let mut env = Env::from(&refined_by.params[..]);
         if let fhir::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
@@ -169,21 +176,21 @@ impl Wf<'_> {
     }
 
     pub fn check_enum_def(
+        tcx: TyCtxt,
         sess: &FluxSession,
         map: &fhir::Map,
-
         def: &fhir::EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(sess, map);
+        let wf = Wf::new(tcx, sess, map);
         def.variants
             .iter()
             .try_for_each_exhaust(|variant| wf.check_variant(variant))
     }
 }
 
-impl<'a> Wf<'a> {
-    fn new(sess: &'a FluxSession, map: &'a fhir::Map) -> Wf<'a> {
-        Wf { sess, map, modes: FxHashMap::default() }
+impl<'a, 'tcx> Wf<'a, 'tcx> {
+    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, map: &'a fhir::Map) -> Self {
+        Wf { tcx, sess, map, modes: FxHashMap::default() }
     }
 
     fn check_variant(&self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
@@ -399,16 +406,27 @@ impl<'a> Wf<'a> {
                 self.check_expr(env, e2, &sort)?;
                 Ok(sort)
             }
-            fhir::ExprKind::Dot(var, fld, _) => {
-                if let fhir::Sort::Adt(def_id) = &env[var.name] {
-                    Ok(self
-                        .map
+            fhir::ExprKind::Dot(var, fld_sym, fld_span) => {
+                let sort = &env[var.name];
+                if let fhir::Sort::Adt(def_id) = sort {
+                    self.map
                         .adt(def_id.expect_local())
-                        .field_sort(*fld)
-                        .unwrap()
-                        .clone())
+                        .field_sort(*fld_sym)
+                        .cloned()
+                        .ok_or_else(|| {
+                            self.sess.emit_err(errors::FieldNotFound::new(
+                                self.tcx,
+                                self.map,
+                                *def_id,
+                                (*fld_sym, *fld_span),
+                            ))
+                        })
                 } else {
-                    todo!()
+                    self.emit_err(errors::InvalidPrimitiveDotAccess::new(
+                        *var,
+                        sort,
+                        (*fld_sym, *fld_span),
+                    ))
                 }
             }
         }
@@ -523,10 +541,10 @@ impl<'a> Wf<'a> {
         if sort1 == sort2 {
             return true;
         }
-        if let Some(sort1) = self.is_single_sorted_adt(sort1) {
+        if let Some(sort1) = self.is_single_sort_adt(sort1) {
             return sort1 == sort2;
         }
-        if let Some(sort2) = self.is_single_sorted_adt(sort2) {
+        if let Some(sort2) = self.is_single_sort_adt(sort2) {
             return sort1 == sort2;
         }
 
@@ -536,17 +554,15 @@ impl<'a> Wf<'a> {
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
         if let fhir::Sort::Func(fsort) = sort {
             Some(fsort.clone())
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_sorted_adt(sort) {
+        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_sort_adt(sort) {
             Some(fsort.clone())
         } else {
             None
         }
     }
 
-    fn is_single_sorted_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
-        if let fhir::Sort::Adt(def_id) = sort
-            && let Some([sort]) = self.map.sorts_of(*def_id)
-        {
+    fn is_single_sort_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
+        if let fhir::Sort::Adt(def_id) = sort && let Some([sort]) = self.map.sorts_of(*def_id) {
             Some(sort)
         } else {
             None
@@ -608,8 +624,11 @@ fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
 }
 
 mod errors {
-    use flux_macros::Diagnostic;
+    use flux_macros::{Diagnostic, Subdiagnostic};
     use flux_middle::fhir;
+    use rustc_errors::MultiSpan;
+    use rustc_hir::def_id::DefId;
+    use rustc_middle::ty::TyCtxt;
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -735,6 +754,65 @@ mod errors {
     impl ParamCountMismatch {
         pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::field_not_found, code = "FLUX")]
+    pub struct FieldNotFound {
+        #[primary_span]
+        span: Span,
+        fld: Symbol,
+        def_kind: &'static str,
+        def_name: String,
+        #[subdiagnostic]
+        def_note: Option<DefSpanNote>,
+    }
+
+    impl FieldNotFound {
+        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: (Symbol, Span)) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let def_name = tcx.def_path_str(def_id);
+            let def_note = DefSpanNote::new(tcx, map, def_id);
+            Self { span: fld.1, fld: fld.0, def_kind, def_name, def_note }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::invalid_primitive_dot_access, code = "FLUX")]
+    pub struct InvalidPrimitiveDotAccess<'a> {
+        #[primary_span]
+        #[label]
+        span: Span,
+        param_name: Symbol,
+        sort: &'a fhir::Sort,
+    }
+
+    impl<'a> InvalidPrimitiveDotAccess<'a> {
+        pub fn new(var: fhir::Ident, sort: &'a fhir::Sort, fld: (Symbol, Span)) -> Self {
+            let span = var.span().to(fld.1);
+            Self { sort, span, param_name: var.sym() }
+        }
+    }
+
+    #[derive(Subdiagnostic)]
+    #[note(desugar::def_span_note)]
+    struct DefSpanNote {
+        #[primary_span]
+        sp: MultiSpan,
+        def_kind: &'static str,
+        has_params: bool,
+    }
+
+    impl DefSpanNote {
+        fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
+            let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
+            let refined_by = map.refined_by(def_id)?;
+            if !refined_by.params.is_empty() {
+                sp.push_span_label(refined_by.span, "");
+            }
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            Some(Self { sp, def_kind, has_params: !refined_by.params.is_empty() })
         }
     }
 }

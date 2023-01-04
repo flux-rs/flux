@@ -334,6 +334,10 @@ impl Ident {
     pub fn span(&self) -> Span {
         self.source_info.0
     }
+
+    pub fn sym(&self) -> Symbol {
+        self.source_info.1
+    }
 }
 
 #[derive(Debug)]
