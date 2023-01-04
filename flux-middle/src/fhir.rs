@@ -289,7 +289,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Adt(def_id, _) => map.sorts_of(*def_id).unwrap_or_else(|| &[]),
+            BaseTy::Adt(def_id, _) => map.sorts_of(*def_id).unwrap_or(&[]),
         }
     }
 }

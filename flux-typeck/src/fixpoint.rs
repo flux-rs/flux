@@ -453,21 +453,20 @@ fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
 }
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
-    let name_gen = IndexGen::skipping(const_map.len());
+    let (args, body) = qualifier.with_fresh_fvars();
+    let name_gen = IndexGen::new();
     let mut name_map = NameMap::default();
-    let name = qualifier.name.clone();
-    let args = qualifier
-        .args
-        .iter()
+    let args = args
+        .into_iter()
         .map(|(name, sort)| {
             let fresh = name_gen.fresh();
-            name_map.insert(*name, fresh);
-            (fresh, sort_to_fixpoint(sort))
+            name_map.insert(name, fresh);
+            (fresh, sort_to_fixpoint(&sort))
         })
-        .collect();
-
-    let expr = expr_to_fixpoint(&qualifier.expr, &name_map, const_map);
-    fixpoint::Qualifier { expr, args, name }
+        .collect_vec();
+    let name = qualifier.name.clone();
+    let body = expr_to_fixpoint(&body, &name_map, const_map);
+    fixpoint::Qualifier { body, args, name }
 }
 
 fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {

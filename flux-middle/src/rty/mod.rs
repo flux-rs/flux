@@ -14,6 +14,7 @@ use std::{borrow::Cow, collections::HashSet, fmt, hash::Hash, iter, sync::LazyLo
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
+use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -115,8 +116,7 @@ pub enum Constraint {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<(Name, Sort)>,
-    pub expr: Expr,
+    pub body: Binders<Expr>,
 }
 
 pub struct Defn {
@@ -227,6 +227,19 @@ pub struct KVar {
 newtype_index! {
     #[debug_format = "$k{}"]
     pub struct KVid {}
+}
+
+impl Qualifier {
+    pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
+        let name_gen = IndexGen::new();
+        let mut args = vec![];
+        let body = self.body.replace_bvars_with_fresh_fvars(|sort| {
+            let fresh = name_gen.fresh();
+            args.push((fresh, sort.clone()));
+            fresh
+        });
+        (args, body)
+    }
 }
 
 impl<T> Binders<T> {
