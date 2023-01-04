@@ -227,12 +227,6 @@ enum Binder {
     /// `RMat[@row, @cols]`. The boolean indicates whether the binder was declared _implicitly_
     /// with the `@` syntax.
     Single(fhir::Name, fhir::Sort, /*implicit*/ bool),
-    /// A binder that will desugar into multiple indices and _must_ be projected using
-    /// dot syntax. They come from binders to user defined types with a `#[refined_by]`
-    /// annotation, e.g., `mat: RMat` or `RMat[@mat]`. User defined types with a single
-    /// index are treated specially as they can be used either with a projection or the
-    /// binder directly.
-    Aggregate(DefId, FxIndexMap<Symbol, (fhir::Name, fhir::Sort)>),
     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
@@ -243,7 +237,7 @@ enum Binder {
 }
 
 struct ExprCtxt<'a, 'tcx> {
-    tcx: TyCtxt<'tcx>,
+    _tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     map: &'a fhir::Map,
     binders: &'a Binders,
@@ -313,7 +307,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 }
             }
             surface::TyKind::Exists { bind: ident, bty, pred } => {
-                let ebinder = Binder::from_bty(&self.binders.name_gen, self.map, &bty);
+                let ebinder = Binder::from_bty(&self.binders.name_gen, &bty);
                 match self.desugar_bty(bty)? {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
@@ -390,19 +384,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(vec![fhir::RefineArg::Expr { expr, is_binder: true }])
-            }
-            Some(Binder::Aggregate(_, fields)) => {
-                let indices = fields
-                    .values()
-                    .map(|(name, _)| {
-                        let kind = fhir::ExprKind::Var(*name, ident.name, ident.span);
-                        fhir::RefineArg::Expr {
-                            expr: fhir::Expr { kind, span: ident.span },
-                            is_binder: true,
-                        }
-                    })
-                    .collect();
-                Ok(indices)
             }
             Some(Binder::Unrefined) => Ok(vec![]),
             None => Err(self.sess.emit_err(errors::UnresolvedVar::new(ident))),
@@ -505,7 +486,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         map: &'a fhir::Map,
         binders: &'a Binders,
     ) -> Self {
-        Self { tcx, sess, map, binders }
+        Self { _tcx: tcx, sess, map, binders }
     }
 
     fn desugar_expr(&self, expr: surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
@@ -555,16 +536,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         if let Some(b) = self.binders.get(func) {
             match b {
                 Binder::Single(name, sort, _) => return Ok(FuncRes::Param(*name, sort)),
-                Binder::Aggregate(_, fields) => {
-                    if fields.len() == 1 {
-                        let (name, sort) = fields.values().next().unwrap();
-                        return Ok(FuncRes::Param(*name, sort));
-                    } else {
-                        return Err(self
-                            .sess
-                            .emit_err(errors::InvalidAggregateUse::new(func, fields.keys())));
-                    }
-                }
                 Binder::Unrefined => {
                     let def_ident = self.binders.def_ident(func).unwrap();
                     return Err(self
@@ -601,16 +572,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             (Some(Binder::Single(name, ..)), _) => {
                 fhir::ExprKind::Var(*name, ident.name, ident.span)
             }
-            (Some(Binder::Aggregate(_, fields)), _) => {
-                if fields.len() == 1 {
-                    let (name, _) = fields.values().next().unwrap();
-                    fhir::ExprKind::Var(*name, ident.name, ident.span)
-                } else {
-                    return Err(self
-                        .sess
-                        .emit_err(errors::InvalidAggregateUse::new(ident, fields.keys())));
-                }
-            }
             (Some(Binder::Unrefined), _) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();
                 return Err(self
@@ -635,15 +596,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                     .sess
                     .emit_err(errors::InvalidPrimitiveDotAccess::new(def_ident, sort, var, fld)))
             }
-            Some(Binder::Aggregate(def_id, fields)) => {
-                let (name, _) = fields.get(&fld.name).ok_or_else(|| {
-                    self.sess
-                        .emit_err(errors::FieldNotFound::new(self.tcx, self.map, *def_id, fld))
-                })?;
-                let span = var.span.to(fld.span);
-                let kind = fhir::ExprKind::Var(*name, var.name, span);
-                Ok(fhir::Expr { kind, span })
-            }
             Some(Binder::Unrefined) => {
                 let def_ident = self.binders.def_ident(var).unwrap();
                 Err(self
@@ -659,7 +611,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             Some(&Binder::Single(name, ..)) => {
                 Ok(fhir::Ident { name, source_info: to_src_info(loc) })
             }
-            Some(binder @ (Binder::Aggregate(..) | Binder::Unrefined)) => {
+            Some(binder @ Binder::Unrefined) => {
                 // This shouldn't happen because loc bindings in input position should
                 // already be inserted as Binder::Single when gathering parameters and
                 // locs in ensure clauses are guaranteed to be locs during the resolving phase.
@@ -863,7 +815,7 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, map, path.res))?;
+                self.insert_binder(sess, *bind, Binder::from_res(&self.name_gen, path.res))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(
@@ -890,7 +842,7 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
-                let binder = Binder::from_bty(&self.name_gen, map, bty);
+                let binder = Binder::from_bty(&self.name_gen, bty);
                 if bind.is_some() {
                     // This code is currently not reachable because the parser won't allow it as it conflicts with alias
                     // applications. If we ever allow this we should think about the meaning of the syntax `x: T[@n]` and
@@ -927,7 +879,7 @@ impl Binders {
             }
             surface::TyKind::Base(bty) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, map, bty))?;
+                    self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, bty))?;
                 }
                 self.bty_gather_params(tcx, sess, map, bty, allow_binder)
             }
@@ -950,7 +902,7 @@ impl Binders {
             surface::TyKind::Array(ty, _) => self.ty_gather_params(tcx, sess, map, None, ty, false),
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, map, bty))?;
+                    self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, bty))?;
                 }
                 self.bty_gather_params(tcx, sess, map, bty, false)
             }
@@ -1011,16 +963,6 @@ impl Binders {
                         sort.clone(),
                         infer_mode(implicit, &sort),
                     ));
-                }
-                Binder::Aggregate(_, fields) => {
-                    for (_, (name, sort)) in fields {
-                        params.push(param_from_ident(
-                            ident,
-                            name,
-                            sort.clone(),
-                            infer_mode(true, &sort),
-                        ));
-                    }
                 }
                 Binder::Unrefined => {}
             }
@@ -1111,34 +1053,18 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 }
 
 impl Binder {
-    fn from_res(name_gen: &IndexGen<fhir::Name>, map: &fhir::Map, res: surface::Res) -> Binder {
+    fn from_res(name_gen: &IndexGen<fhir::Name>, res: surface::Res) -> Binder {
         match res {
             Res::Bool => Binder::Single(name_gen.fresh(), fhir::Sort::Bool, true),
             Res::Int(_) | Res::Uint(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, false),
-            Res::Adt(def_id) => {
-                let fields: FxIndexMap<_, _> = map
-                    .refined_by(def_id)
-                    .unwrap_or(fhir::RefinedBy::DUMMY)
-                    .params
-                    .iter()
-                    .map(|(ident, sort)| {
-                        let fld = ident.source_info.1;
-                        (fld, (name_gen.fresh(), sort.clone()))
-                    })
-                    .collect();
-                Binder::Aggregate(def_id, fields)
-            }
+            Res::Adt(def_id) => Binder::Single(name_gen.fresh(), fhir::Sort::Adt(def_id), true),
             Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
         }
     }
 
-    fn from_bty(
-        name_gen: &IndexGen<fhir::Name>,
-        map: &fhir::Map,
-        bty: &surface::BaseTy<Res>,
-    ) -> Binder {
+    fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
         match bty {
-            surface::BaseTy::Path(path) => Binder::from_res(name_gen, map, path.res),
+            surface::BaseTy::Path(path) => Binder::from_res(name_gen, path.res),
             surface::BaseTy::Slice(_) => Binder::Single(name_gen.fresh(), fhir::Sort::Int, true),
         }
     }
@@ -1146,7 +1072,6 @@ impl Binder {
     fn deaggregate(self) -> Vec<(fhir::Name, fhir::Sort)> {
         match self {
             Binder::Single(name, sort, _) => vec![(name, sort)],
-            Binder::Aggregate(_, fields) => fields.into_values().collect(),
             Binder::Unrefined => vec![],
         }
     }
@@ -1154,7 +1079,6 @@ impl Binder {
     fn names(self) -> Vec<fhir::Name> {
         match self {
             Binder::Single(name, ..) => vec![name],
-            Binder::Aggregate(_, fields) => fields.into_values().map(|(name, _)| name).collect(),
             Binder::Unrefined => vec![],
         }
     }
@@ -1172,11 +1096,8 @@ static SORTS: std::sync::LazyLock<Sorts> =
     std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
 
 mod errors {
-    use flux_macros::{Diagnostic, Subdiagnostic};
+    use flux_macros::Diagnostic;
     use flux_middle::fhir;
-    use rustc_errors::MultiSpan;
-    use rustc_hir::def_id::DefId;
-    use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -1265,26 +1186,26 @@ mod errors {
         }
     }
 
-    #[derive(Diagnostic)]
-    #[diag(desugar::invalid_aggregate_use, code = "FLUX")]
-    pub struct InvalidAggregateUse {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-        pub ident: Ident,
-        pub msg: String,
-    }
+    // #[derive(Diagnostic)]
+    // #[diag(desugar::invalid_aggregate_use, code = "FLUX")]
+    // pub struct InvalidAggregateUse {
+    //     #[primary_span]
+    //     #[label]
+    //     pub span: Span,
+    //     pub ident: Ident,
+    //     pub msg: String,
+    // }
 
-    impl InvalidAggregateUse {
-        pub fn new<'a>(ident: Ident, fields: impl IntoIterator<Item = &'a Symbol>) -> Self {
-            let msg: Vec<String> = fields
-                .into_iter()
-                .map(|fld| format!("{}.{}", ident.name.as_str(), fld.as_str()))
-                .collect();
-            let msg = msg.join(", ");
-            Self { span: ident.span, ident, msg }
-        }
-    }
+    // impl InvalidAggregateUse {
+    //     pub fn new<'a>(ident: Ident, fields: impl IntoIterator<Item = &'a Symbol>) -> Self {
+    //         let msg: Vec<String> = fields
+    //             .into_iter()
+    //             .map(|fld| format!("{}.{}", ident.name.as_str(), fld.as_str()))
+    //             .collect();
+    //         let msg = msg.join(", ");
+    //         Self { span: ident.span, ident, msg }
+    //     }
+    // }
 
     #[derive(Diagnostic)]
     #[diag(desugar::invalid_primitive_dot_access, code = "FLUX")]
@@ -1306,47 +1227,47 @@ mod errors {
         }
     }
 
-    #[derive(Diagnostic)]
-    #[diag(desugar::field_not_found, code = "FLUX")]
-    pub struct FieldNotFound {
-        #[primary_span]
-        span: Span,
-        fld: Ident,
-        def_kind: &'static str,
-        def_name: String,
-        #[subdiagnostic]
-        def_note: Option<DefSpanNote>,
-    }
+    // #[derive(Diagnostic)]
+    // #[diag(desugar::field_not_found, code = "FLUX")]
+    // pub struct FieldNotFound {
+    //     #[primary_span]
+    //     span: Span,
+    //     fld: Ident,
+    //     def_kind: &'static str,
+    //     def_name: String,
+    //     #[subdiagnostic]
+    //     def_note: Option<DefSpanNote>,
+    // }
 
-    impl FieldNotFound {
-        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: Ident) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_name = tcx.def_path_str(def_id);
-            let def_note = DefSpanNote::new(tcx, map, def_id);
-            Self { span: fld.span, fld, def_kind, def_name, def_note }
-        }
-    }
+    // impl FieldNotFound {
+    //     pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: Ident) -> Self {
+    //         let def_kind = tcx.def_kind(def_id).descr(def_id);
+    //         let def_name = tcx.def_path_str(def_id);
+    //         let def_note = DefSpanNote::new(tcx, map, def_id);
+    //         Self { span: fld.span, fld, def_kind, def_name, def_note }
+    //     }
+    // }
 
-    #[derive(Subdiagnostic)]
-    #[note(desugar::def_span_note)]
-    struct DefSpanNote {
-        #[primary_span]
-        sp: MultiSpan,
-        def_kind: &'static str,
-        has_params: bool,
-    }
+    // #[derive(Subdiagnostic)]
+    // #[note(desugar::def_span_note)]
+    // struct DefSpanNote {
+    //     #[primary_span]
+    //     sp: MultiSpan,
+    //     def_kind: &'static str,
+    //     has_params: bool,
+    // }
 
-    impl DefSpanNote {
-        fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
-            let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
-            let refined_by = map.refined_by(def_id)?;
-            if !refined_by.params.is_empty() {
-                sp.push_span_label(refined_by.span, "");
-            }
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            Some(Self { sp, def_kind, has_params: !refined_by.params.is_empty() })
-        }
-    }
+    // impl DefSpanNote {
+    //     fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
+    //         let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
+    //         let refined_by = map.refined_by(def_id)?;
+    //         if !refined_by.params.is_empty() {
+    //             sp.push_span_label(refined_by.span, "");
+    //         }
+    //         let def_kind = tcx.def_kind(def_id).descr(def_id);
+    //         Some(Self { sp, def_kind, has_params: !refined_by.params.is_empty() })
+    //     }
+    // }
 
     #[derive(Diagnostic)]
     #[diag(desugar::invalid_unrefined_param, code = "FLUX")]
