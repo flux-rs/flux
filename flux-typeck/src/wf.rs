@@ -599,9 +599,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
             }
-            fhir::ExprKind::Var(name, _, span) => {
-                if let sort @ fhir::Sort::Func(_) = &env[name] {
-                    return self.emit_err(errors::InvalidParamPos::new(*span, sort));
+            fhir::ExprKind::Var(var) => {
+                if let sort @ fhir::Sort::Func(_) = &env[var.name] {
+                    return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
             }
