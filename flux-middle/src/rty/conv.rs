@@ -231,11 +231,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     ty
                 }
             }
-            fhir::Ty::Indexed(bty, idxs) => {
-                let idxs = self.conv_idx(idxs, bty.deaggregate_sorts(self.genv.map()));
-                let bty = self.conv_base_ty(bty);
-                rty::Ty::indexed(bty, idxs)
-            }
+            fhir::Ty::Indexed(bty, idx) => self.conv_indexed(bty, idx),
             fhir::Ty::Exists(bty, name, pred) => {
                 self.env
                     .push_layer(Layer::new(self.genv.map(), [(name, &bty.sort())]));
@@ -272,9 +268,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_idx(&mut self, idx: &fhir::Index, sorts: &[fhir::Sort]) -> rty::RefineArgs {
+    fn conv_indexed(&mut self, bty: &fhir::BaseTy, idx: &fhir::Index) -> rty::Ty {
         let mut args = vec![];
-        for (arg, sort) in iter::zip(idx.deaggregate(), sorts) {
+        for (arg, sort) in iter::zip(idx.deaggregate(), bty.deaggregate_sorts(self.genv.map())) {
             let is_binder = matches!(arg, fhir::RefineArg::Expr { is_binder: true, .. });
             args.extend(
                 self.conv_refine_arg(arg, sort)
@@ -282,7 +278,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .map(|arg| (arg, is_binder)),
             );
         }
-        rty::RefineArgs::new(args)
+        let args = rty::RefineArgs::new(args);
+        let bty = self.conv_base_ty(bty);
+        rty::Ty::indexed(bty, args)
     }
 
     fn conv_refine_arg(&mut self, arg: &fhir::RefineArg, sort: &fhir::Sort) -> Vec<rty::RefineArg> {

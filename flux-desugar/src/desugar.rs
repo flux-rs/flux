@@ -221,11 +221,9 @@ type Layer = FxIndexMap<surface::Ident, Binder>;
 /// The different kind of binders that can appear in the surface syntax
 #[derive(Debug, Clone)]
 enum Binder {
-    /// A binder that needs to be desugared to a single index. They come from bindings
-    /// to a native type indexed by a single value, e.g., `x: i32` or `bool[@b]`, or
-    /// by explicitly listing the indices for a type with multiple indices, e.g,
-    /// `RMat[@row, @cols]`. The boolean indicates whether the binder was declared _implicitly_
-    /// with the `@` syntax.
+    /// A normal binder to a refinable type that will be desugared as an explicit parameter.
+    /// The boolean indicates whether the binder was declared _implicitly_ with the `@` syntax and
+    /// it is used to determine the inference mode for abstract refinements.
     Single(fhir::Name, fhir::Sort, /*implicit*/ bool),
     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
@@ -318,20 +316,19 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     BtyOrTy::Bty(bty) => {
                         if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
-                            let (pred, _) =
-                                self.binders.with_binders([(ident, binder)], |binders| {
-                                    ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-                                        .desugar_expr(pred)
-                                })?;
+                            let pred = self.binders.with_binder(ident, binder, |binders| {
+                                ExprCtxt::new(self.tcx, self.sess, self.map, binders)
+                                    .desugar_expr(pred)
+                            })?;
                             let idxs = self.desugar_bind(bind)?;
                             Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
                         } else {
-                            let (pred, binder) =
-                                self.binders.with_binder(ident, binder, |binders| {
+                            let pred =
+                                self.binders.with_binder(ident, binder.clone(), |binders| {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            Ok(fhir::Ty::Exists(bty, binder.name(), pred))
+                            Ok(fhir::Ty::Exists(bty, binder.name().unwrap(), pred))
                         }
                     }
                     BtyOrTy::Ty(_) => {
@@ -721,9 +718,8 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<(R, Binder), ErrorGuaranteed> {
-        let (r, mut binders) = self.with_binders([(ident, binder)], f)?;
-        Ok((r, binders.pop().unwrap()))
+    ) -> Result<R, ErrorGuaranteed> {
+        self.with_binders([(ident, binder)], f)
     }
 
     fn with_abs_params<R>(
@@ -735,7 +731,7 @@ impl Binders {
         let binders = iter::zip(&names, params)
             .map(|(name, param)| (*param, Binder::Single(*name, fhir::Sort::Infer, false)))
             .collect_vec();
-        let (r, _) = self.with_binders(binders, f)?;
+        let r = self.with_binders(binders, f)?;
         Ok((r, names))
     }
 
@@ -743,18 +739,14 @@ impl Binders {
         &mut self,
         binders: impl IntoIterator<Item = (surface::Ident, Binder)>,
         f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<(R, Vec<Binder>), ErrorGuaranteed> {
+    ) -> Result<R, ErrorGuaranteed> {
         self.push_layer();
         for (ident, binder) in binders {
             self.top_layer().insert(ident, binder);
         }
         let r = f(self)?;
-        let binders = self
-            .pop_layer()
-            .into_iter()
-            .map(|(_, binder)| binder)
-            .collect_vec();
-        Ok((r, binders))
+        self.pop_layer();
+        Ok(r)
     }
 
     fn insert_binder(
@@ -1093,10 +1085,10 @@ impl Binder {
         }
     }
 
-    fn name(self) -> fhir::Name {
+    fn name(self) -> Option<fhir::Name> {
         match self {
-            Binder::Single(name, ..) => name,
-            Binder::Unrefined => todo!(),
+            Binder::Single(name, ..) => Some(name),
+            Binder::Unrefined => None,
         }
     }
 }
