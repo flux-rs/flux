@@ -58,9 +58,9 @@ pub enum Proj {
 }
 
 pub struct Qualifier {
-    pub expr: Expr,
-    pub args: Vec<(Name, Sort)>,
     pub name: String,
+    pub args: Vec<(Name, Sort)>,
+    pub body: Expr,
 }
 
 pub struct UifDef {
@@ -322,35 +322,35 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     // (qualif EqZero ((v int)) (v == 0))
     let eqzero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("EqZero"),
     };
 
     // (qualif GtZero ((v int)) (v > 0))
     let gtzero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("GtZero"),
     };
 
     // (qualif GeZero ((v int)) (v >= 0))
     let gezero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("GeZero"),
     };
 
     // (qualif LtZero ((v int)) (v < 0))
     let ltzero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("LtZero"),
     };
 
     // (qualif LeZero ((v int)) (v <= 0))
     let lezero = Qualifier {
         args: vec![(NAME0, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::ZERO])),
         name: String::from("LeZero"),
     };
 
@@ -359,42 +359,42 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     // (qualif Eq ((a int) (b int)) (a == b))
     let eq = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Eq"),
     };
 
     // (qualif Gt ((a int) (b int)) (a > b))
     let gt = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Gt"),
     };
 
     // (qualif Lt ((a int) (b int)) (a < b))
     let ge = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Ge"),
     };
 
     // (qualif Ge ((a int) (b int)) (a >= b))
     let lt = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Lt"),
     };
 
     // (qualif Le ((a int) (b int)) (a <= b))
     let le = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
         name: String::from("Le"),
     };
 
     // (qualif Le1 ((a int) (b int)) (a < b - 1))
     let le1 = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        expr: Expr::BinaryOp(
+        body: Expr::BinaryOp(
             BinOp::Le,
             Box::new([
                 Expr::Var(NAME0),
@@ -407,7 +407,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     // (qualif Add2 ((a int) (b int) (c int)) (a == b + c))
     let add2 = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
-        expr: Expr::BinaryOp(
+        body: Expr::BinaryOp(
             BinOp::Eq,
             Box::new([
                 Expr::Var(NAME0),
@@ -420,7 +420,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
     let sub2 = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
-        expr: Expr::BinaryOp(
+        body: Expr::BinaryOp(
             BinOp::Eq,
             Box::new([
                 Expr::Var(NAME0),
@@ -442,7 +442,7 @@ impl fmt::Display for Qualifier {
             self.args
                 .iter()
                 .format_with(" ", |(name, sort), f| f(&format_args!("({name:?} {sort})"))),
-            self.expr
+            self.body
         )
     }
 }
