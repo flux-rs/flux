@@ -6,8 +6,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefineArg, Sort, Substs, Ty, TyKind,
-        VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, RefineArg, Sort, Substs, Ty, TyKind,
+        Var, VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem, SourceInfo},
 };
@@ -34,16 +34,16 @@ struct Root {
     ptr: NodePtr,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub(super) enum LocKind {
     Local,
-    Box,
+    Box(Ty),
     Universal,
 }
 
 impl Clone for Root {
     fn clone(&self) -> Root {
-        Root { kind: self.kind, ptr: self.ptr.deep_clone() }
+        Root { kind: self.kind.clone(), ptr: self.ptr.deep_clone() }
     }
 }
 
@@ -201,7 +201,7 @@ impl PathsTree {
 
     pub(super) fn flatten(&self) -> Vec<(LocKind, Path, Binding)> {
         let mut bindings = vec![];
-        self.iter(|kind, path, binding| bindings.push((*kind, path, binding.clone())));
+        self.iter(|kind, path, binding| bindings.push((kind.clone(), path, binding.clone())));
         bindings
     }
 
@@ -256,10 +256,6 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            TyKind::BoxPtr(loc, _) => {
-                                path = Path::from(Loc::from(*loc));
-                                continue 'outer;
-                            }
                             TyKind::Ref(rk, ty) => {
                                 let (rk, ty) = Self::lookup_ty(
                                     genv,
@@ -278,8 +274,8 @@ impl PathsTree {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::from(fresh);
-                                *ptr.borrow_mut() = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
-                                self.insert(loc, boxed.clone(), LocKind::Box);
+                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc));
+                                self.insert(loc, boxed.clone(), LocKind::Box(alloc.clone()));
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -368,9 +364,10 @@ impl PathsTree {
         for path in paths.into_iter().rev() {
             let ptr = self.get_node(&path);
             let mut node = ptr.borrow_mut();
-            if let Node::Leaf(Binding::Owned(ty)) = &mut *node &&
-                let TyKind::BoxPtr(loc, _) = ty.kind() &&
-                !scope.contains(*loc)
+            if let Node::Leaf(Binding::Owned(ty)) = &mut *node
+                && let TyKind::Ptr(_, path) = ty.kind()
+                && let Some(Loc::Var(Var::Free(name))) = path.to_loc()
+                && !scope.contains(name)
             {
                 node.fold(&mut self.map, rcx, gen, false, true);
             }
@@ -608,11 +605,14 @@ impl Node {
     ) -> Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
-                    let root = map.remove(&Loc::from(*loc)).unwrap();
-                    debug_assert!(matches!(root.kind, LocKind::Box));
+                if let TyKind::Ptr(PtrKind::Box, path) = ty.kind() && close_boxes {
+                    let loc = path.to_loc().unwrap();
+                    let root = map.remove(&loc).unwrap();
+                    let LocKind::Box(alloc) = root.kind else {
+                        unreachable!("box pointer to non-box loc");
+                    };
                     let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
-                    let ty = gen.genv.mk_box(boxed_ty, alloc.clone());
+                    let ty = gen.genv.mk_box(boxed_ty, alloc);
                     *self = Node::owned(ty.clone());
                     ty
                 } else {
@@ -874,7 +874,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 LocKind::Local => Ok(()),
-                LocKind::Box => w!("[box]"),
+                LocKind::Box(_) => w!("[box]"),
                 LocKind::Universal => Ok(()),
             }
         }
