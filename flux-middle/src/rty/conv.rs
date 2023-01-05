@@ -430,13 +430,13 @@ impl Env<'_> {
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
             }
-            fhir::ExprKind::Dot(var, fld, _) => {
+            fhir::ExprKind::Dot(var, fld) => {
                 let (sort, vars) = self.get(var.name);
                 if let fhir::Sort::Adt(def_id) = sort {
                     let idx = self
                         .map
                         .adt(def_id.expect_local())
-                        .field_index(*fld)
+                        .field_index(fld.name)
                         .unwrap_or_else(|| panic!("field not found `{fld:?}`"));
                     vars[idx].to_expr()
                 } else {

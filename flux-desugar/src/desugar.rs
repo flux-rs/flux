@@ -512,7 +512,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
             surface::ExprKind::Dot(box e, fld) => {
                 if let fhir::ExprKind::Var(var) = self.desugar_expr(e)?.kind {
-                    fhir::ExprKind::Dot(var, fld.name, fld.span)
+                    fhir::ExprKind::Dot(var, fld)
                 } else {
                     return Err(self
                         .sess
