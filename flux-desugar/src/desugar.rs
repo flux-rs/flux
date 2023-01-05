@@ -508,8 +508,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             surface::ExprKind::UnaryOp(op, box e) => {
                 fhir::ExprKind::UnaryOp(desugar_un_op(op), Box::new(self.desugar_expr(e)?))
             }
-            surface::ExprKind::Dot(var, fld) => {
-                if let fhir::ExprKind::Var(name, span, sym) = self.desugar_var(var)?.kind {
+            surface::ExprKind::Dot(box e, fld) => {
+                if let fhir::ExprKind::Var(name, span, sym) = self.desugar_expr(e)?.kind {
                     let var = fhir::Ident { name, source_info: (sym, span) };
                     fhir::ExprKind::Dot(var, fld.name, fld.span)
                 } else {
