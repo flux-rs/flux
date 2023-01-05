@@ -506,15 +506,16 @@ fn flatten_sorts<'a>(
 
 fn flatten_sort(map: &fhir::Map, sort: &fhir::Sort) -> Vec<rty::Sort> {
     match sort {
-        fhir::Sort::Int => vec![rty::Sort::Int],
-        fhir::Sort::Bool => vec![rty::Sort::Bool],
-        fhir::Sort::Loc => vec![rty::Sort::Loc],
         fhir::Sort::Tuple(sorts) => {
             vec![rty::Sort::Tuple(List::from_vec(flatten_sorts(map, sorts)))]
         }
         fhir::Sort::Func(fsort) => vec![rty::Sort::Func(flatten_func_sort(map, fsort))],
         fhir::Sort::Adt(def_id) => flatten_sorts(map, map.sorts_of(*def_id).unwrap_or(&[])),
-        fhir::Sort::Infer => unreachable!("sorts must be known at this point"),
+        fhir::Sort::Int
+        | fhir::Sort::Bool
+        | fhir::Sort::Loc
+        | fhir::Sort::User(_)
+        | fhir::Sort::Infer => vec![sort.clone()],
     }
 }
 

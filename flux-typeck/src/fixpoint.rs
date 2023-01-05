@@ -147,7 +147,15 @@ where
 
         let uifs = self.genv.uifs().map(uif_def_to_fixpoint).collect_vec();
 
-        let task = fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs);
+        let sorts = self
+            .genv
+            .map()
+            .sort_decls()
+            .map(|sort_decl| sort_decl.name.to_string())
+            .collect_vec();
+
+        let task =
+            fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
         if CONFIG.dump_constraint {
             dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
         }
@@ -419,6 +427,10 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
+        // There's no way to declare opaque sorts in the horn syntax in fixpoint so we encode
+        // them as integers. Well-formedness should ensure values of this sort are only used to
+        // test for equality.
+        rty::Sort::User(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Infer | rty::Sort::Adt(_) | rty::Sort::Loc => {
             unreachable!("unexpected sort {sort:?}")

@@ -9,6 +9,11 @@ use rustc_span::{Span, Symbol};
 pub type AliasMap = rustc_hash::FxHashMap<Ident, Alias>;
 
 #[derive(Debug)]
+pub struct SortDecl {
+    pub name: Ident,
+}
+
+#[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
     pub args: Vec<RefineParam>,

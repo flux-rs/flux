@@ -531,22 +531,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
     /// [`Adt`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
-    /// versa, i.e., we can automatically project the field out of the adt or inject a value into the
-    /// adt. Note that two adts with a single field of the same sort are not coercible.
+    /// versa, i.e., we can automatically project the field out of the adt or inject a value into an
+    /// adt.
     ///
     /// [`Adt`]: fhir::Sort::Adt
     fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
-        if sort1 == sort2 {
-            return true;
+        let mut sort1 = sort1.clone();
+        let mut sort2 = sort2.clone();
+        if let Some(sort) = self.is_single_field_adt(&sort1) {
+            sort1 = sort.clone();
         }
-        if let Some(sort1) = self.is_single_field_adt(sort1) {
-            return sort1 == sort2;
+        if let Some(sort) = self.is_single_field_adt(&sort2) {
+            sort2 = sort.clone();
         }
-        if let Some(sort2) = self.is_single_field_adt(sort2) {
-            return sort1 == sort2;
-        }
-
-        false
+        return sort1 == sort2;
     }
 
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
