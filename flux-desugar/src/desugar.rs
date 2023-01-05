@@ -326,11 +326,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                         } else {
                             let name = self.binders.fresh();
                             let binder = Binder::Single(name, bty.sort(), false);
-                            let pred =
-                                self.binders.with_binder(ident, binder.clone(), |binders| {
-                                    ExprCtxt::new(self.tcx, self.sess, self.map, binders)
-                                        .desugar_expr(pred)
-                                })?;
+                            let pred = self.binders.with_binder(ident, binder, |binders| {
+                                ExprCtxt::new(self.tcx, self.sess, self.map, binders)
+                                    .desugar_expr(pred)
+                            })?;
                             let bind = fhir::Ident::new(name, ident);
                             Ok(fhir::Ty::Exists(bty, bind, pred))
                         }

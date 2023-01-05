@@ -544,7 +544,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         if let Some(sort) = self.is_single_field_adt(&sort2) {
             sort2 = sort.clone();
         }
-        return sort1 == sort2;
+        sort1 == sort2
     }
 
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
