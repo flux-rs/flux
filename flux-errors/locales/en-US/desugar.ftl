@@ -2,10 +2,6 @@ desugar_unresolved_var =
     cannot find value `{$var}` in this scope
     .label = not found in this scope
 
-desugar_invalid_aggregate_use =
-    invalid use of refinement parameter
-    .label = help: did you mean one of {$msg}?
-
 desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
     .label = already used
@@ -31,24 +27,10 @@ desugar_param_count_mismatch =
     }
     .label = expected {$expected} arguments, found {$found}
 
-desugar_invalid_primitive_dot_access =
-    `{$sort}` is a primitive sort and therefore doesn't have fields
-    .label = field access on parameter `{$name}`
-    .defined_here = `{$name}` defined here with sort `{$sort}`
-
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter
     .label = parameter `{$var}` refers to a type with no indices
     .defined_here = `{$var}` bound here
-
-desugar_field_not_found =
-    no field `{$fld}` on refinement parameters for {$def_kind} `{$def_name}`
-
-desugar_def_span_note =
-    {$has_params ->
-        [true] {$def_kind} defined here
-        *[false] {$def_kind} defined here with no parameters
-    }
 
 desugar_illegal_binder =
     illegal binder

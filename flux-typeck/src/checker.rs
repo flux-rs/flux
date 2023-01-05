@@ -16,8 +16,8 @@ use flux_common::{
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binders, Bool, Const, Constraint, Constraints, Expr, Float, FnSig,
-        Int, IntTy, PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binders, Bool, Constraint, Constraints, Expr, Float, FnSig, Int,
+        IntTy, PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -652,21 +652,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_call(rcx, env, src_info, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
-                let val = args.len();
                 let args: Vec<Ty> = args
                     .iter()
                     .map(|op| self.check_operand(rcx, env, src_info, op))
                     .try_collect()?;
-
-                let ty = self
-                    .genv
-                    .refine_ty(ty, &mut |sorts| self.phase.fresh_kvar(sorts, KVarEncoding::Conj));
                 let mut gen = self.phase.constr_gen(self.genv, rcx, Tag::Other);
-                for arg in args {
-                    gen.subtyping(rcx, &arg, &ty);
-                }
-
-                Ok(Ty::array(ty, Const { val }))
+                gen.check_mk_array(rcx, env, &args, ty, src_info)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys: Vec<Ty> = args

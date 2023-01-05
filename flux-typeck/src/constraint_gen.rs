@@ -6,10 +6,14 @@ use flux_middle::{
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binders, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, RefKind, RefineArg, Sort, Ty, TyKind, VariantRet,
+        BaseTy, BinOp, Binders, Const, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind,
+        GenericArg, InferMode, Path, PolySig, PolyVariant, RefKind, RefineArg, Sort, Ty, TyKind,
+        VariantRet,
     },
-    rustc::mir::{BasicBlock, SourceInfo},
+    rustc::{
+        self,
+        mir::{BasicBlock, SourceInfo},
+    },
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -154,6 +158,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             }
         }
 
+        let span = src_info.span;
         // Check arguments
         for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
             let (formal, pred) = formal.unconstr();
@@ -165,12 +170,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound, Some(src_info))?;
                 }
                 (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path), bound);
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.update(path, bound.clone());
                     env.block(path);
                 }
                 (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path), bound);
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.block(path);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
@@ -205,9 +210,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .replace_generic_args(&substs)
-            .replace_bvars_with(|sort| {
-                infcx.fresh_evar_or_kvar(sort, InferMode::default_for(sort))
-            });
+            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -221,12 +224,44 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(variant.ret.replace_evars(&evars_sol))
     }
 
-    fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
-        InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, self.tag)
+    pub fn check_mk_array(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        args: &[Ty],
+        arr_ty: &rustc::ty::Ty,
+        src_info: SourceInfo,
+    ) -> Result<Ty, CheckerError> {
+        let genv = self.genv;
+
+        let mut infcx = self.infcx(rcx);
+
+        let arr_ty =
+            genv.refine_ty(arr_ty, &mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj));
+
+        let span = src_info.span;
+        for ty in args {
+            // TODO(nilehmann) We should share this logic with `check_fn_call`
+            match (ty.kind(), arr_ty.kind()) {
+                (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
+                    env.update(path, bound.clone());
+                    env.block(path);
+                }
+                (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
+                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
+                    env.block(path);
+                }
+                _ => infcx.subtyping(rcx, ty, &arr_ty),
+            }
+        }
+        rcx.replace_evars(&infcx.solve()?);
+
+        Ok(Ty::array(arr_ty, Const { val: args.len() }))
     }
 
-    pub fn span(&self) -> Option<Span> {
-        self.tag.span()
+    fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
+        InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, self.tag)
     }
 }
 

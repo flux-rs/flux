@@ -510,8 +510,8 @@ pub mod expand {
             ExprKind::UnaryOp(op, e) => {
                 Expr { kind: ExprKind::UnaryOp(*op, Box::new(subst_expr(subst, e))), span: e.span }
             }
-            ExprKind::Dot(e1, fld) => {
-                Expr { kind: ExprKind::Dot(Box::new(subst_expr(subst, e1)), *fld), span: e.span }
+            ExprKind::Dot(e, fld) => {
+                Expr { kind: ExprKind::Dot(Box::new(subst_expr(subst, e)), *fld), span: e.span }
             }
             ExprKind::App(f, es) => {
                 let es = es.iter().map(|e| subst_expr(subst, e)).collect();
