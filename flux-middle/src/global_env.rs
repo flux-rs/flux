@@ -180,22 +180,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self.check_asserts
     }
 
-    pub fn variant_sig(
-        &self,
-        def_id: DefId,
-        variant_idx: VariantIdx,
-    ) -> Result<rty::PolySig, OpaqueStructErr> {
-        let poly_variant = self.variant(def_id, variant_idx)?;
-        let variant = poly_variant.as_ref().skip_binders();
-        let sorts = poly_variant.params();
-        let modes = sorts
-            .iter()
-            .map(rty::Sort::default_infer_mode)
-            .collect_vec();
-        let sig = rty::FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        Ok(rty::PolySig::new(rty::Binders::new(sig, sorts), modes))
-    }
-
     pub fn variant(
         &self,
         def_id: DefId,

@@ -440,6 +440,16 @@ impl AdtDef {
     }
 }
 
+impl PolyVariant {
+    pub fn to_fn_sig(&self) -> PolySig {
+        let variant = self.as_ref().skip_binders();
+        let sorts = self.params();
+        let modes = sorts.iter().map(Sort::default_infer_mode).collect_vec();
+        let sig = FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
+        PolySig::new(Binders::new(sig, sorts), modes)
+    }
+}
+
 impl VariantRet {
     pub fn to_ty(&self) -> Ty {
         Ty::indexed(self.bty.clone(), RefineArgs::multi(self.args.to_vec()))
