@@ -123,11 +123,7 @@ pub enum Ty {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, Index),
-    /// Existential types in fhir are represented with an explicit list of binders for
-    /// every index of the [`BaseTy`], e.g., `i32{v : v > 0}` for one index and `RMat{v0,v1 : v0 == v1}`.
-    /// for two indices. There's currently no equivalent surface syntax and existentials for
-    /// types with multiple indices have to use projection syntax.
-    Exists(BaseTy, Name, Expr),
+    Exists(BaseTy, Ident, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -240,8 +236,8 @@ pub struct Expr {
 
 pub enum ExprKind {
     Const(DefId, Span),
-    Var(Name, Symbol, Span),
-    Dot(Ident, Symbol, Span),
+    Var(Ident),
+    Dot(Ident, SurfaceIdent),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -269,12 +265,12 @@ pub enum Lit {
     Bool(bool),
 }
 
-pub type SourceInfo = (Span, Symbol);
+pub type SurfaceIdent = rustc_span::symbol::Ident;
 
 #[derive(Clone, Copy)]
 pub struct Ident {
     pub name: Name,
-    pub source_info: SourceInfo,
+    pub source_info: SurfaceIdent,
 }
 
 newtype_index! {
@@ -313,12 +309,16 @@ impl Lit {
 }
 
 impl Ident {
+    pub fn new(name: Name, source_info: SurfaceIdent) -> Self {
+        Ident { name, source_info }
+    }
+
     pub fn span(&self) -> Span {
-        self.source_info.0
+        self.source_info.span
     }
 
     pub fn sym(&self) -> Symbol {
-        self.source_info.1
+        self.source_info.name
     }
 }
 
@@ -361,18 +361,20 @@ impl AdtDef {
         self.refined_by
             .params
             .iter()
-            .find_position(|(ident, _)| ident.source_info.1 == fld)
+            .find_position(|(ident, _)| ident.sym() == fld)
             .map(|res| res.0)
     }
 
     pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
-        self.refined_by.params.iter().find_map(|(ident, sort)| {
-            if ident.source_info.1 == fld {
-                Some(sort)
-            } else {
-                None
-            }
-        })
+        self.refined_by.params.iter().find_map(
+            |(ident, sort)| {
+                if ident.sym() == fld {
+                    Some(sort)
+                } else {
+                    None
+                }
+            },
+        )
     }
 }
 
@@ -745,7 +747,7 @@ impl fmt::Debug for Expr {
             ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
-            ExprKind::Dot(var, fld, _) => write!(f, "{var:?}.{fld}"),
+            ExprKind::Dot(var, fld) => write!(f, "{var:?}.{fld}"),
         }
     }
 }

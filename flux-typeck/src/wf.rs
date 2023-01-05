@@ -250,10 +250,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_index(env, refine, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
-            fhir::Ty::Exists(bty, name, pred) => {
+            fhir::Ty::Exists(bty, bind, pred) => {
                 let sort = bty.sort();
                 self.check_base_ty(env, bty)?;
-                env.with_binders(&[*name], &[sort], |env| self.check_pred(env, pred))
+                env.with_binders(&[bind.name], &[sort], |env| self.check_pred(env, pred))
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
             fhir::Ty::Tuple(tys) => {
@@ -388,13 +388,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         if found == &fhir::Sort::Loc {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(loc.source_info.0, &fhir::Sort::Loc, found))
+            self.emit_err(errors::SortMismatch::new(loc.span(), &fhir::Sort::Loc, found))
         }
     }
 
     fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
-            fhir::ExprKind::Var(var, ..) => Ok(env[var].clone()),
+            fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
@@ -406,27 +406,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_expr(env, e2, &sort)?;
                 Ok(sort)
             }
-            fhir::ExprKind::Dot(var, fld_sym, fld_span) => {
+            fhir::ExprKind::Dot(var, fld) => {
                 let sort = &env[var.name];
                 if let fhir::Sort::Adt(def_id) = sort {
                     self.map
                         .adt(def_id.expect_local())
-                        .field_sort(*fld_sym)
+                        .field_sort(fld.name)
                         .cloned()
                         .ok_or_else(|| {
                             self.sess.emit_err(errors::FieldNotFound::new(
-                                self.tcx,
-                                self.map,
-                                *def_id,
-                                (*fld_sym, *fld_span),
+                                self.tcx, self.map, *def_id, *fld,
                             ))
                         })
                 } else {
-                    self.emit_err(errors::InvalidPrimitiveDotAccess::new(
-                        *var,
-                        sort,
-                        (*fld_sym, *fld_span),
-                    ))
+                    self.emit_err(errors::InvalidPrimitiveDotAccess::new(*var, sort, *fld))
                 }
             }
         }
@@ -522,7 +515,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 } else {
                     Err(self
                         .sess
-                        .emit_err(errors::ExpectedFun::new(var.source_info.0, sort)))
+                        .emit_err(errors::ExpectedFun::new(var.span(), sort)))
                 }
             }
             fhir::Func::Uif(func, span) => {
@@ -594,14 +587,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                    && let fhir::Func::Var(var) = func
                    && let fhir::InferMode::KVar = self.modes[&var.name]
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, &env[var.name]));
+                    return self.emit_err(errors::InvalidParamPos::new(var.span(), &env[var.name]));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
             }
-            fhir::ExprKind::Var(name, _, span) => {
-                if let sort @ fhir::Sort::Func(_) = &env[name] {
-                    return self.emit_err(errors::InvalidParamPos::new(*span, sort));
+            fhir::ExprKind::Var(var) => {
+                if let sort @ fhir::Sort::Func(_) = &env[var.name] {
+                    return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
             }
@@ -611,7 +604,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .try_for_each_exhaust(|e| self.check_param_uses(env, e, false))
             }
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
-            fhir::ExprKind::Dot(var, _, _) => {
+            fhir::ExprKind::Dot(var, _) => {
                 if let sort @ fhir::Sort::Func(_) = &env[var.name] {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
@@ -630,7 +623,7 @@ fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
 
 mod errors {
     use flux_macros::{Diagnostic, Subdiagnostic};
-    use flux_middle::fhir;
+    use flux_middle::fhir::{self, SurfaceIdent};
     use rustc_errors::MultiSpan;
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
@@ -684,7 +677,7 @@ mod errors {
 
     impl DuplicatedEnsures {
         pub(super) fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
-            Self { span: loc.source_info.0, loc: loc.source_info.1 }
+            Self { span: loc.span(), loc: loc.sym() }
         }
     }
 
@@ -697,7 +690,7 @@ mod errors {
 
     impl MissingEnsures {
         pub(super) fn new(loc: &fhir::Ident) -> MissingEnsures {
-            Self { span: loc.source_info.0 }
+            Self { span: loc.span() }
         }
     }
 
@@ -767,7 +760,7 @@ mod errors {
     pub struct FieldNotFound {
         #[primary_span]
         span: Span,
-        fld: Symbol,
+        fld: SurfaceIdent,
         def_kind: &'static str,
         def_name: String,
         #[subdiagnostic]
@@ -775,11 +768,11 @@ mod errors {
     }
 
     impl FieldNotFound {
-        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: (Symbol, Span)) -> Self {
+        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: SurfaceIdent) -> Self {
             let def_kind = tcx.def_kind(def_id).descr(def_id);
             let def_name = tcx.def_path_str(def_id);
             let def_note = DefSpanNote::new(tcx, map, def_id);
-            Self { span: fld.1, fld: fld.0, def_kind, def_name, def_note }
+            Self { span: fld.span, fld, def_kind, def_name, def_note }
         }
     }
 
@@ -794,8 +787,8 @@ mod errors {
     }
 
     impl<'a> InvalidPrimitiveDotAccess<'a> {
-        pub fn new(var: fhir::Ident, sort: &'a fhir::Sort, fld: (Symbol, Span)) -> Self {
-            let span = var.span().to(fld.1);
+        pub fn new(var: fhir::Ident, sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+            let span = var.span().to(fld.span);
             Self { sort, span, param_name: var.sym() }
         }
     }
