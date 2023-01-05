@@ -265,12 +265,12 @@ pub enum Lit {
     Bool(bool),
 }
 
-pub type SourceInfo = (Span, Symbol);
+pub type SurfaceIdent = rustc_span::symbol::Ident;
 
 #[derive(Clone, Copy)]
 pub struct Ident {
     pub name: Name,
-    pub source_info: SourceInfo,
+    pub source_info: SurfaceIdent,
 }
 
 newtype_index! {
@@ -309,16 +309,16 @@ impl Lit {
 }
 
 impl Ident {
-    pub fn new(name: Name, source_info: SourceInfo) -> Self {
+    pub fn new(name: Name, source_info: SurfaceIdent) -> Self {
         Ident { name, source_info }
     }
 
     pub fn span(&self) -> Span {
-        self.source_info.0
+        self.source_info.span
     }
 
     pub fn sym(&self) -> Symbol {
-        self.source_info.1
+        self.source_info.name
     }
 }
 
@@ -361,18 +361,20 @@ impl AdtDef {
         self.refined_by
             .params
             .iter()
-            .find_position(|(ident, _)| ident.source_info.1 == fld)
+            .find_position(|(ident, _)| ident.sym() == fld)
             .map(|res| res.0)
     }
 
     pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
-        self.refined_by.params.iter().find_map(|(ident, sort)| {
-            if ident.source_info.1 == fld {
-                Some(sort)
-            } else {
-                None
-            }
-        })
+        self.refined_by.params.iter().find_map(
+            |(ident, sort)| {
+                if ident.sym() == fld {
+                    Some(sort)
+                } else {
+                    None
+                }
+            },
+        )
     }
 }
 

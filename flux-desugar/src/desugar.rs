@@ -329,7 +329,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                                     ExprCtxt::new(self.tcx, self.sess, self.map, binders)
                                         .desugar_expr(pred)
                                 })?;
-                            let bind = fhir::Ident::new(name, to_src_info(ident));
+                            let bind = fhir::Ident::new(name, ident);
                             Ok(fhir::Ty::Exists(bty, bind, pred))
                         }
                     }
@@ -389,7 +389,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn bind_into_arg(&self, ident: surface::Ident) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match self.binders.get(ident) {
             Some(Binder::Single(name, ..)) => {
-                let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, to_src_info(ident)));
+                let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(fhir::RefineArg::Expr { expr, is_binder: true })
             }
@@ -526,7 +526,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                         fhir::ExprKind::App(fhir::Func::Uif(func.name, func.span), args)
                     }
                     FuncRes::Param(name, _) => {
-                        let func = fhir::Func::Var(fhir::Ident::new(name, to_src_info(func)));
+                        let func = fhir::Func::Var(fhir::Ident::new(name, func));
                         fhir::ExprKind::App(func, args)
                     }
                 }
@@ -586,7 +586,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match (self.binders.get(ident), self.map.const_by_name(ident.name)) {
             (Some(Binder::Single(name, ..)), _) => {
-                fhir::ExprKind::Var(fhir::Ident::new(*name, to_src_info(ident)))
+                fhir::ExprKind::Var(fhir::Ident::new(*name, ident))
             }
             (Some(Binder::Unrefined), _) => {
                 let def_ident = self.binders.def_ident(ident).unwrap();
@@ -602,9 +602,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
         match self.binders.get(loc) {
-            Some(&Binder::Single(name, ..)) => {
-                Ok(fhir::Ident { name, source_info: to_src_info(loc) })
-            }
+            Some(&Binder::Single(name, ..)) => Ok(fhir::Ident::new(name, loc)),
             Some(binder @ Binder::Unrefined) => {
                 // This shouldn't happen because loc bindings in input position should
                 // already be inserted as Binder::Single when gathering parameters and
@@ -937,7 +935,7 @@ impl Binders {
         let mut args = vec![];
         for (ident, binder) in self.into_top_layer() {
             if let Binder::Single(name, sort, _) = binder {
-                let name = fhir::Ident { name, source_info: to_src_info(ident) };
+                let name = fhir::Ident::new(name, ident);
                 args.push((name, sort));
             } else {
                 panic!()
@@ -1016,7 +1014,7 @@ fn param_from_ident(
     sort: fhir::Sort,
     mode: fhir::InferMode,
 ) -> fhir::RefineParam {
-    let name = fhir::Ident { name, source_info: to_src_info(ident) };
+    let name = fhir::Ident::new(name, ident);
     fhir::RefineParam { name, sort, mode }
 }
 
@@ -1077,10 +1075,6 @@ fn sorts<'a>(map: &'a fhir::Map, bty: &surface::BaseTy<Res>) -> Option<&'a [fhir
         surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
     };
     Some(sorts)
-}
-
-fn to_src_info(ident: surface::Ident) -> fhir::SourceInfo {
-    (ident.span, ident.name)
 }
 
 struct Sorts {

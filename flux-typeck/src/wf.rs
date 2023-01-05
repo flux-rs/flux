@@ -388,7 +388,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         if found == &fhir::Sort::Loc {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(loc.source_info.0, &fhir::Sort::Loc, found))
+            self.emit_err(errors::SortMismatch::new(loc.span(), &fhir::Sort::Loc, found))
         }
     }
 
@@ -522,7 +522,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 } else {
                     Err(self
                         .sess
-                        .emit_err(errors::ExpectedFun::new(var.source_info.0, sort)))
+                        .emit_err(errors::ExpectedFun::new(var.span(), sort)))
                 }
             }
             fhir::Func::Uif(func, span) => {
@@ -594,7 +594,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                    && let fhir::Func::Var(var) = func
                    && let fhir::InferMode::KVar = self.modes[&var.name]
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(var.source_info.0, &env[var.name]));
+                    return self.emit_err(errors::InvalidParamPos::new(var.span(), &env[var.name]));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses(env, arg, false))
@@ -684,7 +684,7 @@ mod errors {
 
     impl DuplicatedEnsures {
         pub(super) fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
-            Self { span: loc.source_info.0, loc: loc.source_info.1 }
+            Self { span: loc.span(), loc: loc.sym() }
         }
     }
 
@@ -697,7 +697,7 @@ mod errors {
 
     impl MissingEnsures {
         pub(super) fn new(loc: &fhir::Ident) -> MissingEnsures {
-            Self { span: loc.source_info.0 }
+            Self { span: loc.span() }
         }
     }
 
