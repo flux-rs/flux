@@ -135,6 +135,7 @@ pub struct PPrintCx<'tcx> {
     pub full_spans: bool,
     pub hide_uninit: bool,
     pub show_is_binder: bool,
+    pub hide_refinements: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -173,7 +174,7 @@ impl<'a, T> Parens<'a, T> {
 }
 
 macro_rules! set_opts {
-    ($cx:expr, $opts:expr, [$($opt:ident),+]) => {
+    ($cx:expr, $opts:expr, [$($opt:ident),+ $(,)?]) => {
         $(
         if let Some(val) = $opts.get(stringify!($opt)).and_then(|v| FromOpt::from_opt(v)) {
             $cx.$opt = val;
@@ -195,6 +196,7 @@ impl PPrintCx<'_> {
             full_spans: false,
             hide_uninit: true,
             show_is_binder: false,
+            hide_refinements: false,
         }
     }
 
@@ -210,7 +212,9 @@ impl PPrintCx<'_> {
                 bindings_chain,
                 preds_chain,
                 full_spans,
-                hide_uninit
+                hide_uninit,
+                show_is_binder,
+                hide_refinements,
             ]
         );
     }

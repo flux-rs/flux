@@ -198,7 +198,7 @@ impl TypeEnv {
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();
-        self.bindings.iter(|path, binding1| {
+        self.bindings.iter(|_, path, binding1| {
             let binding2 = bb_env.bindings.get(&path);
             if bb_env.bindings.contains_loc(path.loc)
               && let Binding::Owned(ty1) = binding1
@@ -313,7 +313,7 @@ impl TypeEnv {
 
         let span = src_info.map(|src_info| src_info.span);
         // Convert pointers to borrows
-        for (path, binding2) in &bb_env {
+        for (_, path, binding2) in &bb_env {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
@@ -337,7 +337,7 @@ impl TypeEnv {
         }
 
         // Check subtyping
-        for (path, binding2) in bb_env {
+        for (_, path, binding2) in bb_env {
             let binding1 = self.bindings.get(&path);
             let ty1 = binding1.ty();
             let ty2 = binding2.ty();

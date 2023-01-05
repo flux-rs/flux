@@ -424,7 +424,7 @@ impl fmt::Debug for Rvalue {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
             Rvalue::MutRef(place) => write!(f, "&mut {place:?}"),
-            Rvalue::ShrRef(place) => write!(f, "& {place:?}"),
+            Rvalue::ShrRef(place) => write!(f, "&{place:?}"),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),

@@ -890,12 +890,15 @@ mod pretty {
             match self.kind() {
                 TyKind::Indexed(bty, idxs) => {
                     w!("{:?}", bty)?;
-                    if !idxs.args().is_empty() {
+                    if !cx.hide_refinements && !idxs.args().is_empty() {
                         w!("[{:?}]", idxs)?;
                     }
                     Ok(())
                 }
                 TyKind::Exists(Binders { params, value: Exists { bty, args, pred } }) => {
+                    if cx.hide_refinements {
+                        return w!("{bty:?}");
+                    }
                     if pred.is_true() {
                         w!("{{[{:?}]. {:?}[{:?}]}}", join!(", ", params), bty, args)
                     } else {
@@ -912,7 +915,13 @@ mod pretty {
                 TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
-                TyKind::Constr(pred, ty) => w!("{{ {:?} : {:?} }}", ty, pred),
+                TyKind::Constr(pred, ty) => {
+                    if cx.hide_refinements {
+                        w!("{:?}", ty)
+                    } else {
+                        w!("{{ {:?} : {:?} }}", ty, pred)
+                    }
+                }
             }
         }
 

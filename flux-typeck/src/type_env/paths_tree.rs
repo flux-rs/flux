@@ -165,17 +165,23 @@ impl PathsTree {
         self.map.contains_key(&loc)
     }
 
-    pub fn iter(&self, mut f: impl FnMut(Path, &Binding)) {
-        fn go(ptr: &NodePtr, loc: Loc, proj: &mut Vec<Field>, f: &mut impl FnMut(Path, &Binding)) {
+    pub(super) fn iter(&self, mut f: impl FnMut(&LocKind, Path, &Binding)) {
+        fn go(
+            ptr: &NodePtr,
+            loc: Loc,
+            kind: &LocKind,
+            proj: &mut Vec<Field>,
+            f: &mut impl FnMut(&LocKind, Path, &Binding),
+        ) {
             let node = ptr.borrow();
             match &*node {
                 Node::Leaf(binding) => {
-                    f(Path::new(loc, proj.as_slice()), binding);
+                    f(kind, Path::new(loc, proj.as_slice()), binding);
                 }
                 Node::Internal(_, children) => {
                     for (idx, ptr) in children.iter().enumerate() {
                         proj.push(Field::from(idx));
-                        go(ptr, loc, proj, f);
+                        go(ptr, loc, kind, proj, f);
                         proj.pop();
                     }
                 }
@@ -183,19 +189,19 @@ impl PathsTree {
         }
         let mut proj = vec![];
         for (loc, root) in &self.map {
-            go(&root.ptr, *loc, &mut proj, &mut f);
+            go(&root.ptr, *loc, &root.kind, &mut proj, &mut f);
         }
     }
 
     pub(super) fn paths(&self) -> Vec<Path> {
         let mut paths = vec![];
-        self.iter(|path, _| paths.push(path));
+        self.iter(|_, path, _| paths.push(path));
         paths
     }
 
-    pub(super) fn flatten(&self) -> Vec<(Path, Binding)> {
+    pub(super) fn flatten(&self) -> Vec<(LocKind, Path, Binding)> {
         let mut bindings = vec![];
-        self.iter(|path, binding| bindings.push((path, binding.clone())));
+        self.iter(|kind, path, binding| bindings.push((*kind, path, binding.clone())));
         bindings
     }
 
@@ -840,18 +846,18 @@ mod pretty {
             let bindings = self
                 .flatten()
                 .into_iter()
-                .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
-                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2));
+                .filter(|(.., ty)| !cx.hide_uninit || !ty.is_uninit())
+                .sorted_by(|(_, path1, _), (_, path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",
                 ^bindings
-                    .format_with(", ", |(loc, binding), f| {
+                    .format_with(", ", |(kind, loc, binding), f| {
                         match binding {
                             Binding::Owned(ty) => {
-                                f(&format_args_cx!("{:?}: {:?}", loc, ty))
+                                f(&format_args_cx!("{:?}:{:?} {:?}", loc, kind, ty))
                             }
                             Binding::Blocked(ty) => {
-                                f(&format_args_cx!("{:?}:† {:?}", loc, ty))
+                                f(&format_args_cx!("{:?}:†{:?} {:?}", loc, kind, ty))
                             }
                         }
                     })
@@ -860,6 +866,17 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+        }
+    }
+
+    impl Pretty for LocKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                LocKind::Local => Ok(()),
+                LocKind::Box => w!("[box]"),
+                LocKind::Universal => Ok(()),
+            }
         }
     }
 
