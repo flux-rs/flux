@@ -14,7 +14,6 @@ pub struct EVarGen {
     evars: FxHashMap<EVarCxId, IndexVec<EVid, EVarState>>,
 }
 
-#[derive(Debug)]
 pub struct EVarSol {
     evars: FxHashMap<EVarCxId, IndexVec<EVid, RefineArg>>,
 }
@@ -112,13 +111,33 @@ impl EVarSol {
 }
 
 mod pretty {
+    use std::fmt;
+
+    use rustc_data_structures::fx::FxIndexMap;
+
     use super::*;
     use crate::pretty::*;
 
     impl Pretty for EVar {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("?e{}#{}", ^self.id.as_u32(), ^self.cx.0)
+        }
+    }
+
+    impl fmt::Debug for EVarSol {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let map: FxIndexMap<EVar, _> = self
+                .evars
+                .iter()
+                .flat_map(|(cx, args)| {
+                    args.iter_enumerated().map(|(id, expr)| {
+                        let evar = EVar { cx: *cx, id };
+                        (evar, expr)
+                    })
+                })
+                .collect();
+            fmt::Debug::fmt(&map, f)
         }
     }
 
