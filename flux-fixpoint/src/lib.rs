@@ -111,10 +111,6 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
-        for sort in &self.sorts {
-            writeln!(f, "(data {sort} 0 = [\n| {sort}0 {{ }} \n| {sort}1 {{ }}])")?;
-        }
-
         for (name, sort) in &self.constants {
             write!(f, "(constant {name:?} {sort:?})")?;
         }

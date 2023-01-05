@@ -21,7 +21,6 @@ pub enum Sort {
     Unit,
     Pair(Box<Sort>, Box<Sort>),
     Func(FuncSort),
-    User(String),
 }
 
 #[derive(Clone)]
@@ -220,7 +219,6 @@ impl fmt::Display for Sort {
             Sort::Unit => write!(f, "Unit"),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::User(name) => write!(f, "{name}"),
         }
     }
 }

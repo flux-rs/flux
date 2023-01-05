@@ -427,7 +427,10 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
-        rty::Sort::User(name) => fixpoint::Sort::User(name.to_ident_string()),
+        // There's no way to declare opaque sorts in the horn syntax in fixpoint so we encode
+        // them as integers. Well-formedness should ensure values of this sort are only used to
+        // test for equality.
+        rty::Sort::User(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Infer | rty::Sort::Adt(_) | rty::Sort::Loc => {
             unreachable!("unexpected sort {sort:?}")
