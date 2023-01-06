@@ -9,7 +9,7 @@ use tracing::{Dispatch, Level};
 use tracing_subscriber::{filter::Targets, fmt::writer::BoxMakeWriter, prelude::*, Registry};
 use tracing_timing::TimingLayer;
 
-const ONE_HUNDRED_MILLIS: u64 = 100_000_000;
+const ONE_MILLIS: u64 = 1_000_000;
 const ONE_MINUTE: u64 = 60_000_000_000;
 
 const CHECKER_FILE: &str = "checker";
@@ -40,7 +40,7 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
         Some(
             tracing_timing::Builder::default()
                 .layer(|| {
-                    tracing_timing::Histogram::new_with_bounds(ONE_HUNDRED_MILLIS, ONE_MINUTE, 3)
+                    tracing_timing::Histogram::new_with_bounds(ONE_MILLIS, ONE_MINUTE, 3)
                         .unwrap()
                 })
                 .with_filter(
