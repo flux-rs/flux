@@ -124,6 +124,7 @@ where
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
         fixpoint_span!(self.genv.tcx, did).in_scope( || {
+            tracing::debug!(event = "fixpoint start");
             let kvars = self
                 .fixpoint_kvars
                 .into_iter_enumerated()
@@ -162,7 +163,7 @@ where
                 dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
             }
 
-            match task.check() {
+            let result = match task.check() {
                 Ok(FixpointResult::Safe(_)) => Ok(()),
                 Ok(FixpointResult::Unsafe(_, errors)) => {
                     Err(errors
@@ -173,7 +174,11 @@ where
                 }
                 Ok(FixpointResult::Crash(err)) => panic!("fixpoint crash: {err:?}"),
                 Err(err) => panic!("failed to run fixpoint: {err:?}"),
-            }
+            };
+
+            tracing::debug!(event = "fixpoint end");
+
+            result
         })
     }
 
