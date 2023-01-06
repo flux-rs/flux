@@ -1,6 +1,5 @@
 use std::{fs, io::Write, iter};
 
-use crate::dbg::fixpoint_span;
 use fixpoint::FixpointResult;
 use flux_common::{
     config::CONFIG,
@@ -16,6 +15,8 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+
+use crate::dbg::fixpoint_span;
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -123,7 +124,7 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
-        fixpoint_span!(self.genv.tcx, did).in_scope( || {
+        fixpoint_span!(self.genv.tcx, did).in_scope(|| {
             tracing::debug!(event = "fixpoint start");
             let kvars = self
                 .fixpoint_kvars
