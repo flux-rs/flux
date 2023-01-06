@@ -40,7 +40,7 @@ use crate::{
     constraint_gen::{ConstrGen, Tag},
     dbg,
     fixpoint::{KVarEncoding, KVarStore},
-    refine_tree::{RefineCtxt, RefineTree, Snapshot, UnpackFlags},
+    refine_tree::{RefineCtxt, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
@@ -233,7 +233,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-            let ty = rcx.unpack_with(ty, UnpackFlags::INVARIANTS);
+            let ty = rcx.unpack(ty);
+            rcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
         }
 
@@ -369,6 +370,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
 
                 let ret = rcx.unpack(&ret);
+                rcx.assume_invariants(&ret);
                 let mut gen = self.constr_gen(rcx, Tag::Call(terminator.source_info.span));
                 env.write_place(rcx, &mut gen, destination, ret, Some(terminator.source_info))
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;

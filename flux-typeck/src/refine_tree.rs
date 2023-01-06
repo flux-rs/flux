@@ -8,8 +8,10 @@ use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
-    box_args, evars::EVarSol, fold::TypeFoldable, BaseTy, Expr, GenericArg, Name, RefKind,
-    RefineArgs, Sort, Ty, TyKind,
+    box_args,
+    evars::EVarSol,
+    fold::{TypeFoldable, TypeVisitor},
+    BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -172,9 +174,6 @@ impl RefineCtxt<'_> {
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => {
                 let bty = self.unpack_bty(bty, in_mut_ref, flags);
-                if flags.contains(UnpackFlags::INVARIANTS) {
-                    self.assume_invariants(&bty, idxs);
-                }
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(exists) => {
@@ -187,7 +186,6 @@ impl RefineCtxt<'_> {
                         exists.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
                     self.ptr.push_guard(exists.pred);
                     let bty = self.unpack_bty(&exists.bty, in_mut_ref, flags);
-                    self.assume_invariants(&bty, &exists.args);
                     Ty::indexed(bty, exists.args)
                 } else {
                     ty.clone()
@@ -224,10 +222,28 @@ impl RefineCtxt<'_> {
         self.unpack_inner(ty, false, UnpackFlags::empty())
     }
 
-    fn assume_invariants(&mut self, bty: &BaseTy, idxs: &RefineArgs) {
-        for invariant in bty.invariants() {
-            self.assume_pred(invariant.pred.replace_bvars(idxs.args()));
+    pub fn assume_invariants(&mut self, ty: &Ty) {
+        struct Visitor<'a, 'rcx>(&'a mut RefineCtxt<'rcx>);
+        impl TypeVisitor for Visitor<'_, '_> {
+            fn visit_bty(&mut self, bty: &BaseTy) {
+                if let BaseTy::Adt(adt_def, _) = bty && adt_def.is_box() {
+                    bty.super_visit_with(self);
+                }
+            }
+
+            fn visit_ty(&mut self, ty: &Ty) {
+                if let TyKind::Indexed(bty, idxs) = ty.kind() {
+                    for invariant in bty.invariants() {
+                        let invariant = invariant.pred.replace_bvars(idxs.args());
+                        self.0.assume_pred(invariant);
+                    }
+                }
+                if !matches!(ty.kind(), TyKind::Exists(..)) {
+                    ty.super_visit_with(self);
+                }
+            }
         }
+        ty.visit_with(&mut Visitor(self))
     }
 
     pub fn replace_evars(&mut self, evars: &EVarSol) {
@@ -332,7 +348,7 @@ impl NodePtr {
 bitflags! {
     pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b01;
-        const INVARIANTS        = 0b10;
+        // const INVARIANTS        = 0b10;
     }
 }
 
