@@ -7,8 +7,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Const, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind,
-        GenericArg, InferMode, Path, PolySig, PolyVariant, RefKind, RefineArg, Sort, Ty, TyKind,
-        VariantRet,
+        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, RefKind, RefineArg, Sort, Ty,
+        TyKind, VariantRet,
     },
     rustc::{
         self,
@@ -164,17 +164,17 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2)) => {
+                (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2)) => {
                     let bound = requires[path2];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
                     infcx.check_type_constr(rcx, env, path1, bound, Some(src_info))?;
                 }
-                (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
                     infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.update(path, bound.clone());
                     env.block(path);
                 }
-                (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
+                (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
                     infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.block(path);
                 }
@@ -243,12 +243,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(RefKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
                     infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.update(path, bound.clone());
                     env.block(path);
                 }
-                (TyKind::Ptr(RefKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
+                (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
                     infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
                     env.block(path);
                 }
@@ -366,13 +366,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.subtyping(rcx, ty1, &Ty::indexed(exists.bty, exists.args));
                 self.pop_scope();
             }
-            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
-                debug_assert_eq!(rk1, rk2);
+            (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
+                debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
-            }
-            (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
-                debug_assert_eq!(loc1, loc2);
-                debug_assert_eq!(alloc1, alloc2);
             }
             (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
                 self.subtyping(rcx, ty1, ty2);
@@ -417,10 +413,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
             }
-            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
-                debug_assert_eq!(def1.def_id(), def2.def_id());
+            (BaseTy::Adt(adt1, substs1), BaseTy::Adt(adt2, substs2)) => {
+                debug_assert_eq!(adt1.def_id(), adt2.def_id());
                 debug_assert_eq!(substs1.len(), substs2.len());
-                let variances = self.genv.variances_of(def1.def_id());
+                let variances = self.genv.variances_of(adt1.def_id());
                 for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
                     self.generic_arg_subtyping(rcx, *variance, ty1, ty2);
                 }

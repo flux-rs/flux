@@ -133,14 +133,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Uninit,
-    Ptr(RefKind, Path),
-    /// A pointer to a location produced by opening a box. This mostly behaves like a [`TyKind::Ptr`],
-    /// with two major differences:
-    /// 1. An open box can only point to a fresh location and not an arbitrary [`Path`], so we just
-    ///    store a [`Name`].
-    /// 2. We keep around the allocator to be able to put the box back together (you could say that
-    ///    the capability to deallocate the memory stays with the pointer).
-    BoxPtr(Name, Ty),
+    Ptr(PtrKind, Path),
     Ref(RefKind, Ty),
     Constr(Expr, Ty),
     Param(ParamTy),
@@ -152,6 +145,13 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum PtrKind {
+    Shr,
+    Mut,
+    Box,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -440,6 +440,16 @@ impl AdtDef {
     }
 }
 
+impl PolyVariant {
+    pub fn to_fn_sig(&self) -> PolySig {
+        let variant = self.as_ref().skip_binders();
+        let sorts = self.params();
+        let modes = sorts.iter().map(Sort::default_infer_mode).collect_vec();
+        let sig = FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
+        PolySig::new(Binders::new(sig, sorts), modes)
+    }
+}
+
 impl VariantRet {
     pub fn to_ty(&self) -> Ty {
         Ty::indexed(self.bty.clone(), RefineArgs::multi(self.args.to_vec()))
@@ -447,12 +457,8 @@ impl VariantRet {
 }
 
 impl Ty {
-    pub fn ptr(rk: RefKind, path: impl Into<Path>) -> Ty {
-        TyKind::Ptr(rk, path.into()).intern()
-    }
-
-    pub fn box_ptr(loc: Name, alloc: Ty) -> Ty {
-        TyKind::BoxPtr(loc, alloc).intern()
+    pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
+        TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
     pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
@@ -619,6 +625,15 @@ impl TyS {
 impl Exists {
     pub fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
         Self { bty, args, pred }
+    }
+}
+
+impl From<RefKind> for PtrKind {
+    fn from(rk: RefKind) -> Self {
+        match rk {
+            RefKind::Shr => PtrKind::Shr,
+            RefKind::Mut => PtrKind::Mut,
+        }
     }
 }
 
@@ -880,12 +895,15 @@ mod pretty {
             match self.kind() {
                 TyKind::Indexed(bty, idxs) => {
                     w!("{:?}", bty)?;
-                    if !idxs.args().is_empty() {
+                    if !cx.hide_refinements && !idxs.args().is_empty() {
                         w!("[{:?}]", idxs)?;
                     }
                     Ok(())
                 }
                 TyKind::Exists(Binders { params, value: Exists { bty, args, pred } }) => {
+                    if cx.hide_refinements {
+                        return w!("{bty:?}");
+                    }
                     if pred.is_true() {
                         w!("{{[{:?}]. {:?}[{:?}]}}", join!(", ", params), bty, args)
                     } else {
@@ -893,8 +911,7 @@ mod pretty {
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
-                TyKind::Ptr(rk, loc) => w!("ptr({:?}, {:?})", ^rk, loc),
-                TyKind::BoxPtr(loc, alloc) => w!("box({:?}, {:?})", ^loc, alloc),
+                TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
                 TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
@@ -902,12 +919,29 @@ mod pretty {
                 TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
-                TyKind::Constr(pred, ty) => w!("{{ {:?} : {:?} }}", ty, pred),
+                TyKind::Constr(pred, ty) => {
+                    if cx.hide_refinements {
+                        w!("{:?}", ty)
+                    } else {
+                        w!("{{ {:?} : {:?} }}", ty, pred)
+                    }
+                }
             }
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+        }
+    }
+
+    impl Pretty for PtrKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                PtrKind::Shr => w!("shr"),
+                PtrKind::Mut => w!("mut"),
+                PtrKind::Box => w!("box"),
+            }
         }
     }
 
@@ -1026,6 +1060,7 @@ mod pretty {
         RefineArg,
         RefineArgs,
         VariantDef,
+        PtrKind,
     );
 }
 

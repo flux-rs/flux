@@ -69,6 +69,10 @@ pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr>
     parse!(surface_grammar::ExprParser, tokens, span)
 }
 
+pub fn parse_sort_decl(tokens: TokenStream, span: Span) -> ParseResult<surface::SortDecl> {
+    parse!(surface_grammar::SortDeclParser, tokens, span)
+}
+
 pub enum UserParseError {
     UnexpectedToken(Location, Location),
 }

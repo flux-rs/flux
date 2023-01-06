@@ -6,8 +6,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, RefineArg, Sort, Substs, Ty, TyKind,
-        VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, RefineArg, Sort, Substs, Ty, TyKind,
+        Var, VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem, SourceInfo},
 };
@@ -34,16 +34,16 @@ struct Root {
     ptr: NodePtr,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub(super) enum LocKind {
     Local,
-    Box,
+    Box(Ty),
     Universal,
 }
 
 impl Clone for Root {
     fn clone(&self) -> Root {
-        Root { kind: self.kind, ptr: self.ptr.deep_clone() }
+        Root { kind: self.kind.clone(), ptr: self.ptr.deep_clone() }
     }
 }
 
@@ -165,17 +165,23 @@ impl PathsTree {
         self.map.contains_key(&loc)
     }
 
-    pub fn iter(&self, mut f: impl FnMut(Path, &Binding)) {
-        fn go(ptr: &NodePtr, loc: Loc, proj: &mut Vec<Field>, f: &mut impl FnMut(Path, &Binding)) {
+    pub(super) fn iter(&self, mut f: impl FnMut(&LocKind, Path, &Binding)) {
+        fn go(
+            ptr: &NodePtr,
+            loc: Loc,
+            kind: &LocKind,
+            proj: &mut Vec<Field>,
+            f: &mut impl FnMut(&LocKind, Path, &Binding),
+        ) {
             let node = ptr.borrow();
             match &*node {
                 Node::Leaf(binding) => {
-                    f(Path::new(loc, proj.as_slice()), binding);
+                    f(kind, Path::new(loc, proj.as_slice()), binding);
                 }
                 Node::Internal(_, children) => {
                     for (idx, ptr) in children.iter().enumerate() {
                         proj.push(Field::from(idx));
-                        go(ptr, loc, proj, f);
+                        go(ptr, loc, kind, proj, f);
                         proj.pop();
                     }
                 }
@@ -183,19 +189,19 @@ impl PathsTree {
         }
         let mut proj = vec![];
         for (loc, root) in &self.map {
-            go(&root.ptr, *loc, &mut proj, &mut f);
+            go(&root.ptr, *loc, &root.kind, &mut proj, &mut f);
         }
     }
 
     pub(super) fn paths(&self) -> Vec<Path> {
         let mut paths = vec![];
-        self.iter(|path, _| paths.push(path));
+        self.iter(|_, path, _| paths.push(path));
         paths
     }
 
-    pub(super) fn flatten(&self) -> Vec<(Path, Binding)> {
+    pub(super) fn flatten(&self) -> Vec<(LocKind, Path, Binding)> {
         let mut bindings = vec![];
-        self.iter(|path, binding| bindings.push((path, binding.clone())));
+        self.iter(|kind, path, binding| bindings.push((kind.clone(), path, binding.clone())));
         bindings
     }
 
@@ -250,10 +256,6 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            TyKind::BoxPtr(loc, _) => {
-                                path = Path::from(Loc::from(*loc));
-                                continue 'outer;
-                            }
                             TyKind::Ref(rk, ty) => {
                                 let (rk, ty) = Self::lookup_ty(
                                     genv,
@@ -272,8 +274,8 @@ impl PathsTree {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::from(fresh);
-                                *ptr.borrow_mut() = Node::owned(Ty::box_ptr(fresh, alloc.clone()));
-                                self.insert(loc, boxed.clone(), LocKind::Box);
+                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc));
+                                self.insert(loc, boxed.clone(), LocKind::Box(alloc.clone()));
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -321,6 +323,9 @@ impl PathsTree {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
+            if matches!(elem, Field(_) | Downcast(_)) {
+                ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
+            }
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(WeakKind::from(*rk2));
@@ -347,7 +352,8 @@ impl PathsTree {
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
                     let tys =
                         downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idxs.args())?;
-                    ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
+                    ty = Ty::tuple(tys);
+                    rcx.assume_invariants(&ty);
                 }
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
                 _ => todo!("lookup_ty {elem:?} {ty:?} at {src_info:?}"),
@@ -362,9 +368,10 @@ impl PathsTree {
         for path in paths.into_iter().rev() {
             let ptr = self.get_node(&path);
             let mut node = ptr.borrow_mut();
-            if let Node::Leaf(Binding::Owned(ty)) = &mut *node &&
-                let TyKind::BoxPtr(loc, _) = ty.kind() &&
-                !scope.contains(*loc)
+            if let Node::Leaf(Binding::Owned(ty)) = &mut *node
+                && let TyKind::Ptr(_, path) = ty.kind()
+                && let Some(Loc::Var(Var::Free(name))) = path.to_loc()
+                && !scope.contains(name)
             {
                 node.fold(&mut self.map, rcx, gen, false, true);
             }
@@ -546,7 +553,8 @@ impl Node {
                         )?
                         .into_iter()
                         .map(|ty| {
-                            let ty = rcx.unpack_with(&ty, UnpackFlags::INVARIANTS);
+                            let ty = rcx.unpack(&ty);
+                            rcx.assume_invariants(&ty);
                             Node::owned(ty).into_ptr()
                         })
                         .collect();
@@ -602,11 +610,14 @@ impl Node {
     ) -> Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
-                if let TyKind::BoxPtr(loc, alloc) = ty.kind() && close_boxes {
-                    let root = map.remove(&Loc::from(*loc)).unwrap();
-                    debug_assert!(matches!(root.kind, LocKind::Box));
+                if let TyKind::Ptr(PtrKind::Box, path) = ty.kind() && close_boxes {
+                    let loc = path.to_loc().unwrap();
+                    let root = map.remove(&loc).unwrap();
+                    let LocKind::Box(alloc) = root.kind else {
+                        unreachable!("box pointer to non-box loc");
+                    };
                     let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
-                    let ty = gen.genv.mk_box(boxed_ty, alloc.clone());
+                    let ty = gen.genv.mk_box(boxed_ty, alloc);
                     *self = Node::owned(ty.clone());
                     ty
                 } else {
@@ -840,18 +851,18 @@ mod pretty {
             let bindings = self
                 .flatten()
                 .into_iter()
-                .filter(|(_, ty)| !cx.hide_uninit || !ty.is_uninit())
-                .sorted_by(|(path1, _), (path2, _)| path1.cmp(path2));
+                .filter(|(.., ty)| !cx.hide_uninit || !ty.is_uninit())
+                .sorted_by(|(_, path1, _), (_, path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",
                 ^bindings
-                    .format_with(", ", |(loc, binding), f| {
+                    .format_with(", ", |(kind, loc, binding), f| {
                         match binding {
                             Binding::Owned(ty) => {
-                                f(&format_args_cx!("{:?}: {:?}", loc, ty))
+                                f(&format_args_cx!("{:?}:{:?} {:?}", loc, kind, ty))
                             }
                             Binding::Blocked(ty) => {
-                                f(&format_args_cx!("{:?}:† {:?}", loc, ty))
+                                f(&format_args_cx!("{:?}:†{:?} {:?}", loc, kind, ty))
                             }
                         }
                     })
@@ -860,6 +871,17 @@ mod pretty {
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+        }
+    }
+
+    impl Pretty for LocKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                LocKind::Local => Ok(()),
+                LocKind::Box(_) => w!("[box]"),
+                LocKind::Universal => Ok(()),
+            }
         }
     }
 

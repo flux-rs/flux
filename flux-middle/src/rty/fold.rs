@@ -18,6 +18,14 @@ pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
         name.super_visit_with(self);
     }
+
+    fn visit_ty(&mut self, ty: &Ty) {
+        ty.super_visit_with(self);
+    }
+
+    fn visit_bty(&mut self, bty: &BaseTy) {
+        bty.super_visit_with(self);
+    }
 }
 
 pub trait TypeFolder: Sized {
@@ -27,6 +35,10 @@ pub trait TypeFolder: Sized {
 
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         ty.super_fold_with(self)
+    }
+
+    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+        bty.super_fold_with(self)
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
@@ -307,22 +319,13 @@ impl TypeFoldable for Ty {
             TyKind::Exists(exists) => TyKind::Exists(exists.fold_with(folder)).intern(),
             TyKind::Tuple(tys) => Ty::tuple(tys.fold_with(folder)),
             TyKind::Array(ty, c) => Ty::array(ty.fold_with(folder), c.clone()),
-            TyKind::Ptr(rk, path) => {
+            TyKind::Ptr(pk, path) => {
                 Ty::ptr(
-                    *rk,
+                    *pk,
                     path.to_expr()
                         .fold_with(folder)
                         .to_path()
                         .expect("folding produced an invalid path"),
-                )
-            }
-            TyKind::BoxPtr(loc, alloc) => {
-                Ty::box_ptr(
-                    Expr::fvar(*loc)
-                        .fold_with(folder)
-                        .to_fvar()
-                        .expect("folding produced an invalid name"),
-                    alloc.fold_with(folder),
                 )
             }
             TyKind::Ref(rk, ty) => Ty::mk_ref(*rk, ty.fold_with(folder)),
@@ -344,10 +347,6 @@ impl TypeFoldable for Ty {
             TyKind::Array(ty, _) => ty.visit_with(visitor),
             TyKind::Ref(_, ty) => ty.visit_with(visitor),
             TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
-            TyKind::BoxPtr(loc, ty) => {
-                Expr::fvar(*loc).visit_with(visitor);
-                ty.visit_with(visitor);
-            }
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor);
                 ty.visit_with(visitor);
@@ -358,6 +357,10 @@ impl TypeFoldable for Ty {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_ty(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_ty(self);
     }
 }
 
@@ -441,6 +444,14 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char => {}
         }
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_bty(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_bty(self)
     }
 }
 

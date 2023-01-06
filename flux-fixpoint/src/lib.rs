@@ -28,6 +28,7 @@ pub struct Task<Tag> {
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
     pub uifs: Vec<UifDef>,
+    pub sorts: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -66,8 +67,9 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         constraint: Constraint<Tag>,
         qualifiers: Vec<Qualifier>,
         uifs: Vec<UifDef>,
+        sorts: Vec<String>,
     ) -> Self {
-        Task { constants, kvars, constraint, qualifiers, uifs }
+        Task { constants, kvars, constraint, qualifiers, uifs, sorts }
     }
 
     pub fn check(&self) -> io::Result<FixpointResult<Tag>> {

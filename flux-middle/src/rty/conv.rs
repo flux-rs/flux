@@ -226,20 +226,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 } else {
                     self.env.push_layer(Layer::empty());
                     let bty = self.conv_base_ty(bty);
-                    let ty = rty::Ty::full_exists(bty, rty::Expr::tt());
                     self.env.pop_layer();
-                    ty
+                    rty::Ty::full_exists(bty, rty::Expr::tt())
                 }
             }
             fhir::Ty::Indexed(bty, idx) => self.conv_indexed(bty, idx),
-            fhir::Ty::Exists(bty, name, pred) => {
+            fhir::Ty::Exists(bty, bind, pred) => {
                 self.env
-                    .push_layer(Layer::new(self.genv.map(), [(name, &bty.sort())]));
+                    .push_layer(Layer::new(self.genv.map(), [(&bind.name, &bty.sort())]));
                 let bty = self.conv_base_ty(bty);
                 let pred = self.env.conv_expr(pred);
-                let ty = rty::Ty::full_exists(bty, pred);
                 self.env.pop_layer();
-                ty
+                rty::Ty::full_exists(bty, pred)
             }
             fhir::Ty::Ptr(loc) => {
                 rty::Ty::ptr(
@@ -286,10 +284,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_refine_arg(&mut self, arg: &fhir::RefineArg, sort: &fhir::Sort) -> Vec<rty::RefineArg> {
         match arg {
             fhir::RefineArg::Expr {
-                expr: fhir::Expr { kind: fhir::ExprKind::Var(name, ..), .. },
+                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
                 ..
             } => {
-                let (_, bvars) = self.env.get(name);
+                let (_, bvars) = self.env.get(var.name);
                 bvars
                     .into_iter()
                     .map(|bvar| rty::RefineArg::Expr(bvar.to_expr()))
@@ -420,7 +418,7 @@ impl Env<'_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(name, ..) => self.expect_one_var(*name).to_expr(),
+            fhir::ExprKind::Var(var) => self.expect_one_var(var.name).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
@@ -432,13 +430,13 @@ impl Env<'_> {
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
             }
-            fhir::ExprKind::Dot(var, fld, _) => {
+            fhir::ExprKind::Dot(var, fld) => {
                 let (sort, vars) = self.get(var.name);
                 if let fhir::Sort::Adt(def_id) = sort {
                     let idx = self
                         .map
                         .adt(def_id.expect_local())
-                        .field_index(*fld)
+                        .field_index(fld.name)
                         .unwrap_or_else(|| panic!("field not found `{fld:?}`"));
                     vars[idx].to_expr()
                 } else {
@@ -508,15 +506,16 @@ fn flatten_sorts<'a>(
 
 fn flatten_sort(map: &fhir::Map, sort: &fhir::Sort) -> Vec<rty::Sort> {
     match sort {
-        fhir::Sort::Int => vec![rty::Sort::Int],
-        fhir::Sort::Bool => vec![rty::Sort::Bool],
-        fhir::Sort::Loc => vec![rty::Sort::Loc],
         fhir::Sort::Tuple(sorts) => {
             vec![rty::Sort::Tuple(List::from_vec(flatten_sorts(map, sorts)))]
         }
         fhir::Sort::Func(fsort) => vec![rty::Sort::Func(flatten_func_sort(map, fsort))],
         fhir::Sort::Adt(def_id) => flatten_sorts(map, map.sorts_of(*def_id).unwrap_or(&[])),
-        fhir::Sort::Infer => unreachable!("sorts must be known at this point"),
+        fhir::Sort::Int
+        | fhir::Sort::Bool
+        | fhir::Sort::Loc
+        | fhir::Sort::User(_)
+        | fhir::Sort::Infer => vec![sort.clone()],
     }
 }
 

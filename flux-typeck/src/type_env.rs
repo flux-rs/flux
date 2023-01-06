@@ -9,7 +9,8 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
-        Exists, Expr, ExprKind, GenericArg, Path, RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        Exists, Expr, ExprKind, GenericArg, Path, PtrKind, RefKind, RefineArg, RefineArgs, Ty,
+        TyKind,
     },
     rustc::mir::{Local, Place, PlaceElem},
 };
@@ -147,10 +148,10 @@ impl TypeEnv {
             FoldResult::Strg(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
-            FoldResult::Weak(WeakKind::Mut, ty) => {
+            FoldResult::Weak(WeakKind::Mut | WeakKind::Arr, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            FoldResult::Weak(WeakKind::Arr, _) | FoldResult::Weak(WeakKind::Shr, _) => {
+            FoldResult::Weak(WeakKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }
@@ -198,7 +199,7 @@ impl TypeEnv {
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();
-        self.bindings.iter(|path, binding1| {
+        self.bindings.iter(|_, path, binding1| {
             let binding2 = bb_env.bindings.get(&path);
             if bb_env.bindings.contains_loc(path.loc)
               && let Binding::Owned(ty1) = binding1
@@ -234,16 +235,16 @@ impl TypeEnv {
                     subst.infer_from_refine_args(params, idx1, idx2);
                 }
             }
-            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
-                debug_assert_eq!(rk1, rk2);
+            (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
+                debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
                 self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
             }
-            (TyKind::Ptr(rk1, path), TyKind::Ref(rk2, ty2)) => {
-                debug_assert_eq!(rk1, rk2);
+            (TyKind::Ptr(pk1, path), TyKind::Ref(rk2, ty2)) => {
+                debug_assert_eq!(pk1, &PtrKind::from(*rk2));
                 if let Binding::Owned(ty1) = self.bindings.get(path) {
                     self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, ty2, subst);
                 }
@@ -313,11 +314,11 @@ impl TypeEnv {
 
         let span = src_info.map(|src_info| src_info.span);
         // Convert pointers to borrows
-        for (path, binding2) in &bb_env {
+        for (_, path, binding2) in &bb_env {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
                         let ty = self.bindings.get(ptr_path).expect_owned(span);
                         gen.subtyping(rcx, &ty, bound);
 
@@ -326,7 +327,7 @@ impl TypeEnv {
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                     }
-                    (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
                         let ty = self.bindings.get(ptr_path).expect_owned(span);
                         self.bindings.block(ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
@@ -337,7 +338,7 @@ impl TypeEnv {
         }
 
         // Check subtyping
-        for (path, binding2) in bb_env {
+        for (_, path, binding2) in bb_env {
             let binding1 = self.bindings.get(&path);
             let ty1 = binding1.ty();
             let ty2 = binding2.ty();
@@ -439,8 +440,7 @@ impl TypeEnvInfer {
             | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_)
-            | TyKind::Constr(_, _)
-            | TyKind::BoxPtr(_, _) => ty.clone(),
+            | TyKind::Constr(_, _) => ty.clone(),
         }
     }
 
@@ -497,7 +497,7 @@ impl TypeEnvInfer {
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(RefKind::Shr, path1), TyKind::Ptr(RefKind::Shr, path2))
+                    (TyKind::Ptr(PtrKind::Shr, path1), TyKind::Ptr(PtrKind::Shr, path2))
                         if path1 != path2 =>
                     {
                         let ty1 = self.bindings.get(path1).expect_owned(span);
@@ -509,17 +509,17 @@ impl TypeEnvInfer {
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty1));
                         other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty2));
                     }
-                    (TyKind::Ptr(RefKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
                         let ty = self.bindings.get(ptr_path).expect_owned(span);
                         self.bindings.block(ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
-                    (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(RefKind::Shr, ptr_path)) => {
+                    (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
                         let ty = other.bindings.get(ptr_path).expect_owned(span);
                         other.bindings.block(ptr_path);
                         other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
-                    (TyKind::Ptr(RefKind::Mut, path1), TyKind::Ptr(RefKind::Mut, path2))
+                    (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2))
                         if path1 != path2 =>
                     {
                         let ty1 = self.bindings.get(path1).expect_owned(span).with_holes();
@@ -534,13 +534,13 @@ impl TypeEnvInfer {
                         self.bindings.update_binding(path1, Binding::Blocked(ty1));
                         other.bindings.update_binding(path2, Binding::Blocked(ty2));
                     }
-                    (TyKind::Ptr(RefKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
                         let bound = bound.with_holes();
                         self.bindings
                             .update_binding(ptr_path, Binding::Blocked(bound.clone()));
                         self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
                     }
-                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(RefKind::Mut, ptr_path)) => {
+                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
                         let bound = bound.with_holes();
                         other
                             .bindings
@@ -581,11 +581,6 @@ impl TypeEnvInfer {
                 debug_assert_eq!(rk1, rk2);
                 debug_assert_eq!(path1, path2);
                 Ty::ptr(*rk1, path1.clone())
-            }
-            (TyKind::BoxPtr(loc1, alloc1), TyKind::BoxPtr(loc2, alloc2)) => {
-                debug_assert_eq!(loc1, loc2);
-                debug_assert_eq!(alloc1, alloc2);
-                Ty::box_ptr(*loc1, alloc1.clone())
             }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2, src_info);
