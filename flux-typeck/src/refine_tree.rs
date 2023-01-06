@@ -10,7 +10,7 @@ use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
-    fold::{TypeFoldable, TypeFolder, TypeVisitor},
+    fold::{TypeFoldable, TypeVisitor},
     BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
@@ -353,7 +353,6 @@ bitflags! {
     pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b01;
         const SHALLOW           = 0b10;
-        // const INVARIANTS        = 0b10;
     }
 }
 
