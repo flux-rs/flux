@@ -344,8 +344,10 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
 
                 write!(
                     f,
-                    "({:?}) -> [return: {target:?}, cleanup: {cleanup:?}]",
-                    args.iter().format(", "),
+                    "({args:?}) -> [return: {target}, cleanup: {cleanup}]",
+                    args = args.iter().format(", "),
+                    target = opt_bb_to_str(*target),
+                    cleanup = opt_bb_to_str(*cleanup),
                 )
             }
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -364,11 +366,16 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
             TerminatorKind::DropAndReplace { place, value, target, unwind } => {
                 write!(
                     f,
-                    "replace({place:?} <- {value:?}) -> [return: {target:?}], unwind: {unwind:?}"
+                    "replace({place:?} <- {value:?}) -> [return: {target:?}], unwind: {unwind}",
+                    unwind = opt_bb_to_str(*unwind)
                 )
             }
             TerminatorKind::Drop { place, target, unwind } => {
-                write!(f, "drop({place:?}) -> [{target:?}, unwind: {unwind:?}]")
+                write!(
+                    f,
+                    "drop({place:?}) -> [{target:?}, unwind: {unwind}]",
+                    unwind = opt_bb_to_str(*unwind)
+                )
             }
             TerminatorKind::Assert { cond, target, expected, msg } => {
                 write!(
@@ -496,5 +503,12 @@ impl fmt::Debug for FakeReadCause {
             FakeReadCause::ForLet(def_id) => write!(f, "ForLet({def_id:?})"),
             FakeReadCause::ForMatchedPlace(def_id) => write!(f, "ForMatchedPlace({def_id:?})"),
         }
+    }
+}
+
+fn opt_bb_to_str(bb: Option<BasicBlock>) -> String {
+    match bb {
+        Some(bb) => format!("{bb:?}"),
+        None => "None".to_string(),
     }
 }

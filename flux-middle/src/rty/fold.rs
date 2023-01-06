@@ -18,6 +18,14 @@ pub trait TypeVisitor: Sized {
     fn visit_fvar(&mut self, name: Name) {
         name.super_visit_with(self);
     }
+
+    fn visit_ty(&mut self, ty: &Ty) {
+        ty.super_visit_with(self);
+    }
+
+    fn visit_bty(&mut self, bty: &BaseTy) {
+        bty.super_visit_with(self);
+    }
 }
 
 pub trait TypeFolder: Sized {
@@ -27,6 +35,10 @@ pub trait TypeFolder: Sized {
 
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         ty.super_fold_with(self)
+    }
+
+    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+        bty.super_fold_with(self)
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
@@ -346,6 +358,10 @@ impl TypeFoldable for Ty {
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_ty(self)
     }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_ty(self);
+    }
 }
 
 impl TypeFoldable for Exists {
@@ -428,6 +444,14 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char => {}
         }
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_bty(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_bty(self)
     }
 }
 

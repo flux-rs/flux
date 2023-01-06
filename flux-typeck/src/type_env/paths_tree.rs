@@ -323,6 +323,9 @@ impl PathsTree {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
+            if matches!(elem, Field(_) | Downcast(_)) {
+                ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
+            }
             match (elem, ty.kind()) {
                 (Deref, TyKind::Ref(rk2, ty2)) => {
                     rk = rk.min(WeakKind::from(*rk2));
@@ -349,7 +352,8 @@ impl PathsTree {
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
                     let tys =
                         downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idxs.args())?;
-                    ty = rcx.unpack_with(&Ty::tuple(tys), UnpackFlags::INVARIANTS);
+                    ty = Ty::tuple(tys);
+                    rcx.assume_invariants(&ty);
                 }
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
                 _ => todo!("lookup_ty {elem:?} {ty:?} at {src_info:?}"),
@@ -549,7 +553,8 @@ impl Node {
                         )?
                         .into_iter()
                         .map(|ty| {
-                            let ty = rcx.unpack_with(&ty, UnpackFlags::INVARIANTS);
+                            let ty = rcx.unpack(&ty);
+                            rcx.assume_invariants(&ty);
                             Node::owned(ty).into_ptr()
                         })
                         .collect();

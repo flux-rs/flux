@@ -9,7 +9,7 @@ use rustc_span::Span;
 use crate::{
     constraint_gen::Tag,
     fixpoint::{FixpointCtxt, KVarStore},
-    refine_tree::{RefineTree, UnpackFlags},
+    refine_tree::RefineTree,
 };
 
 pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) -> Result<(), ErrorGuaranteed> {
@@ -44,8 +44,9 @@ fn check_invariant(
                 fresh
             });
 
-        for field in variant.fields() {
-            rcx.unpack_with(field, UnpackFlags::INVARIANTS);
+        for ty in variant.fields() {
+            let ty = rcx.unpack(ty);
+            rcx.assume_invariants(&ty);
         }
 
         rcx.check_pred(invariant.pred.replace_bvars(&variant.ret.args), Tag::Other);
