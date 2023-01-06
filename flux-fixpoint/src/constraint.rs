@@ -405,7 +405,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     };
 
     // (qualif Add2 ((a int) (b int) (c int)) (a == b + c))
-    let add2 = Qualifier {
+    let _add2 = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
         body: Expr::BinaryOp(
             BinOp::Eq,
@@ -418,7 +418,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
     };
 
     // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
-    let sub2 = Qualifier {
+    let _sub2 = Qualifier {
         args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
         body: Expr::BinaryOp(
             BinOp::Eq,
@@ -430,7 +430,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
         name: String::from("Sub2"),
     };
 
-    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1, add2, sub2]
+    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1] //, add2, sub2]
 });
 
 impl fmt::Display for Qualifier {
