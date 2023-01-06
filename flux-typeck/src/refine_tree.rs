@@ -10,7 +10,7 @@ use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
-    fold::{TypeFoldable, TypeVisitor},
+    fold::{TypeFoldable, TypeFolder, TypeVisitor},
     BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
@@ -160,7 +160,11 @@ impl RefineCtxt<'_> {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
                 let (boxed, alloc) = box_args(substs);
-                let boxed = self.unpack_inner(boxed, inside_mut_ref, flags);
+                let boxed = if flags.contains(UnpackFlags::SHALLOW) {
+                    boxed.clone()
+                } else {
+                    self.unpack_inner(boxed, inside_mut_ref, flags)
+                };
                 BaseTy::adt(
                     adt_def.clone(),
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
@@ -195,13 +199,13 @@ impl RefineCtxt<'_> {
                 self.assume_pred(pred.clone());
                 self.unpack_inner(ty, in_mut_ref, flags)
             }
-            TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.unpack_inner(ty, in_mut_ref, flags);
-                Ty::mk_ref(RefKind::Shr, ty)
-            }
-            TyKind::Ref(RefKind::Mut, ty) => {
-                let ty = self.unpack_inner(ty, true, flags);
-                Ty::mk_ref(RefKind::Mut, ty)
+            TyKind::Ref(rk, ty) => {
+                let ty = if flags.contains(UnpackFlags::SHALLOW) {
+                    ty.clone()
+                } else {
+                    self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags)
+                };
+                Ty::mk_ref(*rk, ty)
             }
             TyKind::Tuple(tys) => {
                 let tys = tys
@@ -226,8 +230,8 @@ impl RefineCtxt<'_> {
         struct Visitor<'a, 'rcx>(&'a mut RefineCtxt<'rcx>);
         impl TypeVisitor for Visitor<'_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) {
-                if let BaseTy::Adt(adt_def, _) = bty && adt_def.is_box() {
-                    bty.super_visit_with(self);
+                if let BaseTy::Adt(adt_def, substs) = bty && adt_def.is_box() {
+                    substs.visit_with(self);
                 }
             }
 
@@ -348,6 +352,7 @@ impl NodePtr {
 bitflags! {
     pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b01;
+        const SHALLOW           = 0b10;
         // const INVARIANTS        = 0b10;
     }
 }

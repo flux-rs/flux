@@ -148,10 +148,10 @@ impl TypeEnv {
             FoldResult::Strg(path, _) => {
                 self.bindings.update(&path, new_ty);
             }
-            FoldResult::Weak(WeakKind::Mut, ty) => {
+            FoldResult::Weak(WeakKind::Mut | WeakKind::Arr, ty) => {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
-            FoldResult::Weak(WeakKind::Arr, _) | FoldResult::Weak(WeakKind::Shr, _) => {
+            FoldResult::Weak(WeakKind::Shr, _) => {
                 panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }

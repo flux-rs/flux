@@ -37,6 +37,10 @@ pub trait TypeFolder: Sized {
         ty.super_fold_with(self)
     }
 
+    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+        bty.super_fold_with(self)
+    }
+
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         expr.super_fold_with(self)
     }
@@ -440,6 +444,14 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char => {}
         }
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_bty(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_bty(self)
     }
 }
 
