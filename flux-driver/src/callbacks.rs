@@ -70,7 +70,6 @@ impl Callbacks for FluxCallbacks {
 
 fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(|| {
-        tracing::info!(event = "check_crate start");
         let mut specs = SpecCollector::collect(tcx, sess)?;
 
         // Ignore everything and go home
@@ -102,11 +101,13 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
             .impl_items()
             .map(|impl_item| impl_item.owner_id.def_id);
 
-        tracing::info!(event = "check_crate end");
-
-        items
+        let result = items
             .chain(impl_items)
-            .try_for_each_exhaust(|def_id| ck.check_def(def_id))
+            .try_for_each_exhaust(|def_id| ck.check_def(def_id));
+
+        tracing::info!("Callbacks::check_crate");
+
+        result
     })
 }
 

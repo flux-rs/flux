@@ -15,6 +15,10 @@ const ONE_MINUTE: u64 = 60_000_000_000;
 const CHECKER_FILE: &str = "checker";
 const TIMINGS_FILE: &str = "timings";
 
+fn ns_to_ms(timing_ns: f64) -> f64 {
+    timing_ns / 1_000_000.0
+}
+
 pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
     let log_dir = &CONFIG.log_dir;
 
@@ -41,14 +45,14 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
     if CONFIG.dump_timings {
         timing_layer = Some(
             tracing_timing::Builder::default()
+                .no_span_recursion()
                 .layer(|| {
-                    tracing_timing::Histogram::new_with_bounds(ONE_MILLIS, ONE_MINUTE, 3)
-                        .unwrap()
+                    tracing_timing::Histogram::new_with_bounds(ONE_MILLIS, ONE_MINUTE, 3).unwrap()
                 })
                 .with_filter(
                     Targets::new()
-                        .with_target("flux_typeck::checker", Level::DEBUG)
-                        .with_target("flux_typeck::fixpoint", Level::DEBUG),
+                        .with_target("flux_typeck", Level::INFO)
+                        .with_target("flux_driver::callbacks", Level::INFO),
                 ),
         );
     };
@@ -63,17 +67,52 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
             let timing_layer = dispatch.downcast_ref::<TimingLayer>().unwrap();
             timing_layer.force_synchronize();
             timing_layer.with_histograms(|spans_map| {
-                spans_map.into_iter().map(|(span_name, events_map)| {
-                    let mut total_time = 0;
-                    for (_event_name, event_histogram) in events_map {
+                for (span_name, events_map) in spans_map {
+                    let mut span_time_ns = 0;
+                    write!(&mut file, "{}\n", span_name)?;
+                    for (event_name, event_histogram) in events_map {
+                        let mut event_time_ns = 0;
                         event_histogram.refresh();
                         for iteration_value in event_histogram.iter_recorded() {
-                            total_time += iteration_value.value_iterated_to();
+                            event_time_ns += iteration_value.value_iterated_to();
                         }
+                        write!(&mut file, "  {}\n", event_name)?;
+                        write!(&mut file, "    num events:   {}\n", event_histogram.len())?;
+                        write!(
+                            &mut file,
+                            "    min non-zero: {:.2}ms\n",
+                            ns_to_ms(event_histogram.min_nz() as f64)
+                        )?;
+                        write!(
+                            &mut file,
+                            "    1st quartile: {:.2}ms\n",
+                            ns_to_ms(event_histogram.value_at_quantile(0.25) as f64)
+                        )?;
+                        write!(
+                            &mut file,
+                            "    2nd quartile: {:.2}ms\n",
+                            ns_to_ms(event_histogram.value_at_quantile(0.50) as f64)
+                        )?;
+                        write!(
+                            &mut file,
+                            "    3rd quartile: {:.2}ms\n",
+                            ns_to_ms(event_histogram.value_at_quantile(0.75) as f64)
+                        )?;
+                        write!(
+                            &mut file,
+                            "    max:          {:.2}ms\n",
+                            ns_to_ms(event_histogram.max() as f64)
+                        )?;
+                        write!(
+                            &mut file,
+                            "    total time:   {:.2}ms\n",
+                            ns_to_ms(event_time_ns as f64)
+                        )?;
+                        span_time_ns += event_time_ns;
                     }
-                    write!(&mut file, "{}: total time {}ms\n", span_name, total_time / 1_000_000)
-                })
-                    .collect()
+                    write!(&mut file, "total time: {:.2}ms\n\n", ns_to_ms(span_time_ns as f64))?;
+                }
+                Ok(())
             })
         } else {
             Ok(())
