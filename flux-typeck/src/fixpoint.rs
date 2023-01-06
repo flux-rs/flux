@@ -1,5 +1,6 @@
 use std::{fs, io::Write, iter};
 
+use crate::dbg::fixpoint_span;
 use fixpoint::FixpointResult;
 use flux_common::{
     config::CONFIG,
@@ -122,56 +123,58 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
-        let kvars = self
-            .fixpoint_kvars
-            .into_iter_enumerated()
-            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
-            .collect_vec();
+        fixpoint_span!(self.genv.tcx, did).in_scope( || {
+            let kvars = self
+                .fixpoint_kvars
+                .into_iter_enumerated()
+                .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+                .collect_vec();
 
-        let mut closed_constraint = constraint;
-        for const_info in self.const_map.values() {
-            closed_constraint = Self::assume_const_val(closed_constraint, const_info);
-        }
-
-        let qualifiers = self
-            .genv
-            .qualifiers()
-            .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
-            .collect();
-
-        let constants = self
-            .const_map
-            .values()
-            .map(|const_info| (const_info.name, fixpoint::Sort::Int))
-            .collect();
-
-        let uifs = self.genv.uifs().map(uif_def_to_fixpoint).collect_vec();
-
-        let sorts = self
-            .genv
-            .map()
-            .sort_decls()
-            .map(|sort_decl| sort_decl.name.to_string())
-            .collect_vec();
-
-        let task =
-            fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
-        if CONFIG.dump_constraint {
-            dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
-        }
-
-        match task.check() {
-            Ok(FixpointResult::Safe(_)) => Ok(()),
-            Ok(FixpointResult::Unsafe(_, errors)) => {
-                Err(errors
-                    .into_iter()
-                    .map(|err| self.tags[err.tag])
-                    .unique()
-                    .collect_vec())
+            let mut closed_constraint = constraint;
+            for const_info in self.const_map.values() {
+                closed_constraint = Self::assume_const_val(closed_constraint, const_info);
             }
-            Ok(FixpointResult::Crash(err)) => panic!("fixpoint crash: {err:?}"),
-            Err(err) => panic!("failed to run fixpoint: {err:?}"),
-        }
+
+            let qualifiers = self
+                .genv
+                .qualifiers()
+                .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
+                .collect();
+
+            let constants = self
+                .const_map
+                .values()
+                .map(|const_info| (const_info.name, fixpoint::Sort::Int))
+                .collect();
+
+            let uifs = self.genv.uifs().map(uif_def_to_fixpoint).collect_vec();
+
+            let sorts = self
+                .genv
+                .map()
+                .sort_decls()
+                .map(|sort_decl| sort_decl.name.to_string())
+                .collect_vec();
+
+            let task =
+                fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
+            if CONFIG.dump_constraint {
+                dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
+            }
+
+            match task.check() {
+                Ok(FixpointResult::Safe(_)) => Ok(()),
+                Ok(FixpointResult::Unsafe(_, errors)) => {
+                    Err(errors
+                        .into_iter()
+                        .map(|err| self.tags[err.tag])
+                        .unique()
+                        .collect_vec())
+                }
+                Ok(FixpointResult::Crash(err)) => panic!("fixpoint crash: {err:?}"),
+                Err(err) => panic!("failed to run fixpoint: {err:?}"),
+            }
+        })
     }
 
     pub fn tag_idx(&mut self, tag: Tag) -> TagIdx {

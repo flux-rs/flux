@@ -19,6 +19,16 @@ macro_rules! _check_span {
 pub use crate::_check_span as check_span;
 
 #[macro_export]
+macro_rules! _fixpoint_span {
+    ($tcx:expr, $def_id:expr) => {{
+        let path = $tcx.def_path($def_id);
+        let def_id = path.data.iter().join("::");
+        tracing::info_span!("fixpoint", def_id = def_id.as_str())
+    }};
+}
+pub use crate::_fixpoint_span as fixpoint_span;
+
+#[macro_export]
 macro_rules! _basic_block_start {
     ($bb:expr, $rcx:expr, $env:expr) => {{
         tracing::debug!(event = "basic_block_start", bb = ?$bb, rcx = ?$rcx, env = ?$env)

@@ -4,7 +4,7 @@ use std::{env, io, process::exit};
 const CMD_RUSTC: &str = "rustc";
 
 fn main() -> io::Result<()> {
-    logger::install()?;
+    let resolve_logs = logger::install()?;
 
     // HACK(nilehmann)
     // * Setting RUSTC_WRAPPER causes Cargo to pass 'rustc' as the first argument. We igore the
@@ -32,6 +32,7 @@ fn main() -> io::Result<()> {
         }
     }
     let exit_code = flux_driver::run_compiler(args, in_cargo);
+    resolve_logs()?;
     // Exit with the exit code returned by the compiler.
     exit(exit_code)
 }
