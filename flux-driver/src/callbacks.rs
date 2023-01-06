@@ -81,6 +81,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         let map = build_fhir_map(tcx, sess, &mut specs)?;
         check_wf(tcx, sess, &map)?;
 
+        tracing::info!("Callbacks::check_wf");
+
         let mut genv = GlobalEnv::new(tcx, sess, map)?;
         // Assert behavior from Crate config
         // TODO(atgeller) rest of settings from crate config

@@ -57,9 +57,10 @@ pub fn check<'tcx>(
         let mut kvars = fixpoint::KVarStore::new();
         let mut refine_tree =
             Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
-        refine_tree.simplify();
 
         tracing::info!("Checker::check");
+
+        refine_tree.simplify();
 
         if CONFIG.dump_constraint {
             dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
