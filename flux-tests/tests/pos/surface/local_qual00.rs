@@ -16,7 +16,7 @@ pub struct Pair {
     pub y: i32,
 }
 
-#[flux::qualifiers(MyQ2)]
+#[flux::qualifiers(MyQ1)]
 #[flux::sig(fn (a: i32) -> RVec<Pair{v : v.x + v.y <= a + 10 }>)]
 pub fn mk_pairs_with_bound(a: i32) -> RVec<Pair> {
     let mut i = 0;

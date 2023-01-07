@@ -25,5 +25,5 @@ pub fn mk_pairs_with_bound(a: i32) -> RVec<Pair> {
         res.push(p);
         i += 1;
     }
-    return res;
+    return res; //~ ERROR postcondition
 }
