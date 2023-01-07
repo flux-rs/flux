@@ -1,7 +1,8 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
-#![flux::qualifier(Sub2(x: int, a: int, b:int) { x == a - b })]
+#![flux::qualifier(local, MyQ1(x: int, y: int, z: int) { x + y <= z + 10 })]
+
 #[path = "../../lib/rvec.rs"]
 pub mod rvec;
 
@@ -15,14 +16,15 @@ pub struct Pair {
     pub y: i32,
 }
 
-#[flux::sig(fn (a: i32) -> RVec<Pair{v : v.x + v.y <= a }>)]
+#[flux::qualifiers(MyQ2)] //~ ERROR unknown qualifier
+#[flux::sig(fn (a: i32) -> RVec<Pair{v : v.x + v.y <= a + 10 }>)]
 pub fn mk_pairs_with_bound(a: i32) -> RVec<Pair> {
     let mut i = 0;
     let mut res = RVec::new();
     while i < a {
-        let p = Pair { x: i, y: a - i };
+        let p = Pair { x: i + 10, y: a - i };
         res.push(p);
         i += 1;
     }
-    res
+    return res;
 }

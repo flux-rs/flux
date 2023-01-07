@@ -343,6 +343,9 @@ fn build_fhir_map(
                 let fn_sig = desugar::desugar_fn_sig(tcx, sess, &map, def_id, fn_sig)?;
                 map.insert_fn_sig(def_id, fn_sig);
             }
+            if let Some(quals) = spec.qual_names {
+                map.insert_fn_quals(def_id, quals.names)
+            }
             Ok(())
         })
         .err()
@@ -383,6 +386,13 @@ fn check_wf(tcx: TyCtxt, sess: &FluxSession, map: &fhir::Map) -> Result<(), Erro
 
     for (_, fn_sig) in map.fn_sigs() {
         err = Wf::check_fn_sig(tcx, sess, map, fn_sig).err().or(err);
+    }
+
+    let qualifiers = map.qualifiers().map(|q| q.name.clone()).collect();
+    for (_, fn_quals) in map.fn_quals() {
+        err = Wf::check_fn_quals(sess, &qualifiers, fn_quals)
+            .err()
+            .or(err);
     }
 
     if let Some(err) = err {

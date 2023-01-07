@@ -49,6 +49,7 @@ pub struct Qualifier {
     pub name: String,
     pub args: Vec<(Ident, Sort)>,
     pub expr: Expr,
+    pub global: bool,
 }
 
 #[derive(Debug)]
@@ -71,6 +72,7 @@ pub struct Map {
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
+    fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
     trusted: FxHashSet<LocalDefId>,
 }
 
@@ -487,12 +489,20 @@ impl Map {
         self.fns.insert(def_id, fn_sig);
     }
 
+    pub fn insert_fn_quals(&mut self, def_id: LocalDefId, quals: Vec<SurfaceIdent>) {
+        self.fn_quals.insert(def_id, quals);
+    }
+
     pub fn add_trusted(&mut self, def_id: LocalDefId) {
         self.trusted.insert(def_id);
     }
 
     pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
         self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
+    }
+
+    pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
+        self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
     }
 
     pub fn is_trusted(&self, def_id: DefId) -> bool {
