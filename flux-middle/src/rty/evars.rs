@@ -5,7 +5,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_index::newtype_index;
 
-use super::RefineArg;
+use super::{ExprKind, RefineArg};
 
 static NEXT_CTXT_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -100,13 +100,42 @@ impl EVarGen {
             })
             .try_collect()?;
 
-        Ok(EVarSol { evars })
+        let mut sol = EVarSol { evars };
+        sol.fix();
+        Ok(sol)
     }
 }
 
 impl EVarSol {
+    fn fix(&mut self) {
+        let vec = self
+            .iter()
+            .flat_map(|(evar, arg)| {
+                if let RefineArg::Expr(e) = arg
+                && let ExprKind::EVar(evar2) = e.kind()
+            {
+                Some((evar, self.get(*evar2).unwrap().clone()))
+            } else {
+                None
+            }
+            })
+            .collect_vec();
+        for (evar, arg) in vec {
+            self.evars.get_mut(&evar.cx).unwrap()[evar.id] = arg;
+        }
+    }
+
     pub(crate) fn get(&self, evar: EVar) -> Option<&RefineArg> {
         Some(&self.evars.get(&evar.cx)?[evar.id])
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (EVar, &RefineArg)> {
+        self.evars.iter().flat_map(|(cx, args)| {
+            args.iter_enumerated().map(|(id, expr)| {
+                let evar = EVar { cx: *cx, id };
+                (evar, expr)
+            })
+        })
     }
 }
 
@@ -127,16 +156,7 @@ mod pretty {
 
     impl fmt::Debug for EVarSol {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let map: FxIndexMap<EVar, _> = self
-                .evars
-                .iter()
-                .flat_map(|(cx, args)| {
-                    args.iter_enumerated().map(|(id, expr)| {
-                        let evar = EVar { cx: *cx, id };
-                        (evar, expr)
-                    })
-                })
-                .collect();
+            let map: FxIndexMap<EVar, _> = self.iter().collect();
             fmt::Debug::fmt(&map, f)
         }
     }
