@@ -27,7 +27,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     qualifiers: Vec<rty::Qualifier>,
     uifs: FxHashMap<Symbol, rty::UifDef>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
-    fn_quals: FxHashMap<DefId, Vec<SurfaceIdent>>,
+    fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     map: fhir::Map,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
