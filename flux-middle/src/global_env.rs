@@ -71,7 +71,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let mut fn_quals = FxHashMap::default();
         for (def_id, names) in map.fn_quals() {
-            let names = names.iter().map(|name| *name).collect_vec();
+            let names = names.iter().copied().collect_vec();
             fn_quals.insert(def_id.to_def_id(), names);
         }
 
