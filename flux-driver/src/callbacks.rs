@@ -69,40 +69,48 @@ impl Callbacks for FluxCallbacks {
 }
 
 fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
-    let mut specs = SpecCollector::collect(tcx, sess)?;
+    tracing::info_span!("check_crate").in_scope(|| {
+        let mut specs = SpecCollector::collect(tcx, sess)?;
 
-    // Ignore everything and go home
-    if specs.ignores.contains(&IgnoreKey::Crate) {
-        return Ok(());
-    }
+        // Ignore everything and go home
+        if specs.ignores.contains(&IgnoreKey::Crate) {
+            return Ok(());
+        }
 
-    // Do defn-expansion _after_ the WF check, so errors are given at user-specification level
-    let map = build_fhir_map(tcx, sess, &mut specs)?;
-    check_wf(tcx, sess, &map)?;
+        // Do defn-expansion _after_ the WF check, so errors are given at user-specification level
+        let map = build_fhir_map(tcx, sess, &mut specs)?;
+        check_wf(tcx, sess, &map)?;
 
-    let mut genv = GlobalEnv::new(tcx, sess, map)?;
-    // Assert behavior from Crate config
-    // TODO(atgeller) rest of settings from crate config
-    if let Some(crate_config) = specs.crate_config {
-        let assert_behavior = crate_config.check_asserts;
-        genv.register_assert_behavior(assert_behavior);
-    }
+        tracing::info!("Callbacks::check_wf");
 
-    let ck = CrateChecker::new(&mut genv, specs.ignores);
+        let mut genv = GlobalEnv::new(tcx, sess, map)?;
+        // Assert behavior from Crate config
+        // TODO(atgeller) rest of settings from crate config
+        if let Some(crate_config) = specs.crate_config {
+            let assert_behavior = crate_config.check_asserts;
+            genv.register_assert_behavior(assert_behavior);
+        }
 
-    if ck.ignores.contains(&IgnoreKey::Crate) {
-        return Ok(());
-    }
+        let ck = CrateChecker::new(&mut genv, specs.ignores);
 
-    let crate_items = tcx.hir_crate_items(());
-    let items = crate_items.items().map(|item| item.owner_id.def_id);
-    let impl_items = crate_items
-        .impl_items()
-        .map(|impl_item| impl_item.owner_id.def_id);
+        if ck.ignores.contains(&IgnoreKey::Crate) {
+            return Ok(());
+        }
 
-    items
-        .chain(impl_items)
-        .try_for_each_exhaust(|def_id| ck.check_def(def_id))
+        let crate_items = tcx.hir_crate_items(());
+        let items = crate_items.items().map(|item| item.owner_id.def_id);
+        let impl_items = crate_items
+            .impl_items()
+            .map(|impl_item| impl_item.owner_id.def_id);
+
+        let result = items
+            .chain(impl_items)
+            .try_for_each_exhaust(|def_id| ck.check_def(def_id));
+
+        tracing::info!("Callbacks::check_crate");
+
+        result
+    })
 }
 
 struct CrateChecker<'genv, 'tcx> {

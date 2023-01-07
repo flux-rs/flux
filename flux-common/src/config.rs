@@ -38,6 +38,7 @@ pub struct Config {
     pub log_dir: PathBuf,
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
+    pub dump_timings: bool,
     pub check_asserts: AssertBehavior,
     pub dump_mir: bool,
     pub pointer_width: u64,
@@ -50,6 +51,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
+            .set_default("dump_timings", false)?
             .set_default("dump_mir", false)?
             .set_default("check_asserts", "assume")?
             .set_default("check_asserts", "assume")?
