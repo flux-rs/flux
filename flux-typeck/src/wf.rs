@@ -121,7 +121,6 @@ impl Wf<'_, '_> {
     ) -> Result<(), ErrorGuaranteed> {
         for qual in fn_quals {
             if !qualifiers.contains(&qual.name.to_string()) {
-                // panic!("YIKES -- bad qual: {:?}", qual.name)
                 let span = qual.span;
                 return Err(sess.emit_err(errors::UnknownQualifier::new(span)));
             }
