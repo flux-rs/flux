@@ -4,7 +4,7 @@ use flux_common::config::{AssertBehavior, CONFIG};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
@@ -12,7 +12,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
-    fhir::{self, SurfaceIdent, VariantIdx},
+    fhir::{self, VariantIdx},
     intern::List,
     rty::{self, fold::TypeFoldable, Binders, Defns},
     rustc,
@@ -27,6 +27,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     qualifiers: Vec<rty::Qualifier>,
     uifs: FxHashMap<Symbol, rty::UifDef>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
+    /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     map: fhir::Map,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
@@ -71,7 +72,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let mut fn_quals = FxHashMap::default();
         for (def_id, names) in map.fn_quals() {
-            let names = names.iter().copied().collect_vec();
+            let names = names.iter().map(|ident| ident.name.to_string()).collect();
             fn_quals.insert(def_id.to_def_id(), names);
         }
 
