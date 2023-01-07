@@ -214,7 +214,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let env = Env::from_args(map, &qualifier.args);
         let sorts = flatten_sorts(map, qualifier.args.iter().map(|(_, sort)| sort));
         let body = Binders::new(env.conv_expr(&qualifier.expr), sorts);
-        rty::Qualifier { name: qualifier.name.clone(), body }
+        rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
     }
 
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {

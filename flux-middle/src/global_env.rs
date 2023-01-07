@@ -12,7 +12,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
-    fhir::{self, VariantIdx},
+    fhir::{self, SurfaceIdent, VariantIdx},
     intern::List,
     rty::{self, fold::TypeFoldable, Binders, Defns},
     rustc,
@@ -27,6 +27,7 @@ pub struct GlobalEnv<'genv, 'tcx> {
     qualifiers: Vec<rty::Qualifier>,
     uifs: FxHashMap<Symbol, rty::UifDef>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
+    fn_quals: FxHashMap<DefId, Vec<SurfaceIdent>>,
     map: fhir::Map,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
@@ -68,6 +69,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|uif| (uif.name, rty::conv::conv_uif(&map, uif)))
             .collect();
 
+        let mut fn_quals = FxHashMap::default();
+        for (def_id, names) in map.fn_quals() {
+            let names = names.iter().map(|name| *name).collect_vec();
+            fn_quals.insert(def_id.to_def_id(), names);
+        }
+
         let mut genv = GlobalEnv {
             fn_sigs: RefCell::new(FxHashMap::default()),
             adt_defs: RefCell::new(adt_defs),
@@ -79,6 +86,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             map,
             uifs,
             defns,
+            fn_quals,
         };
         genv.register_struct_def_variants();
         genv.register_enum_def_variants();
@@ -123,8 +131,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &self.map
     }
 
-    pub fn qualifiers(&self) -> impl Iterator<Item = &rty::Qualifier> {
-        self.qualifiers.iter()
+    fn fn_quals(&self, did: DefId) -> Vec<String> {
+        match self.fn_quals.get(&did) {
+            None => vec![],
+            Some(names) => {
+                let res = names.iter().map(|name| name.to_string()).collect();
+                println!("TRACE: fn_quals {did:?} {res:?}");
+                res
+            }
+        }
+    }
+
+    pub fn qualifiers(&self, did: DefId) -> impl Iterator<Item = &rty::Qualifier> {
+        let names = self.fn_quals(did);
+        self.qualifiers
+            .iter()
+            .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name))
     }
 
     pub fn uifs(&self) -> impl Iterator<Item = &rty::UifDef> {

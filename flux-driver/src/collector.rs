@@ -6,8 +6,9 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_def, parse_expr, parse_fn_surface_sig, parse_qualifier, parse_refined_by,
-    parse_sort_decl, parse_ty, parse_type_alias, parse_variant, surface, ParseResult,
+    parse_def, parse_expr, parse_fn_surface_sig, parse_qual_names, parse_qualifier,
+    parse_refined_by, parse_sort_decl, parse_ty, parse_type_alias, parse_variant, surface,
+    ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -54,6 +55,7 @@ pub(crate) struct Specs {
 pub(crate) struct FnSpec {
     pub fn_sig: Option<surface::FnSig>,
     pub trusted: bool,
+    pub qual_names: Option<surface::QualNames>,
 }
 
 #[derive(Debug)]
@@ -124,8 +126,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
-
-        self.specs.fns.insert(def_id, FnSpec { fn_sig, trusted });
+        let qual_names = attrs.qual_names();
+        self.specs
+            .fns
+            .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
         Ok(())
     }
 
@@ -317,6 +321,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_fn_surface_sig)?;
                 FluxAttrKind::FnSig(fn_sig)
             }
+            ("qualifiers", AttrArgs::Delimited(dargs)) => {
+                let qualifiers =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_qual_names)?;
+                FluxAttrKind::QualNames(qualifiers)
+            }
             ("constant", AttrArgs::Empty) => {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
@@ -448,6 +457,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
     Qualifier(surface::Qualifier),
+    QualNames(surface::QualNames),
     Defn(surface::Defn),
     UifDef(surface::UifDef),
     TypeAlias(surface::Alias),
@@ -526,6 +536,10 @@ impl FluxAttrs {
         read_attrs!(self, Qualifier)
     }
 
+    fn qual_names(&mut self) -> Option<surface::QualNames> {
+        read_attr!(self, QualNames)
+    }
+
     fn sort_decls(&mut self) -> Vec<surface::SortDecl> {
         read_attrs!(self, SortDecl)
     }
@@ -581,6 +595,7 @@ impl FluxAttrKind {
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
+            FluxAttrKind::QualNames(_) => attr_name!(QualNames),
             FluxAttrKind::Defn(_) => attr_name!(Defn),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Variant(_) => attr_name!(Variant),

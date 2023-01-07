@@ -16,6 +16,9 @@ wf_illegal_binder =
 wf_duplicated_ensures =
     an ensures clause already exists for `{$loc}`
 
+wf_unknown_qualifier =
+    unknown qualifier
+
 wf_missing_ensures =
     missing ensures clause for `&strg` reference
 

@@ -5,7 +5,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
-use flux_middle::fhir;
+use flux_middle::fhir::{self, SurfaceIdent};
 use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -111,6 +111,21 @@ impl Wf<'_, '_> {
             .iter()
             .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
 
+        Ok(())
+    }
+
+    pub fn check_fn_quals(
+        sess: &FluxSession,
+        qualifiers: &FxHashSet<String>,
+        fn_quals: &Vec<SurfaceIdent>,
+    ) -> Result<(), ErrorGuaranteed> {
+        for qual in fn_quals {
+            if !qualifiers.contains(&qual.name.to_string()) {
+                // panic!("YIKES -- bad qual: {:?}", qual.name)
+                let span = qual.span;
+                return Err(sess.emit_err(errors::UnknownQualifier::new(span)));
+            }
+        }
         Ok(())
     }
 
@@ -676,6 +691,19 @@ mod errors {
     impl DuplicatedEnsures {
         pub(super) fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
             Self { span: loc.span(), loc: loc.sym() }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::unknown_qualifier, code = "FLUX")]
+    pub(super) struct UnknownQualifier {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnknownQualifier {
+        pub(super) fn new(span: Span) -> UnknownQualifier {
+            Self { span }
         }
     }
 
