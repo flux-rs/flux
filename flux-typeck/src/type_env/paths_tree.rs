@@ -634,11 +634,12 @@ impl Node {
                 }
             }
             Node::Internal(NodeKind::Tuple, children) => {
-                let tys= children
+                let tys = children
                     .iter_mut()
                     .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .collect_vec();
-                let ty = Ty::tuple(tys);
+                let partially_moved = tys.iter().any(|ty| ty.is_uninit());
+                let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(tys) };
                 *self = Node::owned(ty.clone());
                 ty
             }
@@ -650,17 +651,15 @@ impl Node {
                     .collect_vec();
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
-                if partially_moved {
-                    *self = Node::owned(Ty::uninit());
+                let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    let output = gen
-                        .check_constructor(rcx, &variant, substs, &fields)
+                    gen.check_constructor(rcx, &variant, substs, &fields)
                         .unwrap()
-                        .to_ty();
-                    *self = Node::owned(output.clone());
-                    output
-                }
+                        .to_ty()
+                };
+                *self = Node::owned(ty.clone());
+                ty
             }
             Node::Internal(NodeKind::Uninit, _) => {
                 *self = Node::owned(Ty::uninit());
@@ -851,7 +850,9 @@ mod pretty {
             let bindings = self
                 .flatten()
                 .into_iter()
-                .filter(|(.., ty)| !cx.hide_uninit || !ty.is_uninit())
+                .filter(|(_, path, ty)| {
+                    !path.projection().is_empty() || !cx.hide_uninit || !ty.is_uninit()
+                })
                 .sorted_by(|(_, path1, _), (_, path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",

@@ -135,7 +135,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers()
+            .qualifiers(did)
             .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
             .collect();
 
@@ -480,7 +480,8 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fi
         .collect_vec();
     let name = qualifier.name.clone();
     let body = expr_to_fixpoint(&body, &name_map, const_map);
-    fixpoint::Qualifier { body, args, name }
+    let global = qualifier.global;
+    fixpoint::Qualifier { body, args, name, global }
 }
 
 fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {

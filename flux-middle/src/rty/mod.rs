@@ -103,6 +103,7 @@ pub enum Constraint {
 pub struct Qualifier {
     pub name: String,
     pub body: Binders<Expr>,
+    pub global: bool,
 }
 
 pub struct Defn {

@@ -38,6 +38,7 @@ use constraint_gen::Tag;
 use flux_common::config::CONFIG;
 use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
+use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -48,24 +49,36 @@ pub fn check<'tcx>(
     def_id: DefId,
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
-    let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
-    let mut kvars = fixpoint::KVarStore::new();
-    let mut refine_tree =
-        Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
-    refine_tree.simplify();
+    dbg::check_top_span!(genv.tcx, def_id).in_scope(|| {
+        let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
 
-    if CONFIG.dump_constraint {
-        dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
-    }
+        tracing::info!("Checker::infer");
 
-    let mut fcx = fixpoint::FixpointCtxt::new(genv, kvars);
+        let mut kvars = fixpoint::KVarStore::new();
+        let mut refine_tree =
+            Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
 
-    let constraint = refine_tree.into_fixpoint(&mut fcx);
+        tracing::info!("Checker::check");
 
-    match fcx.check(def_id, constraint) {
-        Ok(_) => Ok(()),
-        Err(tags) => report_errors(genv, body.span(), tags),
-    }
+        refine_tree.simplify();
+
+        if CONFIG.dump_constraint {
+            dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
+        }
+
+        let mut fcx = fixpoint::FixpointCtxt::new(genv, kvars);
+
+        let constraint = refine_tree.into_fixpoint(&mut fcx);
+
+        let result = match fcx.check(def_id, constraint) {
+            Ok(_) => Ok(()),
+            Err(tags) => report_errors(genv, body.span(), tags),
+        };
+
+        tracing::info!("FixpointCtx::check");
+
+        result
+    })
 }
 
 fn report_errors(

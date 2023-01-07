@@ -43,15 +43,30 @@ pub Def: surface::Def = {
     }
 }
 
+pub QualNames: surface::QualNames = {
+    <names:Comma<Ident>> => surface::QualNames { names }
+}
+
 pub Qualifier: surface::Qualifier = {
     <lo:@L>
+    <local:(<"ident"> ",")?>
     <name:Ident>
     "(" <args:Comma<RefineParam>> ")"
     "{"
     <expr:Expr>
     "}"
-    <hi:@R> => {
-        surface::Qualifier { name: name, args: args, expr: expr, span: mk_span(lo, hi) }
+    <hi:@R> =>? {
+        let global = match local {
+            Some(ident) => {
+                if ident.as_str() == "local" {
+                    Ok(false)
+                } else {
+                    Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, lo) })
+                }
+            },
+            None => Ok(true),
+        };
+        Ok(surface::Qualifier { name: name, args: args, expr: expr, global: global?, span: mk_span(lo, hi) })
     }
 }
 

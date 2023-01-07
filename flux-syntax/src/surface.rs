@@ -19,6 +19,7 @@ pub struct Qualifier {
     pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub span: Span,
+    pub global: bool,
 }
 
 #[derive(Debug)]
@@ -92,6 +93,10 @@ pub struct VariantRet<R = ()> {
 pub struct RefinedBy {
     pub params: Vec<RefineParam>,
     pub span: Span,
+}
+#[derive(Debug, Default)]
+pub struct QualNames {
+    pub names: Vec<Ident>,
 }
 
 #[derive(Debug)]

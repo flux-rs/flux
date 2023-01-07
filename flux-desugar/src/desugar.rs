@@ -21,7 +21,7 @@ pub fn desugar_qualifier(
     let name = qualifier.name.name.to_ident_string();
     let expr = ExprCtxt::new(tcx, sess, map, &binders).desugar_expr(qualifier.expr);
 
-    Ok(fhir::Qualifier { name, args: binders.into_args(), expr: expr? })
+    Ok(fhir::Qualifier { name, args: binders.into_args(), global: qualifier.global, expr: expr? })
 }
 
 pub fn desugar_defn(

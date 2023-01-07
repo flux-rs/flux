@@ -53,6 +53,10 @@ pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::
     parse!(surface_grammar::QualifierParser, tokens, span)
 }
 
+pub fn parse_qual_names(tokens: TokenStream, span: Span) -> ParseResult<surface::QualNames> {
+    parse!(surface_grammar::QualNamesParser, tokens, span)
+}
+
 pub fn parse_def(tokens: TokenStream, span: Span) -> ParseResult<surface::Def> {
     parse!(surface_grammar::DefParser, tokens, span)
 }

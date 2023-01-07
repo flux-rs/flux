@@ -15,6 +15,7 @@ flux-middle = { path = "../flux-middle" }
 flux-syntax = { path = "../flux-syntax" }
 flux-typeck = { path = "../flux-typeck" }
 itertools = "0.10"
+tracing = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
