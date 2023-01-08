@@ -53,11 +53,6 @@ fn check_invariant(
     }
     let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    if !constraint.is_concrete() {
-        // Trivially satisfied constraint
-        return Ok(());
-    }
-
     fcx.check(adt_def.def_id(), constraint)
         .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
 }
