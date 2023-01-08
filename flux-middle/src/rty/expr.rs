@@ -268,56 +268,22 @@ impl Expr {
     }
 
     fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
-        match (op, c1, c2) {
-            (BinOp::Iff, Constant::Bool(b1), Constant::Bool(b2)) => {
-                Some(Constant::Bool(*b1 == *b2))
-            }
-            (BinOp::Imp, Constant::Bool(b1), Constant::Bool(b2)) => {
-                Some(Constant::Bool(!b1 || *b2))
-            }
-            (BinOp::Or, Constant::Bool(b1), Constant::Bool(b2)) => Some(Constant::Bool(*b1 || *b2)),
-            (BinOp::And, Constant::Bool(b1), Constant::Bool(b2)) => {
-                Some(Constant::Bool(*b1 && *b2))
-            }
-            (BinOp::Eq, c1, c2) => Some(Constant::Bool(*c1 == *c2)),
-            (BinOp::Ne, c1, c2) => Some(Constant::Bool(*c1 != *c2)),
-            _ => None,
-            // (BinOp::Gt, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Gt, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Gt, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Gt, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Ge, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Ge, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Ge, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Ge, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Lt, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Lt, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Lt, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Lt, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Le, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Le, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Le, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Le, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Add, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Add, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Add, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Add, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Sub, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Sub, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Sub, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Sub, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Mul, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Mul, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Mul, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Mul, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Div, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Div, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Div, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Div, Constant::Bool(_), Constant::Bool(_)) => todo!(),
-            // (BinOp::Mod, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Mod, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
-            // (BinOp::Mod, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
-            // (BinOp::Mod, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+        match op {
+            BinOp::Iff => c1.iff(c2),
+            BinOp::Imp => c1.imp(c2),
+            BinOp::Or => c1.or(c2),
+            BinOp::And => c1.and(c2),
+            BinOp::Gt => c1.gt(c2),
+            BinOp::Ge => c1.ge(c2),
+            BinOp::Lt => c2.gt(c1),
+            BinOp::Le => c2.ge(c1),
+            BinOp::Add => c1.add(c2),
+            BinOp::Sub => c1.sub(c2),
+            BinOp::Mul => c1.mul(c2),
+            BinOp::Div => c1.div(c2),
+            BinOp::Mod => c1.mod_(c2),
+            BinOp::Eq => Some(c1.eq(c2)),
+            BinOp::Ne => Some(c1.ne(c2)),
         }
     }
 

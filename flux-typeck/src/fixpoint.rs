@@ -124,6 +124,7 @@ where
     ) -> Result<(), Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
+            // println!("TRACE: skipping trivial constraint: {did:?}");
             return Ok(());
         }
 
