@@ -267,6 +267,60 @@ impl Expr {
         matches!(self.kind, ExprKind::BinaryOp(..))
     }
 
+    fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
+        match (op, c1, c2) {
+            (BinOp::Iff, Constant::Bool(b1), Constant::Bool(b2)) => {
+                Some(Constant::Bool(*b1 == *b2))
+            }
+            (BinOp::Imp, Constant::Bool(b1), Constant::Bool(b2)) => {
+                Some(Constant::Bool(!b1 || *b2))
+            }
+            (BinOp::Or, Constant::Bool(b1), Constant::Bool(b2)) => Some(Constant::Bool(*b1 || *b2)),
+            (BinOp::And, Constant::Bool(b1), Constant::Bool(b2)) => {
+                Some(Constant::Bool(*b1 && *b2))
+            }
+            (BinOp::Eq, c1, c2) => Some(Constant::Bool(*c1 == *c2)),
+            (BinOp::Ne, c1, c2) => Some(Constant::Bool(*c1 != *c2)),
+            _ => None,
+            // (BinOp::Gt, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Gt, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Gt, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Gt, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Ge, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Ge, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Ge, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Ge, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Lt, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Lt, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Lt, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Lt, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Le, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Le, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Le, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Le, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Add, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Add, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Add, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Add, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Sub, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Sub, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Sub, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Sub, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Mul, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Mul, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Mul, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Mul, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Div, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Div, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Div, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Div, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+            // (BinOp::Mod, Constant::Int(_, _), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Mod, Constant::Int(_, _), Constant::Bool(_)) => todo!(),
+            // (BinOp::Mod, Constant::Bool(_), Constant::Int(_, _)) => todo!(),
+            // (BinOp::Mod, Constant::Bool(_), Constant::Bool(_)) => todo!(),
+        }
+    }
+
     /// Simplify expression applying some simple rules like removing double negation. This is
     /// only used for pretty printing.
     pub fn simplify(&self) -> Expr {
@@ -285,6 +339,12 @@ impl Expr {
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
+                            (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
+                                match Expr::const_op(op, c1, c2) {
+                                    Some(c) => Expr::constant(c),
+                                    None => Expr::binary_op(*op, e1, e2),
+                                }
+                            }
                             _ => Expr::binary_op(*op, e1, e2),
                         }
                     }
