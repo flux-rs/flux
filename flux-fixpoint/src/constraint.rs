@@ -138,7 +138,7 @@ impl<Tag> Constraint<Tag> {
     /// If '!c.is_concrete'  then 'c' is trivially satisfiable and we can avoid calling fixpoint.
     pub fn is_concrete(&self) -> bool {
         match self {
-            Constraint::Conj(cs) => cs.iter().all(|c| c.is_concrete()),
+            Constraint::Conj(cs) => cs.iter().any(|c| c.is_concrete()),
             Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete(),
         }
