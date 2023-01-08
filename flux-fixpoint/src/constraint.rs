@@ -133,10 +133,28 @@ newtype_index! {
 
 impl<Tag> Constraint<Tag> {
     pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
+
+    /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
+    /// If '!c.is_concrete'  then 'c' is trivially satisfiable and we can avoid calling fixpoint.
+    pub fn is_concrete(&self) -> bool {
+        match self {
+            Constraint::Conj(cs) => cs.iter().all(|c| c.is_concrete()),
+            Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
+            Constraint::Pred(p, _) => p.is_concrete(),
+        }
+    }
 }
 
 impl Pred {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
+
+    pub fn is_concrete(&self) -> bool {
+        match self {
+            Pred::And(ps) => ps.iter().any(|p| p.is_concrete()),
+            Pred::KVar(_, _) => false,
+            Pred::Expr(_) => true,
+        }
+    }
 }
 
 impl FuncSort {
