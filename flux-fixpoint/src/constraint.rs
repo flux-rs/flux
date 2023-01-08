@@ -140,13 +140,17 @@ impl<Tag> Constraint<Tag> {
         match self {
             Constraint::Conj(cs) => cs.iter().any(|c| c.is_concrete()),
             Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
-            Constraint::Pred(p, _) => p.is_concrete(),
+            Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
         }
     }
 }
 
 impl Pred {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
+
+    pub fn is_trivially_true(&self) -> bool {
+        matches!(self, Pred::Expr(Expr::Constant(Constant::Bool(true))))
+    }
 
     pub fn is_concrete(&self) -> bool {
         match self {
