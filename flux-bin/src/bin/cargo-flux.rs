@@ -4,8 +4,8 @@ use std::{
 };
 
 use flux_bin::utils::{
-    extend_env_var_with_path, get_dyld_fallback_library_path, get_flux_path,
-    get_rust_toolchain, report_err, EXIT_ERR, LIB_PATH,
+    extend_env_var_with_path, get_dyld_fallback_library_path, get_flux_path, get_rust_toolchain,
+    report_err, EXIT_ERR, LIB_PATH,
 };
 
 fn main() {
