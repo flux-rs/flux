@@ -2,6 +2,13 @@
 edition = "2021"
 name = "flux"
 version = "0.1.0"
+default-run = "flux"
+
+[[bin]]
+name = "flux"
+path = "src/main.rs"
+test = false
+doctest = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

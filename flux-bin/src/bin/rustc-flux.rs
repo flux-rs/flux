@@ -4,8 +4,8 @@ use std::{
 };
 
 use flux_bin::utils::{
-    extend_env_var_with_path, get_dyld_fallback_library_path, get_flux_path,
-    get_rust_toolchain, report_err, EXIT_ERR, LIB_PATH,
+    extend_env_var_with_path, get_dyld_fallback_library_path, get_rust_toolchain, report_err,
+    EXIT_ERR, LIB_PATH,
 };
 
 fn main() {
@@ -15,19 +15,17 @@ fn main() {
 }
 
 fn run() -> Result<(), i32> {
-    let flux_path = get_flux_path()?;
     let rust_toolchain = get_rust_toolchain()?;
     let dyld_fallback_library_path = get_dyld_fallback_library_path(&rust_toolchain)?;
     let extended_lib_path = extend_env_var_with_path(LIB_PATH, dyld_fallback_library_path)?;
 
-    let exit_status = Command::new("cargo")
-        // Skip the invocation of cargo-flux itself
+    let exit_status = Command::new("flux")
+        // Skip the invocation of rustc-flux itself
         .args(env::args().skip(1))
         .env(LIB_PATH, extended_lib_path)
         .env("RUST_TOOLCHAIN", rust_toolchain)
-        .env("RUSTC_WRAPPER", flux_path)
         .status()
-        .map_err(|e| report_err("Failed to run cargo", e))?;
+        .map_err(|e| report_err("Failed to run flux (is it installed?)", e))?;
 
     if exit_status.success() {
         Ok(())
