@@ -49,7 +49,7 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
                 })
                 .with_filter(
                     Targets::new()
-                        .with_target("flux_typeck", Level::INFO)
+                        .with_target("flux_refineck", Level::INFO)
                         .with_target("flux_driver::callbacks", Level::INFO),
                 ),
         );
