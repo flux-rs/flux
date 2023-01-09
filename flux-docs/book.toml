@@ -1,0 +1,6 @@
+[book]
+authors = ["Ranjit Jhala"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Flux Documentation"

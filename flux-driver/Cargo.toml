@@ -12,8 +12,8 @@ flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }
 flux-macros = { path = "../flux-macros" }
 flux-middle = { path = "../flux-middle" }
+flux-refineck = { path = "../flux-refineck" }
 flux-syntax = { path = "../flux-syntax" }
-flux-typeck = { path = "../flux-typeck" }
 itertools = "0.10"
 tracing = "0.1"
 
