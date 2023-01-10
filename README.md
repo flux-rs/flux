@@ -17,9 +17,9 @@ See the [docs](https://liquid-rust.github.io/flux/) for details on how to instal
 
 Be sure that the `liquid-fixpoint` and `z3` executables are in your $PATH.
 
-## Build Instructions
+## Installing
 
-The only way to test Flux is to build it from source.
+The only way to use `flux` is to build it from source.
 
 First you need to clone this repository
 
@@ -32,44 +32,57 @@ To build the source you need a nightly version of rustc.
 We pin the version using a [toolchain file](/rust-toolchain) (more info [here](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file)).
 If you are using rustup, no special action is needed as it should install the correct rustc version and components based on the information on that file.
 
-Finally, build the project using `cargo`
+Next, install the `flux` binary using
 
 ```bash
-cargo build
+cargo install --lib flux
+```
+
+Note that you should not call `flux` directly.
+
+Finally, install `rustc-flux` and `cargo-flux` using
+
+```bash
+cargo install --lib flux-bin
 ```
 
 ## Usage
 
-### flux binary
+### `rustc-flux`
 
-You can run the flux binary with `cargo run`.
-The flux binary is a [rustc driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface) (similar to how clippy works) meaning it uses rustc as a library to "drive" compilation performing aditional analysis along the way.
-In practice this means you can use flux as you would use rustc.
-For example, the following command checks the file `test.rs` (everything after the `--` are the arguments to the flux binary)
+You can use `rustc-flux` as you would use `rustc`.
+For example, the following command checks the file `test.rs`.
 
 ```bash
-cargo run -- path/to/test.rs
+rustc-flux path/to/test.rs
 ```
 
 The flux binary accepts the same flags than rustc.
 You could for example check a file as a library instead of a binary like so
 
 ```bash
-cargo run -- --crate-type=lib path/to/test.rs
+rustc-flux --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment flux passes some
-default flags (like `-O` and `-Cpanic=abort`) because
-otherwise the resulting mir will have features
-not yet supported.
+Additionally, at the moment flux passes some default flags (like `-O` and
+`-Cpanic=abort`) because otherwise the resulting mir will have features not yet
+supported.
 
-### flux.sh
+### `cargo-flux`
 
-To run `flux` on code outside the repo, use script in `tools/flux.sh`
+You can use `cargo-flux` as you would use `cargo`. For the most part this means
+instead of running `cargo check`, you should run
 
-- copy it to some place on your `$PATH`
-- edit the variable `FLUX` to point to the root of your local `flux` repo.
+``` bash
+cargo-flux check
+```
 
+in order to get `flux` to check your code.
+
+### `cargo run`
+
+If you're developing in `flux` and want a quicker way to test your changes, you
+can use `cargo run -- args` instead of `rustc-flux args`.
 
 ### A tiny example
 
@@ -97,6 +110,16 @@ and you should get some output like
 ```
 Ok(FixpointResult { tag: Safe })
 ```
+
+### A note about the flux binary
+
+The flux binary is a [rustc
+driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface)
+(similar to how clippy works) meaning it uses rustc as a library to "drive"
+compilation performing aditional analysis along the way.  You should never
+execute it on its own - it will probably fail with some ugly error message.
+Instead, use `rustc-flux` or `cargo-flux`.
+
 
 ## Test
 
@@ -139,29 +162,15 @@ This is a prototype! Use at your own risk. Everything could break and it will br
 Add this to the workspace settings i.e. `.vscode/settings.json` using in the appropriate paths for
 
 * `DYLD_FALLBACK_LIBRARY_PATH` (on `macos`) or `LD_LIBRARY_PATH` (on `linux`)
-* `RUSTC_WRAPPER`
+* `RUSTC_WRAPPER` (should be `flux` if you have installed `flux`, but it can be any path to a `flux` binary, e.g. `./target/debug/flux` if you are testing changes to `flux`)
 * `RUSTUP_TOOLCHAIN` (should be the same as the contents of `/path/to/flux/rust-toolchain.toml`)
 
 ```json
 {
   "rust-analyzer.checkOnSave.extraEnv": {
-    "RUSTC_WRAPPER": "/path/to/flux/target/release/flux",
+    "RUSTC_WRAPPER": "flux",
     "RUSTUP_TOOLCHAIN": "nightly-2022-10-11",
     "LD_LIBRARY_PATH": "/path/to/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib"
   }
 }
 ```
-
-## Cargo Wrapper
-
-If the plugin doesn't work it is useful to write a small shell script e.g. `cargo-flux`
-that simulates how `vscode` invokes `flux` via `rust-analyzer`
-
-```bash
-#!/bin/bash
-
-RUSTUP_TOOLCHAIN=nightly-2022-10-11 DYLD_FALLBACK_LIBRARY_PATH=~/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib RUSTC_WRAPPER=~/research/rust/flux/target/debug/flux cargo $@
-```
-
-and then just run `cargo-flux check` (instead of `cargo check`) in the relevant crate directory
-to see what is happening.
