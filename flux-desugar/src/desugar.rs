@@ -1053,6 +1053,7 @@ fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
         surface::BinOp::Sub => fhir::BinOp::Sub,
         surface::BinOp::Mod => fhir::BinOp::Mod,
         surface::BinOp::Mul => fhir::BinOp::Mul,
+        surface::BinOp::Div => fhir::BinOp::Div,
     }
 }
 

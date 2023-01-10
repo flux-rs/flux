@@ -266,6 +266,7 @@ pub enum BinOp {
     Sub,
     Mod,
     Mul,
+    Div,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -321,6 +322,7 @@ impl fmt::Debug for BinOp {
             BinOp::Sub => write!(f, "-"),
             BinOp::Mod => write!(f, "mod"),
             BinOp::Mul => write!(f, "*"),
+            BinOp::Div => write!(f, "/"),
         }
     }
 }
