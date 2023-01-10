@@ -156,8 +156,8 @@ time.</p>
 <li><a href="https://github.com/Z3Prover/z3">z3</a></li>
 </ul>
 <p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your $PATH.</p>
-<h2 id="build-instructions"><a class="header" href="#build-instructions">Build Instructions</a></h2>
-<p>The only way to test Flux is to build it from source.</p>
+<h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
+<p>The only way to use <code>flux</code> is to build it from source.</p>
 <p>First you need to clone this repository</p>
 <pre><code class="language-bash">git clone https://github.com/liquid-rust/flux
 cd flux
@@ -165,32 +165,36 @@ cd flux
 <p>To build the source you need a nightly version of rustc.
 We pin the version using a <a href="use//rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
 If you are using rustup, no special action is needed as it should install the correct rustc version and components based on the information on that file.</p>
-<p>Finally, build the project using <code>cargo</code></p>
-<pre><code class="language-bash">cargo build
+<p>Next, install the <code>flux</code> binary using</p>
+<pre><code class="language-bash">cargo install --path flux
+</code></pre>
+<p>Note that you should not call <code>flux</code> directly.</p>
+<p>Finally, install <code>rustc-flux</code> and <code>cargo-flux</code> using</p>
+<pre><code class="language-bash">cargo install --path flux-bin
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
-<p>The flux binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc driver</a>
-(similar to how clippy works) meaning it uses <code>rustc</code> as a library to &quot;drive&quot; compilation performing aditional analysis along the way.
-In practice this means you can use flux as you would use rustc, typically in one of the following three ways.</p>
-<h2 id="running-inside-the-flux-source-directory"><a class="header" href="#running-inside-the-flux-source-directory">Running inside the <code>flux</code> source directory</a></h2>
-<p>If you are in the <code>flux/</code> source directory, you can run the flux binary with <code>cargo run</code>.</p>
-<p>For example, the following command checks the file <code>test.rs</code> (everything after the <code>--</code> are the arguments to the flux binary)</p>
-<pre><code class="language-bash">cargo run -- path/to/test.rs
+<h2 id="rustc-flux"><a class="header" href="#rustc-flux"><code>rustc-flux</code></a></h2>
+<p>You can use <code>rustc-flux</code> as you would use <code>rustc</code>.
+For example, the following command checks the file <code>test.rs</code>.</p>
+<pre><code class="language-bash">rustc-flux path/to/test.rs
 </code></pre>
-<p>The flux binary accepts the same flags than rustc.</p>
-<p>You could for example check a file as a library instead of a binary like so</p>
-<pre><code class="language-bash">cargo run -- --crate-type=lib path/to/test.rs
+<p>The flux binary accepts the same flags than rustc.
+You could for example check a file as a library instead of a binary like so</p>
+<pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
-<p>Additionally, at the moment flux passes some
-default flags (like <code>-O</code> and <code>-Cpanic=abort</code>) because
-otherwise the resulting mir will have features
-not yet supported.</p>
-<h2 id="running-outside-the-flux-source-directory"><a class="header" href="#running-outside-the-flux-source-directory">Running outside the <code>flux</code> source directory</a></h2>
-<p>To run <code>flux</code> on code outside the repo, use the script in <code>tools/flux.sh</code></p>
-<ul>
-<li>copy it to some place on your <code>$PATH</code></li>
-<li>edit the variable <code>FLUX</code> to point to the root of your local <code>flux</code> repo.</li>
-</ul>
+<p>Additionally, at the moment flux passes some default flags (like <code>-O</code> and
+<code>-Cpanic=abort</code>) because otherwise the resulting mir will have features not yet
+supported.</p>
+<h2 id="cargo-flux"><a class="header" href="#cargo-flux"><code>cargo-flux</code></a></h2>
+<p>You can use <code>cargo-flux</code> as you would use <code>cargo</code>. For the most part this means
+instead of running <code>cargo check</code>, you should run</p>
+<pre><code class="language-bash">cargo-flux check
+</code></pre>
+<p>in order to get <code>flux</code> to check your code.</p>
+<h2 id="developing-locally"><a class="header" href="#developing-locally">Developing locally</a></h2>
+<p>You can set the <code>FLUX_PATH</code> environment variable to <code>./target/debug/flux</code> if you
+want <code>cargo-flux</code> and <code>rustc-flux</code> to use the version of <code>flux</code> that is built when you run <code>cargo build</code>. This is useful if you want to run <code>cargo build</code> instead
+of <code>cargo install --path flux</code> every time you make a change.</p>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a funcion <code>inc</code>
 that returns a integer greater than the input.
@@ -204,17 +208,13 @@ add refinement annotations to functions.</p>
 <span class="boring">fn main() {
 </span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
 pub fn inc(x: i32) -&gt; i32 {
-    x + 1
+    x - 1
 }
 <span class="boring">}</span></code></pre></pre>
 <p>You can save the above snippet in say <code>test0.rs</code> and then run</p>
-<pre><code>$ flux.sh --crate-type=lib path/to/test0.rs
+<pre><code>$ rustc-flux --crate-type=lib path/to/test0.rs
 </code></pre>
-<p>and you should get some output like</p>
-<pre><code>    Finished dev [unoptimized + debuginfo] target(s) in 0.14s
-    Running `.../flux --crate-type=lib test0.rs`
-</code></pre>
-<p>If you edit the code to change <code>x + 1</code> to <code>x - 1</code> you should get an error like</p>
+<p>you should see in your output</p>
 <pre><code>error[FLUX]: postcondition might not hold
  --&gt; test0.rs:6:5
   |
@@ -222,30 +222,36 @@ pub fn inc(x: i32) -&gt; i32 {
   |     ^^^^^
 </code></pre>
 <p>as indeed <code>x - 1</code> is <em>not</em> greater than <code>x</code> as required by the output refinement <code>i32{v: x &lt; v}</code>.</p>
+<p>If you fix the error by replacing <code>x - 1</code> with <code>x + 1</code>, you should get no errors
+in the output (the output may be empty, but in this case no output is a good
+thing).</p>
 <p>Read <a href="use/SUMMARY.html#learn">these chapters</a> to learn more about what you specify and verify with <code>flux</code>.</p>
-<h2 id="cargo-wrapper"><a class="header" href="#cargo-wrapper">Cargo Wrapper</a></h2>
-<p>You can run <code>flux</code> on an entire crate by using the script <code>tools/cargo-flux</code> as described below.</p>
-<pre><code class="language-bash">#!/bin/bash
-
-RUSTUP_TOOLCHAIN=nightly-2022-10-11 DYLD_FALLBACK_LIBRARY_PATH=~/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib RUSTC_WRAPPER=/path/to/flux/target/debug/flux cargo $@
-</code></pre>
-<p><strong>Step 1</strong>: Copy the above script to some place on your <code>$PATH</code> and rename it to <code>cargo-flux</code>.</p>
-<p><strong>Step 2</strong>: Edit the script to make sure the <code>RUSTUP_TOOLCHAIN</code> and <code>DYLD_FALLBACK_LIBRARY_PATH</code>
-(or <code>LD_LIBRARY_PATH</code> on linux) point to the appropriate places on your machine.</p>
-<p><strong>Step 3</strong> Now you can run <code>cargo-flux check</code> (instead of <code>cargo check</code>) in the relevant crate directory.</p>
+<h2 id="a-note-about-the-flux-binary"><a class="header" href="#a-note-about-the-flux-binary">A note about the flux binary</a></h2>
+<p>The flux binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
+driver</a>
+(similar to how clippy works) meaning it uses rustc as a library to &quot;drive&quot;
+compilation performing aditional analysis along the way.  You should never
+execute it on its own - it will probably fail with some ugly error message.
+Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h1>
+<p>This section assumes you have installed <code>flux</code>, <code>cargo-flux</code>, and <code>rustc-flux</code>.</p>
 <h2 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h2>
-<p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code> using in the appropriate paths for</p>
-<ul>
-<li><code>DYLD_FALLBACK_LIBRARY_PATH</code> (on <code>macos</code>) or <code>LD_LIBRARY_PATH</code> (on <code>linux</code>)</li>
-<li><code>RUSTC_WRAPPER</code></li>
-<li><code>RUSTUP_TOOLCHAIN</code> (should be the same as the contents of <code>/path/to/flux/rust-toolchain.toml</code>)</li>
-</ul>
+<p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
+<pre><code class="language-json">{
+  &quot;rust-analyzer.checkOnSave.overrideCommand&quot;: [
+    &quot;cargo-flux&quot;,
+    &quot;check&quot;,
+    &quot;--workspace&quot;,
+    &quot;--message-format=json&quot;
+  ]
+}
+</code></pre>
+<p>If you want to change the <code>flux</code> used by <code>cargo-flux</code>, then also specify the
+<code>FLUX_PATH</code> like in the example below, which uses the version generated when you
+run <code>cargo build</code>.</p>
 <pre><code class="language-json">{
   &quot;rust-analyzer.checkOnSave.extraEnv&quot;: {
-    &quot;RUSTC_WRAPPER&quot;: &quot;/path/to/flux/target/release/flux&quot;,
-    &quot;RUSTUP_TOOLCHAIN&quot;: &quot;nightly-2022-10-11&quot;,
-    &quot;LD_LIBRARY_PATH&quot;: &quot;/path/to/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib&quot;
+    &quot;FLUX_PATH&quot;: &quot;/path/to/flux-repo/target/debug/flux&quot;,
   }
 }
 </code></pre>
