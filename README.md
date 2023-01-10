@@ -159,18 +159,15 @@ This is a prototype! Use at your own risk. Everything could break and it will br
 
 ## Rust-Analyzer in VSCode
 
-Add this to the workspace settings i.e. `.vscode/settings.json` using in the appropriate paths for
-
-* `DYLD_FALLBACK_LIBRARY_PATH` (on `macos`) or `LD_LIBRARY_PATH` (on `linux`)
-* `RUSTC_WRAPPER` (should be `flux` if you have installed `flux`, but it can be any path to a `flux` binary, e.g. `./target/debug/flux` if you are testing changes to `flux`)
-* `RUSTUP_TOOLCHAIN` (should be the same as the contents of `/path/to/flux/rust-toolchain.toml`)
+Add this to the workspace settings i.e. `.vscode/settings.json`
 
 ```json
 {
-  "rust-analyzer.checkOnSave.extraEnv": {
-    "RUSTC_WRAPPER": "flux",
-    "RUSTUP_TOOLCHAIN": "nightly-2022-10-11",
-    "LD_LIBRARY_PATH": "/path/to/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib"
-  }
+  "rust-analyzer.checkOnSave.overrideCommand": [
+    "cargo-flux",
+    "check",
+    "--workspace",
+    "--message-format=json"
+  ]
 }
 ```
