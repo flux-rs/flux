@@ -19,14 +19,14 @@ macro_rules! _check_span {
 pub use crate::_check_span as check_span;
 
 #[macro_export]
-macro_rules! _check_top_span {
+macro_rules! _check_fn_span {
     ($tcx:expr, $def_id:expr) => {{
         let path = $tcx.def_path($def_id);
         let def_id = path.data.iter().join("::");
-        tracing::info_span!("check_top", def_id = def_id.as_str())
+        tracing::info_span!("check_fn", def_id = def_id.as_str())
     }};
 }
-pub use crate::_check_top_span as check_top_span;
+pub use crate::_check_fn_span as check_fn_span;
 
 #[macro_export]
 macro_rules! _basic_block_start {

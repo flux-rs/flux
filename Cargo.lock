@@ -464,8 +464,8 @@ dependencies = [
  "flux-fixpoint",
  "flux-macros",
  "flux-middle",
+ "flux-refineck",
  "flux-syntax",
- "flux-typeck",
  "itertools",
  "tracing",
 ]
@@ -515,6 +515,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-refineck"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "flux-common",
+ "flux-errors",
+ "flux-fixpoint",
+ "flux-macros",
+ "flux-middle",
+ "itertools",
+ "tracing",
+]
+
+[[package]]
 name = "flux-syntax"
 version = "0.1.0"
 dependencies = [
@@ -530,20 +544,6 @@ version = "0.1.0"
 dependencies = [
  "compiletest_rs",
  "itertools",
-]
-
-[[package]]
-name = "flux-typeck"
-version = "0.1.0"
-dependencies = [
- "bitflags",
- "flux-common",
- "flux-errors",
- "flux-fixpoint",
- "flux-macros",
- "flux-middle",
- "itertools",
- "tracing",
 ]
 
 [[package]]

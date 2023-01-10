@@ -8,7 +8,7 @@
     box_patterns,
     drain_filter
 )]
-
+///! Refinement type checking
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -44,12 +44,12 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
-pub fn check<'tcx>(
+pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     def_id: DefId,
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
-    dbg::check_top_span!(genv.tcx, def_id).in_scope(|| {
+    dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
         let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
 
         tracing::info!("Checker::infer");

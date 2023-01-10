@@ -1,0 +1,28 @@
+name: docs
+
+on:
+  push:
+    branches: [ main ]
+    paths: flux-docs/**
+  pull_request:
+    branches: [ main ]
+    paths: flux-docs/**
+
+jobs:
+  build:
+    name: Build, Test and Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: (test -x $HOME/.cargo/bin/mdbook || cargo install --vers "^0.4" mdbook)
+      - run: mdbook build flux-docs # && mdbook test flux-docs # In case of custom book path: mdbook build path/to/mybook && mdbook test path/to/mybook
+
+      # Only deploy when pushing on main, otherwise just run mdbook to check if there are any errors
+      - uses: JamesIves/github-pages-deploy-action@4.1.7
+        if: ${{ github.event_name == 'push' }}
+        with:
+          branch: gh-pages # The branch the action should deploy to.
+          folder: flux-docs/book # The folder the action should deploy.
