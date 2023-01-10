@@ -227,7 +227,7 @@ Level4 = LeftAssoc<BinOp4, Level5>; // &&
 Level5 = NonAssoc<BinOp5, Level6>;  // ==, !=, >=, <=
 Level6 = LeftAssoc<BinOp6, Level7>; // >>, <<
 Level7 = LeftAssoc<BinOp7, Level8>; // +, -
-Level8 = LeftAssoc<BinOp8, Level9>; // *, %
+Level8 = LeftAssoc<BinOp8, Level9>; // *, %, /
 Level9 = {
     <lo:@L> <op:UnOp> <e:Level10> <hi:@R> => {
         surface::Expr {
@@ -330,6 +330,7 @@ BinOp7: surface::BinOp = {
 BinOp8: surface::BinOp = {
     "*" => surface::BinOp::Mul,
     "%" => surface::BinOp::Mod,
+    "/" => surface::BinOp::Div,
 }
 
 UnOp: surface::UnOp = {
@@ -392,6 +393,7 @@ extern {
         "<=>" => Token::Iff,
         "+"  => Token::Plus,
         "-"  => Token::Minus,
+        "/"  => Token::Slash,
         "!"  => Token::Not,
         "*"  => Token::Star,
         "|"  => Token::Caret,
