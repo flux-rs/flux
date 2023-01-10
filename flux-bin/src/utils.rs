@@ -68,7 +68,7 @@ pub fn get_ld_library_path(rust_toolchain: &str) -> Result<PathBuf> {
 
 pub fn get_rustup_home() -> Result<PathBuf> {
     env::var("RUSTUP_HOME")
-        .map(|home_dir| PathBuf::from(&home_dir))
+        .map(PathBuf::from)
         .or_else(|e| {
             match e {
                 env::VarError::NotPresent => {
@@ -84,7 +84,7 @@ pub fn get_rustup_home() -> Result<PathBuf> {
 /// Prepends the path so that it's the first checked.
 pub fn extend_env_var_with_path(var_name: &str, new_path: PathBuf) -> Result<OsString> {
     let mut paths = env::var(var_name)
-        .map(|paths_str| env::split_paths(&paths_str).collect::<Vec<_>>())
+        .map(|paths_str| env::split_paths(&paths_str).collect())
         .or_else(|err| {
             match err {
                 env::VarError::NotPresent => Ok(Vec::new()),
