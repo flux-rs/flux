@@ -543,6 +543,66 @@ impl fmt::Display for Constant {
 impl Constant {
     pub const ZERO: Constant = Constant::Int(Sign::Positive, 0);
     pub const ONE: Constant = Constant::Int(Sign::Positive, 1);
+
+    fn to_bool(self) -> Option<bool> {
+        match self {
+            Constant::Bool(b) => Some(b),
+            _ => None,
+        }
+    }
+
+    /// Converts to an i128 and returns None if there is an overflow
+    fn to_int(self) -> Option<i128> {
+        match self {
+            Constant::Int(Sign::Positive, n) => i128::try_from(n).ok(),
+            Constant::Int(Sign::Negative, n) => Some(-(i128::try_from(n).ok()?)),
+            _ => None,
+        }
+    }
+
+    pub fn iff(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 == b2))
+    }
+
+    pub fn imp(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(!b1 || b2))
+    }
+
+    pub fn or(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 || b2))
+    }
+
+    pub fn and(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 && b2))
+    }
+
+    pub fn eq(&self, other: &Constant) -> Constant {
+        Constant::Bool(*self == *other)
+    }
+
+    pub fn ne(&self, other: &Constant) -> Constant {
+        Constant::Bool(*self != *other)
+    }
+
+    pub fn gt(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(Constant::Bool(n1 > n2))
+    }
+
+    pub fn ge(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(Constant::Bool(n1 >= n2))
+    }
 }
 
 impl From<usize> for Constant {

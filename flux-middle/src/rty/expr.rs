@@ -267,6 +267,22 @@ impl Expr {
         matches!(self.kind, ExprKind::BinaryOp(..))
     }
 
+    fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
+        match op {
+            BinOp::Iff => c1.iff(c2),
+            BinOp::Imp => c1.imp(c2),
+            BinOp::Or => c1.or(c2),
+            BinOp::And => c1.and(c2),
+            BinOp::Gt => c1.gt(c2),
+            BinOp::Ge => c1.ge(c2),
+            BinOp::Lt => c2.gt(c1),
+            BinOp::Le => c2.ge(c1),
+            BinOp::Eq => Some(c1.eq(c2)),
+            BinOp::Ne => Some(c1.ne(c2)),
+            _ => None,
+        }
+    }
+
     /// Simplify expression applying some simple rules like removing double negation. This is
     /// only used for pretty printing.
     pub fn simplify(&self) -> Expr {
@@ -285,6 +301,12 @@ impl Expr {
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
+                            (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
+                                match Expr::const_op(op, c1, c2) {
+                                    Some(c) => Expr::constant(c),
+                                    None => Expr::binary_op(*op, e1, e2),
+                                }
+                            }
                             _ => Expr::binary_op(*op, e1, e2),
                         }
                     }

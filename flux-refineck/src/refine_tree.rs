@@ -385,14 +385,22 @@ impl Node {
         }
 
         match &self.kind {
-            NodeKind::Head(pred, _) => {
+            NodeKind::Head(pred, tag) => {
+                let pred = pred.simplify();
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
+                } else {
+                    self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-            NodeKind::Impl(pred1, pred2, _) => {
-                if pred1 == pred2 {
+
+            NodeKind::Impl(pred1, pred2, tag) => {
+                let pred1 = pred1.simplify();
+                let pred2 = pred2.simplify();
+                if pred1 == pred2 || pred2.is_trivially_true() {
                     self.kind = NodeKind::True;
+                } else {
+                    self.kind = NodeKind::Impl(pred1, pred2, *tag);
                 }
             }
             NodeKind::True => {}
