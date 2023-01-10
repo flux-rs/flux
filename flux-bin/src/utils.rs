@@ -67,18 +67,16 @@ pub fn get_ld_library_path(rust_toolchain: &str) -> Result<PathBuf> {
 }
 
 pub fn get_rustup_home() -> Result<PathBuf> {
-    env::var("RUSTUP_HOME")
-        .map(PathBuf::from)
-        .or_else(|e| {
-            match e {
-                env::VarError::NotPresent => {
-                    dirs::home_dir()
-                        .ok_or_else(|| anyhow!("Could not get OS's home dir"))
-                        .map(|home_dir| home_dir.join(".rustup"))
-                }
-                _ => Err(anyhow::Error::from(e)),
+    env::var("RUSTUP_HOME").map(PathBuf::from).or_else(|e| {
+        match e {
+            env::VarError::NotPresent => {
+                dirs::home_dir()
+                    .ok_or_else(|| anyhow!("Could not get OS's home dir"))
+                    .map(|home_dir| home_dir.join(".rustup"))
             }
-        })
+            _ => Err(anyhow::Error::from(e)),
+        }
+    })
 }
 
 /// Prepends the path so that it's the first checked.
