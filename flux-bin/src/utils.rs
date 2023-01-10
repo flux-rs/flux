@@ -48,7 +48,7 @@ pub fn get_ld_library_path(rust_toolchain: &str) -> Result<PathBuf> {
     let rustup_home_path = get_rustup_home()?;
     let toolchains_path = rustup_home_path.join("toolchains");
     if toolchains_path.is_dir() {
-        let entries = fs::read_dir(toolchains_path.clone())?;
+        let entries = fs::read_dir(toolchains_path)?;
         for entry in entries {
             let toolchain_entry = entry?;
             let file_name = toolchain_entry.file_name().into_string().map_err(|name| {
@@ -90,6 +90,6 @@ pub fn extend_env_var_with_path(var_name: &str, new_path: PathBuf) -> Result<OsS
             }
         })?;
     // clone the path so we can report it in the error message.
-    paths.insert(0, new_path.clone());
+    paths.insert(0, new_path);
     env::join_paths(paths.into_iter()).map_err(anyhow::Error::from)
 }
