@@ -11,12 +11,24 @@ pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
 pub const EXIT_ERR: i32 = -1;
 
-pub fn get_flux_path() -> Result<PathBuf> {
-    let mut flux_path = env::current_exe().map(|path| path.with_file_name("flux"))?;
+pub fn get_default_flux_path() -> Result<PathBuf> {
+    let mut default_flux_path = env::current_exe()
+        .map(|path| path.with_file_name("flux"))?;
     if cfg!(target_os = "windows") {
-        flux_path.set_extension("exe");
+        default_flux_path.set_extension("exe");
     }
+    Ok(default_flux_path)
+}
 
+pub fn get_flux_path() -> Result<PathBuf> {
+    let flux_path = env::var("FLUX_PATH")
+        .map(PathBuf::from)
+        .or_else(|err| {
+            match err {
+                env::VarError::NotPresent => get_default_flux_path(),
+                _ => Err(anyhow::Error::from(err))
+            }
+        })?;
     if !flux_path.is_file() {
         return Err(anyhow!("flux executable {:?} does not exist or is not a file", flux_path));
     }

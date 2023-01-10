@@ -35,7 +35,7 @@ If you are using rustup, no special action is needed as it should install the co
 Next, install the `flux` binary using
 
 ```bash
-cargo install --lib flux
+cargo install --path flux
 ```
 
 Note that you should not call `flux` directly.
@@ -43,7 +43,7 @@ Note that you should not call `flux` directly.
 Finally, install `rustc-flux` and `cargo-flux` using
 
 ```bash
-cargo install --lib flux-bin
+cargo install --path flux-bin
 ```
 
 ## Usage
@@ -79,10 +79,11 @@ cargo-flux check
 
 in order to get `flux` to check your code.
 
-### `cargo run`
+### Developing locally
 
-If you're developing in `flux` and want a quicker way to test your changes, you
-can use `cargo run -- args` instead of `rustc-flux args`.
+You can set the `FLUX_PATH` environment variable to `./target/debug/flux` if you
+want `cargo-flux` and `rustc-flux` to use the version of `flux` that is built when you run `cargo build`. This is useful if you want to run `cargo build` instead
+of `cargo install --path flux` every time you make a change.
 
 ### A tiny example
 
@@ -169,5 +170,17 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
     "--workspace",
     "--message-format=json"
   ]
+}
+```
+
+If you want to change the `flux` used by `cargo-flux`, then also specify the
+`FLUX_PATH` like in the example below, which uses the version generated when you
+run `cargo build`.
+
+``` json
+{
+  "rust-analyzer.checkOnSave.extraEnv": {
+    "FLUX_PATH": "/path/to/flux-repo/target/debug/flux",
+  }
 }
 ```
