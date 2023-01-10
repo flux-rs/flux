@@ -35,3 +35,7 @@ desugar_invalid_unrefined_param =
 desugar_illegal_binder =
     illegal binder
     .label = binder not allowed in this position
+
+desugar_invalid_numeric_suffix =
+    invalid suffix `{$suffix}` for number literal
+    .label = the suffix must be one of the numeric sorts `int` or `real`

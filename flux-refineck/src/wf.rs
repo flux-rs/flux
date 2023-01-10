@@ -457,19 +457,28 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_expr(env, e2, &s)?;
                 Ok(fhir::Sort::Bool)
             }
-            fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
-                self.check_expr(env, e1, &fhir::Sort::Int)?;
-                self.check_expr(env, e2, &fhir::Sort::Int)?;
-                Ok(fhir::Sort::Bool)
-            }
-            fhir::BinOp::Add
-            | fhir::BinOp::Sub
-            | fhir::BinOp::Mod
-            | fhir::BinOp::Mul
-            | fhir::BinOp::Div => {
+            fhir::BinOp::Mod => {
                 self.check_expr(env, e1, &fhir::Sort::Int)?;
                 self.check_expr(env, e2, &fhir::Sort::Int)?;
                 Ok(fhir::Sort::Int)
+            }
+            fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
+                let sort = self.synth_expr(env, e1)?;
+                if let Some(sort) = self.is_coercible_to_numeric(&sort) {
+                    self.check_expr(env, e2, &sort)?;
+                    Ok(fhir::Sort::Bool)
+                } else {
+                    self.emit_err(errors::ExpectedNumeric::new(e1.span, &sort))
+                }
+            }
+            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
+                let sort = self.synth_expr(env, e1)?;
+                if let Some(sort) = self.is_coercible_to_numeric(&sort) {
+                    self.check_expr(env, e2, &sort)?;
+                    Ok(sort)
+                } else {
+                    self.emit_err(errors::ExpectedNumeric::new(e1.span, &sort))
+                }
             }
         }
     }
@@ -571,6 +580,16 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
+    fn is_coercible_to_numeric(&self, sort: &fhir::Sort) -> Option<fhir::Sort> {
+        if sort.is_numeric() {
+            Some(sort.clone())
+        } else if let Some(sort) = self.is_single_field_adt(sort) && sort.is_numeric() {
+            Some(sort.clone())
+        } else {
+            None
+        }
+    }
+
     fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
         if let fhir::Sort::Adt(def_id) = sort && let Some([sort]) = self.map.sorts_of(*def_id) {
             Some(sort)
@@ -630,6 +649,7 @@ fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
     match lit {
         fhir::Lit::Int(_) => fhir::Sort::Int,
         fhir::Lit::Bool(_) => fhir::Sort::Bool,
+        fhir::Lit::Real(_) => fhir::Sort::Real,
     }
 }
 
@@ -761,6 +781,21 @@ mod errors {
     impl<'a> UnexpectedFun<'a> {
         pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
             Self { span, sort }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::expected_numeric, code = "FLUX")]
+    pub(super) struct ExpectedNumeric<'a> {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: &'a fhir::Sort,
+    }
+
+    impl<'a> ExpectedNumeric<'a> {
+        pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
+            Self { span, found }
         }
     }
 

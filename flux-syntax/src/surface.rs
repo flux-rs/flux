@@ -1,10 +1,10 @@
 use std::fmt;
 
-pub use rustc_ast::token::LitKind;
+pub use rustc_ast::token::{Lit, LitKind};
 use rustc_hir::def_id::{DefId, LocalDefId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 
 pub type AliasMap = rustc_hash::FxHashMap<Ident, Alias>;
 
@@ -248,13 +248,6 @@ pub enum ExprKind {
     UnaryOp(UnOp, Box<Expr>),
     App(Ident, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Lit {
-    pub kind: LitKind,
-    pub symbol: Symbol,
-    pub span: Span,
 }
 
 #[derive(Copy, Clone)]

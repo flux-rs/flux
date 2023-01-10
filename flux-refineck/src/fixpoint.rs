@@ -414,6 +414,7 @@ impl std::str::FromStr for TagIdx {
 pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     match sort {
         rty::Sort::Int => fixpoint::Sort::Int,
+        rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {

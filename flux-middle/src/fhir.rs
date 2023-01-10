@@ -226,6 +226,7 @@ pub enum InferMode {
 pub enum Sort {
     Int,
     Bool,
+    Real,
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
@@ -273,6 +274,7 @@ pub struct UFun {
 #[derive(Clone, Copy)]
 pub enum Lit {
     Int(i128),
+    Real(i128),
     Bool(bool),
 }
 
@@ -420,6 +422,10 @@ impl Sort {
     #[must_use]
     pub fn is_loc(&self) -> bool {
         matches!(self, Self::Loc)
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, Self::Int | Self::Real)
     }
 
     /// Whether the sort is a function with return sort bool
@@ -804,6 +810,7 @@ impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Lit::Int(i) => write!(f, "{i}"),
+            Lit::Real(r) => write!(f, "{r}real"),
             Lit::Bool(b) => write!(f, "{b}"),
         }
     }
@@ -814,6 +821,7 @@ impl fmt::Display for Sort {
         match self {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
+            Sort::Real => write!(f, "real"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),

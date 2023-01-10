@@ -9,7 +9,7 @@ use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
-use rustc_span::{sym, symbol::kw, Symbol};
+use rustc_span::{sym, symbol::kw, Span, Symbol};
 
 pub fn desugar_qualifier(
     tcx: TyCtxt,
@@ -502,7 +502,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn desugar_expr(&self, expr: surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match expr.kind {
             surface::ExprKind::Var(ident) => return self.desugar_var(ident),
-            surface::ExprKind::Literal(lit) => fhir::ExprKind::Literal(self.desugar_lit(lit)?),
+            surface::ExprKind::Literal(lit) => {
+                fhir::ExprKind::Literal(self.desugar_lit(expr.span, lit)?)
+            }
             surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 let e1 = self.desugar_expr(e1);
                 let e2 = self.desugar_expr(e2);
@@ -567,20 +569,25 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         Err(self.sess.emit_err(errors::UnresolvedVar::new(func)))
     }
 
-    fn desugar_lit(&self, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {
+    fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {
         match lit.kind {
             surface::LitKind::Integer => {
-                match lit.symbol.as_str().parse::<i128>() {
-                    Ok(n) => Ok(fhir::Lit::Int(n)),
-                    Err(_) => Err(self.sess.emit_err(errors::IntTooLarge { span: lit.span })),
+                let Ok(n) = lit.symbol.as_str().parse::<i128>() else {
+                    return Err(self.sess.emit_err(errors::IntTooLarge { span }));
+                };
+                let suffix = lit.suffix.unwrap_or(SORTS.int);
+                if suffix == SORTS.int {
+                    Ok(fhir::Lit::Int(n))
+                } else if suffix == SORTS.real {
+                    Ok(fhir::Lit::Real(n))
+                } else {
+                    Err(self
+                        .sess
+                        .emit_err(errors::InvalidNumericSuffix::new(span, suffix)))
                 }
             }
             surface::LitKind::Bool => Ok(fhir::Lit::Bool(lit.symbol == kw::True)),
-            _ => {
-                Err(self
-                    .sess
-                    .emit_err(errors::UnexpectedLiteral { span: lit.span }))
-            }
+            _ => Err(self.sess.emit_err(errors::UnexpectedLiteral { span })),
         }
     }
 
@@ -659,6 +666,8 @@ fn resolve_base_sort(
         Ok(fhir::Sort::Int)
     } else if sort.name == sym::bool {
         Ok(fhir::Sort::Bool)
+    } else if sort.name == SORTS.real {
+        Ok(fhir::Sort::Real)
     } else if map.sort_decl(sort.name).is_some() {
         Ok(fhir::Sort::User(sort.name))
     } else {
@@ -1089,10 +1098,11 @@ fn sorts<'a>(map: &'a fhir::Map, bty: &surface::BaseTy<Res>) -> Option<&'a [fhir
 
 struct Sorts {
     int: Symbol,
+    real: Symbol,
 }
 
 static SORTS: std::sync::LazyLock<Sorts> =
-    std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int") });
+    std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int"), real: Symbol::intern("real") });
 
 mod errors {
     use flux_macros::Diagnostic;
@@ -1100,22 +1110,22 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(desugar::unresolved_var, code = "FLUX")]
-    pub struct UnresolvedVar {
+    pub(super) struct UnresolvedVar {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub var: Ident,
+        span: Span,
+        var: Ident,
     }
 
     impl UnresolvedVar {
-        pub fn new(var: Ident) -> Self {
+        pub(super) fn new(var: Ident) -> Self {
             Self { span: var.span, var }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(desugar::duplicate_param, code = "FLUX")]
-    pub struct DuplicateParam {
+    pub(super) struct DuplicateParam {
         #[primary_span]
         #[label]
         span: Span,
@@ -1125,7 +1135,7 @@ mod errors {
     }
 
     impl DuplicateParam {
-        pub fn new(old_ident: Ident, new_ident: Ident) -> Self {
+        pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
             debug_assert_eq!(old_ident.name, new_ident.name);
             Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
         }
@@ -1133,52 +1143,52 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(desugar::unresolved_sort, code = "FLUX")]
-    pub struct UnresolvedSort {
+    pub(super) struct UnresolvedSort {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub sort: Ident,
+        span: Span,
+        sort: Ident,
     }
 
     impl UnresolvedSort {
-        pub fn new(sort: Ident) -> Self {
+        pub(super) fn new(sort: Ident) -> Self {
             Self { span: sort.span, sort }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(desugar::int_too_large, code = "FLUX")]
-    pub struct IntTooLarge {
+    pub(super) struct IntTooLarge {
         #[primary_span]
-        pub span: Span,
+        pub(super) span: Span,
     }
 
     #[derive(Diagnostic)]
     #[diag(desugar::unexpected_literal, code = "FLUX")]
-    pub struct UnexpectedLiteral {
+    pub(super) struct UnexpectedLiteral {
         #[primary_span]
-        pub span: Span,
+        pub(super) span: Span,
     }
 
     #[derive(Diagnostic)]
     #[diag(desugar::invalid_dot_var, code = "FLUX")]
-    pub struct InvalidDotVar {
+    pub(super) struct InvalidDotVar {
         #[primary_span]
-        pub span: Span,
+        pub(super) span: Span,
     }
 
     #[derive(Diagnostic)]
     #[diag(desugar::param_count_mismatch, code = "FLUX")]
-    pub struct ParamCountMismatch {
+    pub(super) struct ParamCountMismatch {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub expected: String,
-        pub found: usize,
+        span: Span,
+        expected: String,
+        found: usize,
     }
 
     impl ParamCountMismatch {
-        pub fn new(span: Span, exp: usize, found: usize) -> Self {
+        pub(super) fn new(span: Span, exp: usize, found: usize) -> Self {
             let expected = if exp > 1 { format!("1 or {exp:?}") } else { exp.to_string() };
             Self { span, expected, found }
         }
@@ -1186,32 +1196,47 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(desugar::invalid_unrefined_param, code = "FLUX")]
-    pub struct InvalidUnrefinedParam {
+    pub(super) struct InvalidUnrefinedParam {
         #[primary_span]
         #[label]
-        pub span: Span,
-        pub var: Ident,
+        span: Span,
+        var: Ident,
         #[label(desugar::defined_here)]
-        pub def_span: Span,
+        def_span: Span,
     }
 
     impl InvalidUnrefinedParam {
-        pub fn new(def: Ident, var: Ident) -> Self {
+        pub(super) fn new(def: Ident, var: Ident) -> Self {
             Self { def_span: def.span, var, span: var.span }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(desugar::illegal_binder, code = "FLUX")]
-    pub struct IllegalBinder {
+    pub(super) struct IllegalBinder {
         #[primary_span]
         #[label]
-        pub span: Span,
+        span: Span,
     }
 
     impl IllegalBinder {
-        pub fn new(span: Span) -> Self {
+        pub(super) fn new(span: Span) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar::invalid_numeric_suffix, code = "FLUX")]
+    pub(super) struct InvalidNumericSuffix {
+        #[primary_span]
+        #[label]
+        span: Span,
+        suffix: Symbol,
+    }
+
+    impl InvalidNumericSuffix {
+        pub(super) fn new(span: Span, suffix: Symbol) -> Self {
+            Self { span, suffix }
         }
     }
 }
