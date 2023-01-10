@@ -122,6 +122,11 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
+        if !constraint.is_concrete() {
+            // skip checking trivial constraints
+            return Ok(());
+        }
+
         let kvars = self
             .fixpoint_kvars
             .into_iter_enumerated()
