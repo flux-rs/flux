@@ -35,7 +35,7 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
             tracing_subscriber::fmt::layer()
                 .with_writer(writer)
                 .json()
-                .with_filter(Targets::new().with_target("flux_typeck::checker", Level::DEBUG)),
+                .with_filter(Targets::new().with_target("flux_refineck::checker", Level::DEBUG)),
         );
     }
 
