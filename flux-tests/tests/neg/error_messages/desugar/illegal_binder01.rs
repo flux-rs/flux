@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[path = "../../lib/my_option.rs"]
+#[path = "../../../lib/my_option.rs"]
 mod my_option;
 use my_option::MyOption;
 

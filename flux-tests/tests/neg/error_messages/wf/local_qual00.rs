@@ -3,7 +3,7 @@
 #![feature(custom_inner_attributes)]
 #![flux::qualifier(local, MyQ1(x: int, y: int, z: int) { x + y <= z + 10 })]
 
-#[path = "../../lib/rvec.rs"]
+#[path = "../../../lib/rvec.rs"]
 pub mod rvec;
 
 use rvec::RVec;

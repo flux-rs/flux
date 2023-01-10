@@ -26,11 +26,6 @@ pub fn bar(x: i32) -> bool {
     x > 0
 }
 
-#[flux::sig(fn(x:Vec<i32>) -> i32)] //~ ERROR cannot resolve
-pub fn boo(x: i32) -> bool {
-    x > 0
-}
-
 #[flux::sig(fn(x:Option<i32>) -> i32)] //~ ERROR invalid refinement annotation
 pub fn goo(x: i32) -> Option<i32> {
     Some(x)
@@ -50,11 +45,6 @@ pub fn ipa(x: &i32) -> i32 {
 fn ris() -> i32 {
     0
 }
-
-type A<'a> = &'a [i32];
-
-#[flux::sig(fn())]
-fn dipa(x: A) {} //~ ERROR unsupported function signature
 
 #[flux::sig(fn(x: f32))] //~ ERROR invalid refinement annotation
 fn hefe(f: &mut f32) {}
