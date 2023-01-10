@@ -3,5 +3,5 @@
 
 type A<'a> = &'a [i32];
 
-#[flux::sig(fn())]
+#[flux::sig(fn(A))]
 fn dipa(x: A) {} //~ ERROR unsupported function signature
