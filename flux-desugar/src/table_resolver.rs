@@ -20,10 +20,15 @@ pub struct ResKey {
 }
 
 struct NameResTable<'sess, 'tcx> {
-    res: FxHashMap<ResKey, Res>,
+    res: FxHashMap<ResKey, ResEntry>,
     generics: FxHashMap<DefId, ParamTy>,
     sess: &'sess FluxSession,
     tcx: TyCtxt<'tcx>,
+}
+
+enum ResEntry {
+    Res(Res),
+    Unsupported { reason: String, span: Span },
 }
 
 impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
@@ -177,15 +182,24 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
     }
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
-        let Some(&res) = self.table.get(&ResKey::from_path(&path)) else {
+        let Some(res) = self.table.get(&ResKey::from_path(&path)) else {
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)))
         };
-        let args = path
-            .args
-            .into_iter()
-            .map(|ty| self.resolve_ty(ty))
-            .try_collect_exhaust()?;
-        Ok(Path { segments: path.segments, args, span: path.span, res })
+        match res {
+            &ResEntry::Res(res) => {
+                let args = path
+                    .args
+                    .into_iter()
+                    .map(|ty| self.resolve_ty(ty))
+                    .try_collect_exhaust()?;
+                Ok(Path { segments: path.segments, args, span: path.span, res })
+            }
+            ResEntry::Unsupported { reason, span } => {
+                return Err(self
+                    .sess
+                    .emit_err(errors::UnsupportedSignature::new(*span, reason)))
+            }
+        }
     }
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
@@ -211,9 +225,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         match &item.kind {
             ItemKind::Struct(data, generics) => {
                 table.insert_generics(tcx, generics);
-                table
-                    .res
-                    .insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
+                table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for field in data.fields() {
                     table.collect_from_ty(field.ty)?;
@@ -221,9 +233,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             }
             ItemKind::Enum(data, generics) => {
                 table.insert_generics(tcx, generics);
-                table
-                    .res
-                    .insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
+                table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for variant in data.variants {
                     for field in variant.data.fields() {
@@ -238,6 +248,10 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             _ => {}
         }
         Ok(table)
+    }
+
+    fn insert(&mut self, key: ResKey, res: impl Into<ResEntry>) {
+        self.res.insert(key, res.into());
     }
 
     fn from_impl_item(
@@ -273,7 +287,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
     }
 
-    fn get(&self, key: &ResKey) -> Option<&Res> {
+    fn get(&self, key: &ResKey) -> Option<&ResEntry> {
         self.res.get(key)
     }
 
@@ -320,44 +334,43 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         }
     }
 
-    fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> Result<Res, ErrorGuaranteed> {
+    fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                Ok(Res::Param(self.get_param_ty(did).unwrap()))
+                ResEntry::Res(Res::Param(self.get_param_ty(did).unwrap()))
             }
             hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
-                Ok(Res::Adt(did))
+                ResEntry::Res(Res::Adt(did))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
-                Ok(Res::Int(rustc_middle::ty::int_ty(int_ty)))
+                ResEntry::Res(Res::Int(rustc_middle::ty::int_ty(int_ty)))
             }
             hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
-                Ok(Res::Uint(rustc_middle::ty::uint_ty(uint_ty)))
+                ResEntry::Res(Res::Uint(rustc_middle::ty::uint_ty(uint_ty)))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => Ok(Res::Bool),
+            hir::def::Res::PrimTy(hir::PrimTy::Bool) => ResEntry::Res(Res::Bool),
             hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
-                Ok(Res::Float(rustc_middle::ty::float_ty(float_ty)))
+                ResEntry::Res(Res::Float(rustc_middle::ty::float_ty(float_ty)))
             }
             hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
-                Ok(Res::Adt(def_id))
+                ResEntry::Res(Res::Adt(def_id))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => Ok(Res::Str),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => Ok(Res::Char),
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => ResEntry::Res(Res::Str),
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => ResEntry::Res(Res::Char),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
                 let ty = self.tcx.type_of(did);
-                Self::res_from_ty(ty).ok_or_else(|| {
-                    self.sess.emit_err(errors::UnsupportedSignature {
-                        span,
-                        note: format!("unsupported alias `{ty:?}`"),
-                    })
-                })
+                match Self::res_from_ty(ty) {
+                    Some(res) => ResEntry::Res(res),
+                    None => {
+                        ResEntry::Unsupported {
+                            span,
+                            reason: format!("unsupported alias `{ty:?}`"),
+                        }
+                    }
+                }
             }
-
             _ => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span,
-                    note: format!("unsupported resolution `{res:?}`"),
-                }))
+                ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
             }
         }
     }
@@ -373,15 +386,15 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
                 let path = if let hir::QPath::Resolved(None, path) = qpath {
                     path
                 } else {
-                    return Err(self.sess.emit_err(errors::UnsupportedSignature {
-                        span: qpath.span(),
-                        note: "unsupported type".to_string(),
-                    }));
+                    return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                        qpath.span(),
+                        "unsupported type",
+                    )));
                 };
 
                 let key = ResKey::from_hir_path(self.sess, path)?;
-                let res = self.res_from_hir_res(path.res, path.span)?;
-                self.res.insert(key, res);
+                let res = self.res_from_hir_res(path.res, path.span);
+                self.insert(key, res);
 
                 if let [.., PathSegment { args, .. }] = path.segments {
                     args.map(|args| args.args)
@@ -407,10 +420,10 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             hir::GenericArg::Type(ty) => self.collect_from_ty(ty),
             hir::GenericArg::Lifetime(_) => Ok(()),
             hir::GenericArg::Const(_) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature {
-                    span: arg.span(),
-                    note: "const generics are not supported yet".to_string(),
-                }))
+                Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                    arg.span(),
+                    "const generics are not supported yet",
+                )))
             }
 
             hir::GenericArg::Infer(_) => unreachable!(),
@@ -432,13 +445,19 @@ impl ResKey {
         if let [prefix @ .., _] = path.segments
            && prefix.iter().any(|segment| segment.args.is_some())
         {
-            return Err(sess.emit_err(errors::UnsupportedSignature {
-                span: path.span,
-                note: "path segments with generic arguments are not supported".to_string(),
-            }));
+            return Err(sess.emit_err(errors::UnsupportedSignature::new (
+                path.span,
+                "path segments with generic arguments are not supported",
+            )));
         }
         let s = path.segments.iter().map(|segment| segment.ident).join("::");
         Ok(ResKey { s })
+    }
+}
+
+impl From<Res> for ResEntry {
+    fn from(res: Res) -> Self {
+        ResEntry::Res(res)
     }
 }
 
@@ -451,10 +470,16 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(resolver::unsupported_signature, code = "FLUX")]
     #[note]
-    pub struct UnsupportedSignature {
+    pub(super) struct UnsupportedSignature<'a> {
         #[primary_span]
-        pub span: Span,
-        pub note: String,
+        span: Span,
+        note: &'a str,
+    }
+
+    impl<'a> UnsupportedSignature<'a> {
+        pub(super) fn new(span: Span, note: &'a str) -> Self {
+            Self { span, note }
+        }
     }
 
     #[derive(Diagnostic)]
