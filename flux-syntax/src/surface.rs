@@ -250,13 +250,6 @@ pub enum ExprKind {
     IfThenElse(Box<[Expr; 3]>),
 }
 
-// #[derive(Debug, Clone, Copy)]
-// pub struct Lit {
-//     pub kind: LitKind,
-//     pub symbol: Symbol,
-//     pub span: Span,
-// }
-
 #[derive(Copy, Clone)]
 pub enum BinOp {
     Iff,

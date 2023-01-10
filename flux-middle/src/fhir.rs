@@ -274,7 +274,6 @@ pub struct UFun {
 #[derive(Clone, Copy)]
 pub enum Lit {
     Int(i128),
-    /// We only support integer real literals
     Real(i128),
     Bool(bool),
 }
