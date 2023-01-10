@@ -2,6 +2,7 @@
 
 members = [
     "flux",
+    "flux-bin",
     "flux-common",
     "flux-desugar",
     "flux-driver",

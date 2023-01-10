@@ -1,19 +1,30 @@
 # Editor Support
 
+This section assumes you have installed `flux`, `cargo-flux`, and `rustc-flux`.
+
 ## Rust-Analyzer in VSCode
 
-Add this to the workspace settings i.e. `.vscode/settings.json` using in the appropriate paths for
-
-* `DYLD_FALLBACK_LIBRARY_PATH` (on `macos`) or `LD_LIBRARY_PATH` (on `linux`)
-* `RUSTC_WRAPPER`
-* `RUSTUP_TOOLCHAIN` (should be the same as the contents of `/path/to/flux/rust-toolchain.toml`)
+Add this to the workspace settings i.e. `.vscode/settings.json`
 
 ```json
 {
+  "rust-analyzer.checkOnSave.overrideCommand": [
+    "cargo-flux",
+    "check",
+    "--workspace",
+    "--message-format=json"
+  ]
+}
+```
+
+If you want to change the `flux` used by `cargo-flux`, then also specify the
+`FLUX_PATH` like in the example below, which uses the version generated when you
+run `cargo build`.
+
+``` json
+{
   "rust-analyzer.checkOnSave.extraEnv": {
-    "RUSTC_WRAPPER": "/path/to/flux/target/release/flux",
-    "RUSTUP_TOOLCHAIN": "nightly-2022-10-11",
-    "LD_LIBRARY_PATH": "/path/to/.rustup/toolchains/nightly-2022-10-11-x86_64-apple-darwin/lib"
+    "FLUX_PATH": "/path/to/flux-repo/target/debug/flux",
   }
 }
 ```
