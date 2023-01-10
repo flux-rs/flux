@@ -544,18 +544,18 @@ impl Constant {
     pub const ZERO: Constant = Constant::Int(Sign::Positive, 0);
     pub const ONE: Constant = Constant::Int(Sign::Positive, 1);
 
-    fn to_bool(&self) -> Option<bool> {
+    fn to_bool(self) -> Option<bool> {
         match self {
-            Constant::Bool(b) => Some(*b),
+            Constant::Bool(b) => Some(b),
             _ => None,
         }
     }
 
     /// Converts to an i128 and returns None if there is an overflow
-    fn to_int(&self) -> Option<i128> {
+    fn to_int(self) -> Option<i128> {
         match self {
-            Constant::Int(Sign::Positive, n) => i128::try_from(*n).ok(),
-            Constant::Int(Sign::Negative, n) => Some(-(i128::try_from(*n).ok()?)),
+            Constant::Int(Sign::Positive, n) => i128::try_from(n).ok(),
+            Constant::Int(Sign::Negative, n) => Some(-(i128::try_from(n).ok()?)),
             _ => None,
         }
     }
