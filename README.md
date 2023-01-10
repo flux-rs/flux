@@ -161,3 +161,114 @@ RUSTUP_TOOLCHAIN=nightly-2022-10-11 DYLD_FALLBACK_LIBRARY_PATH=~/.rustup/toolcha
 
 and then just run `cargo-flux check` (instead of `cargo check`) in the relevant crate directory
 to see what is happening.
+
+------
+
+    fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
+        match op {
+            BinOp::Iff => c1.iff(c2),
+            BinOp::Imp => c1.imp(c2),
+            BinOp::Or => c1.or(c2),
+            BinOp::And => c1.and(c2),
+            BinOp::Gt => c1.gt(c2),
+            BinOp::Ge => c1.ge(c2),
+            BinOp::Lt => c2.gt(c1),
+            BinOp::Le => c2.ge(c1),
+            BinOp::Add => c1.add(c2),
+            BinOp::Sub => c1.sub(c2),
+            BinOp::Mul => c1.mul(c2),
+            BinOp::Div => c1.div(c2),
+            BinOp::Mod => c1.mod_(c2),
+            BinOp::Eq => Some(c1.eq(c2)),
+            BinOp::Ne => Some(c1.ne(c2)),
+        }
+    }
+
+    fn to_bool(&self) -> Option<bool> {
+        match self {
+            Constant::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    fn to_int(&self) -> Option<i128> {
+        match self {
+            Constant::Int(Sign::Positive, n) => Some(*n as i128),
+            Constant::Int(Sign::Negative, n) => Some(-(*n as i128)),
+            _ => None,
+        }
+    }
+
+    pub fn iff(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 == b2))
+    }
+
+    pub fn imp(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(!b1 || b2))
+    }
+
+    pub fn or(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 || b2))
+    }
+
+    pub fn and(&self, other: &Constant) -> Option<Constant> {
+        let b1 = self.to_bool()?;
+        let b2 = other.to_bool()?;
+        Some(Constant::Bool(b1 && b2))
+    }
+
+    pub fn eq(&self, other: &Constant) -> Constant {
+        Constant::Bool(*self == *other)
+    }
+
+    pub fn ne(&self, other: &Constant) -> Constant {
+        Constant::Bool(*self != *other)
+    }
+
+    pub fn gt(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(Constant::Bool(n1 > n2))
+    }
+
+    pub fn ge(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(Constant::Bool(n1 >= n2))
+    }
+
+    pub fn add(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(From::from(n1 + n2))
+    }
+
+    pub fn sub(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(From::from(n1 - n2))
+    }
+
+    pub fn mul(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(From::from(n1 * n2))
+    }
+
+    pub fn div(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(From::from(n1 / n2))
+    }
+
+    pub fn mod_(&self, other: &Constant) -> Option<Constant> {
+        let n1 = self.to_int()?;
+        let n2 = other.to_int()?;
+        Some(From::from(n1 % n2))
+    }
