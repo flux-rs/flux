@@ -554,7 +554,7 @@ impl Constant {
     /// Converts to an i128 and returns None if there is an overflow
     fn to_int(&self) -> Option<i128> {
         match self {
-            Constant::Int(Sign::Positive, n) => Some(i128::try_from(*n).ok()?),
+            Constant::Int(Sign::Positive, n) => i128::try_from(*n).ok(),
             Constant::Int(Sign::Negative, n) => Some(-(i128::try_from(*n).ok()?)),
             _ => None,
         }
