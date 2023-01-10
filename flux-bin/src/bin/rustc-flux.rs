@@ -13,7 +13,7 @@ fn main() {
     let exit_code = match run() {
         Ok(code) => code,
         Err(e) => {
-            println!("Failed to run rustc-flux, error={}", e);
+            println!("Failed to run rustc-flux, error={e}");
             EXIT_ERR
         }
     };
