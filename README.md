@@ -5,6 +5,10 @@
 
 See the [blog](https://liquid-rust.github.io/) for details on refinement types and rust.
 
+## Documentation
+
+See the [docs](https://liquid-rust.github.io/flux/) for details on how to install and run.
+
 ## Requirements
 
 - [rustup](https://rustup.rs/)
