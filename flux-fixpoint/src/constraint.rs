@@ -18,6 +18,7 @@ pub enum Constraint<Tag> {
 pub enum Sort {
     Int,
     Bool,
+    Real,
     Unit,
     Pair(Box<Sort>, Box<Sort>),
     Func(FuncSort),
@@ -108,6 +109,7 @@ pub enum UnOp {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Constant {
     Int(Sign, u128),
+    Real(i128),
     Bool(bool),
 }
 
@@ -243,6 +245,7 @@ impl fmt::Display for Sort {
         match self {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
+            Sort::Real => write!(f, "real"),
             Sort::Unit => write!(f, "Unit"),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
@@ -535,6 +538,7 @@ impl fmt::Display for Constant {
         match self {
             Constant::Int(Sign::Positive, n) => write!(f, "{n}"),
             Constant::Int(Sign::Negative, n) => write!(f, "-{n}"),
+            Constant::Real(r) => write!(f, "{r}"),
             Constant::Bool(b) => write!(f, "{b}"),
         }
     }

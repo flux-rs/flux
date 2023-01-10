@@ -512,6 +512,7 @@ fn flatten_sort(map: &fhir::Map, sort: &fhir::Sort) -> Vec<rty::Sort> {
         fhir::Sort::Func(fsort) => vec![rty::Sort::Func(flatten_func_sort(map, fsort))],
         fhir::Sort::Adt(def_id) => flatten_sorts(map, map.sorts_of(*def_id).unwrap_or(&[])),
         fhir::Sort::Int
+        | fhir::Sort::Real
         | fhir::Sort::Bool
         | fhir::Sort::Loc
         | fhir::Sort::User(_)
@@ -528,6 +529,7 @@ fn flatten_func_sort(map: &fhir::Map, fsort: &fhir::FuncSort) -> rty::FuncSort {
 fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     match lit {
         fhir::Lit::Int(n) => rty::Constant::from(n),
+        fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
     }
 }

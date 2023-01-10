@@ -337,14 +337,7 @@ UnOp: surface::UnOp = {
     "-" => surface::UnOp::Neg,
 }
 
-Lit: surface::Lit = {
-    <lo:@L> <lit:"literal"> <hi:@R> => surface::Lit {
-        kind: lit.kind,
-        span: mk_span(lo, hi),
-        symbol: lit.symbol
-    },
-}
-
+Lit: surface::Lit = "literal";
 
 Ident: surface::Ident = {
     <lo:@L> <name:"ident"> <hi:@R> => {

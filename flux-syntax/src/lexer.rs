@@ -115,7 +115,7 @@ impl Cursor {
             TokenKind::Dot => Token::Dot,
             TokenKind::OpenDelim(delim) => Token::OpenDelim(delim),
             TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
-            TokenKind::Literal(lit) if lit.suffix.is_none() => Token::Literal(lit),
+            TokenKind::Literal(lit) => Token::Literal(lit),
             TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }

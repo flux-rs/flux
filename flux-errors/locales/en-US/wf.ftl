@@ -62,3 +62,7 @@ wf_def_span_note =
         [true] {$def_kind} defined here
         *[false] {$def_kind} defined here with no parameters
     }
+
+wf_expected_numeric=
+    mismatched sorts
+    .label = expected numeric sort, found `{$found}`
