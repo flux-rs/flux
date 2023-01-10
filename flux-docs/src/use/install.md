@@ -36,4 +36,3 @@ Finally, install `rustc-flux` and `cargo-flux` using
 ```bash
 cargo install --path flux-bin
 ```
-```
