@@ -51,7 +51,7 @@ pub fn get_rust_toolchain() -> Result<String, i32> {
         .map(|channel| channel.name().to_string())
 }
 
-pub fn get_dyld_fallback_library_path(rust_toolchain: &str) -> Result<PathBuf, i32> {
+pub fn get_ld_library_path(rust_toolchain: &str) -> Result<PathBuf, i32> {
     let rustup_home_path = get_rustup_home()?;
     let toolchains_path = rustup_home_path.join("toolchains");
     if toolchains_path.is_dir() {

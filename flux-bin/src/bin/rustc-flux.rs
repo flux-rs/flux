@@ -4,8 +4,8 @@ use std::{
 };
 
 use flux_bin::utils::{
-    extend_env_var_with_path, get_dyld_fallback_library_path, get_rust_toolchain, report_err,
-    EXIT_ERR, LIB_PATH,
+    extend_env_var_with_path, get_ld_library_path, get_rust_toolchain, report_err, EXIT_ERR,
+    LIB_PATH,
 };
 
 fn main() {
@@ -16,8 +16,8 @@ fn main() {
 
 fn run() -> Result<(), i32> {
     let rust_toolchain = get_rust_toolchain()?;
-    let dyld_fallback_library_path = get_dyld_fallback_library_path(&rust_toolchain)?;
-    let extended_lib_path = extend_env_var_with_path(LIB_PATH, dyld_fallback_library_path)?;
+    let ld_library_path = get_ld_library_path(&rust_toolchain)?;
+    let extended_lib_path = extend_env_var_with_path(LIB_PATH, ld_library_path)?;
 
     let exit_status = Command::new("flux")
         // Skip the invocation of rustc-flux itself
