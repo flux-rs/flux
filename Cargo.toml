@@ -9,7 +9,7 @@ members = [
     "flux-fixpoint",
     "flux-macros",
     "flux-middle",
+    "flux-refineck",
     "flux-syntax",
-    "flux-typeck",
     "flux-tests",
 ]

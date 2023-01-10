@@ -6,8 +6,8 @@ use flux_middle::{
     global_env::GlobalEnv,
     rustc,
 };
+use flux_refineck::{self as refineck, wf::Wf};
 use flux_syntax::surface;
-use flux_typeck::{self as typeck, wf::Wf};
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
@@ -16,7 +16,6 @@ use rustc_middle::ty::{
     query::{query_values, Providers},
     TyCtxt, WithOptConstParam,
 };
-use typeck::invariants;
 
 use crate::{
     collector::{IgnoreKey, Ignores, SpecCollector, Specs},
@@ -184,7 +183,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
-        typeck::check(self.genv, def_id.to_def_id(), &body)
+        refineck::check_fn(self.genv, def_id.to_def_id(), &body)
     }
 
     fn check_adt_invariants(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -192,7 +191,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if adt_def.is_opaque() {
             return Ok(());
         }
-        invariants::check_invariants(self.genv, &adt_def)
+        refineck::invariants::check_invariants(self.genv, &adt_def)
     }
 }
 

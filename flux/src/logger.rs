@@ -15,8 +15,8 @@ const ONE_MINUTE: u64 = 60_000_000_000;
 const CHECKER_FILE: &str = "checker";
 const TIMINGS_FILE: &str = "timings";
 
-fn ns_to_ms(timing_ns: f64) -> f64 {
-    timing_ns / 1_000_000.0
+fn ns_to_ms(timing_ns: u64) -> f64 {
+    (timing_ns as f64) / 1_000_000.0
 }
 
 pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
@@ -27,7 +27,6 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
     }
 
     let mut fmt_layer = None;
-
     if CONFIG.dump_checker_trace {
         let file = fs::File::create(log_dir.join(CHECKER_FILE))?;
 
@@ -41,7 +40,6 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
     }
 
     let mut timing_layer = None;
-
     if CONFIG.dump_timings {
         timing_layer = Some(
             tracing_timing::Builder::default()
@@ -51,7 +49,7 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
                 })
                 .with_filter(
                     Targets::new()
-                        .with_target("flux_typeck", Level::INFO)
+                        .with_target("flux_refineck", Level::INFO)
                         .with_target("flux_driver::callbacks", Level::INFO),
                 ),
         );
@@ -69,48 +67,46 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
             timing_layer.with_histograms(|spans_map| {
                 for (span_name, events_map) in spans_map {
                     let mut span_time_ns = 0;
-                    write!(&mut file, "{}\n", span_name)?;
+                    writeln!(file, "{span_name}")?;
                     for (event_name, event_histogram) in events_map {
-                        let mut event_time_ns = 0;
                         event_histogram.refresh();
-                        for iteration_value in event_histogram.iter_recorded() {
-                            event_time_ns += iteration_value.value_iterated_to();
-                        }
-                        write!(&mut file, "  {}\n", event_name)?;
-                        write!(&mut file, "    num events:   {}\n", event_histogram.len())?;
-                        write!(
-                            &mut file,
-                            "    min non-zero: {:.2}ms\n",
-                            ns_to_ms(event_histogram.min_nz() as f64)
+
+                        let event_time_ns = event_histogram
+                            .iter_recorded()
+                            .map(|v| v.value_iterated_to())
+                            .sum();
+
+                        writeln!(file, "  {event_name}")?;
+                        writeln!(file, "    num events:   {}", event_histogram.len())?;
+                        writeln!(
+                            file,
+                            "    min non-zero: {:.2}ms",
+                            ns_to_ms(event_histogram.min_nz())
                         )?;
-                        write!(
-                            &mut file,
-                            "    1st quartile: {:.2}ms\n",
-                            ns_to_ms(event_histogram.value_at_quantile(0.25) as f64)
+                        writeln!(
+                            file,
+                            "    1st quartile: {:.2}ms",
+                            ns_to_ms(event_histogram.value_at_quantile(0.25))
                         )?;
-                        write!(
-                            &mut file,
-                            "    2nd quartile: {:.2}ms\n",
-                            ns_to_ms(event_histogram.value_at_quantile(0.50) as f64)
+                        writeln!(
+                            file,
+                            "    2nd quartile: {:.2}ms",
+                            ns_to_ms(event_histogram.value_at_quantile(0.50))
                         )?;
-                        write!(
-                            &mut file,
-                            "    3rd quartile: {:.2}ms\n",
-                            ns_to_ms(event_histogram.value_at_quantile(0.75) as f64)
+                        writeln!(
+                            file,
+                            "    3rd quartile: {:.2}ms",
+                            ns_to_ms(event_histogram.value_at_quantile(0.75))
                         )?;
-                        write!(
-                            &mut file,
-                            "    max:          {:.2}ms\n",
-                            ns_to_ms(event_histogram.max() as f64)
+                        writeln!(
+                            file,
+                            "    max:          {:.2}ms",
+                            ns_to_ms(event_histogram.max())
                         )?;
-                        write!(
-                            &mut file,
-                            "    total time:   {:.2}ms\n",
-                            ns_to_ms(event_time_ns as f64)
-                        )?;
+                        writeln!(file, "    total time:   {:.2}ms", ns_to_ms(event_time_ns))?;
                         span_time_ns += event_time_ns;
                     }
-                    write!(&mut file, "total time: {:.2}ms\n\n", ns_to_ms(span_time_ns as f64))?;
+                    write!(file, "total time: {:.2}ms\n\n", ns_to_ms(span_time_ns))?;
                 }
                 Ok(())
             })
