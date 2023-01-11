@@ -933,18 +933,13 @@ fn type_of_shift<'a>(
     op: mir::BinOp,
 ) -> (BaseTy, &'a rty::RefineArg, &'a rty::RefineArg, sigs::Sig<2>) {
     match (num_ty.kind(), shift_by_ty.kind()) {
-        (Int!(num_base_ty, num_idxs), Int!(_, shift_by_idxs) | Uint!(_, shift_by_idxs)) => {
-            (
-                BaseTy::Int(*num_base_ty),
-                num_idxs.nth(0),
-                shift_by_idxs.nth(0),
-                sigs::signed_bin_ops(op),
-            )
+        (Int!(int_ty, int_idxs), Int!(_, shift_by_idxs) | Uint!(_, shift_by_idxs)) => {
+            (BaseTy::Int(*int_ty), int_idxs.nth(0), shift_by_idxs.nth(0), sigs::signed_bin_ops(op))
         }
-        (Uint!(num_base_ty, num_idxs), Int!(_, shift_by_idxs) | Uint!(_, shift_by_idxs)) => {
+        (Uint!(uint_ty, uint_idxs), Int!(_, shift_by_idxs) | Uint!(_, shift_by_idxs)) => {
             (
-                BaseTy::Uint(*num_base_ty),
-                num_idxs.nth(0),
+                BaseTy::Uint(*uint_ty),
+                uint_idxs.nth(0),
                 shift_by_idxs.nth(0),
                 sigs::unsigned_bin_ops(op),
             )

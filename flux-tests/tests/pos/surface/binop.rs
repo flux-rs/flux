@@ -58,12 +58,12 @@ pub fn logical_or(a: bool, b: bool) -> bool {
     a | b
 }
 
-#[flux::sig(fn(bool{v: v == false}, bool{v: v == true}) -> bool{v: v == true})]
+#[flux::sig(fn(bool[false], bool[true]) -> bool[true])]
 pub fn logical_or_ft(a: bool, b: bool) -> bool {
     a | b
 }
 
-#[flux::sig(fn(bool{v: v == false}, bool{v: v == false}) -> bool{v: v == false})]
+#[flux::sig(fn(bool[false], bool[false]) -> bool[false])]
 pub fn logical_or_ff(a: bool, b: bool) -> bool {
     a | b
 }
