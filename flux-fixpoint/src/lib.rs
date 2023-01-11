@@ -58,19 +58,13 @@ pub struct Error<Tag> {
     pub tag: Tag,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
     pub num_cstr: i32,
     pub num_iter: i32,
     pub num_chck: i32,
     pub num_vald: i32,
-}
-
-impl Default for Stats {
-    fn default() -> Self {
-        Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }
-    }
 }
 
 #[derive(Deserialize, Debug)]
