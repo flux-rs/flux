@@ -2,12 +2,12 @@ use std::{fs, io::Write, iter};
 
 use fixpoint::FixpointResult;
 use flux_common::{
+    cache::QueryCache,
     config::CONFIG,
     index::{IndexGen, IndexVec},
 };
 use flux_fixpoint as fixpoint;
 use flux_middle::{
-    cache::QueryCache,
     global_env::GlobalEnv,
     rty::{self, Binders, BoundVar},
 };
@@ -161,24 +161,16 @@ where
             .map(|sort_decl| sort_decl.name.to_string())
             .collect_vec();
 
-        let constr_hash = closed_constraint.hash_with_default();
-
-        if cache.is_safe::<TagIdx>(did, constr_hash) {
-            // skip checking cached constraints
-            return Ok(());
-        }
-
         let task =
             fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
         if CONFIG.dump_constraint {
             dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
         }
 
-        match task.check() {
-            Ok(FixpointResult::Safe(_)) => {
-                cache.insert::<TagIdx>(&self.genv.tcx, did, constr_hash);
-                Ok(())
-            }
+        let task_key = self.genv.tcx.def_path_str(did);
+
+        match task.check_with_cache(task_key, cache) {
+            Ok(FixpointResult::Safe(_)) => Ok(()),
             Ok(FixpointResult::Unsafe(_, errors)) => {
                 Err(errors
                     .into_iter()

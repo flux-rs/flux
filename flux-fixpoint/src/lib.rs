@@ -6,7 +6,9 @@ extern crate rustc_serialize;
 mod constraint;
 
 use std::{
+    collections::hash_map::DefaultHasher,
     fmt::{self, Write as FmtWrite},
+    hash::{Hash, Hasher},
     io::{self, BufWriter, Write as IOWrite},
     process::{Command, Stdio},
     str::FromStr,
@@ -16,7 +18,7 @@ pub use constraint::{
     BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj, Qualifier,
     Sign, Sort, UifDef, UnOp,
 };
-use flux_common::format::PadAdapter;
+use flux_common::{cache::QueryCache, config::CONFIG, format::PadAdapter};
 use itertools::Itertools;
 use serde::{de, Deserialize};
 
@@ -29,6 +31,17 @@ pub struct Task<Tag> {
     pub qualifiers: Vec<Qualifier>,
     pub uifs: Vec<UifDef>,
     pub sorts: Vec<String>,
+}
+
+impl<Tag> Hash for Task<Tag> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.constants.hash(state);
+        self.kvars.hash(state);
+        self.constraint.hash(state);
+        self.qualifiers.hash(state);
+        self.uifs.hash(state);
+        self.sorts.hash(state);
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -54,10 +67,16 @@ pub struct Stats {
     pub num_vald: i32,
 }
 
+impl Default for Stats {
+    fn default() -> Self {
+        Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct KVar(pub KVid, pub Vec<Sort>);
 
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
@@ -72,7 +91,33 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         Task { constants, kvars, constraint, qualifiers, uifs, sorts }
     }
 
-    pub fn check(&self) -> io::Result<FixpointResult<Tag>> {
+    pub fn hash_with_default(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    pub fn check_with_cache(
+        &self,
+        key: String,
+        cache: &mut QueryCache,
+    ) -> io::Result<FixpointResult<Tag>> {
+        let hash = self.hash_with_default();
+        let caching = !CONFIG.cache.is_empty();
+
+        if caching && cache.is_safe(&key, hash) {
+            return Ok(FixpointResult::Safe(Default::default()));
+        }
+
+        let result = self.check();
+
+        if let Ok(FixpointResult::Safe(_)) = result {
+            cache.insert(key, hash);
+        }
+        result
+    }
+
+    fn check(&self) -> io::Result<FixpointResult<Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")

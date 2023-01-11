@@ -1,8 +1,7 @@
-use flux_common::{config::CONFIG, iter::IterExt};
+use flux_common::{cache::QueryCache, config::CONFIG, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
-    cache::QueryCache,
     fhir::{self, ConstInfo},
     global_env::GlobalEnv,
     rustc,

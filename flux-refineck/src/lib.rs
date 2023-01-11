@@ -35,9 +35,9 @@ use std::{fs, io::Write};
 
 use checker::Checker;
 use constraint_gen::Tag;
-use flux_common::config::CONFIG;
+use flux_common::{cache::QueryCache, config::CONFIG};
 use flux_errors::ResultExt;
-use flux_middle::{cache::QueryCache, global_env::GlobalEnv, rty, rustc::mir::Body};
+use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;

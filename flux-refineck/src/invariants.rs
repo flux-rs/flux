@@ -1,7 +1,6 @@
-use flux_common::iter::IterExt;
+use flux_common::{cache::QueryCache, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
-    cache::QueryCache,
     global_env::GlobalEnv,
     rty::{AdtDef, Invariant},
 };

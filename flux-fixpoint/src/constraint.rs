@@ -1,5 +1,4 @@
 use std::{
-    collections::hash_map::DefaultHasher,
     fmt::{self, Write},
     hash::{Hash, Hasher},
     sync::LazyLock,
@@ -63,6 +62,7 @@ pub enum Proj {
     Snd,
 }
 
+#[derive(Hash)]
 pub struct Qualifier {
     pub name: String,
     pub args: Vec<(Name, Sort)>,
@@ -70,6 +70,7 @@ pub struct Qualifier {
     pub global: bool,
 }
 
+#[derive(Hash)]
 pub struct UifDef {
     pub name: String,
     pub sort: FuncSort,
@@ -149,12 +150,6 @@ impl<Tag> Constraint<Tag> {
             Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
         }
-    }
-
-    pub fn hash_with_default(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
     }
 }
 

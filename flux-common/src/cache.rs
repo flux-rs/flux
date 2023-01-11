@@ -1,9 +1,8 @@
 use std::{fs::File, path::PathBuf};
 
-use flux_common::config::CONFIG;
 use rustc_hash::FxHashMap;
-use rustc_middle::ty::TyCtxt;
-use rustc_span::def_id::DefId;
+
+use crate::config::CONFIG;
 
 pub struct QueryCache {
     entries: FxHashMap<String, u64>,
@@ -20,21 +19,26 @@ impl QueryCache {
         QueryCache { entries: FxHashMap::default() }
     }
 
-    pub fn insert<Tag>(&mut self, tcx: &TyCtxt, did: DefId, constr_hash: u64) {
-        // let str = crate::pretty::def_id_to_string(did);
-        let str = tcx.def_path_str(did);
-        self.entries.insert(str, constr_hash);
+    pub fn insert(&mut self, key: String, constr_hash: u64) {
+        // let str = tcx.def_path_str(did);
+        self.entries.insert(key, constr_hash);
     }
 
-    pub fn is_safe<Tag>(&self, did: DefId, constr_hash: u64) -> bool {
-        let str = crate::pretty::def_id_to_string(did);
-        self.entries.get(&str).map_or(false, |h| *h == constr_hash)
+    pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
+        self.entries.get(key).map_or(false, |h| *h == constr_hash)
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {
-        let dir = &CONFIG.log_dir;
-        std::fs::create_dir_all(dir)?;
-        Ok(dir.join("cache.json"))
+        if !CONFIG.cache.is_empty() {
+            let dir = &CONFIG.log_dir;
+            std::fs::create_dir_all(dir)?;
+            return Ok(dir.join(CONFIG.cache.clone()));
+        }
+        Err(Self::no_cache_err())
+    }
+
+    fn no_cache_err() -> std::io::Error {
+        std::io::Error::new(std::io::ErrorKind::Other, "cache not enabled")
     }
 
     pub fn save(&self) -> Result<(), std::io::Error> {
