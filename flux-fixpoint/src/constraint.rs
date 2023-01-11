@@ -151,7 +151,7 @@ impl<Tag> Constraint<Tag> {
         }
     }
 
-    pub fn myhash(&self) -> u64 {
+    pub fn hash_with_default(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         hasher.finish()
