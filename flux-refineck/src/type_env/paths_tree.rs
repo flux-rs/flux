@@ -452,6 +452,14 @@ impl Node {
         }
     }
 
+    #[track_caller]
+    fn expect_leaf_mut(&mut self, span: Option<Span>) -> &mut Binding {
+        match self {
+            Node::Leaf(binding) => binding,
+            Node::Internal(_, _) => panic!("expected `Node::Leaf` at {span:?}"),
+        }
+    }
+
     fn expect_owned_mut(&mut self) -> &mut Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => ty,
@@ -581,7 +589,7 @@ impl Node {
         rcx: &mut RefineCtxt,
         span: Option<Span>,
     ) -> Result<(), OpaqueStructErr> {
-        let ty = self.expect_owned(span);
+        let ty = self.expect_leaf_mut(span).unblock();
         match ty.kind() {
             TyKind::Tuple(tys) => {
                 let children = tys
@@ -741,6 +749,17 @@ impl Binding {
     fn is_uninit(&self) -> bool {
         match self {
             Binding::Owned(ty) | Binding::Blocked(ty) => ty.is_uninit(),
+        }
+    }
+
+    fn unblock(&mut self) -> Ty {
+        match self {
+            Binding::Owned(ty) => ty.clone(),
+            Binding::Blocked(ty) => {
+                let ty = ty.clone();
+                *self = Binding::Owned(ty.clone());
+                ty
+            }
         }
     }
 }
