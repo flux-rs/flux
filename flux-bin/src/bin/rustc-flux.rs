@@ -30,7 +30,6 @@ fn run() -> Result<i32> {
         // Skip the invocation of rustc-flux itself
         .args(env::args().skip(1))
         .env(LIB_PATH, extended_lib_path)
-        .env("RUST_TOOLCHAIN", rust_toolchain)
         .status()?
         .code();
 
