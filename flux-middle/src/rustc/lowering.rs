@@ -11,7 +11,7 @@ use rustc_middle::{
     ty::{
         self as rustc_ty,
         subst::{GenericArgKind, SubstsRef},
-        ParamEnv, TyCtxt, TypeVisitable,
+        ParamEnv, TyCtxt,
     },
 };
 use rustc_trait_selection::traits::NormalizeExt;
@@ -19,7 +19,7 @@ use rustc_trait_selection::traits::NormalizeExt;
 use super::{
     mir::{
         AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, CastKind,
-        Constant, FakeReadCause, Instance, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
+        Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
@@ -194,9 +194,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                     .map_err(|reason| errors::UnsupportedMir::new(span, "terminator", reason))
                     .emit(self.sess)?;
 
-                let instance = self
-                    .lower_instance(func, substs.orig)
-                    .map_err(|_| errors::UnsupportedMir::from(terminator))
+                let resolved_call = self
+                    .resolve_call(func, substs.orig)
+                    .map_err(|err| errors::UnsupportedMir::new(span, "terminator", err.reason))
                     .emit(self.sess)?;
 
                 TerminatorKind::Call {
@@ -214,7 +214,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         .try_collect()
                         .emit(self.sess)?,
                     cleanup: *cleanup,
-                    instance,
+                    resolved_call,
                 }
             }
             rustc_mir::TerminatorKind::SwitchInt { discr, targets, .. } => {
@@ -286,29 +286,30 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         Ok(Terminator { kind, source_info: terminator.source_info })
     }
 
-    fn lower_instance(
+    fn resolve_call(
         &self,
-        trait_f: DefId,
+        callee_id: DefId,
         substs: SubstsRef<'tcx>,
-    ) -> Result<Option<Instance>, UnsupportedType> {
-        // tcx.resolve_instance panics without this check
-        if substs.needs_infer() {
-            return Ok(None);
-        }
+    ) -> Result<(DefId, CallSubsts<'tcx>), UnsupportedType> {
+        // NOTE(nilehmann) tcx.resolve_instance used to panic without this check but none of the tests
+        // are failing now. Leaving it here in case the problem comes back.
+        // if substs.needs_infer() {
+        //     return Ok(None);
+        // }
 
+        // this produced erased regions in the substitution for early bound regions
         let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
-        match self.tcx.resolve_instance(param_env.and((trait_f, substs))) {
-            Ok(Some(instance)) => {
-                let impl_f = instance.def_id();
-                if impl_f == trait_f {
-                    Ok(None)
-                } else {
-                    let substs = lower_substs(self.tcx, instance.substs)?;
-                    Ok(Some(Instance { impl_f, substs }))
-                }
-            }
-            _ => Ok(None),
-        }
+        let (resolved_id, resolved_substs) = self
+            .tcx
+            .resolve_instance(param_env.and((callee_id, substs)))
+            .ok()
+            .flatten()
+            .map(|instance| (instance.def_id(), instance.substs))
+            .unwrap_or_else(|| (callee_id, substs));
+
+        let call_substs =
+            CallSubsts { lowered: lower_substs(self.tcx, resolved_substs)?, orig: resolved_substs };
+        Ok((resolved_id, call_substs))
     }
 
     fn lower_rvalue(&self, rvalue: &rustc_mir::Rvalue<'tcx>) -> Result<Rvalue, String> {
@@ -640,7 +641,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val }))
         }
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
-        _ => Err(UnsupportedType { reason: format!("TRACE unsupported type `{ty:?}`") }),
+        _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }
 }
 
@@ -677,10 +678,8 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
             Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
         }
         RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
-        RegionKind::ReFree(_)
-        | RegionKind::ReStatic
-        | RegionKind::RePlaceholder(_)
-        | RegionKind::ReErased => {
+        RegionKind::ReErased => Ok(Region::ReErased),
+        RegionKind::ReFree(_) | RegionKind::ReStatic | RegionKind::RePlaceholder(_) => {
             Err(UnsupportedType { reason: format!("unsupported region `{region:?}`") })
         }
     }

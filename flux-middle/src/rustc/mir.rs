@@ -67,7 +67,7 @@ pub enum TerminatorKind<'tcx> {
         destination: Place,
         target: Option<BasicBlock>,
         cleanup: Option<BasicBlock>,
-        instance: Option<Instance>,
+        resolved_call: (DefId, CallSubsts<'tcx>),
     },
     SwitchInt {
         discr: Operand,
