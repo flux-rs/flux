@@ -102,7 +102,8 @@ impl Expr {
 
     pub fn ff() -> Expr {
         static FALSE: OnceLock<Expr> = OnceLock::new();
-        FALSE.get_or_init(|| ExprKind::Constant(Constant::Bool(false)).intern())
+        FALSE
+            .get_or_init(|| ExprKind::Constant(Constant::Bool(false)).intern())
             .clone()
     }
 
