@@ -15,10 +15,10 @@ extern crate rustc_span;
 extern crate rustc_target;
 extern crate rustc_trait_selection;
 
+pub mod cache;
 pub mod fhir;
 pub mod global_env;
 pub mod intern;
 pub mod pretty;
 pub mod rty;
 pub mod rustc;
-pub mod cache;
