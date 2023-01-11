@@ -18,9 +18,15 @@ fn add1(x: Real) -> Real {
     Real
 }
 
-#[flux::sig(fn(x: Real, y: Real{y > x}))]
-fn assert_gt(x: Real, y: Real) {}
+fn test01(x: Real) {
+    #[flux::sig(fn(x: Real, y: Real{y > x}))]
+    fn assert(x: Real, y: Real) {}
 
-fn test(x: Real) {
-    assert_gt(x, add1(x))
+    assert(x, add1(x))
+}
+
+fn test02() {
+    #[flux::sig(fn() requires 1real/2real != 1real/3real)]
+    fn assert() {}
+    assert()
 }

@@ -538,7 +538,7 @@ impl fmt::Display for Constant {
         match self {
             Constant::Int(Sign::Positive, n) => write!(f, "{n}"),
             Constant::Int(Sign::Negative, n) => write!(f, "-{n}"),
-            Constant::Real(r) => write!(f, "{r}"),
+            Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
         }
     }
