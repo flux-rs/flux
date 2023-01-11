@@ -100,11 +100,24 @@ impl Expr {
             .clone()
     }
 
+    pub fn ff() -> Expr {
+        static FALSE: OnceLock<Expr> = OnceLock::new();
+        FALSE.get_or_init(|| ExprKind::Constant(Constant::Bool(false)).intern())
+            .clone()
+    }
+
     pub fn and(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
             .unwrap_or_else(Expr::tt)
+    }
+
+    pub fn or(exprs: impl IntoIterator<Item = Expr>) -> Expr {
+        exprs
+            .into_iter()
+            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e))
+            .unwrap_or_else(Expr::ff)
     }
 
     pub fn zero() -> Expr {

@@ -713,6 +713,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             | mir::BinOp::Mul
             | mir::BinOp::Div
             | mir::BinOp::BitAnd
+            | mir::BinOp::BitOr
             | mir::BinOp::Rem => Ok(self.check_arith_op(rcx, source_info, bin_op, &ty1, &ty2)),
         }
     }

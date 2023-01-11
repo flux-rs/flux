@@ -404,8 +404,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::BinOp::Div => Ok(BinOp::Div),
             rustc_mir::BinOp::Rem => Ok(BinOp::Rem),
             rustc_mir::BinOp::BitAnd => Ok(BinOp::BitAnd),
+            rustc_mir::BinOp::BitOr => Ok(BinOp::BitOr),
             rustc_mir::BinOp::BitXor
-            | rustc_mir::BinOp::BitOr
             | rustc_mir::BinOp::Shl
             | rustc_mir::BinOp::Shr
             | rustc_mir::BinOp::Offset => Err(format!("unsupported binary op `{bin_op:?}`")),

@@ -170,6 +170,7 @@ pub enum BinOp {
     Div,
     Rem,
     BitAnd,
+    BitOr,
 }
 
 pub enum Operand {

@@ -82,6 +82,7 @@ static UNSIGNED_BIN_OPS: LazyLock<Sigs<mir::BinOp, 2>> = LazyLock::new(|| {
         (Add,    f!(|a,b| v = a + b)),
         (Mul,    f!(|a,b| v = a * b)),
         (BitAnd, f!(|a,b| { v : E::tt() })),
+        (BitOr,  f!(|a,b| { v : E::tt() })),
         // CMP
         (Eq, f!(|a,b| v = E::eq(a, b))),
         (Ne, f!(|a,b| v = E::ne(a, b))),
@@ -106,6 +107,7 @@ static SIGNED_BIN_OPS: LazyLock<Sigs<mir::BinOp, 2>> = LazyLock::new(|| {
                                                      E::eq(v, E::binary_op(BinOp::Mod, a, b))) }),
         ),
         (BitAnd, f!(|a,b| { v : E::tt() })),
+        (BitOr,  f!(|a,b| { v : E::tt() })),
         // CMP
         (Eq, f!(|a,b| v = E::eq(a, b))),
         (Ne, f!(|a,b| v = E::ne(a, b))),
@@ -121,6 +123,7 @@ static BOOL_BIN_OPS: LazyLock<Sigs<mir::BinOp, 2>> = LazyLock::new(|| {
     use mir::BinOp::*;
     HashMap::from([
         (BitAnd, f!(|a,b| v = E::and([a, b]))),
+        (BitOr,  f!(|a,b| v = E::or([a, b]))),
         // CMP
         (Eq, f!(|a,b| v = E::eq(a, b))),
         (Ne, f!(|a,b| v = E::ne(a, b))),
