@@ -124,10 +124,8 @@ where
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
-        let constr_hash = constraint.myhash();
-
-        if !constraint.is_concrete() || cache.is_safe::<TagIdx>(did, constr_hash) {
-            // skip checking trivial constraints or cached constraints
+        if !constraint.is_concrete() {
+            // skip checking trivial constraints
             return Ok(());
         }
 
@@ -162,6 +160,13 @@ where
             .sort_decls()
             .map(|sort_decl| sort_decl.name.to_string())
             .collect_vec();
+
+        let constr_hash = closed_constraint.myhash();
+
+        if cache.is_safe::<TagIdx>(did, constr_hash) {
+            // skip checking cached constraints
+            return Ok(());
+        }
 
         let task =
             fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
