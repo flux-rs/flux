@@ -356,18 +356,22 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     Ok(Self::check_match(&discr_ty, targets))
                 }
             }
-            TerminatorKind::Call { func, substs, args, destination, target, instance, .. } => {
-                let (func_id, substs) = match instance {
-                    Some(inst) => (inst.impl_f, &inst.substs),
-                    None => (*func, &substs.lowered),
-                };
+            TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
+                let (func_id, call_substs) = resolved_call;
+
                 let fn_sig = self
                     .genv
-                    .lookup_fn_sig(func_id)
+                    .lookup_fn_sig(*func_id)
                     .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
 
-                let ret =
-                    self.check_call(rcx, env, terminator.source_info, fn_sig, substs, args)?;
+                let ret = self.check_call(
+                    rcx,
+                    env,
+                    terminator.source_info,
+                    fn_sig,
+                    &call_substs.lowered,
+                    args,
+                )?;
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);

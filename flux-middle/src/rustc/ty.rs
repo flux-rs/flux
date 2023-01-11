@@ -113,6 +113,7 @@ pub enum Region {
     ReVar(RegionVid),
     ReLateBound(DebruijnIndex, BoundRegion),
     ReEarlyBound(EarlyBoundRegion),
+    ReErased,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -236,6 +237,7 @@ impl std::fmt::Debug for Region {
             Region::ReVar(rvid) => write!(f, "{rvid:?}"),
             Region::ReLateBound(_, bregion) => write!(f, "{bregion:?}"),
             Region::ReEarlyBound(bregion) => write!(f, "{bregion:?}"),
+            Region::ReErased => write!(f, "ReErased"),
         }
     }
 }
