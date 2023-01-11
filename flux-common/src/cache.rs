@@ -24,14 +24,14 @@ impl QueryCache {
     }
 
     pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
-        self.entries.get(key).map_or(false, |h| *h == constr_hash)
+        CONFIG.cache && self.entries.get(key).map_or(false, |h| *h == constr_hash)
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {
-        if !CONFIG.cache.is_empty() {
+        if CONFIG.cache {
             let dir = &CONFIG.log_dir;
             std::fs::create_dir_all(dir)?;
-            return Ok(dir.join(CONFIG.cache.clone()));
+            return Ok(dir.join(CONFIG.cache_file.clone()));
         }
         Err(Self::no_cache_err())
     }

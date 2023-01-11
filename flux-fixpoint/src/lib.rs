@@ -97,9 +97,8 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         cache: &mut QueryCache,
     ) -> io::Result<FixpointResult<Tag>> {
         let hash = self.hash_with_default();
-        let caching = !CONFIG.cache.is_empty();
 
-        if caching && cache.is_safe(&key, hash) {
+        if CONFIG.cache && cache.is_safe(&key, hash) {
             return Ok(FixpointResult::Safe(Default::default()));
         }
 
