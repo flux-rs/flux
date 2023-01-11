@@ -20,7 +20,6 @@ impl QueryCache {
     }
 
     pub fn insert(&mut self, key: String, constr_hash: u64) {
-        // let str = tcx.def_path_str(did);
         self.entries.insert(key, constr_hash);
     }
 

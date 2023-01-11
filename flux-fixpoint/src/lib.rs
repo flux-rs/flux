@@ -109,6 +109,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
             return Ok(FixpointResult::Safe(Default::default()));
         }
 
+        println!("TRACE: checking {key:?}");
         let result = self.check();
 
         if let Ok(FixpointResult::Safe(_)) = result {
