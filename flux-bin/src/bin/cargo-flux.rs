@@ -34,7 +34,8 @@ fn run() -> Result<i32> {
         // Skip the invocation of cargo-flux itself
         .args(env::args().skip(1))
         .env(LIB_PATH, extended_lib_path)
-        .env("RUST_TOOLCHAIN", rust_toolchain)
+        .env("RUST_TOOLCHAIN", rust_toolchain.clone())
+        .env("RUSTUP_TOOLCHAIN", rust_toolchain)
         .env("RUSTC_WRAPPER", flux_path)
         .env("CARGO_TARGET_DIR", cargo_target)
         .status()?
