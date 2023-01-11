@@ -161,7 +161,7 @@ where
             .map(|sort_decl| sort_decl.name.to_string())
             .collect_vec();
 
-        let constr_hash = closed_constraint.myhash();
+        let constr_hash = closed_constraint.hash_with_default();
 
         if cache.is_safe::<TagIdx>(did, constr_hash) {
             // skip checking cached constraints
@@ -176,7 +176,7 @@ where
 
         match task.check() {
             Ok(FixpointResult::Safe(_)) => {
-                cache.insert::<TagIdx>(did, constr_hash);
+                cache.insert::<TagIdx>(&self.genv.tcx, did, constr_hash);
                 Ok(())
             }
             Ok(FixpointResult::Unsafe(_, errors)) => {

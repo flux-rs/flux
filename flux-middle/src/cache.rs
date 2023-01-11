@@ -2,6 +2,7 @@ use std::{fs::File, path::PathBuf};
 
 use flux_common::config::CONFIG;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::DefId;
 
 pub struct QueryCache {
@@ -19,8 +20,9 @@ impl QueryCache {
         QueryCache { entries: FxHashMap::default() }
     }
 
-    pub fn insert<Tag>(&mut self, did: DefId, constr_hash: u64) {
-        let str = crate::pretty::def_id_to_string(did);
+    pub fn insert<Tag>(&mut self, tcx: &TyCtxt, did: DefId, constr_hash: u64) {
+        // let str = crate::pretty::def_id_to_string(did);
+        let str = tcx.def_path_str(did);
         self.entries.insert(str, constr_hash);
     }
 
