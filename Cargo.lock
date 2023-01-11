@@ -527,8 +527,6 @@ dependencies = [
  "flux-macros",
  "flux-middle",
  "itertools",
- "serde",
- "serde_json",
  "tracing",
 ]
 
