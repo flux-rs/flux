@@ -79,7 +79,6 @@ enum NodeKind {
     ForAll(Name, Sort),
     Guard(Expr),
     Head(Expr, Tag),
-    Impl(Expr, Expr, Tag),
     True,
 }
 
@@ -153,7 +152,8 @@ impl RefineCtxt<'_> {
 
     pub fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
-            .push_node(NodeKind::Impl(pred1.into(), pred2.into(), tag));
+            .push_node(NodeKind::Guard(pred1.into()))
+            .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
     fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
@@ -393,16 +393,6 @@ impl Node {
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-
-            NodeKind::Impl(pred1, pred2, tag) => {
-                let pred1 = pred1.simplify();
-                let pred2 = pred2.simplify();
-                if pred1 == pred2 || pred2.is_trivially_true() {
-                    self.kind = NodeKind::True;
-                } else {
-                    self.kind = NodeKind::Impl(pred1, pred2, *tag);
-                }
-            }
             NodeKind::True => {}
             NodeKind::Guard(pred) => {
                 self.children.drain_filter(|child| {
@@ -421,7 +411,7 @@ impl Node {
     }
 
     fn is_leaf(&self) -> bool {
-        matches!(self.kind, NodeKind::Head(..) | NodeKind::Impl(..) | NodeKind::True)
+        matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
     fn replace_evars(&mut self, sol: &EVarSol) {
@@ -430,10 +420,6 @@ impl Node {
         }
         match &mut self.kind {
             NodeKind::Guard(pred) => *pred = pred.replace_evars(sol),
-            NodeKind::Impl(pred1, pred2, _) => {
-                *pred1 = pred1.replace_evars(sol);
-                *pred2 = pred2.replace_evars(sol);
-            }
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
@@ -464,20 +450,6 @@ impl Node {
                     fixpoint::Constraint::Guard(
                         pred,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
-                    ),
-                ))
-            }
-            NodeKind::Impl(pred1, pred2, tag) => {
-                let (bindings1, pred1) = cx.pred_to_fixpoint(pred1);
-                let (bindings2, pred2) = cx.pred_to_fixpoint(pred2);
-                Some(stitch(
-                    bindings1,
-                    fixpoint::Constraint::Guard(
-                        pred1,
-                        Box::new(stitch(
-                            bindings2,
-                            fixpoint::Constraint::Pred(pred2, Some(cx.tag_idx(*tag))),
-                        )),
                     ),
                 ))
             }
@@ -661,16 +633,6 @@ mod pretty {
                 NodeKind::Head(pred, tag) => {
                     let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
                     w!("{:?}", parens!(pred, !pred.is_atom()))?;
-                    if cx.tags {
-                        w!(" ~ {:?}", tag)?;
-                    }
-                    Ok(())
-                }
-                NodeKind::Impl(pred1, pred2, tag) => {
-                    let pred1 = if cx.simplify_exprs { pred1.simplify() } else { pred1.clone() };
-                    let pred2 = if cx.simplify_exprs { pred2.simplify() } else { pred2.clone() };
-                    w!("{:?} => ", parens!(pred1, !pred1.is_atom()))?;
-                    w!("{:?}", parens!(pred2, !pred2.is_atom()))?;
                     if cx.tags {
                         w!(" ~ {:?}", tag)?;
                     }
