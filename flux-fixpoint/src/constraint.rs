@@ -155,9 +155,11 @@ impl<Tag> Constraint<Tag> {
 
 impl<Tag> Hash for Constraint<Tag> {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        let tag = std::mem::discriminant(self);
+        tag.hash(state);
         match self {
             Constraint::Pred(p, _) => p.hash(state),
-            Constraint::Conj(cs) => cs.iter().for_each(|c| c.hash(state)),
+            Constraint::Conj(cs) => cs.hash(state),
             Constraint::Guard(p, c) => {
                 p.hash(state);
                 c.hash(state)
