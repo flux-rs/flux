@@ -21,3 +21,4 @@ pub mod intern;
 pub mod pretty;
 pub mod rty;
 pub mod rustc;
+pub mod cache;

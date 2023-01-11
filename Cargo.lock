@@ -511,6 +511,8 @@ dependencies = [
  "flux-fixpoint",
  "flux-macros",
  "itertools",
+ "serde",
+ "serde_json",
  "toposort-scc",
 ]
 
@@ -525,6 +527,8 @@ dependencies = [
  "flux-macros",
  "flux-middle",
  "itertools",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 

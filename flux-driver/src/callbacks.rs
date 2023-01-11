@@ -2,6 +2,7 @@ use flux_common::{config::CONFIG, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
+    cache::QueryCache,
     fhir::{self, ConstInfo},
     global_env::GlobalEnv,
     rustc,
@@ -90,7 +91,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
             genv.register_assert_behavior(assert_behavior);
         }
 
-        let ck = CrateChecker::new(&mut genv, specs.ignores);
+        let mut ck = CrateChecker::new(&mut genv, specs.ignores);
 
         if ck.ignores.contains(&IgnoreKey::Crate) {
             return Ok(());
@@ -115,11 +116,12 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 struct CrateChecker<'genv, 'tcx> {
     genv: &'genv mut GlobalEnv<'genv, 'tcx>,
     ignores: Ignores,
+    cache: QueryCache,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: &'genv mut GlobalEnv<'genv, 'tcx>, ignores: Ignores) -> Self {
-        CrateChecker { genv, ignores }
+        CrateChecker { genv, ignores, cache: QueryCache::load() }
     }
 
     fn is_trusted(&self, def_id: LocalDefId) -> bool {
@@ -143,7 +145,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         def_path.contains(&CONFIG.check_def)
     }
 
-    fn check_def(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+    fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         if self.is_ignored(def_id) || !self.matches_check_def(def_id) {
             return Ok(());
         }
@@ -155,7 +157,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
     }
 
-    fn check_fn(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+    fn check_fn(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         if self.is_trusted(def_id) {
             return Ok(());
         }
@@ -183,15 +185,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
-        refineck::check_fn(self.genv, def_id.to_def_id(), &body)
+        refineck::check_fn(self.genv, &mut self.cache, def_id.to_def_id(), &body)
     }
 
-    fn check_adt_invariants(&self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+    fn check_adt_invariants(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let adt_def = self.genv.adt_def(def_id.to_def_id());
         if adt_def.is_opaque() {
             return Ok(());
         }
-        refineck::invariants::check_invariants(self.genv, &adt_def)
+        refineck::invariants::check_invariants(self.genv, &mut self.cache, &adt_def)
     }
 }
 

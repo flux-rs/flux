@@ -1,6 +1,7 @@
 use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
+    cache::QueryCache,
     global_env::GlobalEnv,
     rty::{AdtDef, Invariant},
 };
@@ -12,19 +13,24 @@ use crate::{
     refine_tree::RefineTree,
 };
 
-pub fn check_invariants(genv: &GlobalEnv, adt_def: &AdtDef) -> Result<(), ErrorGuaranteed> {
+pub fn check_invariants(
+    genv: &GlobalEnv,
+    cache: &mut QueryCache,
+    adt_def: &AdtDef,
+) -> Result<(), ErrorGuaranteed> {
     adt_def
         .invariants()
         .iter()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = genv.map().adt(adt_def.def_id().expect_local()).invariants[idx].span;
-            check_invariant(genv, adt_def, span, invariant)
+            check_invariant(genv, cache, adt_def, span, invariant)
         })
 }
 
 fn check_invariant(
     genv: &GlobalEnv,
+    cache: &mut QueryCache,
     adt_def: &AdtDef,
     span: Span,
     invariant: &Invariant,
@@ -53,7 +59,7 @@ fn check_invariant(
     }
     let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(adt_def.def_id(), constraint)
+    fcx.check(cache, adt_def.def_id(), constraint)
         .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
 }
 

@@ -7,6 +7,7 @@ use flux_common::{
 };
 use flux_fixpoint as fixpoint;
 use flux_middle::{
+    cache::QueryCache,
     global_env::GlobalEnv,
     rty::{self, Binders, BoundVar},
 };
@@ -119,11 +120,14 @@ where
 
     pub fn check(
         self,
+        cache: &mut QueryCache,
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
-        if !constraint.is_concrete() {
-            // skip checking trivial constraints
+        let constr_hash = constraint.myhash();
+
+        if !constraint.is_concrete() || cache.is_safe::<TagIdx>(did, constr_hash) {
+            // skip checking trivial constraints or cached constraints
             return Ok(());
         }
 
@@ -166,7 +170,10 @@ where
         }
 
         match task.check() {
-            Ok(FixpointResult::Safe(_)) => Ok(()),
+            Ok(FixpointResult::Safe(_)) => {
+                cache.insert::<TagIdx>(did, constr_hash);
+                Ok(())
+            }
             Ok(FixpointResult::Unsafe(_, errors)) => {
                 Err(errors
                     .into_iter()

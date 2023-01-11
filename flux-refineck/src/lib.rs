@@ -37,7 +37,7 @@ use checker::Checker;
 use constraint_gen::Tag;
 use flux_common::config::CONFIG;
 use flux_errors::ResultExt;
-use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
+use flux_middle::{cache::QueryCache, global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
@@ -46,6 +46,7 @@ use rustc_span::Span;
 
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
+    cache: &mut QueryCache,
     def_id: DefId,
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
@@ -70,7 +71,7 @@ pub fn check_fn<'tcx>(
 
         let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-        let result = match fcx.check(def_id, constraint) {
+        let result = match fcx.check(cache, def_id, constraint) {
             Ok(_) => Ok(()),
             Err(tags) => report_errors(genv, body.span(), tags),
         };
