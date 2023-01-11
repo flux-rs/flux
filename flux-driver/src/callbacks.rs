@@ -107,6 +107,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
             .chain(impl_items)
             .try_for_each_exhaust(|def_id| ck.check_def(def_id));
 
+        ck.cache.save().unwrap_or(());
+
         tracing::info!("Callbacks::check_crate");
 
         result
