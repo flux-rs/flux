@@ -1,8 +1,11 @@
 use std::{io::Read, path::PathBuf, sync::LazyLock};
 
-use config::Environment;
+use config::{Environment, File};
 use serde::Deserialize;
 pub use toml::Value;
+
+const FLUX_ENV_VAR_PREFIX: &str = "FLUX";
+const FLUX_CONFIG_ENV_VAR: &str = "FLUX_CONFIG";
 
 #[derive(Debug, Deserialize, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -35,6 +38,7 @@ pub struct CrateConfig {
 
 #[derive(Deserialize)]
 pub struct Config {
+    pub path: Option<PathBuf>,
     pub log_dir: PathBuf,
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
@@ -49,7 +53,7 @@ pub struct Config {
 
 pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     fn build() -> Result<Config, config::ConfigError> {
-        config::Config::builder()
+        let mut config_builder = config::Config::builder()
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
@@ -59,8 +63,13 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("pointer_width", 64)?
             .set_default("check_def", "")?
             .set_default("cache", false)?
-            .set_default("cache_file", "cache.json")?
-            .add_source(Environment::with_prefix("LR").ignore_empty(true))
+            .set_default("cache_file", "cache.json")?;
+        // Config comes first, enviroment settings override it.
+        if let Some(config_path) = CONFIG_PATH.as_ref() {
+            config_builder = config_builder.add_source(File::from(config_path.to_path_buf()));
+        };
+        config_builder
+            .add_source(Environment::with_prefix(FLUX_ENV_VAR_PREFIX).ignore_empty(true))
             .build()?
             .try_deserialize()
     }
@@ -68,7 +77,7 @@ pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
 });
 
 pub static CONFIG_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
-    if let Ok(file) = std::env::var("LR_CONFIG") {
+    if let Ok(file) = std::env::var(FLUX_CONFIG_ENV_VAR) {
         return Some(PathBuf::from(file));
     }
 

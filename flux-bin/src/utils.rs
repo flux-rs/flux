@@ -2,6 +2,8 @@ use std::{env, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 
+use flux_common::config::CONFIG;
+
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
 #[cfg(target_os = "linux")]
@@ -20,16 +22,11 @@ pub fn get_default_flux_path() -> Result<PathBuf> {
 }
 
 pub fn get_flux_path() -> Result<PathBuf> {
-    let flux_path = env::var("FLUX_PATH").map(PathBuf::from).or_else(|err| {
-        match err {
-            env::VarError::NotPresent => get_default_flux_path(),
-            _ => Err(anyhow::Error::from(err)),
-        }
-    })?;
+    let flux_path = &CONFIG.path.clone().map_or_else(get_default_flux_path, Ok)?;
     if !flux_path.is_file() {
         return Err(anyhow!("flux executable {:?} does not exist or is not a file", flux_path));
     }
-    Ok(flux_path)
+    Ok(flux_path.to_path_buf())
 }
 
 pub fn get_rust_toolchain() -> Result<String> {
