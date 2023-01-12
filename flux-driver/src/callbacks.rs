@@ -406,6 +406,8 @@ fn check_wf(tcx: TyCtxt, sess: &FluxSession, map: &fhir::Map) -> Result<(), Erro
 
 fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
     let did = def_id.to_def_id();
+    let str = tcx.def_path_str(did);
+    FIXME
     let def_path = tcx.def_path(did);
     if let Some(dp) = def_path.data.last() {
         if let rustc_hir::definitions::DefPathData::ValueNs(sym) = dp.data {

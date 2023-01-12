@@ -66,6 +66,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     tags_inv: FxHashMap<T, TagIdx>,
 }
 
+#[derive(Debug)]
 struct ConstInfo {
     name: fixpoint::Name,
     val: i128,
@@ -135,8 +136,12 @@ where
             .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
             .collect_vec();
 
+        let mut ordered_consts = self.const_map.values().collect_vec();
+        ordered_consts.sort_by(|a, b| a.val.partial_cmp(&b.val).unwrap());
+
         let mut closed_constraint = constraint;
-        for const_info in self.const_map.values() {
+        for const_info in ordered_consts.iter() {
+            println!("TRACE: {const_info:?}");
             closed_constraint = Self::assume_const_val(closed_constraint, const_info);
         }
 
@@ -146,9 +151,8 @@ where
             .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
             .collect();
 
-        let constants = self
-            .const_map
-            .values()
+        let constants = ordered_consts
+            .iter()
             .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
@@ -347,6 +351,7 @@ fn fixpoint_const_map(
         .consts()
         .map(|const_info| {
             let name = name_gen.fresh();
+            println!("TRACE: fixpoint_const {:?} {:?}", const_info.def_id, const_info.sym);
             let cinfo = ConstInfo { name, val: const_info.val };
             (const_info.def_id, cinfo)
         })
