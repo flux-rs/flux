@@ -24,13 +24,7 @@ impl QueryCache {
     }
 
     pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
-        let is_cache = CONFIG.cache;
-        let n = self.entries.len();
-        let res = CONFIG.cache && self.entries.get(key).map_or(false, |h| *h == constr_hash);
-        println!(
-            "TRACE: is_safe {key:?} hash = {constr_hash:?}, ({is_cache:?}, {n:?}), res = {res:?}"
-        );
-        res
+        CONFIG.cache && self.entries.get(key).map_or(false, |h| *h == constr_hash)
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {

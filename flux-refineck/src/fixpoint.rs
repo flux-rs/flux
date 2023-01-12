@@ -487,7 +487,7 @@ fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
     let (args, body) = qualifier.with_fresh_fvars();
-    let name_gen = IndexGen::new();
+    let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
     let args = args
         .into_iter()
