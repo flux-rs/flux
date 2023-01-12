@@ -54,6 +54,7 @@ pub struct Config {
 pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     fn build() -> Result<Config, config::ConfigError> {
         let mut config_builder = config::Config::builder()
+            .set_default("path", None::<String>)?
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
