@@ -19,8 +19,8 @@ You can set various `env` variables to customize the behavior of `flux`.
 
 # Config file
 
-The config file is a `.toml` file that just contains on each line the lowercase
-name of a `flux` command line flag without the `FLUX_` prefix. Set environment
+The config file is a `.toml` file that contains on each line the lowercase name
+of a `flux` command line flag without the `FLUX_` prefix. Set environment
 variables take priority over the config file.
 
 The config file should be in the project root.
@@ -41,7 +41,7 @@ FLUX_DUMP_MIR=0 cargo-flux check
 
 then `flux` will create the directory `./test/` and write `./test/timings`, a file
 containing profiling information. It will _not_ dump the MIR because that setting
-was overriden by setting `FLUX_DUMP_MIR=0`.
+was overriden by setting the environment variable `FLUX_DUMP_MIR=0`.
 
 ## Check Asserts
 
@@ -49,7 +49,7 @@ TODO
 
 ## Query Caching
 
-`LR_CACHE=1` persistently caches the safe fixpoint queries for each DefId
-in `LR_LOG_DIR/LR_CACHE_FILE`, and on subsequent runs, skips queries that
-are already in the cache, which considerably speeds up `cargo-flux check`
-on an entire crate.
+`FLUX_CACHE=1` persistently caches the safe fixpoint queries for each DefId in
+`FLUX_LOG_DIR/FLUX_CACHE_FILE`, and on subsequent runs, skips queries that are
+already in the cache, which considerably speeds up `cargo-flux check` on an
+entire crate.
