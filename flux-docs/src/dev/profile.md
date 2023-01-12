@@ -1,6 +1,6 @@
 # Profiling Flux
 
-Set `LR_DUMP_TIMINGS=true` to have flux write timing diagnostics to `./log/timings`.
+Set `FLUX_DUMP_TIMINGS=true` to have flux write timing diagnostics to `./log/timings`.
 
 Right now this is _extremely_ simple, it just provides some details for the spans under `flux_typeck` and `flux_driver`.
 
