@@ -1,7 +1,6 @@
 use std::{env, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-
 use flux_common::config::CONFIG;
 
 #[cfg(target_os = "windows")]
