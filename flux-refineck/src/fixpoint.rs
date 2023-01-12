@@ -12,11 +12,11 @@ use flux_middle::{
     rty::{self, Binders, BoundVar},
 };
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Symbol;
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -53,7 +53,7 @@ pub trait KVarGen {
 
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
 type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
-type ConstMap = FxHashMap<DefId, ConstInfo>;
+type ConstMap = FxIndexMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<'genv, 'tcx, T> {
     genv: &'genv GlobalEnv<'genv, 'tcx>,
@@ -70,7 +70,6 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
 #[derive(Debug)]
 struct ConstInfo {
     name: fixpoint::Name,
-    sym: Symbol,
     val: i128,
 }
 
@@ -138,14 +137,8 @@ where
             .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
             .collect_vec();
 
-        let ordered_consts = self
-            .const_map
-            .values()
-            .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
-            .collect_vec();
-
         let mut closed_constraint = constraint;
-        for const_info in ordered_consts.iter() {
+        for const_info in self.const_map.values() {
             closed_constraint = Self::assume_const_val(closed_constraint, const_info);
         }
 
@@ -155,8 +148,9 @@ where
             .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
             .collect();
 
-        let constants = ordered_consts
-            .iter()
+        let constants = self
+            .const_map
+            .values()
             .map(|const_info| (const_info.name, fixpoint::Sort::Int))
             .collect();
 
@@ -350,13 +344,13 @@ impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
 fn fixpoint_const_map(
     genv: &GlobalEnv,
     name_gen: &IndexGen<fixpoint::Name>,
-) -> FxHashMap<DefId, ConstInfo> {
+) -> FxIndexMap<DefId, ConstInfo> {
     genv.map()
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
             let name = name_gen.fresh();
-            let cinfo = ConstInfo { name, sym: const_info.sym, val: const_info.val };
+            let cinfo = ConstInfo { name, val: const_info.val };
             (const_info.def_id, cinfo)
         })
         .collect()
