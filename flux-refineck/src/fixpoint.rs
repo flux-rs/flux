@@ -2,6 +2,7 @@ use std::{fs, io::Write, iter};
 
 use fixpoint::FixpointResult;
 use flux_common::{
+    cache::QueryCache,
     config::CONFIG,
     index::{IndexGen, IndexVec},
 };
@@ -119,6 +120,7 @@ where
 
     pub fn check(
         self,
+        cache: &mut QueryCache,
         did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
@@ -165,7 +167,9 @@ where
             dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
         }
 
-        match task.check() {
+        let task_key = self.genv.tcx.def_path_str(did);
+
+        match task.check_with_cache(task_key, cache) {
             Ok(FixpointResult::Safe(_)) => Ok(()),
             Ok(FixpointResult::Unsafe(_, errors)) => {
                 Err(errors

@@ -1,5 +1,6 @@
 use std::{
     fmt::{self, Write},
+    hash::{Hash, Hasher},
     sync::LazyLock,
 };
 
@@ -14,7 +15,7 @@ pub enum Constraint<Tag> {
     ForAll(Name, Sort, Pred, Box<Self>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub enum Sort {
     Int,
     Bool,
@@ -24,17 +25,19 @@ pub enum Sort {
     Func(FuncSort),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct FuncSort {
     pub inputs_and_output: Vec<Sort>,
 }
 
+#[derive(Hash)]
 pub enum Pred {
     And(Vec<Self>),
     KVar(KVid, Vec<Name>),
     Expr(Expr),
 }
 
+#[derive(Hash)]
 pub enum Expr {
     Var(Name),
     Constant(Constant),
@@ -47,17 +50,19 @@ pub enum Expr {
     Unit,
 }
 
+#[derive(Hash)]
 pub enum Func {
     Var(Name),
     Uif(String),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash)]
 pub enum Proj {
     Fst,
     Snd,
 }
 
+#[derive(Hash)]
 pub struct Qualifier {
     pub name: String,
     pub args: Vec<(Name, Sort)>,
@@ -65,6 +70,7 @@ pub struct Qualifier {
     pub global: bool,
 }
 
+#[derive(Hash)]
 pub struct UifDef {
     pub name: String,
     pub sort: FuncSort,
@@ -143,6 +149,27 @@ impl<Tag> Constraint<Tag> {
             Constraint::Conj(cs) => cs.iter().any(|c| c.is_concrete()),
             Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
+        }
+    }
+}
+
+impl<Tag> Hash for Constraint<Tag> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let tag = std::mem::discriminant(self);
+        tag.hash(state);
+        match self {
+            Constraint::Pred(p, _) => p.hash(state),
+            Constraint::Conj(cs) => cs.hash(state),
+            Constraint::Guard(p, c) => {
+                p.hash(state);
+                c.hash(state)
+            }
+            Constraint::ForAll(x, t, p, c) => {
+                x.hash(state);
+                t.hash(state);
+                p.hash(state);
+                c.hash(state)
+            }
         }
     }
 }
