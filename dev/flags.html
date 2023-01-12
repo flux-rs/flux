@@ -142,7 +142,26 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="command-line-flags"><a class="header" href="#command-line-flags">Command Line Flags</a></h1>
+<p>You can set various <code>env</code> variables to customize the behavior of <code>flux</code>.</p>
+<ul>
+<li><code>LR_LOG_DIR=path/to/log/</code>  with default <code>./log/</code></li>
+<li><code>LR_DUMP_CONSTRAINT=1</code> sets the directory where constraints, timing and cache are saved.</li>
+<li><code>LR_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
+<li><code>LR_DUMP_TIMINGS=1</code> saves the profile information</li>
+<li><code>LR_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
+<li><code>LR_CHECK_ASSERTS={ignore, assume, check}</code> TODO</li>
+<li><code>LR_POINTER_WIDTH=N</code> TODO (default <code>64</code>)</li>
+<li><code>LR_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
+<li><code>LR_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>LR_CACHE_FILE</code></li>
+<li><code>LR_CACHE_FILE=file.json</code> customizes the cache file, default <code>LR_LOG_DIR/cache.json</code></li>
+</ul>
+<h2 id="check-asserts"><a class="header" href="#check-asserts">Check Asserts</a></h2>
 <p>TODO</p>
+<h2 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h2>
+<p><code>LR_CACHE=1</code> persistently caches the safe fixpoint queries for each DefId
+in <code>LR_LOG_DIR/LR_CACHE_FILE</code>, and on subsequent runs, skips queries that
+are already in the cache, which considerably speeds up <code>cargo-flux check</code>
+on an entire crate.</p>
 
                     </main>
 
