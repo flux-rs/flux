@@ -12,6 +12,7 @@ use flux_middle::{
     rty::{self, Binders, BoundVar},
 };
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -52,7 +53,7 @@ pub trait KVarGen {
 
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
 type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
-type ConstMap = FxHashMap<DefId, ConstInfo>;
+type ConstMap = FxIndexMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<'genv, 'tcx, T> {
     genv: &'genv GlobalEnv<'genv, 'tcx>,
@@ -66,6 +67,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     tags_inv: FxHashMap<T, TagIdx>,
 }
 
+#[derive(Debug)]
 struct ConstInfo {
     name: fixpoint::Name,
     val: i128,
@@ -342,9 +344,10 @@ impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
 fn fixpoint_const_map(
     genv: &GlobalEnv,
     name_gen: &IndexGen<fixpoint::Name>,
-) -> FxHashMap<DefId, ConstInfo> {
+) -> FxIndexMap<DefId, ConstInfo> {
     genv.map()
         .consts()
+        .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
             let name = name_gen.fresh();
             let cinfo = ConstInfo { name, val: const_info.val };
@@ -478,7 +481,7 @@ fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
 
 fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
     let (args, body) = qualifier.with_fresh_fvars();
-    let name_gen = IndexGen::new();
+    let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
     let args = args
         .into_iter()
