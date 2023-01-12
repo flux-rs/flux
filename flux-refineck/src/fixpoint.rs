@@ -16,6 +16,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Symbol;
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -69,6 +70,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
 #[derive(Debug)]
 struct ConstInfo {
     name: fixpoint::Name,
+    sym: Symbol,
     val: i128,
 }
 
@@ -136,12 +138,14 @@ where
             .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
             .collect_vec();
 
-        let mut ordered_consts = self.const_map.values().collect_vec();
-        ordered_consts.sort_by(|a, b| a.val.partial_cmp(&b.val).unwrap());
+        let ordered_consts = self
+            .const_map
+            .values()
+            .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
+            .collect_vec();
 
         let mut closed_constraint = constraint;
         for const_info in ordered_consts.iter() {
-            println!("TRACE: {const_info:?}");
             closed_constraint = Self::assume_const_val(closed_constraint, const_info);
         }
 
@@ -349,10 +353,10 @@ fn fixpoint_const_map(
 ) -> FxHashMap<DefId, ConstInfo> {
     genv.map()
         .consts()
+        .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
             let name = name_gen.fresh();
-            println!("TRACE: fixpoint_const {:?} {:?}", const_info.def_id, const_info.sym);
-            let cinfo = ConstInfo { name, val: const_info.val };
+            let cinfo = ConstInfo { name, sym: const_info.sym, val: const_info.val };
             (const_info.def_id, cinfo)
         })
         .collect()

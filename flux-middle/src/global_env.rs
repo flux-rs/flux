@@ -133,7 +133,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     fn fn_quals(&self, did: DefId) -> Vec<String> {
-        match self.fn_quals.get(&did) {
+        let qs = self.fn_quals.get(&did);
+        println!("TRACE: fn_quals {did:?} = {qs:?}");
+        match qs {
             None => vec![],
             Some(names) => names.iter().map(|name| name.to_string()).collect(),
         }
