@@ -142,7 +142,7 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h1>
-<p>Set <code>LR_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
+<p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
 <p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
 <h2 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h2>
 <p>Below is a sample output for an invocation of <code>cargo-flux check</code> that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for <code>cargo check</code> to run.</p>
