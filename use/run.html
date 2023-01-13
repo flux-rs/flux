@@ -147,7 +147,7 @@
 For example, the following command checks the file <code>test.rs</code>.</p>
 <pre><code class="language-bash">rustc-flux path/to/test.rs
 </code></pre>
-<p>The flux binary accepts the same flags than rustc.
+<p>The flux binary accepts the same flags as rustc.
 You could for example check a file as a library instead of a binary like so</p>
 <pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
@@ -161,12 +161,13 @@ instead of running <code>cargo check</code>, you should run</p>
 </code></pre>
 <p>in order to get <code>flux</code> to check your code.</p>
 <h2 id="developing-locally"><a class="header" href="#developing-locally">Developing locally</a></h2>
-<p>You can set the <code>FLUX_PATH</code> environment variable to <code>./target/debug/flux</code> if you
-want <code>cargo-flux</code> and <code>rustc-flux</code> to use the version of <code>flux</code> that is built when you run <code>cargo build</code>. This is useful if you want to run <code>cargo build</code> instead
+<p>You can set the <code>FLUX_DRIVER_PATH</code> environment variable to <code>./target/debug/flux</code> if you
+want <code>cargo-flux</code> and <code>rustc-flux</code> to use the version of <code>flux-driver</code> that is built
+when you run <code>cargo build</code>. This is useful if you want to run <code>cargo build</code> instead
 of <code>cargo install --path flux</code> every time you make a change.</p>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
-<p>The following example declares a funcion <code>inc</code>
-that returns a integer greater than the input.
+<p>The following example declares a function <code>inc</code>
+that returns an integer greater than the input.
 We use the nightly feature <code>register_tool</code>
 to register the <code>flux</code> tool in order to
 add refinement annotations to functions.</p>
@@ -181,10 +182,10 @@ pub fn inc(x: i32) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>You can save the above snippet in say <code>test0.rs</code> and then run</p>
-<pre><code>$ rustc-flux --crate-type=lib path/to/test0.rs
+<pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test0.rs
 </code></pre>
 <p>you should see in your output</p>
-<pre><code>error[FLUX]: postcondition might not hold
+<pre><code class="language-text">error[FLUX]: postcondition might not hold
  --&gt; test0.rs:6:5
   |
 6 |     x - 1
@@ -195,13 +196,13 @@ pub fn inc(x: i32) -&gt; i32 {
 in the output (the output may be empty, but in this case no output is a good
 thing).</p>
 <p>Read <a href="SUMMARY.html#learn">these chapters</a> to learn more about what you specify and verify with <code>flux</code>.</p>
-<h2 id="a-note-about-the-flux-binary"><a class="header" href="#a-note-about-the-flux-binary">A note about the flux binary</a></h2>
-<p>The flux binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
+<h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
+<p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
 driver</a>
 (similar to how clippy works) meaning it uses rustc as a library to &quot;drive&quot;
-compilation performing aditional analysis along the way.  You should never
-execute it on its own - it will probably fail with some ugly error message.
-Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
+compilation performing additional analysis along the way. Running the binary
+requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
+hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
 
                     </main>
 

@@ -151,20 +151,18 @@
 <p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your $PATH.</p>
 <h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
 <p>The only way to use <code>flux</code> is to build it from source.</p>
-<p>First you need to clone this repository</p>
+<p>First you need to clone the repository</p>
 <pre><code class="language-bash">git clone https://github.com/liquid-rust/flux
 cd flux
 </code></pre>
 <p>To build the source you need a nightly version of rustc.
 We pin the version using a <a href="/rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
 If you are using rustup, no special action is needed as it should install the correct rustc version and components based on the information on that file.</p>
-<p>Next, install the <code>flux</code> binary using</p>
+<p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo install --path flux
+cargo install --path flux-bin
 </code></pre>
-<p>Note that you should not call <code>flux</code> directly.</p>
-<p>Finally, install <code>rustc-flux</code> and <code>cargo-flux</code> using</p>
-<pre><code class="language-bash">cargo install --path flux-bin
-</code></pre>
+<p>This will install <code>flux-driver</code>, <code>rustc-flux</code> and <code>cargo-flux</code>. Note that you should not call <code>flux-driver</code> directly, but rather use <code>rustc-flux</code> and <code>cargo-flux</code>.</p>
 
                     </main>
 
