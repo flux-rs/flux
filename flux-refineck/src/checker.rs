@@ -701,93 +701,48 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty1 = self.check_operand(rcx, env, source_info, op1)?;
         let ty2 = self.check_operand(rcx, env, source_info, op2)?;
 
-        match bin_op {
-            mir::BinOp::Eq
-            | mir::BinOp::Ne
-            | mir::BinOp::Gt
-            | mir::BinOp::Ge
-            | mir::BinOp::Lt
-            | mir::BinOp::Le => Ok(self.check_cmp_op(rcx, source_info, bin_op, &ty1, &ty2)),
-            mir::BinOp::Add
-            | mir::BinOp::Sub
-            | mir::BinOp::Mul
-            | mir::BinOp::Div
-            | mir::BinOp::BitAnd
-            | mir::BinOp::BitOr
-            | mir::BinOp::Shl
-            | mir::BinOp::Shr
-            | mir::BinOp::Rem => Ok(self.check_arith_op(rcx, source_info, bin_op, &ty1, &ty2)),
-        }
-    }
-
-    fn check_arith_op(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        source_info: SourceInfo,
-        op: mir::BinOp,
-        ty1: &Ty,
-        ty2: &Ty,
-    ) -> Ty {
-        let (bty, idx1, idx2, sig) = match (op, ty1.kind(), ty2.kind()) {
-            (mir::BinOp::Shl | mir::BinOp::Shr, _, _) => type_of_shift(ty1, ty2, op),
-            (_, Int!(int_ty1, idxs1), Int!(int_ty2, idxs2)) => {
-                debug_assert_eq!(int_ty1, int_ty2);
-                (BaseTy::Int(*int_ty1), idxs1.nth(0), idxs2.nth(0), sigs::signed_bin_ops(op))
-            }
-            (_, Uint!(uint_ty1, idxs1), Uint!(uint_ty2, idxs2)) => {
-                debug_assert_eq!(uint_ty1, uint_ty2);
-                (BaseTy::Uint(*uint_ty1), idxs1.nth(0), idxs2.nth(0), sigs::unsigned_bin_ops(op))
-            }
-            (_, Bool!(idxs1), Bool!(idxs2)) => {
-                (BaseTy::Bool, idxs1.nth(0), idxs2.nth(0), sigs::bool_bin_ops(op))
-            }
-            (_, Float!(float_ty1, _), Float!(float_ty2, _)) => {
+        match (ty1.kind(), ty2.kind()) {
+            (Float!(float_ty1, _), Float!(float_ty2, _)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
-                return Ty::float(*float_ty1);
+                match bin_op {
+                    mir::BinOp::Eq
+                    | mir::BinOp::Ne
+                    | mir::BinOp::Gt
+                    | mir::BinOp::Ge
+                    | mir::BinOp::Lt
+                    | mir::BinOp::Le => Ok(Ty::bool()),
+                    mir::BinOp::Add
+                    | mir::BinOp::Sub
+                    | mir::BinOp::Mul
+                    | mir::BinOp::Div
+                    | mir::BinOp::BitAnd
+                    | mir::BinOp::BitOr
+                    | mir::BinOp::Shl
+                    | mir::BinOp::Shr
+                    | mir::BinOp::Rem => Ok(Ty::float(*float_ty1)),
+                }
+            }
+            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
+                debug_assert_eq!(idxs1.args().len(), 1);
+                debug_assert_eq!(idxs2.args().len(), 1);
+
+                let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
+                let (e1, e2) = (idxs1.nth(0).as_expr().clone(), idxs2.nth(0).as_expr().clone());
+                if let sigs::Pre::Some(tag, constr) = sig.pre {
+                    self.constr_gen(rcx, tag(source_info.span))
+                        .check_pred(rcx, constr([e1.clone(), e2.clone()]));
+                }
+
+                match sig.out.clone() {
+                    sigs::Output::Indexed(bty, mk) => {
+                        Ok(Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))))
+                    }
+                    sigs::Output::Exists(bty, mk) => {
+                        Ok(Ty::full_exists(bty, mk(Expr::nu(), [e1, e2])))
+                    }
+                }
             }
             _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
-        };
-        let (e1, e2) = (idx1.as_expr().clone(), idx2.as_expr().clone());
-        if let sigs::Pre::Some(tag, constr) = sig.pre {
-            self.constr_gen(rcx, tag(source_info.span))
-                .check_pred(rcx, constr([e1.clone(), e2.clone()]));
-        }
-
-        match sig.out {
-            sigs::Output::Indexed(mk) => Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))),
-            sigs::Output::Exists(mk) => Ty::full_exists(bty, mk(Expr::nu(), [e1, e2])),
-        }
-    }
-
-    fn check_cmp_op(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        source_info: SourceInfo,
-        op: mir::BinOp,
-        ty1: &Ty,
-        ty2: &Ty,
-    ) -> Ty {
-        let (idx1, idx2, sig) = match (ty1.kind(), ty2.kind()) {
-            (Int!(int_ty1, idxs1), Int!(int_ty2, idxs2)) => {
-                debug_assert_eq!(int_ty1, int_ty2);
-                (idxs1.nth(0), idxs2.nth(0), sigs::signed_bin_ops(op))
-            }
-            (Uint!(uint_ty1, idxs1), Uint!(uint_ty2, idxs2)) => {
-                debug_assert_eq!(uint_ty1, uint_ty2);
-                (idxs1.nth(0), idxs2.nth(0), sigs::unsigned_bin_ops(op))
-            }
-            (Bool!(idxs1), Bool!(idxs2)) => (idxs1.nth(0), idxs2.nth(0), sigs::bool_bin_ops(op)),
-            _ => return Ty::bool(),
-        };
-        let (e1, e2) = (idx1.as_expr().clone(), idx2.as_expr().clone());
-        if let sigs::Pre::Some(tag, constr) = sig.pre {
-            self.constr_gen(rcx, tag(source_info.span))
-                .check_pred(rcx, constr([e1.clone(), e2.clone()]));
-        }
-
-        match sig.out {
-            sigs::Output::Indexed(mk) => Ty::indexed(BaseTy::Bool, RefineArgs::one(mk([e1, e2]))),
-            sigs::Output::Exists(mk) => Ty::full_exists(BaseTy::Bool, mk(Expr::nu(), [e1, e2])),
         }
     }
 
@@ -924,32 +879,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
         let dominator = self.dominators.immediate_dominator(bb);
         self.snapshots[dominator].as_ref().unwrap()
-    }
-}
-
-fn type_of_shift<'a>(
-    num_ty: &'a Ty,
-    shift_by_ty: &'a Ty,
-    op: mir::BinOp,
-) -> (BaseTy, &'a rty::RefineArg, &'a rty::RefineArg, sigs::Sig<2>) {
-    match (num_ty.kind(), shift_by_ty.kind()) {
-        (Int!(int_ty, int_idxs), Int!(_, shift_by_idxs) | Uint!(_, shift_by_idxs)) => {
-            (BaseTy::Int(*int_ty), int_idxs.nth(0), shift_by_idxs.nth(0), sigs::signed_bin_ops(op))
-        }
-        (Uint!(uint_ty, uint_idxs), Int!(_, shift_by_idxs) | Uint!(_, shift_by_idxs)) => {
-            (
-                BaseTy::Uint(*uint_ty),
-                uint_idxs.nth(0),
-                shift_by_idxs.nth(0),
-                sigs::unsigned_bin_ops(op),
-            )
-        }
-        _ => {
-            unreachable!(
-                "incomapbile types for arithmetic shift: `{:?}` `{:?}`",
-                num_ty, shift_by_ty
-            )
-        }
     }
 }
 
