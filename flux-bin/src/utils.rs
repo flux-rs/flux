@@ -12,7 +12,7 @@ pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
 pub const EXIT_ERR: i32 = -1;
 
-pub fn get_default_flux_path() -> Result<PathBuf> {
+pub fn get_default_flux_driver_path() -> Result<PathBuf> {
     let mut default_flux_path = env::current_exe().map(|path| path.with_file_name("flux"))?;
     if cfg!(target_os = "windows") {
         default_flux_path.set_extension("exe");
@@ -20,14 +20,17 @@ pub fn get_default_flux_path() -> Result<PathBuf> {
     Ok(default_flux_path)
 }
 
-pub fn get_flux_path() -> Result<PathBuf> {
-    let flux_path = config::driver_path()
+pub fn get_flux_driver_path() -> Result<PathBuf> {
+    let flux_driver_path = config::driver_path()
         .cloned()
-        .map_or_else(get_default_flux_path, Ok)?;
-    if !flux_path.is_file() {
-        return Err(anyhow!("flux executable {:?} does not exist or is not a file", flux_path));
+        .map_or_else(get_default_flux_driver_path, Ok)?;
+    if !flux_driver_path.is_file() {
+        return Err(anyhow!(
+            "flux executable {:?} does not exist or is not a file",
+            flux_driver_path
+        ));
     }
-    Ok(flux_path)
+    Ok(flux_driver_path)
 }
 
 pub fn get_rust_toolchain() -> Result<String> {

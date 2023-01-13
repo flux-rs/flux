@@ -9,7 +9,7 @@ For example, the following command checks the file `test.rs`.
 rustc-flux path/to/test.rs
 ```
 
-The flux binary accepts the same flags than rustc.
+The flux binary accepts the same flags as rustc.
 You could for example check a file as a library instead of a binary like so
 
 ```bash
@@ -33,14 +33,15 @@ in order to get `flux` to check your code.
 
 ## Developing locally
 
-You can set the `FLUX_PATH` environment variable to `./target/debug/flux` if you
-want `cargo-flux` and `rustc-flux` to use the version of `flux` that is built when you run `cargo build`. This is useful if you want to run `cargo build` instead
+You can set the `FLUX_DRIVER_PATH` environment variable to `./target/debug/flux` if you
+want `cargo-flux` and `rustc-flux` to use the version of `flux-driver` that is built
+when you run `cargo build`. This is useful if you want to run `cargo build` instead
 of `cargo install --path flux` every time you make a change.
 
 ## A tiny example
 
-The following example declares a funcion `inc`
-that returns a integer greater than the input.
+The following example declares a function `inc`
+that returns an integer greater than the input.
 We use the nightly feature `register_tool`
 to register the `flux` tool in order to
 add refinement annotations to functions.
@@ -57,13 +58,13 @@ pub fn inc(x: i32) -> i32 {
 
 You can save the above snippet in say `test0.rs` and then run
 
-```
-$ rustc-flux --crate-type=lib path/to/test0.rs
+```bash
+rustc-flux --crate-type=lib path/to/test0.rs
 ```
 
 you should see in your output
 
-```
+```text
 error[FLUX]: postcondition might not hold
  --> test0.rs:6:5
   |
@@ -79,11 +80,11 @@ thing).
 
 Read [these chapters](SUMMARY.md#learn) to learn more about what you specify and verify with `flux`.
 
-## A note about the flux binary
+## A note about the flux-driver binary
 
-The flux binary is a [rustc
+The `flux-driver` binary is a [rustc
 driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface)
 (similar to how clippy works) meaning it uses rustc as a library to "drive"
-compilation performing aditional analysis along the way.  You should never
-execute it on its own - it will probably fail with some ugly error message.
-Instead, use `rustc-flux` or `cargo-flux`.
+compilation performing additional analysis along the way. Running the binary
+requires dynamically linking a correct version of `librustc`. Thus, to avoid the
+hassle you should never execute it directly.  Instead, use `rustc-flux` or `cargo-flux`.

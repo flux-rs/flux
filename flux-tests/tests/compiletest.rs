@@ -8,7 +8,7 @@ use itertools::Itertools;
 
 fn find_flux_path() -> PathBuf {
     let target_directory = if cfg!(debug_assertions) { "debug" } else { "release" };
-    let executable_name = if cfg!(windows) { "flux.exe" } else { "flux" };
+    let executable_name = if cfg!(windows) { "flux-driver.exe" } else { "flux-driver" };
     let local_prusti_rustc_path: PathBuf = ["target", target_directory, executable_name]
         .iter()
         .collect();

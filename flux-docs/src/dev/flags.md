@@ -4,8 +4,8 @@ You can set various `env` variables to customize the behavior of `flux`.
 
 * `FLUX_CONFIG` tells `flux` where to find a config file for these settings.
   * By default, `flux` searches its directory for a `flux.toml` or `.flux.toml`.
-* `FLUX_PATH=path/to/flux` tells `cargo-flux` and `rustc-flux` where to find the `flux` binary.
-  * Defaults to the default `flux` installation (typically found in `~/.cargo/bin`).
+* `FLUX_DRIVER_PATH=path/to/flux-driver` tells `cargo-flux` and `rustc-flux` where to find the `flux` binary.
+  * Defaults to the default `flux-driver` installation (typically found in `~/.cargo/bin`).
 * `FLUX_LOG_DIR=path/to/log/` with default `./log/`
 * `FLUX_DUMP_CONSTRAINT=1` sets the directory where constraints, timing and cache are saved.
 * `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)

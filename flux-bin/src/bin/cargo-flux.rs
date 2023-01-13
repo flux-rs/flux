@@ -6,8 +6,8 @@ use std::{
 
 use anyhow::Result;
 use flux_bin::utils::{
-    extend_env_var_with_path, get_flux_path, get_ld_library_path, get_rust_toolchain, EXIT_ERR,
-    LIB_PATH,
+    extend_env_var_with_path, get_flux_driver_path, get_ld_library_path, get_rust_toolchain,
+    EXIT_ERR, LIB_PATH,
 };
 
 fn main() {
@@ -22,7 +22,7 @@ fn main() {
 }
 
 fn run() -> Result<i32> {
-    let flux_path = get_flux_path()?;
+    let flux_path = get_flux_driver_path()?;
     let rust_toolchain = get_rust_toolchain()?;
     let ld_library_path = get_ld_library_path(&rust_toolchain)?;
     let extended_lib_path = extend_env_var_with_path(LIB_PATH, ld_library_path)?;

@@ -56,7 +56,7 @@ pub fn cache_path() -> PathBuf {
 }
 
 pub fn driver_path() -> Option<&'static PathBuf> {
-    CONFIG.path.as_ref()
+    CONFIG.driver_path.as_ref()
 }
 
 impl std::str::FromStr for AssertBehavior {
@@ -82,7 +82,7 @@ pub struct CrateConfig {
 
 #[derive(Deserialize)]
 struct Config {
-    path: Option<PathBuf>,
+    driver_path: Option<PathBuf>,
     log_dir: PathBuf,
     dump_constraint: bool,
     dump_checker_trace: bool,
@@ -98,7 +98,7 @@ struct Config {
 static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     fn build() -> Result<Config, config::ConfigError> {
         let mut config_builder = config::Config::builder()
-            .set_default("path", None::<String>)?
+            .set_default("driver_path", None::<String>)?
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
