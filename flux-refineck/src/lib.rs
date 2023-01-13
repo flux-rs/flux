@@ -35,7 +35,7 @@ use std::{fs, io::Write};
 
 use checker::Checker;
 use constraint_gen::Tag;
-use flux_common::{cache::QueryCache, config::CONFIG};
+use flux_common::{cache::QueryCache, config};
 use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
@@ -63,7 +63,7 @@ pub fn check_fn<'tcx>(
 
         refine_tree.simplify();
 
-        if CONFIG.dump_constraint {
+        if config::dump_constraint() {
             dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
         }
 
@@ -118,7 +118,7 @@ fn dump_constraint<C: std::fmt::Debug>(
     c: &C,
     suffix: &str,
 ) -> Result<(), std::io::Error> {
-    let dir = CONFIG.log_dir.join("horn");
+    let dir = config::log_dir().join("horn");
     fs::create_dir_all(&dir)?;
     let mut file = fs::File::create(dir.join(format!("{}{suffix}", tcx.def_path_str(def_id))))?;
     write!(file, "{c:?}")

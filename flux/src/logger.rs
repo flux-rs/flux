@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use flux_common::config::CONFIG;
+use flux_common::config;
 use tracing::{Dispatch, Level};
 use tracing_subscriber::{filter::Targets, fmt::writer::BoxMakeWriter, prelude::*, Registry};
 use tracing_timing::TimingLayer;
@@ -20,14 +20,14 @@ fn ns_to_ms(timing_ns: u64) -> f64 {
 }
 
 pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
-    let log_dir = &CONFIG.log_dir;
+    let log_dir = config::log_dir();
 
-    if CONFIG.dump_checker_trace || CONFIG.dump_timings {
+    if config::dump_checker_trace() || config::dump_timings() {
         fs::create_dir_all(log_dir)?;
     }
 
     let mut fmt_layer = None;
-    if CONFIG.dump_checker_trace {
+    if config::dump_checker_trace() {
         let file = fs::File::create(log_dir.join(CHECKER_FILE))?;
 
         let writer = BoxMakeWriter::new(Arc::new(file));
@@ -40,7 +40,7 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
     }
 
     let mut timing_layer = None;
-    if CONFIG.dump_timings {
+    if config::dump_timings() {
         timing_layer = Some(
             tracing_timing::Builder::default()
                 .no_span_recursion()
@@ -60,7 +60,7 @@ pub fn install() -> io::Result<impl FnOnce() -> io::Result<()>> {
     dispatch.clone().init();
 
     Ok(move || {
-        if CONFIG.dump_timings {
+        if config::dump_timings() {
             let mut file = fs::File::create(log_dir.join(TIMINGS_FILE))?;
             let timing_layer = dispatch.downcast_ref::<TimingLayer>().unwrap();
             timing_layer.force_synchronize();

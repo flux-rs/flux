@@ -2,7 +2,7 @@ use std::{fs::File, path::PathBuf};
 
 use rustc_hash::FxHashMap;
 
-use crate::config::CONFIG;
+use crate::config;
 
 pub struct QueryCache {
     entries: FxHashMap<String, u64>,
@@ -24,14 +24,16 @@ impl QueryCache {
     }
 
     pub fn is_safe(&self, key: &String, constr_hash: u64) -> bool {
-        CONFIG.cache && self.entries.get(key).map_or(false, |h| *h == constr_hash)
+        config::is_cache_enabled() && self.entries.get(key).map_or(false, |h| *h == constr_hash)
     }
 
     fn path() -> Result<PathBuf, std::io::Error> {
-        if CONFIG.cache {
-            let dir = &CONFIG.log_dir;
-            std::fs::create_dir_all(dir)?;
-            return Ok(dir.join(CONFIG.cache_file.clone()));
+        if config::is_cache_enabled() {
+            let path = config::cache_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+                return Ok(path);
+            }
         }
         Err(Self::no_cache_err())
     }

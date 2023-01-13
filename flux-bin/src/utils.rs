@@ -1,7 +1,7 @@
 use std::{env, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use flux_common::config::CONFIG;
+use flux_common::config;
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
@@ -21,7 +21,9 @@ pub fn get_default_flux_path() -> Result<PathBuf> {
 }
 
 pub fn get_flux_path() -> Result<PathBuf> {
-    let flux_path = &CONFIG.path.clone().map_or_else(get_default_flux_path, Ok)?;
+    let flux_path = config::driver_path()
+        .cloned()
+        .map_or_else(get_default_flux_path, Ok)?;
     if !flux_path.is_file() {
         return Err(anyhow!("flux executable {:?} does not exist or is not a file", flux_path));
     }

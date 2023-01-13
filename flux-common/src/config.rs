@@ -15,6 +15,50 @@ pub enum AssertBehavior {
     Check,
 }
 
+pub fn check_def() -> &'static str {
+    &CONFIG.check_def
+}
+
+pub fn dump_timings() -> bool {
+    CONFIG.dump_timings
+}
+
+pub fn dump_checker_trace() -> bool {
+    CONFIG.dump_checker_trace
+}
+
+pub fn dump_mir() -> bool {
+    CONFIG.dump_mir
+}
+
+pub fn dump_constraint() -> bool {
+    CONFIG.dump_constraint
+}
+
+pub fn pointer_width() -> u64 {
+    CONFIG.pointer_width
+}
+
+pub fn assert_behavior() -> AssertBehavior {
+    CONFIG.check_asserts
+}
+
+pub fn log_dir() -> &'static PathBuf {
+    &CONFIG.log_dir
+}
+
+pub fn is_cache_enabled() -> bool {
+    CONFIG.cache
+}
+
+pub fn cache_path() -> PathBuf {
+    log_dir().join(&CONFIG.cache_file)
+}
+
+pub fn driver_path() -> Option<&'static PathBuf> {
+    CONFIG.path.as_ref()
+}
+
 impl std::str::FromStr for AssertBehavior {
     type Err = ();
 
@@ -37,21 +81,21 @@ pub struct CrateConfig {
 }
 
 #[derive(Deserialize)]
-pub struct Config {
-    pub path: Option<PathBuf>,
-    pub log_dir: PathBuf,
-    pub dump_constraint: bool,
-    pub dump_checker_trace: bool,
-    pub dump_timings: bool,
-    pub check_asserts: AssertBehavior,
-    pub dump_mir: bool,
-    pub pointer_width: u64,
-    pub check_def: String,
-    pub cache: bool,
-    pub cache_file: String,
+struct Config {
+    path: Option<PathBuf>,
+    log_dir: PathBuf,
+    dump_constraint: bool,
+    dump_checker_trace: bool,
+    dump_timings: bool,
+    check_asserts: AssertBehavior,
+    dump_mir: bool,
+    pointer_width: u64,
+    check_def: String,
+    cache: bool,
+    cache_file: String,
 }
 
-pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
+static CONFIG: LazyLock<Config> = LazyLock::new(|| {
     fn build() -> Result<Config, config::ConfigError> {
         let mut config_builder = config::Config::builder()
             .set_default("path", None::<String>)?

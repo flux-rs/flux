@@ -3,7 +3,7 @@ use std::{fs, io::Write, iter};
 use fixpoint::FixpointResult;
 use flux_common::{
     cache::QueryCache,
-    config::CONFIG,
+    config,
     index::{IndexGen, IndexVec},
 };
 use flux_fixpoint as fixpoint;
@@ -165,7 +165,7 @@ where
 
         let task =
             fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
-        if CONFIG.dump_constraint {
+        if config::dump_constraint() {
             dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
         }
 
@@ -468,7 +468,7 @@ fn dump_constraint<C: std::fmt::Debug>(
     c: &C,
     suffix: &str,
 ) -> Result<(), std::io::Error> {
-    let dir = CONFIG.log_dir.join("horn");
+    let dir = config::log_dir().join("horn");
     fs::create_dir_all(&dir)?;
     let mut file = fs::File::create(dir.join(format!("{}{suffix}", tcx.def_path_str(def_id))))?;
     write!(file, "{c:?}")
