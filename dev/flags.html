@@ -149,12 +149,12 @@
 <li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
 </ul>
 </li>
-<li><code>FLUX_PATH=path/to/flux</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux</code> binary. 
+<li><code>FLUX_PATH=path/to/flux</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux</code> binary.
 <ul>
 <li>Defaults to the default <code>flux</code> installation (typically found in <code>~/.cargo/bin</code>).</li>
 </ul>
 </li>
-<li><code>FLUX_LOG_DIR=path/to/log/</code>  with default <code>./log/</code></li>
+<li><code>FLUX_LOG_DIR=path/to/log/</code> with default <code>./log/</code></li>
 <li><code>FLUX_DUMP_CONSTRAINT=1</code> sets the directory where constraints, timing and cache are saved.</li>
 <li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
 <li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
@@ -180,11 +180,11 @@ dump_mir = true
 </code></pre>
 <p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
 containing profiling information. It will <em>not</em> dump the MIR because that setting
-was overriden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
+was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
 <h2 id="check-asserts"><a class="header" href="#check-asserts">Check Asserts</a></h2>
 <p>TODO</p>
 <h2 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h2>
-<p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each DefId in
+<p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each <code>DefId</code> in
 <code>FLUX_LOG_DIR/FLUX_CACHE_FILE</code>, and on subsequent runs, skips queries that are
 already in the cache, which considerably speeds up <code>cargo-flux check</code> on an
 entire crate.</p>
