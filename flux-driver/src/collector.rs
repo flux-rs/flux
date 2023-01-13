@@ -702,13 +702,13 @@ impl FluxAttrCFG {
     }
 
     fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
-        let log_dir = try_read_setting!(self, "log_dir", PathBuf, config::CONFIG.log_dir.clone())?;
+        let log_dir = try_read_setting!(self, "log_dir", PathBuf, config::log_dir().clone())?;
         let dump_constraint =
-            try_read_setting!(self, "dump_constraint", bool, config::CONFIG.dump_constraint)?;
+            try_read_setting!(self, "dump_constraint", bool, config::dump_constraint())?;
         let dump_checker_trace =
-            try_read_setting!(self, "dump_checker_trace", bool, config::CONFIG.dump_checker_trace)?;
+            try_read_setting!(self, "dump_checker_trace", bool, config::dump_checker_trace())?;
         let check_asserts =
-            try_read_setting!(self, "check_asserts", AssertBehavior, config::CONFIG.check_asserts)?;
+            try_read_setting!(self, "check_asserts", AssertBehavior, config::assert_behavior())?;
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {

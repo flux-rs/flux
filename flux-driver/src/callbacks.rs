@@ -1,4 +1,4 @@
-use flux_common::{cache::QueryCache, config::CONFIG, iter::IterExt};
+use flux_common::{cache::QueryCache, config, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
@@ -143,7 +143,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
     fn matches_check_def(&self, def_id: LocalDefId) -> bool {
         let def_path = self.genv.tcx.def_path_str(def_id.to_def_id());
-        def_path.contains(&CONFIG.check_def)
+        def_path.contains(config::check_def())
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -172,7 +172,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return Ok(());
         }
 
-        if flux_common::config::CONFIG.dump_mir {
+        if config::dump_mir() {
             let mut w = std::io::BufWriter::new(std::io::stdout());
             rustc_middle::mir::pretty::write_mir_fn(
                 self.genv.tcx,

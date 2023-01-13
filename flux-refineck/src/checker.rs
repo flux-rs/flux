@@ -10,7 +10,7 @@ extern crate rustc_span;
 use std::collections::{hash_map::Entry, BinaryHeap};
 
 use flux_common::{
-    config::{AssertBehavior, CONFIG},
+    config::{self, AssertBehavior},
     index::IndexVec,
 };
 use flux_middle::{
@@ -988,11 +988,11 @@ fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
 }
 
 fn uint_bit_width(uint_ty: UintTy) -> u64 {
-    uint_ty.bit_width().unwrap_or(CONFIG.pointer_width)
+    uint_ty.bit_width().unwrap_or(config::pointer_width())
 }
 
 fn int_bit_width(int_ty: IntTy) -> u64 {
-    int_ty.bit_width().unwrap_or(CONFIG.pointer_width)
+    int_ty.bit_width().unwrap_or(config::pointer_width())
 }
 
 impl Phase for Inference<'_> {

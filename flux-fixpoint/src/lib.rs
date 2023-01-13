@@ -1,4 +1,4 @@
-#![feature(rustc_private, min_specialization, once_cell, box_patterns)]
+#![feature(rustc_private, min_specialization, once_cell, box_patterns, let_chains)]
 
 extern crate rustc_index;
 extern crate rustc_serialize;
@@ -18,7 +18,7 @@ pub use constraint::{
     BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj, Qualifier,
     Sign, Sort, UifDef, UnOp,
 };
-use flux_common::{cache::QueryCache, config::CONFIG, format::PadAdapter};
+use flux_common::{cache::QueryCache, config, format::PadAdapter};
 use itertools::Itertools;
 use serde::{de, Deserialize};
 
@@ -98,13 +98,13 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
     ) -> io::Result<FixpointResult<Tag>> {
         let hash = self.hash_with_default();
 
-        if CONFIG.cache && cache.is_safe(&key, hash) {
+        if config::is_cache_enabled() && cache.is_safe(&key, hash) {
             return Ok(FixpointResult::Safe(Default::default()));
         }
 
         let result = self.check();
 
-        if let Ok(FixpointResult::Safe(_)) = result {
+        if config::is_cache_enabled() && let Ok(FixpointResult::Safe(_)) = result {
             cache.insert(key, hash);
         }
         result

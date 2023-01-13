@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::hash_map};
 
-use flux_common::config::{AssertBehavior, CONFIG};
+use flux_common::config::{self, AssertBehavior};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
@@ -42,7 +42,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         sess: &'genv FluxSession,
         map: fhir::Map,
     ) -> Result<Self, ErrorGuaranteed> {
-        let check_asserts = CONFIG.check_asserts;
+        let check_asserts = config::assert_behavior();
 
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
         for defn in map.defns() {
