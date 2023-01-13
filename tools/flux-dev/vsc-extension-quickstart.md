@@ -4,7 +4,7 @@
 
 * This folder contains all of the files necessary for your extension.
 * `package.json` - this is the manifest file in which you declare your language support and define the location of the grammar file that has been copied into your extension.
-* `syntaxes/lrc.tmLanguage.json` - this is the Text mate grammar file that is used for tokenization.
+* `syntaxes/fluxc.tmLanguage.json` - this is the Text mate grammar file that is used for tokenization.
 * `language-configuration.json` - this is the language configuration, defining the tokens that are used for comments and brackets.
 
 ## Get up and running straight away
@@ -21,9 +21,9 @@
 
 ## Add more language features
 
-* To add features such as intellisense, hovers and validators check out the VS Code extenders documentation at https://code.visualstudio.com/docs
+* To add features such as intellisense, hovers and validators check out the VS Code extenders documentation at <https://code.visualstudio.com/docs>
 
 ## Install your extension
 
 * To start using your extension with Visual Studio Code copy it into the `<user home>/.vscode/extensions` folder and restart Code.
-* To share your extension with the world, read on https://code.visualstudio.com/docs about publishing an extension.
+* To share your extension with the world, read on <https://code.visualstudio.com/docs> about publishing an extension.

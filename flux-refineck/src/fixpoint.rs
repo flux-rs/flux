@@ -1,9 +1,9 @@
-use std::{fs, io::Write, iter};
+use std::iter;
 
 use fixpoint::FixpointResult;
 use flux_common::{
     cache::QueryCache,
-    config,
+    config, dbg,
     index::{IndexGen, IndexVec},
 };
 use flux_fixpoint as fixpoint;
@@ -16,7 +16,6 @@ use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-use rustc_middle::ty::TyCtxt;
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -166,7 +165,7 @@ where
         let task =
             fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
         if config::dump_constraint() {
-            dump_constraint(self.genv.tcx, did, &task, ".smt2").unwrap();
+            dbg::dump_item_info(self.genv.tcx, did, "smt2", &task).unwrap();
         }
 
         let task_key = self.genv.tcx.def_path_str(did);
@@ -459,19 +458,6 @@ fn func_sort_to_fixpoint(sort: &rty::FuncSort) -> fixpoint::FuncSort {
             .map(sort_to_fixpoint)
             .collect(),
     }
-}
-
-/// TODO(nilehmann) we should abstract over the dumping files logic
-fn dump_constraint<C: std::fmt::Debug>(
-    tcx: TyCtxt,
-    def_id: DefId,
-    c: &C,
-    suffix: &str,
-) -> Result<(), std::io::Error> {
-    let dir = config::log_dir().join("horn");
-    fs::create_dir_all(&dir)?;
-    let mut file = fs::File::create(dir.join(format!("{}{suffix}", tcx.def_path_str(def_id))))?;
-    write!(file, "{c:?}")
 }
 
 fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {

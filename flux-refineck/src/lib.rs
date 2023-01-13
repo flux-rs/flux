@@ -21,7 +21,6 @@ extern crate rustc_span;
 
 mod checker;
 mod constraint_gen;
-mod dbg;
 pub mod invariants;
 mod param_infer;
 mod refine_tree;
@@ -31,17 +30,14 @@ pub mod wf;
 mod fixpoint;
 mod sigs;
 
-use std::{fs, io::Write};
-
 use checker::Checker;
 use constraint_gen::Tag;
-use flux_common::{cache::QueryCache, config};
+use flux_common::{cache::QueryCache, config, dbg};
 use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 pub fn check_fn<'tcx>(
@@ -64,7 +60,7 @@ pub fn check_fn<'tcx>(
         refine_tree.simplify();
 
         if config::dump_constraint() {
-            dump_constraint(genv.tcx, def_id, &refine_tree, ".lrc").unwrap();
+            dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
 
         let mut fcx = fixpoint::FixpointCtxt::new(genv, kvars);
@@ -109,19 +105,6 @@ fn report_errors(
     } else {
         Ok(())
     }
-}
-
-/// TODO(nilehmann) we should abstract over dumping files logic
-fn dump_constraint<C: std::fmt::Debug>(
-    tcx: TyCtxt,
-    def_id: DefId,
-    c: &C,
-    suffix: &str,
-) -> Result<(), std::io::Error> {
-    let dir = config::log_dir().join("horn");
-    fs::create_dir_all(&dir)?;
-    let mut file = fs::File::create(dir.join(format!("{}{suffix}", tcx.def_path_str(def_id))))?;
-    write!(file, "{c:?}")
 }
 
 mod errors {

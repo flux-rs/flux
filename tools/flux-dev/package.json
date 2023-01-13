@@ -1,35 +1,35 @@
 {
-    "name": "flux-dev",
-    "displayName": "flux-dev",
-    "description": "",
-    "version": "0.0.1",
-    "repository": "https://github.com/flux/flux",
-    "engines": {
-        "vscode": "^1.64.0"
-    },
-    "categories": [
-        "Programming Languages"
-    ],
-    "contributes": {
-        "languages": [
-            {
-                "id": "lrc",
-                "aliases": [
-                    "Flux Constraint",
-                    "lrc"
-                ],
-                "extensions": [
-                    ".lrc"
-                ],
-                "configuration": "./language-configuration.json"
-            }
+  "name": "flux-dev",
+  "displayName": "flux-dev",
+  "description": "",
+  "version": "0.0.1",
+  "repository": "https://github.com/flux/flux",
+  "engines": {
+    "vscode": "^1.64.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "fluxc",
+        "aliases": [
+          "Flux Constraint",
+          "fluxc"
         ],
-        "grammars": [
-            {
-                "language": "lrc",
-                "scopeName": "lrc",
-                "path": "./syntaxes/lrc.tmLanguage.json"
-            }
-        ]
-    }
+        "extensions": [
+          ".fluxc"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fluxc",
+        "scopeName": "source.fluxc",
+        "path": "./syntaxes/fluxc.tmLanguage.json"
+      }
+    ]
+  }
 }

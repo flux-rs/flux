@@ -27,7 +27,7 @@ pub fn get_flux_path() -> Result<PathBuf> {
     if !flux_path.is_file() {
         return Err(anyhow!("flux executable {:?} does not exist or is not a file", flux_path));
     }
-    Ok(flux_path.to_path_buf())
+    Ok(flux_path)
 }
 
 pub fn get_rust_toolchain() -> Result<String> {

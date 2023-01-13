@@ -11,6 +11,7 @@ use std::collections::{hash_map::Entry, BinaryHeap};
 
 use flux_common::{
     config::{self, AssertBehavior},
+    dbg,
     index::IndexVec,
 };
 use flux_middle::{
@@ -38,7 +39,6 @@ use rustc_middle::mir as rustc_mir;
 use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, Tag},
-    dbg,
     fixpoint::{KVarEncoding, KVarStore},
     refine_tree::{RefineCtxt, RefineTree, Snapshot},
     sigs,

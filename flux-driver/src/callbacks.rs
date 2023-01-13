@@ -1,4 +1,4 @@
-use flux_common::{cache::QueryCache, config, iter::IterExt};
+use flux_common::{cache::QueryCache, config, dbg, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_middle::{
@@ -173,12 +173,11 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }
 
         if config::dump_mir() {
-            let mut w = std::io::BufWriter::new(std::io::stdout());
             rustc_middle::mir::pretty::write_mir_fn(
                 self.genv.tcx,
                 &mir,
                 &mut |_, _| Ok(()),
-                &mut w,
+                &mut dbg::writer_for_item(self.genv.tcx, def_id.to_def_id(), "mir").unwrap(),
             )
             .unwrap();
         }
