@@ -13,7 +13,8 @@ pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 pub const EXIT_ERR: i32 = -1;
 
 pub fn get_default_flux_driver_path() -> Result<PathBuf> {
-    let mut default_flux_path = env::current_exe().map(|path| path.with_file_name("flux"))?;
+    let mut default_flux_path =
+        env::current_exe().map(|path| path.with_file_name("flux-driver"))?;
     if cfg!(target_os = "windows") {
         default_flux_path.set_extension("exe");
     }
