@@ -1,4 +1,6 @@
-#![flux::sort(opaque GhostTokenId)]
+#![flux::defs {
+    opaque sort GhostTokenId;
+}]
 
 use std::{cell::UnsafeCell, mem};
 

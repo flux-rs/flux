@@ -1,7 +1,9 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
-#![flux::qualifier(Sub2(x: int, a: int, b:int) { x == a - b })]
+#![flux::defs {
+    qualifier Sub2(x: int, a: int, b:int) { x == a - b }
+}]
 #[path = "../../lib/rvec.rs"]
 pub mod rvec;
 

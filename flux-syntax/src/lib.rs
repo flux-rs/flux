@@ -49,16 +49,12 @@ pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surf
     parse!(surface_grammar::FnSigParser, tokens, span)
 }
 
-pub fn parse_qualifier(tokens: TokenStream, span: Span) -> ParseResult<surface::Qualifier> {
-    parse!(surface_grammar::QualifierParser, tokens, span)
-}
-
 pub fn parse_qual_names(tokens: TokenStream, span: Span) -> ParseResult<surface::QualNames> {
     parse!(surface_grammar::QualNamesParser, tokens, span)
 }
 
-pub fn parse_def(tokens: TokenStream, span: Span) -> ParseResult<surface::Def> {
-    parse!(surface_grammar::DefParser, tokens, span)
+pub fn parse_flux_item(tokens: TokenStream, span: Span) -> ParseResult<Vec<surface::Item>> {
+    parse!(surface_grammar::ItemsParser, tokens, span)
 }
 
 pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
@@ -71,10 +67,6 @@ pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::Va
 
 pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr> {
     parse!(surface_grammar::ExprParser, tokens, span)
-}
-
-pub fn parse_sort_decl(tokens: TokenStream, span: Span) -> ParseResult<surface::SortDecl> {
-    parse!(surface_grammar::SortDeclParser, tokens, span)
 }
 
 pub enum UserParseError {

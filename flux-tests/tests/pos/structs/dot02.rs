@@ -1,7 +1,9 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
-#![flux::qualifier(MyQ1(x: int, y: int, z: int) { x + y <= z + 10 })]
+#![flux::defs {
+    qualifier MyQ1(x: int, y: int, z: int) { x + y <= z + 10 }
+}]
 
 #[path = "../../lib/rvec.rs"]
 pub mod rvec;
