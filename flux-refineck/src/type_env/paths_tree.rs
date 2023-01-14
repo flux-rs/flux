@@ -149,7 +149,7 @@ impl PathsTree {
     }
 
     pub fn block(&mut self, path: &Path, expect_owned: bool) -> Ty {
-        self.block_with_fn(path, |ty| ty.clone(), expect_owned)
+        self.block_with_fn(path, Clone::clone, expect_owned)
     }
 
     pub fn block_with(&mut self, path: &Path, updated: Ty, expect_owned: bool) -> Ty {
@@ -159,7 +159,7 @@ impl PathsTree {
             Node::Leaf(Binding::Owned(old)) => old.clone(),
             Node::Leaf(Binding::Blocked(old)) => {
                 if expect_owned {
-                    tracked_span_bug!("expected owned node `{node:?}`")
+                    tracked_span_bug!("expected owned node `{node:?}`");
                 }
                 old.clone()
             }
@@ -181,7 +181,7 @@ impl PathsTree {
             Node::Leaf(Binding::Owned(old)) => old.clone(),
             Node::Leaf(Binding::Blocked(old)) => {
                 if expect_owned {
-                    tracked_span_bug!("expected owned node `{node:?}`")
+                    tracked_span_bug!("expected owned node `{node:?}`");
                 }
                 old.clone()
             }
@@ -908,9 +908,8 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                LocKind::Local => Ok(()),
+                LocKind::Local | LocKind::Universal => Ok(()),
                 LocKind::Box(_) => w!("[box]"),
-                LocKind::Universal => Ok(()),
             }
         }
     }

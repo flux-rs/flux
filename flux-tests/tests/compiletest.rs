@@ -22,9 +22,8 @@ fn find_flux_path() -> PathBuf {
         return workspace_prusti_rustc_path;
     }
     panic!(
-        "Could not find the {:?} flux binary to be used in tests. \
-        It might be that flux has not been compiled correctly.",
-        target_directory
+        "Could not find the {target_directory:?} flux-driver binary to be used in tests. \
+        It might be that flux has not been compiled correctly."
     );
 }
 

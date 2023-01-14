@@ -566,8 +566,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         if remaining.count() == 1 {
             let i = remaining.iter().next().unwrap();
-            successors
-                .push((targets.otherwise(), Guard::Match(place.clone(), VariantIdx::from_usize(i))))
+            successors.push((
+                targets.otherwise(),
+                Guard::Match(place.clone(), VariantIdx::from_usize(i)),
+            ));
         } else {
             successors.push((targets.otherwise(), Guard::None));
         }

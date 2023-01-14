@@ -146,9 +146,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let def_id = item.owner_id.def_id;
         let span = item.span;
-        let val = match eval_const(self.tcx, def_id) {
-            Some(val) => val,
-            None => return Err(self.emit_err(errors::InvalidConstant { span })),
+        let Some(val) = eval_const(self.tcx, def_id) else {
+            return Err(self.emit_err(errors::InvalidConstant { span }))
         };
 
         let size = val.size();
@@ -301,9 +300,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 
     fn parse_flux_attr(&mut self, attr_item: &AttrItem) -> Result<FluxAttr, ErrorGuaranteed> {
-        let segment = match &attr_item.path.segments[..] {
-            [_, segment] => segment,
-            _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
+        let [_, segment] = &attr_item.path.segments[..] else {
+            return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }))
         };
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {

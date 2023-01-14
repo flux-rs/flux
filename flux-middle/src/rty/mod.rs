@@ -599,14 +599,14 @@ impl TyS {
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
         self.as_bty_skipping_binders()
-            .map(|bty| bty.is_integral())
+            .map(BaseTy::is_integral)
             .unwrap_or_default()
     }
 
     /// Whether the type is a `bool`
     pub fn is_bool(&self) -> bool {
         self.as_bty_skipping_binders()
-            .map(|bty| bty.is_bool())
+            .map(BaseTy::is_bool)
             .unwrap_or_default()
     }
 
@@ -1110,7 +1110,7 @@ impl Defns {
                 .iter()
                 .filter_map(|s| s2i.get(s).copied())
                 .collect_vec();
-            adj_list.push(ddeps)
+            adj_list.push(ddeps);
         }
         let mut g = IndexGraph::from_adjacency_list(&adj_list);
         g.transpose();

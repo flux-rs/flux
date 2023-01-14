@@ -383,9 +383,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
             }
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
-                let path = if let hir::QPath::Resolved(None, path) = qpath {
-                    path
-                } else {
+                let hir::QPath::Resolved(None, path) = qpath else {
                     return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
                         qpath.span(),
                         "unsupported type",

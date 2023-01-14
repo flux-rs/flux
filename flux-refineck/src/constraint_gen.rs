@@ -250,7 +250,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen, scopes, evar_gen, tag }
+        Self { genv, kvar_gen, evar_gen, tag, scopes }
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -281,7 +281,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
-        rcx.check_pred(pred, self.tag)
+        rcx.check_pred(pred, self.tag);
     }
 
     fn check_type_constr(
@@ -405,7 +405,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char) => {}
             _ => {
-                tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,)
+                tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
         }
     }
@@ -477,7 +477,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 } else {
                     tracked_span_bug!(
                         "invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`"
-                    )
+                    );
                 }
             }
         }
@@ -489,7 +489,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
            && let scope = &self.scopes[&evar.cx()]
            && !scope.has_free_vars(arg1)
         {
-            self.evar_gen.unify(*evar, arg1, replace)
+            self.evar_gen.unify(*evar, arg1, replace);
         }
     }
 

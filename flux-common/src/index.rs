@@ -6,7 +6,7 @@ pub use rustc_index::vec::{Idx, IndexVec};
 ///
 /// It can generate any index created with the [`newtype_index`] macro.
 ///
-/// If you use more than one [IndexGen] uniqueness is only guaranteed for indices that come from
+/// If you use more than one [`IndexGen`] uniqueness is only guaranteed for indices that come from
 /// the same generator.
 ///
 /// [`newtype_index`]: rustc_index::newtype_index

@@ -345,7 +345,7 @@ fn build_fhir_map(
                 map.insert_fn_sig(def_id, fn_sig);
             }
             if let Some(quals) = spec.qual_names {
-                map.insert_fn_quals(def_id, quals.names)
+                map.insert_fn_quals(def_id, quals.names);
             }
             Ok(())
         })

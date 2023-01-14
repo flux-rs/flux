@@ -274,12 +274,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
-            fhir::Ty::Array(ty, _) => self.check_type(env, ty),
+            fhir::Ty::Ref(_, ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty),
             fhir::Ty::Constr(pred, ty) => {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::Ref(_, ty) => self.check_type(env, ty),
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)

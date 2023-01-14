@@ -256,9 +256,8 @@ where
     I: Iterator<Item = T>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let iter = match self.iter.borrow_mut().take() {
-            Some(t) => t,
-            None => panic!("Join: was already formatted once"),
+        let Some(iter) = self.iter.borrow_mut().take() else {
+            panic!("Join: was already formatted once")
         };
         for (i, item) in iter.enumerate() {
             if i > 0 {
@@ -276,9 +275,8 @@ where
     I: Iterator<Item = T>,
 {
     fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let iter = match self.iter.borrow_mut().take() {
-            Some(t) => t,
-            None => panic!("Join: was already formatted once"),
+        let Some(iter) = self.iter.borrow_mut().take() else {
+            panic!("Join: was already formatted once")
         };
         for (i, item) in iter.enumerate() {
             if i > 0 {

@@ -143,10 +143,10 @@ impl<Tag> Constraint<Tag> {
     pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
-    /// If '!c.is_concrete'  then 'c' is trivially satisfiable and we can avoid calling fixpoint.
+    /// If `!c.is_concrete`  then `c` is trivially satisfiable and we can avoid calling fixpoint.
     pub fn is_concrete(&self) -> bool {
         match self {
-            Constraint::Conj(cs) => cs.iter().any(|c| c.is_concrete()),
+            Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
             Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
         }
@@ -162,13 +162,13 @@ impl<Tag> Hash for Constraint<Tag> {
             Constraint::Conj(cs) => cs.hash(state),
             Constraint::Guard(p, c) => {
                 p.hash(state);
-                c.hash(state)
+                c.hash(state);
             }
             Constraint::ForAll(x, t, p, c) => {
                 x.hash(state);
                 t.hash(state);
                 p.hash(state);
-                c.hash(state)
+                c.hash(state);
             }
         }
     }
@@ -187,7 +187,7 @@ impl Pred {
 
     pub fn is_concrete(&self) -> bool {
         match self {
-            Pred::And(ps) => ps.iter().any(|p| p.is_concrete()),
+            Pred::And(ps) => ps.iter().any(Pred::is_concrete),
             Pred::KVar(_, _) => false,
             Pred::Expr(_) => true,
         }

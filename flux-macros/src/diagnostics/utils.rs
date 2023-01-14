@@ -778,7 +778,7 @@ impl SubdiagnosticKind {
                 (_, SubdiagnosticKind::MultipartSuggestion { .. }) => {
                     invalid_nested_attr(attr, &nested_attr)
                         .help("only `style` and `applicability` are valid nested attributes")
-                        .emit()
+                        .emit();
                 }
                 _ => {
                     invalid_nested_attr(attr, &nested_attr).emit();

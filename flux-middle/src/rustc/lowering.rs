@@ -304,8 +304,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             .resolve_instance(param_env.and((callee_id, substs)))
             .ok()
             .flatten()
-            .map(|instance| (instance.def_id(), instance.substs))
-            .unwrap_or_else(|| (callee_id, substs));
+            .map_or_else(|| (callee_id, substs), |instance| (instance.def_id(), instance.substs));
 
         let call_substs =
             CallSubsts { lowered: lower_substs(self.tcx, resolved_substs)?, orig: resolved_substs };
@@ -596,7 +595,7 @@ fn lower_binder<S, T>(
     for var in binder.bound_vars() {
         match var {
             rustc_ty::BoundVariableKind::Region(kind) => {
-                vars.push(BoundVariableKind::Region(lower_bound_region_kind(kind)?))
+                vars.push(BoundVariableKind::Region(lower_bound_region_kind(kind)?));
             }
             _ => {
                 return Err(UnsupportedType {

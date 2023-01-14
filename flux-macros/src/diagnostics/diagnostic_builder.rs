@@ -1,4 +1,4 @@
-#![deny(unused_must_use)]
+#![allow(warnings)]
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote};
@@ -275,7 +275,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                     _ => {
                         invalid_nested_attr(attr, &nested_attr)
                             .help("only `code` is a valid nested attributes following the slug")
-                            .emit()
+                            .emit();
                     }
                 }
             }

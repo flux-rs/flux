@@ -247,7 +247,7 @@ impl RefineCtxt<'_> {
                 }
             }
         }
-        ty.visit_with(&mut Visitor(self))
+        ty.visit_with(&mut Visitor(self));
     }
 
     pub fn replace_evars(&mut self, evars: &EVarSol) {

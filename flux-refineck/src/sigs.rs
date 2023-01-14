@@ -226,7 +226,7 @@ where
         self.map.extend(
             iter.into_iter()
                 .map(|(op, sig)| ((op, sig.args.clone()), sig)),
-        )
+        );
     }
 
     fn get(&self, op: T, btys: [BaseTy; N]) -> &Sig<N> {

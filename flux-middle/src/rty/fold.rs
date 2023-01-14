@@ -451,7 +451,7 @@ impl TypeFoldable for BaseTy {
     }
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        visitor.visit_bty(self)
+        visitor.visit_bty(self);
     }
 }
 
@@ -577,7 +577,7 @@ impl TypeFoldable for Var {
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.to_expr().visit_with(visitor)
+        self.to_expr().visit_with(visitor);
     }
 }
 
@@ -617,7 +617,7 @@ impl TypeFoldable for Qualifier {
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.body.visit_with(visitor)
+        self.body.visit_with(visitor);
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::hash_map};
+use std::{cell::RefCell, collections::hash_map, string::ToString};
 
 use flux_common::config::{self, AssertBehavior};
 use flux_errors::{ErrorGuaranteed, FluxSession};
@@ -135,7 +135,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     fn fn_quals(&self, did: DefId) -> Vec<String> {
         match self.fn_quals.get(&did) {
             None => vec![],
-            Some(names) => names.iter().map(|name| name.to_string()).collect(),
+            Some(names) => names.iter().map(ToString::to_string).collect(),
         }
     }
 

@@ -182,9 +182,9 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
     fn zip_ty(&self, ty: &Ty<Res>, rust_ty: &rustc_ty::Ty) -> Result<(), ErrorGuaranteed> {
         match (&ty.kind, rust_ty.kind()) {
-            (TyKind::Base(bty), _)
-            | (TyKind::Indexed { bty, .. }, _)
-            | (TyKind::Exists { bty, .. }, _) => self.zip_bty(bty, rust_ty, ty.span),
+            (TyKind::Base(bty) | TyKind::Indexed { bty, .. } | TyKind::Exists { bty, .. }, _) => {
+                self.zip_bty(bty, rust_ty, ty.span)
+            }
             (TyKind::Constr(_, ty), _) => self.zip_ty(ty, rust_ty),
             (TyKind::Ref(rk, ref_ty), rustc_ty::TyKind::Ref(rust_ty, mutability)) => {
                 self.zip_ty(ref_ty, rust_ty)?;

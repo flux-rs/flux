@@ -34,7 +34,7 @@ struct KVarDecl {
     encoding: KVarEncoding,
 }
 
-/// How an [rty::KVar] is encoded in the fixpoint constraint
+/// How an [`rty::KVar`] is encoded in the fixpoint constraint
 #[derive(Clone, Copy)]
 pub enum KVarEncoding {
     /// Generate a single kvar appending the self arguments and the scope, i.e.,
@@ -480,7 +480,7 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fi
     let name = qualifier.name.clone();
     let body = expr_to_fixpoint(&body, &name_map, const_map);
     let global = qualifier.global;
-    fixpoint::Qualifier { body, args, name, global }
+    fixpoint::Qualifier { name, args, body, global }
 }
 
 fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {

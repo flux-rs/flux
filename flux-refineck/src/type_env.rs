@@ -142,7 +142,7 @@ impl TypeEnv {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
             FoldResult::Weak(WeakKind::Shr, _) => {
-                tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference")
+                tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");
             }
         }
         Ok(())

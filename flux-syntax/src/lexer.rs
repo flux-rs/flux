@@ -163,12 +163,12 @@ impl Cursor {
             TokenKind::ModSep => Token::ModSep,
             _ => Token::Invalid,
         };
-        self.push_token(span.lo(), token, span.hi())
+        self.push_token(span.lo(), token, span.hi());
     }
 
     fn push_token(&mut self, lo: BytePos, token: Token, hi: BytePos) {
         self.tokens
-            .push_back((Location(lo - self.offset), token, Location(hi - self.offset)))
+            .push_back((Location(lo - self.offset), token, Location(hi - self.offset)));
     }
 
     fn advance(&mut self) -> Option<()> {
@@ -188,7 +188,7 @@ impl Cursor {
                         _ => {}
                     }
                 }
-                self.map_token(token)
+                self.map_token(token);
             }
             Some(TokenTree::Delimited(span, delim, tokens)) => {
                 let close = (
@@ -199,7 +199,7 @@ impl Cursor {
                 self.stack
                     .push(Frame { cursor: tokens.into_trees().peekable(), close: Some(close) });
                 let token = token::Token { kind: TokenKind::OpenDelim(delim), span: span.open };
-                self.map_token(token)
+                self.map_token(token);
             }
             None => self.tokens.push_back(self.stack.pop()?.close?),
         }
