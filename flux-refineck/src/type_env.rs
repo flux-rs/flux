@@ -633,6 +633,10 @@ impl TypeEnvInfer {
                     .collect_vec();
                 Ty::tuple(tys)
             }
+            (TyKind::Array(ty1, len1), TyKind::Array(ty2, len2)) => {
+                debug_assert_eq!(len1, len2);
+                Ty::array(self.join_ty(ty1, ty2, src_info), len1.clone())
+            }
             _ => unreachable!("`{ty1:?}` -- `{ty2:?}`"),
         }
     }
