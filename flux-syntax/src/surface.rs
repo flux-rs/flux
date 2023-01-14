@@ -14,6 +14,14 @@ pub struct SortDecl {
 }
 
 #[derive(Debug)]
+pub enum Item {
+    Qualifier(Qualifier),
+    Defn(Defn),
+    Uif(UifDef),
+    SortDecl(SortDecl),
+}
+
+#[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
     pub args: Vec<RefineParam>,

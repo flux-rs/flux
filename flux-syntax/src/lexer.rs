@@ -54,6 +54,10 @@ pub enum Token {
     If,
     Else,
     ModSep,
+    Qualifier,
+    Sort,
+    Opaque,
+    Local,
 }
 
 pub(crate) struct Cursor {
@@ -69,6 +73,10 @@ struct Symbols {
     requires: Symbol,
     ensures: Symbol,
     strg: Symbol,
+    qualifier: Symbol,
+    sort: Symbol,
+    opaque: Symbol,
+    local: Symbol,
 }
 
 struct Frame {
@@ -91,6 +99,10 @@ impl Cursor {
                 strg: Symbol::intern("strg"),
                 requires: Symbol::intern("requires"),
                 ensures: Symbol::intern("ensures"),
+                qualifier: Symbol::intern("qualifier"),
+                sort: Symbol::intern("sort"),
+                opaque: Symbol::intern("opaque"),
+                local: Symbol::intern("local"),
             },
         }
     }
@@ -125,6 +137,10 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == self.symbs.strg => Token::Strg,
             TokenKind::Ident(symb, _) if symb == self.symbs.requires => Token::Requires,
             TokenKind::Ident(symb, _) if symb == self.symbs.ensures => Token::Ensures,
+            TokenKind::Ident(symb, _) if symb == self.symbs.qualifier => Token::Qualifier,
+            TokenKind::Ident(symb, _) if symb == self.symbs.sort => Token::Sort,
+            TokenKind::Ident(symb, _) if symb == self.symbs.opaque => Token::Opaque,
+            TokenKind::Ident(symb, _) if symb == self.symbs.local => Token::Local,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) if symb == kw::Type => Token::Type,

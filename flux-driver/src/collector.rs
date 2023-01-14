@@ -6,9 +6,8 @@ use flux_common::{
 };
 use flux_errors::{FluxSession, ResultExt};
 use flux_syntax::{
-    parse_def, parse_expr, parse_fn_surface_sig, parse_qual_names, parse_qualifier,
-    parse_refined_by, parse_sort_decl, parse_ty, parse_type_alias, parse_variant, surface,
-    ParseResult,
+    parse_expr, parse_flux_item, parse_fn_surface_sig, parse_qual_names, parse_refined_by,
+    parse_ty, parse_type_alias, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -178,7 +177,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.specs.sort_decls.extend(attrs.sort_decls());
+        self.specs.extend_items(attrs.items());
         if attrs.ignore() {
             self.specs.ignores.insert(IgnoreKey::Module(def_id));
         }
@@ -252,10 +251,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             self.specs.ignores.insert(IgnoreKey::Crate);
         }
 
-        self.specs.qualifs.extend(attrs.qualifiers());
-        self.specs.sort_decls.extend(attrs.sort_decls());
-        self.specs.uifs.extend(attrs.uif_defs());
-        self.specs.dfns.extend(attrs.defns());
+        self.specs.extend_items(attrs.items());
 
         let crate_config = attrs.crate_config();
         self.specs.crate_config = crate_config;
@@ -329,17 +325,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("constant", AttrArgs::Empty) => {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
-            ("qualifier", AttrArgs::Delimited(dargs)) => {
-                let qualifer =
-                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_qualifier)?;
-                FluxAttrKind::Qualifier(qualifer)
-            }
-            ("def", AttrArgs::Delimited(dargs)) => {
-                let def = self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_def)?;
-                match def {
-                    surface::Def::Defn(defn) => FluxAttrKind::Defn(defn),
-                    surface::Def::UifDef(uif_def) => FluxAttrKind::UifDef(uif_def),
-                }
+            ("defs", AttrArgs::Delimited(dargs)) => {
+                let items =
+                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_flux_item)?;
+                FluxAttrKind::Items(items)
             }
             ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -366,11 +355,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 let invariant =
                     self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_expr)?;
                 FluxAttrKind::Invariant(invariant)
-            }
-            ("sort", AttrArgs::Delimited(dargs)) => {
-                let invariant =
-                    self.parse(dargs.tokens.clone(), dargs.dspan.entire(), parse_sort_decl)?;
-                FluxAttrKind::SortDecl(invariant)
             }
             ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
@@ -437,6 +421,16 @@ impl Specs {
             crate_config: None,
         }
     }
+    fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
+        for item in items {
+            match item {
+                surface::Item::Qualifier(qualifier) => self.qualifs.push(qualifier),
+                surface::Item::Defn(defn) => self.dfns.push(defn),
+                surface::Item::Uif(uif) => self.uifs.push(uif),
+                surface::Item::SortDecl(sort_decl) => self.sort_decls.push(sort_decl),
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -456,17 +450,14 @@ enum FluxAttrKind {
     Opaque,
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
-    Qualifier(surface::Qualifier),
     QualNames(surface::QualNames),
-    Defn(surface::Defn),
-    UifDef(surface::UifDef),
+    Items(Vec<surface::Item>),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
     Variant(surface::VariantDef),
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
-    SortDecl(surface::SortDecl),
     Ignore,
 }
 
@@ -524,6 +515,10 @@ impl FluxAttrs {
         read_flag!(self, Opaque)
     }
 
+    fn items(&mut self) -> impl Iterator<Item = surface::Item> {
+        read_attrs!(self, Items).into_iter().flatten()
+    }
+
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
         read_attr!(self, FnSig)
     }
@@ -532,24 +527,8 @@ impl FluxAttrs {
         read_attr!(self, ConstSig)
     }
 
-    fn qualifiers(&mut self) -> Vec<surface::Qualifier> {
-        read_attrs!(self, Qualifier)
-    }
-
     fn qual_names(&mut self) -> Option<surface::QualNames> {
         read_attr!(self, QualNames)
-    }
-
-    fn sort_decls(&mut self) -> Vec<surface::SortDecl> {
-        read_attrs!(self, SortDecl)
-    }
-
-    fn uif_defs(&mut self) -> Vec<surface::UifDef> {
-        read_attrs!(self, UifDef)
-    }
-
-    fn defns(&mut self) -> Vec<surface::Defn> {
-        read_attrs!(self, Defn)
     }
 
     fn alias(&mut self) -> Option<surface::Alias> {
@@ -594,17 +573,14 @@ impl FluxAttrKind {
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
-            FluxAttrKind::Qualifier(_) => attr_name!(Qualifier),
+            FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
-            FluxAttrKind::Defn(_) => attr_name!(Defn),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),
-            FluxAttrKind::UifDef(_) => attr_name!(UifDef),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
-            FluxAttrKind::SortDecl(_) => attr_name!(SortDecl),
         }
     }
 }

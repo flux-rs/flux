@@ -2,7 +2,9 @@
 #![register_tool(flux)]
 // Test definition and checking of const and qualifiers
 #![feature(custom_inner_attributes)]
-#![flux::qualifier(Sub2(x: int, a: int, b:int) { x == a - b })]
+#![flux::defs {
+    qualifier Sub2(x: int, a: int, b:int) { x == a - b }
+}]
 
 #[flux::refined_by(len: int)]
 pub enum List {

@@ -1,7 +1,9 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
-#![flux::def(foo(x:int, y:int) -> int)]
+#![flux::defs {
+    fn foo(x:int, y:int) -> int;
+}]
 
 #[flux::trusted]
 #[flux::sig(fn(x: i32, y:i32) -> i32[foo(x)])] //~ ERROR this function takes 2 refinement parameters but 1 was found

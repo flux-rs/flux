@@ -28,56 +28,49 @@ pub RefinedBy: surface::RefinedBy = {
     <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
 }
 
-pub Def: surface::Def = {
+pub Items: Vec<surface::Item> = {
+    (<Item>)*
+}
+
+Item: surface::Item = {
+    <Qualifier> => surface::Item::Qualifier(<>),
+    <Defn>      => surface::Item::Defn(<>),
+    <Uif>       => surface::Item::Uif(<>),
+    <SortDecl>  => surface::Item::SortDecl(<>),
+}
+
+Qualifier: surface::Qualifier = {
     <lo:@L>
+    <local: ("local")?>
+    "qualifier"
     <name:Ident>
-    "(" <args:RefinedBy> ")"
-    "->"
-    <sort:Sort>
-    <expr: ("{" <Expr> "}")?>
-    <hi:@R> => {
-        match expr {
-            None => surface::Def::UifDef(surface::UifDef { name, args, sort, span: mk_span(lo, hi) }),
-            Some(expr) => surface::Def::Defn(surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }),
-        }
+    "(" <args:Comma<RefineParam>> ")" "{" <expr:Expr> "}"
+    <hi:@R> =>? {
+        let global = local.is_none();
+        Ok(surface::Qualifier { name, args, expr, global, span: mk_span(lo, hi) })
+    }
+}
+
+Defn: surface::Defn = {
+    <lo:@L> "fn" <name:Ident> "(" <args:RefinedBy> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
+        surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }
+    }
+}
+
+Uif: surface::UifDef = {
+    <lo:@L> "fn" <name:Ident> "(" <args:RefinedBy> ")" "->" <sort:Sort> ";" <hi:@R> => {
+        surface::UifDef { name, args, sort, span: mk_span(lo, hi) }
+    }
+}
+
+SortDecl: surface::SortDecl = {
+    "opaque" "sort" <name:Ident> ";" => {
+        surface::SortDecl { name }
     }
 }
 
 pub QualNames: surface::QualNames = {
     <names:Comma<Ident>> => surface::QualNames { names }
-}
-
-pub Qualifier: surface::Qualifier = {
-    <lo:@L>
-    <local:(<"ident"> ",")?>
-    <name:Ident>
-    "(" <args:Comma<RefineParam>> ")"
-    "{"
-    <expr:Expr>
-    "}"
-    <hi:@R> =>? {
-        let global = match local {
-            Some(ident) => {
-                if ident.as_str() == "local" {
-                    Ok(false)
-                } else {
-                    Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, lo) })
-                }
-            },
-            None => Ok(true),
-        };
-        Ok(surface::Qualifier { name: name, args: args, expr: expr, global: global?, span: mk_span(lo, hi) })
-    }
-}
-
-pub SortDecl: surface::SortDecl = {
-    <lo:@L> <opaque:"ident"> <hi:@R> <name:Ident> =>? {
-        if opaque.as_str() == "opaque" {
-            Ok(surface::SortDecl { name })
-        } else {
-            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-        }
-    }
 }
 
 RefineParam: surface::RefineParam = <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> };
@@ -378,6 +371,10 @@ extern {
         "strg" => Token::Strg,
         "requires" => Token::Requires,
         "ensures" => Token::Ensures,
+        "qualifier" => Token::Qualifier,
+        "sort" => Token::Sort,
+        "opaque" => Token::Opaque,
+        "local" => Token::Local,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,

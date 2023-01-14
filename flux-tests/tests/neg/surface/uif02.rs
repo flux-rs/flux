@@ -1,8 +1,10 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
-#![flux::def(foo(n:int) -> bool)]
-#![flux::def(bar(n:int) -> bool { foo(n) })]
+#![flux::defs {
+    fn foo(n:int) -> bool;
+    fn bar(n:int) -> bool { foo(n) }
+}]
 
 fn is_foo(n: i32) -> bool {
     n > 10
