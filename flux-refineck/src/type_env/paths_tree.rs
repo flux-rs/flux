@@ -116,7 +116,7 @@ impl PathsTree {
         let node = ptr.borrow();
         match &*node {
             Node::Leaf(binding) => binding.clone(),
-            Node::Internal(..) => panic!("expected `Node::Leaf`"),
+            Node::Internal(..) => tracked_span_bug!("expected `Node::Leaf`"),
         }
     }
 
@@ -125,14 +125,14 @@ impl PathsTree {
             &self
                 .map
                 .get(&path.loc)
-                .unwrap_or_else(|| panic!("key not found `{:?}`", path.loc))
+                .unwrap_or_else(|| tracked_span_bug!("key not found `{:?}`", path.loc))
                 .ptr,
         );
         for f in path.projection() {
             ptr = {
                 let node = ptr.borrow();
                 match &*node {
-                    Node::Leaf(_) => panic!("expected `Node::Internal`"),
+                    Node::Leaf(_) => tracked_span_bug!("expected `Node::Internal`"),
                     Node::Internal(.., children) => NodePtr::clone(&children[f.as_usize()]),
                 }
             };
@@ -486,7 +486,7 @@ impl Node {
     fn expect_owned_mut(&mut self) -> &mut Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => ty,
-            _ => panic!("expected type"),
+            _ => tracked_span_bug!("expected `Binding::Owned`"),
         }
     }
 
@@ -586,14 +586,14 @@ impl Node {
                             fields,
                         );
                     }
-                    _ => panic!("type cannot be downcasted: `{ty:?}`"),
+                    _ => tracked_span_bug!("type cannot be downcasted: `{ty:?}`"),
                 }
             }
             Node::Internal(NodeKind::Adt(_, variant_idx2, _), _) => {
                 debug_assert_eq!(variant_idx, *variant_idx2);
             }
-            Node::Internal(..) => panic!("invalid downcast"),
-            Node::Leaf(..) => panic!("blocked"),
+            Node::Internal(..) => tracked_span_bug!("invalid downcast"),
+            Node::Leaf(..) => tracked_span_bug!("blocked"),
         }
         Ok(())
     }
@@ -613,7 +613,7 @@ impl Node {
                 self.downcast(genv, rcx, VariantIdx::from_u32(0))?;
             }
             TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
-            _ => panic!("type cannot be split: `{ty:?}`"),
+            _ => tracked_span_bug!("type cannot be split: `{ty:?}`"),
         }
         Ok(())
     }
@@ -632,7 +632,7 @@ impl Node {
                     let loc = path.to_loc().unwrap();
                     let root = map.remove(&loc).unwrap();
                     let LocKind::Box(alloc) = root.kind else {
-                        unreachable!("box pointer to non-box loc");
+                        tracked_span_bug!("box pointer to non-box loc");
                     };
                     let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
                     let ty = gen.genv.mk_box(boxed_ty, alloc);
@@ -648,7 +648,7 @@ impl Node {
                     *self = Node::owned(ty.clone());
                     ty
                 } else {
-                    panic!("I don't know what to do if you don't ask me to unblock.");
+                    tracked_span_bug!("I don't know what to do if you don't ask me to unblock.");
                 }
             }
             Node::Internal(NodeKind::Tuple, children) => {
@@ -802,7 +802,7 @@ fn downcast(
     } else if genv.tcx.adt_def(def_id).is_enum() {
         Ok(downcast_enum(genv, rcx, def_id, variant_idx, substs, args))
     } else {
-        panic!("Downcast without struct or enum!")
+        tracked_span_bug!("Downcast without struct or enum!")
     }
 }
 

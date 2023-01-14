@@ -2,7 +2,7 @@ pub mod paths_tree;
 
 use std::iter;
 
-use flux_common::index::IndexGen;
+use flux_common::{index::IndexGen, tracked_span_bug};
 use flux_middle::{
     fhir::WeakKind,
     global_env::{GlobalEnv, OpaqueStructErr},
@@ -142,7 +142,7 @@ impl TypeEnv {
                 gen.subtyping(rcx, &new_ty, &ty);
             }
             FoldResult::Weak(WeakKind::Shr, _) => {
-                panic!("cannot assign to `{place:?}`, which is behind a `&` reference")
+                tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference")
             }
         }
         Ok(())
@@ -164,10 +164,12 @@ impl TypeEnv {
                 Ok(ty)
             }
             FoldResult::Weak(WeakKind::Mut, _) => {
-                panic!("cannot move out of `{place:?}`, which is behind a `&mut` reference")
+                tracked_span_bug!(
+                    "cannot move out of `{place:?}`, which is behind a `&mut` reference"
+                )
             }
             FoldResult::Weak(WeakKind::Arr, _) | FoldResult::Weak(WeakKind::Shr, _) => {
-                panic!("cannot move out of `{place:?}`, which is behind a `&` reference")
+                tracked_span_bug!("cannot move out of `{place:?}`, which is behind a `&` reference")
             }
         }
     }
@@ -608,7 +610,7 @@ impl TypeEnvInfer {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
-            _ => panic!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
+            _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
         }
     }
 

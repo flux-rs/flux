@@ -1,5 +1,6 @@
 use std::iter;
 
+use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
@@ -56,22 +57,6 @@ pub enum Tag {
     Goto(Option<Span>, BasicBlock),
     Overflow(Span),
     Other,
-}
-
-impl Tag {
-    pub fn span(&self) -> Option<Span> {
-        match *self {
-            Tag::Call(span)
-            | Tag::Assign(span)
-            | Tag::RetAt(span)
-            | Tag::Fold(span)
-            | Tag::Assert(_, span)
-            | Tag::Div(span)
-            | Tag::Rem(span)
-            | Tag::Goto(Some(span), _) => Some(span),
-            _ => None,
-        }
-    }
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
@@ -389,7 +374,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.assume_pred(p1);
                 self.subtyping(rcx, ty1, ty2);
             }
-            _ => unreachable!("`{ty1:?}` <: `{ty2:?}` at {:?}", self.tag.span()),
+            _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
 
@@ -420,12 +405,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char) => {}
             _ => {
-                unreachable!(
-                    "unexpected base types: `{:?}` and `{:?}` at {:?}",
-                    bty1,
-                    bty2,
-                    self.tag.span()
-                )
+                tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,)
             }
         }
     }
@@ -450,7 +430,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
-            _ => unreachable!("incompatible generic args:  `{arg1:?}` `{arg2:?}"),
+            _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
         };
     }
 
@@ -495,7 +475,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     rcx.check_impl(&pred1, &pred2, self.tag);
                     rcx.check_impl(pred2, pred1, self.tag);
                 } else {
-                    unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
+                    tracked_span_bug!(
+                        "invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`"
+                    )
                 }
             }
         }
