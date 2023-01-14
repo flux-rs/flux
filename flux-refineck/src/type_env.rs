@@ -29,11 +29,6 @@ use crate::{
     rty::VariantIdx,
 };
 
-pub trait PathMap {
-    fn get(&self, path: &Path, span: Option<Span>) -> Ty;
-    fn update(&mut self, path: &Path, ty: Ty);
-}
-
 #[derive(Clone, Default)]
 pub struct TypeEnv {
     bindings: PathsTree,
@@ -192,8 +187,18 @@ impl TypeEnv {
         });
     }
 
-    pub fn block(&mut self, path: &Path) {
-        self.bindings.block(path);
+    pub fn block_with(
+        &mut self,
+        path: &Path,
+        updated: Ty,
+        expect_owned: bool,
+        span: Option<Span>,
+    ) -> Ty {
+        self.bindings.block_with(path, updated, expect_owned, span)
+    }
+
+    pub fn block(&mut self, path: &Path, expect_owned: bool, span: Option<Span>) -> Ty {
+        self.bindings.block(path, expect_owned, span)
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
@@ -319,17 +324,14 @@ impl TypeEnv {
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned(span);
+                        let ty = self.bindings.block(ptr_path, true, span);
                         gen.subtyping(rcx, &ty, bound);
 
-                        self.bindings
-                            .update_binding(ptr_path, Binding::Blocked(bound.clone()));
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                     }
                     (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned(span);
-                        self.bindings.block(ptr_path);
+                        let ty = self.bindings.block(ptr_path, true, span);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     _ => (),
@@ -365,29 +367,6 @@ impl TypeEnv {
     pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
-    }
-}
-
-impl PathMap for TypeEnv {
-    fn get(&self, path: &Path, span: Option<Span>) -> Ty {
-        self.bindings.get(path).expect_owned(span)
-    }
-
-    fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty);
-    }
-}
-
-impl<S> PathMap for std::collections::HashMap<Path, Ty, S>
-where
-    S: std::hash::BuildHasher,
-{
-    fn get(&self, path: &Path, _span: Option<Span>) -> Ty {
-        self.get(path).unwrap().clone()
-    }
-
-    fn update(&mut self, path: &Path, ty: Ty) {
-        self.insert(path.clone(), ty);
     }
 }
 
@@ -500,23 +479,18 @@ impl TypeEnvInfer {
                     (TyKind::Ptr(PtrKind::Shr, path1), TyKind::Ptr(PtrKind::Shr, path2))
                         if path1 != path2 =>
                     {
-                        let ty1 = self.bindings.get(path1).expect_owned(span);
-                        let ty2 = other.bindings.get(path2).expect_owned(span);
-
-                        self.bindings.block(path1);
-                        other.bindings.block(path2);
+                        let ty1 = self.bindings.block(path1, true, span);
+                        let ty2 = self.bindings.block(path2, true, span);
 
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty1));
                         other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty2));
                     }
                     (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.get(ptr_path).expect_owned(span);
-                        self.bindings.block(ptr_path);
+                        let ty = self.bindings.block(ptr_path, true, span);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
-                        let ty = other.bindings.get(ptr_path).expect_owned(span);
-                        other.bindings.block(ptr_path);
+                        let ty = other.bindings.block(ptr_path, true, span);
                         other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2))
@@ -531,8 +505,8 @@ impl TypeEnvInfer {
                             .bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
 
-                        self.bindings.update_binding(path1, Binding::Blocked(ty1));
-                        other.bindings.update_binding(path2, Binding::Blocked(ty2));
+                        self.bindings.block_with(path1, ty1, true, span);
+                        other.bindings.block_with(path2, ty2, true, span);
                     }
                     (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
                         let bound = bound.with_holes();

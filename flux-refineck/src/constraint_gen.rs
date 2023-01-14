@@ -24,7 +24,7 @@ use crate::{
     checker::errors::CheckerError,
     fixpoint::{KVarEncoding, KVarGen},
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
-    type_env::{PathMap, TypeEnv},
+    type_env::TypeEnv,
 };
 
 pub struct ConstrGen<'a, 'tcx> {
@@ -170,13 +170,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound, Some(src_info))?;
                 }
                 (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
-                    env.update(path, bound.clone());
-                    env.block(path);
+                    let ty = env.block_with(path, bound.clone(), false, Some(span));
+                    infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
-                    env.block(path);
+                    let ty = env.block(path, false, Some(span));
+                    infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
             }
@@ -244,13 +243,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
-                    env.update(path, bound.clone());
-                    env.block(path);
+                    let ty = env.block_with(path, bound.clone(), false, Some(span));
+                    infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    infcx.subtyping(rcx, &env.get(path, Some(span)), bound);
-                    env.block(path);
+                    let ty = env.block(path, false, Some(span));
+                    infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),
             }

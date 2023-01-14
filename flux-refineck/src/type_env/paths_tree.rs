@@ -148,13 +148,54 @@ impl PathsTree {
         *self.get_node(path).borrow_mut().expect_owned_mut() = new_ty;
     }
 
-    pub fn block(&mut self, path: &Path) {
+    pub fn block(&mut self, path: &Path, expect_owned: bool, span: Option<Span>) -> Ty {
+        self.block_with_fn(path, |ty| ty.clone(), expect_owned, span)
+    }
+
+    pub fn block_with(
+        &mut self,
+        path: &Path,
+        updated: Ty,
+        expect_owned: bool,
+        span: Option<Span>,
+    ) -> Ty {
         let ptr = self.get_node(path);
         let mut node = ptr.borrow_mut();
-        match &mut *node {
-            Node::Leaf(Binding::Owned(ty)) => *node = Node::Leaf(Binding::Blocked(ty.clone())),
-            _ => panic!("expected owned binding"),
-        }
+        let old = match &mut *node {
+            Node::Leaf(Binding::Owned(old)) => old.clone(),
+            Node::Leaf(Binding::Blocked(old)) => {
+                if expect_owned {
+                    panic!("expected owned node `{node:?}` at {span:?}")
+                }
+                old.clone()
+            }
+            _ => panic!("expected leaf node `{node:?} at {span:?}"),
+        };
+        *node = Node::Leaf(Binding::Blocked(updated));
+        old
+    }
+
+    fn block_with_fn(
+        &mut self,
+        path: &Path,
+        update: impl FnOnce(&Ty) -> Ty,
+        expect_owned: bool,
+        span: Option<Span>,
+    ) -> Ty {
+        let ptr = self.get_node(path);
+        let mut node = ptr.borrow_mut();
+        let old = match &mut *node {
+            Node::Leaf(Binding::Owned(old)) => old.clone(),
+            Node::Leaf(Binding::Blocked(old)) => {
+                if expect_owned {
+                    panic!("expected owned node `{node:?}` at {span:?}")
+                }
+                old.clone()
+            }
+            _ => panic!("expected leaf node `{node:?} at {span:?}"),
+        };
+        *node = Node::Leaf(Binding::Blocked(update(&old)));
+        old
     }
 
     pub(super) fn insert(&mut self, loc: Loc, ty: Ty, kind: LocKind) {
@@ -733,6 +774,7 @@ impl NodePtr {
 }
 
 impl Binding {
+    #[track_caller]
     pub fn expect_owned(&self, span: Option<Span>) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
@@ -752,7 +794,7 @@ impl Binding {
         }
     }
 
-    fn unblock(&mut self) -> Ty {
+    pub fn unblock(&mut self) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
             Binding::Blocked(ty) => {
