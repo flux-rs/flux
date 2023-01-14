@@ -25,21 +25,13 @@ struct Env {
 }
 
 impl Env {
-    fn with_binders<R>(
+    fn push_layer<'a>(
         &mut self,
-        binders: &[fhir::Name],
-        sorts: &[fhir::Sort],
-        f: impl FnOnce(&Self) -> R,
-    ) -> R {
-        debug_assert_eq!(binders.len(), sorts.len());
-        for (binder, sort) in iter::zip(binders, sorts) {
+        binders: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>,
+    ) {
+        for (binder, sort) in binders {
             self.sorts.insert(*binder, sort.clone());
         }
-        let r = f(self);
-        for binder in binders {
-            self.sorts.remove(binder);
-        }
-        r
     }
 }
 
@@ -150,14 +142,21 @@ impl Wf<'_, '_> {
             .iter()
             .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
 
+        env.push_layer(
+            fn_sig
+                .output
+                .params
+                .iter()
+                .map(|param| (&param.name.name, &param.sort)),
+        );
+        let ret = wf.check_type(&mut env, &fn_sig.output.ret);
         let ensures = fn_sig
+            .output
             .ensures
             .iter()
             .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
 
-        let ret = wf.check_type(&mut env, &fn_sig.ret);
-
-        let constrs = wf.check_constrs(fn_sig);
+        let constrs = wf.check_output_locs(fn_sig);
 
         args?;
         ret?;
@@ -219,17 +218,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Ok(())
     }
 
-    fn check_constrs(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+    fn check_output_locs(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
         let mut output_locs = FxHashSet::default();
-        fn_sig.ensures.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, _) = constr
-               && !output_locs.insert(loc.name)
-            {
-                self.emit_err(errors::DuplicatedEnsures::new(loc))
-            } else {
-                Ok(())
-            }
-        })?;
+        fn_sig
+            .output
+            .ensures
+            .iter()
+            .try_for_each_exhaust(|constr| {
+                if let fhir::Constraint::Type(loc, _) = constr
+                    && !output_locs.insert(loc.name)
+                {
+                    self.emit_err(errors::DuplicatedEnsures::new(loc))
+                } else {
+                    Ok(())
+                }
+            })?;
 
         fn_sig.requires.iter().try_for_each_exhaust(|constr| {
             if let fhir::Constraint::Type(loc, _) = constr
@@ -267,7 +270,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::Ty::Exists(bty, bind, pred) => {
                 let sort = bty.sort();
                 self.check_base_ty(env, bty)?;
-                env.with_binders(&[bind.name], &[sort], |env| self.check_pred(env, pred))
+                env.push_layer([(&bind.name, &sort)]);
+                self.check_pred(env, pred)
             }
             fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
             fhir::Ty::Tuple(tys) => {
@@ -366,10 +370,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                             params.len(),
                         ));
                     }
-                    env.with_binders(params, fsort.inputs(), |env| {
-                        self.check_expr(env, body, fsort.output())?;
-                        self.check_param_uses(env, body, true)
-                    })
+                    env.push_layer(iter::zip(params, fsort.inputs()));
+                    self.check_expr(env, body, fsort.output())?;
+                    self.check_param_uses(env, body, true)
                 } else {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))
                 }

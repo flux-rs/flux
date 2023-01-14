@@ -204,7 +204,7 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::ForallBind(bind, mk_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))

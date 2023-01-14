@@ -198,8 +198,7 @@ pub fn desugar_fn_sig(
         params: cx.binders.into_params(),
         requires: cx.requires,
         args,
-        ret: ret?,
-        ensures: ensures?,
+        output: fhir::FnOutput { params: vec![], ret: ret?, ensures: ensures? },
     })
 }
 
@@ -404,7 +403,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         arg: surface::RefineArg,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match arg {
-            surface::RefineArg::Bind(ident, _) => self.bind_into_arg(ident),
+            surface::RefineArg::ForallBind(ident, _) => self.bind_into_arg(ident),
+            surface::RefineArg::ExistsBind(ident, _) => self.bind_into_arg(ident),
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
@@ -779,7 +779,7 @@ impl Binders {
             .indices
             .iter()
             .try_for_each_exhaust(|idx| {
-                if let surface::RefineArg::Bind(_, span) = idx {
+                if let surface::RefineArg::ForallBind(_, span) = idx {
                     Err(sess.emit_err(errors::IllegalBinder::new(*span)))
                 } else {
                     Ok(())
@@ -856,7 +856,7 @@ impl Binders {
                     // of `fn<n: int>(x: RMat[n, n])`
                     unreachable!("[sanity check] this code is unreachable but we are leaving a not in case it is not anymore");
                 }
-                if let [surface::RefineArg::Bind(ident, span)] = indices.indices[..] {
+                if let [surface::RefineArg::ForallBind(ident, span)] = indices.indices[..] {
                     let binder = Binder::from_bty(&self.name_gen, bty);
                     if !allow_binder {
                         return Err(sess.emit_err(errors::IllegalBinder::new(span)));
@@ -873,7 +873,7 @@ impl Binders {
                     }
 
                     for (idx, sort) in iter::zip(&indices.indices, refined_by) {
-                        if let surface::RefineArg::Bind(ident, span) = idx {
+                        if let surface::RefineArg::ForallBind(ident, span) = idx {
                             if !allow_binder {
                                 return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
                             }

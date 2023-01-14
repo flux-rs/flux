@@ -210,7 +210,9 @@ pub struct Indices {
 #[derive(Debug, Clone)]
 pub enum RefineArg {
     /// `@n`, the span correspond to the span of `@` plus the identifier
-    Bind(Ident, Span),
+    ForallBind(Ident, Span),
+    /// `#n`, the span correspond to the span of `#` plus the identifier
+    ExistsBind(Ident, Span),
     Expr(Expr),
     Abs(Vec<Ident>, Expr, Span),
 }
@@ -490,7 +492,8 @@ pub mod expand {
                 RefineArg::Expr(e) => {
                     res.insert(*src_id, e.clone());
                 }
-                RefineArg::Bind(..) => panic!("cannot use binder in type alias"),
+                RefineArg::ForallBind(..) => panic!("cannot use binder in type alias"),
+                RefineArg::ExistsBind(_, _) => panic!("cannot us existential binder in type alias"),
                 RefineArg::Abs(..) => panic!("cannot use `RefineArg::Abs` in type alias"),
             }
         }
@@ -561,7 +564,9 @@ pub mod expand {
     fn subst_arg(subst: &Subst, arg: &RefineArg) -> RefineArg {
         match arg {
             RefineArg::Expr(e) => RefineArg::Expr(subst_expr(subst, e)),
-            RefineArg::Bind(..) | RefineArg::Abs(..) => arg.clone(),
+            RefineArg::ExistsBind(_, _) | RefineArg::ForallBind(..) | RefineArg::Abs(..) => {
+                arg.clone()
+            }
         }
     }
 

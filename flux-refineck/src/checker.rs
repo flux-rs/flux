@@ -19,8 +19,8 @@ use flux_common::{
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binders, Bool, Constraint, Constraints, Expr, Float, FnSig, Int,
-        IntTy, PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binders, Bool, Constraint, Expr, Float, FnOutput, FnSig, Int, IntTy,
+        PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -52,8 +52,7 @@ pub struct Checker<'a, 'tcx, P> {
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
     phase: P,
-    ret: Ty,
-    ensures: Constraints,
+    output: Binders<FnOutput>,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
@@ -108,8 +107,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
-        ret: Ty,
-        ensures: Constraints,
+        output: Binders<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
         phase: P,
     ) -> Self {
@@ -117,8 +115,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
             genv,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
-            ret,
-            ensures,
+            output,
             phase,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators,
@@ -193,14 +190,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(
-            genv,
-            body,
-            fn_sig.ret().clone(),
-            fn_sig.ensures().clone(),
-            &dominators,
-            phase,
-        );
+        let mut ck = Checker::new(genv, body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, None, START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -353,7 +343,17 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         src_info: Option<SourceInfo>,
     ) -> Result<Vec<(BasicBlock, Guard)>, CheckerError> {
         match &terminator.kind {
-            TerminatorKind::Return => self.check_ret(rcx, env, src_info),
+            TerminatorKind::Return => {
+                let tag = match src_info {
+                    Some(info) => Tag::RetAt(info.span),
+                    None => Tag::Ret,
+                };
+                self.phase
+                    .constr_gen(self.genv, rcx, tag)
+                    .check_ret(rcx, env, &self.output)
+                    .map_err(|err| err.with_src_info_opt(src_info))?;
+                Ok(vec![])
+            }
             TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -420,30 +420,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn check_ret(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        src_info: Option<SourceInfo>,
-    ) -> Result<Vec<(BasicBlock, Guard)>, CheckerError> {
-        let tag = match src_info {
-            Some(info) => Tag::RetAt(info.span),
-            None => Tag::Ret,
-        };
-        let gen = &mut self.phase.constr_gen(self.genv, rcx, tag);
-        let ret_place_ty = env
-            .lookup_place(rcx, gen, Place::RETURN)
-            .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
-
-        gen.subtyping(rcx, &ret_place_ty, &self.ret);
-
-        for constraint in &self.ensures {
-            gen.check_constraint(rcx, env, constraint)
-                .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
-        }
-        Ok(vec![])
-    }
-
     fn check_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -466,7 +442,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let output = self
             .constr_gen(rcx, Tag::Call(src_info.span))
             .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
-            .map_err(|err| err.with_src_info(src_info))?;
+            .map_err(|err| err.with_src_info(src_info))?
+            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
         for constr in &output.ensures {
             match constr {
@@ -610,8 +587,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
-            self.check_ret(&mut rcx, &mut env, src_info)?;
-            Ok(())
+            let tag = match src_info {
+                Some(info) => Tag::RetAt(info.span),
+                None => Tag::Ret,
+            };
+            self.phase
+                .constr_gen(self.genv, &rcx, tag)
+                .check_ret(&mut rcx, &mut env, &self.output)
+                .map_err(|err| err.with_src_info_opt(src_info))
         } else if self.body.is_join_point(target) {
             if P::check_goto_join_point(self, rcx, env, src_info, target)? {
                 self.queue.insert(target);

@@ -7,11 +7,14 @@ use flux_middle::{
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binders, Const, Constraint, Constraints, EVar, EVarGen, Expr, ExprKind,
+        BaseTy, BinOp, Binders, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
         GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, RefKind, RefineArg, Sort, Ty,
         TyKind, VariantRet,
     },
-    rustc::{self, mir::BasicBlock},
+    rustc::{
+        self,
+        mir::{BasicBlock, Place},
+    },
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -39,11 +42,6 @@ struct InferCtxt<'a, 'tcx> {
     scopes: FxIndexMap<EVarCxId, Scope>,
 }
 
-pub struct CallOutput {
-    pub ret: Ty,
-    pub ensures: Constraints,
-}
-
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Tag {
     Call(Span),
@@ -67,18 +65,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         ConstrGen { genv, kvar_gen: Box::new(kvar_gen), tag }
     }
 
-    pub fn check_constraint(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        constraint: &Constraint,
-    ) -> Result<(), OpaqueStructErr> {
-        let mut infcx = self.infcx(rcx);
-        infcx.check_constraint(rcx, env, constraint)?;
-        rcx.replace_evars(&infcx.solve().unwrap());
-        Ok(())
-    }
-
     pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
@@ -96,7 +82,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<CallOutput, CheckerError> {
+    ) -> Result<Binders<FnOutput>, CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -164,10 +150,35 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-        let ret = fn_sig.ret().replace_evars(&evars_sol);
-        let ensures = fn_sig.ensures().replace_evars(&evars_sol);
+        let output = fn_sig.output().replace_evars(&evars_sol);
 
-        Ok(CallOutput { ret, ensures })
+        Ok(output)
+    }
+
+    pub fn check_ret(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        output: &Binders<FnOutput>,
+    ) -> Result<(), CheckerError> {
+        let ret_place_ty = env
+            .lookup_place(rcx, self, Place::RETURN)
+            .map_err(CheckerError::from)?;
+
+        let mut infcx = self.infcx(rcx);
+
+        let output = output
+            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
+
+        infcx.subtyping(rcx, &ret_place_ty, &output.ret);
+        for constraint in &output.ensures {
+            infcx.check_constraint(rcx, env, constraint)?;
+        }
+
+        let evars_sol = infcx.solve()?;
+        rcx.replace_evars(&evars_sol);
+
+        Ok(())
     }
 
     pub fn check_constructor(

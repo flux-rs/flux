@@ -81,19 +81,34 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             args.push(cx.conv_ty(ty));
         }
 
-        let mut ensures = vec![];
-        for constr in &fn_sig.ensures {
-            ensures.push(cx.conv_constr(constr));
-        }
-
-        let ret = cx.conv_ty(&fn_sig.ret);
+        let output = cx.conv_fn_output(&fn_sig.output);
 
         let sorts = flatten_sorts(genv.map(), fn_sig.params.iter().map(|param| &param.sort));
         let modes = cx.conv_infer_modes(&fn_sig.params);
-        rty::PolySig::new(
-            rty::Binders::new(rty::FnSig::new(requires, args, ret, ensures), sorts),
-            modes,
-        )
+        rty::PolySig::new(rty::Binders::new(rty::FnSig::new(requires, args, output), sorts), modes)
+    }
+
+    fn conv_fn_output(&mut self, output: &fhir::FnOutput) -> Binders<rty::FnOutput> {
+        self.env.push_layer(Layer::new(
+            self.genv.map(),
+            output
+                .params
+                .iter()
+                .map(|param| (&param.name.name, &param.sort)),
+        ));
+
+        let ret = self.conv_ty(&output.ret);
+        let ensures = output
+            .ensures
+            .iter()
+            .map(|constr| self.conv_constr(constr))
+            .collect_vec();
+        let sorts = flatten_sorts(self.genv.map(), output.params.iter().map(|param| &param.sort));
+        let output = rty::FnOutput::new(ret, ensures);
+
+        self.env.pop_layer();
+
+        Binders::new(output, sorts)
     }
 
     fn conv_infer_modes(&self, params: &[fhir::RefineParam]) -> Vec<rty::InferMode> {
