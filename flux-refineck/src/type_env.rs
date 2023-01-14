@@ -29,11 +29,6 @@ use crate::{
     rty::VariantIdx,
 };
 
-pub trait PathMap {
-    fn get(&self, path: &Path, span: Option<Span>) -> Ty;
-    fn update(&mut self, path: &Path, ty: Ty);
-}
-
 #[derive(Clone, Default)]
 pub struct TypeEnv {
     bindings: PathsTree,
@@ -372,29 +367,6 @@ impl TypeEnv {
     pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
-    }
-}
-
-impl PathMap for TypeEnv {
-    fn get(&self, path: &Path, span: Option<Span>) -> Ty {
-        self.bindings.get(path).expect_owned(span)
-    }
-
-    fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty);
-    }
-}
-
-impl<S> PathMap for std::collections::HashMap<Path, Ty, S>
-where
-    S: std::hash::BuildHasher,
-{
-    fn get(&self, path: &Path, _span: Option<Span>) -> Ty {
-        self.get(path).unwrap().clone()
-    }
-
-    fn update(&mut self, path: &Path, ty: Ty) {
-        self.insert(path.clone(), ty);
     }
 }
 
