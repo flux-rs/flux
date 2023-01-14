@@ -10,9 +10,9 @@ thread_local! {
 
 pub fn track_span<R>(span: Span, f: impl FnOnce() -> R) -> R {
     TRACKED_SPAN.with(|cell| {
-        cell.set(Some(span));
+        let old = cell.replace(Some(span));
         let r = f();
-        cell.take();
+        cell.set(old);
         r
     })
 }
