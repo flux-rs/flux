@@ -1,5 +1,6 @@
 use std::iter;
 
+use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
     intern::List,
@@ -10,10 +11,7 @@ use flux_middle::{
         GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, RefKind, RefineArg, Sort, Ty,
         TyKind, VariantRet,
     },
-    rustc::{
-        self,
-        mir::{BasicBlock, SourceInfo},
-    },
+    rustc::{self, mir::BasicBlock},
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -61,22 +59,6 @@ pub enum Tag {
     Other,
 }
 
-impl Tag {
-    pub fn span(&self) -> Option<Span> {
-        match *self {
-            Tag::Call(span)
-            | Tag::Assign(span)
-            | Tag::RetAt(span)
-            | Tag::Fold(span)
-            | Tag::Assert(_, span)
-            | Tag::Div(span)
-            | Tag::Rem(span)
-            | Tag::Goto(Some(span), _) => Some(span),
-            _ => None,
-        }
-    }
-}
-
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, tag: Tag) -> Self
     where
@@ -90,10 +72,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
-        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         let mut infcx = self.infcx(rcx);
-        infcx.check_constraint(rcx, env, constraint, src_info)?;
+        infcx.check_constraint(rcx, env, constraint)?;
         rcx.replace_evars(&infcx.solve().unwrap());
         Ok(())
     }
@@ -115,7 +96,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-        src_info: SourceInfo,
     ) -> Result<CallOutput, CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
@@ -158,7 +138,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             }
         }
 
-        let span = src_info.span;
         // Check arguments
         for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
             let (formal, pred) = formal.unconstr();
@@ -167,14 +146,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2)) => {
                     let bound = requires[path2];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
-                    infcx.check_type_constr(rcx, env, path1, bound, Some(src_info))?;
+                    infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(path, bound.clone(), false, Some(span));
+                    let ty = env.block_with(path, bound.clone(), false);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    let ty = env.block(path, false, Some(span));
+                    let ty = env.block(path, false);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
@@ -229,7 +208,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         args: &[Ty],
         arr_ty: &rustc::ty::Ty,
-        src_info: SourceInfo,
     ) -> Result<Ty, CheckerError> {
         let genv = self.genv;
 
@@ -238,16 +216,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let arr_ty =
             genv.refine_ty(arr_ty, &mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj));
 
-        let span = src_info.span;
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(path, bound.clone(), false, Some(span));
+                    let ty = env.block_with(path, bound.clone(), false);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    let ty = env.block(path, false, Some(span));
+                    let ty = env.block(path, false);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),
@@ -313,11 +290,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         env: &mut TypeEnv,
         path: &Path,
         ty: &Ty,
-        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         let actual_ty = {
             let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag);
-            env.lookup_path(rcx, gen, path, src_info)?
+            env.lookup_path(rcx, gen, path)?
         };
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
@@ -328,11 +304,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
-        src_info: Option<SourceInfo>,
     ) -> Result<(), OpaqueStructErr> {
         let rcx = &mut rcx.breadcrumb();
         match constraint {
-            Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty, src_info),
+            Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty),
             Constraint::Pred(e) => {
                 rcx.check_pred(e, self.tag);
                 Ok(())
@@ -399,7 +374,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.assume_pred(p1);
                 self.subtyping(rcx, ty1, ty2);
             }
-            _ => unreachable!("`{ty1:?}` <: `{ty2:?}` at {:?}", self.tag.span()),
+            _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
 
@@ -430,12 +405,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char) => {}
             _ => {
-                unreachable!(
-                    "unexpected base types: `{:?}` and `{:?}` at {:?}",
-                    bty1,
-                    bty2,
-                    self.tag.span()
-                )
+                tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,)
             }
         }
     }
@@ -460,7 +430,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
-            _ => unreachable!("incompatible generic args:  `{arg1:?}` `{arg2:?}"),
+            _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
         };
     }
 
@@ -505,7 +475,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     rcx.check_impl(&pred1, &pred2, self.tag);
                     rcx.check_impl(pred2, pred1, self.tag);
                 } else {
-                    unreachable!("invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`")
+                    tracked_span_bug!(
+                        "invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`"
+                    )
                 }
             }
         }

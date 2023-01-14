@@ -5,6 +5,7 @@ extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_middle;
+extern crate rustc_span;
 extern crate serde_json;
 
 pub mod cache;
@@ -13,3 +14,5 @@ pub mod dbg;
 pub mod format;
 pub mod index;
 pub mod iter;
+
+pub mod bug;
