@@ -1,5 +1,6 @@
 use std::{cell::RefCell, iter, rc::Rc};
 
+use flux_common::tracked_span_bug;
 use flux_middle::{
     fhir::WeakKind,
     global_env::{GlobalEnv, OpaqueStructErr},
@@ -9,12 +10,11 @@ use flux_middle::{
         AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, RefineArg, Sort, Substs, Ty, TyKind,
         Var, VariantIdx,
     },
-    rustc::mir::{Field, Place, PlaceElem, SourceInfo},
+    rustc::mir::{Field, Place, PlaceElem},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_span::Span;
 
 use crate::{
     constraint_gen::ConstrGen,
@@ -148,28 +148,22 @@ impl PathsTree {
         *self.get_node(path).borrow_mut().expect_owned_mut() = new_ty;
     }
 
-    pub fn block(&mut self, path: &Path, expect_owned: bool, span: Option<Span>) -> Ty {
-        self.block_with_fn(path, |ty| ty.clone(), expect_owned, span)
+    pub fn block(&mut self, path: &Path, expect_owned: bool) -> Ty {
+        self.block_with_fn(path, |ty| ty.clone(), expect_owned)
     }
 
-    pub fn block_with(
-        &mut self,
-        path: &Path,
-        updated: Ty,
-        expect_owned: bool,
-        span: Option<Span>,
-    ) -> Ty {
+    pub fn block_with(&mut self, path: &Path, updated: Ty, expect_owned: bool) -> Ty {
         let ptr = self.get_node(path);
         let mut node = ptr.borrow_mut();
         let old = match &mut *node {
             Node::Leaf(Binding::Owned(old)) => old.clone(),
             Node::Leaf(Binding::Blocked(old)) => {
                 if expect_owned {
-                    panic!("expected owned node `{node:?}` at {span:?}")
+                    tracked_span_bug!("expected owned node `{node:?}`")
                 }
                 old.clone()
             }
-            _ => panic!("expected leaf node `{node:?} at {span:?}"),
+            _ => tracked_span_bug!("expected leaf node `{node:?}"),
         };
         *node = Node::Leaf(Binding::Blocked(updated));
         old
@@ -180,7 +174,6 @@ impl PathsTree {
         path: &Path,
         update: impl FnOnce(&Ty) -> Ty,
         expect_owned: bool,
-        span: Option<Span>,
     ) -> Ty {
         let ptr = self.get_node(path);
         let mut node = ptr.borrow_mut();
@@ -188,11 +181,11 @@ impl PathsTree {
             Node::Leaf(Binding::Owned(old)) => old.clone(),
             Node::Leaf(Binding::Blocked(old)) => {
                 if expect_owned {
-                    panic!("expected owned node `{node:?}` at {span:?}")
+                    tracked_span_bug!("expected owned node `{node:?}`")
                 }
                 old.clone()
             }
-            _ => panic!("expected leaf node `{node:?} at {span:?}"),
+            _ => tracked_span_bug!("expected leaf node `{node:?}"),
         };
         *node = Node::Leaf(Binding::Blocked(update(&old)));
         old
@@ -251,11 +244,10 @@ impl PathsTree {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         other: &mut PathsTree,
-        src_info: Option<SourceInfo>,
     ) {
         for (loc, root1) in &self.map {
             let node2 = &mut *other.map[loc].ptr.borrow_mut();
-            root1.ptr.borrow_mut().join_with(gen, rcx, node2, src_info);
+            root1.ptr.borrow_mut().join_with(gen, rcx, node2);
         }
     }
 
@@ -264,9 +256,7 @@ impl PathsTree {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
-        src_info: Option<SourceInfo>,
     ) -> Result<LookupResult<'a>, OpaqueStructErr> {
-        let span = src_info.map(|src_info| src_info.span);
         let mut path = Path::from(key.loc());
         let place_proj = &mut key.proj();
 
@@ -277,7 +267,7 @@ impl PathsTree {
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
 
             for field in path.projection() {
-                ptr = ptr.proj(genv, rcx, *field, span)?;
+                ptr = ptr.proj(genv, rcx, *field)?;
                 path_proj.push(*field);
             }
 
@@ -285,13 +275,13 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        ptr = ptr.proj(genv, rcx, field, span)?;
+                        ptr = ptr.proj(genv, rcx, field)?;
                     }
                     PlaceElem::Downcast(variant_idx) => {
                         ptr.downcast(genv, rcx, variant_idx)?;
                     }
                     PlaceElem::Deref => {
-                        let ty = ptr.borrow().expect_owned(span);
+                        let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Ptr(_, ptr_path) => {
                                 path = ptr_path.clone();
@@ -304,7 +294,6 @@ impl PathsTree {
                                     WeakKind::from(*rk),
                                     ty,
                                     place_proj,
-                                    src_info,
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
@@ -320,27 +309,21 @@ impl PathsTree {
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
-                            _ => panic!("Unsupported Deref: {elem:?} {ty:?} at {src_info:?}"),
+                            _ => tracked_span_bug!("Unsupported Deref: {elem:?} {ty:?}"),
                         }
                     }
                     PlaceElem::Index(_) => {
-                        let ty = ptr.borrow().expect_owned(span);
+                        let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Array(arr_ty, _) => {
-                                let (rk, ty) = Self::lookup_ty(
-                                    genv,
-                                    rcx,
-                                    WeakKind::Arr,
-                                    arr_ty,
-                                    place_proj,
-                                    src_info,
-                                )?;
+                                let (rk, ty) =
+                                    Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
                                 return Ok(LookupResult {
                                     tree: self,
                                     kind: LookupKind::Weak(rk, ty),
                                 });
                             }
-                            _ => panic!("Unsupported Index: {elem:?} {ty:?} at {src_info:?}"),
+                            _ => tracked_span_bug!("Unsupported Index: {elem:?} {ty:?}"),
                         }
                     }
                 }
@@ -359,7 +342,6 @@ impl PathsTree {
         mut rk: WeakKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
-        src_info: Option<SourceInfo>,
     ) -> Result<(WeakKind, Ty), OpaqueStructErr> {
         use PlaceElem::*;
         let mut ty = ty.clone();
@@ -397,7 +379,7 @@ impl PathsTree {
                     rcx.assume_invariants(&ty);
                 }
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
-                _ => todo!("lookup_ty {elem:?} {ty:?} at {src_info:?}"),
+                _ => tracked_span_bug!("unexpected type and projection {elem:?} {ty:?}"),
             }
         }
         Ok((rk, ty))
@@ -486,18 +468,18 @@ impl Node {
     }
 
     #[track_caller]
-    fn expect_owned(&self, span: Option<Span>) -> Ty {
+    fn expect_owned(&self) -> Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => ty.clone(),
-            _ => panic!("expected type at {span:?}"),
+            _ => tracked_span_bug!("expected `Binding::Owned`"),
         }
     }
 
     #[track_caller]
-    fn expect_leaf_mut(&mut self, span: Option<Span>) -> &mut Binding {
+    fn expect_leaf_mut(&mut self) -> &mut Binding {
         match self {
             Node::Leaf(binding) => binding,
-            Node::Internal(_, _) => panic!("expected `Node::Leaf` at {span:?}"),
+            Node::Internal(_, _) => tracked_span_bug!("expected `Node::Leaf`"),
         }
     }
 
@@ -508,26 +490,19 @@ impl Node {
         }
     }
 
-    fn join_with(
-        &mut self,
-        gen: &mut ConstrGen,
-        rcx: &mut RefineCtxt,
-        other: &mut Node,
-        src_info: Option<SourceInfo>,
-    ) {
+    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
         let map = &mut FxHashMap::default();
-        let span = src_info.map(|info| info.span);
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self, src_info);
+                other.join_with(gen, rcx, self);
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
                 other.fold(map, rcx, gen, false, false);
             }
             (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx, span).unwrap();
-                self.join_with(gen, rcx, other, src_info);
+                self.split(gen.genv, rcx).unwrap();
+                self.join_with(gen, rcx, other);
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -536,7 +511,7 @@ impl Node {
                 if variant1 == variant2 {
                     for (ptr1, ptr2) in iter::zip(children1, children2) {
                         ptr1.borrow_mut()
-                            .join_with(gen, rcx, &mut ptr2.borrow_mut(), src_info);
+                            .join_with(gen, rcx, &mut ptr2.borrow_mut());
                     }
                 } else {
                     self.fold(map, rcx, gen, false, false);
@@ -554,7 +529,7 @@ impl Node {
 
                 for (ptr1, ptr2) in iter::zip(children1, children2) {
                     ptr1.borrow_mut()
-                        .join_with(gen, rcx, &mut ptr2.borrow_mut(), src_info);
+                        .join_with(gen, rcx, &mut ptr2.borrow_mut());
                 }
             }
         };
@@ -565,10 +540,9 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
-        span: Option<Span>,
     ) -> Result<&NodePtr, OpaqueStructErr> {
         if let Node::Leaf(_) = self {
-            self.split(genv, rcx, span)?;
+            self.split(genv, rcx)?;
         }
         match self {
             Node::Internal(kind, children) => {
@@ -624,13 +598,8 @@ impl Node {
         Ok(())
     }
 
-    fn split(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        span: Option<Span>,
-    ) -> Result<(), OpaqueStructErr> {
-        let ty = self.expect_leaf_mut(span).unblock();
+    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
+        let ty = self.expect_leaf_mut().unblock();
         match ty.kind() {
             TyKind::Tuple(tys) => {
                 let children = tys
@@ -758,9 +727,8 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
-        span: Option<Span>,
     ) -> Result<NodePtr, OpaqueStructErr> {
-        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field, span)?))
+        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field)?))
     }
 
     fn downcast(
@@ -775,10 +743,10 @@ impl NodePtr {
 
 impl Binding {
     #[track_caller]
-    pub fn expect_owned(&self, span: Option<Span>) -> Ty {
+    pub fn expect_owned(&self) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
-            Binding::Blocked(_) => panic!("expected owned at {span:?}"),
+            Binding::Blocked(_) => tracked_span_bug!("expected `Binding::Owned`"),
         }
     }
 

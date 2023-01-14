@@ -10,9 +10,11 @@ extern crate rustc_span;
 use std::collections::{hash_map::Entry, BinaryHeap};
 
 use flux_common::{
+    bug,
     config::{self, AssertBehavior},
     dbg,
     index::IndexVec,
+    span_bug, tracked_span_bug,
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -182,7 +184,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let fn_sig = genv
             .lookup_fn_sig(def_id)
-            .unwrap_or_else(|_| panic!("checking function with unsupported signature"))
+            .unwrap_or_else(|_| {
+                span_bug!(body.span(), "checking function with unsupported signature")
+            })
             .fn_sig
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
@@ -270,7 +274,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let mut latest_src_info = None;
         for stmt in &data.statements {
             dbg::statement!("start", stmt, rcx, env);
-            self.check_statement(&mut rcx, &mut env, stmt)?;
+            bug::track_span(stmt.source_info.span, || {
+                self.check_statement(&mut rcx, &mut env, stmt)
+            })?;
             dbg::statement!("end", stmt, rcx, env);
             if !stmt.is_nop() {
                 latest_src_info = Some(stmt.source_info);
@@ -278,17 +284,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
 
         if let Some(terminator) = &data.terminator {
-            dbg::terminator!("start", terminator, rcx, env);
-            let successors =
-                self.check_terminator(&mut rcx, &mut env, terminator, latest_src_info)?;
-            dbg::terminator!("end", terminator, rcx, env);
+            bug::track_span(terminator.source_info.span, || {
+                dbg::terminator!("start", terminator, rcx, env);
+                let successors =
+                    self.check_terminator(&mut rcx, &mut env, terminator, latest_src_info)?;
+                dbg::terminator!("end", terminator, rcx, env);
 
-            self.snapshots[bb] = Some(rcx.snapshot());
-            let term_source_info = match latest_src_info {
-                Some(src_info) => src_info,
-                None => terminator.source_info,
-            };
-            self.check_successors(rcx, env, term_source_info, successors)?;
+                self.snapshots[bb] = Some(rcx.snapshot());
+                let term_source_info = match latest_src_info {
+                    Some(src_info) => src_info,
+                    None => terminator.source_info,
+                };
+                self.check_successors(rcx, env, term_source_info, successors)
+            })?;
         }
         Ok(())
     }
@@ -304,7 +312,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
                 let ty = rcx.unpack(&ty);
                 let gen = &mut self.constr_gen(rcx, Tag::Assign(stmt.source_info.span));
-                env.write_place(rcx, gen, place, ty, Some(stmt.source_info))
+                env.write_place(rcx, gen, place, ty)
                     .map_err(|err| CheckerError::from(err).with_src_info(stmt.source_info))?;
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -376,7 +384,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);
                 let mut gen = self.constr_gen(rcx, Tag::Call(terminator.source_info.span));
-                env.write_place(rcx, &mut gen, destination, ret, Some(terminator.source_info))
+                env.write_place(rcx, &mut gen, destination, ret)
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
                 if let Some(target) = target {
@@ -393,14 +401,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let mut gen = self.constr_gen(rcx, Tag::Fold(terminator.source_info.span));
-                let _ = env.move_place(rcx, &mut gen, place, Some(terminator.source_info));
+                let _ = env.move_place(rcx, &mut gen, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, terminator.source_info, value)?;
                 let ty = rcx.unpack(&ty);
                 let mut gen = self.constr_gen(rcx, Tag::Assign(terminator.source_info.span));
-                env.write_place(rcx, &mut gen, place, ty, Some(terminator.source_info))
+                env.write_place(rcx, &mut gen, place, ty)
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
                 Ok(vec![(*target, Guard::None)])
             }
@@ -424,13 +432,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         };
         let gen = &mut self.phase.constr_gen(self.genv, rcx, tag);
         let ret_place_ty = env
-            .lookup_place(rcx, gen, Place::RETURN, src_info)
+            .lookup_place(rcx, gen, Place::RETURN)
             .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
         gen.subtyping(rcx, &ret_place_ty, &self.ret);
 
         for constraint in &self.ensures {
-            gen.check_constraint(rcx, env, constraint, src_info)
+            gen.check_constraint(rcx, env, constraint)
                 .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
         }
         Ok(vec![])
@@ -457,7 +465,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let output = self
             .constr_gen(rcx, Tag::Call(src_info.span))
-            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals, src_info)
+            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
             .map_err(|err| err.with_src_info(src_info))?;
 
         for constr in &output.ensures {
@@ -489,7 +497,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 idxs.nth(0).as_expr().not()
             }
         } else {
-            unreachable!("unexpected ty `{ty:?}`")
+            tracked_span_bug!("unexpected ty `{ty:?}`")
         };
 
         match msg {
@@ -530,7 +538,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                         Expr::from_bits(bty, bits),
                     )
                 }
-                _ => unreachable!("unexpected discr_ty {:?}", discr_ty),
+                _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
             }
         };
 
@@ -583,7 +591,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(self.genv, &mut rcx, &place, variant_idx, src_info)
+                    env.downcast(self.genv, &mut rcx, &place, variant_idx)
                         .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
                 }
             }
@@ -626,12 +634,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::MutRef(place) => {
                 let gen = &mut self.constr_gen(rcx, Tag::Other);
-                env.borrow(rcx, gen, RefKind::Mut, place, src_info)
+                env.borrow(rcx, gen, RefKind::Mut, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
                 let gen = &mut self.constr_gen(rcx, Tag::Other);
-                env.borrow(rcx, gen, RefKind::Shr, place, src_info)
+                env.borrow(rcx, gen, RefKind::Shr, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, src_info, *un_op, op),
@@ -646,7 +654,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
                 let args = self.check_operands(rcx, env, src_info, args)?;
                 let mut gen = self.constr_gen(rcx, Tag::Other);
-                gen.check_mk_array(rcx, env, &args, ty, src_info)
+                gen.check_mk_array(rcx, env, &args, ty)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys = self.check_operands(rcx, env, src_info, args)?;
@@ -655,7 +663,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Discriminant(place) => {
                 let gen = &mut self.constr_gen(rcx, Tag::Other);
                 let ty = env
-                    .lookup_place(rcx, gen, place, Some(src_info))
+                    .lookup_place(rcx, gen, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -677,13 +685,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<Ty, CheckerError> {
         let gen = &mut self.constr_gen(rcx, Tag::Other);
         let ty = env
-            .lookup_place(rcx, gen, place, Some(src_info))
+            .lookup_place(rcx, gen, place)
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
 
         let idxs = match ty.kind() {
             TyKind::Array(_, len) => RefineArgs::one(Expr::constant(rty::Constant::from(len.val))),
             TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
-            _ => panic!("expected array or slice type"),
+            _ => tracked_span_bug!("expected array or slice type"),
         };
 
         Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idxs))
@@ -742,7 +750,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     }
                 }
             }
-            _ => unreachable!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
+            _ => tracked_span_bug!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
         }
     }
 
@@ -760,7 +768,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 if let Bool!(idxs) = ty.kind() {
                     Ty::indexed(BaseTy::Bool, RefineArgs::one(idxs.nth(0).as_expr().not()))
                 } else {
-                    unreachable!("incompatible type: `{:?}`", ty)
+                    tracked_span_bug!("incompatible type: `{:?}`", ty)
                 }
             }
             mir::UnOp::Neg => {
@@ -772,7 +780,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                         )
                     }
                     Float!(float_ty, _) => Ty::float(*float_ty),
-                    _ => unreachable!("incompatible type: `{:?}`", ty),
+                    _ => tracked_span_bug!("incompatible type: `{:?}`", ty),
                 }
             }
         };
@@ -801,7 +809,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => {
-                        panic!("invalid int to int cast")
+                        tracked_span_bug!("invalid int to int cast")
                     }
                 }
             }
@@ -836,13 +844,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let gen = &mut self.constr_gen(rcx, Tag::Fold(src_info.span));
-                env.lookup_place(rcx, gen, p, Some(src_info))
+                env.lookup_place(rcx, gen, p)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let gen = &mut self.constr_gen(rcx, Tag::Fold(src_info.span));
-                env.move_place(rcx, gen, p, Some(src_info))
+                env.move_place(rcx, gen, p)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
             }
             Operand::Constant(c) => Self::check_constant(c),
@@ -942,7 +950,7 @@ impl Phase for Inference<'_> {
         ck: &mut Checker<Inference>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: Option<SourceInfo>,
+        _: Option<SourceInfo>,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
@@ -955,7 +963,7 @@ impl Phase for Inference<'_> {
             Tag::Other,
         );
         let modified = match ck.phase.bb_envs.entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env, src_info),
+            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
                 true
@@ -1008,7 +1016,7 @@ impl Phase for Check<'_> {
             |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
         let tag = Tag::Goto(src_info.map(|s| s.span), target);
         let gen = &mut ConstrGen::new(ck.genv, kvar_gen, tag);
-        env.check_goto(&mut rcx, gen, bb_env, src_info)
+        env.check_goto(&mut rcx, gen, bb_env)
             .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
         Ok(!ck.visited.contains(target))
@@ -1019,7 +1027,7 @@ impl Phase for Check<'_> {
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
-        unreachable!();
+        bug!();
     }
 }
 
