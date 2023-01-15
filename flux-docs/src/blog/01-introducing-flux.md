@@ -48,7 +48,7 @@ pub fn mk_ten() -> i32 {
 
 but when you compile it, `flux` will say
 
-```rust
+```bash
 error[FLUX]: postcondition might not hold
  --> src/basics.rs:7:5
   |
