@@ -246,7 +246,7 @@ fn build_fhir_map(
     // Register AdtDefs
     err = specs
         .structs
-        .iter_mut()
+        .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
             let adt_def = desugar::desugar_adt_def(
@@ -265,7 +265,7 @@ fn build_fhir_map(
         .or(err);
     err = specs
         .enums
-        .iter_mut()
+        .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
             let adt_def = desugar::desugar_adt_def(
@@ -302,7 +302,8 @@ fn build_fhir_map(
         .or(err);
 
     // Qualifiers
-    err = std::mem::take(&mut specs.qualifs)
+    err = specs
+        .qualifs
         .iter()
         .try_for_each_exhaust(|qualifier| {
             let qualifier = desugar::desugar_qualifier(tcx, sess, &map, qualifier)?;
