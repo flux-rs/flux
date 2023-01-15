@@ -5,13 +5,13 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, Defns, Exists, Expr, ExprKind,
-    FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg, RefineArgs,
-    RefineArgsData, Sort, Ty, TyKind, VariantRet,
+    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Exists,
+    Expr, ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier,
+    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
-    rty::{Func, Var, VariantDef},
+    rty::{BoundVar, Func, Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -203,6 +203,37 @@ pub trait TypeFoldable: Sized {
 
         self.fold_with(&mut EVarFolder(evars))
     }
+
+    fn shift_in_bvars(&self, amount: u32) -> Self {
+        struct Shifter {
+            current_index: DebruijnIndex,
+            amount: u32,
+        }
+
+        impl TypeFolder for Shifter {
+            fn fold_binders<T>(&mut self, t: &Binders<T>) -> Binders<T>
+            where
+                T: TypeFoldable,
+            {
+                self.current_index.shift_in(1);
+                let r = t.super_fold_with(self);
+                self.current_index.shift_out(1);
+                r
+            }
+
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::BoundVar(bvar) = expr.kind()
+                    && bvar.debruijn >= self.current_index
+                {
+                    let debruijn = bvar.debruijn.shifted_in(self.amount);
+                    Expr::bvar(BoundVar::new(bvar.index, debruijn))
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
+    }
 }
 
 impl<T> TypeFoldable for Binders<T>
@@ -266,9 +297,8 @@ impl TypeFoldable for FnSig {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let requires = self.requires.fold_with(folder);
         let args = self.args.fold_with(folder);
-        let ensures = self.ensures.fold_with(folder);
-        let ret = self.ret.fold_with(folder);
-        FnSig::new(requires, args, ret, ensures)
+        let output = self.output.fold_with(folder);
+        FnSig::new(requires, args, output)
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -276,10 +306,18 @@ impl TypeFoldable for FnSig {
             .iter()
             .for_each(|constr| constr.visit_with(visitor));
         self.args.iter().for_each(|arg| arg.visit_with(visitor));
-        self.ensures
-            .iter()
-            .for_each(|constr| constr.visit_with(visitor));
+        self.output.visit_with(visitor);
+    }
+}
+
+impl TypeFoldable for FnOutput {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        FnOutput::new(self.ret.fold_with(folder), self.ensures.fold_with(folder))
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.ret.visit_with(visitor);
+        self.ensures.visit_with(visitor);
     }
 }
 

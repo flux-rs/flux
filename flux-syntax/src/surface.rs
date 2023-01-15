@@ -209,10 +209,16 @@ pub struct Indices {
 
 #[derive(Debug, Clone)]
 pub enum RefineArg {
-    /// `@n`, the span correspond to the span of `@` plus the identifier
-    Bind(Ident, Span),
+    /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
+    Bind(Ident, BindKind, Span),
     Expr(Expr),
     Abs(Vec<Ident>, Expr, Span),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BindKind {
+    At,
+    Pound,
 }
 
 #[derive(Debug)]
@@ -281,6 +287,15 @@ pub enum BinOp {
 pub enum UnOp {
     Not,
     Neg,
+}
+
+impl BindKind {
+    pub fn token_str(&self) -> &'static str {
+        match self {
+            BindKind::At => "@",
+            BindKind::Pound => "#",
+        }
+    }
 }
 
 impl RefinedBy {

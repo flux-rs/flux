@@ -19,10 +19,8 @@
 use std::{
     borrow::{Borrow, Cow},
     fmt,
-    fmt::Write,
 };
 
-use flux_common::format::PadAdapter;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -114,9 +112,12 @@ pub struct FnSig {
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
-    /// example: i32
+    pub output: FnOutput,
+}
+
+pub struct FnOutput {
+    pub params: Vec<RefineParam>,
     pub ret: Ty,
-    /// example: vec![(l: i32{v:n < v})]
     pub ensures: Vec<Constraint>,
 }
 
@@ -623,50 +624,36 @@ impl_internable!([Sort]);
 
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            let mut p = PadAdapter::wrap_fmt(f, 4);
-            write!(p, "(\nfn")?;
-            if !self.params.is_empty() {
-                write!(
-                    p,
-                    "<{}>",
-                    self.params.iter().format_with(", ", |param, f| {
-                        match param.mode {
-                            InferMode::KVar => {
-                                f(&format_args!("${:?}: {:?}", param.name, param.sort))
-                            }
-                            InferMode::EVar => {
-                                f(&format_args!("?{:?}: {:?}", param.name, param.sort))
-                            }
-                        }
-                    })
-                )?;
-            }
-            write!(p, "({:?}) -> {:?}", self.args.iter().format(", "), self.ret)?;
-            if !self.requires.is_empty() {
-                write!(p, "\nrequires {:?} ", self.requires.iter().format(", "))?;
-            }
-            if !self.ensures.is_empty() {
-                write!(p, "\nensures {:?}", self.ensures.iter().format(", "))?;
-            }
-            write!(f, "\n)")?;
-        } else {
-            if !self.params.is_empty() {
-                write!(
-                    f,
-                    "for<{}> ",
-                    self.params.iter().format_with(", ", |param, f| {
-                        f(&format_args!("{:?}: {:?}", param.name, param.sort))
-                    })
-                )?;
-            }
-            if !self.requires.is_empty() {
-                write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
-            }
-            write!(f, "fn({:?}) -> {:?}", self.args.iter().format(", "), self.ret)?;
-            if !self.ensures.is_empty() {
-                write!(f, "; [{:?}]", self.ensures.iter().format(", "))?;
-            }
+        if !self.params.is_empty() {
+            write!(
+                f,
+                "for<{}> ",
+                self.params.iter().format_with(", ", |param, f| {
+                    f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                })
+            )?;
+        }
+        if !self.requires.is_empty() {
+            write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
+        }
+        write!(f, "fn({:?}) -> {:?}", self.args.iter().format(", "), self.output)
+    }
+}
+
+impl fmt::Debug for FnOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.params.is_empty() {
+            write!(
+                f,
+                "exists<{}> ",
+                self.params.iter().format_with(", ", |param, f| {
+                    f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                })
+            )?;
+        }
+        write!(f, "{:?}", self.ret)?;
+        if !self.ensures.is_empty() {
+            write!(f, "; [{:?}]", self.ensures.iter().format(", "))?;
         }
 
         Ok(())

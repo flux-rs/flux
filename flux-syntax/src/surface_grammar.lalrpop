@@ -122,7 +122,6 @@ Fields: Vec<surface::Ty> = {
     "{" <Comma<Ty>> "}" "->",
 }
 
-Env     = <Comma<(<Ident> "@" <Ty>)>>;
 Args    = <Comma<Arg>>;
 Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
@@ -204,7 +203,8 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, mk_span(lo, hi)),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, mk_span(lo, hi)),
+    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, mk_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
@@ -381,6 +381,7 @@ extern {
         "type" => Token::Type,
         "ref" => Token::Ref,
         "@"  => Token::At,
+        "#"  => Token::Pound,
         "==" => Token::EqEq,
         "!=" => Token::Ne,
         "="  => Token::Eq,

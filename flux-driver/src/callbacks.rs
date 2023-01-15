@@ -255,7 +255,7 @@ fn build_fhir_map(
                 &map,
                 def_id.to_def_id(),
                 refined_by,
-                std::mem::take(&mut def.invariants),
+                &def.invariants,
                 def.opaque,
             )?;
             map.insert_adt(*def_id, adt_def);
@@ -274,7 +274,7 @@ fn build_fhir_map(
                 &map,
                 def_id.to_def_id(),
                 refined_by,
-                std::mem::take(&mut def.invariants),
+                &def.invariants,
                 false,
             )?;
             map.insert_adt(*def_id, adt_def);
@@ -303,7 +303,7 @@ fn build_fhir_map(
 
     // Qualifiers
     err = std::mem::take(&mut specs.qualifs)
-        .into_iter()
+        .iter()
         .try_for_each_exhaust(|qualifier| {
             let qualifier = desugar::desugar_qualifier(tcx, sess, &map, qualifier)?;
             map.insert_qualifier(qualifier);

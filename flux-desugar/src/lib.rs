@@ -55,7 +55,7 @@ pub fn desugar_enum_def(
     annot_check::check_enum_def(tcx, sess, &enum_def)?;
 
     // Desugar
-    desugar::desugar_enum_def(tcx, sess, map, enum_def)
+    desugar::desugar_enum_def(tcx, sess, map, &enum_def)
 }
 
 pub fn desugar_fn_sig(
@@ -73,7 +73,7 @@ pub fn desugar_fn_sig(
     annot_check::check_fn_sig(tcx, sess, def_id.to_def_id(), &fn_sig)?;
 
     // Desugar
-    desugar::desugar_fn_sig(tcx, sess, map, fn_sig)
+    desugar::desugar_fn_sig(tcx, sess, map, &fn_sig)
 }
 
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {

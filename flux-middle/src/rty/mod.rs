@@ -87,8 +87,13 @@ pub struct PolySig {
 pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
-    ret: Ty,
-    ensures: List<Constraint>,
+    output: Binders<FnOutput>,
+}
+
+#[derive(Clone)]
+pub struct FnOutput {
+    pub ret: Ty,
+    pub ensures: List<Constraint>,
 }
 
 pub type Constraints = List<Constraint>;
@@ -361,11 +366,11 @@ impl FnSig {
     pub fn new(
         requires: impl Into<List<Constraint>>,
         args: impl Into<List<Ty>>,
-        ret: Ty,
-        ensures: impl Into<List<Constraint>>,
+        output: Binders<FnOutput>,
     ) -> Self {
-        FnSig { requires: requires.into(), args: args.into(), ret, ensures: ensures.into() }
+        FnSig { requires: requires.into(), args: args.into(), output }
     }
+
     pub fn requires(&self) -> &Constraints {
         &self.requires
     }
@@ -374,12 +379,14 @@ impl FnSig {
         &self.args
     }
 
-    pub fn ret(&self) -> &Ty {
-        &self.ret
+    pub fn output(&self) -> &Binders<FnOutput> {
+        &self.output
     }
+}
 
-    pub fn ensures(&self) -> &Constraints {
-        &self.ensures
+impl FnOutput {
+    pub fn new(ret: Ty, ensures: impl Into<List<Constraint>>) -> Self {
+        Self { ret, ensures: ensures.into() }
     }
 }
 
@@ -443,11 +450,17 @@ impl AdtDef {
 
 impl PolyVariant {
     pub fn to_fn_sig(&self) -> PolySig {
-        let variant = self.as_ref().skip_binders();
-        let sorts = self.params();
-        let modes = sorts.iter().map(Sort::default_infer_mode).collect_vec();
-        let sig = FnSig::new(vec![], variant.fields.clone(), variant.ret.to_ty(), vec![]);
-        PolySig::new(Binders::new(sig, sorts), modes)
+        let fn_sig = self.as_ref().map(|variant| {
+            let ret = variant.ret.to_ty().shift_in_bvars(1);
+            let output = Binders::new(FnOutput::new(ret, vec![]), vec![]);
+            FnSig::new(vec![], variant.fields.clone(), output)
+        });
+        let modes = fn_sig
+            .params
+            .iter()
+            .map(Sort::default_infer_mode)
+            .collect_vec();
+        PolySig::new(fn_sig, modes)
     }
 }
 
@@ -843,7 +856,7 @@ mod pretty {
             if !self.fn_sig.params.is_empty() {
                 write!(
                     f,
-                    "for<{}> ",
+                    "forall<{}> ",
                     self.fn_sig
                         .params
                         .iter()
@@ -867,16 +880,25 @@ mod pretty {
             if !self.requires.is_empty() {
                 w!("[{:?}] ", join!(", ", &self.requires))?;
             }
-            w!("{:?}) -> {:?}", join!(", ", &self.args), &self.ret)?;
-            if !self.ensures.is_empty() {
-                w!("; [{:?}]", join!(", ", &self.ensures))?;
-            }
+            w!("{:?}) -> {:?}", join!(", ", &self.args), &self.output)?;
 
             Ok(())
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
             PPrintCx::default(tcx).show_is_binder(true)
+        }
+    }
+
+    impl Pretty for Binders<FnOutput> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!(
+                "exists<{:?}> {:?}; [{:?}]",
+                join!(", ", self.params()),
+                &self.value.ret,
+                join!(", ", &self.value.ensures)
+            )
         }
     }
 
@@ -1062,6 +1084,7 @@ mod pretty {
         RefineArgs,
         VariantDef,
         PtrKind,
+        Binders<FnOutput>
     );
 }
 

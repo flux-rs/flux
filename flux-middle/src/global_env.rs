@@ -280,10 +280,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(|ty| self.refine_ty(ty, mk_pred))
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
-        rty::PolySig::new(
-            rty::Binders::new(rty::FnSig::new(vec![], args, ret, vec![]), vec![]),
-            vec![],
-        )
+        let output = rty::Binders::new(rty::FnOutput::new(ret, vec![]), vec![]);
+        rty::PolySig::new(rty::Binders::new(rty::FnSig::new(vec![], args, output), vec![]), vec![])
     }
 
     pub fn refine_ty(
