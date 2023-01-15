@@ -4,3 +4,7 @@ language = "en"
 multilingual = false
 src = "src"
 title = "Flux Documentation"
+
+[output.html]
+additional-js = ["js/flux.js"]
+
