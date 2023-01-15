@@ -209,12 +209,16 @@ pub struct Indices {
 
 #[derive(Debug, Clone)]
 pub enum RefineArg {
-    /// `@n`, the span correspond to the span of `@` plus the identifier
-    AtBind(Ident, Span),
-    /// `#n`, the span correspond to the span of `#` plus the identifier
-    PoundBind(Ident, Span),
+    /// `@n` or `#n`, the span correspond to the span of the identifier plus the binder token (`@` or `#`)
+    Bind(Ident, BindKind, Span),
     Expr(Expr),
     Abs(Vec<Ident>, Expr, Span),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BindKind {
+    At,
+    Pound,
 }
 
 #[derive(Debug)]
@@ -492,8 +496,7 @@ pub mod expand {
                 RefineArg::Expr(e) => {
                     res.insert(*src_id, e.clone());
                 }
-                RefineArg::AtBind(..) => panic!("cannot use binder in type alias"),
-                RefineArg::PoundBind(_, _) => panic!("cannot us existential binder in type alias"),
+                RefineArg::Bind(..) => panic!("cannot use binder in type alias"),
                 RefineArg::Abs(..) => panic!("cannot use `RefineArg::Abs` in type alias"),
             }
         }
@@ -564,7 +567,7 @@ pub mod expand {
     fn subst_arg(subst: &Subst, arg: &RefineArg) -> RefineArg {
         match arg {
             RefineArg::Expr(e) => RefineArg::Expr(subst_expr(subst, e)),
-            RefineArg::PoundBind(_, _) | RefineArg::AtBind(..) | RefineArg::Abs(..) => arg.clone(),
+            RefineArg::Bind(..) | RefineArg::Abs(..) => arg.clone(),
         }
     }
 

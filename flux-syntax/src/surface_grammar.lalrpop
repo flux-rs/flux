@@ -203,8 +203,8 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::AtBind(bind, mk_span(lo, hi)),
-    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::PoundBind(bind, mk_span(lo, hi)),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, mk_span(lo, hi)),
+    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, mk_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
