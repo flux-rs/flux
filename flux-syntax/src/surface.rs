@@ -289,6 +289,15 @@ pub enum UnOp {
     Neg,
 }
 
+impl BindKind {
+    pub fn token_str(&self) -> &'static str {
+        match self {
+            BindKind::At => "@",
+            BindKind::Pound => "#",
+        }
+    }
+}
+
 impl RefinedBy {
     pub const DUMMY: &RefinedBy = &RefinedBy { params: vec![], span: rustc_span::DUMMY_SP };
 }

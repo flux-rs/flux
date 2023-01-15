@@ -798,8 +798,8 @@ impl Binders {
             .indices
             .iter()
             .try_for_each_exhaust(|idx| {
-                if let surface::RefineArg::Bind(.., span) = idx {
-                    Err(sess.emit_err(errors::IllegalBinder::new(*span)))
+                if let surface::RefineArg::Bind(_, kind, span) = idx {
+                    Err(sess.emit_err(errors::IllegalBinder::new(*span, *kind)))
                 } else {
                     Ok(())
                 }
@@ -892,7 +892,7 @@ impl Binders {
                 if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
                     let binder = Binder::from_bty(&self.name_gen, bty);
                     if !pos.is_binder_allowed(kind) {
-                        return Err(sess.emit_err(errors::IllegalBinder::new(span)));
+                        return Err(sess.emit_err(errors::IllegalBinder::new(span, kind)));
                     }
                     self.insert_binder(sess, ident, binder)?;
                 } else {
@@ -908,7 +908,7 @@ impl Binders {
                     for (idx, sort) in iter::zip(&indices.indices, refined_by) {
                         if let surface::RefineArg::Bind(ident, kind, span) = idx {
                             if !pos.is_binder_allowed(*kind) {
-                                return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
+                                return Err(sess.emit_err(errors::IllegalBinder::new(*span, *kind)));
                             }
                             let name = self.name_gen.fresh();
                             self.insert_binder(
@@ -1178,6 +1178,7 @@ static SORTS: std::sync::LazyLock<Sorts> =
 
 mod errors {
     use flux_macros::Diagnostic;
+    use flux_syntax::surface::BindKind;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -1289,11 +1290,12 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
+        kind: &'static str,
     }
 
     impl IllegalBinder {
-        pub(super) fn new(span: Span) -> Self {
-            Self { span }
+        pub(super) fn new(span: Span, kind: BindKind) -> Self {
+            Self { span, kind: kind.token_str() }
         }
     }
 
