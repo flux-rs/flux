@@ -417,14 +417,12 @@ pub fn mk_ten() -&gt; i32 {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>but when you compile it, <code>flux</code> will say</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: postcondition might not hold
+<pre><code class="language-bash">error[FLUX]: postcondition might not hold
  --&gt; src/basics.rs:7:5
   |
 7 |     5 + 4
   |     ^^^^^
-<span class="boring">}</span></code></pre></pre>
+</code></pre>
 <p>The error says that that the <em>postcondition might not hold</em> which means
 that the <em>output</em> produced by <code>mk_ten</code> may not in fact be an <code>i32[10]</code>
 as indeed, in this case, the result is <code>9</code>! You can eliminate the error
@@ -859,6 +857,7 @@ and by generous gifts from Microsoft Research.</p>
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
+        <script src="js/flux.js"></script>
 
         <script>
         window.addEventListener('load', function() {
