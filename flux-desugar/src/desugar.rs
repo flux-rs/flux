@@ -403,8 +403,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         arg: surface::RefineArg,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match arg {
-            surface::RefineArg::ForallBind(ident, _) => self.bind_into_arg(ident),
-            surface::RefineArg::ExistsBind(ident, _) => self.bind_into_arg(ident),
+            surface::RefineArg::AtBind(ident, _) => self.bind_into_arg(ident),
+            surface::RefineArg::PoundBind(ident, _) => self.bind_into_arg(ident),
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
@@ -769,7 +769,7 @@ impl Binders {
         variant: &surface::VariantDef<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         for ty in &variant.fields {
-            self.ty_gather_params(tcx, sess, map, None, ty, true)?;
+            self.gather_params_ty(tcx, sess, map, None, ty, true)?;
         }
         // Traverse return type to find illegal binders
         self.path_gather_params(tcx, sess, map, &variant.ret.path, false)?;
@@ -779,7 +779,7 @@ impl Binders {
             .indices
             .iter()
             .try_for_each_exhaust(|idx| {
-                if let surface::RefineArg::ForallBind(_, span) = idx {
+                if let surface::RefineArg::AtBind(_, span) = idx {
                     Err(sess.emit_err(errors::IllegalBinder::new(*span)))
                 } else {
                     Ok(())
@@ -806,7 +806,7 @@ impl Binders {
         }
         // Traverse return type to find illegal binders
         if let Some(ret) = &fn_sig.returns {
-            self.ty_gather_params(tcx, sess, map, None, ret, false)?;
+            self.gather_params_ty(tcx, sess, map, None, ret, false)?;
         }
 
         Ok(())
@@ -829,15 +829,15 @@ impl Binders {
                     *loc,
                     Binder::Single(self.fresh(), fhir::Sort::Loc, false),
                 )?;
-                self.ty_gather_params(tcx, sess, map, None, ty, true)?;
+                self.gather_params_ty(tcx, sess, map, None, ty, true)?;
             }
-            surface::Arg::Ty(bind, ty) => self.ty_gather_params(tcx, sess, map, *bind, ty, true)?,
+            surface::Arg::Ty(bind, ty) => self.gather_params_ty(tcx, sess, map, *bind, ty, true)?,
             surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
     }
 
-    fn ty_gather_params(
+    fn gather_params_ty(
         &mut self,
         tcx: TyCtxt,
         sess: &FluxSession,
@@ -856,7 +856,7 @@ impl Binders {
                     // of `fn<n: int>(x: RMat[n, n])`
                     unreachable!("[sanity check] this code is unreachable but we are leaving a not in case it is not anymore");
                 }
-                if let [surface::RefineArg::ForallBind(ident, span)] = indices.indices[..] {
+                if let [surface::RefineArg::AtBind(ident, span)] = indices.indices[..] {
                     let binder = Binder::from_bty(&self.name_gen, bty);
                     if !allow_binder {
                         return Err(sess.emit_err(errors::IllegalBinder::new(span)));
@@ -873,7 +873,7 @@ impl Binders {
                     }
 
                     for (idx, sort) in iter::zip(&indices.indices, refined_by) {
-                        if let surface::RefineArg::ForallBind(ident, span) = idx {
+                        if let surface::RefineArg::AtBind(ident, span) = idx {
                             if !allow_binder {
                                 return Err(sess.emit_err(errors::IllegalBinder::new(*span)));
                             }
@@ -899,18 +899,18 @@ impl Binders {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::Unrefined)?;
                 }
-                self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
+                self.gather_params_ty(tcx, sess, map, None, ty, allow_binder)
             }
             surface::TyKind::Tuple(tys) => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::Unrefined)?;
                 }
                 for ty in tys {
-                    self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)?;
+                    self.gather_params_ty(tcx, sess, map, None, ty, allow_binder)?;
                 }
                 Ok(())
             }
-            surface::TyKind::Array(ty, _) => self.ty_gather_params(tcx, sess, map, None, ty, false),
+            surface::TyKind::Array(ty, _) => self.gather_params_ty(tcx, sess, map, None, ty, false),
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
                     self.insert_binder(sess, bind, Binder::from_bty(&self.name_gen, bty))?;
@@ -930,7 +930,7 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         let allow_binder = allow_binder && is_box(tcx, path.res);
         path.args.iter().try_for_each_exhaust(|ty| {
-            self.ty_gather_params(tcx, sess, map, None, ty, allow_binder)
+            self.gather_params_ty(tcx, sess, map, None, ty, allow_binder)
         })
     }
 
@@ -946,7 +946,7 @@ impl Binders {
             surface::BaseTy::Path(path) => {
                 self.path_gather_params(tcx, sess, map, path, allow_binder)
             }
-            surface::BaseTy::Slice(ty) => self.ty_gather_params(tcx, sess, map, None, ty, false),
+            surface::BaseTy::Slice(ty) => self.gather_params_ty(tcx, sess, map, None, ty, false),
         }
     }
 
