@@ -25,6 +25,7 @@ struct Env {
 }
 
 impl Env {
+    /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
     fn push_layer<'a>(
         &mut self,
         binders: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>,

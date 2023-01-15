@@ -209,7 +209,7 @@ pub struct Indices {
 
 #[derive(Debug, Clone)]
 pub enum RefineArg {
-    /// `@n` or `#n`, the span correspond to the span of the identifier plus the binder token (`@` or `#`)
+    /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     Bind(Ident, BindKind, Span),
     Expr(Expr),
     Abs(Vec<Ident>, Expr, Span),
