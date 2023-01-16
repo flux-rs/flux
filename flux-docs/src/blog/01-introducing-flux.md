@@ -1,6 +1,6 @@
 # Introducing Flux
 
-[Online demo](http://goto.ucsd.edu:8091/index.html#?demo=basics.rs)
+[Online demo](https://flux.programming.systems)
 
 Types bring order to code. For example, if a variable `i:usize`
 then we know `i` is a number that can be used to index a vector.
