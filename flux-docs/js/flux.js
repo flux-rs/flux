@@ -1,5 +1,5 @@
 window.fetch = (originalFetch => {
-    const fluxPlayground = "http://goto.ucsd.edu:8091";
+    const fluxPlayground = "https://flux.programming.systems";
     return (url, options) => {
         const redirected = url.replace(/https:\/\/play.rust-lang.org/, fluxPlayground);
         return originalFetch(redirected, options);
