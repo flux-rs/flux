@@ -672,9 +672,10 @@ impl Node {
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    gen.check_constructor(rcx, &variant, substs, &fields)
-                        .unwrap()
-                        .to_ty()
+                    match gen.check_constructor(rcx, &variant, substs, &fields) {
+                        Ok(ret) => ret.to_ty(),
+                        Err(err) => tracked_span_bug!("{err:?}"),
+                    }
                 };
                 *self = Node::owned(ty.clone());
                 ty
