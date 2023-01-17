@@ -54,7 +54,7 @@ fn check_invariant(
             rcx.assume_invariants(&ty);
         }
 
-        rcx.check_pred(invariant.pred.replace_bvars(&variant.ret.args), Tag::Other);
+        rcx.check_pred(invariant.pred.replace_bvars(&variant.ret.args), Tag::Other(span));
     }
     let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);

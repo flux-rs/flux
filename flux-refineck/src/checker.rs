@@ -74,7 +74,7 @@ pub trait Phase: Sized {
         ck: &mut Checker<Self>,
         rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: Option<SourceInfo>,
+        src_info: SourceInfo,
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
@@ -192,7 +192,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let dominators = body.dominators();
         let mut ck = Checker::new(genv, body, fn_sig.output().clone(), &dominators, phase);
 
-        ck.check_goto(rcx, env, None, START_BLOCK)?;
+        ck.check_goto(rcx, env, SourceInfo::outermost(body.span()), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             let snapshot = ck.snapshot_at_dominator(bb);
             if ck.visited.contains(bb) {
@@ -574,7 +574,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                         .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
                 }
             }
-            self.check_goto(rcx, env, Some(src_info), target)?;
+            self.check_goto(rcx, env, src_info, target)?;
         }
         Ok(())
     }
@@ -583,18 +583,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
-        src_info: Option<SourceInfo>,
+        src_info: SourceInfo,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
-            let tag = match src_info {
-                Some(info) => Tag::RetAt(info.span),
-                None => Tag::Ret,
-            };
+            let tag = Tag::RetAt(src_info.span);
             self.phase
                 .constr_gen(self.genv, &rcx, tag)
                 .check_ret(&mut rcx, &mut env, &self.output)
-                .map_err(|err| err.with_src_info_opt(src_info))
+                .map_err(|err| err.with_src_info_opt(Some(src_info)))
         } else if self.body.is_join_point(target) {
             if P::check_goto_join_point(self, rcx, env, src_info, target)? {
                 self.queue.insert(target);
@@ -618,12 +615,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Other);
+                let gen = &mut self.constr_gen(rcx, Tag::Other(src_info.span));
                 env.borrow(rcx, gen, RefKind::Mut, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Other);
+                let gen = &mut self.constr_gen(rcx, Tag::Other(src_info.span));
                 env.borrow(rcx, gen, RefKind::Shr, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
@@ -638,7 +635,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
                 let args = self.check_operands(rcx, env, src_info, args)?;
-                let mut gen = self.constr_gen(rcx, Tag::Other);
+                let mut gen = self.constr_gen(rcx, Tag::Other(src_info.span));
                 gen.check_mk_array(rcx, env, &args, ty)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
@@ -646,7 +643,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Discriminant(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Other);
+                let gen = &mut self.constr_gen(rcx, Tag::Other(src_info.span));
                 let ty = env
                     .lookup_place(rcx, gen, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
@@ -668,7 +665,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         src_info: SourceInfo,
         place: &Place,
     ) -> Result<Ty, CheckerError> {
-        let gen = &mut self.constr_gen(rcx, Tag::Other);
+        let gen = &mut self.constr_gen(rcx, Tag::Other(src_info.span));
         let ty = env
             .lookup_place(rcx, gen, place)
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
@@ -935,7 +932,7 @@ impl Phase for Inference<'_> {
         ck: &mut Checker<Inference>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        _: Option<SourceInfo>,
+        src_info: SourceInfo,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
@@ -945,7 +942,7 @@ impl Phase for Inference<'_> {
         let mut gen = ConstrGen::new(
             ck.genv,
             |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts),
-            Tag::Other,
+            Tag::Other(src_info.span),
         );
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
@@ -989,7 +986,7 @@ impl Phase for Check<'_> {
         ck: &mut Checker<Check>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: Option<SourceInfo>,
+        src_info: SourceInfo,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
         let bb_env = &ck.phase.bb_envs[&target];
@@ -999,10 +996,10 @@ impl Phase for Check<'_> {
 
         let kvar_gen =
             |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
-        let tag = Tag::Goto(src_info.map(|s| s.span), target);
+        let tag = Tag::Goto(Some(src_info.span), target);
         let gen = &mut ConstrGen::new(ck.genv, kvar_gen, tag);
         env.check_goto(&mut rcx, gen, bb_env)
-            .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
+            .map_err(|err| CheckerError::from(err).with_src_info_opt(Some(src_info)))?;
 
         Ok(!ck.visited.contains(target))
     }
