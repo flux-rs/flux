@@ -599,7 +599,7 @@ impl Node {
     }
 
     fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
-        let ty = self.expect_leaf_mut().unblock();
+        let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
             TyKind::Tuple(tys) => {
                 let children = tys
@@ -672,10 +672,9 @@ impl Node {
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    match gen.check_constructor(rcx, &variant, substs, &fields) {
-                        Ok(ret) => ret.to_ty(),
-                        Err(err) => tracked_span_bug!("{err:?}"),
-                    }
+                    gen.check_constructor(rcx, &variant, substs, &fields)
+                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
+                        .to_ty()
                 };
                 *self = Node::owned(ty.clone());
                 ty
@@ -763,11 +762,11 @@ impl Binding {
         }
     }
 
-    pub fn unblock(&mut self) -> Ty {
+    pub fn unblock(&mut self, rcx: &mut RefineCtxt) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
             Binding::Blocked(ty) => {
-                let ty = ty.clone();
+                let ty = rcx.unpack(ty);
                 *self = Binding::Owned(ty.clone());
                 ty
             }
