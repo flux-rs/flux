@@ -23,10 +23,10 @@ refineck_param_inference_error =
     parameter inference error at function call
 
 refineck_fold_error =
-    fold error
+    type invariant may not hold (when place is folded)
 
 refineck_unknown_error =
-    unknown error
+    cannot prove this code safe
 
 refineck_overflow_error =
     arithmetic operation may overflow

@@ -54,7 +54,7 @@ pub enum Tag {
     Rem(Span),
     Goto(Option<Span>, BasicBlock),
     Overflow(Span),
-    Other,
+    Other(Span),
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
@@ -544,7 +544,7 @@ mod pretty {
                 }
                 Tag::Assert(msg, span) => w!("Assert(\"{}\", {:?})", ^msg, span),
                 Tag::Fold(span) => w!("Fold({:?})", span),
-                Tag::Other => w!("Other"),
+                Tag::Other(span) => w!("Other({:?})", span),
                 Tag::Overflow(span) => w!("Overflow({:?})", span),
             }
         }
