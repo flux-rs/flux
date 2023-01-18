@@ -8,6 +8,10 @@ struct S {
 }
 
 impl S {
+    fn take_mut(&self, _: i32) {
+        unimplemented!()
+    }
+
     fn take_shr(&self) -> bool {
         unimplemented!()
     }
@@ -19,9 +23,14 @@ impl S {
 }
 
 #[flux::sig(fn(s: &strg S[@n]) ensures s: S)]
-fn test(s: &mut S) {
+fn test00(s: &mut S) {
     if s.take_shr() {
         s.take_strg();
     }
     let x = s.x;
+}
+
+#[flux::sig(fn(self: &strg S[@n]) ensures self: S)]
+fn test01(s: &mut S) {
+    s.take_mut(s.x);
 }
