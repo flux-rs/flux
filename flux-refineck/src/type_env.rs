@@ -183,12 +183,24 @@ impl TypeEnv {
         });
     }
 
-    pub fn block_with(&mut self, path: &Path, updated: Ty, expect_owned: bool) -> Ty {
-        self.bindings.block_with(path, updated, expect_owned)
+    pub fn block_with(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        path: &Path,
+        updated: Ty,
+    ) -> Ty {
+        self.bindings
+            .lookup(gen.genv, rcx, path)
+            .unwrap_or_else(|err| tracked_span_bug!("{:?}", err))
+            .block_with(rcx, gen, updated)
     }
 
-    pub fn block(&mut self, path: &Path, expect_owned: bool) -> Ty {
-        self.bindings.block(path, expect_owned)
+    pub fn block(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, path: &Path) -> Ty {
+        self.bindings
+            .lookup(gen.genv, rcx, path)
+            .unwrap_or_else(|err| tracked_span_bug!("{:?}", err))
+            .block(rcx, gen)
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
@@ -315,14 +327,20 @@ impl TypeEnv {
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
-                        let ty = self.bindings.block(ptr_path, true);
+                        let ty = self
+                            .bindings
+                            .lookup(gen.genv, rcx, ptr_path)?
+                            .block(rcx, gen);
                         gen.subtyping(rcx, &ty, bound, reason);
 
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                     }
                     (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.block(ptr_path, true);
+                        let ty = self
+                            .bindings
+                            .lookup(gen.genv, rcx, ptr_path)?
+                            .block(rcx, gen);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     _ => (),
@@ -356,6 +374,10 @@ impl TypeEnv {
     pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
+    }
+
+    fn update(&mut self, path: &Path, ty: Ty) {
+        self.bindings.update(path, ty);
     }
 }
 
@@ -440,10 +462,39 @@ impl TypeEnvInfer {
         }
     }
 
+    fn block(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, path: &Path) -> Ty {
+        self.bindings
+            .lookup(gen.genv, rcx, path)
+            .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
+            .block(rcx, gen)
+    }
+
+    pub fn block_with(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        path: &Path,
+        updated: Ty,
+    ) -> Ty {
+        self.bindings
+            .lookup(gen.genv, rcx, path)
+            .unwrap_or_else(|err| tracked_span_bug!("{:?}", err))
+            .block_with(rcx, gen, updated)
+    }
+
+    fn update(&mut self, path: &Path, ty: Ty) {
+        self.bindings.update(path, ty);
+    }
+
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub fn join(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, mut other: TypeEnv) -> bool {
+    pub(crate) fn join(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        mut other: TypeEnv,
+    ) -> bool {
         other.bindings.close_boxes(rcx, gen, &self.scope);
 
         // Unfold
@@ -460,19 +511,19 @@ impl TypeEnvInfer {
                     (TyKind::Ptr(PtrKind::Shr, path1), TyKind::Ptr(PtrKind::Shr, path2))
                         if path1 != path2 =>
                     {
-                        let ty1 = self.bindings.block(path1, true);
-                        let ty2 = self.bindings.block(path2, true);
+                        let ty1 = self.block(rcx, gen, path1);
+                        let ty2 = self.block(rcx, gen, path2);
 
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty1));
-                        other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty2));
+                        self.update(path, Ty::mk_ref(RefKind::Shr, ty1));
+                        other.update(path, Ty::mk_ref(RefKind::Shr, ty2));
                     }
                     (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
-                        let ty = self.bindings.block(ptr_path, true);
+                        let ty = self.block(rcx, gen, ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
-                        let ty = other.bindings.block(ptr_path, true);
-                        other.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        let ty = other.block(rcx, gen, ptr_path);
+                        other.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
                     (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2))
                         if path1 != path2 =>
@@ -482,25 +533,20 @@ impl TypeEnvInfer {
 
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
-                        other
-                            .bindings
-                            .update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
+                        other.update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
 
-                        self.bindings.block_with(path1, ty1, true);
-                        other.bindings.block_with(path2, ty2, true);
+                        self.block_with(rcx, gen, path1, ty1);
+                        other.block_with(rcx, gen, path2, ty2);
                     }
                     (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
                         let bound = bound.with_holes();
-                        self.bindings
-                            .update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                        self.block_with(rcx, gen, ptr_path, bound.clone());
+                        self.update(path, Ty::mk_ref(RefKind::Mut, bound));
                     }
                     (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
                         let bound = bound.with_holes();
-                        other
-                            .bindings
-                            .update_binding(ptr_path, Binding::Blocked(bound.clone()));
-                        other.bindings.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                        other.block_with(rcx, gen, ptr_path, bound.clone());
+                        other.update(path, Ty::mk_ref(RefKind::Mut, bound));
                     }
                     _ => {}
                 }
