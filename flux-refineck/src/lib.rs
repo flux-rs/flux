@@ -38,7 +38,6 @@ use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
-use rustc_span::Span;
 
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
@@ -69,7 +68,7 @@ pub fn check_fn<'tcx>(
 
         let result = match fcx.check(cache, def_id, constraint) {
             Ok(_) => Ok(()),
-            Err(tags) => report_errors(genv, body.span(), tags),
+            Err(tags) => report_errors(genv, tags),
         };
 
         tracing::info!("FixpointCtx::check");
@@ -78,14 +77,10 @@ pub fn check_fn<'tcx>(
     })
 }
 
-fn report_errors(
-    genv: &GlobalEnv,
-    body_span: Span,
-    errors: Vec<Tag>,
-) -> Result<(), ErrorGuaranteed> {
+fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
     for err in errors {
-        let span = err.span.unwrap_or(body_span);
+        let span = err.span;
         e = Some(match err.reason {
             ConstrReason::Call => genv.sess.emit_err(errors::CallError { span }),
             ConstrReason::Assign => genv.sess.emit_err(errors::AssignError { span }),

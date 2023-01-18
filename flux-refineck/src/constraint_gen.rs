@@ -31,7 +31,7 @@ use crate::{
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
-    span: Option<Span>, // tag: Tag,
+    span: Span,
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -45,11 +45,11 @@ struct InferCtxt<'a, 'tcx> {
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Tag {
     pub reason: ConstrReason,
-    pub span: Option<Span>,
+    pub span: Span,
 }
 
 impl Tag {
-    pub fn new(reason: ConstrReason, span: Option<Span>) -> Self {
+    pub fn new(reason: ConstrReason, span: Span) -> Self {
         Self { reason, span }
     }
 }
@@ -69,7 +69,7 @@ pub enum ConstrReason {
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
-    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, span: Option<Span>) -> Self
+    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, span: Span) -> Self
     where
         G: KVarGen + 'a,
     {
@@ -541,11 +541,7 @@ mod pretty {
     impl Pretty for Tag {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?}", ^self.reason)?;
-            if let Some(span) = self.span {
-                w!(" at {:?}", span)?;
-            }
-            Ok(())
+            w!("{:?} at {:?}", ^self.reason, self.span)
         }
     }
 

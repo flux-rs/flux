@@ -66,7 +66,7 @@ pub trait Phase: Sized {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
-        span: Option<Span>,
+        span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
@@ -344,11 +344,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let terminator_span = terminator.source_info.span;
         match &terminator.kind {
             TerminatorKind::Return => {
-                let span = last_stmt_span.or(Some(terminator_span));
+                let span = last_stmt_span.unwrap_or(terminator_span);
                 self.phase
                     .constr_gen(self.genv, rcx, span)
                     .check_ret(rcx, env, &self.output)
-                    .map_err(|err| err.with_span_opt(last_stmt_span))?;
+                    .map_err(|err| err.with_span(span))?;
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
@@ -567,7 +567,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    // TODO is this the right span
                     env.downcast(self.genv, &mut rcx, &place, variant_idx)
                         .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
                 }
@@ -581,16 +580,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
-        terminator_span: Span,
+        source_span: Span,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
             self.phase
-                .constr_gen(self.genv, &rcx, Some(terminator_span))
+                .constr_gen(self.genv, &rcx, source_span)
                 .check_ret(&mut rcx, &mut env, &self.output)
-                .map_err(|err| err.with_span(terminator_span))
+                .map_err(|err| err.with_span(source_span))
         } else if self.body.is_join_point(target) {
-            if P::check_goto_join_point(self, rcx, env, terminator_span, target)? {
+            if P::check_goto_join_point(self, rcx, env, source_span, target)? {
                 self.queue.insert(target);
             }
             Ok(())
@@ -862,7 +861,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.phase.constr_gen(self.genv, rcx, Some(span))
+        self.phase.constr_gen(self.genv, rcx, span)
     }
 
     #[track_caller]
@@ -919,7 +918,7 @@ impl Phase for Inference<'_> {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         _rcx: &RefineCtxt,
-        span: Option<Span>,
+        span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         ConstrGen::new(genv, |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts), span)
     }
@@ -942,7 +941,7 @@ impl Phase for Inference<'_> {
         let mut gen = ConstrGen::new(
             ck.genv,
             |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts),
-            Some(terminator_span),
+            terminator_span,
         );
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
@@ -970,7 +969,7 @@ impl Phase for Check<'_> {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
-        span: Option<Span>,
+        span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
         let kvar_gen =
@@ -996,9 +995,9 @@ impl Phase for Check<'_> {
 
         let kvar_gen =
             |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
-        let gen = &mut ConstrGen::new(ck.genv, kvar_gen, Some(terminator_span));
+        let gen = &mut ConstrGen::new(ck.genv, kvar_gen, terminator_span);
         env.check_goto(&mut rcx, gen, bb_env, target)
-            .map_err(|err| CheckerError::from(err).with_span_opt(Some(terminator_span)))?;
+            .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
 
         Ok(!ck.visited.contains(target))
     }

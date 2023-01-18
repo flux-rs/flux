@@ -4,7 +4,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{AdtDef, Invariant},
 };
-use rustc_span::Span;
+use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
     constraint_gen::{ConstrReason, Tag},
@@ -56,7 +56,7 @@ fn check_invariant(
 
         rcx.check_pred(
             invariant.pred.replace_bvars(&variant.ret.args),
-            Tag::new(ConstrReason::Other, None),
+            Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }
     let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
