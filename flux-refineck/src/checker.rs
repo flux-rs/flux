@@ -302,7 +302,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
                 let ty = rcx.unpack(&ty);
-                let gen = &mut self.constr_gen(rcx, Some(stmt.source_info.span));
+                let gen = &mut self.constr_gen(rcx, stmt.source_info.span);
                 env.write_place(rcx, gen, place, ty)
                     .map_err(|err| CheckerError::from(err).with_src_info(stmt.source_info))?;
             }
@@ -380,7 +380,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);
-                let mut gen = self.constr_gen(rcx, Some(terminator.source_info.span));
+                let mut gen = self.constr_gen(rcx, terminator.source_info.span);
                 env.write_place(rcx, &mut gen, destination, ret)
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
 
@@ -397,14 +397,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let mut gen = self.constr_gen(rcx, Some(terminator.source_info.span));
+                let mut gen = self.constr_gen(rcx, terminator.source_info.span);
                 let _ = env.move_place(rcx, &mut gen, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
                 let ty = self.check_operand(rcx, env, terminator.source_info, value)?;
                 let ty = rcx.unpack(&ty);
-                let mut gen = self.constr_gen(rcx, Some(terminator.source_info.span));
+                let mut gen = self.constr_gen(rcx, terminator.source_info.span);
                 env.write_place(rcx, &mut gen, place, ty)
                     .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
                 Ok(vec![(*target, Guard::None)])
@@ -437,7 +437,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .collect_vec();
 
         let output = self
-            .constr_gen(rcx, Some(src_info.span))
+            .constr_gen(rcx, src_info.span)
             .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
             .map_err(|err| err.with_src_info(src_info))?
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
@@ -476,7 +476,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         match msg {
             AssertKind::BoundsCheck => {
-                self.constr_gen(rcx, Some(source_info.span)).check_pred(
+                self.constr_gen(rcx, source_info.span).check_pred(
                     rcx,
                     pred.clone(),
                     ConstrReason::Assert("bound_check"),
@@ -488,7 +488,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     AssertBehavior::Ignore => Ok(Guard::None),
                     AssertBehavior::Assume => Ok(Guard::Pred(pred)),
                     AssertBehavior::Check => {
-                        self.constr_gen(rcx, Some(source_info.span)).check_pred(
+                        self.constr_gen(rcx, source_info.span).check_pred(
                             rcx,
                             pred.clone(),
                             ConstrReason::Assert(assert_msg),
@@ -617,12 +617,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Some(src_info.span));
+                let gen = &mut self.constr_gen(rcx, src_info.span);
                 env.borrow(rcx, gen, RefKind::Mut, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Some(src_info.span));
+                let gen = &mut self.constr_gen(rcx, src_info.span);
                 env.borrow(rcx, gen, RefKind::Shr, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
@@ -637,7 +637,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
                 let args = self.check_operands(rcx, env, src_info, args)?;
-                let mut gen = self.constr_gen(rcx, Some(src_info.span));
+                let mut gen = self.constr_gen(rcx, src_info.span);
                 gen.check_mk_array(rcx, env, &args, ty)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
@@ -645,7 +645,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Discriminant(place) => {
-                let gen = &mut self.constr_gen(rcx, Some(src_info.span));
+                let gen = &mut self.constr_gen(rcx, src_info.span);
                 let ty = env
                     .lookup_place(rcx, gen, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
@@ -667,7 +667,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         src_info: SourceInfo,
         place: &Place,
     ) -> Result<Ty, CheckerError> {
-        let gen = &mut self.constr_gen(rcx, Some(src_info.span));
+        let gen = &mut self.constr_gen(rcx, src_info.span);
         let ty = env
             .lookup_place(rcx, gen, place)
             .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
@@ -721,7 +721,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
                 let (e1, e2) = (idxs1.nth(0).as_expr().clone(), idxs2.nth(0).as_expr().clone());
                 if let sigs::Pre::Some(reason, constr) = sig.pre {
-                    self.constr_gen(rcx, Some(source_info.span)).check_pred(
+                    self.constr_gen(rcx, source_info.span).check_pred(
                         rcx,
                         constr([e1.clone(), e2.clone()]),
                         reason,
@@ -830,13 +830,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                let gen = &mut self.constr_gen(rcx, Some(src_info.span));
+                let gen = &mut self.constr_gen(rcx, src_info.span);
                 env.lookup_place(rcx, gen, p)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                let gen = &mut self.constr_gen(rcx, Some(src_info.span));
+                let gen = &mut self.constr_gen(rcx, src_info.span);
                 env.move_place(rcx, gen, p)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
             }
@@ -866,8 +866,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
-    fn constr_gen(&mut self, rcx: &RefineCtxt, span: Option<Span>) -> ConstrGen<'_, 'tcx> {
-        self.phase.constr_gen(self.genv, rcx, span)
+    fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
+        self.phase.constr_gen(self.genv, rcx, Some(span))
     }
 
     #[track_caller]
