@@ -26,7 +26,7 @@ use flux_middle::{
         self,
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, CastKind, Constant, Operand, Place,
-            Rvalue, SourceInfo, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
+            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
             START_BLOCK,
         },
     },
@@ -75,7 +75,7 @@ pub trait Phase: Sized {
         ck: &mut Checker<Self>,
         rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: SourceInfo,
+        terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
@@ -193,7 +193,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let dominators = body.dominators();
         let mut ck = Checker::new(genv, body, fn_sig.output().clone(), &dominators, phase);
 
-        ck.check_goto(rcx, env, SourceInfo::outermost(body.span()), START_BLOCK)?;
+        ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             let snapshot = ck.snapshot_at_dominator(bb);
             if ck.visited.contains(bb) {
@@ -262,7 +262,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
-        let mut latest_src_info = None;
+        let mut last_stmt_span = None;
         for stmt in &data.statements {
             dbg::statement!("start", stmt, rcx, env);
             bug::track_span(stmt.source_info.span, || {
@@ -270,7 +270,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             })?;
             dbg::statement!("end", stmt, rcx, env);
             if !stmt.is_nop() {
-                latest_src_info = Some(stmt.source_info);
+                last_stmt_span = Some(stmt.source_info.span);
             }
         }
 
@@ -278,15 +278,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             bug::track_span(terminator.source_info.span, || {
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
-                    self.check_terminator(&mut rcx, &mut env, terminator, latest_src_info)?;
+                    self.check_terminator(&mut rcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, rcx, env);
 
                 self.snapshots[bb] = Some(rcx.snapshot());
-                let term_source_info = match latest_src_info {
-                    Some(src_info) => src_info,
-                    None => terminator.source_info,
-                };
-                self.check_successors(rcx, env, term_source_info, successors)
+                let term_span = last_stmt_span.unwrap_or(terminator.source_info.span);
+                self.check_successors(rcx, env, term_span, successors)
             })?;
         }
         Ok(())
@@ -298,11 +295,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         stmt: &Statement,
     ) -> Result<(), CheckerError> {
+        let stmt_span = stmt.source_info.span;
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                let ty = self.check_rvalue(rcx, env, stmt.source_info, rvalue)?;
+                let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
-                let gen = &mut self.constr_gen(rcx, stmt.source_info.span);
+                let gen = &mut self.constr_gen(rcx, stmt_span);
                 env.write_place(rcx, gen, place, ty)
                     .map_err(|err| CheckerError::from(err).with_src_info(stmt.source_info))?;
             }
@@ -341,20 +339,22 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         terminator: &Terminator<'tcx>,
-        src_info: Option<SourceInfo>,
+        last_stmt_span: Option<Span>,
     ) -> Result<Vec<(BasicBlock, Guard)>, CheckerError> {
+        let terminator_span = terminator.source_info.span;
         match &terminator.kind {
             TerminatorKind::Return => {
+                let span = last_stmt_span.or(Some(terminator_span));
                 self.phase
-                    .constr_gen(self.genv, rcx, src_info.map(|src_info| src_info.span))
+                    .constr_gen(self.genv, rcx, span)
                     .check_ret(rcx, env, &self.output)
-                    .map_err(|err| err.with_src_info_opt(src_info))?;
+                    .map_err(|err| err.with_span_opt(last_stmt_span))?;
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::SwitchInt { discr, targets } => {
-                let discr_ty = self.check_operand(rcx, env, terminator.source_info, discr)?;
+                let discr_ty = self.check_operand(rcx, env, terminator_span, discr)?;
                 if discr_ty.is_integral() || discr_ty.is_bool() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
@@ -369,20 +369,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .lookup_fn_sig(*func_id)
                     .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
 
-                let ret = self.check_call(
-                    rcx,
-                    env,
-                    terminator.source_info,
-                    fn_sig,
-                    &call_substs.lowered,
-                    args,
-                )?;
+                let ret =
+                    self.check_call(rcx, env, terminator_span, fn_sig, &call_substs.lowered, args)?;
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);
-                let mut gen = self.constr_gen(rcx, terminator.source_info.span);
+                let mut gen = self.constr_gen(rcx, terminator_span);
                 env.write_place(rcx, &mut gen, destination, ret)
-                    .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
+                    .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
 
                 if let Some(target) = target {
                     Ok(vec![(*target, Guard::None)])
@@ -393,20 +387,20 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             TerminatorKind::Assert { cond, expected, target, msg } => {
                 Ok(vec![(
                     *target,
-                    self.check_assert(rcx, env, terminator.source_info, cond, *expected, msg)?,
+                    self.check_assert(rcx, env, terminator_span, cond, *expected, msg)?,
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let mut gen = self.constr_gen(rcx, terminator.source_info.span);
+                let mut gen = self.constr_gen(rcx, terminator_span);
                 let _ = env.move_place(rcx, &mut gen, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::DropAndReplace { place, value, target, .. } => {
-                let ty = self.check_operand(rcx, env, terminator.source_info, value)?;
+                let ty = self.check_operand(rcx, env, terminator_span, value)?;
                 let ty = rcx.unpack(&ty);
-                let mut gen = self.constr_gen(rcx, terminator.source_info.span);
+                let mut gen = self.constr_gen(rcx, terminator_span);
                 env.write_place(rcx, &mut gen, place, ty)
-                    .map_err(|err| CheckerError::from(err).with_src_info_opt(src_info))?;
+                    .map_err(|err| CheckerError::from(err).with_span_opt(last_stmt_span))?;
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -421,12 +415,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        src_info: SourceInfo,
+        terminator_span: Span,
         fn_sig: PolySig,
         substs: &[rustc::ty::GenericArg],
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
-        let actuals = self.check_operands(rcx, env, src_info, args)?;
+        let actuals = self.check_operands(rcx, env, terminator_span, args)?;
 
         let substs = substs
             .iter()
@@ -437,9 +431,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .collect_vec();
 
         let output = self
-            .constr_gen(rcx, src_info.span)
+            .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
-            .map_err(|err| err.with_src_info(src_info))?
+            .map_err(|err| err.with_span(terminator_span))?
             .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
 
         for constr in &output.ensures {
@@ -458,12 +452,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_info: SourceInfo,
+        terminator_span: Span,
         cond: &Operand,
         expected: bool,
         msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
-        let ty = self.check_operand(rcx, env, source_info, cond)?;
+        let ty = self.check_operand(rcx, env, terminator_span, cond)?;
         let pred = if let TyKind::Indexed(BaseTy::Bool, idxs) = ty.kind() {
             if expected {
                 idxs.nth(0).as_expr().clone()
@@ -476,7 +470,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         match msg {
             AssertKind::BoundsCheck => {
-                self.constr_gen(rcx, source_info.span).check_pred(
+                self.constr_gen(rcx, terminator_span).check_pred(
                     rcx,
                     pred.clone(),
                     ConstrReason::Assert("bound_check"),
@@ -488,7 +482,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     AssertBehavior::Ignore => Ok(Guard::None),
                     AssertBehavior::Assume => Ok(Guard::Pred(pred)),
                     AssertBehavior::Check => {
-                        self.constr_gen(rcx, source_info.span).check_pred(
+                        self.constr_gen(rcx, terminator_span).check_pred(
                             rcx,
                             pred.clone(),
                             ConstrReason::Assert(assert_msg),
@@ -561,7 +555,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: SourceInfo,
+        terminator_span: Span,
         successors: Vec<(BasicBlock, Guard)>,
     ) -> Result<(), CheckerError> {
         for (target, guard) in successors {
@@ -573,11 +567,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
+                    // TODO is this the right span
                     env.downcast(self.genv, &mut rcx, &place, variant_idx)
-                        .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
+                        .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
                 }
             }
-            self.check_goto(rcx, env, src_info, target)?;
+            self.check_goto(rcx, env, terminator_span, target)?;
         }
         Ok(())
     }
@@ -586,16 +581,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
-        src_info: SourceInfo,
+        terminator_span: Span,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
             self.phase
-                .constr_gen(self.genv, &rcx, Some(src_info.span))
+                .constr_gen(self.genv, &rcx, Some(terminator_span))
                 .check_ret(&mut rcx, &mut env, &self.output)
-                .map_err(|err| err.with_src_info(src_info))
+                .map_err(|err| err.with_span(terminator_span))
         } else if self.body.is_join_point(target) {
-            if P::check_goto_join_point(self, rcx, env, src_info, target)? {
+            if P::check_goto_join_point(self, rcx, env, terminator_span, target)? {
                 self.queue.insert(target);
             }
             Ok(())
@@ -608,53 +603,53 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        src_info: SourceInfo,
+        stmt_span: Span,
         rvalue: &Rvalue,
     ) -> Result<Ty, CheckerError> {
         match rvalue {
-            Rvalue::Use(operand) => self.check_operand(rcx, env, src_info, operand),
+            Rvalue::Use(operand) => self.check_operand(rcx, env, stmt_span, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2)
+                self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.constr_gen(rcx, src_info.span);
+                let gen = &mut self.constr_gen(rcx, stmt_span);
                 env.borrow(rcx, gen, RefKind::Mut, place)
-                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))
+                    .map_err(|err| CheckerError::from(err).with_span(stmt_span))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.constr_gen(rcx, src_info.span);
+                let gen = &mut self.constr_gen(rcx, stmt_span);
                 env.borrow(rcx, gen, RefKind::Shr, place)
-                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))
+                    .map_err(|err| CheckerError::from(err).with_span(stmt_span))
             }
-            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, src_info, *un_op, op),
+            Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = self
                     .genv
                     .variant(*def_id, *variant_idx)
-                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
+                    .map_err(|err| CheckerError::from(err).with_span(stmt_span))?
                     .to_fn_sig();
-                self.check_call(rcx, env, src_info, sig, substs, args)
+                self.check_call(rcx, env, stmt_span, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
-                let args = self.check_operands(rcx, env, src_info, args)?;
-                let mut gen = self.constr_gen(rcx, src_info.span);
+                let args = self.check_operands(rcx, env, stmt_span, args)?;
+                let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, ty)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
-                let tys = self.check_operands(rcx, env, src_info, args)?;
+                let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Discriminant(place) => {
-                let gen = &mut self.constr_gen(rcx, src_info.span);
+                let gen = &mut self.constr_gen(rcx, stmt_span);
                 let ty = env
                     .lookup_place(rcx, gen, place)
-                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
+                    .map_err(|err| CheckerError::from(err).with_span(stmt_span))?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
-            Rvalue::Len(place) => self.check_len(rcx, env, src_info, place),
+            Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
-                let from = self.check_operand(rcx, env, src_info, op)?;
+                let from = self.check_operand(rcx, env, stmt_span, op)?;
                 Ok(self.check_cast(*kind, &from, to))
             }
         }
@@ -664,13 +659,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        src_info: SourceInfo,
+        source_span: Span,
         place: &Place,
     ) -> Result<Ty, CheckerError> {
-        let gen = &mut self.constr_gen(rcx, src_info.span);
+        let gen = &mut self.constr_gen(rcx, source_span);
         let ty = env
             .lookup_place(rcx, gen, place)
-            .map_err(|err| CheckerError::from(err).with_src_info(src_info))?;
+            .map_err(|err| CheckerError::from(err).with_span(source_span))?;
 
         let idxs = match ty.kind() {
             TyKind::Array(_, len) => RefineArgs::one(Expr::constant(rty::Constant::from(len.val))),
@@ -685,13 +680,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_info: SourceInfo,
+        source_span: Span,
         bin_op: mir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Result<Ty, CheckerError> {
-        let ty1 = self.check_operand(rcx, env, source_info, op1)?;
-        let ty2 = self.check_operand(rcx, env, source_info, op2)?;
+        let ty1 = self.check_operand(rcx, env, source_span, op1)?;
+        let ty2 = self.check_operand(rcx, env, source_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
             (Float!(float_ty1, _), Float!(float_ty2, _)) => {
@@ -721,7 +716,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
                 let (e1, e2) = (idxs1.nth(0).as_expr().clone(), idxs2.nth(0).as_expr().clone());
                 if let sigs::Pre::Some(reason, constr) = sig.pre {
-                    self.constr_gen(rcx, source_info.span).check_pred(
+                    self.constr_gen(rcx, source_span).check_pred(
                         rcx,
                         constr([e1.clone(), e2.clone()]),
                         reason,
@@ -745,11 +740,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        src_info: SourceInfo,
+        source_span: Span,
         un_op: mir::UnOp,
         op: &Operand,
     ) -> Result<Ty, CheckerError> {
-        let ty = self.check_operand(rcx, env, src_info, op)?;
+        let ty = self.check_operand(rcx, env, source_span, op)?;
         let ty = match un_op {
             mir::UnOp::Not => {
                 if let Bool!(idxs) = ty.kind() {
@@ -811,12 +806,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        src_info: SourceInfo,
+        source_span: Span,
         operands: &[Operand],
     ) -> Result<Vec<Ty>, CheckerError> {
         operands
             .iter()
-            .map(|op| self.check_operand(rcx, env, src_info, op))
+            .map(|op| self.check_operand(rcx, env, source_span, op))
             .try_collect()
     }
 
@@ -824,21 +819,21 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        src_info: SourceInfo,
+        source_span: Span,
         operand: &Operand,
     ) -> Result<Ty, CheckerError> {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
-                let gen = &mut self.constr_gen(rcx, src_info.span);
+                let gen = &mut self.constr_gen(rcx, source_span);
                 env.lookup_place(rcx, gen, p)
-                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
+                    .map_err(|err| CheckerError::from(err).with_span(source_span))?
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
-                let gen = &mut self.constr_gen(rcx, src_info.span);
+                let gen = &mut self.constr_gen(rcx, source_span);
                 env.move_place(rcx, gen, p)
-                    .map_err(|err| CheckerError::from(err).with_src_info(src_info))?
+                    .map_err(|err| CheckerError::from(err).with_span(source_span))?
             }
             Operand::Constant(c) => Self::check_constant(c),
         };
@@ -937,7 +932,7 @@ impl Phase for Inference<'_> {
         ck: &mut Checker<Inference>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: SourceInfo,
+        terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
@@ -947,7 +942,7 @@ impl Phase for Inference<'_> {
         let mut gen = ConstrGen::new(
             ck.genv,
             |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts),
-            Some(src_info.span),
+            Some(terminator_span),
         );
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
@@ -991,7 +986,7 @@ impl Phase for Check<'_> {
         ck: &mut Checker<Check>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
-        src_info: SourceInfo,
+        terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
         let bb_env = &ck.phase.bb_envs[&target];
@@ -1001,9 +996,9 @@ impl Phase for Check<'_> {
 
         let kvar_gen =
             |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
-        let gen = &mut ConstrGen::new(ck.genv, kvar_gen, Some(src_info.span));
+        let gen = &mut ConstrGen::new(ck.genv, kvar_gen, Some(terminator_span));
         env.check_goto(&mut rcx, gen, bb_env, target)
-            .map_err(|err| CheckerError::from(err).with_src_info_opt(Some(src_info)))?;
+            .map_err(|err| CheckerError::from(err).with_span_opt(Some(terminator_span)))?;
 
         Ok(!ck.visited.contains(target))
     }
@@ -1105,9 +1100,14 @@ pub(crate) mod errors {
     }
 
     impl CheckerError {
-        pub(crate) fn with_src_info_opt(mut self, src_info: Option<SourceInfo>) -> Self {
-            if let Some(src_info) = src_info {
-                self.span = Some(src_info.span);
+        pub(crate) fn with_span(mut self, span: Span) -> Self {
+            self.span = Some(span);
+            self
+        }
+
+        pub(crate) fn with_span_opt(mut self, span: Option<Span>) -> Self {
+            if let Some(span) = span {
+                self.span = Some(span);
             }
             self
         }
