@@ -4,10 +4,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{AdtDef, Invariant},
 };
-use rustc_span::Span;
+use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
-    constraint_gen::Tag,
+    constraint_gen::{ConstrReason, Tag},
     fixpoint::{FixpointCtxt, KVarStore},
     refine_tree::RefineTree,
 };
@@ -54,7 +54,10 @@ fn check_invariant(
             rcx.assume_invariants(&ty);
         }
 
-        rcx.check_pred(invariant.pred.replace_bvars(&variant.ret.args), Tag::Fold(span));
+        rcx.check_pred(
+            invariant.pred.replace_bvars(&variant.ret.args),
+            Tag::new(ConstrReason::Other, DUMMY_SP),
+        );
     }
     let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);

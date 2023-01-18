@@ -12,7 +12,7 @@ use flux_middle::{
         Exists, Expr, ExprKind, GenericArg, Path, PtrKind, RefKind, RefineArg, RefineArgs, Ty,
         TyKind,
     },
-    rustc::mir::{Local, Place, PlaceElem},
+    rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
@@ -21,7 +21,7 @@ use rustc_middle::ty::TyCtxt;
 use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
-    constraint_gen::ConstrGen,
+    constraint_gen::{ConstrGen, ConstrReason},
     fixpoint::{KVarEncoding, KVarStore},
     param_infer,
     refine_tree::{RefineCtxt, Scope},
@@ -139,7 +139,7 @@ impl TypeEnv {
                 self.bindings.update(&path, new_ty);
             }
             FoldResult::Weak(WeakKind::Mut | WeakKind::Arr, ty) => {
-                gen.subtyping(rcx, &new_ty, &ty);
+                gen.subtyping(rcx, &new_ty, &ty, ConstrReason::Assign);
             }
             FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");
@@ -283,8 +283,11 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         bb_env: &BasicBlockEnv,
+        target: BasicBlock,
     ) -> Result<(), OpaqueStructErr> {
         self.bindings.close_boxes(rcx, gen, &bb_env.scope);
+
+        let reason = ConstrReason::Goto(target);
 
         // Look up paths to make sure they are properly folded/unfolded
         for path in bb_env.bindings.paths() {
@@ -298,7 +301,7 @@ impl TypeEnv {
 
         // Check constraints
         for constr in &bb_env.constrs {
-            gen.check_pred(rcx, subst.apply(constr));
+            gen.check_pred(rcx, subst.apply(constr), reason);
         }
 
         let bb_env = bb_env
@@ -313,7 +316,7 @@ impl TypeEnv {
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
                         let ty = self.bindings.block(ptr_path, true);
-                        gen.subtyping(rcx, &ty, bound);
+                        gen.subtyping(rcx, &ty, bound, reason);
 
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
@@ -332,7 +335,7 @@ impl TypeEnv {
             let binding1 = self.bindings.get(&path);
             let ty1 = binding1.ty();
             let ty2 = binding2.ty();
-            gen.subtyping(rcx, ty1, ty2);
+            gen.subtyping(rcx, ty1, ty2, reason);
         }
         Ok(())
     }
