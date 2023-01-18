@@ -31,7 +31,7 @@ mod fixpoint;
 mod sigs;
 
 use checker::Checker;
-use constraint_gen::Tag;
+use constraint_gen::{ConstrReason, Tag};
 use flux_common::{cache::QueryCache, config, dbg};
 use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
@@ -85,18 +85,18 @@ fn report_errors(
 ) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
     for err in errors {
-        e = Some(match err {
-            Tag::Call(span) => genv.sess.emit_err(errors::CallError { span }),
-            Tag::Assign(span) => genv.sess.emit_err(errors::AssignError { span }),
-            Tag::Ret => genv.sess.emit_err(errors::RetError { span: body_span }),
-            Tag::RetAt(span) => genv.sess.emit_err(errors::RetError { span }),
-            Tag::Div(span) => genv.sess.emit_err(errors::DivError { span }),
-            Tag::Rem(span) => genv.sess.emit_err(errors::RemError { span }),
-            Tag::Goto(span, _) => genv.sess.emit_err(errors::GotoError { span }),
-            Tag::Assert(msg, span) => genv.sess.emit_err(errors::AssertError { span, msg }),
-            Tag::Fold(span) => genv.sess.emit_err(errors::FoldError { span }),
-            Tag::Overflow(span) => genv.sess.emit_err(errors::OverflowError { span }),
-            Tag::Other(span) => genv.sess.emit_err(errors::UnknownError { span }),
+        let span = err.span.unwrap_or(body_span);
+        e = Some(match err.reason {
+            ConstrReason::Call => genv.sess.emit_err(errors::CallError { span }),
+            ConstrReason::Assign => genv.sess.emit_err(errors::AssignError { span }),
+            ConstrReason::Ret => genv.sess.emit_err(errors::RetError { span }),
+            ConstrReason::Div => genv.sess.emit_err(errors::DivError { span }),
+            ConstrReason::Rem => genv.sess.emit_err(errors::RemError { span }),
+            ConstrReason::Goto(_) => genv.sess.emit_err(errors::GotoError { span }),
+            ConstrReason::Assert(msg) => genv.sess.emit_err(errors::AssertError { span, msg }),
+            ConstrReason::Fold => genv.sess.emit_err(errors::FoldError { span }),
+            ConstrReason::Overflow => genv.sess.emit_err(errors::OverflowError { span }),
+            ConstrReason::Other => genv.sess.emit_err(errors::UnknownError { span }),
         });
     }
 
@@ -115,7 +115,7 @@ mod errors {
     #[diag(refineck::goto_error, code = "FLUX")]
     pub struct GotoError {
         #[primary_span]
-        pub span: Option<Span>,
+        pub span: Span,
     }
 
     #[derive(Diagnostic)]

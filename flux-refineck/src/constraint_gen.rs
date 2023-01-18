@@ -31,7 +31,7 @@ use crate::{
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
-    tag: Tag,
+    span: Option<Span>, // tag: Tag,
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -43,34 +43,45 @@ struct InferCtxt<'a, 'tcx> {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
-pub enum Tag {
-    Call(Span),
-    Assign(Span),
+pub struct Tag {
+    pub reason: ConstrReason,
+    pub span: Option<Span>,
+}
+
+impl Tag {
+    pub fn new(reason: ConstrReason, span: Option<Span>) -> Self {
+        Self { reason, span }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+pub enum ConstrReason {
+    Call,
+    Assign,
     Ret,
-    RetAt(Span),
-    Fold(Span),
-    Assert(&'static str, Span),
-    Div(Span),
-    Rem(Span),
-    Goto(Option<Span>, BasicBlock),
-    Overflow(Span),
-    Other(Span),
+    Fold,
+    Assert(&'static str),
+    Div,
+    Rem,
+    Goto(BasicBlock),
+    Overflow,
+    Other,
 }
 
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
-    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, tag: Tag) -> Self
+    pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, span: Option<Span>) -> Self
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), tag }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), span }
     }
 
-    pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
-        rcx.check_pred(pred, self.tag);
+    pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>, reason: ConstrReason) {
+        rcx.check_pred(pred, Tag::new(reason, self.span));
     }
 
-    pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        let mut infcx = self.infcx(rcx);
+    pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty, reason: ConstrReason) {
+        let mut infcx = self.infcx(rcx, reason);
         infcx.subtyping(rcx, ty1, ty2);
         rcx.replace_evars(&infcx.solve().unwrap());
     }
@@ -98,7 +109,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             })
             .collect_vec();
 
-        let mut infcx = self.infcx(rcx);
+        let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
@@ -165,7 +176,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .lookup_place(rcx, self, Place::RETURN)
             .map_err(CheckerError::from)?;
 
-        let mut infcx = self.infcx(rcx);
+        let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output = output
             .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
@@ -188,7 +199,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         substs: &[GenericArg],
         fields: &[Ty],
     ) -> Result<VariantRet, UnsolvedEvar> {
-        let mut infcx = self.infcx(rcx);
+        // rn we are only calling `check_constructor` from path_tree when folding so we mark this
+        // as a folding error.
+        let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
@@ -222,7 +235,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Ty, CheckerError> {
         let genv = self.genv;
 
-        let mut infcx = self.infcx(rcx);
+        let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
         let arr_ty =
             genv.refine_ty(arr_ty, &mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj));
@@ -246,8 +259,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(Ty::array(arr_ty, Const { val: args.len() }))
     }
 
-    fn infcx(&mut self, rcx: &RefineCtxt) -> InferCtxt<'_, 'tcx> {
-        InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, self.tag)
+    fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
+        InferCtxt::new(self.genv, rcx, &mut self.kvar_gen, Tag::new(reason, self.span))
     }
 }
 
@@ -303,7 +316,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         ty: &Ty,
     ) -> Result<(), OpaqueStructErr> {
         let actual_ty = {
-            let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag);
+            let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag.span);
             env.lookup_path(rcx, gen, path)?
         };
         self.subtyping(rcx, &actual_ty, ty);
@@ -528,25 +541,11 @@ mod pretty {
     impl Pretty for Tag {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self {
-                Tag::Call(span) => w!("Call({:?})", span),
-                Tag::Assign(span) => w!("Assign({:?})", span),
-                Tag::Ret => w!("Ret"),
-                Tag::RetAt(span) => w!("RetAt({:?})", span),
-                Tag::Div(span) => w!("Div({:?})", span),
-                Tag::Rem(span) => w!("Rem({:?})", span),
-                Tag::Goto(span, bb) => {
-                    if let Some(span) = span {
-                        w!("Goto({:?}, {:?})", span, ^bb)
-                    } else {
-                        w!("Goto({:?})", ^bb)
-                    }
-                }
-                Tag::Assert(msg, span) => w!("Assert(\"{}\", {:?})", ^msg, span),
-                Tag::Fold(span) => w!("Fold({:?})", span),
-                Tag::Other(span) => w!("Other({:?})", span),
-                Tag::Overflow(span) => w!("Overflow({:?})", span),
+            w!("{:?}", ^self.reason)?;
+            if let Some(span) = self.span {
+                w!(" at {:?}", span)?;
             }
+            Ok(())
         }
     }
 

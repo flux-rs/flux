@@ -7,7 +7,7 @@ use flux_middle::{
 use rustc_span::Span;
 
 use crate::{
-    constraint_gen::Tag,
+    constraint_gen::{ConstrReason, Tag},
     fixpoint::{FixpointCtxt, KVarStore},
     refine_tree::RefineTree,
 };
@@ -54,7 +54,10 @@ fn check_invariant(
             rcx.assume_invariants(&ty);
         }
 
-        rcx.check_pred(invariant.pred.replace_bvars(&variant.ret.args), Tag::Fold(span));
+        rcx.check_pred(
+            invariant.pred.replace_bvars(&variant.ret.args),
+            Tag::new(ConstrReason::Other, None),
+        );
     }
     let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);

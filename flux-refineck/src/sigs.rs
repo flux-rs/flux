@@ -6,9 +6,8 @@ use flux_middle::{
 };
 use itertools::iproduct;
 use rustc_hash::FxHashMap;
-use rustc_span::Span;
 
-use crate::constraint_gen::Tag;
+use crate::constraint_gen::ConstrReason;
 
 #[derive(Clone)]
 pub struct Sig<const N: usize> {
@@ -20,7 +19,7 @@ pub struct Sig<const N: usize> {
 #[derive(Copy, Clone)]
 pub enum Pre<const N: usize> {
     None,
-    Some(fn(Span) -> Tag, fn([Expr; N]) -> Expr),
+    Some(ConstrReason, fn([Expr; N]) -> Expr),
 }
 
 #[derive(Clone)]
@@ -101,13 +100,13 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b])),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b])),
                 (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
-                         requires E::ge(a - b, 0) => Tag::Overflow)
+                         requires E::ge(a - b, 0) => ConstrReason::Overflow)
                 ),
                 (Div, s!(fn(a: Uint, b: Uint) -> Uint[a / b]
-                         requires E::ne(b, 0) => Tag::Div),
+                         requires E::ne(b, 0) => ConstrReason::Div),
                 ),
                 (Rem, s!(fn(a:Uint , b: Uint) -> Uint[E::binary_op(BinOp::Mod, a, b)]
-                         requires E::ne(b, 0) => Tag::Rem),
+                         requires E::ne(b, 0) => ConstrReason::Rem),
                 ),
                 // BIT
                 (BitAnd, s!(fn(a: Uint, b: Uint) -> Uint{v: E::tt()})),
@@ -139,12 +138,12 @@ fn mk_signed_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Sub, s!(fn(a: Int, b: Int) -> Int[a - b])),
                 (Mul, s!(fn(a: Int, b: Int) -> Int[a * b])),
                 (Div, s!(fn(a: Int, b: Int) -> Int[a / b]
-                            requires E::ne(b, 0) => Tag::Div),
+                            requires E::ne(b, 0) => ConstrReason::Div),
                 ),
                 (Rem, s!(fn(a:Int , b: Int) -> Int{v: E::implies(
                                                           E::and([E::ge(&a, 0), E::ge(&b, 0)]),
                                                           E::eq(v, E::binary_op(BinOp::Mod, a, b))) }
-                            requires E::ne(b, 0) => Tag::Rem),
+                            requires E::ne(b, 0) => ConstrReason::Rem),
                 ),
                 // BIT
                 (BitAnd, s!(fn(a: Int, b: Int) -> Int{v: E::tt()})),
