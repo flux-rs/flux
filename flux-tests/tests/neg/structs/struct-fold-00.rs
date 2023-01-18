@@ -16,5 +16,5 @@ pub fn baz(s: S) {}
 pub fn foo() {
     let mut x = S { a: 1, b: 0 };
     x.a = 0;
-    baz(x); //~ ERROR fold error
+    baz(x); //~ ERROR type invariant may not hold
 }

@@ -97,7 +97,6 @@ fn report_errors(
             Tag::Fold(span) => genv.sess.emit_err(errors::FoldError { span }),
             Tag::Overflow(span) => genv.sess.emit_err(errors::OverflowError { span }),
             Tag::Other(span) => genv.sess.emit_err(errors::UnknownError { span }),
-            Tag::Invariant(span) => genv.sess.emit_err(errors::InvariantError { span }),
         });
     }
 
@@ -179,13 +178,6 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(refineck::unknown_error, code = "FLUX")]
     pub struct UnknownError {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(refineck::invariant_error, code = "FLUX")]
-    pub struct InvariantError {
         #[primary_span]
         pub span: Span,
     }

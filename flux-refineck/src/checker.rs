@@ -591,7 +591,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             self.phase
                 .constr_gen(self.genv, &rcx, tag)
                 .check_ret(&mut rcx, &mut env, &self.output)
-                .map_err(|err| err.with_src_info_opt(Some(src_info)))
+                .map_err(|err| err.with_src_info(src_info))
         } else if self.body.is_join_point(target) {
             if P::check_goto_join_point(self, rcx, env, src_info, target)? {
                 self.queue.insert(target);
@@ -615,12 +615,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Invariant(src_info.span));
+                let gen = &mut self.constr_gen(rcx, Tag::Fold(src_info.span));
                 env.borrow(rcx, gen, RefKind::Mut, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Invariant(src_info.span));
+                let gen = &mut self.constr_gen(rcx, Tag::Fold(src_info.span));
                 env.borrow(rcx, gen, RefKind::Shr, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
