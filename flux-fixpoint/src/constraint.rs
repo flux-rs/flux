@@ -112,14 +112,14 @@ pub enum UnOp {
     Neg,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 pub enum Constant {
     Int(Sign, u128),
     Real(i128),
     Bool(bool),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sign {
     Positive,
     Negative,

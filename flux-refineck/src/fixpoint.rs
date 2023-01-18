@@ -9,7 +9,7 @@ use flux_common::{
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
-    rty::{self, Binders, BoundVar},
+    rty::{self, Binders, BoundVar, Constant},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -69,7 +69,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
 #[derive(Debug)]
 struct ConstInfo {
     name: fixpoint::Name,
-    val: i128,
+    val: Constant,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -114,7 +114,7 @@ where
     ) -> fixpoint::Constraint<TagIdx> {
         let name = const_info.name;
         let e1 = fixpoint::Expr::from(name);
-        let e2 = fixpoint::Expr::from(const_info.val);
+        let e2 = fixpoint::Expr::Constant(const_info.val);
         let pred = fixpoint::Pred::Expr(e1.eq(e2));
         fixpoint::Constraint::Guard(pred, Box::new(cstr))
     }

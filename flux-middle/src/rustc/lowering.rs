@@ -27,7 +27,7 @@ use super::{
         GenericParamDef, GenericParamDefKind, Generics, PolyFnSig, Ty, VariantDef,
     },
 };
-use crate::{intern::List, rustc::ty::Region};
+use crate::{const_eval::scalar_int_to_constant, intern::List, rustc::ty::Region};
 
 pub struct LoweringCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -733,65 +733,6 @@ fn lower_generic_param_def(
         }
     };
     Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
-}
-
-fn scalar_int_to_constant<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    scalar: rustc_ty::ScalarInt,
-    ty: rustc_middle::ty::Ty<'tcx>,
-) -> Option<Constant> {
-    use rustc_middle::ty::TyKind;
-    match ty.kind() {
-        TyKind::Int(int_ty) => {
-            Some(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), *int_ty))
-        }
-        TyKind::Uint(int_ty) => {
-            Some(Constant::Uint(scalar_to_uint(tcx, scalar, ty).unwrap(), *int_ty))
-        }
-        TyKind::Float(float_ty) => {
-            Some(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
-        }
-        TyKind::Char => Some(Constant::Char),
-        TyKind::Bool => Some(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0)),
-        TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
-        _ => None,
-    }
-}
-
-fn scalar_to_bits<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    scalar: rustc_ty::ScalarInt,
-    ty: rustc_middle::ty::Ty<'tcx>,
-) -> Option<u128> {
-    let size = tcx
-        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
-        .unwrap()
-        .size;
-    scalar.to_bits(size).ok()
-}
-
-fn scalar_to_int<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    scalar: rustc_ty::ScalarInt,
-    ty: rustc_ty::Ty<'tcx>,
-) -> Option<i128> {
-    let size = tcx
-        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
-        .unwrap()
-        .size;
-    scalar.try_to_int(size).ok()
-}
-
-fn scalar_to_uint<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    scalar: rustc_ty::ScalarInt,
-    ty: rustc_middle::ty::Ty<'tcx>,
-) -> Option<u128> {
-    let size = tcx
-        .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
-        .unwrap()
-        .size;
-    scalar.try_to_uint(size).ok()
 }
 
 mod errors {
