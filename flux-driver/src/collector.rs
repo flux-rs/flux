@@ -5,7 +5,7 @@ use flux_common::{
     iter::IterExt,
 };
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::rty::Constant;
+use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
 use flux_syntax::{
     parse_expr, parse_flux_item, parse_fn_surface_sig, parse_qual_names, parse_refined_by,
     parse_ty, parse_type_alias, parse_variant, surface, ParseResult,
@@ -151,16 +151,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Err(self.emit_err(errors::InvalidConstant { span }))
         };
 
-        // 0x8000000000000000
-        // 16 * 4 = 64
-        let size = val.size();
-        let conv = val.try_to_u64();
-        println!("TRACE: parse_const_spec: {def_id:?} ({size:?}) is {conv:?} is {val:?}");
-        if let Ok(val) = conv {
-            println!("TRACE: parse_const_spec: {def_id:?} = {val:?}");
-            self.specs
-                .consts
-                .insert(def_id, ConstSig { _ty, val: val as i128 });
+        let ty = self.tcx.type_of(def_id);
+        if let Some(val) = scalar_int_to_rty_constant(self.tcx, val, ty) {
+            self.specs.consts.insert(def_id, ConstSig { _ty, val });
             Ok(())
         } else {
             Err(self.emit_err(errors::InvalidConstant { span }))
