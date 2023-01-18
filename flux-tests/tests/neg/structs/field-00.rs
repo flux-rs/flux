@@ -23,10 +23,22 @@ impl S {
     fn moo(&self) -> i32 {
         0
     }
+
+    #[flux::sig(fn(self: &mut S) -> i32)]
+    fn choo(&mut self) -> i32 {
+        0
+    }
+
     // no sig = 'internal compiler error'
     #[flux::sig(fn(z: &strg S[@n]) ensures z: S)]
-    fn test(z: &mut S) {
+    pub fn test0(z: &mut S) {
         Self::bar(&mut z.payload);
-        z.moo(); //~ ERROR struct invariants may not hold
+        z.moo(); //~ ERROR type invariant may not hold
+    }
+
+    #[flux::sig(fn(z: &strg S[@n]) ensures z: S)]
+    pub fn test1(z: &mut S) {
+        Self::bar(&mut z.payload);
+        z.choo(); //~ ERROR type invariant may not hold
     }
 }

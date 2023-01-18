@@ -615,12 +615,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 self.check_binary_op(rcx, env, src_info, *bin_op, op1, op2)
             }
             Rvalue::MutRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Other(src_info.span));
+                let gen = &mut self.constr_gen(rcx, Tag::Invariant(src_info.span));
                 env.borrow(rcx, gen, RefKind::Mut, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }
             Rvalue::ShrRef(place) => {
-                let gen = &mut self.constr_gen(rcx, Tag::Other(src_info.span));
+                let gen = &mut self.constr_gen(rcx, Tag::Invariant(src_info.span));
                 env.borrow(rcx, gen, RefKind::Shr, place)
                     .map_err(|err| CheckerError::from(err).with_src_info(src_info))
             }

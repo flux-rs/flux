@@ -28,6 +28,9 @@ refineck_fold_error =
 refineck_unknown_error =
     unknown error
 
+refineck_invariant_error =
+    type invariant may not hold
+
 refineck_overflow_error =
     arithmetic operation may overflow
 
