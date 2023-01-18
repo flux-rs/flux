@@ -651,7 +651,10 @@ impl Node {
                 let variant = gen.genv.variant(adt_def.def_id(), *variant_idx).unwrap();
                 let fields = children
                     .iter_mut()
-                    .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
+                    .map(|node| {
+                        let ty = node.fold(map, rcx, gen, unblock, close_boxes);
+                        rcx.unpack(&ty)
+                    })
                     .collect_vec();
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
