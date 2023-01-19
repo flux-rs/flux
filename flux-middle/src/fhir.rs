@@ -33,13 +33,14 @@ pub use rustc_target::abi::VariantIdx;
 use crate::{
     intern::{impl_internable, List},
     pretty,
+    rty::Constant,
 };
 
 #[derive(Debug, Clone)]
 pub struct ConstInfo {
     pub def_id: DefId,
     pub sym: Symbol,
-    pub val: i128,
+    pub val: Constant,
 }
 
 #[derive(Debug)]

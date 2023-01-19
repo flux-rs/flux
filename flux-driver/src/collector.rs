@@ -5,6 +5,7 @@ use flux_common::{
     iter::IterExt,
 };
 use flux_errors::{FluxSession, ResultExt};
+use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
 use flux_syntax::{
     parse_expr, parse_flux_item, parse_fn_surface_sig, parse_qual_names, parse_refined_by,
     parse_ty, parse_type_alias, parse_variant, surface, ParseResult,
@@ -60,7 +61,7 @@ pub(crate) struct FnSpec {
 #[derive(Debug)]
 pub(crate) struct ConstSig {
     pub _ty: surface::ConstSig,
-    pub val: i128,
+    pub val: Constant,
 }
 
 macro_rules! attr_name {
@@ -150,8 +151,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Err(self.emit_err(errors::InvalidConstant { span }))
         };
 
-        let size = val.size();
-        if let Ok(val) = val.try_to_int(size) {
+        let ty = self.tcx.type_of(def_id);
+        if let Some(val) = scalar_int_to_rty_constant(self.tcx, val, ty) {
             self.specs.consts.insert(def_id, ConstSig { _ty, val });
             Ok(())
         } else {
