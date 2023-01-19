@@ -14,7 +14,7 @@ pub fn scalar_int_to_rty_constant<'tcx>(
         }
         TyKind::Uint(_) => {
             let u = scalar_to_uint(tcx, scalar, ty)?;
-            Some(crate::rty::Constant::Int(Positive, u))
+            Some(crate::rty::Constant::from(u))
         }
         TyKind::Bool => {
             let b = scalar_to_bits(tcx, scalar, ty)?;
