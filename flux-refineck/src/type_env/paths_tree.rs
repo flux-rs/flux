@@ -22,7 +22,7 @@ use crate::{
 };
 
 #[derive(Default, Eq, PartialEq, Clone)]
-pub struct PathsTree {
+pub(super) struct PathsTree {
     map: LocMap,
 }
 
@@ -47,7 +47,7 @@ impl Clone for Root {
     }
 }
 
-pub struct LookupResult<'a> {
+pub(super) struct LookupResult<'a> {
     tree: &'a mut PathsTree,
     kind: LookupKind,
 }
@@ -91,13 +91,13 @@ enum LookupKind {
     Weak(WeakKind, Ty),
 }
 
-pub enum FoldResult {
+pub(super) enum FoldResult {
     Strg(Path, Ty),
     Weak(WeakKind, Ty),
 }
 
 impl FoldResult {
-    pub fn ty(&self) -> Ty {
+    pub(super) fn ty(&self) -> Ty {
         match self {
             FoldResult::Strg(_, ty) | FoldResult::Weak(_, ty) => ty.clone(),
         }
@@ -148,54 +148,11 @@ impl PathsTree {
         *self.get_node(path).borrow_mut().expect_owned_mut() = new_ty;
     }
 
-    pub fn block(&mut self, path: &Path, expect_owned: bool) -> Ty {
-        self.block_with_fn(path, Clone::clone, expect_owned)
-    }
-
-    pub fn block_with(&mut self, path: &Path, updated: Ty, expect_owned: bool) -> Ty {
-        let ptr = self.get_node(path);
-        let mut node = ptr.borrow_mut();
-        let old = match &mut *node {
-            Node::Leaf(Binding::Owned(old)) => old.clone(),
-            Node::Leaf(Binding::Blocked(old)) => {
-                if expect_owned {
-                    tracked_span_bug!("expected owned node `{node:?}`");
-                }
-                old.clone()
-            }
-            _ => tracked_span_bug!("expected leaf node `{node:?}"),
-        };
-        *node = Node::Leaf(Binding::Blocked(updated));
-        old
-    }
-
-    fn block_with_fn(
-        &mut self,
-        path: &Path,
-        update: impl FnOnce(&Ty) -> Ty,
-        expect_owned: bool,
-    ) -> Ty {
-        let ptr = self.get_node(path);
-        let mut node = ptr.borrow_mut();
-        let old = match &mut *node {
-            Node::Leaf(Binding::Owned(old)) => old.clone(),
-            Node::Leaf(Binding::Blocked(old)) => {
-                if expect_owned {
-                    tracked_span_bug!("expected owned node `{node:?}`");
-                }
-                old.clone()
-            }
-            _ => tracked_span_bug!("expected leaf node `{node:?}"),
-        };
-        *node = Node::Leaf(Binding::Blocked(update(&old)));
-        old
-    }
-
     pub(super) fn insert(&mut self, loc: Loc, ty: Ty, kind: LocKind) {
         self.map.insert(loc, Root::new(Node::owned(ty), kind));
     }
 
-    pub fn contains_loc(&self, loc: Loc) -> bool {
+    pub(super) fn contains_loc(&self, loc: Loc) -> bool {
         self.map.contains_key(&loc)
     }
 
@@ -438,12 +395,41 @@ enum NodeKind {
 }
 
 impl LookupResult<'_> {
-    pub fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, close_boxes: bool) -> FoldResult {
+    pub(super) fn fold(
+        self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        close_boxes: bool,
+    ) -> FoldResult {
         match self.kind {
             LookupKind::Strg(path, ptr) => {
                 FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
             }
             LookupKind::Weak(rk, ty) => FoldResult::Weak(rk, ty),
+        }
+    }
+
+    pub(super) fn block(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> Ty {
+        self.block_with_fn(rcx, gen, Clone::clone)
+    }
+
+    pub(super) fn block_with(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, updated: Ty) -> Ty {
+        self.block_with_fn(rcx, gen, |_| updated)
+    }
+
+    fn block_with_fn(
+        self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        update: impl FnOnce(&Ty) -> Ty,
+    ) -> Ty {
+        match self.kind {
+            LookupKind::Strg(_, ptr) => {
+                let ty = ptr.fold(&mut self.tree.map, rcx, gen, true, true);
+                *ptr.borrow_mut() = Node::Leaf(Binding::Blocked(update(&ty)));
+                ty
+            }
+            LookupKind::Weak(..) => tracked_span_bug!("blocking weak result"),
         }
     }
 }
@@ -665,7 +651,10 @@ impl Node {
                 let variant = gen.genv.variant(adt_def.def_id(), *variant_idx).unwrap();
                 let fields = children
                     .iter_mut()
-                    .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
+                    .map(|node| {
+                        let ty = node.fold(map, rcx, gen, unblock, close_boxes);
+                        rcx.unpack(&ty)
+                    })
                     .collect_vec();
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());

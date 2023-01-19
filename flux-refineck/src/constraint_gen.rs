@@ -146,11 +146,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(path, bound.clone(), false);
+                    let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    let ty = env.block(path, false);
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
@@ -244,11 +244,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(path, bound.clone(), false);
+                    let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
-                    let ty = env.block(path, false);
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),
@@ -308,6 +308,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx.check_pred(pred, self.tag);
     }
 
+    fn as_constr_gen<'b>(&'b mut self) -> ConstrGen<'b, 'tcx> {
+        ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag.span)
+    }
+
     fn check_type_constr(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -315,10 +319,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         path: &Path,
         ty: &Ty,
     ) -> Result<(), OpaqueStructErr> {
-        let actual_ty = {
-            let gen = &mut ConstrGen::new(self.genv, &mut *self.kvar_gen, self.tag.span);
-            env.lookup_path(rcx, gen, path)?
-        };
+        let actual_ty = env.lookup_path(rcx, &mut self.as_constr_gen(), path)?;
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
     }

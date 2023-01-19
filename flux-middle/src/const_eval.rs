@@ -1,4 +1,3 @@
-use flux_fixpoint::Sign::{Negative, Positive};
 use rustc_middle::ty::{self as rustc_ty, ParamEnv, TyCtxt, TyKind};
 
 use crate::rustc::mir::Constant;
@@ -10,15 +9,11 @@ pub fn scalar_int_to_rty_constant<'tcx>(
     match ty.kind() {
         TyKind::Int(_) => {
             let i = scalar_to_int(tcx, scalar, ty)?;
-            if 0 <= i {
-                Some(crate::rty::Constant::Int(Positive, i as u128))
-            } else {
-                Some(crate::rty::Constant::Int(Negative, (0 - i) as u128))
-            }
+            Some(crate::rty::Constant::from(i))
         }
         TyKind::Uint(_) => {
             let u = scalar_to_uint(tcx, scalar, ty)?;
-            Some(crate::rty::Constant::Int(Positive, u))
+            Some(crate::rty::Constant::from(u))
         }
         TyKind::Bool => {
             let b = scalar_to_bits(tcx, scalar, ty)?;
