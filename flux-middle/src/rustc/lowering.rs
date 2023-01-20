@@ -644,7 +644,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
         rustc_ty::RawPtr(t) => {
             let mutbl = t.mutbl;
             let ty = lower_ty(tcx, t.ty)?;
-            Ok(Ty::mk_ptr(ty, mutbl))
+            Ok(Ty::mk_raw_ptr(ty, mutbl))
         }
         _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }

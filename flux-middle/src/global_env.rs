@@ -323,7 +323,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::Ptr(ty, mu) => rty::BaseTy::Ptr(self.refine_ty(ty, mk_pred), *mu),
+            rustc::ty::TyKind::RawPtr(ty, mu) => {
+                rty::BaseTy::RawPtr(self.refine_ty(ty, mk_pred), *mu)
+            }
         };
         let pred = mk_pred(bty.sorts());
         if pred.params().is_empty() && pred.is_trivially_true() {

@@ -183,7 +183,7 @@ impl Expr {
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
             | BaseTy::Char
-            | BaseTy::Ptr(_, _) => panic!(),
+            | BaseTy::RawPtr(_, _) => panic!(),
         }
     }
 

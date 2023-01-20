@@ -95,7 +95,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Uint(UintTy),
     Slice(Ty),
-    Ptr(Ty, Mutability),
+    RawPtr(Ty, Mutability),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -172,8 +172,8 @@ impl Ty {
         TyKind::Slice(ty).intern()
     }
 
-    pub fn mk_ptr(ty: Ty, mutbl: Mutability) -> Ty {
-        TyKind::Ptr(ty, mutbl).intern()
+    pub fn mk_raw_ptr(ty: Ty, mutbl: Mutability) -> Ty {
+        TyKind::RawPtr(ty, mutbl).intern()
     }
 
     pub fn mk_bool() -> Ty {
@@ -276,8 +276,8 @@ impl std::fmt::Debug for Ty {
                 write!(f, "({:?})", tys.iter().format(", "))
             }
             TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
-            TyKind::Ptr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
-            TyKind::Ptr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
+            TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
         }
     }
 }

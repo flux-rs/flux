@@ -194,7 +194,7 @@ pub enum BaseTy {
     Slice(Ty),
     Adt(AdtDef, Substs),
     Float(FloatTy),
-    Ptr(Ty, Mutability),
+    RawPtr(Ty, Mutability),
 }
 
 pub type Substs = List<GenericArg>;
@@ -712,7 +712,7 @@ impl BaseTy {
             | BaseTy::Str
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
-            | BaseTy::Ptr(_, _)
+            | BaseTy::RawPtr(_, _)
             | BaseTy::Char => &[],
         }
     }
@@ -722,7 +722,7 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char | BaseTy::Ptr(_, _) => &[],
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char | BaseTy::RawPtr(_, _) => &[],
         }
     }
 }
@@ -1011,8 +1011,8 @@ mod pretty {
                 BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
                 BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
-                BaseTy::Ptr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
-                BaseTy::Ptr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
+                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
+                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
             }
             if let BaseTy::Adt(_, args) = self && !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;
