@@ -22,7 +22,7 @@
     }
     @media (prefers-color-scheme: dark) {
       #path125 {
-        fill: #ADBAC7;
+        fill: #ffffff;
       }
     }
    </style>
