@@ -451,6 +451,7 @@ impl TypeEnvInfer {
             | BaseTy::Bool
             | BaseTy::Float(_)
             | BaseTy::Str
+            | BaseTy::RawPtr(_, _)
             | BaseTy::Char => bty.clone(),
         }
     }

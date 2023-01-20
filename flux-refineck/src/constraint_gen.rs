@@ -428,7 +428,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
-            | (BaseTy::Char, BaseTy::Char) => {}
+            | (BaseTy::Char, BaseTy::Char)
+            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }

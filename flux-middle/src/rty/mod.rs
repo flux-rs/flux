@@ -20,7 +20,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, newtype_index};
-use rustc_middle::mir::Field;
+use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
@@ -194,6 +194,7 @@ pub enum BaseTy {
     Slice(Ty),
     Adt(AdtDef, Substs),
     Float(FloatTy),
+    RawPtr(Ty, Mutability),
 }
 
 pub type Substs = List<GenericArg>;
@@ -711,6 +712,7 @@ impl BaseTy {
             | BaseTy::Str
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
+            | BaseTy::RawPtr(_, _)
             | BaseTy::Char => &[],
         }
     }
@@ -720,7 +722,7 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char => &[],
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char | BaseTy::RawPtr(_, _) => &[],
         }
     }
 }
@@ -1009,6 +1011,8 @@ mod pretty {
                 BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
                 BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
+                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
+                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
             }
             if let BaseTy::Adt(_, args) = self && !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;

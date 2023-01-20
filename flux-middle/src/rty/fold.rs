@@ -462,6 +462,7 @@ impl TypeFoldable for BaseTy {
         match self {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
+            BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -475,6 +476,7 @@ impl TypeFoldable for BaseTy {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
+            BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
