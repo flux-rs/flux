@@ -119,6 +119,7 @@ impl TypeEnv {
                 debug_assert!(WeakKind::from(rk) <= result_rk);
                 Ty::mk_ref(rk, ty)
             }
+            FoldResult::Raw(ty) => Ty::mk_ref(rk, ty), // TODO(RJ): is this legit?
         };
         Ok(ty)
     }
@@ -144,6 +145,7 @@ impl TypeEnv {
             FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");
             }
+            FoldResult::Raw(_) => { /* ignore write through Raw */ }
         }
         Ok(())
     }
@@ -170,6 +172,9 @@ impl TypeEnv {
             }
             FoldResult::Weak(WeakKind::Arr, _) | FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot move out of `{place:?}`, which is behind a `&` reference")
+            }
+            FoldResult::Raw(_) => {
+                tracked_span_bug!("cannot move out of a raw pointer")
             }
         }
     }
