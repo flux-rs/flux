@@ -342,26 +342,27 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
         let rcx = &mut rcx.breadcrumb();
-        if let TyKind::Exists(exists) = ty1.kind() {
-            let exists = exists.replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
-            rcx.assume_pred(exists.pred);
-            self.subtyping(rcx, &Ty::indexed(exists.bty, exists.args), ty2);
-            return;
-        }
 
         match (ty1.kind(), ty2.kind()) {
+            (TyKind::Exists(ty1), _) => {
+                let ty1 = ty1.replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
+                self.subtyping(rcx, &ty1, ty2);
+            }
+            (TyKind::Constr(p1, ty1), _) => {
+                rcx.assume_pred(p1);
+                self.subtyping(rcx, ty1, ty2);
+            }
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 self.bty_subtyping(rcx, bty1, bty2);
                 for (i, (arg1, arg2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
                     self.refine_arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
                 }
             }
-            (TyKind::Indexed(..), TyKind::Exists(exists)) => {
+            (TyKind::Indexed(..), TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let exists =
-                    exists.replace_bvars_with(|_| RefineArg::Expr(Expr::evar(self.fresh_evar())));
-                rcx.check_pred(exists.pred, self.tag);
-                self.subtyping(rcx, ty1, &Ty::indexed(exists.bty, exists.args));
+                let ty2 =
+                    ty2.replace_bvars_with(|_| RefineArg::Expr(Expr::evar(self.fresh_evar())));
+                self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
@@ -393,10 +394,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2, self.tag);
-                self.subtyping(rcx, ty1, ty2);
-            }
-            (TyKind::Constr(p1, ty1), _) => {
-                rcx.assume_pred(p1);
                 self.subtyping(rcx, ty1, ty2);
             }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),

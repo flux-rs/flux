@@ -331,11 +331,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         if pred.params().is_empty() && pred.is_trivially_true() {
             rty::Ty::indexed(bty, rty::RefineArgs::empty())
         } else {
-            let exists = pred.map(|pred| {
+            let ty = pred.map(|pred| {
                 let args = rty::RefineArgs::bound(bty.sorts().len());
-                rty::Exists::new(bty, args, pred)
+                rty::Ty::constr(pred, rty::Ty::indexed(bty, args))
             });
-            rty::Ty::exists(exists)
+            rty::Ty::exists(ty)
         }
     }
 

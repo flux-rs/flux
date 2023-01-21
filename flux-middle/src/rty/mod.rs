@@ -135,13 +135,13 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
-    Exists(Binders<Exists>),
+    Exists(Binders<Ty>),
+    Constr(Expr, Ty),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Uninit,
     Ptr(PtrKind, Path),
     Ref(RefKind, Ty),
-    Constr(Expr, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -158,13 +158,6 @@ pub enum PtrKind {
     Shr,
     Mut,
     Box,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Exists {
-    pub bty: BaseTy,
-    pub args: RefineArgs,
-    pub pred: Expr,
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -513,8 +506,8 @@ impl Ty {
         TyKind::Indexed(bty, args).intern()
     }
 
-    pub fn exists(exists: Binders<Exists>) -> Ty {
-        TyKind::Exists(exists).intern()
+    pub fn exists(ty: Binders<Ty>) -> Ty {
+        TyKind::Exists(ty).intern()
     }
 
     /// Makes a *fully applied* existential, i.e., an existential that has binders for all the
@@ -531,11 +524,12 @@ impl Ty {
     /// ```
     /// Then, a fully applied existential for `Pair` binds both indices: `{int,int. Pair[^0.0, ^0.1] | p}`.
     ///
-    /// Note that the arguments `bty` and `pred` are both expected to have escaping vars, which will
-    /// be closed by wrapping them inside a [`Binders`].
-    pub fn full_exists(bty: BaseTy, pred: Expr) -> Self {
+    /// Note that the arguments `bty` and `pred` may have escaping vars, which will be closed by
+    /// wrapping them inside a [`Binders`].
+    pub fn full_exists(bty: BaseTy, pred: Expr) -> Ty {
         let sorts = List::from(bty.sorts());
-        Ty::exists(Binders::new(Exists::new(bty, RefineArgs::bound(sorts.len()), pred), sorts))
+        let ty = Ty::indexed(bty, RefineArgs::bound(sorts.len()));
+        Ty::exists(Binders::new(Ty::constr(pred, ty), sorts))
     }
 
     pub fn param(param: ParamTy) -> Ty {
@@ -628,18 +622,13 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(exists) => Some(&exists.as_ref().skip_binders().bty),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
+            TyKind::Constr(_, ty) => ty.as_bty_skipping_binders(),
             _ => None,
         }
-    }
-}
-
-impl Exists {
-    pub fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
-        Self { bty, args, pred }
     }
 }
 
@@ -925,14 +914,11 @@ mod pretty {
                     }
                     Ok(())
                 }
-                TyKind::Exists(Binders { params, value: Exists { bty, args, pred } }) => {
+                TyKind::Exists(Binders { params, value: ty }) => {
                     if cx.hide_refinements {
-                        return w!("{bty:?}");
-                    }
-                    if pred.is_true() {
-                        w!("{{[{:?}]. {:?}[{:?}]}}", join!(", ", params), bty, args)
+                        w!("{:?}", ty)
                     } else {
-                        w!("{{[{:?}]. {:?}[{:?}] | {:?}}}", join!(", ", params), bty, args, pred)
+                        w!("{{[{:?}]. {:?}}}", join!(", ", params), ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
@@ -948,7 +934,7 @@ mod pretty {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{ {:?} : {:?} }}", ty, pred)
+                        w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
             }
