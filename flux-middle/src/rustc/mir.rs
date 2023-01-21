@@ -148,6 +148,7 @@ pub enum CastKind {
     IntToInt,
     FloatToInt,
     IntToFloat,
+    Pointer,
 }
 
 pub enum AggregateKind {
@@ -472,6 +473,7 @@ impl fmt::Debug for CastKind {
             CastKind::IntToInt => write!(f, "IntToInt"),
             CastKind::FloatToInt => write!(f, "FloatToInt"),
             CastKind::IntToFloat => write!(f, "IntToFloat"),
+            CastKind::Pointer => write!(f, "Pointer"),
         }
     }
 }

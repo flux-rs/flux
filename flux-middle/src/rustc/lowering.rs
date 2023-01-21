@@ -361,6 +361,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
+            rustc_mir::CastKind::Pointer(_) => Some(CastKind::Pointer),
             _ => None,
         }
     }
