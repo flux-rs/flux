@@ -5,9 +5,9 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Exists,
-    Expr, ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier,
-    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet, INNERMOST,
+    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Expr,
+    ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg,
+    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -132,27 +132,30 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`hole`]: Pred::Hole
     fn with_holes(&self) -> Self {
-        struct WithHoles;
+        struct WithHoles {
+            in_exists: bool,
+        }
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 match ty.kind() {
-                    TyKind::Indexed(bty, _) => Ty::full_exists(bty.fold_with(self), Expr::hole()),
-                    TyKind::Exists(exists) => {
-                        Ty::exists(exists.as_ref().map(|exists| {
-                            Exists {
-                                bty: exists.bty.fold_with(self),
-                                args: exists.args.fold_with(self),
-                                pred: Expr::hole(),
-                            }
-                        }))
+                    TyKind::Indexed(bty, _) => {
+                        if self.in_exists {
+                            ty.super_fold_with(self)
+                        } else {
+                            Ty::full_exists(bty.fold_with(self), Expr::hole())
+                        }
                     }
+                    TyKind::Exists(ty) => {
+                        Ty::exists(ty.fold_with(&mut WithHoles { in_exists: true }))
+                    }
+                    TyKind::Constr(_, ty) => Ty::constr(Expr::hole(), ty.fold_with(self)),
                     _ => ty.super_fold_with(self),
                 }
             }
         }
 
-        self.fold_with(&mut WithHoles)
+        self.fold_with(&mut WithHoles { in_exists: false })
     }
 
     fn replace_generic_args(&self, args: &[GenericArg]) -> Self {
@@ -399,22 +402,6 @@ impl TypeFoldable for Ty {
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_ty(self);
-    }
-}
-
-impl TypeFoldable for Exists {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Exists {
-        Exists::new(
-            self.bty.fold_with(folder),
-            self.args.fold_with(folder),
-            self.pred.fold_with(folder),
-        )
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.bty.visit_with(visitor);
-        self.args.visit_with(visitor);
-        self.pred.visit_with(visitor);
     }
 }
 

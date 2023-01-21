@@ -180,23 +180,20 @@ impl RefineCtxt<'_> {
                 let bty = self.unpack_bty(bty, in_mut_ref, flags);
                 Ty::indexed(bty, idxs.clone())
             }
-            TyKind::Exists(exists) => {
+            TyKind::Exists(bound_ty) => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes the refered type too specific. We only have this as a workaround to
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let exists =
-                        exists.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
-                    self.ptr.push_guard(exists.pred);
-                    let bty = self.unpack_bty(&exists.bty, in_mut_ref, flags);
-                    Ty::indexed(bty, exists.args)
+                    let ty = bound_ty.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
+                    self.unpack_inner(&ty, in_mut_ref, flags)
                 } else {
                     ty.clone()
                 }
             }
             TyKind::Constr(pred, ty) => {
-                self.assume_pred(pred.clone());
+                self.assume_pred(pred);
                 self.unpack_inner(ty, in_mut_ref, flags)
             }
             TyKind::Ref(rk, ty) => {
