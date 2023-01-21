@@ -103,6 +103,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         stmt: &rustc_mir::Statement<'tcx>,
     ) -> Result<Statement, ErrorGuaranteed> {
         let span = stmt.source_info.span;
+        println!("TRACE: lower_statement: {stmt:?}");
         let kind = match &stmt.kind {
             rustc_mir::StatementKind::Assign(box (place, rvalue)) => {
                 StatementKind::Assign(
@@ -331,6 +332,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
             }
             rustc_mir::Rvalue::Aggregate(aggregate_kind, args) => {
+                println!("TRACE: lower_aggregate {aggregate_kind:?} with {args:?}");
                 let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
@@ -381,9 +383,12 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty).map_err(|err| err.reason)?))
             }
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
-            rustc_mir::AggregateKind::Adt(..)
-            | rustc_mir::AggregateKind::Closure(_, _)
-            | rustc_mir::AggregateKind::Generator(_, _, _) => {
+            rustc_mir::AggregateKind::Closure(did, substs) => {
+                let substs = substs.as_closure();
+                panic!("unsupported closure `{did:?}` / `{substs:?}`")
+                // Err(format!("unsupported closure `{did:?}` / `{substs:?}`"))
+            }
+            rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
                 Err(format!("unsupported aggregate kind `{aggregate_kind:?}`"))
             }
         }
