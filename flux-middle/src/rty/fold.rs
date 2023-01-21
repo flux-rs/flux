@@ -15,6 +15,14 @@ use crate::{
 };
 
 pub trait TypeVisitor: Sized {
+    fn visit_binder<T: TypeFoldable>(&mut self, t: &Binders<T>) {
+        t.super_visit_with(self);
+    }
+
+    fn visit_expr(&mut self, expr: &Expr) {
+        expr.super_visit_with(self);
+    }
+
     fn visit_fvar(&mut self, name: Name) {
         name.super_visit_with(self);
     }
@@ -237,6 +245,37 @@ pub trait TypeFoldable: Sized {
         }
         self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
     }
+
+    fn has_escaping_bvars(&self) -> bool {
+        struct HasEscapingVars {
+            /// Anything bound by `outer_index` or "above" is escaping.
+            outer_index: DebruijnIndex,
+            found: bool,
+        }
+
+        impl TypeVisitor for HasEscapingVars {
+            fn visit_binder<T: TypeFoldable>(&mut self, t: &Binders<T>) {
+                self.outer_index.shift_in(1);
+                t.super_visit_with(self);
+                self.outer_index.shift_out(1);
+            }
+
+            // TODO(nilehmann) keep track the outermost binder to optimize this, i.e.,
+            // what rustc calls outer_exclusive_binder.
+            fn visit_expr(&mut self, expr: &Expr) {
+                if let ExprKind::BoundVar(bvar) = expr.kind() {
+                    if bvar.debruijn >= self.outer_index {
+                        self.found = true;
+                    }
+                } else {
+                    expr.super_visit_with(self);
+                }
+            }
+        }
+        let mut visitor = HasEscapingVars { outer_index: INNERMOST, found: false };
+        self.visit_with(&mut visitor);
+        visitor.found
+    }
 }
 
 impl<T> TypeFoldable for Binders<T>
@@ -253,6 +292,10 @@ where
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_binders(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_binder(self);
     }
 }
 
@@ -576,6 +619,10 @@ impl TypeFoldable for Expr {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_expr(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_expr(self);
     }
 }
 

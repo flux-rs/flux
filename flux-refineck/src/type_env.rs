@@ -578,17 +578,29 @@ impl TypeEnvInfer {
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
-            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
-                debug_assert_eq!(rk1, rk2);
-                debug_assert_eq!(path1, path2);
-                Ty::ptr(*rk1, path1.clone())
+            (TyKind::Exists(ty1), _) => {
+                let ty1 = ty1.as_ref().skip_binders();
+                self.join_ty(ty1, ty2)
             }
+            (_, TyKind::Exists(ty2)) => {
+                let ty2 = ty2.as_ref().skip_binders();
+                self.join_ty(ty1, ty2)
+            }
+            (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
+            (_, TyKind::Constr(_, ty2)) => self.join_ty(ty1, ty2),
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
                 let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sorts())
                     .map(|(arg1, arg2, sort)| {
-                        if !self.scope.has_free_vars(arg2) && arg1 == arg2 {
+                        let has_free_vars2 = self.scope.has_free_vars(arg2);
+                        let has_escaping_vars1 = arg1.has_escaping_bvars();
+                        let has_escaping_vars2 = arg2.has_escaping_bvars();
+                        if !has_free_vars2
+                            && !has_escaping_vars1
+                            && !has_escaping_vars2
+                            && arg1 == arg2
+                        {
                             arg1.clone()
                         } else {
                             sorts.push(sort.clone());
@@ -604,45 +616,10 @@ impl TypeEnvInfer {
                     Ty::exists(Binders::new(ty, sorts))
                 }
             }
-            (TyKind::Exists(bound_ty), TyKind::Indexed(bty2, ..)) => {
-                let bty1 = bound_ty
-                    .as_ref()
-                    .skip_binders()
-                    .as_bty_skipping_binders()
-                    .unwrap_or_else(|| {
-                        tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`")
-                    });
-                let bty = self.join_bty(bty1, bty2);
-                Ty::full_exists(bty, Expr::hole())
-            }
-            (TyKind::Indexed(bty1, _), TyKind::Exists(bound_ty)) => {
-                let bty2 = bound_ty
-                    .as_ref()
-                    .skip_binders()
-                    .as_bty_skipping_binders()
-                    .unwrap_or_else(|| {
-                        tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`")
-                    });
-                let bty = self.join_bty(bty1, bty2);
-                Ty::full_exists(bty, Expr::hole())
-            }
-            (TyKind::Exists(bound_ty1), TyKind::Exists(bound_ty2)) => {
-                let bty1 = bound_ty1
-                    .as_ref()
-                    .skip_binders()
-                    .as_bty_skipping_binders()
-                    .unwrap_or_else(|| {
-                        tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`")
-                    });
-                let bty2 = bound_ty2
-                    .as_ref()
-                    .skip_binders()
-                    .as_bty_skipping_binders()
-                    .unwrap_or_else(|| {
-                        tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`")
-                    });
-                let bty = self.join_bty(bty1, bty2);
-                Ty::full_exists(bty, Expr::hole())
+            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+                debug_assert_eq!(rk1, rk2);
+                debug_assert_eq!(path1, path2);
+                Ty::ptr(*rk1, path1.clone())
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
