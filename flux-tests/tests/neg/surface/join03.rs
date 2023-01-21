@@ -2,23 +2,34 @@
 #![register_tool(flux)]
 
 #[flux::refined_by(a: int, b: int)]
-pub struct Range {
+pub struct Pair {
     #[flux::field(i32[a])]
     left: i32,
     #[flux::field(i32[b])]
     right: i32,
 }
 
-#[flux::sig(fn(r: Range, b: bool) -> i32[r.a + 1])]
-fn test00(mut r: Range, b: bool) -> i32 {
+#[flux::sig(fn(p: Pair, b: bool) -> i32[p.a + 1])]
+fn test00(mut p: Pair, b: bool) -> i32 {
     if b {
-        // this is a function call so the `Range` remains folded
-        add_right(&mut r, 1);
+        // this is a function call so the `Pair` remains folded
+        add_right(&mut p, 1);
     }
-    r.left //~ ERROR postcondition
+    p.left //~ ERROR postcondition
 }
 
-#[flux::sig(fn(r: &strg Range[@a, @b], n: i32) ensures r: Range[a, b + n])]
-fn add_right(r: &mut Range, n: i32) {
+#[flux::sig(fn(p: Pair) -> i32[p.a + 1])]
+fn test01(mut p: Pair) -> i32 {
+    let mut i = 0;
+    while i < 10 {
+        // this is a function call so the `Pair` remains folded
+        add_right(&mut p, 1);
+        i += 1;
+    }
+    p.left //~ ERROR postcondition
+}
+
+#[flux::sig(fn(r: &strg Pair[@a, @b], n: i32) ensures r: Pair[a, b + n])]
+fn add_right(r: &mut Pair, n: i32) {
     r.right += n;
 }
