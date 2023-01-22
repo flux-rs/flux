@@ -11,6 +11,7 @@ flux-desugar = { path = "../flux-desugar" }
 flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }
 flux-macros = { path = "../flux-macros" }
+flux-metadata = { path = "../flux-metadata" }
 flux-middle = { path = "../flux-middle" }
 flux-refineck = { path = "../flux-refineck" }
 flux-syntax = { path = "../flux-syntax" }

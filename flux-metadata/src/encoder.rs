@@ -1,11 +1,15 @@
+use flux_middle::global_env::GlobalEnv;
 use rustc_hash::FxHashMap;
+use rustc_metadata::errors::FailCreateFileEncoder;
 use rustc_middle::{
     bug,
     ty::{self, TyCtxt},
 };
 use rustc_serialize::{opaque, Encodable, Encoder};
-use rustc_span::def_id::CrateNum;
+use rustc_span::def_id::{CrateNum, DefIndex};
 use rustc_type_ir::TyEncoder;
+
+use crate::{CrateRoot, METADATA_HEADER};
 
 struct EncodeContext<'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -13,6 +17,26 @@ struct EncodeContext<'tcx> {
     type_shorthands: FxHashMap<ty::Ty<'tcx>, usize>,
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
     // interpret_allocs: FxIndexSet<interpret::AllocId>,
+}
+
+pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
+    let mut encoder = opaque::FileEncoder::new(path)
+        .unwrap_or_else(|err| genv.tcx.sess.emit_fatal(FailCreateFileEncoder { err }));
+
+    encoder.emit_raw_bytes(METADATA_HEADER);
+
+    let crate_root = CrateRoot::new(genv);
+
+    let mut ecx = EncodeContext {
+        tcx: genv.tcx,
+        opaque: encoder,
+        type_shorthands: Default::default(),
+        predicate_shorthands: Default::default(),
+    };
+
+    crate_root.encode(&mut ecx);
+
+    ecx.opaque.finish().unwrap();
 }
 
 impl<'tcx> TyEncoder for EncodeContext<'tcx> {
@@ -36,6 +60,12 @@ impl<'tcx> TyEncoder for EncodeContext<'tcx> {
         bug!("Encoding `interpret::AllocId` is not supported");
         // let (index, _) = self.interpret_allocs.insert_full(*alloc_id);
         // index.encode(self);
+    }
+}
+
+impl<'tcx> Encodable<EncodeContext<'tcx>> for DefIndex {
+    fn encode(&self, s: &mut EncodeContext<'tcx>) {
+        s.emit_u32(self.as_u32());
     }
 }
 

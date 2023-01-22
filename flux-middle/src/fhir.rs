@@ -213,7 +213,7 @@ pub struct RefineParam {
 }
 
 /// *Infer*ence *mode* for parameter at function calls
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum InferMode {
     /// Generate a fresh evar for the parameter and solve it via syntactic unification. The
     /// parameter must appear as an index for unification to succeed, but otherwise it can appear

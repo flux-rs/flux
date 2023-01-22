@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use flux_common::{cache::QueryCache, config, dbg, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
@@ -10,7 +12,10 @@ use flux_refineck::{self as refineck, wf::Wf};
 use flux_syntax::surface;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{LocalDefId, LOCAL_CRATE},
+};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -92,10 +97,6 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         let mut ck = CrateChecker::new(&mut genv, specs.ignores);
 
-        if ck.ignores.contains(&IgnoreKey::Crate) {
-            return Ok(());
-        }
-
         let crate_items = tcx.hir_crate_items(());
         let items = crate_items.items().map(|item| item.owner_id.def_id);
         let impl_items = crate_items
@@ -110,18 +111,24 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         tracing::info!("Callbacks::check_crate");
 
+        let crate_name = tcx.crate_name(LOCAL_CRATE);
+        flux_metadata::encode_metadata(
+            &genv,
+            PathBuf::from(format!("{crate_name}.fluxmeta")).as_path(),
+        );
+
         result
     })
 }
 
-struct CrateChecker<'genv, 'tcx> {
-    genv: &'genv mut GlobalEnv<'genv, 'tcx>,
+struct CrateChecker<'a, 'genv, 'tcx> {
+    genv: &'a mut GlobalEnv<'genv, 'tcx>,
     ignores: Ignores,
     cache: QueryCache,
 }
 
-impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
-    fn new(genv: &'genv mut GlobalEnv<'genv, 'tcx>, ignores: Ignores) -> Self {
+impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
+    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>, ignores: Ignores) -> Self {
         CrateChecker { genv, ignores, cache: QueryCache::load() }
     }
 

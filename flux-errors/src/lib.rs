@@ -1,4 +1,4 @@
-#![feature(rustc_private)]
+#![feature(rustc_private, never_type)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -56,6 +56,11 @@ impl FluxSession {
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
+    }
+
+    #[track_caller]
+    pub fn emit_fatal<'a>(&'a self, fatal: impl IntoDiagnostic<'a, !>) -> ! {
+        self.parse_sess.emit_fatal(fatal)
     }
 
     pub fn abort_if_errors(&self) {

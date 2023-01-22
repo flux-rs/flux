@@ -80,20 +80,20 @@ pub struct Binders<T> {
     value: T,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolySig {
     pub fn_sig: Binders<FnSig>,
     pub modes: List<InferMode>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
     output: Binders<FnOutput>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Constraint>,
@@ -101,7 +101,7 @@ pub struct FnOutput {
 
 pub type Constraints = List<Constraint>;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub enum Constraint {
     Type(Path, Ty),
     Pred(Expr),
