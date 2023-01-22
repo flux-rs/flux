@@ -557,6 +557,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-metadata"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-middle",
+]
+
+[[package]]
 name = "flux-middle"
 version = "0.1.0"
 dependencies = [

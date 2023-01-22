@@ -26,6 +26,7 @@ use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
+use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
@@ -153,7 +154,7 @@ pub struct ArrayLen {
     pub val: usize,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encodable, Decodable)]
 pub enum RefKind {
     Shr,
     Mut,
@@ -224,7 +225,7 @@ pub enum InferMode {
     KVar,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -238,7 +239,7 @@ pub enum Sort {
     User(Symbol),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }

@@ -4,6 +4,7 @@ use std::iter;
 
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
+use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -98,7 +99,7 @@ pub enum TyKind {
     RawPtr(Ty, Mutability),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct Const {
     pub val: usize,
 }
