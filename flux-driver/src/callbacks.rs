@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use flux_common::{cache::QueryCache, config, dbg, iter::IterExt};
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
+use flux_metadata::CStore;
 use flux_middle::{
     fhir::{self, ConstInfo},
     global_env::GlobalEnv,
@@ -21,6 +22,7 @@ use rustc_middle::ty::{
     query::{query_values, Providers},
     TyCtxt, WithOptConstParam,
 };
+use rustc_session::config::OutputType;
 
 use crate::{
     collector::{IgnoreKey, Ignores, SpecCollector, Specs},
@@ -74,6 +76,7 @@ impl Callbacks for FluxCallbacks {
 
 fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(|| {
+        let cstore = CStore::load(tcx, sess);
         let mut specs = SpecCollector::collect(tcx, sess)?;
 
         // Ignore everything and go home
@@ -111,14 +114,23 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         tracing::info!("Callbacks::check_crate");
 
-        let crate_name = tcx.crate_name(LOCAL_CRATE);
-        flux_metadata::encode_metadata(
-            &genv,
-            PathBuf::from(format!("{crate_name}.fluxmeta")).as_path(),
-        );
+        save_metadata(&genv);
 
         result
     })
+}
+
+fn save_metadata(genv: &GlobalEnv) {
+    let tcx = genv.tcx;
+    if tcx
+        .sess
+        .opts
+        .output_types
+        .contains_key(&OutputType::Metadata)
+    {
+        let path = flux_metadata::filename_for_metadata(tcx);
+        flux_metadata::encode_metadata(genv, path.as_path());
+    }
 }
 
 struct CrateChecker<'a, 'genv, 'tcx> {

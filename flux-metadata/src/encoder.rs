@@ -9,7 +9,7 @@ use rustc_serialize::{opaque, Encodable, Encoder};
 use rustc_span::def_id::{CrateNum, DefIndex};
 use rustc_type_ir::TyEncoder;
 
-use crate::{CrateRoot, METADATA_HEADER};
+use crate::{CrateMetadata, METADATA_HEADER};
 
 struct EncodeContext<'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -25,7 +25,7 @@ pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
 
     encoder.emit_raw_bytes(METADATA_HEADER);
 
-    let crate_root = CrateRoot::new(genv);
+    let crate_root = CrateMetadata::new(genv);
 
     let mut ecx = EncodeContext {
         tcx: genv.tcx,

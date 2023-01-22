@@ -1,24 +1,50 @@
-use std::mem;
+use std::{fs, io::Read, mem, path::Path};
 
 use flux_common::bug;
+use flux_errors::FluxSession;
 use rustc_data_structures::sync::HashMapExt;
 use rustc_middle::{
     implement_ty_decoder,
     ty::{self, TyCtxt},
 };
-use rustc_serialize::{opaque::MemDecoder, Decodable};
-use rustc_span::def_id::{CrateNum, StableCrateId};
+use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder};
+use rustc_span::def_id::{CrateNum, DefIndex, StableCrateId};
 use rustc_type_ir::TyDecoder;
+
+use crate::{CrateMetadata, METADATA_HEADER};
 
 struct DecodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     opaque: MemDecoder<'a>,
 }
 
+pub(super) fn decode_crate_metadata(
+    tcx: TyCtxt,
+    _sess: &FluxSession,
+    path: &Path,
+) -> CrateMetadata {
+    let mut file = fs::File::open(path).unwrap();
+    let mut buf = vec![];
+    file.read_to_end(&mut buf).unwrap();
+
+    if !buf.starts_with(METADATA_HEADER) {
+        todo!()
+    }
+
+    let mut decoder = DecodeContext { tcx, opaque: MemDecoder::new(&buf, METADATA_HEADER.len()) };
+    CrateMetadata::decode(&mut decoder)
+}
+
 impl<'a, 'tcx> Decodable<DecodeContext<'a, 'tcx>> for CrateNum {
     fn decode(d: &mut DecodeContext<'a, 'tcx>) -> Self {
         let stable_id = StableCrateId::decode(d);
         d.tcx.stable_crate_id_to_crate_num(stable_id)
+    }
+}
+
+impl<'a, 'tcx> Decodable<DecodeContext<'a, 'tcx>> for DefIndex {
+    fn decode(d: &mut DecodeContext<'a, 'tcx>) -> Self {
+        DefIndex::from_u32(d.read_u32())
     }
 }
 

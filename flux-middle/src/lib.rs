@@ -18,6 +18,7 @@ extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
 pub mod const_eval;
+pub mod cstore;
 pub mod fhir;
 pub mod global_env;
 pub mod intern;
