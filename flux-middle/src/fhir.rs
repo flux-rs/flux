@@ -514,12 +514,8 @@ impl Map {
         self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
     }
 
-    pub fn is_trusted(&self, def_id: DefId) -> bool {
-        if let Some(def_id) = def_id.as_local() {
-            self.trusted.contains(&def_id)
-        } else {
-            false
-        }
+    pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
+        self.trusted.contains(&def_id)
     }
 
     // Structs

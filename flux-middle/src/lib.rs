@@ -19,6 +19,7 @@ extern crate rustc_type_ir;
 
 pub mod const_eval;
 pub mod cstore;
+pub mod early_ctxt;
 pub mod fhir;
 pub mod global_env;
 pub mod intern;
