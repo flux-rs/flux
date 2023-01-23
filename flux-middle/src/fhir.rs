@@ -392,6 +392,10 @@ impl AdtDef {
             },
         )
     }
+
+    pub fn sorts(&self) -> &[Sort] {
+        &self.sorts
+    }
 }
 
 impl RefinedBy {
@@ -583,10 +587,6 @@ impl Map {
 
     pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
         self.adts.insert(def_id, sort_info);
-    }
-
-    pub fn sorts_of(&self, def_id: LocalDefId) -> &[Sort] {
-        &self.adts[&def_id].sorts
     }
 
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {

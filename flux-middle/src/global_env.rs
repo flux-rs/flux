@@ -167,7 +167,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         match self.fn_sigs.borrow_mut().entry(def_id) {
             hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
             hash_map::Entry::Vacant(entry) => {
-                Ok(entry.insert(self.default_fn_sig(def_id)?).clone())
+                let fn_sig = if let Some(fn_sig) = self.early_cx.cstore.fn_sig(def_id) {
+                    fn_sig
+                } else {
+                    self.default_fn_sig(def_id)?
+                };
+                Ok(entry.insert(fn_sig).clone())
             }
         }
     }
@@ -185,7 +190,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
-            .or_insert_with(|| rty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false))
+            .or_insert_with(|| {
+                if let Some(adt_def) = self.early_cx.cstore.adt_def(def_id) {
+                    adt_def.clone()
+                } else {
+                    rty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false)
+                }
+            })
             .clone()
     }
 
@@ -218,14 +229,18 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
-                Some(
-                    self.tcx
-                        .adt_def(def_id)
-                        .variants()
-                        .iter()
-                        .map(|variant_def| self.default_variant_def(def_id, variant_def))
-                        .collect(),
-                )
+                if let Some(variants) = self.early_cx.cstore.variants(def_id) {
+                    variants.map(<[_]>::to_vec)
+                } else {
+                    Some(
+                        self.tcx
+                            .adt_def(def_id)
+                            .variants()
+                            .iter()
+                            .map(|variant_def| self.default_variant_def(def_id, variant_def))
+                            .collect(),
+                    )
+                }
             })
             .as_ref()
             .ok_or(OpaqueStructErr(def_id))?[variant_idx.as_usize()]

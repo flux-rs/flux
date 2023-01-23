@@ -62,13 +62,13 @@ pub struct Invariant {
 
 pub type PolyVariant = Binders<VariantDef>;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub fields: List<Ty>,
     pub ret: VariantRet,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct VariantRet {
     pub bty: BaseTy,
     pub args: List<RefineArg>,

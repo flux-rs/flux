@@ -30,19 +30,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         self.map.sort_decl(name)
     }
 
-    #[track_caller]
-    pub fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
-        self.sess.emit_err(err)
-    }
-
-    pub fn sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
-        if let Some(local_id) = def_id.as_local() {
-            self.map.sorts_of(local_id)
-        } else {
-            &[]
-        }
-    }
-
     pub fn uif(&self, name: impl Borrow<Symbol>) -> Option<&fhir::UifDef> {
         self.map.uif(name)
     }
@@ -51,19 +38,32 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         self.map.const_by_name(name)
     }
 
-    pub fn field_index(&self, adt_def_id: DefId, fld: Symbol) -> Option<usize> {
-        if let Some(local_id) = adt_def_id.as_local() {
-            self.map.adt(local_id).field_index(fld)
+    pub fn sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
+        if let Some(local_id) = def_id.as_local() {
+            self.map.adt(local_id).sorts()
         } else {
-            todo!()
+            self.cstore.sorts_of(def_id).unwrap_or_default()
         }
     }
 
-    pub fn field_sort(&self, adt_def_id: DefId, fld: Symbol) -> Option<&fhir::Sort> {
-        if let Some(local_id) = adt_def_id.as_local() {
+    pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
+        if let Some(local_id) = def_id.as_local() {
+            self.map.adt(local_id).field_index(fld)
+        } else {
+            self.cstore.field_index(def_id, fld)
+        }
+    }
+
+    pub fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&fhir::Sort> {
+        if let Some(local_id) = def_id.as_local() {
             self.map.adt(local_id).field_sort(fld)
         } else {
-            todo!()
+            self.cstore.field_sort(def_id, fld)
         }
+    }
+
+    #[track_caller]
+    pub fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
+        self.sess.emit_err(err)
     }
 }

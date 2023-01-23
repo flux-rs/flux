@@ -564,6 +564,7 @@ dependencies = [
  "flux-common",
  "flux-errors",
  "flux-middle",
+ "itertools",
 ]
 
 [[package]]

@@ -20,12 +20,16 @@ use std::path::PathBuf;
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_middle::{cstore::CrateStore, global_env::GlobalEnv, rty};
+use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{config::OutputType, utils::CanonicalizedPath};
-use rustc_span::def_id::{CrateNum, DefId, DefIndex};
+use rustc_span::{
+    def_id::{CrateNum, DefId, DefIndex},
+    Symbol,
+};
 
 pub use crate::encoder::encode_metadata;
 
@@ -39,6 +43,14 @@ pub struct CStore {
 #[derive(TyEncodable, TyDecodable)]
 pub struct CrateMetadata {
     fn_sigs: FxHashMap<DefIndex, rty::PolySig>,
+    adts: FxHashMap<DefIndex, AdtMetadata>,
+}
+
+#[derive(TyEncodable, TyDecodable)]
+struct AdtMetadata {
+    refined_by: Vec<(Symbol, rty::Sort)>,
+    adt_def: rty::AdtDef,
+    variants: Option<Vec<rty::PolyVariant>>,
 }
 
 impl CStore {
@@ -54,6 +66,10 @@ impl CStore {
             .collect();
         Self { meta }
     }
+
+    fn adt(&self, def_id: DefId) -> Option<&AdtMetadata> {
+        self.meta.get(&def_id.krate)?.adts.get(&def_id.index)
+    }
 }
 
 impl CrateStore for CStore {
@@ -64,12 +80,45 @@ impl CrateStore for CStore {
             .get(&def_id.index)
             .cloned()
     }
+
+    fn sorts_of(&self, def_id: DefId) -> Option<&[rty::Sort]> {
+        self.adt(def_id).map(|adt| adt.adt_def.sorts())
+    }
+
+    fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
+        self.adt(def_id)?
+            .refined_by
+            .iter()
+            .find_position(|(name, _)| *name == fld)
+            .map(|res| res.0)
+    }
+
+    fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&rty::Sort> {
+        self.adt(def_id)?.refined_by.iter().find_map(
+            |(name, sort)| {
+                if *name == fld {
+                    Some(sort)
+                } else {
+                    None
+                }
+            },
+        )
+    }
+
+    fn adt_def(&self, def_id: DefId) -> Option<&rty::AdtDef> {
+        self.adt(def_id).map(|adt| &adt.adt_def)
+    }
+
+    fn variants(&self, def_id: DefId) -> Option<Option<&[rty::PolyVariant]>> {
+        self.adt(def_id).map(|adt| adt.variants.as_deref())
+    }
 }
 
 impl CrateMetadata {
     fn new(genv: &GlobalEnv) -> Self {
         let tcx = genv.tcx;
         let mut fn_sigs = FxHashMap::default();
+        let mut adts = FxHashMap::default();
 
         for local_id in tcx.iter_local_def_id() {
             let def_id = local_id.to_def_id();
@@ -84,15 +133,36 @@ impl CrateMetadata {
                     );
                 }
                 DefKind::Enum | DefKind::Struct => {
-                    // println!("adt {:?}", tcx.def_path_str(def_id));
-                }
-                DefKind::Variant => {
-                    // println!("variant {:?}", tcx.def_path_str(def_id));
+                    let refined_by = &genv.map().adt(local_id).refined_by;
+                    let adt_def = genv.adt_def(def_id);
+                    let variants = if adt_def.is_opaque() {
+                        None
+                    } else {
+                        Some(
+                            adt_def
+                                .variants()
+                                .map(|variant_idx| {
+                                    genv.variant(def_id, variant_idx)
+                                        .expect("adt must be transparent")
+                                })
+                                .collect_vec(),
+                        )
+                    };
+                    let meta = AdtMetadata {
+                        refined_by: refined_by
+                            .params
+                            .iter()
+                            .map(|(ident, sort)| (ident.sym(), sort.clone()))
+                            .collect(),
+                        adt_def,
+                        variants,
+                    };
+                    adts.insert(def_id.index, meta);
                 }
                 _ => {}
             }
         }
-        Self { fn_sigs }
+        Self { fn_sigs, adts }
     }
 }
 
