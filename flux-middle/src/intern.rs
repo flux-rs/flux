@@ -248,6 +248,7 @@ use std::{
 
 use dashmap::{lock::RwLockWriteGuard, DashMap, SharedValue};
 use rustc_hash::FxHasher;
+use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 type InternMap<T> = DashMap<Arc<T>, (), BuildHasherDefault<FxHasher>>;
 type Guard<T> =
@@ -497,6 +498,48 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+impl<E, T> Encodable<E> for Interned<T>
+where
+    E: Encoder,
+    T: Encodable<E> + Internable,
+{
+    fn encode(&self, s: &mut E) {
+        (**self).encode(s);
+    }
+}
+
+impl<D, T> Decodable<D> for Interned<T>
+where
+    D: Decoder,
+    T: Decodable<D> + Internable,
+{
+    fn decode(d: &mut D) -> Self {
+        Interned::new(T::decode(d))
+    }
+}
+
+impl<E, T> Encodable<E> for Interned<[T]>
+where
+    E: Encoder,
+    T: Encodable<E>,
+    [T]: Internable,
+{
+    fn encode(&self, s: &mut E) {
+        (**self).encode(s);
+    }
+}
+
+impl<D, T> Decodable<D> for Interned<[T]>
+where
+    D: Decoder,
+    T: Decodable<D>,
+    [T]: Internable,
+{
+    fn decode(d: &mut D) -> Self {
+        Interned::from_vec(Decodable::decode(d))
     }
 }
 

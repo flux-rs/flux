@@ -7,6 +7,7 @@ use std::{
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
 use rustc_index::newtype_index;
+use rustc_macros::{Decodable, Encodable};
 
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),
@@ -87,7 +88,7 @@ pub struct Const {
     pub val: i128,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -106,20 +107,20 @@ pub enum BinOp {
     Mod,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum UnOp {
     Not,
     Neg,
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
     Int(Sign, u128),
     Real(i128),
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Sign {
     Positive,
     Negative,

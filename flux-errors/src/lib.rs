@@ -1,4 +1,4 @@
-#![feature(rustc_private)]
+#![feature(rustc_private, never_type)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -23,8 +23,8 @@ use rustc_session::{
 };
 use rustc_span::source_map::SourceMap;
 
-// These are sorted loosely following the order of the pipeline except for lowering which doesn't
-// quite fit this ordering.
+// These are sorted loosely following the order of the pipeline except for lowering and metadata
+// which don't quite fit this ordering.
 fluent_messages! {
     parse => "../locales/en-US/parse.ftl",
     resolver => "../locales/en-US/resolver.ftl",
@@ -34,6 +34,7 @@ fluent_messages! {
     invariants => "../locales/en-US/invariants.ftl",
     refineck => "../locales/en-US/refineck.ftl",
     lowering => "../locales/en-US/lowering.ftl",
+    metadata => "../locales/en-US/metadata.ftl",
 }
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
@@ -56,6 +57,11 @@ impl FluxSession {
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
+    }
+
+    #[track_caller]
+    pub fn emit_fatal<'a>(&'a self, fatal: impl IntoDiagnostic<'a, !>) -> ! {
+        self.parse_sess.emit_fatal(fatal)
     }
 
     pub fn abort_if_errors(&self) {

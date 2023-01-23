@@ -26,6 +26,7 @@ use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
+use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
@@ -153,7 +154,7 @@ pub struct ArrayLen {
     pub val: usize,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encodable, Decodable)]
 pub enum RefKind {
     Shr,
     Mut,
@@ -212,7 +213,7 @@ pub struct RefineParam {
 }
 
 /// *Infer*ence *mode* for parameter at function calls
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum InferMode {
     /// Generate a fresh evar for the parameter and solve it via syntactic unification. The
     /// parameter must appear as an index for unification to succeed, but otherwise it can appear
@@ -224,7 +225,7 @@ pub enum InferMode {
     KVar,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -238,7 +239,7 @@ pub enum Sort {
     User(Symbol),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
@@ -391,6 +392,10 @@ impl AdtDef {
             },
         )
     }
+
+    pub fn sorts(&self) -> &[Sort] {
+        &self.sorts
+    }
 }
 
 impl RefinedBy {
@@ -513,12 +518,8 @@ impl Map {
         self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
     }
 
-    pub fn is_trusted(&self, def_id: DefId) -> bool {
-        if let Some(def_id) = def_id.as_local() {
-            self.trusted.contains(&def_id)
-        } else {
-            false
-        }
+    pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
+        self.trusted.contains(&def_id)
     }
 
     // Structs
@@ -551,8 +552,8 @@ impl Map {
         self.consts.values()
     }
 
-    pub fn const_by_name(&self, name: Symbol) -> Option<&ConstInfo> {
-        self.consts.get(&name)
+    pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&ConstInfo> {
+        self.consts.get(name.borrow())
     }
 
     // UIF
@@ -586,16 +587,6 @@ impl Map {
 
     pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
         self.adts.insert(def_id, sort_info);
-    }
-
-    pub fn sorts_of(&self, def_id: DefId) -> Option<&[Sort]> {
-        let info = self.adts.get(&def_id.as_local()?)?;
-        Some(&info.sorts)
-    }
-
-    pub fn refined_by(&self, def_id: DefId) -> Option<&RefinedBy> {
-        let adt_def = self.adts.get(&def_id.as_local()?)?;
-        Some(&adt_def.refined_by)
     }
 
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {

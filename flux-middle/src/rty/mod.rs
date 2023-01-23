@@ -13,13 +13,16 @@ pub mod subst;
 use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
+pub use expr::{
+    BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
+};
 use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::{bit_set::BitSet, newtype_index};
+use rustc_index::bit_set::BitSet;
+use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
@@ -39,10 +42,10 @@ use crate::{
     rustc::mir::Place,
 };
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     def_id: DefId,
     invariants: Vec<Invariant>,
@@ -52,45 +55,45 @@ pub struct AdtDefData {
     opaque: bool,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
     pub pred: Binders<Expr>,
 }
 
 pub type PolyVariant = Binders<VariantDef>;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub fields: List<Ty>,
     pub ret: VariantRet,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct VariantRet {
     pub bty: BaseTy,
     pub args: List<RefineArg>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Binders<T> {
     params: List<Sort>,
     value: T,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolySig {
     pub fn_sig: Binders<FnSig>,
     pub modes: List<InferMode>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
     output: Binders<FnOutput>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Constraint>,
@@ -98,7 +101,7 @@ pub struct FnOutput {
 
 pub type Constraints = List<Constraint>;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub enum Constraint {
     Type(Path, Ty),
     Pred(Expr),
@@ -127,12 +130,12 @@ pub struct Defns {
 
 pub type Ty = Interned<TyS>;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
     Exists(Binders<Ty>),
@@ -153,17 +156,17 @@ pub enum TyKind {
     Discr(AdtDef, Place),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PtrKind {
     Shr,
     Mut,
     Box,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 pub struct RefineArgs(Interned<RefineArgsData>);
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 struct RefineArgsData {
     args: Vec<RefineArg>,
     /// Set containing all the indices of arguments that were used as binders in the surface syntax.
@@ -171,13 +174,13 @@ struct RefineArgsData {
     is_binder: BitSet<usize>,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 pub enum RefineArg {
     Expr(Expr),
     Abs(Binders<Expr>),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
@@ -192,27 +195,11 @@ pub enum BaseTy {
 
 pub type Substs = List<GenericArg>;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
     /// We treat lifetime opaquely
     Lifetime,
-}
-
-/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the variables, the first one being
-/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list.
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar {
-    pub kvid: KVid,
-    pub args: List<Expr>,
-    pub scope: List<Expr>,
-}
-
-newtype_index! {
-    #[debug_format = "$k{}"]
-    pub struct KVid {}
 }
 
 impl Qualifier {
@@ -723,16 +710,6 @@ impl Binders<Expr> {
     }
 }
 
-impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
-        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
-    }
-
-    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
-        self.args.iter().chain(&self.scope)
-    }
-}
-
 #[track_caller]
 pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
     if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &substs[..] {
@@ -749,7 +726,6 @@ impl_internable!(
     [Ty],
     [GenericArg],
     [Field],
-    [KVar],
     [Constraint],
     [RefineArg],
     [InferMode],
@@ -1029,25 +1005,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for KVar {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", ^self.kvid)?;
-            match cx.kvar_args {
-                KVarArgs::All => {
-                    if self.scope.is_empty() {
-                        w!("({:?})", join!(", ", &self.args))?;
-                    } else {
-                        w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
-                    }
-                }
-                KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
-                KVarArgs::Hide => {}
-            }
-            Ok(())
-        }
-    }
-
     impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1067,7 +1024,6 @@ mod pretty {
         TyS => "ty",
         PolySig,
         BaseTy,
-        KVar,
         FnSig,
         GenericArg,
         RefineArg,
