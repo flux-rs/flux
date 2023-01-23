@@ -548,8 +548,8 @@ impl Map {
         self.consts.values()
     }
 
-    pub fn const_by_name(&self, name: Symbol) -> Option<&ConstInfo> {
-        self.consts.get(&name)
+    pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&ConstInfo> {
+        self.consts.get(name.borrow())
     }
 
     // UIF
@@ -585,14 +585,8 @@ impl Map {
         self.adts.insert(def_id, sort_info);
     }
 
-    pub fn sorts_of(&self, def_id: DefId) -> Option<&[Sort]> {
-        let info = self.adts.get(&def_id.as_local()?)?;
-        Some(&info.sorts)
-    }
-
-    pub fn refined_by(&self, def_id: DefId) -> Option<&RefinedBy> {
-        let adt_def = self.adts.get(&def_id.as_local()?)?;
-        Some(&adt_def.refined_by)
+    pub fn sorts_of(&self, def_id: LocalDefId) -> &[Sort] {
+        &self.adts[&def_id].sorts
     }
 
     pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {

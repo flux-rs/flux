@@ -1083,7 +1083,7 @@ impl Binder {
     }
 }
 
-fn sorts<'a>(early_cx: &EarlyCtxt<'a, '_>, bty: &surface::BaseTy<Res>) -> Option<&'a [fhir::Sort]> {
+fn sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> Option<&'a [fhir::Sort]> {
     let sorts = match bty {
         surface::BaseTy::Path(path) => {
             match path.res {

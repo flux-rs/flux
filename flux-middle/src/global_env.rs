@@ -12,6 +12,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
+    early_ctxt::EarlyCtxt,
     fhir::{self, VariantIdx},
     intern::List,
     rty::{self, fold::TypeFoldable, Binders, Defns},
@@ -21,70 +22,74 @@ use crate::{
 #[derive(Debug)]
 pub struct OpaqueStructErr(pub DefId);
 
-pub struct GlobalEnv<'genv, 'tcx> {
+type VariantMap = FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>;
+type FnSigMap = FxHashMap<DefId, rty::PolySig>;
+
+pub struct GlobalEnv<'sess, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
-    pub sess: &'genv FluxSession,
+    pub sess: &'sess FluxSession,
     qualifiers: Vec<rty::Qualifier>,
     uifs: FxHashMap<Symbol, rty::UifDef>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
-    map: fhir::Map,
+    early_cx: EarlyCtxt<'sess, 'tcx>,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
     check_asserts: AssertBehavior,
     defns: Defns,
 }
 
-impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    pub fn new(
-        tcx: TyCtxt<'tcx>,
-        sess: &'genv FluxSession,
-        map: fhir::Map,
-    ) -> Result<Self, ErrorGuaranteed> {
+impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
+    pub fn new(early_cx: EarlyCtxt<'sess, 'tcx>) -> Result<Self, ErrorGuaranteed> {
         let check_asserts = config::assert_behavior();
 
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
-        for defn in map.defns() {
-            let defn = rty::conv::conv_defn(&map, defn);
+        for defn in early_cx.map.defns() {
+            let defn = rty::conv::conv_defn(&early_cx, defn);
             defns.insert(defn.name, defn);
         }
         let defns = Defns::new(defns).map_err(|cycle| {
-            let span = map.defn(cycle[0]).unwrap().expr.span;
-            sess.emit_err(errors::DefinitionCycle::new(span, cycle))
+            let span = early_cx.map.defn(cycle[0]).unwrap().expr.span;
+            early_cx
+                .sess
+                .emit_err(errors::DefinitionCycle::new(span, cycle))
         })?;
 
         let mut adt_defs = FxHashMap::default();
-        for adt_def in map.adts() {
-            let adt_def = rty::conv::conv_adt_def(tcx, &map, adt_def).normalize(&defns);
+        for adt_def in early_cx.map.adts() {
+            let adt_def = rty::conv::conv_adt_def(&early_cx, adt_def).normalize(&defns);
             adt_defs.insert(adt_def.def_id(), adt_def);
         }
 
-        let qualifiers = map
+        let qualifiers = early_cx
+            .map
             .qualifiers()
-            .map(|qualifier| rty::conv::ConvCtxt::conv_qualifier(&map, qualifier).normalize(&defns))
+            .map(|qualifier| {
+                rty::conv::ConvCtxt::conv_qualifier(&early_cx, qualifier).normalize(&defns)
+            })
             .collect();
 
-        let uifs = map
+        let uifs = early_cx
+            .map
             .uifs()
-            .map(|uif| (uif.name, rty::conv::conv_uif(&map, uif)))
+            .map(|uif| (uif.name, rty::conv::conv_uif(&early_cx, uif)))
             .collect();
 
         let mut fn_quals = FxHashMap::default();
-        for (def_id, names) in map.fn_quals() {
+        for (def_id, names) in early_cx.map.fn_quals() {
             let names = names.iter().map(|ident| ident.name.to_string()).collect();
             fn_quals.insert(def_id.to_def_id(), names);
         }
-
         let mut genv = GlobalEnv {
-            fn_sigs: RefCell::new(FxHashMap::default()),
+            fn_sigs: RefCell::new(FnSigMap::default()),
             adt_defs: RefCell::new(adt_defs),
-            adt_variants: RefCell::new(FxHashMap::default()),
+            adt_variants: RefCell::new(VariantMap::default()),
             qualifiers,
-            tcx,
-            sess,
+            tcx: early_cx.tcx,
+            sess: early_cx.sess,
             check_asserts,
-            map,
+            early_cx,
             uifs,
             defns,
             fn_quals,
@@ -97,19 +102,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     fn register_struct_def_variants(&mut self) {
-        for struct_def in self.map.structs() {
+        let map = &self.early_cx.map;
+        for struct_def in map.structs() {
             let def_id = struct_def.def_id;
-            let refined_by = &self.map().refined_by(struct_def.def_id).unwrap();
+            let refined_by = &map.adt(def_id.expect_local()).refined_by;
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));
             let variants = variant.map(|variant_def| vec![variant_def]);
+
             self.adt_variants.get_mut().insert(def_id, variants);
         }
     }
 
     fn register_enum_def_variants(&mut self) {
-        for enum_def in self.map.enums() {
+        let map = &self.early_cx.map;
+        for enum_def in map.enums() {
             let def_id = enum_def.def_id;
             if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
                 let variants = variants
@@ -122,14 +130,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     fn register_fn_sigs(&mut self) {
-        for (def_id, fn_sig) in self.map.fn_sigs() {
+        let map = &self.early_cx.map;
+        for (def_id, fn_sig) in map.fn_sigs() {
             let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig).normalize(&self.defns);
             self.fn_sigs.get_mut().insert(def_id.to_def_id(), fn_sig);
         }
     }
 
     pub fn map(&self) -> &fhir::Map {
-        &self.map
+        &self.early_cx.map
     }
 
     fn fn_quals(&self, did: DefId) -> Vec<String> {
@@ -226,6 +235,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {
         rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
             .unwrap_or_else(|_| FatalError.raise())
+    }
+
+    pub fn sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+        self.early_cx.sorts_of(def_id)
     }
 
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
@@ -348,6 +361,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             rustc::ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),
             rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
         }
+    }
+
+    pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
+        &self.early_cx
     }
 }
 
