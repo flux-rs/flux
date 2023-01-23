@@ -12,6 +12,7 @@ extern crate rustc_session;
 extern crate rustc_span;
 
 mod annot_check;
+mod annot_check_hir;
 mod desugar;
 mod table_resolver;
 
