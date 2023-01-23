@@ -98,7 +98,7 @@ pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
     adt_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let def_id = adt_def.def_id.to_def_id();
+    let def_id = adt_def.def_id;
     let binders = Binders::from_params(early_cx, adt_def.refined_by.iter().flatten())?;
 
     let mut cx = DesugarCtxt::new(early_cx, binders);
@@ -120,7 +120,7 @@ pub fn desugar_enum_def(
     early_cx: &EarlyCtxt,
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let def_id = enum_def.def_id.to_def_id();
+    let def_id = enum_def.def_id;
     let variants = enum_def
         .variants
         .iter()

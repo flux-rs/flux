@@ -78,7 +78,7 @@ pub struct Map {
 
 #[derive(Debug)]
 pub struct StructDef {
-    pub def_id: DefId,
+    pub def_id: LocalDefId,
     pub kind: StructKind,
 }
 
@@ -90,7 +90,7 @@ pub enum StructKind {
 
 #[derive(Debug)]
 pub struct EnumDef {
-    pub def_id: DefId,
+    pub def_id: LocalDefId,
     pub variants: Vec<VariantDef>,
 }
 

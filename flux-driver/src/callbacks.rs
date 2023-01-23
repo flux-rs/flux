@@ -390,8 +390,7 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for struct_def in early_cx.map.structs() {
-        let local_id = struct_def.def_id.expect_local();
-        let refined_by = &early_cx.map.adt(local_id).refined_by;
+        let refined_by = &early_cx.map.adt(struct_def.def_id).refined_by;
         err = Wf::check_struct_def(early_cx, refined_by, struct_def)
             .err()
             .or(err);

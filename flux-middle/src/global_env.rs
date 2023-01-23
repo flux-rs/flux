@@ -104,27 +104,31 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     fn register_struct_def_variants(&mut self) {
         let map = &self.early_cx.map;
         for struct_def in map.structs() {
-            let def_id = struct_def.def_id;
-            let refined_by = &map.adt(def_id.expect_local()).refined_by;
+            let local_id = struct_def.def_id;
+            let refined_by = &map.adt(local_id).refined_by;
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));
             let variants = variant.map(|variant_def| vec![variant_def]);
 
-            self.adt_variants.get_mut().insert(def_id, variants);
+            self.adt_variants
+                .get_mut()
+                .insert(local_id.to_def_id(), variants);
         }
     }
 
     fn register_enum_def_variants(&mut self) {
         let map = &self.early_cx.map;
         for enum_def in map.enums() {
-            let def_id = enum_def.def_id;
+            let local_id = enum_def.def_id;
             if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
                 let variants = variants
                     .into_iter()
                     .map(|variant| variant.normalize(&self.defns))
                     .collect_vec();
-                self.adt_variants.get_mut().insert(def_id, Some(variants));
+                self.adt_variants
+                    .get_mut()
+                    .insert(local_id.to_def_id(), Some(variants));
             }
         }
     }

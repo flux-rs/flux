@@ -171,7 +171,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> Option<rty::PolyVariant> {
         let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
 
-        let def_id = struct_def.def_id;
+        let def_id = struct_def.def_id.to_def_id();
         let rustc_adt = genv.tcx.adt_def(def_id);
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
@@ -184,7 +184,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .collect_vec();
 
             let substs = genv
-                .generics_of(struct_def.def_id)
+                .generics_of(def_id)
                 .params
                 .iter()
                 .map(|param| {
