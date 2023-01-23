@@ -1,7 +1,8 @@
 #![allow(incomplete_features)]
-#![feature(rustc_private, specialization)]
+#![feature(rustc_private, specialization, if_let_guard)]
 
 extern crate rustc_data_structures;
+extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_macros;
@@ -60,7 +61,7 @@ impl CStore {
             .iter()
             .filter_map(|crate_num| {
                 let path = flux_metadata_extern_location(tcx, *crate_num)?;
-                let meta = decode_crate_metadata(tcx, sess, path.as_path());
+                let meta = decode_crate_metadata(tcx, sess, path.as_path())?;
                 Some((*crate_num, meta))
             })
             .collect();

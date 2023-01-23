@@ -1,4 +1,4 @@
-///! Context used before refinement checking while building [`fhir::Map`] and during
+///! The context used before refinement checking while building the [`fhir::Map`] and for
 ///! well-formedness checking.
 use std::borrow::Borrow;
 

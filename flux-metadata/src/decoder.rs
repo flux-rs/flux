@@ -1,4 +1,9 @@
-use std::{fs, io::Read, mem, path::Path};
+use std::{
+    fs,
+    io::{self, Read},
+    mem,
+    path::Path,
+};
 
 use flux_common::bug;
 use flux_errors::FluxSession;
@@ -20,19 +25,24 @@ struct DecodeContext<'a, 'tcx> {
 
 pub(super) fn decode_crate_metadata(
     tcx: TyCtxt,
-    _sess: &FluxSession,
+    sess: &FluxSession,
     path: &Path,
-) -> CrateMetadata {
-    let mut file = fs::File::open(path).unwrap();
+) -> Option<CrateMetadata> {
+    let mut file = match fs::File::open(path) {
+        Ok(file) => file,
+        Err(err) if let io::ErrorKind::NotFound = err.kind() => return None,
+        Err(err) => sess.emit_fatal(errors::DecodeFileError::new(path, err))
+    };
     let mut buf = vec![];
-    file.read_to_end(&mut buf).unwrap();
+    file.read_to_end(&mut buf)
+        .unwrap_or_else(|err| sess.emit_fatal(errors::DecodeFileError::new(path, err)));
 
     if !buf.starts_with(METADATA_HEADER) {
-        todo!()
+        panic!("incompatible metadata version")
     }
 
     let mut decoder = DecodeContext { tcx, opaque: MemDecoder::new(&buf, METADATA_HEADER.len()) };
-    CrateMetadata::decode(&mut decoder)
+    Some(CrateMetadata::decode(&mut decoder))
 }
 
 impl<'a, 'tcx> Decodable<DecodeContext<'a, 'tcx>> for CrateNum {
@@ -100,5 +110,24 @@ impl<'a, 'tcx> TyDecoder for DecodeContext<'a, 'tcx> {
 
     fn decode_alloc_id(&mut self) -> rustc_middle::mir::interpret::AllocId {
         bug!("Encoding `interpret::AllocId` is not supported")
+    }
+}
+
+mod errors {
+    use std::{io, path::Path};
+
+    use flux_macros::Diagnostic;
+
+    #[derive(Diagnostic)]
+    #[diag(metadata::decode_file_error, code = "FLUX")]
+    pub(super) struct DecodeFileError<'a> {
+        path: &'a Path,
+        err: io::Error,
+    }
+
+    impl<'a> DecodeFileError<'a> {
+        pub(super) fn new(path: &'a Path, err: io::Error) -> Self {
+            Self { path, err }
+        }
     }
 }

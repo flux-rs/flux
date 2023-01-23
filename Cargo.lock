@@ -563,6 +563,7 @@ version = "0.1.0"
 dependencies = [
  "flux-common",
  "flux-errors",
+ "flux-macros",
  "flux-middle",
  "itertools",
 ]
