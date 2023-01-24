@@ -7,10 +7,12 @@ use flux_syntax::surface::{self, Res};
 use hir::{def_id::DefId, HirId, OwnerId, PrimTy};
 use itertools::Itertools;
 use rustc_ast::LitKind;
+use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Span;
 use surface::Ident;
 
 pub fn resolve_struct_def(
@@ -82,7 +84,7 @@ pub fn resolve_fn_sig(
         .expect("expected function decl");
     let mut zipper = Zipper::new(tcx, sess, def_id);
     let args = zipper.zip_fn_args(fn_sig.args, hir_fn_decl.inputs)?;
-    let returns = zipper.zip_return_ty(fn_sig.returns, &hir_fn_decl.output)?;
+    let returns = zipper.zip_return_ty(fn_sig.span, fn_sig.returns, &hir_fn_decl.output)?;
     let ensures = zipper.zip_ensures(fn_sig.ensures)?;
 
     Ok(surface::FnSig {
@@ -206,13 +208,19 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
 
     fn zip_return_ty(
         &self,
+        fn_sig_span: Span,
         ret_ty: Option<surface::Ty>,
         hir_ret_ty: &hir::FnRetTy,
     ) -> Result<Option<surface::Ty<Res>>, ErrorGuaranteed> {
         match (ret_ty, hir_ret_ty) {
             (None, hir::FnRetTy::DefaultReturn(_)) => Ok(None),
             (Some(ty), hir::FnRetTy::Return(hir_ty)) => Ok(Some(self.zip_ty(ty, hir_ty)?)),
-            _ => todo!(),
+            (Some(ty), hir::FnRetTy::DefaultReturn(default_ret_span)) => {
+                self.emit_err(errors::ExpectedDefaultReturn::new(ty.span, *default_ret_span))
+            }
+            (None, hir::FnRetTy::Return(hir_ty)) => {
+                self.emit_err(errors::MissingReturnType::new(fn_sig_span, hir_ty.span))
+            }
         }
     }
 
@@ -262,9 +270,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                 self.array_len(len, *hir_len)?;
                 surface::TyKind::Array(Box::new(self.zip_ty(*ty, hir_ty)?), len)
             }
-            _ => {
-                todo!()
-            }
+            _ => return self.emit_err(errors::InvalidRefinement::new(ty.span, hir_ty.span)),
         };
         Ok(surface::Ty { kind, span: ty.span })
     }
@@ -387,12 +393,12 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(hir_len, _) = lit.node
         {
-            if len.val as u128 != hir_len {
-                todo!("array length mismatch")
+            if len.val != hir_len as usize {
+                return self.emit_err(errors::ArrayLenMismatch::new(len.span, len.val, lit.span, hir_len as usize));
             }
             Ok(())
         } else {
-            todo!("unsupported body")
+            return self.emit_err(errors::UnsupportedHir::new(self.tcx, self.def_id, "only interger literals are supported for array lengths"))
         }
     }
 
@@ -455,6 +461,10 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
             args,
             res: Res::Adt(self_ty.def_id.to_def_id()),
         })
+    }
+
+    fn emit_err<'a, T>(&'a self, err: impl IntoDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
+        Err(self.sess.emit_err(err))
     }
 }
 
@@ -618,4 +628,104 @@ fn generic_params_into_args(generics: &hir::Generics) -> Result<Vec<ParamTy>, &'
         }
     }
     Ok(args)
+}
+
+mod errors {
+    use flux_macros::{Diagnostic, Subdiagnostic};
+    use rustc_hir::def_id::{DefId, LocalDefId};
+    use rustc_middle::ty::TyCtxt;
+    use rustc_span::{symbol::Ident, Span};
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::unsupported_hir, code = "FLUX")]
+    #[note]
+    pub(super) struct UnsupportedHir<'a> {
+        #[primary_span]
+        #[label]
+        span: Span,
+        def_kind: &'static str,
+        note: &'a str,
+    }
+
+    impl<'a> UnsupportedHir<'a> {
+        pub(super) fn new(tcx: TyCtxt, def_id: impl Into<DefId>, note: &'a str) -> Self {
+            let def_id = def_id.into();
+            let span = tcx
+                .def_ident_span(def_id)
+                .unwrap_or_else(|| tcx.def_span(def_id));
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            Self { span, def_kind, note }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::array_len_mismatch, code = "FLUX")]
+    pub(super) struct ArrayLenMismatch {
+        #[primary_span]
+        #[label]
+        flux_span: Span,
+        flux_len: usize,
+        #[label(hir_resolver::hir_label)]
+        hir_span: Span,
+        hir_len: usize,
+    }
+
+    impl ArrayLenMismatch {
+        pub(super) fn new(
+            flux_span: Span,
+            flux_len: usize,
+            hir_span: Span,
+            hir_len: usize,
+        ) -> Self {
+            Self { flux_span, flux_len, hir_span, hir_len }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::expected_default_return, code = "FLUX")]
+    pub(super) struct ExpectedDefaultReturn {
+        #[primary_span]
+        #[label]
+        ret_ty_span: Span,
+        #[label(hir_resolver::default_return)]
+        default_ret_span: Span,
+    }
+
+    impl ExpectedDefaultReturn {
+        pub(super) fn new(ret_ty_span: Span, default_ret_span: Span) -> Self {
+            Self { ret_ty_span, default_ret_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::missing_return_type, code = "FLUX")]
+    pub(super) struct MissingReturnType {
+        #[primary_span]
+        #[label]
+        flux_sig_span: Span,
+        #[label(hir_resolver::hir_ret)]
+        rust_ret_ty_span: Span,
+    }
+
+    impl MissingReturnType {
+        pub(super) fn new(flux_sig_span: Span, rust_ret_ty_span: Span) -> Self {
+            Self { flux_sig_span, rust_ret_ty_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::invalid_refinement, code = "FLUX")]
+    pub(super) struct InvalidRefinement {
+        #[primary_span]
+        #[label]
+        flux_ty_span: Span,
+        #[label(hir_resolver::hir_label)]
+        hir_ty_span: Span,
+    }
+
+    impl InvalidRefinement {
+        pub(super) fn new(flux_ty_span: Span, hir_ty_span: Span) -> Self {
+            Self { flux_ty_span, hir_ty_span }
+        }
+    }
 }

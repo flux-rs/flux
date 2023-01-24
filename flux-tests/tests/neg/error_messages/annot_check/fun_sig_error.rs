@@ -8,11 +8,6 @@ pub fn say_strng(x: &mut i32) {
 }
 
 #[flux::sig(fn(x:i32) -> i32)] //~ ERROR invalid refinement annotation
-pub fn sob(x: i32) {
-    return;
-}
-
-#[flux::sig(fn(x:i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn foo(x: bool) -> i32 {
     if x {
         1
@@ -41,13 +36,18 @@ pub fn ipa(x: &i32) -> i32 {
     *x + 1
 }
 
-#[flux::sig(fn())] //~ ERROR return type mismatch
-fn ris() -> i32 {
-    0
-}
-
 #[flux::sig(fn(x: f32))] //~ ERROR invalid refinement annotation
 fn hefe(f: &mut f32) {}
 
 #[flux::sig(fn(x: &mut f32))] //~ ERROR invalid refinement annotation
 fn quad(f: f32) {}
+
+////
+
+#[flux::sig(fn(x:i32) -> i32)] //~ ERROR return type mismatch
+pub fn sob(x: i32) {}
+
+#[flux::sig(fn())] //~ ERROR missing return type
+fn ris() -> i32 {
+    0
+}
