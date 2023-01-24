@@ -5,9 +5,9 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Exists,
-    Expr, ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier,
-    RefineArg, RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet, INNERMOST,
+    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Expr,
+    ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg,
+    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -15,6 +15,14 @@ use crate::{
 };
 
 pub trait TypeVisitor: Sized {
+    fn visit_binder<T: TypeFoldable>(&mut self, t: &Binders<T>) {
+        t.super_visit_with(self);
+    }
+
+    fn visit_expr(&mut self, expr: &Expr) {
+        expr.super_visit_with(self);
+    }
+
     fn visit_fvar(&mut self, name: Name) {
         name.super_visit_with(self);
     }
@@ -132,27 +140,30 @@ pub trait TypeFoldable: Sized {
     ///
     /// [`hole`]: Pred::Hole
     fn with_holes(&self) -> Self {
-        struct WithHoles;
+        struct WithHoles {
+            in_exists: bool,
+        }
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
                 match ty.kind() {
-                    TyKind::Indexed(bty, _) => Ty::full_exists(bty.fold_with(self), Expr::hole()),
-                    TyKind::Exists(exists) => {
-                        Ty::exists(exists.as_ref().map(|exists| {
-                            Exists {
-                                bty: exists.bty.fold_with(self),
-                                args: exists.args.fold_with(self),
-                                pred: Expr::hole(),
-                            }
-                        }))
+                    TyKind::Indexed(bty, _) => {
+                        if self.in_exists {
+                            ty.super_fold_with(self)
+                        } else {
+                            Ty::full_exists(bty.fold_with(self), Expr::hole())
+                        }
                     }
+                    TyKind::Exists(ty) => {
+                        Ty::exists(ty.fold_with(&mut WithHoles { in_exists: true }))
+                    }
+                    TyKind::Constr(_, ty) => Ty::constr(Expr::hole(), ty.fold_with(self)),
                     _ => ty.super_fold_with(self),
                 }
             }
         }
 
-        self.fold_with(&mut WithHoles)
+        self.fold_with(&mut WithHoles { in_exists: false })
     }
 
     fn replace_generic_args(&self, args: &[GenericArg]) -> Self {
@@ -234,6 +245,37 @@ pub trait TypeFoldable: Sized {
         }
         self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
     }
+
+    fn has_escaping_bvars(&self) -> bool {
+        struct HasEscapingVars {
+            /// Anything bound by `outer_index` or "above" is escaping.
+            outer_index: DebruijnIndex,
+            found: bool,
+        }
+
+        impl TypeVisitor for HasEscapingVars {
+            fn visit_binder<T: TypeFoldable>(&mut self, t: &Binders<T>) {
+                self.outer_index.shift_in(1);
+                t.super_visit_with(self);
+                self.outer_index.shift_out(1);
+            }
+
+            // TODO(nilehmann) keep track the outermost binder to optimize this, i.e.,
+            // what rustc calls outer_exclusive_binder.
+            fn visit_expr(&mut self, expr: &Expr) {
+                if let ExprKind::BoundVar(bvar) = expr.kind() {
+                    if bvar.debruijn >= self.outer_index {
+                        self.found = true;
+                    }
+                } else {
+                    expr.super_visit_with(self);
+                }
+            }
+        }
+        let mut visitor = HasEscapingVars { outer_index: INNERMOST, found: false };
+        self.visit_with(&mut visitor);
+        visitor.found
+    }
 }
 
 impl<T> TypeFoldable for Binders<T>
@@ -250,6 +292,10 @@ where
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_binders(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_binder(self);
     }
 }
 
@@ -402,22 +448,6 @@ impl TypeFoldable for Ty {
     }
 }
 
-impl TypeFoldable for Exists {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Exists {
-        Exists::new(
-            self.bty.fold_with(folder),
-            self.args.fold_with(folder),
-            self.pred.fold_with(folder),
-        )
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.bty.visit_with(visitor);
-        self.args.visit_with(visitor);
-        self.pred.visit_with(visitor);
-    }
-}
-
 impl TypeFoldable for RefineArgs {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         RefineArgsData {
@@ -462,6 +492,7 @@ impl TypeFoldable for BaseTy {
         match self {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
+            BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -475,6 +506,7 @@ impl TypeFoldable for BaseTy {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
+            BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -587,6 +619,10 @@ impl TypeFoldable for Expr {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_expr(self)
+    }
+
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_expr(self);
     }
 }
 

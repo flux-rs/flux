@@ -4,6 +4,7 @@ use flux_common::index::IndexVec;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_index::newtype_index;
+use rustc_macros::{Decodable, Encodable};
 
 use super::{ExprKind, RefineArg};
 
@@ -20,7 +21,7 @@ pub struct EVarSol {
 
 /// An *e*xistential *var*riable is identified by a context and an id. Two evars
 /// are considered equal if both the context and id are equal.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct EVar {
     cx: EVarCxId,
     id: EVid,
@@ -42,7 +43,7 @@ newtype_index! {
     struct EVid {}
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Encodable, Decodable)]
 pub struct EVarCxId(u64);
 
 impl EVar {

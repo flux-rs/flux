@@ -13,14 +13,17 @@ pub mod subst;
 use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{BoundVar, DebruijnIndex, Expr, ExprKind, Func, Loc, Name, Path, Var, INNERMOST};
+pub use expr::{
+    BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
+};
 use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::{bit_set::BitSet, newtype_index};
-use rustc_middle::mir::Field;
+use rustc_index::bit_set::BitSet;
+use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
@@ -39,10 +42,10 @@ use crate::{
     rustc::mir::Place,
 };
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     def_id: DefId,
     invariants: Vec<Invariant>,
@@ -52,45 +55,45 @@ pub struct AdtDefData {
     opaque: bool,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
     pub pred: Binders<Expr>,
 }
 
 pub type PolyVariant = Binders<VariantDef>;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub fields: List<Ty>,
     pub ret: VariantRet,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct VariantRet {
     pub bty: BaseTy,
     pub args: List<RefineArg>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Binders<T> {
     params: List<Sort>,
     value: T,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolySig {
     pub fn_sig: Binders<FnSig>,
     pub modes: List<InferMode>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
     output: Binders<FnOutput>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Constraint>,
@@ -98,7 +101,7 @@ pub struct FnOutput {
 
 pub type Constraints = List<Constraint>;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub enum Constraint {
     Type(Path, Ty),
     Pred(Expr),
@@ -127,21 +130,21 @@ pub struct Defns {
 
 pub type Ty = Interned<TyS>;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
-    Exists(Binders<Exists>),
+    Exists(Binders<Ty>),
+    Constr(Expr, Ty),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Uninit,
     Ptr(PtrKind, Path),
     Ref(RefKind, Ty),
-    Constr(Expr, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -153,24 +156,17 @@ pub enum TyKind {
     Discr(AdtDef, Place),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PtrKind {
     Shr,
     Mut,
     Box,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Exists {
-    pub bty: BaseTy,
-    pub args: RefineArgs,
-    pub pred: Expr,
-}
-
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 pub struct RefineArgs(Interned<RefineArgsData>);
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 struct RefineArgsData {
     args: Vec<RefineArg>,
     /// Set containing all the indices of arguments that were used as binders in the surface syntax.
@@ -178,13 +174,13 @@ struct RefineArgsData {
     is_binder: BitSet<usize>,
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 pub enum RefineArg {
     Expr(Expr),
     Abs(Binders<Expr>),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
@@ -194,31 +190,16 @@ pub enum BaseTy {
     Slice(Ty),
     Adt(AdtDef, Substs),
     Float(FloatTy),
+    RawPtr(Ty, Mutability),
 }
 
 pub type Substs = List<GenericArg>;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
     /// We treat lifetime opaquely
     Lifetime,
-}
-
-/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the variables, the first one being
-/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list.
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct KVar {
-    pub kvid: KVid,
-    pub args: List<Expr>,
-    pub scope: List<Expr>,
-}
-
-newtype_index! {
-    #[debug_format = "$k{}"]
-    pub struct KVid {}
 }
 
 impl Qualifier {
@@ -512,8 +493,8 @@ impl Ty {
         TyKind::Indexed(bty, args).intern()
     }
 
-    pub fn exists(exists: Binders<Exists>) -> Ty {
-        TyKind::Exists(exists).intern()
+    pub fn exists(ty: Binders<Ty>) -> Ty {
+        TyKind::Exists(ty).intern()
     }
 
     /// Makes a *fully applied* existential, i.e., an existential that has binders for all the
@@ -530,11 +511,12 @@ impl Ty {
     /// ```
     /// Then, a fully applied existential for `Pair` binds both indices: `{int,int. Pair[^0.0, ^0.1] | p}`.
     ///
-    /// Note that the arguments `bty` and `pred` are both expected to have escaping vars, which will
-    /// be closed by wrapping them inside a [`Binders`].
-    pub fn full_exists(bty: BaseTy, pred: Expr) -> Self {
+    /// Note that the arguments `bty` and `pred` may have escaping vars, which will be closed by
+    /// wrapping them inside a [`Binders`].
+    pub fn full_exists(bty: BaseTy, pred: Expr) -> Ty {
         let sorts = List::from(bty.sorts());
-        Ty::exists(Binders::new(Exists::new(bty, RefineArgs::bound(sorts.len()), pred), sorts))
+        let ty = Ty::indexed(bty, RefineArgs::bound(sorts.len()));
+        Ty::exists(Binders::new(Ty::constr(pred, ty), sorts))
     }
 
     pub fn param(param: ParamTy) -> Ty {
@@ -627,18 +609,13 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(exists) => Some(&exists.as_ref().skip_binders().bty),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
+            TyKind::Constr(_, ty) => ty.as_bty_skipping_binders(),
             _ => None,
         }
-    }
-}
-
-impl Exists {
-    pub fn new(bty: BaseTy, args: RefineArgs, pred: Expr) -> Self {
-        Self { bty, args, pred }
     }
 }
 
@@ -711,6 +688,7 @@ impl BaseTy {
             | BaseTy::Str
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
+            | BaseTy::RawPtr(_, _)
             | BaseTy::Char => &[],
         }
     }
@@ -720,7 +698,7 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char => &[],
+            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char | BaseTy::RawPtr(_, _) => &[],
         }
     }
 }
@@ -729,16 +707,6 @@ impl Binders<Expr> {
     /// See [`Pred::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
-    }
-}
-
-impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
-        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
-    }
-
-    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
-        self.args.iter().chain(&self.scope)
     }
 }
 
@@ -758,7 +726,6 @@ impl_internable!(
     [Ty],
     [GenericArg],
     [Field],
-    [KVar],
     [Constraint],
     [RefineArg],
     [InferMode],
@@ -923,14 +890,11 @@ mod pretty {
                     }
                     Ok(())
                 }
-                TyKind::Exists(Binders { params, value: Exists { bty, args, pred } }) => {
+                TyKind::Exists(Binders { params, value: ty }) => {
                     if cx.hide_refinements {
-                        return w!("{bty:?}");
-                    }
-                    if pred.is_true() {
-                        w!("{{[{:?}]. {:?}[{:?}]}}", join!(", ", params), bty, args)
+                        w!("{:?}", ty)
                     } else {
-                        w!("{{[{:?}]. {:?}[{:?}] | {:?}}}", join!(", ", params), bty, args, pred)
+                        w!("{{[{:?}]. {:?}}}", join!(", ", params), ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
@@ -946,7 +910,7 @@ mod pretty {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{ {:?} : {:?} }}", ty, pred)
+                        w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
             }
@@ -1009,6 +973,8 @@ mod pretty {
                 BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
                 BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
+                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
+                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
             }
             if let BaseTy::Adt(_, args) = self && !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;
@@ -1039,25 +1005,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for KVar {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", ^self.kvid)?;
-            match cx.kvar_args {
-                KVarArgs::All => {
-                    if self.scope.is_empty() {
-                        w!("({:?})", join!(", ", &self.args))?;
-                    } else {
-                        w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
-                    }
-                }
-                KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
-                KVarArgs::Hide => {}
-            }
-            Ok(())
-        }
-    }
-
     impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1077,7 +1024,6 @@ mod pretty {
         TyS => "ty",
         PolySig,
         BaseTy,
-        KVar,
         FnSig,
         GenericArg,
         RefineArg,

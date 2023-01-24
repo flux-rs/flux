@@ -518,6 +518,7 @@ dependencies = [
  "flux-errors",
  "flux-fixpoint",
  "flux-macros",
+ "flux-metadata",
  "flux-middle",
  "flux-refineck",
  "flux-syntax",
@@ -554,6 +555,17 @@ dependencies = [
  "syn",
  "synstructure",
  "unic-langid",
+]
+
+[[package]]
+name = "flux-metadata"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-errors",
+ "flux-macros",
+ "flux-middle",
+ "itertools",
 ]
 
 [[package]]
