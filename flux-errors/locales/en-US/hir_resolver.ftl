@@ -18,7 +18,23 @@ hir_resolver_missing_return_type =
     .label = refined signature has no return type
     .hir_ret = rust signature has a return type
 
+hir_resolver_mutability_mismatch =
+    invalid refinement annotation
+    .label = type differs in mutability
+    .hir_label = rust reference has different mutability
+
 hir_resolver_invalid_refinement =
     invalid refinement annotation
     .label = not a valid refinement of the corresponding rust type
     .hir_label = must be a valid refinement of this type
+
+hir_resolver_fun_arg_count_mismatch =
+    argument count mismatch
+    .label = refined signature has {$flux_args} {$flux_args ->
+        [one] argument
+        *[other] arguments
+     }
+    .hir_label = rust signature has {$hir_args} {$hir_args ->
+        [one] argument
+        *[other] arguments
+    }

@@ -15,86 +15,63 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 use surface::Ident;
 
-pub fn resolve_struct_def(
+pub fn check_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
-    struct_def: surface::StructDef,
-) -> Result<surface::StructDef<Res>, ErrorGuaranteed> {
+    struct_def: &surface::StructDef<Res>,
+) -> Result<(), ErrorGuaranteed> {
+    if struct_def.opaque {
+        return Ok(());
+    }
     let item = tcx.hir().expect_item(struct_def.def_id);
     let hir::ItemKind::Struct(hir_variant, _) = &item.kind else {
         bug!("expected struct");
     };
-    let fields = if struct_def.opaque {
-        vec![None; struct_def.fields.len()]
-    } else {
-        iter::zip(struct_def.fields, hir_variant.fields())
-            .map(|(opt_ty, hir_field)| {
-                let Some(ty) = opt_ty else {
-                    return Ok(None)
-                };
+    iter::zip(&struct_def.fields, hir_variant.fields()).try_for_each_exhaust(
+        |(opt_ty, hir_field)| {
+            if let Some(ty) = opt_ty {
                 let zipper = Zipper::new(tcx, sess, hir_field.def_id);
-                let ty = zipper.zip_ty(ty, hir_field.ty)?;
-                Ok(Some(ty))
-            })
-            .try_collect_exhaust()?
-    };
-    Ok(surface::StructDef {
-        def_id: struct_def.def_id,
-        fields,
-        invariants: struct_def.invariants,
-        opaque: struct_def.opaque,
-        refined_by: struct_def.refined_by,
-    })
+                zipper.zip_ty(ty, hir_field.ty)?;
+            }
+            Ok(())
+        },
+    )
 }
 
-pub fn resolve_enum_def(
+pub fn check_enum_def(
     tcx: TyCtxt,
     sess: &FluxSession,
-    enum_def: surface::EnumDef,
-) -> Result<surface::EnumDef<Res>, ErrorGuaranteed> {
+    enum_def: &surface::EnumDef<Res>,
+) -> Result<(), ErrorGuaranteed> {
     let item = tcx.hir().expect_item(enum_def.def_id);
     let hir::ItemKind::Enum(hir_enum_def, _) = &item.kind else {
         bug!("expected enum");
     };
-    let variants = iter::zip(enum_def.variants, hir_enum_def.variants)
-        .map(|(variant, hir_variant)| {
+    iter::zip(&enum_def.variants, hir_enum_def.variants).try_for_each_exhaust(
+        |(variant, hir_variant)| {
             let zipper = Zipper::new(tcx, sess, hir_variant.def_id);
             zipper.zip_enum_variant(variant, hir_variant)
-        })
-        .try_collect_exhaust()?;
-
-    Ok(surface::EnumDef {
-        def_id: enum_def.def_id,
-        refined_by: enum_def.refined_by,
-        variants,
-        invariants: enum_def.invariants,
-    })
+        },
+    )
 }
 
-pub fn resolve_fn_sig(
+pub fn check_fn_sig(
     tcx: TyCtxt,
     sess: &FluxSession,
     def_id: LocalDefId,
-    fn_sig: surface::FnSig,
-) -> Result<surface::FnSig<Res>, ErrorGuaranteed> {
+    fn_sig: &surface::FnSig<Res>,
+) -> Result<(), ErrorGuaranteed> {
     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
     let hir_fn_decl = tcx
         .hir()
         .fn_decl_by_hir_id(hir_id)
         .expect("expected function decl");
     let mut zipper = Zipper::new(tcx, sess, def_id);
-    let args = zipper.zip_fn_args(fn_sig.args, hir_fn_decl.inputs)?;
-    let returns = zipper.zip_return_ty(fn_sig.span, fn_sig.returns, &hir_fn_decl.output)?;
-    let ensures = zipper.zip_ensures(fn_sig.ensures)?;
+    zipper.zip_fun_args(fn_sig.span, &fn_sig.args, hir_fn_decl.inputs)?;
+    zipper.zip_return_ty(fn_sig.span, &fn_sig.returns, &hir_fn_decl.output)?;
+    zipper.zip_ensures(&fn_sig.ensures)?;
 
-    Ok(surface::FnSig {
-        params: fn_sig.params,
-        requires: fn_sig.requires,
-        args,
-        returns,
-        ensures,
-        span: fn_sig.span,
-    })
+    Ok(())
 }
 
 struct Zipper<'sess, 'tcx> {
@@ -147,60 +124,63 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
 
     fn zip_enum_variant(
         &self,
-        variant: surface::VariantDef,
+        variant: &surface::VariantDef<Res>,
         hir_variant: &hir::Variant,
-    ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         let flux_fields = variant.fields.len();
         let hir_fields = hir_variant.data.fields().len();
         if flux_fields != hir_fields {
             todo!("mismatch fields in variant");
         }
 
-        let fields = iter::zip(variant.fields, hir_variant.data.fields())
-            .map(|(ty, hir_field)| self.zip_ty(ty, hir_field.ty))
-            .try_collect_exhaust()?;
-        let ret = surface::VariantRet {
-            path: self.zip_with_self_ty(variant.ret.path)?,
-            indices: variant.ret.indices,
-        };
+        let fields = iter::zip(&variant.fields, hir_variant.data.fields())
+            .try_for_each_exhaust(|(ty, hir_field)| self.zip_ty(ty, hir_field.ty))?;
+        // let ret = surface::VariantRet {
+        //     path: self.zip_with_self_ty(variant.ret.path)?,
+        //     indices: variant.ret.indices,
+        // };
 
-        Ok(surface::VariantDef { fields, ret, span: variant.span })
+        Ok(())
+
+        // Ok(surface::VariantDef { fields, ret, span: variant.span })
     }
 
-    fn zip_fn_args(
+    fn zip_fun_args(
         &mut self,
-        args: Vec<surface::Arg>,
+        fn_sig_span: Span,
+        args: &[surface::Arg<Res>],
         hir_tys: &'tcx [hir::Ty<'tcx>],
-    ) -> Result<Vec<surface::Arg<Res>>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         let flux_args = args.len();
         let hir_args = hir_tys.len();
         if flux_args != hir_args {
-            todo!()
+            return Err(self.sess.emit_err(errors::ArgCountMismatch::new(
+                fn_sig_span,
+                flux_args,
+                self.tcx.def_span(self.def_id),
+                hir_args,
+            )));
         }
 
-        iter::zip(args, hir_tys)
-            .map(|(arg, hir_ty)| self.zip_fn_arg(arg, hir_ty))
-            .try_collect_exhaust()
+        iter::zip(args, hir_tys).try_for_each_exhaust(|(arg, hir_ty)| self.zip_fun_arg(arg, hir_ty))
     }
 
-    fn zip_fn_arg(
+    fn zip_fun_arg(
         &mut self,
-        arg: surface::Arg,
+        arg: &surface::Arg<Res>,
         hir_ty: &'tcx hir::Ty<'tcx>,
-    ) -> Result<surface::Arg<Res>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         match (arg, &hir_ty.kind) {
-            (surface::Arg::Ty(ident, ty), _) => {
-                Ok(surface::Arg::Ty(ident, self.zip_ty(ty, hir_ty)?))
-            }
-            (surface::Arg::Constr(bind, path, pred), hir::TyKind::Path(qpath)) => {
-                Ok(surface::Arg::Constr(bind, self.zip_path(path, qpath)?, pred))
+            (surface::Arg::Ty(_, ty), _) => self.zip_ty(ty, hir_ty),
+            (surface::Arg::Constr(_, path, _), hir::TyKind::Path(qpath)) => {
+                self.zip_path(path, qpath)
             }
             (
                 surface::Arg::StrgRef(loc, ty),
                 hir::TyKind::Ref(_, hir::MutTy { ty: hir_ty, mutbl: hir::Mutability::Mut }),
             ) => {
-                self.locs.insert(loc, hir_ty);
-                Ok(surface::Arg::StrgRef(loc, self.zip_ty(ty, hir_ty)?))
+                self.locs.insert(*loc, hir_ty);
+                self.zip_ty(ty, hir_ty)
             }
             _ => todo!(),
         }
@@ -209,12 +189,12 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
     fn zip_return_ty(
         &self,
         fn_sig_span: Span,
-        ret_ty: Option<surface::Ty>,
+        ret_ty: &Option<surface::Ty<Res>>,
         hir_ret_ty: &hir::FnRetTy,
-    ) -> Result<Option<surface::Ty<Res>>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         match (ret_ty, hir_ret_ty) {
-            (None, hir::FnRetTy::DefaultReturn(_)) => Ok(None),
-            (Some(ty), hir::FnRetTy::Return(hir_ty)) => Ok(Some(self.zip_ty(ty, hir_ty)?)),
+            (None, hir::FnRetTy::DefaultReturn(_)) => Ok(()),
+            (Some(ty), hir::FnRetTy::Return(hir_ty)) => self.zip_ty(ty, hir_ty),
             (Some(ty), hir::FnRetTy::DefaultReturn(default_ret_span)) => {
                 self.emit_err(errors::ExpectedDefaultReturn::new(ty.span, *default_ret_span))
             }
@@ -226,159 +206,104 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
 
     fn zip_ensures(
         &self,
-        ensures: Vec<(surface::Ident, surface::Ty)>,
-    ) -> Result<Vec<(surface::Ident, surface::Ty<Res>)>, ErrorGuaranteed> {
-        ensures
-            .into_iter()
-            .map(|(loc, ty)| {
-                let Some(hir_ty) = self.locs.get(&loc) else {
+        ensures: &[(surface::Ident, surface::Ty<Res>)],
+    ) -> Result<(), ErrorGuaranteed> {
+        ensures.into_iter().try_for_each_exhaust(|(loc, ty)| {
+            let Some(hir_ty) = self.locs.get(&loc) else {
                     todo!()
                 };
-                let ty = self.zip_ty(ty, hir_ty)?;
-                Ok((loc, ty))
-            })
-            .try_collect_exhaust()
+            self.zip_ty(ty, hir_ty)
+        })
     }
 
-    fn zip_ty(
-        &self,
-        ty: surface::Ty,
-        hir_ty: &hir::Ty,
-    ) -> Result<surface::Ty<Res>, ErrorGuaranteed> {
-        let kind = match (ty.kind, &hir_ty.kind) {
-            (surface::TyKind::Base(bty), _) => surface::TyKind::Base(self.zip_bty(bty, hir_ty)?),
-            (surface::TyKind::Indexed { bty, indices }, _) => {
-                surface::TyKind::Indexed { bty: self.zip_bty(bty, hir_ty)?, indices }
-            }
-            (surface::TyKind::Exists { bind, bty, pred }, _) => {
-                surface::TyKind::Exists { bind, bty: self.zip_bty(bty, hir_ty)?, pred }
-            }
-            (surface::TyKind::Constr(pred, ty), _) => {
-                surface::TyKind::Constr(pred, Box::new(self.zip_ty(*ty, hir_ty)?))
-            }
-            (surface::TyKind::Ref(rk, ty), hir::TyKind::Ref(_, mut_ty)) => {
-                self.mutability(rk, mut_ty.mutbl)?;
-                surface::TyKind::Ref(rk, Box::new(self.zip_ty(*ty, mut_ty.ty)?))
+    fn zip_ty(&self, ty: &surface::Ty<Res>, hir_ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
+        match (&ty.kind, &hir_ty.kind) {
+            (surface::TyKind::Base(bty), _)
+            | (surface::TyKind::Indexed { bty, .. }, _)
+            | (surface::TyKind::Exists { bty, .. }, _) => self.zip_bty(ty.span, bty, hir_ty),
+            (surface::TyKind::Constr(_, ty), _) => self.zip_ty(ty, hir_ty),
+            (surface::TyKind::Ref(rk, ref_ty), hir::TyKind::Ref(_, mut_ty)) => {
+                if !matches!(
+                    (rk, mut_ty.mutbl),
+                    (surface::RefKind::Mut, Mutability::Mut)
+                        | (surface::RefKind::Shr, Mutability::Not)
+                ) {
+                    return self.emit_err(errors::MutabilityMismatch::new(ty.span, hir_ty.span));
+                }
+
+                self.zip_ty(ref_ty, mut_ty.ty)
             }
             (surface::TyKind::Tuple(tys), hir::TyKind::Tup(hir_tys)) => {
-                let tys = iter::zip(tys, *hir_tys)
-                    .map(|(ty, hir_ty)| self.zip_ty(ty, hir_ty))
-                    .try_collect_exhaust()?;
-                surface::TyKind::Tuple(tys)
+                iter::zip(tys, *hir_tys)
+                    .try_for_each_exhaust(|(ty, hir_ty)| self.zip_ty(ty, hir_ty))
             }
             (surface::TyKind::Array(ty, len), hir::TyKind::Array(hir_ty, hir_len)) => {
-                self.array_len(len, *hir_len)?;
-                surface::TyKind::Array(Box::new(self.zip_ty(*ty, hir_ty)?), len)
+                self.array_len(*len, *hir_len)?;
+                self.zip_ty(ty, hir_ty)
             }
-            _ => return self.emit_err(errors::InvalidRefinement::new(ty.span, hir_ty.span)),
-        };
-        Ok(surface::Ty { kind, span: ty.span })
+            _ => self.emit_err(errors::InvalidRefinement::new(ty.span, hir_ty.span)),
+        }
     }
 
     fn zip_bty(
         &self,
-        bty: surface::BaseTy,
+        ty_span: Span,
+        bty: &surface::BaseTy<Res>,
         hir_ty: &hir::Ty,
-    ) -> Result<surface::BaseTy<Res>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         match (bty, &hir_ty.kind) {
-            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => {
-                let path = self.zip_path(path, qpath)?;
-                Ok(surface::BaseTy::Path(path))
-            }
-            (surface::BaseTy::Slice(ty), hir::TyKind::Slice(hir_ty)) => {
-                Ok(surface::BaseTy::Slice(Box::new(self.zip_ty(*ty, hir_ty)?)))
-            }
-            (bty, _) => {
-                todo!("\n{bty:?}\n{hir_ty:?}")
-            }
+            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => self.zip_path(path, qpath),
+            (surface::BaseTy::Slice(ty), hir::TyKind::Slice(hir_ty)) => self.zip_ty(ty, hir_ty),
+            _ => self.emit_err(errors::InvalidRefinement::new(ty_span, hir_ty.span)),
         }
     }
 
     fn zip_path(
         &self,
-        path: surface::Path,
+        path: &surface::Path<Res>,
         hir_path: &hir::QPath,
-    ) -> Result<surface::Path<Res>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         let hir_path = &SimplifiedHirPath::try_from(hir_path).map_err(|_| todo!())?;
         if let hir::def::Res::SelfTyAlias { .. } = hir_path.res {
-            return self.zip_with_self_ty(path);
+            todo!()
+            // return self.zip_with_self_ty(path);
         }
-        self.zip_path_segments(&path, hir_path)?;
 
-        let res = match hir_path.res {
-            hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, def_id) => {
-                surface::Res::Adt(def_id)
+        match (path.res, hir_path.res) {
+            (
+                surface::Res::Adt(def_id1),
+                hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, def_id2),
+            ) if def_id1 == def_id2 => {}
+            (
+                surface::Res::Param(ty_param),
+                hir::def::Res::Def(hir::def::DefKind::TyParam, def_id),
+            ) if self.generics[def_id] == ty_param => {}
+            (_, hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id)) => {
+                todo!()
             }
-            hir::def::Res::Def(hir::def::DefKind::TyParam, def_id) => {
-                surface::Res::Param(self.generics[def_id])
-            }
-            hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
-                let ty = self.tcx.type_of(def_id);
-                match res_from_ty(ty) {
-                    Some(res) => res,
-                    None => {
-                        todo!()
-                        // ResEntry::Unsupported {
-                        //     span,
-                        //     reason: format!("unsupported alias `{ty:?}`"),
-                        // }
-                    }
-                }
-            }
-            hir::def::Res::PrimTy(PrimTy::Bool) => surface::Res::Bool,
-            hir::def::Res::PrimTy(PrimTy::Char) => surface::Res::Char,
-            hir::def::Res::PrimTy(PrimTy::Str) => surface::Res::Str,
-            hir::def::Res::PrimTy(PrimTy::Float(float_ty)) => {
-                surface::Res::Float(rustc_middle::ty::float_ty(float_ty))
-            }
-            hir::def::Res::PrimTy(PrimTy::Uint(uint_ty)) => {
-                surface::Res::Uint(rustc_middle::ty::uint_ty(uint_ty))
-            }
-            hir::def::Res::PrimTy(PrimTy::Int(int_ty)) => {
-                surface::Res::Int(rustc_middle::ty::int_ty(int_ty))
-            }
-            hir::def::Res::SelfTyAlias { alias_to, .. } => surface::Res::Adt(alias_to),
-            hir::def::Res::SelfCtor(_)
-            | hir::def::Res::SelfTyParam { .. }
-            | hir::def::Res::Def(..)
-            | hir::def::Res::Local(_)
-            | hir::def::Res::ToolMod
-            | hir::def::Res::NonMacroAttr(_)
-            | hir::def::Res::Err => todo!("{:?}", hir_path.res),
+            (_, hir::def::Res::PrimTy(PrimTy::Bool)) => {}
+            (_, hir::def::Res::PrimTy(PrimTy::Char)) => {}
+            (_, hir::def::Res::PrimTy(PrimTy::Str)) => {}
+            (_, hir::def::Res::PrimTy(PrimTy::Float(float_ty))) => {}
+            (_, hir::def::Res::PrimTy(PrimTy::Uint(uint_ty))) => {}
+            (_, hir::def::Res::PrimTy(PrimTy::Int(int_ty))) => {}
+            (_, hir::def::Res::SelfTyAlias { alias_to, .. }) => {}
+            (_, _) => todo!("{:?}", hir_path.res),
         };
-        let args = self.zip_generic_args(path.args, &hir_path.args)?;
-
-        Ok(surface::Path { res, args, segments: path.segments, span: path.span })
+        self.zip_generic_args(&path.args, &hir_path.args)
     }
 
     fn zip_generic_args(
         &self,
-        args: Vec<surface::Ty>,
+        args: &[surface::Ty<Res>],
         hir_args: &[&hir::Ty],
-    ) -> Result<Vec<surface::Ty<Res>>, ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         if args.len() != hir_args.len() {
             todo!("generic argument count mismatch {args:?} {hir_args:?}")
         }
 
         iter::zip(args, hir_args.iter())
-            .map(|(arg, hir_arg)| self.zip_ty(arg, hir_arg))
-            .try_collect_exhaust()
-    }
-
-    fn mutability(&self, rk: surface::RefKind, mutbl: Mutability) -> Result<(), ErrorGuaranteed> {
-        match (rk, mutbl) {
-            (surface::RefKind::Mut, Mutability::Mut) | (surface::RefKind::Shr, Mutability::Not) => {
-                Ok(())
-            }
-            _ => {
-                todo!("mutability mismatch")
-                // Err(self.sess.emit_err(errors::MutabilityMismatch::new(
-                //     self.tcx,
-                //     span,
-                //     self.def_id,
-                // )))
-            }
-        }
+            .try_for_each_exhaust(|(arg, hir_arg)| self.zip_ty(arg, hir_arg))
     }
 
     fn array_len(
@@ -402,66 +327,50 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         }
     }
 
-    fn zip_path_segments(
-        &self,
-        path: &surface::Path,
-        hir_path: &SimplifiedHirPath,
-    ) -> Result<(), ErrorGuaranteed> {
-        if path.segments.len() != hir_path.segments.len() {
-            todo!("path segment mismatch {path:?} {hir_path:?}")
-        }
-        for (segment, hir_segment) in iter::zip(&path.segments, &hir_path.segments) {
-            if segment != hir_segment {
-                todo!("path segment mismatch {path:?} {hir_path:?}")
-            }
-        }
-        Ok(())
-    }
+    // fn zip_with_self_ty(&self, path: surface::Path) -> Result<surface::Path<Res>, ErrorGuaranteed> {
+    //     let Some(self_ty) = self.self_ty.as_ref() else {
+    //         todo!("no self type")
+    //     };
+    //     let &[ident] = &path.segments[..] else {
+    //         todo!("path must have one segment");
+    //     };
+    //     if ident != self_ty.ident {
+    //         todo!("ident must be the same than the self type");
+    //     }
+    //     if path.args.len() != self_ty.args.len() {
+    //         todo!(
+    //             "invalid number of generic args for variant ret path {:?} {:?}",
+    //             path.args,
+    //             self_ty.args
+    //         );
+    //     }
 
-    fn zip_with_self_ty(&self, path: surface::Path) -> Result<surface::Path<Res>, ErrorGuaranteed> {
-        let Some(self_ty) = self.self_ty.as_ref() else {
-            todo!("no self type")
-        };
-        let &[ident] = &path.segments[..] else {
-            todo!("path must have one segment");
-        };
-        if ident != self_ty.ident {
-            todo!("ident must be the same than the self type");
-        }
-        if path.args.len() != self_ty.args.len() {
-            todo!(
-                "invalid number of generic args for variant ret path {:?} {:?}",
-                path.args,
-                self_ty.args
-            );
-        }
-
-        let mut args = vec![];
-        for (arg, hir_arg) in iter::zip(path.args, &self_ty.args) {
-            if let surface::TyKind::Base(surface::BaseTy::Path(path)) = arg.kind
-                && let &[arg_ident] = &path.segments[..]
-                && path.args.is_empty()
-                && arg_ident.name == hir_arg.name
-            {
-                let path = surface::Path {
-                    segments: path.segments,
-                    args: vec![],
-                    res: Res::Param(*hir_arg),
-                    span: path.span,
-                };
-                let kind = surface::TyKind::Base(surface::BaseTy::Path(path));
-                args.push(surface::Ty { kind, span: arg.span });
-            } else {
-                todo!("variant ret path must be a type parameter");
-            }
-        }
-        Ok(surface::Path {
-            span: path.span,
-            segments: vec![self_ty.ident],
-            args,
-            res: Res::Adt(self_ty.def_id.to_def_id()),
-        })
-    }
+    //     let mut args = vec![];
+    //     for (arg, hir_arg) in iter::zip(path.args, &self_ty.args) {
+    //         if let surface::TyKind::Base(surface::BaseTy::Path(path)) = arg.kind
+    //             && let &[arg_ident] = &path.segments[..]
+    //             && path.args.is_empty()
+    //             && arg_ident.name == hir_arg.name
+    //         {
+    //             let path = surface::Path {
+    //                 segments: path.segments,
+    //                 args: vec![],
+    //                 res: Res::Param(*hir_arg),
+    //                 span: path.span,
+    //             };
+    //             let kind = surface::TyKind::Base(surface::BaseTy::Path(path));
+    //             args.push(surface::Ty { kind, span: arg.span });
+    //         } else {
+    //             todo!("variant ret path must be a type parameter");
+    //         }
+    //     }
+    //     Ok(surface::Path {
+    //         span: path.span,
+    //         segments: vec![self_ty.ident],
+    //         args,
+    //         res: Res::Adt(self_ty.def_id.to_def_id()),
+    //     })
+    // }
 
     fn emit_err<'a, T>(&'a self, err: impl IntoDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
@@ -726,6 +635,45 @@ mod errors {
     impl InvalidRefinement {
         pub(super) fn new(flux_ty_span: Span, hir_ty_span: Span) -> Self {
             Self { flux_ty_span, hir_ty_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::mutability_mismatch, code = "FLUX")]
+    pub struct MutabilityMismatch {
+        #[primary_span]
+        #[label]
+        flux_span: Span,
+        #[label(hir_resolver::hir_label)]
+        hir_span: Span,
+    }
+
+    impl MutabilityMismatch {
+        pub fn new(flux_span: Span, hir_span: Span) -> Self {
+            Self { flux_span, hir_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::fun_arg_count_mismatch, code = "FLUX")]
+    pub(super) struct ArgCountMismatch {
+        #[primary_span]
+        #[label]
+        flux_span: Span,
+        flux_args: usize,
+        #[label(hir_resolver::hir_label)]
+        hir_span: Span,
+        hir_args: usize,
+    }
+
+    impl ArgCountMismatch {
+        pub(super) fn new(
+            flux_span: Span,
+            flux_args: usize,
+            hir_span: Span,
+            hir_args: usize,
+        ) -> Self {
+            Self { flux_span, flux_args, hir_span, hir_args }
         }
     }
 }
