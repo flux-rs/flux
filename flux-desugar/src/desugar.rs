@@ -4,7 +4,7 @@ use std::{borrow::Borrow, iter};
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{early_ctxt::EarlyCtxt, fhir, intern::List};
-use flux_syntax::surface::{self, Res};
+use flux_syntax::surface::{self, PrimTy, Res};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
@@ -413,9 +413,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_path(&mut self, path: &surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match &path.res {
-            Res::Bool => BtyOrTy::Bty(fhir::BaseTy::Bool),
-            Res::Int(int_ty) => BtyOrTy::Bty(fhir::BaseTy::Int(*int_ty)),
-            Res::Uint(uint_ty) => BtyOrTy::Bty(fhir::BaseTy::Uint(*uint_ty)),
+            Res::PrimTy(PrimTy::Bool) => BtyOrTy::Bty(fhir::BaseTy::Bool),
+            Res::PrimTy(PrimTy::Str) => BtyOrTy::Ty(fhir::Ty::Str),
+            Res::PrimTy(PrimTy::Char) => BtyOrTy::Ty(fhir::Ty::Char),
+            Res::PrimTy(PrimTy::Int(int_ty)) => {
+                BtyOrTy::Bty(fhir::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)))
+            }
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => {
+                BtyOrTy::Bty(fhir::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)))
+            }
+            Res::PrimTy(PrimTy::Float(float_ty)) => {
+                BtyOrTy::Ty(fhir::Ty::Float(rustc_middle::ty::float_ty(*float_ty)))
+            }
             Res::Adt(def_id) => {
                 let substs = path
                     .args
@@ -424,10 +433,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     .try_collect_exhaust()?;
                 BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, substs))
             }
-            Res::Float(float_ty) => BtyOrTy::Ty(fhir::Ty::Float(*float_ty)),
-            Res::Param(param_ty) => BtyOrTy::Ty(fhir::Ty::Param(*param_ty)),
-            Res::Str => BtyOrTy::Ty(fhir::Ty::Str),
-            Res::Char => BtyOrTy::Ty(fhir::Ty::Char),
+            Res::Param(param_ty, _) => BtyOrTy::Ty(fhir::Ty::Param(*param_ty)),
+            Res::Alias(def_id) => BtyOrTy::Ty(fhir::Ty::Alias(*def_id)),
         };
         Ok(bty)
     }
@@ -1068,10 +1075,14 @@ impl Layer {
 impl Binder {
     fn from_res(name_gen: &IndexGen<fhir::Name>, res: surface::Res) -> Binder {
         match res {
-            Res::Bool => Binder::Refined(name_gen.fresh(), fhir::Sort::Bool, true),
-            Res::Int(_) | Res::Uint(_) => Binder::Refined(name_gen.fresh(), fhir::Sort::Int, false),
+            Res::PrimTy(PrimTy::Bool) => Binder::Refined(name_gen.fresh(), fhir::Sort::Bool, true),
+            Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => {
+                Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true)
+            }
             Res::Adt(def_id) => Binder::Refined(name_gen.fresh(), fhir::Sort::Adt(def_id), true),
-            Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => Binder::Unrefined,
+            Res::Alias(_)
+            | Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char)
+            | Res::Param(..) => Binder::Unrefined,
         }
     }
 
@@ -1087,10 +1098,12 @@ fn sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> Option<&'a 
     let sorts = match bty {
         surface::BaseTy::Path(path) => {
             match path.res {
-                Res::Bool => &[fhir::Sort::Bool],
-                Res::Int(_) | Res::Uint(_) => &[fhir::Sort::Int],
+                Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
+                Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
                 Res::Adt(def_id) => early_cx.sorts_of(def_id),
-                Res::Float(_) | Res::Param(_) | Res::Str | Res::Char => return None,
+                Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_))
+                | Res::Param(..)
+                | Res::Alias(_) => return None,
             }
         }
         surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],

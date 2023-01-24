@@ -8,6 +8,7 @@ extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_hir_pretty;
 extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
@@ -35,9 +36,9 @@ pub fn desugar_struct_def(
     let struct_def = resolver.resolve_struct_def(struct_def)?;
 
     // Check
-    annot_check::check_struct_def(early_cx.tcx, early_cx.sess, &struct_def)?;
+    // annot_check::check_struct_def(early_cx.tcx, early_cx.sess, &struct_def)?;
+    hir_annot_check::check_struct_def(early_cx.tcx, early_cx.sess, &struct_def)?;
 
-    // let struct_def = hir_annot_check::resolve_struct_def(early_cx.tcx, early_cx.sess, struct_def)?;
     desugar::desugar_struct_def(early_cx, struct_def)
 }
 
@@ -50,9 +51,10 @@ pub fn desugar_enum_def(
     let enum_def = resolver.resolve_enum_def(enum_def)?;
 
     // Check
-    annot_check::check_enum_def(early_cx.tcx, early_cx.sess, &enum_def)?;
+    // annot_check::check_enum_def(early_cx.tcx, early_cx.sess, &enum_def)?;
+    hir_annot_check::check_enum_def(early_cx.tcx, early_cx.sess, &enum_def)?;
 
-    // let enum_def = hir_annot_check::resolve_enum_def(early_cx.tcx, early_cx.sess, enum_def)?;
+    // Desugar
     desugar::desugar_enum_def(early_cx, &enum_def)
 }
 
@@ -66,9 +68,9 @@ pub fn desugar_fn_sig(
     let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
 
     // Check
-    annot_check::check_fn_sig(early_cx.tcx, early_cx.sess, def_id.to_def_id(), &fn_sig)?;
+    // annot_check::check_fn_sig(early_cx.tcx, early_cx.sess, def_id.to_def_id(), &fn_sig)?;
+    hir_annot_check::check_fn_sig(early_cx.tcx, early_cx.sess, def_id, &fn_sig)?;
 
-    // let fn_sig = hir_annot_check::resolve_fn_sig(early_cx.tcx, early_cx.sess, def_id, fn_sig)?;
     // Desugar
     desugar::desugar_fn_sig(early_cx, &fn_sig)
 }

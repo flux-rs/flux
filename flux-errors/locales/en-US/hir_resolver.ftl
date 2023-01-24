@@ -25,8 +25,9 @@ hir_resolver_mutability_mismatch =
 
 hir_resolver_invalid_refinement =
     invalid refinement annotation
-    .label = not a valid refinement of the corresponding rust type
+    .label = expected a refinement of `{$hir_type}`
     .hir_label = must be a valid refinement of this type
+    .note = {$note}
 
 hir_resolver_fun_arg_count_mismatch =
     argument count mismatch
@@ -35,6 +36,38 @@ hir_resolver_fun_arg_count_mismatch =
         *[other] arguments
      }
     .hir_label = rust signature has {$hir_args} {$hir_args ->
+        [one] argument
+        *[other] arguments
+    }
+
+hir_resolver_unresolved_location =
+    cannot resolve `{$loc}`: only `&strg` variables can appear in ensures clauses
+    .label = maybe annotate as `&strg`
+
+hir_resolver_field_count_mismatch =
+    field count mismatch
+    .label = refined variant has {$flux_fields} {$flux_fields ->
+        [one] field
+        *[other] fields
+     }
+    .hir_label = rust variant has {$hir_fields} {$hir_fields ->
+        [one] field
+        *[other] fields
+    }
+
+hir_resolver_generic_argument_count_mismatch =
+    this {$def_kind} must take {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+    .hir_label = {$def_kind} used here with {$expected} generic {$expected ->
         [one] argument
         *[other] arguments
     }

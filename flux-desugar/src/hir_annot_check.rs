@@ -4,7 +4,11 @@ use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::{rty::ParamTy, rustc::ty::Mutability};
 use flux_syntax::surface::{self, Res};
-use hir::{def_id::DefId, HirId, OwnerId, PrimTy};
+use hir::{
+    def::{DefKind, Res as HirRes},
+    def_id::DefId,
+    HirId, OwnerId,
+};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
@@ -77,7 +81,6 @@ pub fn check_fn_sig(
 struct Zipper<'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'sess FluxSession,
-    generics: GenericsMap,
     self_ty: Option<SimplifiedSelfTy>,
     locs: LocsMap<'tcx>,
     /// [`LocalDefId`] of the definition being zipped, this could either be a field on a struct,
@@ -88,19 +91,15 @@ struct Zipper<'sess, 'tcx> {
 #[derive(Debug)]
 struct SimplifiedHirPath<'hir> {
     args: Vec<&'hir hir::Ty<'hir>>,
-    segments: Vec<Ident>,
+    span: Span,
     res: hir::def::Res,
 }
 
 struct SimplifiedSelfTy {
-    def_id: LocalDefId,
-    ident: Ident,
-    args: Vec<ParamTy>,
-}
-
-#[derive(Default)]
-struct GenericsMap {
-    map: FxHashMap<DefId, ParamTy>,
+    def_id: DefId,
+    args: Vec<(DefId, Ident)>,
+    span: Span,
+    format: String,
 }
 
 type LocsMap<'hir> = FxHashMap<Ident, &'hir hir::Ty<'hir>>;
@@ -109,17 +108,13 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession, def_id: LocalDefId) -> Self {
         // If we are zipping a field or a variant find the parent struct/enum to get its generics.
         let owner_id = as_owner_or_parent(tcx, def_id);
-        let (self_ty, generics) = match tcx.hir().owner(owner_id) {
-            hir::OwnerNode::Item(item) => {
-                (SimplifiedSelfTy::try_from(item).ok(), GenericsMap::from(item))
-            }
-            hir::OwnerNode::ImplItem(impl_item) => {
-                (self_ty_for_impl_item(tcx, impl_item), GenericsMap::from_impl_item(tcx, impl_item))
-            }
+        let self_ty = match tcx.hir().owner(owner_id) {
+            hir::OwnerNode::Item(item) => SimplifiedSelfTy::try_from(item).ok(),
+            hir::OwnerNode::ImplItem(impl_item) => SimplifiedSelfTy::from_impl_item(tcx, impl_item),
             _ => bug!("expected a function or method"),
         };
 
-        Self { tcx, sess, generics, self_ty, def_id, locs: LocsMap::default() }
+        Self { tcx, sess, self_ty, def_id, locs: LocsMap::default() }
     }
 
     fn zip_enum_variant(
@@ -130,19 +125,20 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         let flux_fields = variant.fields.len();
         let hir_fields = hir_variant.data.fields().len();
         if flux_fields != hir_fields {
-            todo!("mismatch fields in variant");
+            return self.emit_err(errors::FieldCountMismatch::new(
+                variant.span,
+                flux_fields,
+                hir_variant.span,
+                hir_fields,
+            ));
         }
 
-        let fields = iter::zip(&variant.fields, hir_variant.data.fields())
+        iter::zip(&variant.fields, hir_variant.data.fields())
             .try_for_each_exhaust(|(ty, hir_field)| self.zip_ty(ty, hir_field.ty))?;
-        // let ret = surface::VariantRet {
-        //     path: self.zip_with_self_ty(variant.ret.path)?,
-        //     indices: variant.ret.indices,
-        // };
+
+        self.zip_with_self_ty(&variant.ret.path)?;
 
         Ok(())
-
-        // Ok(surface::VariantDef { fields, ret, span: variant.span })
     }
 
     fn zip_fun_args(
@@ -154,7 +150,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         let flux_args = args.len();
         let hir_args = hir_tys.len();
         if flux_args != hir_args {
-            return Err(self.sess.emit_err(errors::ArgCountMismatch::new(
+            return Err(self.sess.emit_err(errors::FunArgCountMismatch::new(
                 fn_sig_span,
                 flux_args,
                 self.tcx.def_span(self.def_id),
@@ -170,19 +166,32 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         arg: &surface::Arg<Res>,
         hir_ty: &'tcx hir::Ty<'tcx>,
     ) -> Result<(), ErrorGuaranteed> {
-        match (arg, &hir_ty.kind) {
-            (surface::Arg::Ty(_, ty), _) => self.zip_ty(ty, hir_ty),
-            (surface::Arg::Constr(_, path, _), hir::TyKind::Path(qpath)) => {
-                self.zip_path(path, qpath)
+        match arg {
+            surface::Arg::Constr(_, path, pred) => {
+                if let hir::TyKind::Path(hir_path) = &hir_ty.kind {
+                    self.zip_path(path.span, path, hir_ty, hir_path)
+                } else {
+                    let span = path.span.to(pred.span);
+                    self.emit_err(errors::InvalidRefinement::from_hir_ty(span, hir_ty))
+                }
             }
-            (
-                surface::Arg::StrgRef(loc, ty),
-                hir::TyKind::Ref(_, hir::MutTy { ty: hir_ty, mutbl: hir::Mutability::Mut }),
-            ) => {
-                self.locs.insert(*loc, hir_ty);
-                self.zip_ty(ty, hir_ty)
+            surface::Arg::Ty(_, ty) => self.zip_ty(ty, hir_ty),
+            surface::Arg::StrgRef(loc, ty) => {
+                if let hir::TyKind::Ref(_, hir::MutTy { ty: hir_ty, mutbl: hir::Mutability::Mut }) =
+                    &hir_ty.kind
+                {
+                    self.locs.insert(*loc, hir_ty);
+                    self.zip_ty(ty, hir_ty)
+                } else {
+                    let span = loc.span.to(ty.span);
+                    self.emit_err(
+                        errors::InvalidRefinement::from_hir_ty(span, hir_ty).with_note(
+                            "only mutable reference can be refined with a strong reference",
+                        ),
+                    )
+                }
             }
-            _ => todo!(),
+            surface::Arg::Alias(_, _, _) => bug!("alias should have been expanded"),
         }
     }
 
@@ -208,11 +217,12 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         &self,
         ensures: &[(surface::Ident, surface::Ty<Res>)],
     ) -> Result<(), ErrorGuaranteed> {
-        ensures.into_iter().try_for_each_exhaust(|(loc, ty)| {
-            let Some(hir_ty) = self.locs.get(&loc) else {
-                    todo!()
-                };
-            self.zip_ty(ty, hir_ty)
+        ensures.iter().try_for_each_exhaust(|(loc, ty)| {
+            if let Some(hir_ty) = self.locs.get(loc) {
+                self.zip_ty(ty, hir_ty)
+            } else {
+                self.emit_err(errors::UnresolvedLocation::new(*loc))
+            }
         })
     }
 
@@ -220,7 +230,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         match (&ty.kind, &hir_ty.kind) {
             (surface::TyKind::Base(bty), _)
             | (surface::TyKind::Indexed { bty, .. }, _)
-            | (surface::TyKind::Exists { bty, .. }, _) => self.zip_bty(ty.span, bty, hir_ty),
+            | (surface::TyKind::Exists { bty, .. }, _) => self.zip_bty(ty, bty, hir_ty),
             (surface::TyKind::Constr(_, ty), _) => self.zip_ty(ty, hir_ty),
             (surface::TyKind::Ref(rk, ref_ty), hir::TyKind::Ref(_, mut_ty)) => {
                 if !matches!(
@@ -228,7 +238,10 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                     (surface::RefKind::Mut, Mutability::Mut)
                         | (surface::RefKind::Shr, Mutability::Not)
                 ) {
-                    return self.emit_err(errors::MutabilityMismatch::new(ty.span, hir_ty.span));
+                    return self.emit_err(
+                        errors::InvalidRefinement::from_hir_ty(ty.span, hir_ty)
+                            .with_note("types differ in mutability"),
+                    );
                 }
 
                 self.zip_ty(ref_ty, mut_ty.ty)
@@ -241,68 +254,76 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                 self.array_len(*len, *hir_len)?;
                 self.zip_ty(ty, hir_ty)
             }
-            _ => self.emit_err(errors::InvalidRefinement::new(ty.span, hir_ty.span)),
+            _ => self.emit_err(errors::InvalidRefinement::from_hir_ty(ty.span, hir_ty)),
         }
     }
 
     fn zip_bty(
         &self,
-        ty_span: Span,
+        ty: &surface::Ty<Res>,
         bty: &surface::BaseTy<Res>,
         hir_ty: &hir::Ty,
     ) -> Result<(), ErrorGuaranteed> {
         match (bty, &hir_ty.kind) {
-            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => self.zip_path(path, qpath),
+            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => {
+                self.zip_path(ty.span, path, hir_ty, qpath)
+            }
             (surface::BaseTy::Slice(ty), hir::TyKind::Slice(hir_ty)) => self.zip_ty(ty, hir_ty),
-            _ => self.emit_err(errors::InvalidRefinement::new(ty_span, hir_ty.span)),
+            _ => self.emit_err(errors::InvalidRefinement::from_hir_ty(ty.span, hir_ty)),
         }
     }
 
     fn zip_path(
         &self,
+        ty_span: Span,
         path: &surface::Path<Res>,
+        hir_ty: &hir::Ty,
         hir_path: &hir::QPath,
     ) -> Result<(), ErrorGuaranteed> {
-        let hir_path = &SimplifiedHirPath::try_from(hir_path).map_err(|_| todo!())?;
-        if let hir::def::Res::SelfTyAlias { .. } = hir_path.res {
-            todo!()
-            // return self.zip_with_self_ty(path);
-        }
+        let hir_path = &SimplifiedHirPath::try_from(hir_path).map_err(|err| {
+            self.sess
+                .emit_err(errors::UnsupportedHir::new(self.tcx, self.def_id, err))
+        })?;
 
         match (path.res, hir_path.res) {
-            (
-                surface::Res::Adt(def_id1),
-                hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, def_id2),
-            ) if def_id1 == def_id2 => {}
-            (
-                surface::Res::Param(ty_param),
-                hir::def::Res::Def(hir::def::DefKind::TyParam, def_id),
-            ) if self.generics[def_id] == ty_param => {}
-            (_, hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id)) => {
-                todo!()
+            (_, HirRes::SelfTyAlias { .. }) => self.zip_with_self_ty(path),
+            (Res::Adt(def_id1), HirRes::Def(DefKind::Struct | DefKind::Enum, def_id2))
+                if def_id1 == def_id2 =>
+            {
+                self.zip_generic_args(def_id1, path, hir_path)
             }
-            (_, hir::def::Res::PrimTy(PrimTy::Bool)) => {}
-            (_, hir::def::Res::PrimTy(PrimTy::Char)) => {}
-            (_, hir::def::Res::PrimTy(PrimTy::Str)) => {}
-            (_, hir::def::Res::PrimTy(PrimTy::Float(float_ty))) => {}
-            (_, hir::def::Res::PrimTy(PrimTy::Uint(uint_ty))) => {}
-            (_, hir::def::Res::PrimTy(PrimTy::Int(int_ty))) => {}
-            (_, hir::def::Res::SelfTyAlias { alias_to, .. }) => {}
-            (_, _) => todo!("{:?}", hir_path.res),
-        };
-        self.zip_generic_args(&path.args, &hir_path.args)
+            (Res::Alias(def_id1), HirRes::Def(DefKind::TyAlias, def_id2)) if def_id1 == def_id2 => {
+                self.zip_generic_args(def_id1, path, hir_path)
+            }
+            (Res::Param(_, def_id1), HirRes::Def(DefKind::TyParam, def_id2))
+                if def_id1 == def_id2 =>
+            {
+                // TODO(nilehmann) report an error if type parameter is used with generic arguments
+                Ok(())
+            }
+            (Res::PrimTy(prim_ty1), HirRes::PrimTy(prim_ty2)) if prim_ty1 == prim_ty2 => {
+                // TODO(nilehmann) report an error if primitive type is used with generic arguments
+                Ok(())
+            }
+            _ => self.emit_err(errors::InvalidRefinement::from_hir_ty(ty_span, hir_ty)),
+        }
     }
 
     fn zip_generic_args(
         &self,
-        args: &[surface::Ty<Res>],
-        hir_args: &[&hir::Ty],
+        def_id: DefId,
+        path: &surface::Path<Res>,
+        hir_path: &SimplifiedHirPath,
     ) -> Result<(), ErrorGuaranteed> {
-        if args.len() != hir_args.len() {
-            todo!("generic argument count mismatch {args:?} {hir_args:?}")
+        let found = path.args.len();
+        let expected = hir_path.args.len();
+        if found != expected {
+            return self.emit_err(errors::GenericArgCountMismatch::from_hir_path(
+                self.tcx, def_id, path, hir_path,
+            ));
         }
 
-        iter::zip(args, hir_args.iter())
+        iter::zip(&path.args, &hir_path.args)
             .try_for_each_exhaust(|(arg, hir_arg)| self.zip_ty(arg, hir_arg))
     }
 
@@ -327,95 +348,79 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         }
     }
 
-    // fn zip_with_self_ty(&self, path: surface::Path) -> Result<surface::Path<Res>, ErrorGuaranteed> {
-    //     let Some(self_ty) = self.self_ty.as_ref() else {
-    //         todo!("no self type")
-    //     };
-    //     let &[ident] = &path.segments[..] else {
-    //         todo!("path must have one segment");
-    //     };
-    //     if ident != self_ty.ident {
-    //         todo!("ident must be the same than the self type");
-    //     }
-    //     if path.args.len() != self_ty.args.len() {
-    //         todo!(
-    //             "invalid number of generic args for variant ret path {:?} {:?}",
-    //             path.args,
-    //             self_ty.args
-    //         );
-    //     }
+    fn zip_with_self_ty(&self, path: &surface::Path<Res>) -> Result<(), ErrorGuaranteed> {
+        let Some(self_ty) = self.self_ty.as_ref() else {
+            todo!("no self type")
+        };
+        let def_id = if let Res::Adt(def_id) = path.res && def_id == self_ty.def_id {
+            def_id
+        } else {
+            return self.emit_err(errors::InvalidRefinement::from_self_ty(path.span, self_ty));
+        };
 
-    //     let mut args = vec![];
-    //     for (arg, hir_arg) in iter::zip(path.args, &self_ty.args) {
-    //         if let surface::TyKind::Base(surface::BaseTy::Path(path)) = arg.kind
-    //             && let &[arg_ident] = &path.segments[..]
-    //             && path.args.is_empty()
-    //             && arg_ident.name == hir_arg.name
-    //         {
-    //             let path = surface::Path {
-    //                 segments: path.segments,
-    //                 args: vec![],
-    //                 res: Res::Param(*hir_arg),
-    //                 span: path.span,
-    //             };
-    //             let kind = surface::TyKind::Base(surface::BaseTy::Path(path));
-    //             args.push(surface::Ty { kind, span: arg.span });
-    //         } else {
-    //             todo!("variant ret path must be a type parameter");
-    //         }
-    //     }
-    //     Ok(surface::Path {
-    //         span: path.span,
-    //         segments: vec![self_ty.ident],
-    //         args,
-    //         res: Res::Adt(self_ty.def_id.to_def_id()),
-    //     })
-    // }
+        if path.args.len() != self_ty.args.len() {
+            return self.emit_err(errors::GenericArgCountMismatch::from_self_ty(
+                self.tcx, def_id, path, self_ty,
+            ));
+        }
+
+        for (arg, param_ty2) in iter::zip(&path.args, &self_ty.args) {
+            if let surface::TyKind::Base(surface::BaseTy::Path(path)) = &arg.kind
+                && let surface::Res::Param(_, param_def_id) = path.res
+                && param_def_id == param_ty2.0
+            {
+                continue;
+            }
+            return self.emit_err(errors::InvalidRefinement::from_self_ty_generic_arg(
+                arg.span, *param_ty2,
+            ));
+        }
+
+        Ok(())
+    }
 
     fn emit_err<'a, T>(&'a self, err: impl IntoDiagnostic<'a>) -> Result<T, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
     }
 }
 
-impl From<&hir::Item<'_>> for GenericsMap {
-    fn from(item: &hir::Item) -> GenericsMap {
-        let mut table = GenericsMap::default();
-        if let Some(generics) = item.kind.generics() {
-            table.insert(generics);
+impl SimplifiedSelfTy {
+    fn from_impl_item(tcx: TyCtxt, impl_item: &hir::ImplItem) -> Option<SimplifiedSelfTy> {
+        if let Some(parent_impl) = parent_impl(tcx, impl_item.hir_id())
+            && let hir::TyKind::Path(qpath) = &parent_impl.self_ty.kind
+            && let hir::QPath::Resolved(_, path) = qpath
+            && let hir::def::Res::Def(_, def_id) = path.res
+        {
+            let args = SimplifiedSelfTy::generic_params_into_args(parent_impl.generics).ok()?;
+            Some(
+                SimplifiedSelfTy {
+                    def_id,
+                    args,
+                    span: path.span,
+                    format: rustc_hir_pretty::ty_to_string(parent_impl.self_ty)
+                }
+            )
+        } else {
+            None
         }
-        table
-    }
-}
-
-impl GenericsMap {
-    fn from_impl_item(tcx: TyCtxt, impl_item: &hir::ImplItem) -> GenericsMap {
-        let mut table = GenericsMap::default();
-        if let Some(parent_impl) = parent_impl(tcx, impl_item.hir_id()) {
-            table.insert(parent_impl.generics);
-        }
-        table.insert(impl_item.generics);
-        table
     }
 
-    fn insert(&mut self, generics: &hir::Generics) {
-        for (idx, param) in generics.params.iter().enumerate() {
-            if let hir::GenericParamKind::Type { .. } = param.kind {
-                let def_id = param.def_id.to_def_id();
-                debug_assert!(!self.map.contains_key(&def_id));
-
-                let name = param.name.ident().name;
-                let param_ty = ParamTy { index: idx as u32, name };
-                self.map.insert(def_id, param_ty);
+    fn generic_params_into_args(
+        generics: &hir::Generics,
+    ) -> Result<Vec<(DefId, Ident)>, &'static str> {
+        let mut args = vec![];
+        for param in generics.params.iter() {
+            match param.kind {
+                hir::GenericParamKind::Type { .. } => {
+                    args.push((param.def_id.to_def_id(), param.name.ident()));
+                }
+                hir::GenericParamKind::Lifetime { .. } => {}
+                hir::GenericParamKind::Const { .. } => {
+                    return Err("const generic are not supported")
+                }
             }
         }
-    }
-}
-
-impl std::ops::Index<DefId> for GenericsMap {
-    type Output = ParamTy;
-
-    fn index(&self, did: DefId) -> &Self::Output {
-        &self.map[&did]
+        Ok(args)
     }
 }
 
@@ -424,8 +429,19 @@ impl TryFrom<&hir::Item<'_>> for SimplifiedSelfTy {
 
     fn try_from(item: &hir::Item) -> Result<SimplifiedSelfTy, &'static str> {
         let generics = item.kind.generics().expect("expected a struct or an enum");
-        let args = generic_params_into_args(generics)?;
-        Ok(SimplifiedSelfTy { ident: item.ident, args, def_id: item.owner_id.def_id })
+        let args = SimplifiedSelfTy::generic_params_into_args(generics)?;
+        let format = format!(
+            "{}<{}>",
+            item.ident,
+            args.iter()
+                .format_with(", ", |arg, f| f(&format_args!("{}", arg.1)))
+        );
+        Ok(SimplifiedSelfTy {
+            args,
+            def_id: item.owner_id.to_def_id(),
+            span: item.ident.span,
+            format,
+        })
     }
 }
 
@@ -434,14 +450,14 @@ impl<'hir> TryFrom<&hir::QPath<'hir>> for SimplifiedHirPath<'hir> {
 
     fn try_from(qpath: &hir::QPath<'hir>) -> Result<Self, &'static str> {
         let hir::QPath::Resolved(None, path) = qpath else {
-            todo!("unsupported qpath")
+            return Err("unsupported qualified path `{qpath:?}`")
         };
 
         let [prefix @ .., hir::PathSegment { ident, args, ..}] = path.segments else {
             bug!("empty path")
         };
         if prefix.iter().any(|segment| segment.args.is_some()) {
-            todo!("path segments with generic arguments are not supported");
+            return Err("path segments with generic arguments are not supported");
         }
         let mut filtered = vec![];
         if let Some(args) = args {
@@ -449,11 +465,9 @@ impl<'hir> TryFrom<&hir::QPath<'hir>> for SimplifiedHirPath<'hir> {
                 match arg {
                     hir::GenericArg::Lifetime(_) => {}
                     hir::GenericArg::Type(ty) => filtered.push(*ty),
-                    hir::GenericArg::Const(_) => {
-                        todo!("const generic arguments are not supported")
-                    }
+                    hir::GenericArg::Const(_) => return Err("const generic are not supported"),
                     hir::GenericArg::Infer(_) => {
-                        todo!("infer generic arguments are not supported")
+                        bug!("unexpected inference generic argument");
                     }
                 }
             }
@@ -461,28 +475,7 @@ impl<'hir> TryFrom<&hir::QPath<'hir>> for SimplifiedHirPath<'hir> {
         let mut segments = prefix.iter().map(|segment| segment.ident).collect_vec();
         segments.push(*ident);
 
-        Ok(Self { args: filtered, segments, res: path.res })
-    }
-}
-
-fn self_ty_for_impl_item(tcx: TyCtxt, impl_item: &hir::ImplItem) -> Option<SimplifiedSelfTy> {
-    if let Some(parent_impl) = parent_impl(tcx, impl_item.hir_id())
-        && let hir::TyKind::Path(qpath) = &parent_impl.self_ty.kind
-        && let hir::QPath::Resolved(_, path) = qpath
-        && let &[hir::PathSegment { ident, ..}] = path.segments
-        && let hir::def::Res::Def(_, def_id) = path.res
-        && let Some(def_id )= def_id.as_local()
-    {
-        let args = generic_params_into_args(parent_impl.generics).ok()?;
-        Some(
-            SimplifiedSelfTy {
-                def_id,
-                ident,
-                args,
-            }
-        )
-    } else {
-        None
+        Ok(Self { args: filtered, res: path.res, span: path.span })
     }
 }
 
@@ -498,20 +491,6 @@ fn parent_impl(tcx: TyCtxt, hir_id: HirId) -> Option<&hir::Impl> {
     }
 }
 
-fn res_from_ty(ty: rustc_middle::ty::Ty) -> Option<Res> {
-    use rustc_middle::ty::TyKind;
-
-    match ty.kind() {
-        TyKind::Bool => Some(Res::Bool),
-        TyKind::Int(int_ty) => Some(Res::Int(*int_ty)),
-        TyKind::Uint(uint_ty) => Some(Res::Uint(*uint_ty)),
-        TyKind::Float(float_ty) => Some(Res::Float(*float_ty)),
-        TyKind::Param(param_ty) => Some(Res::Param(*param_ty)),
-        TyKind::Char => Some(Res::Char),
-        _ => None,
-    }
-}
-
 fn as_owner_or_parent(tcx: TyCtxt, def_id: LocalDefId) -> OwnerId {
     let hir = tcx.hir();
     let hir_id = hir.local_def_id_to_hir_id(def_id);
@@ -522,28 +501,15 @@ fn as_owner_or_parent(tcx: TyCtxt, def_id: LocalDefId) -> OwnerId {
     }
 }
 
-fn generic_params_into_args(generics: &hir::Generics) -> Result<Vec<ParamTy>, &'static str> {
-    let mut args = vec![];
-    for (idx, param) in generics.params.iter().enumerate() {
-        match param.kind {
-            hir::GenericParamKind::Type { .. } => {
-                let param_ty = ParamTy { index: idx as u32, name: param.name.ident().name };
-                args.push(param_ty);
-            }
-            hir::GenericParamKind::Lifetime { .. } => {}
-            hir::GenericParamKind::Const { .. } => {
-                todo!("const generic parameters are not supported")
-            }
-        }
-    }
-    Ok(args)
-}
-
 mod errors {
-    use flux_macros::{Diagnostic, Subdiagnostic};
-    use rustc_hir::def_id::{DefId, LocalDefId};
+    use flux_macros::Diagnostic;
+    use flux_syntax::surface;
+    use rustc_hir as hir;
+    use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::{symbol::Ident, Span};
+
+    use super::{SimplifiedHirPath, SimplifiedSelfTy};
 
     #[derive(Diagnostic)]
     #[diag(hir_resolver::unsupported_hir, code = "FLUX")]
@@ -627,14 +593,49 @@ mod errors {
     pub(super) struct InvalidRefinement {
         #[primary_span]
         #[label]
-        flux_ty_span: Span,
+        flux_span: Span,
         #[label(hir_resolver::hir_label)]
-        hir_ty_span: Span,
+        hir_span: Span,
+        hir_type: String,
+        #[note]
+        has_note: Option<()>,
+        note: String,
     }
 
     impl InvalidRefinement {
-        pub(super) fn new(flux_ty_span: Span, hir_ty_span: Span) -> Self {
-            Self { flux_ty_span, hir_ty_span }
+        pub(super) fn from_hir_ty(flux_span: Span, hir_ty: &hir::Ty) -> Self {
+            let hir_type = rustc_hir_pretty::ty_to_string(hir_ty);
+            Self {
+                flux_span,
+                hir_span: hir_ty.span,
+                hir_type,
+                has_note: None,
+                note: "".to_string(),
+            }
+        }
+
+        pub(super) fn from_self_ty(flux_span: Span, self_ty: &SimplifiedSelfTy) -> Self {
+            Self {
+                flux_span,
+                hir_span: self_ty.span,
+                hir_type: self_ty.format.clone(),
+                has_note: None,
+                note: "".to_string(),
+            }
+        }
+
+        pub(super) fn from_self_ty_generic_arg(flux_span: Span, param_ty: (DefId, Ident)) -> Self {
+            Self {
+                flux_span,
+                hir_span: param_ty.1.span,
+                hir_type: param_ty.1.name.to_string(),
+                has_note: None,
+                note: "".to_string(),
+            }
+        }
+
+        pub(super) fn with_note(self, note: impl ToString) -> Self {
+            Self { has_note: Some(()), note: note.to_string(), ..self }
         }
     }
 
@@ -656,7 +657,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(hir_resolver::fun_arg_count_mismatch, code = "FLUX")]
-    pub(super) struct ArgCountMismatch {
+    pub(super) struct FunArgCountMismatch {
         #[primary_span]
         #[label]
         flux_span: Span,
@@ -666,7 +667,7 @@ mod errors {
         hir_args: usize,
     }
 
-    impl ArgCountMismatch {
+    impl FunArgCountMismatch {
         pub(super) fn new(
             flux_span: Span,
             flux_args: usize,
@@ -674,6 +675,87 @@ mod errors {
             hir_args: usize,
         ) -> Self {
             Self { flux_span, flux_args, hir_span, hir_args }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::unresolved_location, code = "FLUX")]
+    pub(super) struct UnresolvedLocation {
+        #[primary_span]
+        #[label]
+        span: Span,
+        loc: Ident,
+    }
+
+    impl UnresolvedLocation {
+        pub(super) fn new(ident: Ident) -> Self {
+            Self { span: ident.span, loc: ident }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::field_count_mismatch, code = "FLUX")]
+    pub(super) struct FieldCountMismatch {
+        #[primary_span]
+        #[label]
+        flux_span: Span,
+        flux_fields: usize,
+        #[label(hir_resolver::hir_label)]
+        hir_span: Span,
+        hir_fields: usize,
+    }
+
+    impl FieldCountMismatch {
+        pub(super) fn new(
+            flux_span: Span,
+            flux_fields: usize,
+            hir_span: Span,
+            hir_fields: usize,
+        ) -> Self {
+            Self { flux_span, flux_fields, hir_span, hir_fields }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(hir_resolver::generic_argument_count_mismatch, code = "FLUX")]
+    pub(super) struct GenericArgCountMismatch {
+        #[primary_span]
+        #[label]
+        flux_span: Span,
+        expected: usize,
+        found: usize,
+        def_kind: &'static str,
+        #[label(hir_resolver::hir_label)]
+        hir_span: Span,
+    }
+
+    impl GenericArgCountMismatch {
+        pub(super) fn from_hir_path<T>(
+            tcx: TyCtxt,
+            def_id: DefId,
+            flux_path: &surface::Path<T>,
+            hir_path: &SimplifiedHirPath,
+        ) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let found = flux_path.args.len();
+            let expected = hir_path.args.len();
+            let flux_span = flux_path.span;
+            let hir_span = hir_path.span;
+            GenericArgCountMismatch { flux_span, expected, found, def_kind, hir_span }
+        }
+
+        pub(super) fn from_self_ty<T>(
+            tcx: TyCtxt,
+            def_id: DefId,
+            flux_path: &surface::Path<T>,
+            self_ty: &SimplifiedSelfTy,
+        ) -> Self {
+            let def_kind = tcx.def_kind(def_id).descr(def_id);
+            let found = flux_path.args.len();
+            let expected = self_ty.args.len();
+            let flux_span = flux_path.span;
+            let hir_span = self_ty.span;
+            GenericArgCountMismatch { flux_span, expected, found, def_kind, hir_span }
         }
     }
 }

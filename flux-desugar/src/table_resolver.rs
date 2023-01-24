@@ -1,6 +1,6 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
-use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
+use flux_syntax::surface::{self, BaseTy, Ident, Path, PrimTy, Res, Ty};
 use hir::{def_id::DefId, ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -322,52 +322,17 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         Ok(())
     }
 
-    fn res_from_ty(ty: rustc_middle::ty::Ty) -> Option<Res> {
-        match ty.kind() {
-            TyKind::Bool => Some(Res::Bool),
-            TyKind::Int(int_ty) => Some(Res::Int(*int_ty)),
-            TyKind::Uint(uint_ty) => Some(Res::Uint(*uint_ty)),
-            TyKind::Float(float_ty) => Some(Res::Float(*float_ty)),
-            TyKind::Param(param_ty) => Some(Res::Param(*param_ty)),
-            TyKind::Char => Some(Res::Char),
-            _ => None,
-        }
-    }
-
     fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                ResEntry::Res(Res::Param(self.get_param_ty(did).unwrap()))
+                ResEntry::Res(Res::Param(self.get_param_ty(did).unwrap(), did))
             }
             hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
                 ResEntry::Res(Res::Adt(did))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
-                ResEntry::Res(Res::Int(rustc_middle::ty::int_ty(int_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
-                ResEntry::Res(Res::Uint(rustc_middle::ty::uint_ty(uint_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => ResEntry::Res(Res::Bool),
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
-                ResEntry::Res(Res::Float(rustc_middle::ty::float_ty(float_ty)))
-            }
-            hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
-                ResEntry::Res(Res::Adt(def_id))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => ResEntry::Res(Res::Str),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => ResEntry::Res(Res::Char),
-            hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
-                let ty = self.tcx.type_of(did);
-                match Self::res_from_ty(ty) {
-                    Some(res) => ResEntry::Res(res),
-                    None => {
-                        ResEntry::Unsupported {
-                            span,
-                            reason: format!("unsupported alias `{ty:?}`"),
-                        }
-                    }
-                }
+            hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
+            hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
+                ResEntry::Res(Res::Alias(def_id))
             }
             _ => {
                 ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }

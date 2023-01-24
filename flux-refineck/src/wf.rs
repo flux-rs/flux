@@ -267,6 +267,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(env, ty)
             }
             fhir::Ty::Never
+            | fhir::Ty::Alias(_)
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)
             | fhir::Ty::Str

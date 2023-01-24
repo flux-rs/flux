@@ -279,6 +279,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
+            fhir::Ty::Alias(def_id) => self.genv.default_type_of(*def_id),
         }
     }
 
