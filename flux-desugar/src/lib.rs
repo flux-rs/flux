@@ -3,6 +3,7 @@
 #![feature(box_patterns, once_cell)]
 #![feature(let_chains)]
 
+extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -30,6 +31,8 @@ pub fn desugar_struct_def(
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, struct_def.def_id)?;
+    annot_check_hir::resolve_struct_def(early_cx.tcx, early_cx.sess, struct_def.clone());
+
     let struct_def = resolver.resolve_struct_def(struct_def)?;
 
     // Check
@@ -61,6 +64,7 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
+    annot_check_hir::resolve_fn_sig(early_cx.tcx, early_cx.sess, def_id, fn_sig.clone());
     let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
 
     // Check

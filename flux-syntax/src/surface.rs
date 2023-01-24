@@ -65,7 +65,7 @@ pub struct Alias<R = ()> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StructDef<R = ()> {
     pub def_id: LocalDefId,
     pub refined_by: Option<RefinedBy>,
@@ -97,7 +97,7 @@ pub struct VariantRet<R = ()> {
     pub indices: Indices,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RefinedBy {
     pub params: Vec<RefineParam>,
     pub span: Span,
@@ -107,13 +107,13 @@ pub struct QualNames {
     pub names: Vec<Ident>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Sort {
     /// A _base_ sort, e.g., `int` or `bool`.
     Base(Ident),
@@ -131,7 +131,7 @@ pub struct ConstSig {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FnSig<R = ()> {
     /// List of explicit refinement parameters
     pub params: Vec<RefineParam>,
@@ -147,7 +147,7 @@ pub struct FnSig<R = ()> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Arg<R = ()> {
     /// example `a: i32{a > 0}`
     Constr(Ident, Path<R>, Expr),
@@ -160,19 +160,19 @@ pub enum Arg<R = ()> {
     Ty(Option<Ident>, Ty<R>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Ty<R = ()> {
     pub kind: TyKind<R>,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BaseTy<R = ()> {
     Path(Path<R>),
     Slice(Box<Ty<R>>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TyKind<R = ()> {
     /// ty
     Base(BaseTy<R>),
@@ -221,7 +221,7 @@ pub enum BindKind {
     Pound,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Path<R = ()> {
     pub segments: Vec<Ident>,
     pub args: Vec<Ty<R>>,
