@@ -74,7 +74,7 @@ pub struct StructDef<R = ()> {
     pub invariants: Vec<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EnumDef<R = ()> {
     pub def_id: LocalDefId,
     pub refined_by: Option<RefinedBy>,
@@ -82,14 +82,14 @@ pub struct EnumDef<R = ()> {
     pub invariants: Vec<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VariantDef<R = ()> {
     pub fields: Vec<Ty<R>>,
     pub ret: VariantRet<R>,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VariantRet<R = ()> {
     pub path: Path<R>,
     /// Binders are not allowed at this position, but we parse this as a list of indices

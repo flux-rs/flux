@@ -54,10 +54,11 @@ pub fn resolve_enum_def(
     let hir::ItemKind::Enum(hir_enum_def, _) = &item.kind else {
         bug!("expected enum");
     };
+    let self_ty = SimplifiedSelfTy::try_from(item).map_err(|_| todo!())?;
     let variants = iter::zip(enum_def.variants, hir_enum_def.variants)
         .map(|(variant, hir_variant)| {
             let zipper = Zipper::new(tcx, sess, hir_variant.def_id);
-            zipper.zip_enum_variant(variant, hir_variant, item)
+            zipper.zip_enum_variant(variant, hir_variant, &self_ty)
         })
         .try_collect_exhaust()?;
 
@@ -113,6 +114,12 @@ struct SimplifiedHirPath<'hir> {
     res: hir::def::Res,
 }
 
+struct SimplifiedSelfTy {
+    def_id: LocalDefId,
+    ident: Ident,
+    args: Vec<ParamTy>,
+}
+
 #[derive(Default)]
 struct GenericsMap {
     map: FxHashMap<DefId, ParamTy>,
@@ -139,7 +146,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         &self,
         variant_def: surface::VariantDef,
         hir_variant: &hir::Variant,
-        enum_item: &hir::Item,
+        self_ty: &SimplifiedSelfTy,
     ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
         let flux_fields = variant_def.fields.len();
         let hir_fields = hir_variant.data.fields().len();
@@ -150,7 +157,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         let fields = iter::zip(variant_def.fields, hir_variant.data.fields())
             .map(|(ty, hir_field)| self.zip_ty(ty, hir_field.ty))
             .try_collect_exhaust()?;
-        let ret = self.zip_variant_ret(variant_def.ret, enum_item)?;
+        let ret = self.zip_variant_ret(variant_def.ret, self_ty)?;
 
         Ok(surface::VariantDef { fields, ret, span: variant_def.span })
     }
@@ -158,9 +165,47 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
     fn zip_variant_ret(
         &self,
         variant_ret: surface::VariantRet,
-        enum_item: &hir::Item,
+        self_ty: &SimplifiedSelfTy,
     ) -> Result<surface::VariantRet<Res>, ErrorGuaranteed> {
-        todo!()
+        let &[ident] = &variant_ret.path.segments[..] else {
+            todo!("variant ret path must have one segment");
+        };
+        if ident != self_ty.ident {
+            todo!("variant ret path must be the same as the enum");
+        }
+        if variant_ret.path.args.len() != self_ty.args.len() {
+            todo!("invalid number of generic args for variant ret path");
+        }
+
+        let mut args = vec![];
+        for (arg, hir_arg) in iter::zip(variant_ret.path.args, &self_ty.args) {
+            if let surface::TyKind::Base(surface::BaseTy::Path(path)) = arg.kind
+                && let &[arg_ident] = &path.segments[..]
+                && path.args.is_empty()
+                && arg_ident.name == hir_arg.name
+            {
+                let path = surface::Path {
+                    segments: path.segments,
+                    args: vec![],
+                    res: Res::Param(*hir_arg),
+                    span: path.span,
+                };
+                let kind = surface::TyKind::Base(surface::BaseTy::Path(path));
+                args.push(surface::Ty { kind, span: arg.span });
+            } else {
+                todo!("variant ret path must be a type parameter");
+            }
+        }
+
+        Ok(surface::VariantRet {
+            path: surface::Path {
+                segments: variant_ret.path.segments,
+                args,
+                res: Res::Adt(self_ty.def_id.to_def_id()),
+                span: variant_ret.path.span,
+            },
+            indices: variant_ret.indices,
+        })
     }
 
     fn zip_fn_args(
@@ -452,6 +497,45 @@ impl std::ops::Index<DefId> for GenericsMap {
         &self.map[&did]
     }
 }
+
+impl TryFrom<&hir::Item<'_>> for SimplifiedSelfTy {
+    type Error = &'static str;
+
+    fn try_from(item: &hir::Item) -> Result<SimplifiedSelfTy, &'static str> {
+        let mut args = vec![];
+        if let Some(generics) = item.kind.generics() {
+            for (idx, param) in generics.params.iter().enumerate() {
+                match param.kind {
+                    hir::GenericParamKind::Type { .. } => {
+                        let param_ty = ParamTy { index: idx as u32, name: param.name.ident().name };
+                        args.push(param_ty);
+                    }
+                    hir::GenericParamKind::Lifetime { .. } => {}
+                    hir::GenericParamKind::Const { .. } => {
+                        return Err("const generic parameters are not supported")
+                    }
+                }
+            }
+        }
+        Ok(SimplifiedSelfTy { ident: item.ident, args, def_id: item.owner_id.def_id })
+    }
+}
+
+// impl<'hir> TryFrom<&hir::QPath<'hir>> for SimplifiedHirPath<'hir> {
+//     type Error = &'static str;
+
+//     fn try_from(qpath: &hir::QPath<'hir>) -> Result<Self, Self::Error> {
+//         let hir::QPath::Resolved(None, path) = qpath else {
+//             return Err("unsupported qpath")
+//         };
+//         let [prefix @ .., hir::PathSegment { ident, args, ..}] = path.segments else {
+//             bug!("empty path")
+//         };
+//         if prefix.iter().any(|segment| segment.args.is_some()) {
+//             return Err("path segments with generic arguments are not supported");
+//         }
+//     }
+// }
 
 impl<'hir> TryFrom<&hir::QPath<'hir>> for SimplifiedHirPath<'hir> {
     type Error = &'static str;
