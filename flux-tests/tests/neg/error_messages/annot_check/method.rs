@@ -1,3 +1,6 @@
+#![feature(register_tool)]
+#![register_tool(flux)]
+
 struct S<T> {
     x: T,
 }
