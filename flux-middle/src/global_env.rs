@@ -1,11 +1,14 @@
 use std::{cell::RefCell, collections::hash_map, string::ToString};
 
-use flux_common::config::{self, AssertBehavior};
+use flux_common::{
+    bug,
+    config::{self, AssertBehavior},
+};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::DefId, LangItem};
+use rustc_hir::{def::DefKind, def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::{symbol::Ident, Symbol};
@@ -33,7 +36,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
-    early_cx: EarlyCtxt<'sess, 'tcx>,
+    pub(crate) early_cx: EarlyCtxt<'sess, 'tcx>,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
     check_asserts: AssertBehavior,
@@ -130,7 +133,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     fn register_fn_sigs(&mut self) {
         let map = &self.early_cx.map;
         for (def_id, fn_sig) in map.fn_sigs() {
-            let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig).normalize(&self.defns);
+            let fn_sig = rty::conv::conv_fn_sig(self, fn_sig).normalize(&self.defns);
             self.fn_sigs.get_mut().insert(def_id.to_def_id(), fn_sig);
         }
     }
@@ -256,6 +259,22 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
         self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Expr::tt(), sorts))
+    }
+
+    pub(crate) fn type_of(&self, def_id: DefId) -> Binders<rty::Ty> {
+        if let Some(local_id) = def_id.as_local() {
+            match self.tcx.def_kind(def_id) {
+                DefKind::TyAlias => {
+                    let alias = self.early_cx.map.get_alias(local_id);
+                    rty::conv::expand_alias(self, alias)
+                }
+                kind => {
+                    bug!("`{:?}` not supported", kind.descr(def_id))
+                }
+            }
+        } else {
+            todo!("")
+        }
     }
 
     pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {

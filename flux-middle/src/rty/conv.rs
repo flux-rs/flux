@@ -39,6 +39,13 @@ struct Layer {
     map: FxHashMap<fhir::Name, (fhir::Sort, Range<usize>)>,
 }
 
+pub(crate) fn expand_alias(genv: &GlobalEnv, alias: &fhir::Alias) -> rty::Binders<rty::Ty> {
+    let mut cx = ConvCtxt::from_refined_by(genv, &alias.refined_by);
+    let sorts = flatten_sorts(&genv.early_cx, alias.refined_by.params.iter().map(|(_, sort)| sort));
+    let ty = cx.conv_ty(&alias.ty);
+    rty::Binders::new(ty, sorts)
+}
+
 pub(crate) fn adt_def_for_struct(
     early_cx: &EarlyCtxt,
     struct_def: &fhir::StructDef,
@@ -78,35 +85,35 @@ pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty:
     rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
 }
 
+pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
+    let mut cx = ConvCtxt::from_fun_params(genv, &fn_sig.params);
+
+    let mut requires = vec![];
+    for constr in &fn_sig.requires {
+        requires.push(cx.conv_constr(constr));
+    }
+
+    let mut args = vec![];
+    for ty in &fn_sig.args {
+        args.push(cx.conv_ty(ty));
+    }
+
+    let output = cx.conv_fn_output(&fn_sig.output);
+
+    let sorts = flatten_sorts(genv.early_cx(), fn_sig.params.iter().map(|param| &param.sort));
+    let modes = cx.conv_infer_modes(&fn_sig.params);
+    rty::PolySig::new(rty::Binders::new(rty::FnSig::new(requires, args, output), sorts), modes)
+}
+
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn from_refined_by(genv: &'a GlobalEnv<'a, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
         let env = Env::from_refined_by(genv.early_cx(), refined_by);
         Self { genv, env }
     }
 
-    fn from_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
+    fn from_fun_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
         let env = Env::from_params(genv.early_cx(), params);
         Self { genv, env }
-    }
-
-    pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
-        let mut cx = ConvCtxt::from_params(genv, &fn_sig.params);
-
-        let mut requires = vec![];
-        for constr in &fn_sig.requires {
-            requires.push(cx.conv_constr(constr));
-        }
-
-        let mut args = vec![];
-        for ty in &fn_sig.args {
-            args.push(cx.conv_ty(ty));
-        }
-
-        let output = cx.conv_fn_output(&fn_sig.output);
-
-        let sorts = flatten_sorts(genv.early_cx(), fn_sig.params.iter().map(|param| &param.sort));
-        let modes = cx.conv_infer_modes(&fn_sig.params);
-        rty::PolySig::new(rty::Binders::new(rty::FnSig::new(requires, args, output), sorts), modes)
     }
 
     fn conv_fn_output(&mut self, output: &fhir::FnOutput) -> Binders<rty::FnOutput> {
@@ -167,7 +174,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> PolyVariant {
-        let mut cx = ConvCtxt::from_params(genv, &variant.params);
+        let mut cx = ConvCtxt::from_fun_params(genv, &variant.params);
         let fields = variant.fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
         let sorts = flatten_sorts(genv.early_cx(), variant.params.iter().map(|param| &param.sort));
         let variant = rty::VariantDef::new(fields, cx.conv_variant_ret(&variant.ret));
@@ -292,10 +299,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
-            fhir::Ty::Alias(def_id, args) => {
+            fhir::Ty::Alias(def_id, substs, args) => {
                 self.genv
                     .default_type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, args))
+                    .replace_generics(&self.conv_generic_args(*def_id, substs))
             }
         }
     }

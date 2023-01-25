@@ -292,7 +292,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         hir_ty: &hir::Ty,
     ) -> Result<(), ErrorGuaranteed> {
         match (bty, &hir_ty.kind) {
-            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => {
+            (surface::BaseTy::Path(path, _), hir::TyKind::Path(qpath)) => {
                 self.zip_path(ty.span, path, hir_ty, qpath)
             }
             (surface::BaseTy::Slice(ty), hir::TyKind::Slice(hir_ty)) => self.zip_ty(ty, hir_ty),
@@ -392,7 +392,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         }
 
         for (arg, param_ty2) in iter::zip(&path.args, &self_ty.args) {
-            if let surface::TyKind::Base(surface::BaseTy::Path(path)) = &arg.kind
+            if let surface::TyKind::Base(surface::BaseTy::Path(path, _)) = &arg.kind
                 && let surface::Res::Param(_, param_def_id) = path.res
                 && param_def_id == param_ty2.0
             {

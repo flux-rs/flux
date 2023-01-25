@@ -273,7 +273,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::Alias(_, substs) => {
+            fhir::Ty::Alias(_, substs, _) => {
                 substs
                     .iter()
                     .try_for_each_exhaust(|arg| self.check_type(env, arg))

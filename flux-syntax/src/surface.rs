@@ -168,7 +168,7 @@ pub struct Ty<R = ()> {
 
 #[derive(Debug)]
 pub enum BaseTy<R = ()> {
-    Path(Path<R>),
+    Path(Path<R>, Vec<RefineArg>),
     Slice(Box<Ty<R>>),
 }
 

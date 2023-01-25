@@ -166,7 +166,7 @@ ArgTyKind: surface::TyKind = {
 
 #[inline]
 BaseTy: surface::BaseTy = {
-    <path:Path>     => surface::BaseTy::Path(<>),
+    <path:Path> <args:("(" <Comma<RefineArg>> ")")?> => surface::BaseTy::Path(path, args.unwrap_or_default()),
     "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
 }
 

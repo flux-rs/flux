@@ -158,7 +158,7 @@ pub enum Ty {
     Param(ParamTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
-    Alias(DefId, Vec<Ty>),
+    Alias(DefId, Vec<Ty>, Vec<RefineArg>),
     Never,
 }
 
@@ -714,10 +714,13 @@ impl fmt::Debug for Ty {
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
-            Ty::Alias(def_id, substs) => {
+            Ty::Alias(def_id, substs, args) => {
                 write!(f, "{}", pretty::def_id_to_string(*def_id))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                if !args.is_empty() {
+                    write!(f, "({:?})", args.iter().format(", "))?;
                 }
                 Ok(())
             }

@@ -217,8 +217,7 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
         match bty {
-            BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
-
+            BaseTy::Path(path, args) => Ok(BaseTy::Path(self.resolve_path(path)?, args)),
             BaseTy::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 Ok(BaseTy::Slice(Box::new(ty)))
