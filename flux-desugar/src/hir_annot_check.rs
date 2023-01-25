@@ -206,7 +206,6 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                     )
                 }
             }
-            surface::Arg::Alias(_, _, _) => bug!("alias should have been expanded"),
         }
     }
 

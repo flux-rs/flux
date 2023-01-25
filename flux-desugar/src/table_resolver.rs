@@ -141,7 +141,6 @@ impl<'sess> Resolver<'sess> {
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(bind, ty) => Ok(surface::Arg::Ty(bind, self.resolve_ty(ty)?)),
-            surface::Arg::Alias(_, _, _) => panic!("Unexpected 'Alias' in resolve_arg"),
         }
     }
 

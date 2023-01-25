@@ -347,7 +347,6 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .or(err);
 
     // FnSigs
-    let aliases = std::mem::take(&mut specs.aliases);
     err = std::mem::take(&mut specs.fns)
         .into_iter()
         .try_for_each_exhaust(|(def_id, spec)| {
@@ -355,7 +354,6 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
                 early_cx.map.add_trusted(def_id);
             }
             if let Some(fn_sig) = spec.fn_sig {
-                let fn_sig = surface::expand::expand_sig(&aliases, fn_sig)?;
                 let fn_sig = desugar::desugar_fn_sig(early_cx, def_id, fn_sig)?;
                 early_cx.map.insert_fn_sig(def_id, fn_sig);
             }

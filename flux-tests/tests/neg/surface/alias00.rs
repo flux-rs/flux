@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::alias(type Nat() = i32{v: 0 <= v})]
+#[flux::alias(type Nat = i32{v: 0 <= v})]
 type _Nat = i32;
 
 #[flux::alias(type Lb(n) = i32{v: n <= v})]

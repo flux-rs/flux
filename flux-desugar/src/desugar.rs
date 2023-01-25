@@ -278,7 +278,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(fhir::Ty::Ptr(loc))
             }
             surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty),
-            surface::Arg::Alias(..) => panic!("Unexpected-Alias in desugar!"),
         }
     }
 
@@ -835,7 +834,6 @@ impl Binders {
             surface::Arg::Ty(bind, ty) => {
                 self.gather_params_ty(early_cx, *bind, ty, TypePos::Input)?;
             }
-            surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
     }

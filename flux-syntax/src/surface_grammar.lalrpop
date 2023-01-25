@@ -12,7 +12,7 @@ pub Alias: surface::Alias = {
   <lo:@L>
     "type"
     <name:Ident>
-    <params:("(" Comma<Ident> ")")?>
+    <params:("(" Comma<(<Ident> ":" <Sort>)> ")")?>
     "="
     <defn:Ty>
     <hi:@R> => {
@@ -128,8 +128,7 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(<>),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}"     => surface::Arg::Constr(<>),
-    <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(<>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}"       => surface::Arg::Constr(<>),
     <bind:Ident> ":" <lo:@L> <kind:ArgTyKind> <hi:@R> => {
         let ty = surface::Ty { kind, span: mk_span(lo, hi) };
         surface::Arg::Ty(Some(bind), ty)
