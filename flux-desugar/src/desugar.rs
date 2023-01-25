@@ -411,6 +411,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         }
     }
 
+    fn desugar_bty(&mut self, bty: &surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
+        let bty = match bty {
+            surface::BaseTy::Path(path) => self.desugar_path(path)?,
+
+            surface::BaseTy::Slice(ty) => {
+                let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, ty)?));
+                BtyOrTy::Bty(bty)
+            }
+        };
+        Ok(bty)
+    }
+
     fn desugar_path(&mut self, path: &surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match &path.res {
             Res::PrimTy(PrimTy::Bool) => BtyOrTy::Bty(fhir::BaseTy::Bool),
@@ -426,29 +438,24 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 BtyOrTy::Ty(fhir::Ty::Float(rustc_middle::ty::float_ty(*float_ty)))
             }
             Res::Adt(def_id) => {
-                let substs = path
-                    .args
-                    .iter()
-                    .map(|ty| self.desugar_ty(None, ty))
-                    .try_collect_exhaust()?;
-                BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, substs))
+                BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?))
             }
             Res::Param(param_ty, _) => BtyOrTy::Ty(fhir::Ty::Param(*param_ty)),
-            Res::Alias(def_id) => BtyOrTy::Ty(fhir::Ty::Alias(*def_id)),
+            Res::Alias(def_id) => {
+                BtyOrTy::Ty(fhir::Ty::Alias(*def_id, self.desugar_generic_args(&path.args)?))
+            }
         };
         Ok(bty)
     }
 
-    fn desugar_bty(&mut self, bty: &surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match bty {
-            surface::BaseTy::Path(path) => self.desugar_path(path)?,
-
-            surface::BaseTy::Slice(ty) => {
-                let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, ty)?));
-                BtyOrTy::Bty(bty)
-            }
-        };
-        Ok(bty)
+    fn desugar_generic_args(
+        &mut self,
+        substs: &[surface::Ty<Res>],
+    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
+        substs
+            .iter()
+            .map(|ty| self.desugar_ty(None, ty))
+            .try_collect_exhaust()
     }
 
     fn desugar_bty_bind(

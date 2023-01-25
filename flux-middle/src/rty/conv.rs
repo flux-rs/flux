@@ -12,6 +12,7 @@ use std::{borrow::Borrow, iter, ops::Range};
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_target::abi::VariantIdx;
 
 use super::{Binders, PolyVariant, VariantRet};
@@ -20,7 +21,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     intern::List,
-    rty::{self, DebruijnIndex},
+    rty::{self, fold::TypeFoldable, DebruijnIndex},
     rustc::ty::GenericParamDefKind,
 };
 
@@ -279,9 +280,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
-            fhir::Ty::Alias(def_id) => {
-                //FIXME(nilehmann) this is wrong, we need to expand the alias
-                self.genv.default_type_of(*def_id)
+            fhir::Ty::Alias(def_id, args) => {
+                self.genv
+                    .default_type_of(*def_id)
+                    .replace_generics(&self.conv_generic_args(*def_id, args))
             }
         }
     }
@@ -341,35 +343,35 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             fhir::BaseTy::Bool => rty::BaseTy::Bool,
             fhir::BaseTy::Slice(ty) => rty::BaseTy::slice(self.conv_ty(ty)),
-            fhir::BaseTy::Adt(did, substs) => {
-                let mut i = 0;
-                let substs = List::from_vec(
-                    self.genv
-                        .generics_of(*did)
-                        .params
-                        .iter()
-                        .map(|generic| {
-                            match &generic.kind {
-                                GenericParamDefKind::Type { has_default } => {
-                                    if i < substs.len() {
-                                        i += 1;
-                                        self.conv_generic_arg(&substs[i - 1])
-                                    } else {
-                                        debug_assert!(has_default);
-                                        rty::GenericArg::Ty(
-                                            self.genv.default_type_of(generic.def_id),
-                                        )
-                                    }
-                                }
-                                GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
-                            }
-                        })
-                        .collect(),
-                );
+            fhir::BaseTy::Adt(did, args) => {
+                let substs = self.conv_generic_args(*did, args);
                 let adt_def = self.genv.adt_def(*did);
                 rty::BaseTy::adt(adt_def, substs)
             }
         }
+    }
+
+    fn conv_generic_args(&mut self, def_id: DefId, args: &[fhir::Ty]) -> Vec<rty::GenericArg> {
+        let mut i = 0;
+        self.genv
+            .generics_of(def_id)
+            .params
+            .iter()
+            .map(|generic| {
+                match &generic.kind {
+                    GenericParamDefKind::Type { has_default } => {
+                        if i < args.len() {
+                            i += 1;
+                            self.conv_generic_arg(&args[i - 1])
+                        } else {
+                            debug_assert!(has_default);
+                            rty::GenericArg::Ty(self.genv.default_type_of(generic.def_id))
+                        }
+                    }
+                    GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                }
+            })
+            .collect()
     }
 
     fn conv_generic_arg(&mut self, arg: &fhir::Ty) -> rty::GenericArg {

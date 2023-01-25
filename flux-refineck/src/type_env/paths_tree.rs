@@ -813,7 +813,7 @@ fn downcast_struct(
     Ok(genv
         .variant(def_id, variant_idx)?
         .replace_bvars(args)
-        .replace_generic_args(substs)
+        .replace_generics(substs)
         .fields
         .to_vec())
 }
@@ -838,7 +838,7 @@ fn downcast_enum(
         .variant(def_id, variant_idx)
         .unwrap()
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
-        .replace_generic_args(substs);
+        .replace_generics(substs);
 
     debug_assert_eq!(variant_def.ret.args.len(), args.len());
     let constr = Expr::and(iter::zip(&variant_def.ret.args, args).filter_map(|(arg1, arg2)| {

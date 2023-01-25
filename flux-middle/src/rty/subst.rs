@@ -1,8 +1,11 @@
+use flux_common::bug;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::fold::{TypeFoldable, TypeFolder};
 use crate::rty::*;
 
+/// A substitution for [free variables]
+/// [free variables]: `crate::rty::expr::ExprKind::FreeVar`
 #[derive(Debug)]
 pub struct FVarSubst {
     fvar_map: FxHashMap<Name, Expr>,
@@ -22,7 +25,7 @@ impl FVarSubst {
     }
 
     pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
-        t.fold_with(&mut FVarFolder { subst: self })
+        t.fold_with(&mut FVarSubstFolder { subst: self })
     }
 
     pub fn subst_loc(&self, loc: Loc) -> Loc {
@@ -73,11 +76,11 @@ impl FVarSubst {
     }
 }
 
-struct FVarFolder<'a> {
+struct FVarSubstFolder<'a> {
     subst: &'a FVarSubst,
 }
 
-impl TypeFolder for FVarFolder<'_> {
+impl TypeFolder for FVarSubstFolder<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         if let ExprKind::FreeVar(name) = expr.kind() {
             self.subst
@@ -91,18 +94,20 @@ impl TypeFolder for FVarFolder<'_> {
     }
 }
 
-pub(super) struct BVarFolder<'a> {
+/// Substitution for [bound variables]
+/// [bound variables]: `crate::rty::expr::ExprKind::BoundVar`
+pub(super) struct BVarSubstFolder<'a> {
     outer_binder: DebruijnIndex,
     args: &'a [RefineArg],
 }
 
-impl<'a> BVarFolder<'a> {
-    pub(super) fn new(args: &'a [RefineArg]) -> BVarFolder<'a> {
-        BVarFolder { args, outer_binder: INNERMOST }
+impl<'a> BVarSubstFolder<'a> {
+    pub(super) fn new(args: &'a [RefineArg]) -> BVarSubstFolder<'a> {
+        BVarSubstFolder { args, outer_binder: INNERMOST }
     }
 }
 
-impl TypeFolder for BVarFolder<'_> {
+impl TypeFolder for BVarSubstFolder<'_> {
     fn fold_binders<T>(&mut self, t: &Binders<T>) -> Binders<T>
     where
         T: TypeFoldable,
@@ -139,6 +144,33 @@ impl TypeFolder for BVarFolder<'_> {
             abs.replace_bvars(&args)
         } else {
             e.super_fold_with(self)
+        }
+    }
+}
+
+/// Substitution for generics (type, lifetimes and const generics). Only substitution for types
+/// is implemented. Higher-ranked types are not supported yet, i.e., we only support early bound
+/// parameters.
+pub(super) struct GenericsSubstFolder<'a> {
+    pub(super) substs: &'a [GenericArg],
+}
+
+impl TypeFolder for GenericsSubstFolder<'_> {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        if let TyKind::Param(param_ty) = ty.kind() {
+            self.ty_for_param(*param_ty)
+        } else {
+            ty.super_fold_with(self)
+        }
+    }
+}
+
+impl GenericsSubstFolder<'_> {
+    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
+        match self.substs.get(param_ty.index as usize) {
+            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(GenericArg::Lifetime) => todo!("substitution for lifetimes is not supported"),
+            None => bug!("type parameter out of range"),
         }
     }
 }
