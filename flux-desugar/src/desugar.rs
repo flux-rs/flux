@@ -8,7 +8,7 @@ use flux_syntax::surface::{self, PrimTy, Res};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::LocalDefId;
 use rustc_span::{sym, symbol::kw, Span, Symbol};
 
 pub fn desugar_qualifier(
@@ -21,7 +21,7 @@ pub fn desugar_qualifier(
 
     Ok(fhir::Qualifier {
         name,
-        args: binders.pop_layer().into_args(),
+        args: binders.pop_layer().into_params(),
         global: qualifier.global,
         expr: expr?,
     })
@@ -35,7 +35,7 @@ pub fn desugar_defn(
     let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&defn.expr)?;
     let name = defn.name.name;
     let sort = resolve_sort(early_cx, &defn.sort)?;
-    let args = binders.pop_layer().into_args();
+    let args = binders.pop_layer().into_params();
     Ok(fhir::Defn { name, args, sort, expr })
 }
 
@@ -77,13 +77,34 @@ pub fn resolve_uif_def(
 
 pub fn desugar_adt_def(
     early_cx: &EarlyCtxt,
-    def_id: DefId,
+    def_id: LocalDefId,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::AdtDef, ErrorGuaranteed> {
     let mut binders = Binders::from_params(early_cx, refined_by)?;
-    let refined_by =
-        fhir::RefinedBy { params: binders.pop_layer().into_args(), span: refined_by.span };
+
+    let refined_by = fhir::RefinedBy {
+        params: binders.pop_layer().into_params(),
+        non_binding_params_count: refined_by.non_binding_params.len(),
+        span: refined_by.span,
+    };
     Ok(fhir::AdtDef::new(def_id, refined_by))
+}
+
+pub fn desugar_alias(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+    alias: surface::Alias<Res>,
+) -> Result<fhir::Alias, ErrorGuaranteed> {
+    let binders = Binders::from_params(early_cx, &alias.refined_by)?;
+    let mut cx = DesugarCtxt::new(early_cx, binders);
+    let ty = cx.desugar_ty(None, &alias.ty)?;
+
+    let refined_by = fhir::RefinedBy {
+        params: cx.binders.pop_layer().into_params(),
+        non_binding_params_count: alias.refined_by.non_binding_params.len(),
+        span: alias.refined_by.span,
+    };
+    Ok(fhir::Alias { def_id, refined_by, ty, span: alias.span })
 }
 
 pub fn desugar_struct_def(
@@ -151,7 +172,7 @@ fn desugar_variant(
 
     let ret = cx.desugar_variant_ret(&variant.ret)?;
 
-    Ok(fhir::VariantDef { params: cx.binders.pop_layer().into_params(), fields, ret })
+    Ok(fhir::VariantDef { params: cx.binders.pop_layer().into_fun_params(), fields, ret })
 }
 
 pub fn desugar_fn_sig(
@@ -193,13 +214,13 @@ pub fn desugar_fn_sig(
         })
         .try_collect_exhaust();
     let output = fhir::FnOutput {
-        params: cx.binders.pop_layer().into_params(),
+        params: cx.binders.pop_layer().into_fun_params(),
         ret: ret?,
         ensures: ensures?,
     };
 
     Ok(fhir::FnSig {
-        params: cx.binders.pop_layer().into_params(),
+        params: cx.binders.pop_layer().into_fun_params(),
         requires: cx.requires,
         args,
         output,
@@ -682,14 +703,23 @@ impl Binders {
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result<Self, ErrorGuaranteed> {
         let mut binders = Self::new();
+        binders.insert_params(early_cx, params)?;
+        Ok(binders)
+    }
+
+    fn insert_params<'a>(
+        &mut self,
+        early_cx: &EarlyCtxt,
+        params: impl IntoIterator<Item = &'a surface::RefineParam>,
+    ) -> Result<(), ErrorGuaranteed> {
         for param in params {
-            binders.insert_binder(
+            self.insert_binder(
                 early_cx.sess,
                 param.name,
-                Binder::Refined(binders.fresh(), resolve_sort(early_cx, &param.sort)?, false),
+                Binder::Refined(self.fresh(), resolve_sort(early_cx, &param.sort)?, false),
             )?;
         }
-        Ok(binders)
+        Ok(())
     }
 
     fn fresh(&self) -> fhir::Name {
@@ -998,9 +1028,9 @@ fn param_from_ident(
     name: fhir::Name,
     sort: fhir::Sort,
     mode: fhir::InferMode,
-) -> fhir::RefineParam {
+) -> fhir::FunRefineParam {
     let name = fhir::Ident::new(name, ident);
-    fhir::RefineParam { name, sort, mode }
+    fhir::FunRefineParam { name, sort, mode }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
@@ -1050,7 +1080,7 @@ impl Layer {
         self.map.entry(ident)
     }
 
-    fn into_args(self) -> Vec<(fhir::Ident, fhir::Sort)> {
+    fn into_params(self) -> Vec<(fhir::Ident, fhir::Sort)> {
         let mut args = vec![];
         for (ident, binder) in self.map {
             if let Binder::Refined(name, sort, _) = binder {
@@ -1063,7 +1093,7 @@ impl Layer {
         args
     }
 
-    fn into_params(self) -> Vec<fhir::RefineParam> {
+    fn into_fun_params(self) -> Vec<fhir::FunRefineParam> {
         let mut params = vec![];
         for (ident, binder) in self.map {
             match binder {

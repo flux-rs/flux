@@ -84,7 +84,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Self { genv, env }
     }
 
-    fn from_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[fhir::RefineParam]) -> Self {
+    fn from_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
         let env = Env::from_params(genv.early_cx(), params);
         Self { genv, env }
     }
@@ -132,7 +132,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Binders::new(output, sorts)
     }
 
-    fn conv_infer_modes(&self, params: &[fhir::RefineParam]) -> Vec<rty::InferMode> {
+    fn conv_infer_modes(&self, params: &[fhir::FunRefineParam]) -> Vec<rty::InferMode> {
         params
             .iter()
             .flat_map(|param| {
@@ -407,7 +407,7 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
         )
     }
 
-    fn from_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, params: &[fhir::RefineParam]) -> Self {
+    fn from_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
         Self::new(
             early_cx,
             Layer::new(early_cx, params.iter().map(|param| (&param.name.name, &param.sort))),

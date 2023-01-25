@@ -7,7 +7,7 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
-pub type AliasMap = rustc_hash::FxHashMap<Ident, Alias>;
+pub type AliasMap = rustc_hash::FxHashMap<LocalDefId, Alias>;
 
 #[derive(Debug)]
 pub struct SortDecl {
@@ -61,8 +61,8 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct Alias<R = ()> {
     pub name: Ident,
-    pub args: Vec<(Ident, Sort)>,
-    pub defn: Ty<R>,
+    pub refined_by: RefinedBy,
+    pub ty: Ty<R>,
     pub span: Span,
 }
 
@@ -101,6 +101,7 @@ pub struct VariantRet<R = ()> {
 #[derive(Debug, Default)]
 pub struct RefinedBy {
     pub params: Vec<RefineParam>,
+    pub non_binding_params: Vec<RefineParam>,
     pub span: Span,
 }
 #[derive(Debug, Default)]
@@ -294,7 +295,8 @@ impl BindKind {
 }
 
 impl RefinedBy {
-    pub const DUMMY: &RefinedBy = &RefinedBy { params: vec![], span: rustc_span::DUMMY_SP };
+    pub const DUMMY: &RefinedBy =
+        &RefinedBy { params: vec![], non_binding_params: vec![], span: rustc_span::DUMMY_SP };
 }
 
 impl RefinedBy {
@@ -306,10 +308,10 @@ impl RefinedBy {
 impl<'a> IntoIterator for &'a RefinedBy {
     type Item = &'a RefineParam;
 
-    type IntoIter = std::slice::Iter<'a, RefineParam>;
+    type IntoIter = impl Iterator<Item = &'a RefineParam>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.params.iter()
+        self.non_binding_params.iter().chain(&self.params)
     }
 }
 

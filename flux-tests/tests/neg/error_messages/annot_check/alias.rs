@@ -19,3 +19,6 @@ fn test00(x: S2<i32>) -> i64 {
 fn test01(x: S2<i32>) -> i64 {
     0
 }
+
+#[flux::alias(type Gt(x: int) = (i64{v: v > x}, i64))] //~ ERROR invalid refinement annotation
+type Pair = (i32, i64);

@@ -69,11 +69,20 @@ pub struct Map {
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     adts: FxHashMap<LocalDefId, AdtDef>,
+    aliases: FxHashMap<LocalDefId, Alias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
     fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
     trusted: FxHashSet<LocalDefId>,
+}
+
+#[derive(Debug)]
+pub struct Alias {
+    pub def_id: LocalDefId,
+    pub refined_by: RefinedBy,
+    pub ty: Ty,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -98,7 +107,7 @@ pub struct EnumDef {
 
 #[derive(Debug)]
 pub struct VariantDef {
-    pub params: Vec<RefineParam>,
+    pub params: Vec<FunRefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
 }
@@ -111,7 +120,7 @@ pub struct VariantRet {
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<RefineParam>,
+    pub params: Vec<FunRefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -120,7 +129,7 @@ pub struct FnSig {
 }
 
 pub struct FnOutput {
-    pub params: Vec<RefineParam>,
+    pub params: Vec<FunRefineParam>,
     pub ret: Ty,
     pub ensures: Vec<Constraint>,
 }
@@ -209,7 +218,7 @@ pub enum BaseTy {
 }
 
 #[derive(Debug)]
-pub struct RefineParam {
+pub struct FunRefineParam {
     pub name: Ident,
     pub sort: Sort,
     pub mode: InferMode,
@@ -343,7 +352,7 @@ impl Ident {
 
 #[derive(Debug)]
 pub struct AdtDef {
-    pub def_id: DefId,
+    pub def_id: LocalDefId,
     pub refined_by: RefinedBy,
     sorts: Vec<Sort>,
 }
@@ -351,6 +360,7 @@ pub struct AdtDef {
 #[derive(Debug)]
 pub struct RefinedBy {
     pub params: Vec<(Ident, Sort)>,
+    pub non_binding_params_count: usize,
     pub span: Span,
 }
 
@@ -369,7 +379,7 @@ pub struct Defn {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, refined_by: RefinedBy) -> Self {
+    pub fn new(def_id: LocalDefId, refined_by: RefinedBy) -> Self {
         let sorts = refined_by.sorts().cloned().collect_vec();
         AdtDef { def_id, refined_by, sorts }
     }
@@ -400,7 +410,8 @@ impl AdtDef {
 }
 
 impl RefinedBy {
-    pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
+    pub const DUMMY: &'static RefinedBy =
+        &RefinedBy { params: vec![], non_binding_params_count: 0, span: DUMMY_SP };
 
     pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
         self.params.iter().map(|(_, sort)| sort)
@@ -523,6 +534,30 @@ impl Map {
         self.trusted.contains(&def_id)
     }
 
+    // ADT
+
+    pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
+        self.adts.insert(def_id, sort_info);
+    }
+
+    pub fn get_adt(&self, def_id: LocalDefId) -> &AdtDef {
+        &self.adts[&def_id]
+    }
+
+    // Aliases
+
+    pub fn insert_alias(&mut self, def_id: LocalDefId, alias: Alias) {
+        self.aliases.insert(def_id, alias);
+    }
+
+    pub fn aliases(&self) -> impl Iterator<Item = &Alias> {
+        self.aliases.values()
+    }
+
+    pub fn get_alias(&self, def_id: impl Borrow<LocalDefId>) -> &Alias {
+        &self.aliases[def_id.borrow()]
+    }
+
     // Structs
 
     pub fn insert_struct(&mut self, def_id: LocalDefId, struct_def: StructDef) {
@@ -590,20 +625,6 @@ impl Map {
 
     pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
         self.defns.get(sym.borrow())
-    }
-
-    // ADT
-
-    pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
-        self.adts.insert(def_id, sort_info);
-    }
-
-    pub fn get_adt(&self, def_id: LocalDefId) -> &AdtDef {
-        &self.adts[&def_id]
-    }
-
-    pub fn adts(&self) -> impl Iterator<Item = &AdtDef> {
-        self.adts.values()
     }
 
     // Sorts

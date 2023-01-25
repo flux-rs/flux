@@ -277,7 +277,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(early_cx, def_id.to_def_id(), refined_by)?;
+            let adt_def = desugar::desugar_adt_def(early_cx, *def_id, refined_by)?;
             early_cx.map.insert_adt(*def_id, adt_def);
             Ok(())
         })
@@ -288,7 +288,17 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(early_cx, def_id.to_def_id(), refined_by)?;
+            let adt_def = desugar::desugar_adt_def(early_cx, *def_id, refined_by)?;
+            early_cx.map.insert_adt(*def_id, adt_def);
+            Ok(())
+        })
+        .err()
+        .or(err);
+    err = specs
+        .aliases
+        .iter()
+        .try_for_each_exhaust(|(def_id, alias)| {
+            let adt_def = desugar::desugar_adt_def(early_cx, *def_id, &alias.refined_by)?;
             early_cx.map.insert_adt(*def_id, adt_def);
             Ok(())
         })
@@ -325,7 +335,19 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .err()
         .or(err);
 
-    // Variants
+    // Aliases
+    err = std::mem::take(&mut specs.aliases)
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, alias)| {
+            early_cx
+                .map
+                .insert_alias(def_id, desugar::desugar_alias(early_cx, def_id, alias)?);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    // Structs
     err = std::mem::take(&mut specs.structs)
         .into_iter()
         .try_for_each_exhaust(|(def_id, struct_def)| {
@@ -337,6 +359,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .err()
         .or(err);
 
+    // Enums
     err = std::mem::take(&mut specs.enums)
         .into_iter()
         .try_for_each_exhaust(|(def_id, enum_def)| {

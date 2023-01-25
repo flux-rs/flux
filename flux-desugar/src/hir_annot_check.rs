@@ -21,7 +21,20 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 use surface::Ident;
 
-pub fn check_struct_def(
+pub(crate) fn check_alias(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    def_id: LocalDefId,
+    alias: &surface::Alias<Res>,
+) -> Result<(), ErrorGuaranteed> {
+    let item = tcx.hir().expect_item(def_id);
+    let hir::ItemKind::TyAlias(hir_ty, _) = &item.kind else {
+        bug!("expected type alias");
+    };
+    Zipper::new(tcx, sess, def_id)?.zip_ty(&alias.ty, hir_ty)
+}
+
+pub(crate) fn check_struct_def(
     tcx: TyCtxt,
     sess: &FluxSession,
     struct_def: &surface::StructDef<Res>,
@@ -44,7 +57,7 @@ pub fn check_struct_def(
     )
 }
 
-pub fn check_enum_def(
+pub(crate) fn check_enum_def(
     tcx: TyCtxt,
     sess: &FluxSession,
     enum_def: &surface::EnumDef<Res>,
@@ -61,7 +74,7 @@ pub fn check_enum_def(
     )
 }
 
-pub fn check_fn_sig(
+pub(crate) fn check_fn_sig(
     tcx: TyCtxt,
     sess: &FluxSession,
     def_id: LocalDefId,

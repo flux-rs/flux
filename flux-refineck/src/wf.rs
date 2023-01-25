@@ -36,8 +36,8 @@ impl Env {
     }
 }
 
-impl From<&[fhir::RefineParam]> for Env {
-    fn from(params: &[fhir::RefineParam]) -> Env {
+impl From<&[fhir::FunRefineParam]> for Env {
+    fn from(params: &[fhir::FunRefineParam]) -> Env {
         let sorts = params
             .iter()
             .map(|param| (param.name.name, param.sort.clone()))

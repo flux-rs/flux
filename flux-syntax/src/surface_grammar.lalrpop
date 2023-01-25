@@ -12,20 +12,23 @@ pub Alias: surface::Alias = {
   <lo:@L>
     "type"
     <name:Ident>
-    <params:("(" Comma<(<Ident> ":" <Sort>)> ")")?>
+    <rblo:@L>
+    <params:("(" <Comma<RefineParam>> ")")?>
+    <rbhi:@R>
     "="
-    <defn:Ty>
+    <ty:Ty>
     <hi:@R> => {
-        let args = match params {
-            Some(xs) => xs.1,
-            None => vec![],
+        let refined_by = surface::RefinedBy {
+            params: vec![],
+            non_binding_params: params.unwrap_or_default(),
+            span: mk_span(rblo, rbhi)
         };
-        surface::Alias { name, args, defn, span: mk_span(lo, hi) }
+        surface::Alias { name, refined_by, ty, span: mk_span(lo, hi) }
     }
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
+    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, non_binding_params: vec![], span: mk_span(lo, hi) }
 }
 
 pub Items: Vec<surface::Item> = {
