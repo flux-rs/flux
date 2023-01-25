@@ -301,13 +301,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
-            fhir::Ty::Alias(def_id, substs, args) => {
-                // self.genv
-                //     .type_of(*def_id)
-                //     .replace_generics(&self.conv_generic_args(*def_id, substs));
+            fhir::Ty::Alias(def_id, generics, refines) => {
+                let sorts = self.genv.early_bound_sorts_of(*def_id);
                 self.genv
-                    .default_type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, substs))
+                    .type_of(*def_id)
+                    .replace_generics(&self.conv_generic_args(*def_id, generics))
+                    .replace_bvars(&self.conv_refine_args(refines, sorts))
+                // self.genv
+                //     .default_type_of(*def_id)
+                //     .replace_generics(&self.conv_generic_args(*def_id, generics))
             }
         }
     }
@@ -316,6 +318,17 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let idxs = rty::RefineArgs::new(self.conv_refine_arg(idx, &bty.sort()));
         let bty = self.conv_base_ty(bty);
         rty::Ty::indexed(bty, idxs)
+    }
+
+    fn conv_refine_args(
+        &mut self,
+        args: &[fhir::RefineArg],
+        sorts: &[fhir::Sort],
+    ) -> Vec<rty::RefineArg> {
+        iter::zip(args, sorts)
+            .flat_map(|(arg, sort)| self.conv_refine_arg(arg, sort))
+            .map(|(arg, _)| arg)
+            .collect()
     }
 
     fn conv_refine_arg(

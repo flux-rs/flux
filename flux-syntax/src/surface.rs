@@ -101,7 +101,7 @@ pub struct VariantRet<R = ()> {
 #[derive(Debug, Default)]
 pub struct RefinedBy {
     pub params: Vec<RefineParam>,
-    pub non_binding_params: Vec<RefineParam>,
+    pub early_bound_params: Vec<RefineParam>,
     pub span: Span,
 }
 #[derive(Debug, Default)]
@@ -296,7 +296,7 @@ impl BindKind {
 
 impl RefinedBy {
     pub const DUMMY: &RefinedBy =
-        &RefinedBy { params: vec![], non_binding_params: vec![], span: rustc_span::DUMMY_SP };
+        &RefinedBy { params: vec![], early_bound_params: vec![], span: rustc_span::DUMMY_SP };
 }
 
 impl RefinedBy {
@@ -311,7 +311,7 @@ impl<'a> IntoIterator for &'a RefinedBy {
     type IntoIter = impl Iterator<Item = &'a RefineParam>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.non_binding_params.iter().chain(&self.params)
+        self.early_bound_params.iter().chain(&self.params)
     }
 }
 

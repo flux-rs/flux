@@ -352,7 +352,7 @@ pub struct AdtDef {
 #[derive(Debug)]
 pub struct RefinedBy {
     pub params: Vec<(Ident, Sort)>,
-    pub non_binding_params_count: usize,
+    pub early_bound: usize,
     pub span: Span,
 }
 
@@ -397,13 +397,17 @@ impl AdtDef {
     }
 
     pub fn sorts(&self) -> &[Sort] {
-        &self.sorts
+        &self.sorts[self.refined_by.early_bound..]
+    }
+
+    pub fn early_bound_sorts(&self) -> &[Sort] {
+        &self.sorts[..self.refined_by.early_bound]
     }
 }
 
 impl RefinedBy {
     pub const DUMMY: &'static RefinedBy =
-        &RefinedBy { params: vec![], non_binding_params_count: 0, span: DUMMY_SP };
+        &RefinedBy { params: vec![], early_bound: 0, span: DUMMY_SP };
 
     pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
         self.params.iter().map(|(_, sort)| sort)

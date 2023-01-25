@@ -84,7 +84,7 @@ pub fn desugar_adt_def(
 
     let refined_by = fhir::RefinedBy {
         params: binders.pop_layer().into_params(),
-        non_binding_params_count: refined_by.non_binding_params.len(),
+        early_bound: refined_by.early_bound_params.len(),
         span: refined_by.span,
     };
     Ok(fhir::AdtDef::new(def_id, refined_by))
@@ -101,7 +101,7 @@ pub fn desugar_alias(
 
     let refined_by = fhir::RefinedBy {
         params: cx.binders.pop_layer().into_params(),
-        non_binding_params_count: alias.refined_by.non_binding_params.len(),
+        early_bound: alias.refined_by.early_bound_params.len(),
         span: alias.refined_by.span,
     };
     Ok(fhir::Alias { def_id, refined_by, ty, span: alias.span })

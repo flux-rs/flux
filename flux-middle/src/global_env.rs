@@ -257,6 +257,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.early_cx.sorts_of(def_id)
     }
 
+    pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+        self.early_cx.early_bound_sorts_of(def_id)
+    }
+
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
         self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Expr::tt(), sorts))
     }

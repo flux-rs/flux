@@ -11,7 +11,7 @@ pub enum E<T> {
 }
 
 #[flux::sig(fn(E<i32>) -> Nat)]
-pub fn foo(x: E<i32>) -> i32 {
+pub fn foo(x: E<i32>) -> Nat {
     match x {
         E::A(n) => n, //~ ERROR postcondition might not hold
         _ => 0,

@@ -46,6 +46,14 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         }
     }
 
+    pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
+        if let Some(local_id) = def_id.as_local() {
+            self.map.get_adt(local_id).early_bound_sorts()
+        } else {
+            todo!()
+        }
+    }
+
     pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
         if let Some(local_id) = def_id.as_local() {
             self.map.get_adt(local_id).field_index(fld)
