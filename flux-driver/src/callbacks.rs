@@ -408,6 +408,10 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
         err = Wf::check_qualifier(early_cx, qualifier).err().or(err);
     }
 
+    for alias in early_cx.map.aliases() {
+        err = Wf::check_alias(early_cx, alias).err().or(err);
+    }
+
     for struct_def in early_cx.map.structs() {
         let refined_by = &early_cx.map.get_adt(struct_def.def_id).refined_by;
         err = Wf::check_struct_def(early_cx, refined_by, struct_def)

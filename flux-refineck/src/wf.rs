@@ -98,46 +98,10 @@ impl Wf<'_, '_> {
         Ok(())
     }
 
-    pub fn check_fn_sig(early_cx: &EarlyCtxt, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
-        let mut wf = Wf::new(early_cx);
-        for param in &fn_sig.params {
-            wf.modes.insert(param.name.name, param.mode);
-        }
-        let mut env = Env::from(&fn_sig.params[..]);
-
-        let args = fn_sig
-            .args
-            .iter()
-            .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty));
-
-        let requires = fn_sig
-            .requires
-            .iter()
-            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
-
-        env.push_layer(
-            fn_sig
-                .output
-                .params
-                .iter()
-                .map(|param| (&param.name.name, &param.sort)),
-        );
-        let ret = wf.check_type(&mut env, &fn_sig.output.ret);
-        let ensures = fn_sig
-            .output
-            .ensures
-            .iter()
-            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
-
-        let constrs = wf.check_output_locs(fn_sig);
-
-        args?;
-        ret?;
-        ensures?;
-        requires?;
-        constrs?;
-
-        Ok(())
+    pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::Alias) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+        let mut env = Env::from(&alias.refined_by.params[..]);
+        wf.check_type(&mut env, &alias.ty)
     }
 
     pub fn check_struct_def(
@@ -182,6 +146,48 @@ impl Wf<'_, '_> {
             .variants
             .iter()
             .try_for_each_exhaust(|variant| wf.check_variant(variant))
+    }
+
+    pub fn check_fn_sig(early_cx: &EarlyCtxt, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+        let mut wf = Wf::new(early_cx);
+        for param in &fn_sig.params {
+            wf.modes.insert(param.name.name, param.mode);
+        }
+        let mut env = Env::from(&fn_sig.params[..]);
+
+        let args = fn_sig
+            .args
+            .iter()
+            .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty));
+
+        let requires = fn_sig
+            .requires
+            .iter()
+            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
+
+        env.push_layer(
+            fn_sig
+                .output
+                .params
+                .iter()
+                .map(|param| (&param.name.name, &param.sort)),
+        );
+        let ret = wf.check_type(&mut env, &fn_sig.output.ret);
+        let ensures = fn_sig
+            .output
+            .ensures
+            .iter()
+            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
+
+        let constrs = wf.check_output_locs(fn_sig);
+
+        args?;
+        ret?;
+        ensures?;
+        requires?;
+        constrs?;
+
+        Ok(())
     }
 }
 
