@@ -440,7 +440,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Res::Adt(def_id) => {
                 BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?))
             }
-            Res::Param(param_ty, _) => BtyOrTy::Ty(fhir::Ty::Param(*param_ty)),
+            Res::Param(def_id) => BtyOrTy::Ty(fhir::Ty::Param(*def_id)),
             Res::Alias(def_id) => {
                 BtyOrTy::Ty(fhir::Ty::Alias(*def_id, self.desugar_generic_args(&path.args)?))
             }

@@ -310,9 +310,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
             (Res::Alias(def_id1), HirRes::Def(DefKind::TyAlias, def_id2)) if def_id1 == def_id2 => {
                 self.zip_generic_args(def_id1, path, hir_path)
             }
-            (Res::Param(_, def_id1), HirRes::Def(DefKind::TyParam, def_id2))
-                if def_id1 == def_id2 =>
-            {
+            (Res::Param(def_id1), HirRes::Def(DefKind::TyParam, def_id2)) if def_id1 == def_id2 => {
                 // TODO(nilehmann) report an error if type parameter is used with generic arguments
                 Ok(())
             }
@@ -381,7 +379,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
 
         for (arg, param_ty2) in iter::zip(&path.args, &self_ty.args) {
             if let surface::TyKind::Base(surface::BaseTy::Path(path)) = &arg.kind
-                && let surface::Res::Param(_, param_def_id) = path.res
+                && let surface::Res::Param(param_def_id) = path.res
                 && param_def_id == param_ty2.0
             {
                 continue;

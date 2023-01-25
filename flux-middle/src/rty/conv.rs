@@ -134,7 +134,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let variants: Vec<PolyVariant> = enum_def
             .variants
             .iter()
-            .map(|variant| ConvCtxt::conv_variant(genv, variant))
+            .map(|variant_def| ConvCtxt::conv_variant(genv, variant_def))
             .collect();
 
         // Return `None` if there are *no* refined variants as, in that case,
@@ -263,7 +263,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 )
             }
             fhir::Ty::Ref(rk, ty) => rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)),
-            fhir::Ty::Param(param) => rty::Ty::param(*param),
+            fhir::Ty::Param(def_id) => {
+                let def_id = def_id.expect_local();
+                let item_def_id = self.genv.hir().ty_param_owner(def_id);
+                let generics = self.genv.generics_of(item_def_id);
+                let index = generics.rustc.param_def_id_to_index[&def_id.to_def_id()];
+                let param_ty = rty::ParamTy { index, name: self.genv.hir().ty_param_name(def_id) };
+                rty::Ty::param(param_ty)
+            }
             fhir::Ty::Float(float_ty) => rty::Ty::float(*float_ty),
             fhir::Ty::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.conv_ty(ty)).collect_vec();

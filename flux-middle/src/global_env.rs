@@ -251,8 +251,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         .clone())
     }
 
-    pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {
-        rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
+    pub fn generics_of(&self, def_id: impl Into<DefId>) -> rustc::ty::Generics<'tcx> {
+        rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id.into()))
             .unwrap_or_else(|_| FatalError.raise())
     }
 
@@ -382,6 +382,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
         &self.early_cx
+    }
+
+    pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
+        self.tcx.hir()
     }
 }
 

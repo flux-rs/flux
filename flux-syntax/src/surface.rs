@@ -235,7 +235,7 @@ pub enum Res {
     PrimTy(PrimTy),
     Alias(DefId),
     Adt(DefId),
-    Param(ParamTy, DefId),
+    Param(DefId),
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
