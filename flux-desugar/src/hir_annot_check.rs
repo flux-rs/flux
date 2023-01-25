@@ -1,8 +1,10 @@
+///! This module contains the logic to check flux annotations are valid refinements of the rust item
+///! by checking against the types the hir.
 use std::iter;
 
 use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::{rty::ParamTy, rustc::ty::Mutability};
+use flux_middle::rustc::ty::Mutability;
 use flux_syntax::surface::{self, Res};
 use hir::{
     def::{DefKind, Res as HirRes},
@@ -34,7 +36,7 @@ pub fn check_struct_def(
     iter::zip(&struct_def.fields, hir_variant.fields()).try_for_each_exhaust(
         |(opt_ty, hir_field)| {
             if let Some(ty) = opt_ty {
-                let zipper = Zipper::new(tcx, sess, hir_field.def_id);
+                let zipper = Zipper::new(tcx, sess, hir_field.def_id)?;
                 zipper.zip_ty(ty, hir_field.ty)?;
             }
             Ok(())
@@ -53,7 +55,7 @@ pub fn check_enum_def(
     };
     iter::zip(&enum_def.variants, hir_enum_def.variants).try_for_each_exhaust(
         |(variant, hir_variant)| {
-            let zipper = Zipper::new(tcx, sess, hir_variant.def_id);
+            let zipper = Zipper::new(tcx, sess, hir_variant.def_id)?;
             zipper.zip_enum_variant(variant, hir_variant)
         },
     )
@@ -70,7 +72,7 @@ pub fn check_fn_sig(
         .hir()
         .fn_decl_by_hir_id(hir_id)
         .expect("expected function decl");
-    let mut zipper = Zipper::new(tcx, sess, def_id);
+    let mut zipper = Zipper::new(tcx, sess, def_id)?;
     zipper.zip_fun_args(fn_sig.span, &fn_sig.args, hir_fn_decl.inputs)?;
     zipper.zip_return_ty(fn_sig.span, &fn_sig.returns, &hir_fn_decl.output)?;
     zipper.zip_ensures(&fn_sig.ensures)?;
@@ -105,16 +107,29 @@ struct SimplifiedSelfTy {
 type LocsMap<'hir> = FxHashMap<Ident, &'hir hir::Ty<'hir>>;
 
 impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession, def_id: LocalDefId) -> Self {
+    fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'sess FluxSession,
+        def_id: LocalDefId,
+    ) -> Result<Self, ErrorGuaranteed> {
         // If we are zipping a field or a variant find the parent struct/enum to get its generics.
         let owner_id = as_owner_or_parent(tcx, def_id);
         let self_ty = match tcx.hir().owner(owner_id) {
-            hir::OwnerNode::Item(item) => SimplifiedSelfTy::try_from(item).ok(),
+            hir::OwnerNode::Item(item) => {
+                if matches!(item.kind, hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..)) {
+                    let self_ty = SimplifiedSelfTy::try_from(item).map_err(|err| {
+                        sess.emit_err(errors::UnsupportedHir::new(tcx, def_id, err))
+                    })?;
+                    Some(self_ty)
+                } else {
+                    None
+                }
+            }
             hir::OwnerNode::ImplItem(impl_item) => SimplifiedSelfTy::from_impl_item(tcx, impl_item),
             _ => bug!("expected a function or method"),
         };
 
-        Self { tcx, sess, self_ty, def_id, locs: LocsMap::default() }
+        Ok(Self { tcx, sess, self_ty, def_id, locs: LocsMap::default() })
     }
 
     fn zip_enum_variant(
@@ -512,7 +527,7 @@ mod errors {
     use super::{SimplifiedHirPath, SimplifiedSelfTy};
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::unsupported_hir, code = "FLUX")]
+    #[diag(hir_annot_check::unsupported_hir, code = "FLUX")]
     #[note]
     pub(super) struct UnsupportedHir<'a> {
         #[primary_span]
@@ -534,13 +549,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::array_len_mismatch, code = "FLUX")]
+    #[diag(hir_annot_check::array_len_mismatch, code = "FLUX")]
     pub(super) struct ArrayLenMismatch {
         #[primary_span]
         #[label]
         flux_span: Span,
         flux_len: usize,
-        #[label(hir_resolver::hir_label)]
+        #[label(hir_annot_check::hir_label)]
         hir_span: Span,
         hir_len: usize,
     }
@@ -557,12 +572,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::expected_default_return, code = "FLUX")]
+    #[diag(hir_annot_check::expected_default_return, code = "FLUX")]
     pub(super) struct ExpectedDefaultReturn {
         #[primary_span]
         #[label]
         ret_ty_span: Span,
-        #[label(hir_resolver::default_return)]
+        #[label(hir_annot_check::default_return)]
         default_ret_span: Span,
     }
 
@@ -573,12 +588,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::missing_return_type, code = "FLUX")]
+    #[diag(hir_annot_check::missing_return_type, code = "FLUX")]
     pub(super) struct MissingReturnType {
         #[primary_span]
         #[label]
         flux_sig_span: Span,
-        #[label(hir_resolver::hir_ret)]
+        #[label(hir_annot_check::hir_ret)]
         rust_ret_ty_span: Span,
     }
 
@@ -589,12 +604,12 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::invalid_refinement, code = "FLUX")]
+    #[diag(hir_annot_check::invalid_refinement, code = "FLUX")]
     pub(super) struct InvalidRefinement {
         #[primary_span]
         #[label]
         flux_span: Span,
-        #[label(hir_resolver::hir_label)]
+        #[label(hir_annot_check::hir_label)]
         hir_span: Span,
         hir_type: String,
         #[note]
@@ -640,29 +655,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::mutability_mismatch, code = "FLUX")]
-    pub struct MutabilityMismatch {
-        #[primary_span]
-        #[label]
-        flux_span: Span,
-        #[label(hir_resolver::hir_label)]
-        hir_span: Span,
-    }
-
-    impl MutabilityMismatch {
-        pub fn new(flux_span: Span, hir_span: Span) -> Self {
-            Self { flux_span, hir_span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(hir_resolver::fun_arg_count_mismatch, code = "FLUX")]
+    #[diag(hir_annot_check::fun_arg_count_mismatch, code = "FLUX")]
     pub(super) struct FunArgCountMismatch {
         #[primary_span]
         #[label]
         flux_span: Span,
         flux_args: usize,
-        #[label(hir_resolver::hir_label)]
+        #[label(hir_annot_check::hir_label)]
         hir_span: Span,
         hir_args: usize,
     }
@@ -679,7 +678,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::unresolved_location, code = "FLUX")]
+    #[diag(hir_annot_check::unresolved_location, code = "FLUX")]
     pub(super) struct UnresolvedLocation {
         #[primary_span]
         #[label]
@@ -694,13 +693,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::field_count_mismatch, code = "FLUX")]
+    #[diag(hir_annot_check::field_count_mismatch, code = "FLUX")]
     pub(super) struct FieldCountMismatch {
         #[primary_span]
         #[label]
         flux_span: Span,
         flux_fields: usize,
-        #[label(hir_resolver::hir_label)]
+        #[label(hir_annot_check::hir_label)]
         hir_span: Span,
         hir_fields: usize,
     }
@@ -717,7 +716,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(hir_resolver::generic_argument_count_mismatch, code = "FLUX")]
+    #[diag(hir_annot_check::generic_argument_count_mismatch, code = "FLUX")]
     pub(super) struct GenericArgCountMismatch {
         #[primary_span]
         #[label]
@@ -725,7 +724,7 @@ mod errors {
         expected: usize,
         found: usize,
         def_kind: &'static str,
-        #[label(hir_resolver::hir_label)]
+        #[label(hir_annot_check::hir_label)]
         hir_span: Span,
     }
 

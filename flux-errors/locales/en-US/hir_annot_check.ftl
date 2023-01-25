@@ -1,35 +1,30 @@
-hir_resolver_array_len_mismatch =
+hir_annot_check_array_len_mismatch =
     array length mismatch
     .label = expected {$hir_len}, found {$flux_len}
     .hir_label = expected length
 
-hir_resolver_unsupported_hir =
+hir_annot_check_unsupported_hir =
     refinement of unsupported {$def_kind}
     .label = this {$def_kind} contains unsupported features
     .note = {$note}
 
-hir_resolver_expected_default_return =
+hir_annot_check_expected_default_return =
     return type mismatch
     .label = refined signature has a return type
     .default_return = rust signature has no return type
 
-hir_resolver_missing_return_type =
+hir_annot_check_missing_return_type =
     missing return type
     .label = refined signature has no return type
     .hir_ret = rust signature has a return type
 
-hir_resolver_mutability_mismatch =
-    invalid refinement annotation
-    .label = type differs in mutability
-    .hir_label = rust reference has different mutability
-
-hir_resolver_invalid_refinement =
+hir_annot_check_invalid_refinement =
     invalid refinement annotation
     .label = expected a refinement of `{$hir_type}`
     .hir_label = must be a valid refinement of this type
     .note = {$note}
 
-hir_resolver_fun_arg_count_mismatch =
+hir_annot_check_fun_arg_count_mismatch =
     argument count mismatch
     .label = refined signature has {$flux_args} {$flux_args ->
         [one] argument
@@ -40,11 +35,11 @@ hir_resolver_fun_arg_count_mismatch =
         *[other] arguments
     }
 
-hir_resolver_unresolved_location =
+hir_annot_check_unresolved_location =
     cannot resolve `{$loc}`: only `&strg` variables can appear in ensures clauses
     .label = maybe annotate as `&strg`
 
-hir_resolver_field_count_mismatch =
+hir_annot_check_field_count_mismatch =
     field count mismatch
     .label = refined variant has {$flux_fields} {$flux_fields ->
         [one] field
@@ -55,7 +50,7 @@ hir_resolver_field_count_mismatch =
         *[other] fields
     }
 
-hir_resolver_generic_argument_count_mismatch =
+hir_annot_check_generic_argument_count_mismatch =
     this {$def_kind} must take {$expected} generic {$expected ->
         [one] argument
         *[other] arguments

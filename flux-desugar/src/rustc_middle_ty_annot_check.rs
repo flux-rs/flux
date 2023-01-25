@@ -1,3 +1,5 @@
+#![allow(unused)]
+///! this module is currently not being used but we keep it here just in case
 use std::{collections::HashMap, iter};
 
 use flux_common::iter::IterExt;
