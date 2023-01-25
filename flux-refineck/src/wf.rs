@@ -202,7 +202,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices = self.check_index(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
+        let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
         fields?;
         indices?;
         Ok(())
@@ -253,8 +253,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match ty {
             fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
-            fhir::Ty::Indexed(bty, refine) => {
-                self.check_index(env, refine, &bty.sort())?;
+            fhir::Ty::Indexed(bty, idx) => {
+                self.check_refine_arg(env, idx, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
             fhir::Ty::Exists(bty, bind, pred) => {
@@ -295,25 +295,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
-        }
-    }
-
-    fn check_index(
-        &self,
-        env: &mut Env,
-        idx: &fhir::Index,
-        expected: &fhir::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
-        match &idx.kind {
-            fhir::IndexKind::Single(arg) => self.check_refine_arg(env, arg, expected),
-            fhir::IndexKind::Aggregate(def_id, args) => {
-                self.check_aggregate(env, *def_id, args, idx.span)?;
-                let found = fhir::Sort::Adt(*def_id);
-                if &found != expected {
-                    return self.emit_err(errors::SortMismatch::new(idx.span, expected, &found));
-                }
-                Ok(())
-            }
         }
     }
 
@@ -370,6 +351,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 } else {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))
                 }
+            }
+            fhir::RefineArg::Aggregate(def_id, flds, span) => {
+                self.check_aggregate(env, *def_id, flds, *span)?;
+                let found = fhir::Sort::Adt(*def_id);
+                if &found != expected {
+                    return self.emit_err(errors::SortMismatch::new(*span, expected, &found));
+                }
+                Ok(())
             }
         }
     }
@@ -569,13 +558,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
-        if let fhir::Sort::Func(fsort) = sort {
-            Some(fsort.clone())
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_adt(sort) {
-            Some(fsort.clone())
-        } else {
-            None
-        }
+        self.early_cx.is_coercible_to_func(sort)
     }
 
     fn is_coercible_to_numeric(&self, sort: &fhir::Sort) -> Option<fhir::Sort> {
@@ -589,11 +572,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
-        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.early_cx.sorts_of(*def_id) {
-            Some(sort)
-        } else {
-            None
-        }
+        self.early_cx.is_single_field_adt(sort)
     }
 
     /// Checks that refinement parameters are used in allowed positions.

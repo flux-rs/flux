@@ -297,7 +297,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> RefineArg {
         match kind {
             InferMode::KVar => {
-                let fsort = sort.as_func();
+                let fsort = sort.expect_func();
                 RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
             }
             InferMode::EVar => RefineArg::Expr(Expr::evar(self.fresh_evar())),

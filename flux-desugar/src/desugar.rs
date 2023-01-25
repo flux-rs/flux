@@ -290,7 +290,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::Arg::Constr(bind, path, pred) => {
                 let ty = match self.desugar_path(path, &[])? {
                     BtyOrTy::Bty(bty) => {
-                        let idx = self.desugar_bind(*bind)?;
+                        let idx = self.bind_into_refine_arg(*bind)?;
                         fhir::Ty::Indexed(bty, idx)
                     }
                     BtyOrTy::Ty(ty) => ty,
@@ -337,7 +337,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                             let pred = self.binders.with_binder(*ident, binder, |binders| {
                                 ExprCtxt::new(self.early_cx, binders).desugar_expr(pred)
                             })?;
-                            let idxs = self.desugar_bind(bind)?;
+                            let idxs = self.bind_into_refine_arg(bind)?;
                             Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
                         } else {
                             let name = self.binders.fresh();
@@ -382,15 +382,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         bty: &fhir::BaseTy,
         idxs: &surface::Indices,
-    ) -> Result<fhir::Index, ErrorGuaranteed> {
-        let kind = if let fhir::BaseTy::Adt(def_id, _) = bty && idxs.indices.len() != 1 {
-            let args = self.desugar_refine_args(&idxs.indices)?;
-            fhir::IndexKind::Aggregate(*def_id, args)
+    ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
+        if let fhir::BaseTy::Adt(def_id, _) = bty && idxs.indices.len() != 1 {
+            let flds = self.desugar_refine_args(&idxs.indices)?;
+            Ok(fhir::RefineArg::Aggregate(*def_id, flds, idxs.span))
         } else {
             let arg = idxs.indices.first().unwrap();
-            fhir::IndexKind::Single(self.desugar_refine_arg(arg)?)
-        };
-        Ok(fhir::Index { kind, span: idxs.span })
+            self.desugar_refine_arg(arg)
+        }
     }
 
     fn desugar_refine_args(
@@ -402,12 +401,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             .try_collect_exhaust()
     }
 
-    fn desugar_bind(&self, bind: surface::Ident) -> Result<fhir::Index, ErrorGuaranteed> {
-        let kind = fhir::IndexKind::Single(self.bind_into_arg(bind)?);
-        Ok(fhir::Index { kind, span: bind.span })
-    }
-
-    fn bind_into_arg(&self, ident: surface::Ident) -> Result<fhir::RefineArg, ErrorGuaranteed> {
+    fn bind_into_refine_arg(
+        &self,
+        ident: surface::Ident,
+    ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match self.binders.get(ident) {
             Some(Binder::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
@@ -424,7 +421,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         arg: &surface::RefineArg,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match arg {
-            surface::RefineArg::Bind(ident, ..) => self.bind_into_arg(*ident),
+            surface::RefineArg::Bind(ident, ..) => self.bind_into_refine_arg(*ident),
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
@@ -503,7 +500,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         match self.desugar_bty(bty)? {
             BtyOrTy::Bty(bty) => {
                 if let Some(bind) = bind {
-                    let idx = self.desugar_bind(bind)?;
+                    let idx = self.bind_into_refine_arg(bind)?;
                     Ok(fhir::Ty::Indexed(bty, idx))
                 } else {
                     Ok(fhir::Ty::BaseTy(bty))

@@ -115,7 +115,7 @@ pub struct VariantDef {
 #[derive(Debug)]
 pub struct VariantRet {
     pub bty: BaseTy,
-    pub idx: Index,
+    pub idx: RefineArg,
 }
 
 pub struct FnSig {
@@ -145,7 +145,7 @@ pub enum Ty {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
-    Indexed(BaseTy, Index),
+    Indexed(BaseTy, RefineArg),
     Exists(BaseTy, Ident, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
@@ -188,15 +188,15 @@ impl From<RefKind> for WeakKind {
     }
 }
 
-pub struct Index {
-    pub kind: IndexKind,
-    pub span: Span,
-}
+// pub struct Index {
+//     pub kind: IndexKind,
+//     pub span: Span,
+// }
 
-pub enum IndexKind {
-    Single(RefineArg),
-    Aggregate(DefId, Vec<RefineArg>),
-}
+// pub enum IndexKind {
+//     Single(RefineArg),
+//     Aggregate(DefId, Vec<RefineArg>),
+// }
 
 pub enum RefineArg {
     Expr {
@@ -206,6 +206,7 @@ pub enum RefineArg {
         is_binder: bool,
     },
     Abs(Vec<Name>, Expr, Span),
+    Aggregate(DefId, Vec<RefineArg>, Span),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -319,15 +320,6 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
-        }
-    }
-}
-
-impl Index {
-    pub fn flatten(&self) -> &[RefineArg] {
-        match &self.kind {
-            IndexKind::Single(arg) => std::slice::from_ref(arg),
-            IndexKind::Aggregate(_, args) => args,
         }
     }
 }
@@ -453,7 +445,7 @@ impl Sort {
     }
 
     #[track_caller]
-    pub fn as_func(&self) -> &FuncSort {
+    pub fn expect_func(&self) -> &FuncSort {
         if let Sort::Func(sort) = self {
             sort
         } else {
@@ -728,23 +720,23 @@ impl fmt::Debug for Ty {
     }
 }
 
-impl fmt::Debug for Index {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            IndexKind::Single(idx) => {
-                write!(f, "{idx:?}")
-            }
-            IndexKind::Aggregate(def_id, flds) => {
-                write!(
-                    f,
-                    "[{}{{ {:?} }}]",
-                    pretty::def_id_to_string(*def_id),
-                    flds.iter().format(", ")
-                )
-            }
-        }
-    }
-}
+// impl fmt::Debug for Index {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match &self.kind {
+//             IndexKind::Single(idx) => {
+//                 write!(f, "{idx:?}")
+//             }
+//             IndexKind::Aggregate(def_id, flds) => {
+//                 write!(
+//                     f,
+//                     "[{}{{ {:?} }}]",
+//                     pretty::def_id_to_string(*def_id),
+//                     flds.iter().format(", ")
+//                 )
+//             }
+//         }
+//     }
+// }
 
 impl fmt::Debug for ArrayLen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -779,6 +771,14 @@ impl fmt::Debug for RefineArg {
             }
             RefineArg::Abs(params, body, _) => {
                 write!(f, "|{:?}| {body:?}", params.iter().format(","))
+            }
+            RefineArg::Aggregate(def_id, flds, _) => {
+                write!(
+                    f,
+                    "[{}{{ {:?} }}]",
+                    pretty::def_id_to_string(*def_id),
+                    flds.iter().format(", ")
+                )
             }
         }
     }

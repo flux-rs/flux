@@ -66,4 +66,22 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
     pub fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
         self.sess.emit_err(err)
     }
+
+    pub fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
+        if let fhir::Sort::Func(fsort) = sort {
+            Some(fsort.clone())
+        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_adt(sort) {
+            Some(fsort.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn is_single_field_adt<'b>(&'b self, sort: &fhir::Sort) -> Option<&'b fhir::Sort> {
+        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.sorts_of(*def_id) {
+            Some(sort)
+        } else {
+            None
+        }
+    }
 }

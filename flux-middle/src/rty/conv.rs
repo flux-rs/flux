@@ -185,8 +185,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn conv_variant_ret(&mut self, ret: &fhir::VariantRet) -> VariantRet {
         let bty = self.conv_base_ty(&ret.bty);
         let args = List::from_iter(
-            iter::zip(ret.idx.flatten(), flatten_sort(self.early_cx(), &ret.bty.sort()))
-                .flat_map(|(arg, sort)| self.conv_refine_arg(arg, &sort)),
+            self.conv_refine_arg(&ret.idx, &ret.bty.sort())
+                .into_iter()
+                .map(|(arg, _)| arg),
         );
 
         VariantRet { bty, args }
@@ -301,6 +302,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
             fhir::Ty::Alias(def_id, substs, args) => {
+                // self.genv
+                //     .type_of(*def_id)
+                //     .replace_generics(&self.conv_generic_args(*def_id, substs));
                 self.genv
                     .default_type_of(*def_id)
                     .replace_generics(&self.conv_generic_args(*def_id, substs))
@@ -308,44 +312,45 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_indexed_ty(&mut self, bty: &fhir::BaseTy, idx: &fhir::Index) -> rty::Ty {
-        let mut args = vec![];
-        for (arg, sort) in iter::zip(idx.flatten(), flatten_sort(self.early_cx(), &bty.sort())) {
-            let is_binder = matches!(arg, fhir::RefineArg::Expr { is_binder: true, .. });
-            args.extend(
-                self.conv_refine_arg(arg, &sort)
-                    .into_iter()
-                    .map(|arg| (arg, is_binder)),
-            );
-        }
-        let args = rty::RefineArgs::new(args);
+    fn conv_indexed_ty(&mut self, bty: &fhir::BaseTy, idx: &fhir::RefineArg) -> rty::Ty {
+        let idxs = rty::RefineArgs::new(self.conv_refine_arg(idx, &bty.sort()));
         let bty = self.conv_base_ty(bty);
-        rty::Ty::indexed(bty, args)
+        rty::Ty::indexed(bty, idxs)
     }
 
-    fn conv_refine_arg(&mut self, arg: &fhir::RefineArg, sort: &fhir::Sort) -> Vec<rty::RefineArg> {
+    fn conv_refine_arg(
+        &mut self,
+        arg: &fhir::RefineArg,
+        sort: &fhir::Sort,
+    ) -> Vec<(rty::RefineArg, bool)> {
         match arg {
             fhir::RefineArg::Expr {
                 expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
-                ..
+                is_binder,
             } => {
                 let (_, bvars) = self.env.get(var.name);
                 bvars
                     .into_iter()
-                    .map(|bvar| rty::RefineArg::Expr(bvar.to_expr()))
+                    .map(|bvar| (rty::RefineArg::Expr(bvar.to_expr()), *is_binder))
                     .collect_vec()
             }
-            fhir::RefineArg::Expr { expr, .. } => {
-                vec![rty::RefineArg::Expr(self.env.conv_expr(expr))]
+            fhir::RefineArg::Expr { expr, is_binder } => {
+                vec![(rty::RefineArg::Expr(self.env.conv_expr(expr)), *is_binder)]
             }
             fhir::RefineArg::Abs(params, body, _) => {
-                let fsort = sort.as_func();
+                let fsort = self.expect_func(sort);
                 self.env
                     .push_layer(Layer::new(self.early_cx(), iter::zip(params, fsort.inputs())));
                 let pred = self.env.conv_expr(body);
                 let abs = rty::Binders::new(pred, flatten_sorts(self.early_cx(), fsort.inputs()));
                 self.env.pop_layer();
-                vec![rty::RefineArg::Abs(abs)]
+                vec![(rty::RefineArg::Abs(abs), false)]
+            }
+            fhir::RefineArg::Aggregate(def_id, flds, _) => {
+                let sorts = self.genv.sorts_of(*def_id);
+                iter::zip(flds, sorts)
+                    .flat_map(|(arg, sort)| self.conv_refine_arg(arg, sort))
+                    .collect()
             }
         }
     }
@@ -400,6 +405,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {
         self.genv.early_cx()
+    }
+
+    fn expect_func(&self, sort: &fhir::Sort) -> fhir::FuncSort {
+        self.early_cx().is_coercible_to_func(sort).unwrap()
     }
 }
 
