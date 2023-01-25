@@ -794,7 +794,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     }
                 }
             }
-            CastKind::FloatToInt | CastKind::IntToFloat | CastKind::Pointer(_) => {
+            CastKind::FloatToInt | CastKind::IntToFloat | CastKind::Pointer(PointerCast::MutToConstPointer) => {
                 self.genv
                     .refine_ty(to, &mut |sorts| Binders::new(Expr::tt(), sorts))
             }
