@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Test - Flux Documentation</title>
+        <title>Develop - Flux Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -80,7 +80,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Use</li><li class="chapter-item expanded "><a href="../use/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../use/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../use/editors.html"><strong aria-hidden="true">3.</strong> Editor Support</a></li><li class="chapter-item expanded "><a href="../use/specs.html"><strong aria-hidden="true">4.</strong> Specifications</a></li><li class="chapter-item expanded affix "><li class="part-title">Develop</li><li class="chapter-item expanded "><a href="../dev/flags.html"><strong aria-hidden="true">5.</strong> Flags</a></li><li class="chapter-item expanded "><a href="../dev/test.html" class="active"><strong aria-hidden="true">6.</strong> Test</a></li><li class="chapter-item expanded "><a href="../dev/profile.html"><strong aria-hidden="true">7.</strong> Profile</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Architecture</div></li><li class="chapter-item expanded affix "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">9.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">10.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">12.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">13.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">14.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/develop.html" class="active"><strong aria-hidden="true">3.</strong> Develop</a></li><li class="chapter-item expanded affix "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">4.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">5.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">6.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -141,20 +141,73 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="test"><a class="header" href="#test">Test</a></h1>
+                        <h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
+<h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
 <p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directory using</p>
 <pre><code>$ cargo test -p flux-tests
+</code></pre>
+<h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
+<p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
+<p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
+<h3 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h3>
+<p>Below is a sample output for an invocation of <code>cargo-flux check</code> that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for <code>cargo check</code> to run.</p>
+<p>Note that <code>check_crate</code> contains everything running under <code>check_top</code>, which is why the sum of the spans is greater than 19 seconds.</p>
+<pre><code>check_top
+  Checker::infer
+    num events:   205
+    min non-zero: 0.52ms
+    1st quartile: 0.52ms
+    2nd quartile: 1.05ms
+    3rd quartile: 2.62ms
+    max:          24.12ms
+    total time:   229.64ms
+  Checker::check
+    num events:   205
+    min non-zero: 0.52ms
+    1st quartile: 0.52ms
+    2nd quartile: 1.05ms
+    3rd quartile: 5.24ms
+    max:          159.91ms
+    total time:   2028.47ms
+  FixpointCtx::check
+    num events:   205
+    min non-zero: 22.02ms
+    1st quartile: 26.21ms
+    2nd quartile: 28.31ms
+    3rd quartile: 40.37ms
+    max:          1867.51ms
+    total time:   9106.36ms
+total time: 11364.47ms
+
+check_crate
+  Callbacks::check_wf
+    num events:   1
+    min non-zero: 18.35ms
+    1st quartile: 18.87ms
+    2nd quartile: 18.87ms
+    3rd quartile: 18.87ms
+    max:          18.87ms
+    total time:   18.87ms
+  Callbacks::check_crate
+    num events:   1
+    min non-zero: 16986.93ms
+    1st quartile: 16995.32ms
+    2nd quartile: 16995.32ms
+    3rd quartile: 16995.32ms
+    max:          16995.32ms
+    total time:   16995.32ms
+total time: 17014.19ms
 </code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../dev/flags.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/run.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next" href="../dev/profile.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="../blog/01-introducing-flux.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -164,11 +217,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../dev/flags.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/run.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next" href="../dev/profile.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="../blog/01-introducing-flux.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

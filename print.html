@@ -81,7 +81,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Use</li><li class="chapter-item expanded "><a href="use/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="use/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="use/editors.html"><strong aria-hidden="true">3.</strong> Editor Support</a></li><li class="chapter-item expanded "><a href="use/specs.html"><strong aria-hidden="true">4.</strong> Specifications</a></li><li class="chapter-item expanded affix "><li class="part-title">Develop</li><li class="chapter-item expanded "><a href="dev/flags.html"><strong aria-hidden="true">5.</strong> Flags</a></li><li class="chapter-item expanded "><a href="dev/test.html"><strong aria-hidden="true">6.</strong> Test</a></li><li class="chapter-item expanded "><a href="dev/profile.html"><strong aria-hidden="true">7.</strong> Profile</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Architecture</div></li><li class="chapter-item expanded affix "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="blog/01-introducing-flux.html"><strong aria-hidden="true">9.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="blog/02-ownership.html"><strong aria-hidden="true">10.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">12.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">13.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">14.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="guide/develop.html"><strong aria-hidden="true">3.</strong> Develop</a></li><li class="chapter-item expanded affix "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="blog/01-introducing-flux.html"><strong aria-hidden="true">4.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="blog/02-ownership.html"><strong aria-hidden="true">5.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">6.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="about.html">About</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -163,7 +163,7 @@ time.</p>
 cd flux
 </code></pre>
 <p>To build the source you need a nightly version of rustc.
-We pin the version using a <a href="use//rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
+We pin the version using a <a href="guide//rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
 If you are using rustup, no special action is needed as it should install the correct rustc version and components based on the information on that file.</p>
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo install --path flux
@@ -171,7 +171,8 @@ cargo install --path flux-bin
 </code></pre>
 <p>This will install <code>flux-driver</code>, <code>rustc-flux</code> and <code>cargo-flux</code>. Note that you should not call <code>flux-driver</code> directly, but rather use <code>rustc-flux</code> and <code>cargo-flux</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
-<h2 id="rustc-flux"><a class="header" href="#rustc-flux"><code>rustc-flux</code></a></h2>
+<p>You can run <code>flux</code> on a single file or entire crate.</p>
+<h2 id="running-on-a-file-rustc-flux"><a class="header" href="#running-on-a-file-rustc-flux">Running on a File: <code>rustc-flux</code></a></h2>
 <p>You can use <code>rustc-flux</code> as you would use <code>rustc</code>.
 For example, the following command checks the file <code>test.rs</code>.</p>
 <pre><code class="language-bash">rustc-flux path/to/test.rs
@@ -183,7 +184,7 @@ You could for example check a file as a library instead of a binary like so</p>
 <p>Additionally, at the moment flux passes some default flags (like <code>-O</code> and
 <code>-Cpanic=abort</code>) because otherwise the resulting mir will have features not yet
 supported.</p>
-<h2 id="cargo-flux"><a class="header" href="#cargo-flux"><code>cargo-flux</code></a></h2>
+<h2 id="running-on-a-crate-cargo-flux"><a class="header" href="#running-on-a-crate-cargo-flux">Running on a Crate: <code>cargo-flux</code></a></h2>
 <p>You can use <code>cargo-flux</code> as you would use <code>cargo</code>. For the most part this means
 instead of running <code>cargo check</code>, you should run</p>
 <pre><code class="language-bash">cargo-flux check
@@ -224,7 +225,7 @@ pub fn inc(x: i32) -&gt; i32 {
 <p>If you fix the error by replacing <code>x - 1</code> with <code>x + 1</code>, you should get no errors
 in the output (the output may be empty, but in this case no output is a good
 thing).</p>
-<p>Read <a href="use/SUMMARY.html#learn">these chapters</a> to learn more about what you specify and verify with <code>flux</code>.</p>
+<p>Read <a href="guide/SUMMARY.html#learn">these chapters</a> to learn more about what you specify and verify with <code>flux</code>.</p>
 <h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
 <p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
 driver</a>
@@ -232,9 +233,9 @@ driver</a>
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
 hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h1>
+<h2 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h2>
 <p>This section assumes you have installed <code>flux</code>, <code>cargo-flux</code>, and <code>rustc-flux</code>.</p>
-<h2 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h2>
+<h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
 <p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
 <pre><code class="language-json">{
   &quot;rust-analyzer.checkOnSave.overrideCommand&quot;: [
@@ -255,28 +256,8 @@ run <code>cargo build</code>.</p>
 }
 </code></pre>
 <p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specification-guide"><a class="header" href="#flux-specification-guide">Flux Specification Guide</a></h1>
-<p>This is a WIP guide to writing specifications in <code>flux</code>.</p>
-<h2 id="grammar-of-refinements"><a class="header" href="#grammar-of-refinements">Grammar of Refinements</a></h2>
-<p>Note: This changes frequently! For most up-to-date grammar see <a href="use/flux-syntax/src/surface_grammar.lalrpop"><code>surface_grammar.lalrpop</code></a></p>
-<pre><code>e ::= n                     // numbers 1,2,3...
-    | x                     // identifiers x,y,z...
-    | x.f                   // index-field access
-    | e + e                 // addition
-    | e - e                 // subtraction
-    | n * e                 // multiplication by constant
-    | if p { e } else { e } // if-then-else
-    | f(e...)               // uninterpreted function application
-
-p ::= true | false
-    | e = e   // equality
-    | e &lt; e   // less than
-    | p || p  // disjunction
-    | p &amp;&amp; p  // conjunction
-    | p =&gt; p  // implication
-    | !p      // negation
-</code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="command-line-flags"><a class="header" href="#command-line-flags">Command Line Flags</a></h1>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
 <p>You can set various <code>env</code> variables to customize the behavior of <code>flux</code>.</p>
 <ul>
 <li><code>FLUX_CONFIG</code> tells <code>flux</code> where to find a config file for these settings.
@@ -300,7 +281,7 @@ p ::= true | false
 <li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
 </ul>
-<h1 id="config-file"><a class="header" href="#config-file">Config file</a></h1>
+<h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
 <p>The config file is a <code>.toml</code> file that contains on each line the lowercase name
 of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. Set environment
 variables take priority over the config file.</p>
@@ -316,21 +297,20 @@ dump_mir = true
 <p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
 containing profiling information. It will <em>not</em> dump the MIR because that setting
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
-<h2 id="check-asserts"><a class="header" href="#check-asserts">Check Asserts</a></h2>
-<p>TODO</p>
-<h2 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h2>
+<h3 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h3>
 <p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each <code>DefId</code> in
 <code>FLUX_LOG_DIR/FLUX_CACHE_FILE</code>, and on subsequent runs, skips queries that are
 already in the cache, which considerably speeds up <code>cargo-flux check</code> on an
 entire crate.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="test"><a class="header" href="#test">Test</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
+<h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
 <p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directory using</p>
 <pre><code>$ cargo test -p flux-tests
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h1>
+<h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
 <p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
 <p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
-<h2 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h2>
+<h3 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h3>
 <p>Below is a sample output for an invocation of <code>cargo-flux check</code> that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for <code>cargo check</code> to run.</p>
 <p>Note that <code>check_crate</code> contains everything running under <code>check_top</code>, which is why the sum of the spans is greater than 19 seconds.</p>
 <pre><code>check_top

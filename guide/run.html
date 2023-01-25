@@ -80,7 +80,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Use</li><li class="chapter-item expanded "><a href="../use/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../use/run.html" class="active"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../use/editors.html"><strong aria-hidden="true">3.</strong> Editor Support</a></li><li class="chapter-item expanded "><a href="../use/specs.html"><strong aria-hidden="true">4.</strong> Specifications</a></li><li class="chapter-item expanded affix "><li class="part-title">Develop</li><li class="chapter-item expanded "><a href="../dev/flags.html"><strong aria-hidden="true">5.</strong> Flags</a></li><li class="chapter-item expanded "><a href="../dev/test.html"><strong aria-hidden="true">6.</strong> Test</a></li><li class="chapter-item expanded "><a href="../dev/profile.html"><strong aria-hidden="true">7.</strong> Profile</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Architecture</div></li><li class="chapter-item expanded affix "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">9.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">10.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">11.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">12.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">13.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">14.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html" class="active"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/develop.html"><strong aria-hidden="true">3.</strong> Develop</a></li><li class="chapter-item expanded affix "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">4.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">5.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">6.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -142,7 +142,8 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
-<h2 id="rustc-flux"><a class="header" href="#rustc-flux"><code>rustc-flux</code></a></h2>
+<p>You can run <code>flux</code> on a single file or entire crate.</p>
+<h2 id="running-on-a-file-rustc-flux"><a class="header" href="#running-on-a-file-rustc-flux">Running on a File: <code>rustc-flux</code></a></h2>
 <p>You can use <code>rustc-flux</code> as you would use <code>rustc</code>.
 For example, the following command checks the file <code>test.rs</code>.</p>
 <pre><code class="language-bash">rustc-flux path/to/test.rs
@@ -154,7 +155,7 @@ You could for example check a file as a library instead of a binary like so</p>
 <p>Additionally, at the moment flux passes some default flags (like <code>-O</code> and
 <code>-Cpanic=abort</code>) because otherwise the resulting mir will have features not yet
 supported.</p>
-<h2 id="cargo-flux"><a class="header" href="#cargo-flux"><code>cargo-flux</code></a></h2>
+<h2 id="running-on-a-crate-cargo-flux"><a class="header" href="#running-on-a-crate-cargo-flux">Running on a Crate: <code>cargo-flux</code></a></h2>
 <p>You can use <code>cargo-flux</code> as you would use <code>cargo</code>. For the most part this means
 instead of running <code>cargo check</code>, you should run</p>
 <pre><code class="language-bash">cargo-flux check
@@ -203,16 +204,85 @@ driver</a>
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
 hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
+<h2 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h2>
+<p>This section assumes you have installed <code>flux</code>, <code>cargo-flux</code>, and <code>rustc-flux</code>.</p>
+<h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
+<p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
+<pre><code class="language-json">{
+  &quot;rust-analyzer.checkOnSave.overrideCommand&quot;: [
+    &quot;cargo-flux&quot;,
+    &quot;check&quot;,
+    &quot;--workspace&quot;,
+    &quot;--message-format=json&quot;
+  ]
+}
+</code></pre>
+<p>If you want to change the <code>flux</code> used by <code>cargo-flux</code>, then also specify the
+<code>FLUX_PATH</code> like in the example below, which uses the version generated when you
+run <code>cargo build</code>.</p>
+<pre><code class="language-json">{
+  &quot;rust-analyzer.checkOnSave.extraEnv&quot;: {
+    &quot;FLUX_PATH&quot;: &quot;/path/to/flux-repo/target/debug/flux&quot;,
+  }
+}
+</code></pre>
+<p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
+<p>You can set various <code>env</code> variables to customize the behavior of <code>flux</code>.</p>
+<ul>
+<li><code>FLUX_CONFIG</code> tells <code>flux</code> where to find a config file for these settings.
+<ul>
+<li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
+</ul>
+</li>
+<li><code>FLUX_DRIVER_PATH=path/to/flux-driver</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux</code> binary.
+<ul>
+<li>Defaults to the default <code>flux-driver</code> installation (typically found in <code>~/.cargo/bin</code>).</li>
+</ul>
+</li>
+<li><code>FLUX_LOG_DIR=path/to/log/</code> with default <code>./log/</code></li>
+<li><code>FLUX_DUMP_CONSTRAINT=1</code> sets the directory where constraints, timing and cache are saved.</li>
+<li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
+<li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
+<li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
+<li><code>FLUX_CHECK_ASSERTS={ignore, assume, check}</code> TODO</li>
+<li><code>FLUX_POINTER_WIDTH=N</code> TODO (default <code>64</code>)</li>
+<li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
+<li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
+<li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
+</ul>
+<h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
+<p>The config file is a <code>.toml</code> file that contains on each line the lowercase name
+of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. Set environment
+variables take priority over the config file.</p>
+<p>The config file should be in the project root.</p>
+<p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
+<pre><code class="language-toml">log_dir = &quot;./test&quot;
+dump_timings = true
+dump_mir = true
+</code></pre>
+<p>and you run in the project root</p>
+<pre><code class="language-bash">FLUX_DUMP_MIR=0 cargo-flux check
+</code></pre>
+<p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
+containing profiling information. It will <em>not</em> dump the MIR because that setting
+was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
+<h3 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h3>
+<p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each <code>DefId</code> in
+<code>FLUX_LOG_DIR/FLUX_CACHE_FILE</code>, and on subsequent runs, skips queries that are
+already in the cache, which considerably speeds up <code>cargo-flux check</code> on an
+entire crate.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../use/install.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/install.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next" href="../use/editors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="../guide/develop.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -222,11 +292,11 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../use/install.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/install.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next" href="../use/editors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="../guide/develop.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
