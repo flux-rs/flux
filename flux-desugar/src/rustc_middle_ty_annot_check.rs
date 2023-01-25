@@ -69,9 +69,9 @@ pub fn check_fn_sig(
     ck.zip_ty_locs(&fn_sig.ensures, &locs)
 }
 
-struct ZipChecker<'genv, 'tcx> {
+struct ZipChecker<'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    sess: &'genv FluxSession,
+    sess: &'sess FluxSession,
     /// DefId of the definition being checked, this could either be a field on a struct,
     /// a variant on a enum, or a function.
     def_id: DefId,
@@ -79,8 +79,8 @@ struct ZipChecker<'genv, 'tcx> {
 
 type Locs = HashMap<Symbol, rustc_ty::Ty>;
 
-impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sess: &'genv FluxSession, def_id: DefId) -> Self {
+impl<'sess, 'tcx> ZipChecker<'sess, 'tcx> {
+    pub fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession, def_id: DefId) -> Self {
         ZipChecker { tcx, sess, def_id }
     }
 
@@ -253,49 +253,52 @@ impl<'genv, 'tcx> ZipChecker<'genv, 'tcx> {
 
                 let found = path.args.len();
                 if found < min_args {
-                    Err(self.sess.emit_err(errors::TooFewArgs::new(
+                    return Err(self.sess.emit_err(errors::TooFewArgs::new(
                         self.tcx, path.span, found, min_args, *def_id1,
-                    )))
+                    )));
                 } else if found > max_args {
-                    Err(self.sess.emit_err(errors::TooManyArgs::new(
+                    return Err(self.sess.emit_err(errors::TooManyArgs::new(
                         self.tcx, path.span, found, max_args, *def_id1,
-                    )))
+                    )));
                 } else {
-                    self.zip_generic_args(&path.args, substs)
+                    return self.zip_generic_args(&path.args, substs);
                 }
             }
             (Res::PrimTy(PrimTy::Uint(uint_ty1)), rustc_ty::TyKind::Uint(uint_ty2))
                 if uint_ty(*uint_ty1) == *uint_ty2 =>
             {
-                Ok(())
+                return Ok(());
             }
             (Res::PrimTy(PrimTy::Int(int_ty1)), rustc_ty::TyKind::Int(int_ty2))
                 if int_ty(*int_ty1) == *int_ty2 =>
             {
-                Ok(())
+                return Ok(());
             }
             (Res::PrimTy(PrimTy::Float(float_ty1)), rustc_ty::TyKind::Float(float_ty2))
                 if float_ty(*float_ty1) == *float_ty2 =>
             {
-                Ok(())
+                return Ok(());
             }
-            (Res::Param(param_ty1, _), rustc_ty::TyKind::Param(param_ty2))
-                if param_ty1 == param_ty2 =>
-            {
-                Ok(())
+            (Res::Param(def_id), rustc_ty::TyKind::Param(param_ty)) => {
+                let local_id = def_id.expect_local();
+                let item_def_id = self.tcx.hir().ty_param_owner(local_id);
+                let generics = self.tcx.generics_of(item_def_id);
+                let param = generics.type_param(param_ty, self.tcx);
+                if param.def_id == *def_id {
+                    return Ok(());
+                }
             }
             (Res::PrimTy(PrimTy::Bool), rustc_ty::TyKind::Bool)
             | (Res::PrimTy(PrimTy::Str), rustc_ty::TyKind::Str)
-            | (Res::PrimTy(PrimTy::Char), rustc_ty::TyKind::Char) => Ok(()),
-            _ => {
-                Err(self.sess.emit_err(errors::PathMismatch::new(
-                    self.tcx,
-                    rust_ty,
-                    path.span,
-                    self.def_id,
-                )))
-            }
+            | (Res::PrimTy(PrimTy::Char), rustc_ty::TyKind::Char) => return Ok(()),
+            _ => {}
         }
+        Err(self.sess.emit_err(errors::PathMismatch::new(
+            self.tcx,
+            rust_ty,
+            path.span,
+            self.def_id,
+        )))
     }
 
     fn zip_mutability(

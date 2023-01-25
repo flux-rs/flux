@@ -1,12 +1,12 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
-use hir::{def_id::DefId, ItemKind, PathSegment};
+use hir::{ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
-use rustc_middle::ty::{ParamTy, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 pub struct Resolver<'genv> {
@@ -21,7 +21,6 @@ pub struct ResKey {
 
 struct NameResTable<'sess> {
     res: FxHashMap<ResKey, ResEntry>,
-    generics: FxHashMap<DefId, ParamTy>,
     sess: &'sess FluxSession,
 }
 
@@ -235,20 +234,17 @@ impl<'sess> NameResTable<'sess> {
         let item = tcx.hir().expect_item(def_id);
         let mut table = Self::new(sess);
         match &item.kind {
-            ItemKind::TyAlias(ty, generics) => {
-                table.insert_generics(generics);
+            ItemKind::TyAlias(ty, _) => {
                 table.collect_from_ty(ty)?;
             }
-            ItemKind::Struct(data, generics) => {
-                table.insert_generics(generics);
+            ItemKind::Struct(data, _) => {
                 table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for field in data.fields() {
                     table.collect_from_ty(field.ty)?;
                 }
             }
-            ItemKind::Enum(data, generics) => {
-                table.insert_generics(generics);
+            ItemKind::Enum(data, _) => {
                 table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for variant in data.variants {
@@ -257,8 +253,7 @@ impl<'sess> NameResTable<'sess> {
                     }
                 }
             }
-            ItemKind::Fn(fn_sig, generics, _) => {
-                table.insert_generics(generics);
+            ItemKind::Fn(fn_sig, ..) => {
                 table.collect_from_fn_sig(fn_sig)?;
             }
             _ => {}
@@ -283,12 +278,10 @@ impl<'sess> NameResTable<'sess> {
         if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
             let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                table.insert_generics(parent.generics);
                 table.collect_from_ty(parent.self_ty)?;
             }
         }
 
-        table.insert_generics(impl_item.generics);
         match &impl_item.kind {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
@@ -300,28 +293,11 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
-        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default() }
+        NameResTable { sess, res: FxHashMap::default() }
     }
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {
         self.res.get(key)
-    }
-
-    fn get_param_ty(&self, def_id: DefId) -> Option<ParamTy> {
-        self.generics.get(&def_id).copied()
-    }
-
-    fn insert_generics(&mut self, generics: &hir::Generics) {
-        for (idx, param) in generics.params.iter().enumerate() {
-            if let hir::GenericParamKind::Type { .. } = param.kind {
-                let def_id = param.def_id.to_def_id();
-                assert!(!self.generics.contains_key(&def_id));
-
-                let name = param.name.ident().name;
-                let param_ty = ParamTy { index: idx as u32, name };
-                self.generics.insert(def_id, param_ty);
-            }
-        }
     }
 
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -340,9 +316,7 @@ impl<'sess> NameResTable<'sess> {
 
     fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
         match res {
-            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                ResEntry::Res(Res::Param(self.get_param_ty(did).unwrap(), did))
-            }
+            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => ResEntry::Res(Res::Param(did)),
             hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
                 ResEntry::Res(Res::Adt(did))
             }
