@@ -275,7 +275,9 @@ impl PathsTree {
                                 });
                             }
                             _ => {
-                                tracked_span_bug!("Unsupported Deref: elem = {elem:?}, ty = {ty:?}")
+                                tracked_span_bug!(
+                                    "unsupported deref: elem = {elem:?}, ty = {ty:?}"
+                                );
                             }
                         }
                     }
