@@ -84,20 +84,6 @@ impl Wf<'_, '_> {
         wf.check_expr(&env, &defn.expr, &defn.sort)
     }
 
-    pub fn check_adt_def(
-        early_cx: &EarlyCtxt,
-        adt_def: &fhir::AdtDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let env = Env::from(&adt_def.refined_by.params[..]);
-        adt_def
-            .invariants
-            .iter()
-            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
-
-        Ok(())
-    }
-
     pub fn check_fn_quals(
         sess: &FluxSession,
         qualifiers: &FxHashSet<String>,
@@ -157,11 +143,17 @@ impl Wf<'_, '_> {
     pub fn check_struct_def(
         early_cx: &EarlyCtxt,
         refined_by: &fhir::RefinedBy,
-        def: &fhir::StructDef,
+        struct_def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
         let wf = Wf::new(early_cx);
         let mut env = Env::from(&refined_by.params[..]);
-        if let fhir::StructKind::Transparent { fields } = &def.kind {
+
+        struct_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+        if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
                 if let Some(ty) = ty {
                     wf.check_type(&mut env, ty)
@@ -175,10 +167,19 @@ impl Wf<'_, '_> {
 
     pub fn check_enum_def(
         early_cx: &EarlyCtxt,
-        def: &fhir::EnumDef,
+        refined_by: &fhir::RefinedBy,
+        enum_def: &fhir::EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
         let wf = Wf::new(early_cx);
-        def.variants
+
+        let env = Env::from(&refined_by.params[..]);
+        enum_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+        enum_def
+            .variants
             .iter()
             .try_for_each_exhaust(|variant| wf.check_variant(variant))
     }
@@ -859,7 +860,7 @@ mod errors {
 
             let mut has_params = false;
             if let Some(local_id) = def_id.as_local()
-                && let refined_by = &map.adt(local_id).refined_by
+                && let refined_by = &map.get_adt(local_id).refined_by
                 && !refined_by.params.is_empty()
             {
                 sp.push_span_label(refined_by.span, "");

@@ -169,7 +169,29 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         match self.genv.tcx.def_kind(def_id.to_def_id()) {
             DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
-            DefKind::Enum | DefKind::Struct => self.check_adt_invariants(def_id),
+            DefKind::Enum => {
+                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let enum_def = self.genv.map().get_enum(def_id);
+                refineck::invariants::check_invariants(
+                    self.genv,
+                    &mut self.cache,
+                    &enum_def.invariants,
+                    &adt_def,
+                )
+            }
+            DefKind::Struct => {
+                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let struct_def = self.genv.map().get_struct(def_id);
+                if struct_def.is_opaque() {
+                    return Ok(());
+                }
+                refineck::invariants::check_invariants(
+                    self.genv,
+                    &mut self.cache,
+                    &struct_def.invariants,
+                    &adt_def,
+                )
+            }
             _ => Ok(()),
         }
     }
@@ -202,14 +224,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
         refineck::check_fn(self.genv, &mut self.cache, def_id.to_def_id(), &body)
-    }
-
-    fn check_adt_invariants(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        let adt_def = self.genv.adt_def(def_id.to_def_id());
-        if adt_def.is_opaque() {
-            return Ok(());
-        }
-        refineck::invariants::check_invariants(self.genv, &mut self.cache, &adt_def)
     }
 }
 
@@ -263,13 +277,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(
-                early_cx,
-                def_id.to_def_id(),
-                refined_by,
-                &def.invariants,
-                def.opaque,
-            )?;
+            let adt_def = desugar::desugar_adt_def(early_cx, def_id.to_def_id(), refined_by)?;
             early_cx.map.insert_adt(*def_id, adt_def);
             Ok(())
         })
@@ -280,13 +288,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(
-                early_cx,
-                def_id.to_def_id(),
-                refined_by,
-                &def.invariants,
-                false,
-            )?;
+            let adt_def = desugar::desugar_adt_def(early_cx, def_id.to_def_id(), refined_by)?;
             early_cx.map.insert_adt(*def_id, adt_def);
             Ok(())
         })
@@ -379,23 +381,22 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
         err = Wf::check_defn(early_cx, defn).err().or(err);
     }
 
-    for adt_def in early_cx.map.adts() {
-        err = Wf::check_adt_def(early_cx, adt_def).err().or(err);
-    }
-
     for qualifier in early_cx.map.qualifiers() {
         err = Wf::check_qualifier(early_cx, qualifier).err().or(err);
     }
 
     for struct_def in early_cx.map.structs() {
-        let refined_by = &early_cx.map.adt(struct_def.def_id).refined_by;
+        let refined_by = &early_cx.map.get_adt(struct_def.def_id).refined_by;
         err = Wf::check_struct_def(early_cx, refined_by, struct_def)
             .err()
             .or(err);
     }
 
     for enum_def in early_cx.map.enums() {
-        err = Wf::check_enum_def(early_cx, enum_def).err().or(err);
+        let refined_by = &early_cx.map.get_adt(enum_def.def_id).refined_by;
+        err = Wf::check_enum_def(early_cx, refined_by, enum_def)
+            .err()
+            .or(err);
     }
 
     for (_, fn_sig) in early_cx.map.fn_sigs() {

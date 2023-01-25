@@ -56,18 +56,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 .emit_err(errors::DefinitionCycle::new(span, cycle))
         })?;
 
-        let mut adt_defs = FxHashMap::default();
-        for adt_def in early_cx.map.adts() {
-            let adt_def = rty::conv::conv_adt_def(&early_cx, adt_def).normalize(&defns);
-            adt_defs.insert(adt_def.def_id(), adt_def);
-        }
+        let adt_defs = mk_adt_defs(&early_cx);
 
         let qualifiers = early_cx
             .map
             .qualifiers()
-            .map(|qualifier| {
-                rty::conv::ConvCtxt::conv_qualifier(&early_cx, qualifier).normalize(&defns)
-            })
+            .map(|qualifier| rty::conv::conv_qualifier(&early_cx, qualifier).normalize(&defns))
             .collect();
 
         let uifs = early_cx
@@ -105,7 +99,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for struct_def in map.structs() {
             let local_id = struct_def.def_id;
-            let refined_by = &map.adt(local_id).refined_by;
+            let refined_by = &map.get_adt(local_id).refined_by;
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));
@@ -385,6 +379,21 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
         &self.early_cx
     }
+}
+
+fn mk_adt_defs(early_cx: &EarlyCtxt) -> FxHashMap<DefId, rty::AdtDef> {
+    let mut map = FxHashMap::default();
+    for struct_def in early_cx.map.structs() {
+        map.insert(
+            struct_def.def_id.to_def_id(),
+            rty::conv::adt_def_for_struct(early_cx, struct_def),
+        );
+    }
+    for enum_def in early_cx.map.enums() {
+        map.insert(enum_def.def_id.to_def_id(), rty::conv::adt_def_for_enum(early_cx, enum_def));
+    }
+
+    map
 }
 
 mod errors {

@@ -80,6 +80,7 @@ pub struct Map {
 pub struct StructDef {
     pub def_id: LocalDefId,
     pub kind: StructKind,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
@@ -92,6 +93,7 @@ pub enum StructKind {
 pub struct EnumDef {
     pub def_id: LocalDefId,
     pub variants: Vec<VariantDef>,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
@@ -343,8 +345,6 @@ impl Ident {
 pub struct AdtDef {
     pub def_id: DefId,
     pub refined_by: RefinedBy,
-    pub invariants: Vec<Expr>,
-    pub opaque: bool,
     sorts: Vec<Sort>,
 }
 
@@ -369,9 +369,9 @@ pub struct Defn {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
+    pub fn new(def_id: DefId, refined_by: RefinedBy) -> Self {
         let sorts = refined_by.sorts().cloned().collect_vec();
-        AdtDef { def_id, refined_by, invariants, opaque, sorts }
+        AdtDef { def_id, refined_by, sorts }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
@@ -533,6 +533,10 @@ impl Map {
         self.structs.values()
     }
 
+    pub fn get_struct(&self, def_id: impl Borrow<LocalDefId>) -> &StructDef {
+        &self.structs[def_id.borrow()]
+    }
+
     // Enums
 
     pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef) {
@@ -541,6 +545,10 @@ impl Map {
 
     pub fn enums(&self) -> impl Iterator<Item = &EnumDef> {
         self.enums.values()
+    }
+
+    pub fn get_enum(&self, def_id: impl Borrow<LocalDefId>) -> &EnumDef {
+        &self.enums[def_id.borrow()]
     }
 
     // Consts
@@ -590,7 +598,7 @@ impl Map {
         self.adts.insert(def_id, sort_info);
     }
 
-    pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {
+    pub fn get_adt(&self, def_id: LocalDefId) -> &AdtDef {
         &self.adts[&def_id]
     }
 
@@ -610,6 +618,12 @@ impl Map {
 
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
         self.sort_decls.get(name.borrow())
+    }
+}
+
+impl StructDef {
+    pub fn is_opaque(&self) -> bool {
+        matches!(self.kind, StructKind::Opaque)
     }
 }
 

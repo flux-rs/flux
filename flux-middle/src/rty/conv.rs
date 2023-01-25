@@ -39,17 +39,29 @@ struct Layer {
     map: FxHashMap<fhir::Name, (fhir::Sort, Range<usize>)>,
 }
 
-pub(crate) fn conv_adt_def(early_cx: &EarlyCtxt, adt_def: &fhir::AdtDef) -> rty::AdtDef {
+pub(crate) fn adt_def_for_struct(
+    early_cx: &EarlyCtxt,
+    struct_def: &fhir::StructDef,
+) -> rty::AdtDef {
+    let adt_def = early_cx.map.get_adt(struct_def.def_id);
     let env = Env::from_refined_by(early_cx, &adt_def.refined_by);
     let sorts = flatten_sorts(early_cx, adt_def.refined_by.params.iter().map(|(_, sort)| sort));
+    let invariants = env.conv_invariants(&sorts, &struct_def.invariants);
 
-    let invariants = adt_def
-        .invariants
-        .iter()
-        .map(|invariant| env.conv_invariant(&sorts, invariant))
-        .collect_vec();
+    rty::AdtDef::new(
+        early_cx.tcx.adt_def(adt_def.def_id),
+        sorts,
+        invariants,
+        struct_def.is_opaque(),
+    )
+}
 
-    rty::AdtDef::new(early_cx.tcx.adt_def(adt_def.def_id), sorts, invariants, adt_def.opaque)
+pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -> rty::AdtDef {
+    let adt_def = early_cx.map.get_adt(enum_def.def_id);
+    let env = Env::from_refined_by(early_cx, &adt_def.refined_by);
+    let sorts = flatten_sorts(early_cx, adt_def.refined_by.params.iter().map(|(_, sort)| sort));
+    let invariants = env.conv_invariants(&sorts, &enum_def.invariants);
+    rty::AdtDef::new(early_cx.tcx.adt_def(adt_def.def_id), sorts, invariants, false)
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
@@ -57,6 +69,13 @@ pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
     let sorts = flatten_sorts(early_cx, defn.args.iter().map(|(_, sort)| sort));
     let expr = Binders::new(env.conv_expr(&defn.expr), sorts);
     rty::Defn { name: defn.name, expr }
+}
+
+pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
+    let env = Env::from_args(early_cx, &qualifier.args);
+    let sorts = flatten_sorts(early_cx, qualifier.args.iter().map(|(_, sort)| sort));
+    let body = Binders::new(env.conv_expr(&qualifier.expr), sorts);
+    rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
@@ -225,13 +244,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Constraint::Pred(pred) => rty::Constraint::Pred(self.env.conv_expr(pred)),
         }
-    }
-
-    pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
-        let env = Env::from_args(early_cx, &qualifier.args);
-        let sorts = flatten_sorts(early_cx, qualifier.args.iter().map(|(_, sort)| sort));
-        let body = Binders::new(env.conv_expr(&qualifier.expr), sorts);
-        rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
     }
 
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
@@ -486,6 +498,17 @@ impl Env<'_, '_> {
 
     fn conv_exprs(&self, exprs: &[fhir::Expr]) -> List<rty::Expr> {
         List::from_iter(exprs.iter().map(|e| self.conv_expr(e)))
+    }
+
+    fn conv_invariants(
+        &self,
+        sorts: &[rty::Sort],
+        invariants: &[fhir::Expr],
+    ) -> Vec<rty::Invariant> {
+        invariants
+            .iter()
+            .map(|invariant| self.conv_invariant(sorts, invariant))
+            .collect()
     }
 
     fn conv_invariant(&self, sorts: &[rty::Sort], invariant: &fhir::Expr) -> rty::Invariant {

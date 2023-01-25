@@ -79,41 +79,39 @@ pub fn desugar_adt_def(
     early_cx: &EarlyCtxt,
     def_id: DefId,
     refined_by: &surface::RefinedBy,
-    invariants: &[surface::Expr],
-    opaque: bool,
 ) -> Result<fhir::AdtDef, ErrorGuaranteed> {
     let mut binders = Binders::from_params(early_cx, refined_by)?;
-
-    let invariants = invariants
-        .iter()
-        .map(|invariant| ExprCtxt::new(early_cx, &binders).desugar_expr(invariant))
-        .try_collect_exhaust()?;
-
     let refined_by =
         fhir::RefinedBy { params: binders.pop_layer().into_args(), span: refined_by.span };
-    Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
+    Ok(fhir::AdtDef::new(def_id, refined_by))
 }
 
 pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
-    adt_def: surface::StructDef<Res>,
+    struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let def_id = adt_def.def_id;
-    let binders = Binders::from_params(early_cx, adt_def.refined_by.iter().flatten())?;
+    let def_id = struct_def.def_id;
+    let binders = Binders::from_params(early_cx, struct_def.refined_by.iter().flatten())?;
 
     let mut cx = DesugarCtxt::new(early_cx, binders);
 
-    let kind = if adt_def.opaque {
+    let invariants = struct_def
+        .invariants
+        .iter()
+        .map(|invariant| cx.as_expr_ctxt().desugar_expr(invariant))
+        .try_collect_exhaust()?;
+
+    let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let fields = adt_def
+        let fields = struct_def
             .fields
             .iter()
             .map(|ty| ty.as_ref().map(|ty| cx.desugar_ty(None, ty)).transpose())
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };
-    Ok(fhir::StructDef { def_id, kind })
+    Ok(fhir::StructDef { def_id, kind, invariants })
 }
 
 pub fn desugar_enum_def(
@@ -127,7 +125,14 @@ pub fn desugar_enum_def(
         .map(|variant| desugar_variant(early_cx, variant))
         .try_collect_exhaust()?;
 
-    Ok(fhir::EnumDef { def_id, variants })
+    let binders = Binders::from_params(early_cx, enum_def.refined_by.iter().flatten())?;
+    let invariants = enum_def
+        .invariants
+        .iter()
+        .map(|invariant| ExprCtxt::new(early_cx, &binders).desugar_expr(invariant))
+        .try_collect_exhaust()?;
+
+    Ok(fhir::EnumDef { def_id, variants, invariants })
 }
 
 fn desugar_variant(
