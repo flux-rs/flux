@@ -3,7 +3,11 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::{early_ctxt::EarlyCtxt, fhir, intern::List};
+use flux_middle::{
+    early_ctxt::EarlyCtxt,
+    fhir::{self, BtyOrTy},
+    intern::List,
+};
 use flux_syntax::surface::{self, PrimTy, Res};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
@@ -266,11 +270,6 @@ struct ExprCtxt<'a, 'tcx> {
     binders: &'a Binders,
 }
 
-enum BtyOrTy {
-    Bty(fhir::BaseTy),
-    Ty(fhir::Ty),
-}
-
 enum FuncRes<'a> {
     Param(fhir::Name, &'a fhir::Sort),
     Uif(&'a fhir::UifDef),
@@ -458,15 +457,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Res::PrimTy(PrimTy::Bool) => BtyOrTy::Bty(fhir::BaseTy::Bool),
             Res::PrimTy(PrimTy::Str) => BtyOrTy::Ty(fhir::Ty::Str),
             Res::PrimTy(PrimTy::Char) => BtyOrTy::Ty(fhir::Ty::Char),
-            Res::PrimTy(PrimTy::Int(int_ty)) => {
-                BtyOrTy::Bty(fhir::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)))
-            }
-            Res::PrimTy(PrimTy::Uint(uint_ty)) => {
-                BtyOrTy::Bty(fhir::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)))
-            }
-            Res::PrimTy(PrimTy::Float(float_ty)) => {
-                BtyOrTy::Ty(fhir::Ty::Float(rustc_middle::ty::float_ty(*float_ty)))
-            }
+            Res::PrimTy(PrimTy::Int(int_ty)) => BtyOrTy::Bty(fhir::BaseTy::Int(*int_ty)),
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => BtyOrTy::Bty(fhir::BaseTy::Uint(*uint_ty)),
+            Res::PrimTy(PrimTy::Float(float_ty)) => BtyOrTy::Ty(fhir::Ty::Float(*float_ty)),
             Res::Adt(def_id) => {
                 BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?))
             }

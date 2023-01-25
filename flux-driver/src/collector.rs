@@ -166,9 +166,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        if let Some(alias) = attrs.alias() {
-            self.specs.aliases.insert(def_id, alias);
-        }
+        self.specs.aliases.insert(def_id, attrs.alias());
         Ok(())
     }
 

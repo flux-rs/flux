@@ -298,7 +298,11 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .aliases
         .iter()
         .try_for_each_exhaust(|(def_id, alias)| {
-            let adt_def = desugar::desugar_adt_def(early_cx, *def_id, &alias.refined_by)?;
+            let adt_def = if let Some(alias) = alias {
+                desugar::desugar_adt_def(early_cx, *def_id, &alias.refined_by)?
+            } else {
+                fhir::lift::lift_adt_def(early_cx, *def_id)
+            };
             early_cx.map.insert_adt(*def_id, adt_def);
             Ok(())
         })
@@ -339,9 +343,12 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
     err = std::mem::take(&mut specs.aliases)
         .into_iter()
         .try_for_each_exhaust(|(def_id, alias)| {
-            early_cx
-                .map
-                .insert_alias(def_id, desugar::desugar_alias(early_cx, def_id, alias)?);
+            let alias = if let Some(alias) = alias {
+                desugar::desugar_alias(early_cx, def_id, alias)?
+            } else {
+                fhir::lift::lift_alias(early_cx, def_id)?
+            };
+            early_cx.map.insert_alias(def_id, alias);
             Ok(())
         })
         .err()

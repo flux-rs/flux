@@ -292,7 +292,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let param_ty = rty::ParamTy { index, name: self.genv.hir().ty_param_name(def_id) };
                 rty::Ty::param(param_ty)
             }
-            fhir::Ty::Float(float_ty) => rty::Ty::float(*float_ty),
+            fhir::Ty::Float(float_ty) => rty::Ty::float(rustc_middle::ty::float_ty(*float_ty)),
             fhir::Ty::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.conv_ty(ty)).collect_vec();
                 rty::Ty::tuple(tys)
@@ -384,8 +384,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_base_ty(&mut self, bty: &fhir::BaseTy) -> rty::BaseTy {
         match bty {
-            fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(*int_ty),
-            fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
+            fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)),
+            fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)),
             fhir::BaseTy::Bool => rty::BaseTy::Bool,
             fhir::BaseTy::Slice(ty) => rty::BaseTy::slice(self.conv_ty(ty)),
             fhir::BaseTy::Adt(did, args) => {

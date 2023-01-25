@@ -7,7 +7,7 @@ pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
 
-pub type AliasMap = rustc_hash::FxHashMap<LocalDefId, Alias>;
+pub type AliasMap = rustc_hash::FxHashMap<LocalDefId, Option<Alias>>;
 
 #[derive(Debug)]
 pub struct SortDecl {

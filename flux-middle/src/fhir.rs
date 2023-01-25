@@ -16,7 +16,7 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
-mod lift;
+pub mod lift;
 
 use std::{
     borrow::{Borrow, Cow},
@@ -25,11 +25,11 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
+use rustc_ast::{FloatTy, IntTy, UintTy};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
-pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
@@ -162,6 +162,11 @@ pub enum Ty {
     Array(Box<Ty>, ArrayLen),
     Alias(DefId, Vec<Ty>, Vec<RefineArg>),
     Never,
+}
+
+pub enum BtyOrTy {
+    Bty(BaseTy),
+    Ty(Ty),
 }
 
 pub struct ArrayLen {
@@ -307,6 +312,27 @@ pub struct Ident {
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
+}
+
+impl BtyOrTy {
+    pub fn to_ty(self) -> Ty {
+        match self {
+            Self::Bty(bty) => Ty::BaseTy(bty),
+            Self::Ty(ty) => ty,
+        }
+    }
+}
+
+impl From<BaseTy> for BtyOrTy {
+    fn from(v: BaseTy) -> Self {
+        Self::Bty(v)
+    }
+}
+
+impl From<Ty> for BtyOrTy {
+    fn from(v: Ty) -> Self {
+        Self::Ty(v)
+    }
 }
 
 impl BaseTy {

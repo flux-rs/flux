@@ -7,11 +7,11 @@ pub struct S {
     f: i32,
 }
 
-#[flux::alias(type A(n) = i32{v: v < n.f })]
-type _A = i32;
+#[flux::alias(type A(n: int) = i32{v: v < n.f })]
+type A = i32;
 
-#[flux::sig(fn(s: S, x: A[s]))]
-pub fn test0(s: S, x: i32) {}
+#[flux::sig(fn(s: S, x: A(s)))]
+pub fn test0(s: S, x: A) {}
 
 pub fn test1() {
     let s = S { f: 10 };
