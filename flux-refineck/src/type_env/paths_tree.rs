@@ -89,17 +89,19 @@ impl LookupKey for Path {
 enum LookupKind {
     Strg(Path, NodePtr),
     Weak(WeakKind, Ty),
+    Raw(Ty),
 }
 
 pub(super) enum FoldResult {
     Strg(Path, Ty),
     Weak(WeakKind, Ty),
+    Raw(Ty),
 }
 
 impl FoldResult {
     pub(super) fn ty(&self) -> Ty {
         match self {
-            FoldResult::Strg(_, ty) | FoldResult::Weak(_, ty) => ty.clone(),
+            FoldResult::Strg(_, ty) | FoldResult::Weak(_, ty) | FoldResult::Raw(ty) => ty.clone(),
         }
     }
 }
@@ -266,7 +268,17 @@ impl PathsTree {
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
-                            _ => tracked_span_bug!("Unsupported Deref: {elem:?} {ty:?}"),
+                            TyKind::Indexed(BaseTy::RawPtr(ty, _), _) => {
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Raw(ty.clone()),
+                                });
+                            }
+                            _ => {
+                                tracked_span_bug!(
+                                    "unsupported deref: elem = {elem:?}, ty = {ty:?}"
+                                );
+                            }
                         }
                     }
                     PlaceElem::Index(_) => {
@@ -406,6 +418,7 @@ impl LookupResult<'_> {
                 FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
             }
             LookupKind::Weak(rk, ty) => FoldResult::Weak(rk, ty),
+            LookupKind::Raw(ty) => FoldResult::Raw(ty),
         }
     }
 
@@ -430,6 +443,7 @@ impl LookupResult<'_> {
                 ty
             }
             LookupKind::Weak(..) => tracked_span_bug!("blocking weak result"),
+            LookupKind::Raw(..) => tracked_span_bug!("blocking raw result"),
         }
     }
 }
@@ -813,7 +827,7 @@ fn downcast_struct(
     Ok(genv
         .variant(def_id, variant_idx)?
         .replace_bvars(args)
-        .replace_generic_args(substs)
+        .replace_generics(substs)
         .fields
         .to_vec())
 }
@@ -838,7 +852,7 @@ fn downcast_enum(
         .variant(def_id, variant_idx)
         .unwrap()
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
-        .replace_generic_args(substs);
+        .replace_generics(substs);
 
     debug_assert_eq!(variant_def.ret.args.len(), args.len());
     let constr = Expr::and(iter::zip(&variant_def.ret.args, args).filter_map(|(arg1, arg2)| {

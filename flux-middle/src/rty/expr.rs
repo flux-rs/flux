@@ -4,10 +4,11 @@ use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
+use rustc_macros::{Decodable, Encodable};
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy, KVar};
+use super::{evars::EVar, BaseTy};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -16,12 +17,12 @@ use crate::{
 
 pub type Expr = Interned<ExprS>;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct ExprS {
     kind: ExprKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum ExprKind {
     FreeVar(Name),
     EVar(EVar),
@@ -40,26 +41,42 @@ pub enum ExprKind {
     Hole,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
+/// fixpoint makes a diference between the first and the rest of the variables, the first one being
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
+/// Flux generalizes the self argument to be a list.
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct KVar {
+    pub kvid: KVid,
+    pub args: List<Expr>,
+    pub scope: List<Expr>,
+}
+
+newtype_index! {
+    #[debug_format = "$k{}"]
+    pub struct KVid {}
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Func {
     Var(Var),
     Uif(Symbol),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
     Bound(BoundVar),
     EVar(EVar),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct Path {
     pub loc: Loc,
     projection: List<Field>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
     Var(Var),
@@ -69,7 +86,7 @@ pub enum Loc {
 /// into a list of [`Binders`] and index into that list.
 ///
 /// [`Binders`]: super::Binders
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct BoundVar {
     pub debruijn: DebruijnIndex,
     pub index: usize,
@@ -182,7 +199,8 @@ impl Expr {
             | BaseTy::Str
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
-            | BaseTy::Char => panic!(),
+            | BaseTy::Char
+            | BaseTy::RawPtr(_, _) => panic!(),
         }
     }
 
@@ -388,6 +406,16 @@ impl Expr {
         };
         proj.reverse();
         Some(Path::new(loc, proj))
+    }
+}
+
+impl KVar {
+    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
+        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
+    }
+
+    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
+        self.args.iter().chain(&self.scope)
     }
 }
 
@@ -613,7 +641,7 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS, [Expr]);
+impl_internable!(ExprS, [Expr], [KVar]);
 
 mod pretty {
     use super::*;
@@ -728,6 +756,25 @@ mod pretty {
         }
     }
 
+    impl Pretty for KVar {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?}", ^self.kvid)?;
+            match cx.kvar_args {
+                KVarArgs::All => {
+                    if self.scope.is_empty() {
+                        w!("({:?})", join!(", ", &self.args))?;
+                    } else {
+                        w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    }
+                }
+                KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
+                KVarArgs::Hide => {}
+            }
+            Ok(())
+        }
+    }
+
     impl Pretty for Func {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -799,5 +846,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, BoundVar, Var);
+    impl_debug_with_default_cx!(Expr, Loc, Path, BoundVar, Var, KVar);
 }

@@ -1,17 +1,17 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
 use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
-use hir::{def_id::DefId, ItemKind, PathSegment};
+use hir::{ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
-use rustc_middle::ty::{ParamTy, TyCtxt, TyKind};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
-pub struct Resolver<'genv, 'tcx> {
+pub struct Resolver<'genv> {
     sess: &'genv FluxSession,
-    table: NameResTable<'genv, 'tcx>,
+    table: NameResTable<'genv>,
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -19,11 +19,9 @@ pub struct ResKey {
     s: String,
 }
 
-struct NameResTable<'sess, 'tcx> {
+struct NameResTable<'sess> {
     res: FxHashMap<ResKey, ResEntry>,
-    generics: FxHashMap<DefId, ParamTy>,
     sess: &'sess FluxSession,
-    tcx: TyCtxt<'tcx>,
 }
 
 enum ResEntry {
@@ -31,9 +29,9 @@ enum ResEntry {
     Unsupported { reason: String, span: Span },
 }
 
-impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
+impl<'sess> Resolver<'sess> {
     pub fn new(
-        tcx: TyCtxt<'tcx>,
+        tcx: TyCtxt,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
@@ -214,25 +212,23 @@ impl<'sess, 'tcx> Resolver<'sess, 'tcx> {
     }
 }
 
-impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
+impl<'sess> NameResTable<'sess> {
     fn from_item(
-        tcx: TyCtxt<'tcx>,
+        tcx: TyCtxt,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
         let item = tcx.hir().expect_item(def_id);
-        let mut table = Self::new(tcx, sess);
+        let mut table = Self::new(sess);
         match &item.kind {
-            ItemKind::Struct(data, generics) => {
-                table.insert_generics(tcx, generics);
+            ItemKind::Struct(data, _) => {
                 table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for field in data.fields() {
                     table.collect_from_ty(field.ty)?;
                 }
             }
-            ItemKind::Enum(data, generics) => {
-                table.insert_generics(tcx, generics);
+            ItemKind::Enum(data, _) => {
                 table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 
                 for variant in data.variants {
@@ -241,8 +237,7 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
                     }
                 }
             }
-            ItemKind::Fn(fn_sig, generics, _) => {
-                table.insert_generics(tcx, generics);
+            ItemKind::Fn(fn_sig, ..) => {
                 table.collect_from_fn_sig(fn_sig)?;
             }
             _ => {}
@@ -255,24 +250,22 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
     }
 
     fn from_impl_item(
-        tcx: TyCtxt<'tcx>,
+        tcx: TyCtxt,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
         let impl_item = tcx.hir().expect_impl_item(def_id);
 
-        let mut table = Self::new(tcx, sess);
+        let mut table = Self::new(sess);
 
         // Insert generics from parent impl
         if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
             let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                table.insert_generics(tcx, parent.generics);
                 table.collect_from_ty(parent.self_ty)?;
             }
         }
 
-        table.insert_generics(tcx, impl_item.generics);
         match &impl_item.kind {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
@@ -283,29 +276,12 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         Ok(table)
     }
 
-    fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession) -> NameResTable<'sess, 'tcx> {
-        NameResTable { sess, res: FxHashMap::default(), generics: FxHashMap::default(), tcx }
+    fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
+        NameResTable { sess, res: FxHashMap::default() }
     }
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {
         self.res.get(key)
-    }
-
-    fn get_param_ty(&self, def_id: DefId) -> Option<ParamTy> {
-        self.generics.get(&def_id).copied()
-    }
-
-    fn insert_generics(&mut self, tcx: TyCtxt, generics: &hir::Generics) {
-        for (idx, param) in generics.params.iter().enumerate() {
-            if let hir::GenericParamKind::Type { .. } = param.kind {
-                let def_id = tcx.hir().local_def_id(param.hir_id).to_def_id();
-                assert!(!self.generics.contains_key(&def_id));
-
-                let name = param.name.ident().name;
-                let param_ty = ParamTy { index: idx as u32, name };
-                self.generics.insert(def_id, param_ty);
-            }
-        }
     }
 
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -322,52 +298,15 @@ impl<'sess, 'tcx> NameResTable<'sess, 'tcx> {
         Ok(())
     }
 
-    fn res_from_ty(ty: rustc_middle::ty::Ty) -> Option<Res> {
-        match ty.kind() {
-            TyKind::Bool => Some(Res::Bool),
-            TyKind::Int(int_ty) => Some(Res::Int(*int_ty)),
-            TyKind::Uint(uint_ty) => Some(Res::Uint(*uint_ty)),
-            TyKind::Float(float_ty) => Some(Res::Float(*float_ty)),
-            TyKind::Param(param_ty) => Some(Res::Param(*param_ty)),
-            TyKind::Char => Some(Res::Char),
-            _ => None,
-        }
-    }
-
     fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
         match res {
-            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => {
-                ResEntry::Res(Res::Param(self.get_param_ty(did).unwrap()))
-            }
+            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => ResEntry::Res(Res::Param(did)),
             hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
                 ResEntry::Res(Res::Adt(did))
             }
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => {
-                ResEntry::Res(Res::Int(rustc_middle::ty::int_ty(int_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => {
-                ResEntry::Res(Res::Uint(rustc_middle::ty::uint_ty(uint_ty)))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => ResEntry::Res(Res::Bool),
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
-                ResEntry::Res(Res::Float(rustc_middle::ty::float_ty(float_ty)))
-            }
-            hir::def::Res::SelfTyAlias { alias_to: def_id, forbid_generic: false, .. } => {
-                ResEntry::Res(Res::Adt(def_id))
-            }
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => ResEntry::Res(Res::Str),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => ResEntry::Res(Res::Char),
-            hir::def::Res::Def(hir::def::DefKind::TyAlias, did) => {
-                let ty = self.tcx.type_of(did);
-                match Self::res_from_ty(ty) {
-                    Some(res) => ResEntry::Res(res),
-                    None => {
-                        ResEntry::Unsupported {
-                            span,
-                            reason: format!("unsupported alias `{ty:?}`"),
-                        }
-                    }
-                }
+            hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
+            hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
+                ResEntry::Res(Res::Alias(def_id))
             }
             _ => {
                 ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }

@@ -6,6 +6,7 @@ use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir,
     ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
@@ -148,6 +149,12 @@ pub enum CastKind {
     IntToInt,
     FloatToInt,
     IntToFloat,
+    Pointer(PointerCast),
+}
+
+#[derive(Copy, Clone)]
+pub enum PointerCast {
+    MutToConstPointer,
 }
 
 pub enum AggregateKind {
@@ -181,7 +188,7 @@ pub enum Operand {
     Constant(Constant),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct Place {
     /// the "root" of the place, e.g. `_1` in `*_1.f.g.h`
     pub local: Local,
@@ -189,7 +196,7 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PlaceElem {
     Deref,
     Field(Field),
@@ -466,12 +473,21 @@ impl fmt::Debug for Rvalue {
     }
 }
 
+impl fmt::Debug for PointerCast {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PointerCast::MutToConstPointer => write!(f, "MutToConstPointer"),
+        }
+    }
+}
+
 impl fmt::Debug for CastKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CastKind::IntToInt => write!(f, "IntToInt"),
             CastKind::FloatToInt => write!(f, "FloatToInt"),
             CastKind::IntToFloat => write!(f, "IntToFloat"),
+            CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
         }
     }
 }

@@ -9,7 +9,7 @@ use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir as rustc_mir,
     ty::{
-        self as rustc_ty,
+        self as rustc_ty, adjustment as rustc_adjustment,
         subst::{GenericArgKind, SubstsRef},
         ParamEnv, TyCtxt,
     },
@@ -363,6 +363,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
+            rustc_mir::CastKind::Pointer(rustc_adjustment::PointerCast::MutToConstPointer) => {
+                Some(CastKind::Pointer(crate::rustc::mir::PointerCast::MutToConstPointer))
+            }
             _ => None,
         }
     }
@@ -646,6 +649,11 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val }))
         }
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
+        rustc_ty::RawPtr(t) => {
+            let mutbl = t.mutbl;
+            let ty = lower_ty(tcx, t.ty)?;
+            Ok(Ty::mk_raw_ptr(ty, mutbl))
+        }
         _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }
 }

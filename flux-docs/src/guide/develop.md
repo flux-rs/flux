@@ -1,10 +1,20 @@
-# Profiling Flux
+# Developer's Guide
+
+## Regression Tests
+
+You can run the various regression tests in the `tests/pos` and `tests/neg` directory using
+
+```
+$ cargo test -p flux-tests
+```
+
+## Profiling Flux
 
 Set `FLUX_DUMP_TIMINGS=true` to have flux write timing diagnostics to `./log/timings`.
 
 Right now this is _extremely_ simple, it just provides some details for the spans under `flux_typeck` and `flux_driver`.
 
-## Sample output
+### Sample output
 
 Below is a sample output for an invocation of `cargo-flux check` that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for `cargo check` to run.
 

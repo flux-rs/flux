@@ -9,8 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
-        Exists, Expr, ExprKind, GenericArg, Path, PtrKind, RefKind, RefineArg, RefineArgs, Ty,
-        TyKind,
+        Expr, ExprKind, GenericArg, Path, PtrKind, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -119,6 +118,7 @@ impl TypeEnv {
                 debug_assert!(WeakKind::from(rk) <= result_rk);
                 Ty::mk_ref(rk, ty)
             }
+            FoldResult::Raw(ty) => Ty::mk_ref(rk, ty), // TODO(RJ): is this legit?
         };
         Ok(ty)
     }
@@ -144,6 +144,7 @@ impl TypeEnv {
             FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");
             }
+            FoldResult::Raw(_) => { /* ignore write through Raw */ }
         }
         Ok(())
     }
@@ -170,6 +171,9 @@ impl TypeEnv {
             }
             FoldResult::Weak(WeakKind::Arr, _) | FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot move out of `{place:?}`, which is behind a `&` reference")
+            }
+            FoldResult::Raw(_) => {
+                tracked_span_bug!("cannot move out of a raw pointer")
             }
         }
     }
@@ -451,6 +455,7 @@ impl TypeEnvInfer {
             | BaseTy::Bool
             | BaseTy::Float(_)
             | BaseTy::Str
+            | BaseTy::RawPtr(_, _)
             | BaseTy::Char => bty.clone(),
         }
     }
@@ -578,17 +583,29 @@ impl TypeEnvInfer {
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
-            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
-                debug_assert_eq!(rk1, rk2);
-                debug_assert_eq!(path1, path2);
-                Ty::ptr(*rk1, path1.clone())
+            (TyKind::Exists(ty1), _) => {
+                let ty1 = ty1.as_ref().skip_binders();
+                self.join_ty(ty1, ty2)
             }
+            (_, TyKind::Exists(ty2)) => {
+                let ty2 = ty2.as_ref().skip_binders();
+                self.join_ty(ty1, ty2)
+            }
+            (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
+            (_, TyKind::Constr(_, ty2)) => self.join_ty(ty1, ty2),
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
                 let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sorts())
                     .map(|(arg1, arg2, sort)| {
-                        if !self.scope.has_free_vars(arg2) && arg1 == arg2 {
+                        let has_free_vars2 = self.scope.has_free_vars(arg2);
+                        let has_escaping_vars1 = arg1.has_escaping_bvars();
+                        let has_escaping_vars2 = arg2.has_escaping_bvars();
+                        if !has_free_vars2
+                            && !has_escaping_vars1
+                            && !has_escaping_vars2
+                            && arg1 == arg2
+                        {
                             arg1.clone()
                         } else {
                             sorts.push(sort.clone());
@@ -600,25 +617,14 @@ impl TypeEnvInfer {
                 if sorts.is_empty() {
                     Ty::indexed(bty, args)
                 } else {
-                    let exists = Exists::new(bty, args, Expr::hole());
-                    Ty::exists(Binders::new(exists, sorts))
+                    let ty = Ty::constr(Expr::hole(), Ty::indexed(bty, args));
+                    Ty::exists(Binders::new(ty, sorts))
                 }
             }
-            (TyKind::Exists(exists), TyKind::Indexed(bty2, ..)) => {
-                let bty1 = &exists.as_ref().skip_binders().bty;
-                let bty = self.join_bty(bty1, bty2);
-                Ty::full_exists(bty, Expr::hole())
-            }
-            (TyKind::Indexed(bty1, _), TyKind::Exists(exists)) => {
-                let bty2 = &exists.as_ref().skip_binders().bty;
-                let bty = self.join_bty(bty1, bty2);
-                Ty::full_exists(bty, Expr::hole())
-            }
-            (TyKind::Exists(exists1), TyKind::Exists(exists2)) => {
-                let bty1 = &exists1.as_ref().skip_binders().bty;
-                let bty2 = &exists2.as_ref().skip_binders().bty;
-                let bty = self.join_bty(bty1, bty2);
-                Ty::full_exists(bty, Expr::hole())
+            (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
+                debug_assert_eq!(rk1, rk2);
+                debug_assert_eq!(path1, path2);
+                Ty::ptr(*rk1, path1.clone())
             }
             (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
@@ -638,7 +644,7 @@ impl TypeEnvInfer {
                 debug_assert_eq!(len1, len2);
                 Ty::array(self.join_ty(ty1, ty2), len1.clone())
             }
-            _ => unreachable!("`{ty1:?}` -- `{ty2:?}`"),
+            _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
 
@@ -659,7 +665,7 @@ impl TypeEnvInfer {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
-            _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}`"),
+            _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
         }
     }
 
@@ -674,7 +680,6 @@ impl TypeEnvInfer {
             }
         });
         let (names, sorts, preds) = generalizer.into_parts();
-
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
             .into_iter()
@@ -729,16 +734,18 @@ impl Generalizer {
                 let bty = self.generalize_bty(bty);
                 Ty::indexed(bty, idxs.clone())
             }
-            TyKind::Exists(exists) => {
-                let exists = exists.replace_bvars_with_fresh_fvars(|sort| {
+            TyKind::Exists(ty) => {
+                let ty = ty.replace_bvars_with_fresh_fvars(|sort| {
                     let fresh = self.name_gen.fresh();
                     self.names.push(fresh);
                     self.sorts.push(sort.clone());
                     fresh
                 });
-                let bty = self.generalize_bty(&exists.bty);
-                self.preds.push(exists.pred);
-                Ty::indexed(bty, exists.args)
+                self.generalize_ty(&ty)
+            }
+            TyKind::Constr(pred, ty) => {
+                self.preds.push(pred.clone());
+                ty.clone()
             }
             TyKind::Ref(RefKind::Shr, ty) => {
                 let ty = self.generalize_ty(ty);

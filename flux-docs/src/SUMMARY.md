@@ -2,21 +2,14 @@
 
 [Introduction](README.md)
 
-# Use
+# Guide
 
-- [Install](use/install.md)
-- [Run](use/run.md)
-- [Editor Support](use/editors.md)
-- [Specifications](use/specs.md)
+- [Install](guide/install.md)
+- [Run](guide/run.md)
+- [Develop](guide/develop.md)
 
-# Develop
 
-- [Flags](dev/flags.md)
-- [Test](dev/test.md)
-- [Profile](dev/profile.md)
-- [Architecture]()
-
-# Examples 
+# Examples
 
 - [Introducing Flux](blog/01-introducing-flux.md)
 - [Ownership in Flux](blog/02-ownership.md)
@@ -25,6 +18,8 @@
 - [Structs]()
 - [Enums]()
 
+
 -----------
+
 
 [About](about.md)

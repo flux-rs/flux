@@ -3,20 +3,20 @@
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 use std::{borrow::Borrow, iter};
 
-use flux_common::iter::IterExt;
+use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::fhir::{self, SurfaceIdent};
+use flux_middle::{
+    early_ctxt::EarlyCtxt,
+    fhir::{self, SurfaceIdent},
+};
 use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 pub struct Wf<'a, 'tcx> {
-    tcx: TyCtxt<'tcx>,
-    sess: &'a FluxSession,
-    map: &'a fhir::Map,
+    early_cx: &'a EarlyCtxt<'a, 'tcx>,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
 }
 
@@ -69,35 +69,26 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
 
 impl Wf<'_, '_> {
     pub fn check_qualifier(
-        tcx: TyCtxt,
-        sess: &FluxSession,
-        map: &fhir::Map,
+        early_cx: &EarlyCtxt,
         qualifier: &fhir::Qualifier,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(tcx, sess, map);
+        let wf = Wf::new(early_cx);
         let env = Env::from(&qualifier.args[..]);
 
         wf.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
     }
 
-    pub fn check_defn(
-        tcx: TyCtxt,
-        sess: &FluxSession,
-        map: &fhir::Map,
-        defn: &fhir::Defn,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(tcx, sess, map);
+    pub fn check_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
         let env = Env::from(&defn.args[..]);
         wf.check_expr(&env, &defn.expr, &defn.sort)
     }
 
     pub fn check_adt_def(
-        tcx: TyCtxt,
-        sess: &FluxSession,
-        map: &fhir::Map,
+        early_cx: &EarlyCtxt,
         adt_def: &fhir::AdtDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(tcx, sess, map);
+        let wf = Wf::new(early_cx);
         let env = Env::from(&adt_def.refined_by.params[..]);
         adt_def
             .invariants
@@ -121,13 +112,8 @@ impl Wf<'_, '_> {
         Ok(())
     }
 
-    pub fn check_fn_sig(
-        tcx: TyCtxt,
-        sess: &FluxSession,
-        map: &fhir::Map,
-        fn_sig: &fhir::FnSig,
-    ) -> Result<(), ErrorGuaranteed> {
-        let mut wf = Wf::new(tcx, sess, map);
+    pub fn check_fn_sig(early_cx: &EarlyCtxt, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+        let mut wf = Wf::new(early_cx);
         for param in &fn_sig.params {
             wf.modes.insert(param.name.name, param.mode);
         }
@@ -169,13 +155,11 @@ impl Wf<'_, '_> {
     }
 
     pub fn check_struct_def(
-        tcx: TyCtxt,
-        sess: &FluxSession,
-        map: &fhir::Map,
+        early_cx: &EarlyCtxt,
         refined_by: &fhir::RefinedBy,
         def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(tcx, sess, map);
+        let wf = Wf::new(early_cx);
         let mut env = Env::from(&refined_by.params[..]);
         if let fhir::StructKind::Transparent { fields } = &def.kind {
             fields.iter().try_for_each_exhaust(|ty| {
@@ -190,12 +174,10 @@ impl Wf<'_, '_> {
     }
 
     pub fn check_enum_def(
-        tcx: TyCtxt,
-        sess: &FluxSession,
-        map: &fhir::Map,
+        early_cx: &EarlyCtxt,
         def: &fhir::EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(tcx, sess, map);
+        let wf = Wf::new(early_cx);
         def.variants
             .iter()
             .try_for_each_exhaust(|variant| wf.check_variant(variant))
@@ -203,8 +185,8 @@ impl Wf<'_, '_> {
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, map: &'a fhir::Map) -> Self {
-        Wf { tcx, sess, map, modes: FxHashMap::default() }
+    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
+        Wf { early_cx, modes: FxHashMap::default() }
     }
 
     fn check_variant(&self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
@@ -284,6 +266,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
+            fhir::Ty::Alias(_, substs) => {
+                substs
+                    .iter()
+                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
+            }
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)
@@ -297,8 +284,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::BaseTy::Adt(_, substs) => {
                 substs
                     .iter()
-                    .map(|ty| self.check_type(env, ty))
-                    .try_collect_exhaust()
+                    .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
@@ -331,7 +317,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.map.sorts_of(def_id).unwrap_or(&[]);
+        let sorts = self.early_cx.sorts_of(def_id);
         if args.len() != sorts.len() {
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
@@ -426,13 +412,15 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = &env[var.name];
                 if let fhir::Sort::Adt(def_id) = sort {
-                    self.map
-                        .adt(def_id.expect_local())
-                        .field_sort(fld.name)
+                    self.early_cx
+                        .field_sort(*def_id, fld.name)
                         .cloned()
                         .ok_or_else(|| {
-                            self.sess.emit_err(errors::FieldNotFound::new(
-                                self.tcx, self.map, *def_id, *fld,
+                            self.early_cx.emit_err(errors::FieldNotFound::new(
+                                self.early_cx.tcx,
+                                &self.early_cx.map,
+                                *def_id,
+                                *fld,
                             ))
                         })
                 } else {
@@ -506,7 +494,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     #[track_caller]
     fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
-        Err(self.sess.emit_err(err))
+        Err(self.early_cx.emit_err(err))
     }
 
     fn synth_app(
@@ -540,15 +528,15 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     Ok(fsort)
                 } else {
                     Err(self
-                        .sess
+                        .early_cx
                         .emit_err(errors::ExpectedFun::new(var.span(), sort)))
                 }
             }
             fhir::Func::Uif(func, span) => {
                 Ok(self
-                    .map
+                    .early_cx
                     .uif(func)
-                    .unwrap_or_else(|| panic!("no definition found for uif `{func:?}` - {span:?}"))
+                    .unwrap_or_else(|| bug!("no definition found for uif `{func:?}` - {span:?}"))
                     .sort
                     .clone())
             }
@@ -594,7 +582,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
-        if let fhir::Sort::Adt(def_id) = sort && let Some([sort]) = self.map.sorts_of(*def_id) {
+        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.early_cx.sorts_of(*def_id) {
             Some(sort)
         } else {
             None
@@ -868,12 +856,18 @@ mod errors {
     impl DefSpanNote {
         fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
             let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
-            let refined_by = map.refined_by(def_id)?;
-            if !refined_by.params.is_empty() {
+
+            let mut has_params = false;
+            if let Some(local_id) = def_id.as_local()
+                && let refined_by = &map.adt(local_id).refined_by
+                && !refined_by.params.is_empty()
+            {
                 sp.push_span_label(refined_by.span, "");
+                has_params = true;
             }
+
             let def_kind = tcx.def_kind(def_id).descr(def_id);
-            Some(Self { sp, def_kind, has_params: !refined_by.params.is_empty() })
+            Some(Self { sp, def_kind, has_params })
         }
     }
 }
