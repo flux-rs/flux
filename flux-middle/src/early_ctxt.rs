@@ -92,4 +92,8 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             None
         }
     }
+
+    pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
+        self.tcx.hir()
+    }
 }
