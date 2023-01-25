@@ -36,7 +36,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
-    pub(crate) early_cx: EarlyCtxt<'sess, 'tcx>,
+    early_cx: EarlyCtxt<'sess, 'tcx>,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
     check_asserts: AssertBehavior,
@@ -395,7 +395,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
+    pub(crate) fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
         &self.early_cx
     }
 }

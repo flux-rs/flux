@@ -41,7 +41,8 @@ struct Layer {
 
 pub(crate) fn expand_alias(genv: &GlobalEnv, alias: &fhir::Alias) -> rty::Binders<rty::Ty> {
     let mut cx = ConvCtxt::from_refined_by(genv, &alias.refined_by);
-    let sorts = flatten_sorts(&genv.early_cx, alias.refined_by.params.iter().map(|(_, sort)| sort));
+    let sorts =
+        flatten_sorts(genv.early_cx(), alias.refined_by.params.iter().map(|(_, sort)| sort));
     let ty = cx.conv_ty(&alias.ty);
     rty::Binders::new(ty, sorts)
 }
@@ -266,7 +267,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::Ty::full_exists(bty, rty::Expr::tt())
                 }
             }
-            fhir::Ty::Indexed(bty, idx) => self.conv_indexed(bty, idx),
+            fhir::Ty::Indexed(bty, idx) => self.conv_indexed_ty(bty, idx),
             fhir::Ty::Exists(bty, bind, pred) => {
                 self.env
                     .push_layer(Layer::new(self.early_cx(), [(&bind.name, &bty.sort())]));
@@ -307,7 +308,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_indexed(&mut self, bty: &fhir::BaseTy, idx: &fhir::Index) -> rty::Ty {
+    fn conv_indexed_ty(&mut self, bty: &fhir::BaseTy, idx: &fhir::Index) -> rty::Ty {
         let mut args = vec![];
         for (arg, sort) in iter::zip(idx.flatten(), flatten_sort(self.early_cx(), &bty.sort())) {
             let is_binder = matches!(arg, fhir::RefineArg::Expr { is_binder: true, .. });
