@@ -251,8 +251,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         .clone())
     }
 
-    pub fn generics_of(&self, def_id: DefId) -> rustc::ty::Generics<'tcx> {
-        rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
+    pub fn generics_of(&self, def_id: impl Into<DefId>) -> rustc::ty::Generics<'tcx> {
+        rustc::lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id.into()))
             .unwrap_or_else(|_| FatalError.raise())
     }
 
@@ -355,9 +355,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::RawPtr(ty, mu) => {
-                rty::BaseTy::RawPtr(self.refine_ty(ty, mk_pred), *mu)
-            }
+            rustc::ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(self.refine_ty_true(ty), *mu),
         };
         let pred = mk_pred(bty.sorts());
         if pred.params().is_empty() && pred.is_trivially_true() {
@@ -384,6 +382,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
         &self.early_cx
+    }
+
+    pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
+        self.tcx.hir()
     }
 }
 

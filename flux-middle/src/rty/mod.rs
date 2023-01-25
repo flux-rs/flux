@@ -31,7 +31,7 @@ use toposort_scc::IndexGraph;
 
 use self::{
     fold::{TypeFoldable, TypeFolder},
-    subst::BVarFolder,
+    subst::BVarSubstFolder,
 };
 pub use crate::{
     fhir::{FuncSort, InferMode, RefKind, Sort},
@@ -242,7 +242,7 @@ where
     T: TypeFoldable,
 {
     pub fn replace_bvars(&self, args: &[RefineArg]) -> T {
-        self.value.fold_with(&mut BVarFolder::new(args))
+        self.value.fold_with(&mut BVarSubstFolder::new(args))
     }
 
     pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> RefineArg) -> T {
@@ -704,7 +704,7 @@ impl BaseTy {
 }
 
 impl Binders<Expr> {
-    /// See [`Pred::is_trivially_true`]
+    /// See [`Expr::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
     }

@@ -144,9 +144,10 @@ pub enum Ty {
     Char,
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
-    Param(ParamTy),
+    Param(DefId),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
+    Alias(DefId, Vec<Ty>),
     Never,
 }
 
@@ -671,13 +672,20 @@ impl fmt::Debug for Ty {
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
             Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
-            Ty::Param(param) => write!(f, "{param}"),
+            Ty::Param(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Never => write!(f, "!"),
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
+            Ty::Alias(def_id, substs) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                Ok(())
+            }
         }
     }
 }

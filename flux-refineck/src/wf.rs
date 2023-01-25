@@ -266,6 +266,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
+            fhir::Ty::Alias(_, substs) => {
+                substs
+                    .iter()
+                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
+            }
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)
@@ -279,8 +284,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::BaseTy::Adt(_, substs) => {
                 substs
                     .iter()
-                    .map(|ty| self.check_type(env, ty))
-                    .try_collect_exhaust()
+                    .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),

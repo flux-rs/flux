@@ -2,6 +2,7 @@ use std::fmt;
 
 pub use rustc_ast::token::{Lit, LitKind};
 use rustc_hir::def_id::{DefId, LocalDefId};
+pub use rustc_hir::PrimTy;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
@@ -231,14 +232,10 @@ pub struct Path<R = ()> {
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Res {
-    Bool,
-    Int(IntTy),
-    Uint(UintTy),
-    Float(FloatTy),
+    PrimTy(PrimTy),
+    Alias(DefId),
     Adt(DefId),
-    Str,
-    Char,
-    Param(ParamTy),
+    Param(DefId),
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
