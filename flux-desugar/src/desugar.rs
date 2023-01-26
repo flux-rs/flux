@@ -884,13 +884,8 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
-                if bind.is_some() {
-                    // This code is currently not reachable because the parser won't allow it as it conflicts with alias
-                    // applications. If we ever allow this we should think about the meaning of the syntax `x: T[@n]` and
-                    // `x: T[n]`. The second syntax should behave appropriately even when `n` is bound explicitly in the
-                    // list of refinement parameters, i.e., what's the meaning of `fn<n: int>(x: i32[n])` or the meaning
-                    // of `fn<n: int>(x: RMat[n, n])`
-                    unreachable!("[sanity check] this code is unreachable but we are leaving a not in case it is not anymore");
+                if let Some(bind) = bind {
+                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
                 if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
                     let binder = Binder::from_bty(&self.name_gen, bty);

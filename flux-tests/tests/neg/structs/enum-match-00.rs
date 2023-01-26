@@ -3,6 +3,7 @@
 
 #[path = "../../lib/nat.rs"]
 pub mod nat;
+use nat::Nat;
 
 pub enum MyOpt<T> {
     Some(T),

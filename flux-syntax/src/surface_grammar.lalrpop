@@ -130,13 +130,10 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(<>),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}"       => surface::Arg::Constr(<>),
-    <bind:Ident> ":" <lo:@L> <kind:ArgTyKind> <hi:@R> => {
-        let ty = surface::Ty { kind, span: mk_span(lo, hi) };
-        surface::Arg::Ty(Some(bind), ty)
-    },
-    <ty:Ty> => surface::Arg::Ty(None, <>),
+    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>),
+    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty),
+    <ty:Ty>                                          => surface::Arg::Ty(None, <>),
 }
 
 pub Ty: surface::Ty = {
@@ -146,12 +143,35 @@ pub Ty: surface::Ty = {
     }
 }
 
-// FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
-ArgTyKind: surface::TyKind = {
-    "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
-    "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
-    "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
-    "{" <ty:Ty> ":" <pred:Expr> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+// // FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
+// ArgTyKind: surface::TyKind = {
+    // "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
+    // "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
+    // "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+    // "{" <ty:Ty> ":" <pred:Expr> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+    // "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
+    //     let span = mk_span(lo, hi);
+    //     if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
+    //         Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }))
+    //     } else {
+    //         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+    //     }
+    // },
+    // <bty:BaseTy>                                      => surface::TyKind::Base(<>),
+    // <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
+// }
+
+TyKind: surface::TyKind = {
+    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
+    <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
+    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
+    "{" <ty:Ty> ":" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
+
+    "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
+
+    "&" <ty:Ty>                     => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
+    "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
         let span = mk_span(lo, hi);
         if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
@@ -160,19 +180,12 @@ ArgTyKind: surface::TyKind = {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
     },
-    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
-    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
 }
 
 #[inline]
 BaseTy: surface::BaseTy = {
     <path:Path> <args:("(" <Comma<RefineArg>> ")")?> => surface::BaseTy::Path(path, args.unwrap_or_default()),
     "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
-}
-
-TyKind: surface::TyKind = {
-    <ArgTyKind>,
-    <bty:BaseTy> "[" <indices:Indices> "]" => surface::TyKind::Indexed { <> },
 }
 
 GenericArgs: Vec<surface::Ty> = {
