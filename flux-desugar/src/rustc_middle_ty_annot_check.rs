@@ -228,8 +228,7 @@ impl<'sess, 'tcx> ZipChecker<'sess, 'tcx> {
         flux_ty_span: Span,
     ) -> Result<(), ErrorGuaranteed> {
         match (bty, rust_ty.kind()) {
-            (BaseTy::Path(path), _) => self.zip_path(path, rust_ty),
-
+            (BaseTy::Path(path, _), _) => self.zip_path(path, rust_ty),
             (BaseTy::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             _ => {
                 Err(self.sess.emit_err(errors::PathMismatch::new(

@@ -65,13 +65,7 @@ pub type PolyVariant = Binders<VariantDef>;
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub fields: List<Ty>,
-    pub ret: VariantRet,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
-pub struct VariantRet {
-    pub bty: BaseTy,
-    pub args: List<RefineArg>,
+    pub ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -234,6 +228,16 @@ impl<T> Binders<T> {
 
     pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binders<S> {
         Binders { params: self.params, value: f(self.value) }
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
     }
 }
 
@@ -432,7 +436,7 @@ impl AdtDef {
 impl PolyVariant {
     pub fn to_fn_sig(&self) -> PolySig {
         let fn_sig = self.as_ref().map(|variant| {
-            let ret = variant.ret.to_ty().shift_in_bvars(1);
+            let ret = variant.ret.shift_in_bvars(1);
             let output = Binders::new(FnOutput::new(ret, vec![]), vec![]);
             FnSig::new(vec![], variant.fields.clone(), output)
         });
@@ -442,12 +446,6 @@ impl PolyVariant {
             .map(Sort::default_infer_mode)
             .collect_vec();
         PolySig::new(fn_sig, modes)
-    }
-}
-
-impl VariantRet {
-    pub fn to_ty(&self) -> Ty {
-        Ty::indexed(self.bty.clone(), RefineArgs::multi(self.args.to_vec()))
     }
 }
 
@@ -575,6 +573,7 @@ impl TyS {
         &self.kind
     }
 
+    #[track_caller]
     pub fn expect_discr(&self) -> (&AdtDef, &Place) {
         if let TyKind::Discr(adt_def, place) = self.kind() {
             (adt_def, place)
@@ -583,6 +582,7 @@ impl TyS {
         }
     }
 
+    #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &RefineArgs) {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
             (adt_def, substs, idxs)
@@ -1009,13 +1009,6 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(f, "({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
-        }
-    }
-
-    impl Pretty for VariantRet {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(f, "{:?}", self.to_ty())
         }
     }
 

@@ -12,20 +12,24 @@ pub Alias: surface::Alias = {
   <lo:@L>
     "type"
     <name:Ident>
-    <params:("(" Comma<Ident> ")")?>
+    <rblo:@L>
+    <early_bound_params:("(" <Comma<RefineParam>> ")")?>
+    <params:("[" <Comma<RefineParam>> "]")?>
+    <rbhi:@R>
     "="
-    <defn:Ty>
+    <ty:Ty>
     <hi:@R> => {
-        let args = match params {
-            Some(xs) => xs.1,
-            None => vec![],
+        let refined_by = surface::RefinedBy {
+            early_bound_params: early_bound_params.unwrap_or_default(),
+            params: params.unwrap_or_default(),
+            span: mk_span(rblo, rbhi)
         };
-        surface::Alias { name, args, defn, span: mk_span(lo, hi) }
+        surface::Alias { name, refined_by, ty, span: mk_span(lo, hi) }
     }
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
+    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, early_bound_params: vec![], span: mk_span(lo, hi) }
 }
 
 pub Items: Vec<surface::Item> = {
@@ -127,14 +131,10 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(<>),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}"     => surface::Arg::Constr(<>),
-    <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(<>),
-    <bind:Ident> ":" <lo:@L> <kind:ArgTyKind> <hi:@R> => {
-        let ty = surface::Ty { kind, span: mk_span(lo, hi) };
-        surface::Arg::Ty(Some(bind), ty)
-    },
-    <ty:Ty> => surface::Arg::Ty(None, <>),
+    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>),
+    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty),
+    <ty:Ty>                                          => surface::Arg::Ty(None, <>),
 }
 
 pub Ty: surface::Ty = {
@@ -144,12 +144,17 @@ pub Ty: surface::Ty = {
     }
 }
 
-// FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
-ArgTyKind: surface::TyKind = {
-    "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
-    "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
-    "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
-    "{" <ty:Ty> ":" <pred:Expr> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+TyKind: surface::TyKind = {
+    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
+    <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
+    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
+    "{" <ty:Ty> ":" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
+
+    "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
+
+    "&" <ty:Ty>                     => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
+    "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
         let span = mk_span(lo, hi);
         if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
@@ -158,19 +163,12 @@ ArgTyKind: surface::TyKind = {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
     },
-    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
-    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
 }
 
 #[inline]
 BaseTy: surface::BaseTy = {
-    <path:Path>     => surface::BaseTy::Path(<>),
+    <path:Path> <args:("(" <Comma<RefineArg>> ")")?> => surface::BaseTy::Path(path, args.unwrap_or_default()),
     "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
-}
-
-TyKind: surface::TyKind = {
-    <ArgTyKind>,
-    <bty:BaseTy> "[" <indices:Indices> "]" => surface::TyKind::Indexed { <> },
 }
 
 GenericArgs: Vec<surface::Ty> = {

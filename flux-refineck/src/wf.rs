@@ -36,8 +36,8 @@ impl Env {
     }
 }
 
-impl From<&[fhir::RefineParam]> for Env {
-    fn from(params: &[fhir::RefineParam]) -> Env {
+impl From<&[fhir::FunRefineParam]> for Env {
+    fn from(params: &[fhir::FunRefineParam]) -> Env {
         let sorts = params
             .iter()
             .map(|param| (param.name.name, param.sort.clone()))
@@ -84,20 +84,6 @@ impl Wf<'_, '_> {
         wf.check_expr(&env, &defn.expr, &defn.sort)
     }
 
-    pub fn check_adt_def(
-        early_cx: &EarlyCtxt,
-        adt_def: &fhir::AdtDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let env = Env::from(&adt_def.refined_by.params[..]);
-        adt_def
-            .invariants
-            .iter()
-            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
-
-        Ok(())
-    }
-
     pub fn check_fn_quals(
         sess: &FluxSession,
         qualifiers: &FxHashSet<String>,
@@ -110,6 +96,56 @@ impl Wf<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::Alias) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+        let mut env = Env::from(&alias.refined_by.params[..]);
+        wf.check_type(&mut env, &alias.ty)
+    }
+
+    pub fn check_struct_def(
+        early_cx: &EarlyCtxt,
+        refined_by: &fhir::RefinedBy,
+        struct_def: &fhir::StructDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+        let mut env = Env::from(&refined_by.params[..]);
+
+        struct_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+        if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
+            fields.iter().try_for_each_exhaust(|ty| {
+                if let Some(ty) = ty {
+                    wf.check_type(&mut env, ty)
+                } else {
+                    Ok(())
+                }
+            })?;
+        }
+        Ok(())
+    }
+
+    pub fn check_enum_def(
+        early_cx: &EarlyCtxt,
+        refined_by: &fhir::RefinedBy,
+        enum_def: &fhir::EnumDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+
+        let env = Env::from(&refined_by.params[..]);
+        enum_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+        enum_def
+            .variants
+            .iter()
+            .try_for_each_exhaust(|variant| wf.check_variant(variant))
     }
 
     pub fn check_fn_sig(early_cx: &EarlyCtxt, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -153,35 +189,6 @@ impl Wf<'_, '_> {
 
         Ok(())
     }
-
-    pub fn check_struct_def(
-        early_cx: &EarlyCtxt,
-        refined_by: &fhir::RefinedBy,
-        def: &fhir::StructDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let mut env = Env::from(&refined_by.params[..]);
-        if let fhir::StructKind::Transparent { fields } = &def.kind {
-            fields.iter().try_for_each_exhaust(|ty| {
-                if let Some(ty) = ty {
-                    wf.check_type(&mut env, ty)
-                } else {
-                    Ok(())
-                }
-            })?;
-        }
-        Ok(())
-    }
-
-    pub fn check_enum_def(
-        early_cx: &EarlyCtxt,
-        def: &fhir::EnumDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        def.variants
-            .iter()
-            .try_for_each_exhaust(|variant| wf.check_variant(variant))
-    }
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
@@ -195,7 +202,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices = self.check_index(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
+        let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
         fields?;
         indices?;
         Ok(())
@@ -246,8 +253,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match ty {
             fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
-            fhir::Ty::Indexed(bty, refine) => {
-                self.check_index(env, refine, &bty.sort())?;
+            fhir::Ty::Indexed(bty, idx) => {
+                self.check_refine_arg(env, idx, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
             fhir::Ty::Exists(bty, bind, pred) => {
@@ -266,11 +273,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::Alias(_, substs) => {
-                substs
-                    .iter()
-                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
-            }
+            fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)
@@ -286,27 +289,17 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
+            fhir::BaseTy::Alias(def_id, substs, args) => {
+                substs
+                    .iter()
+                    .try_for_each_exhaust(|arg| self.check_type(env, arg))?;
+
+                let sorts = self.early_cx.early_bound_sorts_of(*def_id);
+                iter::zip(args, sorts)
+                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))
+            }
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
-        }
-    }
-
-    fn check_index(
-        &self,
-        env: &mut Env,
-        idx: &fhir::Index,
-        expected: &fhir::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
-        match &idx.kind {
-            fhir::IndexKind::Single(arg) => self.check_refine_arg(env, arg, expected),
-            fhir::IndexKind::Aggregate(def_id, args) => {
-                self.check_aggregate(env, *def_id, args, idx.span)?;
-                let found = fhir::Sort::Adt(*def_id);
-                if &found != expected {
-                    return self.emit_err(errors::SortMismatch::new(idx.span, expected, &found));
-                }
-                Ok(())
-            }
         }
     }
 
@@ -317,7 +310,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.early_cx.sorts_of(def_id);
+        let sorts = self.early_cx.index_sorts_of(def_id);
         if args.len() != sorts.len() {
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
@@ -363,6 +356,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 } else {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))
                 }
+            }
+            fhir::RefineArg::Aggregate(def_id, flds, span) => {
+                self.check_aggregate(env, *def_id, flds, *span)?;
+                let found = fhir::Sort::Adt(*def_id);
+                if &found != expected {
+                    return self.emit_err(errors::SortMismatch::new(*span, expected, &found));
+                }
+                Ok(())
             }
         }
     }
@@ -562,13 +563,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
-        if let fhir::Sort::Func(fsort) = sort {
-            Some(fsort.clone())
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_adt(sort) {
-            Some(fsort.clone())
-        } else {
-            None
-        }
+        self.early_cx.is_coercible_to_func(sort)
     }
 
     fn is_coercible_to_numeric(&self, sort: &fhir::Sort) -> Option<fhir::Sort> {
@@ -582,11 +577,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
-        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.early_cx.sorts_of(*def_id) {
-            Some(sort)
-        } else {
-            None
-        }
+        self.early_cx.is_single_field_adt(sort)
     }
 
     /// Checks that refinement parameters are used in allowed positions.
@@ -859,7 +850,7 @@ mod errors {
 
             let mut has_params = false;
             if let Some(local_id) = def_id.as_local()
-                && let refined_by = &map.adt(local_id).refined_by
+                && let refined_by = &map.get_adt(local_id).refined_by
                 && !refined_by.params.is_empty()
             {
                 sp.push_span_label(refined_by.span, "");

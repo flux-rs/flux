@@ -1,9 +1,6 @@
 use flux_common::{cache::QueryCache, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
-use flux_middle::{
-    global_env::GlobalEnv,
-    rty::{AdtDef, Invariant},
-};
+use flux_middle::{fhir, global_env::GlobalEnv, rty};
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
@@ -15,14 +12,15 @@ use crate::{
 pub fn check_invariants(
     genv: &GlobalEnv,
     cache: &mut QueryCache,
-    adt_def: &AdtDef,
+    invariants: &[fhir::Expr],
+    adt_def: &rty::AdtDef,
 ) -> Result<(), ErrorGuaranteed> {
     adt_def
         .invariants()
         .iter()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
-            let span = genv.map().adt(adt_def.def_id().expect_local()).invariants[idx].span;
+            let span = invariants[idx].span;
             check_invariant(genv, cache, adt_def, span, invariant)
         })
 }
@@ -30,9 +28,9 @@ pub fn check_invariants(
 fn check_invariant(
     genv: &GlobalEnv,
     cache: &mut QueryCache,
-    adt_def: &AdtDef,
+    adt_def: &rty::AdtDef,
     span: Span,
-    invariant: &Invariant,
+    invariant: &rty::Invariant,
 ) -> Result<(), ErrorGuaranteed> {
     let mut refine_tree = RefineTree::new();
 
@@ -53,9 +51,9 @@ fn check_invariant(
             let ty = rcx.unpack(ty);
             rcx.assume_invariants(&ty);
         }
-
+        let (.., idxs) = variant.ret.expect_adt();
         rcx.check_pred(
-            invariant.pred.replace_bvars(&variant.ret.args),
+            invariant.pred.replace_bvars(idxs.args()),
             Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }

@@ -1,5 +1,3 @@
-// ignore-test ignore until we implement resolving of aggregate sorts
-
 #![feature(register_tool)]
 #![register_tool(flux)]
 

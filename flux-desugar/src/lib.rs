@@ -75,3 +75,19 @@ pub fn desugar_fn_sig(
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
     fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
 }
+
+pub fn desugar_alias(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+    alias: surface::Alias,
+) -> Result<fhir::Alias, ErrorGuaranteed> {
+    // Resolve
+    let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
+    let alias = resolver.resolve_alias(alias)?;
+
+    // Check
+    hir_annot_check::check_alias(early_cx.tcx, early_cx.sess, def_id, &alias)?;
+
+    // Desugar
+    desugar::desugar_alias(early_cx, def_id, alias)
+}

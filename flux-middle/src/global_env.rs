@@ -1,11 +1,14 @@
 use std::{cell::RefCell, collections::hash_map, string::ToString};
 
-use flux_common::config::{self, AssertBehavior};
+use flux_common::{
+    bug,
+    config::{self, AssertBehavior},
+};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::DefId, LangItem};
+use rustc_hir::{def::DefKind, def_id::DefId, LangItem};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::ty::Variance;
 pub use rustc_span::{symbol::Ident, Symbol};
@@ -14,7 +17,6 @@ pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, VariantIdx},
-    intern::List,
     rty::{self, fold::TypeFoldable, Binders, Defns},
     rustc,
 };
@@ -56,18 +58,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 .emit_err(errors::DefinitionCycle::new(span, cycle))
         })?;
 
-        let mut adt_defs = FxHashMap::default();
-        for adt_def in early_cx.map.adts() {
-            let adt_def = rty::conv::conv_adt_def(&early_cx, adt_def).normalize(&defns);
-            adt_defs.insert(adt_def.def_id(), adt_def);
-        }
+        let adt_defs = mk_adt_defs(&early_cx);
 
         let qualifiers = early_cx
             .map
             .qualifiers()
-            .map(|qualifier| {
-                rty::conv::ConvCtxt::conv_qualifier(&early_cx, qualifier).normalize(&defns)
-            })
+            .map(|qualifier| rty::conv::conv_qualifier(&early_cx, qualifier).normalize(&defns))
             .collect();
 
         let uifs = early_cx
@@ -105,7 +101,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for struct_def in map.structs() {
             let local_id = struct_def.def_id;
-            let refined_by = &map.adt(local_id).refined_by;
+            let refined_by = &map.get_adt(local_id).refined_by;
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));
@@ -136,7 +132,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     fn register_fn_sigs(&mut self) {
         let map = &self.early_cx.map;
         for (def_id, fn_sig) in map.fn_sigs() {
-            let fn_sig = rty::conv::ConvCtxt::conv_fn_sig(self, fn_sig).normalize(&self.defns);
+            let fn_sig = rty::conv::conv_fn_sig(self, fn_sig).normalize(&self.defns);
             self.fn_sigs.get_mut().insert(def_id.to_def_id(), fn_sig);
         }
     }
@@ -256,12 +252,32 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .unwrap_or_else(|_| FatalError.raise())
     }
 
-    pub fn sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
-        self.early_cx.sorts_of(def_id)
+    pub fn index_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+        self.early_cx.index_sorts_of(def_id)
+    }
+
+    pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+        self.early_cx.early_bound_sorts_of(def_id)
     }
 
     fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
         self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Expr::tt(), sorts))
+    }
+
+    pub(crate) fn type_of(&self, def_id: DefId) -> Binders<rty::Ty> {
+        if let Some(local_id) = def_id.as_local() {
+            match self.tcx.def_kind(def_id) {
+                DefKind::TyAlias => {
+                    let alias = self.early_cx.map.get_alias(local_id);
+                    rty::conv::expand_alias(self, alias)
+                }
+                kind => {
+                    bug!("`{:?}` not supported", kind.descr(def_id))
+                }
+            }
+        } else {
+            Binders::new(self.default_type_of(def_id), vec![])
+        }
     }
 
     pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {
@@ -294,7 +310,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 })
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
-            let ret = rty::VariantRet { bty, args: List::from_vec(vec![]) };
+            let ret = rty::Ty::indexed(bty, rty::RefineArgs::empty());
             Binders::new(rty::VariantDef::new(fields, ret), vec![])
         } else {
             FatalError.raise()
@@ -380,13 +396,28 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
+    pub(crate) fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
         &self.early_cx
     }
 
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.tcx.hir()
     }
+}
+
+fn mk_adt_defs(early_cx: &EarlyCtxt) -> FxHashMap<DefId, rty::AdtDef> {
+    let mut map = FxHashMap::default();
+    for struct_def in early_cx.map.structs() {
+        map.insert(
+            struct_def.def_id.to_def_id(),
+            rty::conv::adt_def_for_struct(early_cx, struct_def),
+        );
+    }
+    for enum_def in early_cx.map.enums() {
+        map.insert(enum_def.def_id.to_def_id(), rty::conv::adt_def_for_enum(early_cx, enum_def));
+    }
+
+    map
 }
 
 mod errors {

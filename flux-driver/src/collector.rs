@@ -159,15 +159,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             Err(self.emit_err(errors::InvalidConstant { span }))
         }
     }
+
     fn parse_tyalias_spec(
         &mut self,
-        _def_id: LocalDefId,
+        def_id: LocalDefId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        if let Some(alias) = attrs.alias() {
-            self.specs.aliases.insert(alias.name, alias);
-        }
+        self.specs.aliases.insert(def_id, attrs.alias());
         Ok(())
     }
 

@@ -97,13 +97,13 @@ impl TypeFolder for FVarSubstFolder<'_> {
 /// Substitution for [bound variables]
 /// [bound variables]: `crate::rty::expr::ExprKind::BoundVar`
 pub(super) struct BVarSubstFolder<'a> {
-    outer_binder: DebruijnIndex,
+    current_index: DebruijnIndex,
     args: &'a [RefineArg],
 }
 
 impl<'a> BVarSubstFolder<'a> {
     pub(super) fn new(args: &'a [RefineArg]) -> BVarSubstFolder<'a> {
-        BVarSubstFolder { args, outer_binder: INNERMOST }
+        BVarSubstFolder { args, current_index: INNERMOST }
     }
 }
 
@@ -112,32 +112,32 @@ impl TypeFolder for BVarSubstFolder<'_> {
     where
         T: TypeFoldable,
     {
-        self.outer_binder.shift_in(1);
+        self.current_index.shift_in(1);
         let r = t.super_fold_with(self);
-        self.outer_binder.shift_out(1);
+        self.current_index.shift_out(1);
         r
     }
 
     fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
         if let RefineArg::Expr(expr) = arg
            && let ExprKind::BoundVar(bvar) = expr.kind()
-           && bvar.debruijn == self.outer_binder
+           && bvar.debruijn == self.current_index
         {
-            self.args[bvar.index].clone()
+            self.args[bvar.index].shift_in_bvars(self.current_index.as_u32())
         } else {
             arg.super_fold_with(self)
         }
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
+        if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.current_index {
             if let RefineArg::Expr(e) = &self.args[bvar.index] {
-                e.clone()
+                e.shift_in_bvars(self.current_index.as_u32())
             } else {
                 panic!("expected expr for `{bvar:?}` but found `{:?}` when substituting", self.args[bvar.index])
             }
         } else if let ExprKind::App(Func::Var(Var::Bound(bvar)), args) = e.kind()
-           && bvar.debruijn == self.outer_binder
+           && bvar.debruijn == self.current_index
            && let RefineArg::Abs(abs) = &self.args[bvar.index]
         {
             let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();

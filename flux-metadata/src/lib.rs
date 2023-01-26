@@ -82,7 +82,7 @@ impl CrateStore for CStore {
             .cloned()
     }
 
-    fn sorts_of(&self, def_id: DefId) -> Option<&[rty::Sort]> {
+    fn index_sorts(&self, def_id: DefId) -> Option<&[rty::Sort]> {
         self.adt(def_id).map(|adt| adt.adt_def.sorts())
     }
 
@@ -134,7 +134,7 @@ impl CrateMetadata {
                     );
                 }
                 DefKind::Enum | DefKind::Struct => {
-                    let refined_by = &genv.map().adt(local_id).refined_by;
+                    let refined_by = &genv.map().get_adt(local_id).refined_by;
                     let adt_def = genv.adt_def(def_id);
                     let variants = if adt_def.is_opaque() {
                         None

@@ -16,6 +16,8 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
+pub mod lift;
+
 use std::{
     borrow::{Borrow, Cow},
     fmt,
@@ -23,11 +25,11 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
+use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
-pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, UintTy};
 use rustc_span::{Span, Symbol, DUMMY_SP};
 pub use rustc_target::abi::VariantIdx;
 
@@ -69,6 +71,7 @@ pub struct Map {
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     adts: FxHashMap<LocalDefId, AdtDef>,
+    aliases: FxHashMap<LocalDefId, Alias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
@@ -77,9 +80,18 @@ pub struct Map {
 }
 
 #[derive(Debug)]
+pub struct Alias {
+    pub def_id: LocalDefId,
+    pub refined_by: RefinedBy,
+    pub ty: Ty,
+    pub span: Span,
+}
+
+#[derive(Debug)]
 pub struct StructDef {
     pub def_id: LocalDefId,
     pub kind: StructKind,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
@@ -92,11 +104,12 @@ pub enum StructKind {
 pub struct EnumDef {
     pub def_id: LocalDefId,
     pub variants: Vec<VariantDef>,
+    pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
 pub struct VariantDef {
-    pub params: Vec<RefineParam>,
+    pub params: Vec<FunRefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
 }
@@ -104,12 +117,12 @@ pub struct VariantDef {
 #[derive(Debug)]
 pub struct VariantRet {
     pub bty: BaseTy,
-    pub idx: Index,
+    pub idx: RefineArg,
 }
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<RefineParam>,
+    pub params: Vec<FunRefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -118,7 +131,7 @@ pub struct FnSig {
 }
 
 pub struct FnOutput {
-    pub params: Vec<RefineParam>,
+    pub params: Vec<FunRefineParam>,
     pub ret: Ty,
     pub ensures: Vec<Constraint>,
 }
@@ -134,7 +147,7 @@ pub enum Ty {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
-    Indexed(BaseTy, Index),
+    Indexed(BaseTy, RefineArg),
     Exists(BaseTy, Ident, Expr),
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
@@ -147,8 +160,13 @@ pub enum Ty {
     Param(DefId),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
-    Alias(DefId, Vec<Ty>),
+    RawPtr(Box<Ty>, Mutability),
     Never,
+}
+
+pub enum BtyOrTy {
+    Bty(BaseTy),
+    Ty(Ty),
 }
 
 pub struct ArrayLen {
@@ -168,6 +186,12 @@ pub enum WeakKind {
     Arr,
 }
 
+impl From<BaseTy> for Ty {
+    fn from(bty: BaseTy) -> Ty {
+        Ty::BaseTy(bty)
+    }
+}
+
 impl From<RefKind> for WeakKind {
     fn from(rk: RefKind) -> WeakKind {
         match rk {
@@ -175,16 +199,6 @@ impl From<RefKind> for WeakKind {
             RefKind::Mut => WeakKind::Mut,
         }
     }
-}
-
-pub struct Index {
-    pub kind: IndexKind,
-    pub span: Span,
-}
-
-pub enum IndexKind {
-    Single(RefineArg),
-    Aggregate(DefId, Vec<RefineArg>),
 }
 
 pub enum RefineArg {
@@ -195,6 +209,7 @@ pub enum RefineArg {
         is_binder: bool,
     },
     Abs(Vec<Name>, Expr, Span),
+    Aggregate(DefId, Vec<RefineArg>, Span),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -202,12 +217,13 @@ pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
     Bool,
+    Alias(DefId, Vec<Ty>, Vec<RefineArg>),
     Adt(DefId, Vec<Ty>),
     Slice(Box<Ty>),
 }
 
 #[derive(Debug)]
-pub struct RefineParam {
+pub struct FunRefineParam {
     pub name: Ident,
     pub sort: Sort,
     pub mode: InferMode,
@@ -295,6 +311,27 @@ newtype_index! {
     pub struct Name {}
 }
 
+impl BtyOrTy {
+    pub fn to_ty(self) -> Ty {
+        match self {
+            Self::Bty(bty) => Ty::BaseTy(bty),
+            Self::Ty(ty) => ty,
+        }
+    }
+}
+
+impl From<BaseTy> for BtyOrTy {
+    fn from(v: BaseTy) -> Self {
+        Self::Bty(v)
+    }
+}
+
+impl From<Ty> for BtyOrTy {
+    fn from(v: Ty) -> Self {
+        Self::Ty(v)
+    }
+}
+
 impl BaseTy {
     /// Returns `true` if the base ty is [`Bool`].
     ///
@@ -307,16 +344,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
-        }
-    }
-}
-
-impl Index {
-    pub fn flatten(&self) -> &[RefineArg] {
-        match &self.kind {
-            IndexKind::Single(arg) => std::slice::from_ref(arg),
-            IndexKind::Aggregate(_, args) => args,
+            BaseTy::Alias(def_id, ..) | BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
         }
     }
 }
@@ -341,16 +369,15 @@ impl Ident {
 
 #[derive(Debug)]
 pub struct AdtDef {
-    pub def_id: DefId,
+    pub def_id: LocalDefId,
     pub refined_by: RefinedBy,
-    pub invariants: Vec<Expr>,
-    pub opaque: bool,
     sorts: Vec<Sort>,
 }
 
 #[derive(Debug)]
 pub struct RefinedBy {
     pub params: Vec<(Ident, Sort)>,
+    pub early_bound: usize,
     pub span: Span,
 }
 
@@ -369,9 +396,9 @@ pub struct Defn {
 }
 
 impl AdtDef {
-    pub fn new(def_id: DefId, refined_by: RefinedBy, invariants: Vec<Expr>, opaque: bool) -> Self {
+    pub fn new(def_id: LocalDefId, refined_by: RefinedBy) -> Self {
         let sorts = refined_by.sorts().cloned().collect_vec();
-        AdtDef { def_id, refined_by, invariants, opaque, sorts }
+        AdtDef { def_id, refined_by, sorts }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
@@ -394,13 +421,22 @@ impl AdtDef {
         )
     }
 
-    pub fn sorts(&self) -> &[Sort] {
+    pub fn index_sorts(&self) -> &[Sort] {
+        &self.sorts[self.refined_by.early_bound..]
+    }
+
+    pub fn early_bound_sorts(&self) -> &[Sort] {
+        &self.sorts[..self.refined_by.early_bound]
+    }
+
+    pub(crate) fn sorts(&self) -> &[Sort] {
         &self.sorts
     }
 }
 
 impl RefinedBy {
-    pub const DUMMY: &'static RefinedBy = &RefinedBy { params: vec![], span: DUMMY_SP };
+    pub const DUMMY: &'static RefinedBy =
+        &RefinedBy { params: vec![], early_bound: 0, span: DUMMY_SP };
 
     pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
         self.params.iter().map(|(_, sort)| sort)
@@ -442,7 +478,7 @@ impl Sort {
     }
 
     #[track_caller]
-    pub fn as_func(&self) -> &FuncSort {
+    pub fn expect_func(&self) -> &FuncSort {
         if let Sort::Func(sort) = self {
             sort
         } else {
@@ -523,6 +559,30 @@ impl Map {
         self.trusted.contains(&def_id)
     }
 
+    // ADT
+
+    pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
+        self.adts.insert(def_id, sort_info);
+    }
+
+    pub fn get_adt(&self, def_id: LocalDefId) -> &AdtDef {
+        &self.adts[&def_id]
+    }
+
+    // Aliases
+
+    pub fn insert_alias(&mut self, def_id: LocalDefId, alias: Alias) {
+        self.aliases.insert(def_id, alias);
+    }
+
+    pub fn aliases(&self) -> impl Iterator<Item = &Alias> {
+        self.aliases.values()
+    }
+
+    pub fn get_alias(&self, def_id: impl Borrow<LocalDefId>) -> &Alias {
+        &self.aliases[def_id.borrow()]
+    }
+
     // Structs
 
     pub fn insert_struct(&mut self, def_id: LocalDefId, struct_def: StructDef) {
@@ -533,6 +593,10 @@ impl Map {
         self.structs.values()
     }
 
+    pub fn get_struct(&self, def_id: impl Borrow<LocalDefId>) -> &StructDef {
+        &self.structs[def_id.borrow()]
+    }
+
     // Enums
 
     pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef) {
@@ -541,6 +605,10 @@ impl Map {
 
     pub fn enums(&self) -> impl Iterator<Item = &EnumDef> {
         self.enums.values()
+    }
+
+    pub fn get_enum(&self, def_id: impl Borrow<LocalDefId>) -> &EnumDef {
+        &self.enums[def_id.borrow()]
     }
 
     // Consts
@@ -584,20 +652,6 @@ impl Map {
         self.defns.get(sym.borrow())
     }
 
-    // ADT
-
-    pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
-        self.adts.insert(def_id, sort_info);
-    }
-
-    pub fn adt(&self, def_id: LocalDefId) -> &AdtDef {
-        &self.adts[&def_id]
-    }
-
-    pub fn adts(&self) -> impl Iterator<Item = &AdtDef> {
-        self.adts.values()
-    }
-
     // Sorts
 
     pub fn insert_sort_decl(&mut self, sort_decl: SortDecl) {
@@ -610,6 +664,12 @@ impl Map {
 
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
         self.sort_decls.get(name.borrow())
+    }
+}
+
+impl StructDef {
+    pub fn is_opaque(&self) -> bool {
+        matches!(self.kind, StructKind::Opaque)
     }
 }
 
@@ -666,7 +726,7 @@ impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
-            Ty::Indexed(bty, idx) => write!(f, "{bty:?}{idx:?}"),
+            Ty::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
             Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
@@ -679,31 +739,8 @@ impl fmt::Debug for Ty {
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
-            Ty::Alias(def_id, substs) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl fmt::Debug for Index {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            IndexKind::Single(idx) => {
-                write!(f, "{idx:?}")
-            }
-            IndexKind::Aggregate(def_id, flds) => {
-                write!(
-                    f,
-                    "[{}{{ {:?} }}]",
-                    pretty::def_id_to_string(*def_id),
-                    flds.iter().format(", ")
-                )
-            }
+            Ty::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            Ty::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
         }
     }
 }
@@ -720,11 +757,22 @@ impl fmt::Debug for BaseTy {
             BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => write!(f, "bool")?,
-            BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
+            BaseTy::Alias(def_id, substs, args) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                if !args.is_empty() {
+                    write!(f, "({:?})", args.iter().format(", "))?;
+                }
+            }
+            BaseTy::Adt(did, substs) => {
+                write!(f, "{}", pretty::def_id_to_string(*did))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+            }
             BaseTy::Slice(ty) => write!(f, "[{ty:?}]")?,
-        }
-        if let BaseTy::Adt(_, substs) = self && !substs.is_empty() {
-            write!(f, "<{:?}>", substs.iter().format(", "))?;
         }
         Ok(())
     }
@@ -741,6 +789,14 @@ impl fmt::Debug for RefineArg {
             }
             RefineArg::Abs(params, body, _) => {
                 write!(f, "|{:?}| {body:?}", params.iter().format(","))
+            }
+            RefineArg::Aggregate(def_id, flds, _) => {
+                write!(
+                    f,
+                    "[{}{{ {:?} }}]",
+                    pretty::def_id_to_string(*def_id),
+                    flds.iter().format(", ")
+                )
             }
         }
     }
@@ -768,8 +824,8 @@ impl fmt::Debug for Expr {
             ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
-            ExprKind::Const(x, _) => write!(f, "{x:?}"),
-            ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
+            ExprKind::Const(x, _) => write!(f, "{}", pretty::def_id_to_string(*x)),
+            ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
             ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }

@@ -9,7 +9,7 @@ use flux_middle::{
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
         GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, RefKind, RefineArg, Sort, Ty,
-        TyKind, VariantRet,
+        TyKind,
     },
     rustc::{
         self,
@@ -198,7 +198,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         variant: &PolyVariant,
         substs: &[GenericArg],
         fields: &[Ty],
-    ) -> Result<VariantRet, UnsolvedEvar> {
+    ) -> Result<Ty, UnsolvedEvar> {
         // rn we are only calling `check_constructor` from path_tree when folding so we mark this
         // as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
@@ -297,7 +297,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> RefineArg {
         match kind {
             InferMode::KVar => {
-                let fsort = sort.as_func();
+                let fsort = sort.expect_func();
                 RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
             }
             InferMode::EVar => RefineArg::Expr(Expr::evar(self.fresh_evar())),
@@ -352,18 +352,18 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.assume_pred(p1);
                 self.subtyping(rcx, ty1, ty2);
             }
-            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
-                self.bty_subtyping(rcx, bty1, bty2);
-                for (i, (arg1, arg2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
-                    self.refine_arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
-                }
-            }
-            (TyKind::Indexed(..), TyKind::Exists(ty2)) => {
+            (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
                 let ty2 =
                     ty2.replace_bvars_with(|_| RefineArg::Expr(Expr::evar(self.fresh_evar())));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
+            }
+            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
+                self.bty_subtyping(rcx, bty1, bty2);
+                for (i, (arg1, arg2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
+                    self.refine_arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
+                }
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
                 debug_assert_eq!(pk1, pk2);

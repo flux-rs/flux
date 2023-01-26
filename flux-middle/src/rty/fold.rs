@@ -7,7 +7,7 @@ use rustc_hash::FxHashSet;
 use super::{
     evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Expr,
     ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg,
-    RefineArgs, RefineArgsData, Sort, Ty, TyKind, VariantRet, INNERMOST,
+    RefineArgs, RefineArgsData, Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -305,19 +305,6 @@ impl TypeFoldable for VariantDef {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.fields.iter().for_each(|ty| ty.visit_with(visitor));
         self.ret.visit_with(visitor);
-    }
-}
-
-impl TypeFoldable for VariantRet {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let bty = self.bty.fold_with(folder);
-        let args = self.args.fold_with(folder);
-        VariantRet { bty, args }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.bty.visit_with(visitor);
-        self.args.iter().for_each(|idx| idx.visit_with(visitor));
     }
 }
 
@@ -708,15 +695,5 @@ impl TypeFoldable for Invariant {
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.pred.visit_with(visitor);
-    }
-}
-
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: VariantRet) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
-    }
-
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
     }
 }
