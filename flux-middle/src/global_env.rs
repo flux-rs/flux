@@ -17,7 +17,6 @@ pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, VariantIdx},
-    intern::List,
     rty::{self, fold::TypeFoldable, Binders, Defns},
     rustc,
 };
@@ -253,8 +252,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .unwrap_or_else(|_| FatalError.raise())
     }
 
-    pub fn sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
-        self.early_cx.sorts_of(def_id)
+    pub fn index_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+        self.early_cx.index_sorts_of(def_id)
     }
 
     pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
@@ -311,7 +310,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 })
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
-            let ret = rty::VariantRet { bty, args: List::from_vec(vec![]) };
+            let ret = rty::Ty::indexed(bty, rty::RefineArgs::empty());
             Binders::new(rty::VariantDef::new(fields, ret), vec![])
         } else {
             FatalError.raise()

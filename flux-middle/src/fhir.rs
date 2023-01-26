@@ -160,7 +160,6 @@ pub enum Ty {
     Param(DefId),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
-    Alias(DefId, Vec<Ty>, Vec<RefineArg>),
     Never,
 }
 
@@ -221,6 +220,7 @@ pub enum BaseTy {
     Int(IntTy),
     Uint(UintTy),
     Bool,
+    Alias(DefId, Vec<Ty>, Vec<RefineArg>),
     Adt(DefId, Vec<Ty>),
     Slice(Box<Ty>),
 }
@@ -347,7 +347,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
+            BaseTy::Alias(def_id, ..) | BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
         }
     }
 }
@@ -424,12 +424,16 @@ impl AdtDef {
         )
     }
 
-    pub fn sorts(&self) -> &[Sort] {
+    pub fn index_sorts(&self) -> &[Sort] {
         &self.sorts[self.refined_by.early_bound..]
     }
 
     pub fn early_bound_sorts(&self) -> &[Sort] {
         &self.sorts[..self.refined_by.early_bound]
+    }
+
+    pub(crate) fn sorts(&self) -> &[Sort] {
+        &self.sorts
     }
 }
 
@@ -725,7 +729,7 @@ impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
-            Ty::Indexed(bty, idx) => write!(f, "{bty:?}{idx:?}"),
+            Ty::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
             Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
             Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
@@ -738,37 +742,9 @@ impl fmt::Debug for Ty {
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
-            Ty::Alias(def_id, substs, args) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
-                }
-                if !args.is_empty() {
-                    write!(f, "({:?})", args.iter().format(", "))?;
-                }
-                Ok(())
-            }
         }
     }
 }
-
-// impl fmt::Debug for Index {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match &self.kind {
-//             IndexKind::Single(idx) => {
-//                 write!(f, "{idx:?}")
-//             }
-//             IndexKind::Aggregate(def_id, flds) => {
-//                 write!(
-//                     f,
-//                     "[{}{{ {:?} }}]",
-//                     pretty::def_id_to_string(*def_id),
-//                     flds.iter().format(", ")
-//                 )
-//             }
-//         }
-//     }
-// }
 
 impl fmt::Debug for ArrayLen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -782,11 +758,22 @@ impl fmt::Debug for BaseTy {
             BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
             BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
             BaseTy::Bool => write!(f, "bool")?,
-            BaseTy::Adt(did, _) => write!(f, "{}", pretty::def_id_to_string(*did))?,
+            BaseTy::Alias(def_id, substs, args) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                if !args.is_empty() {
+                    write!(f, "({:?})", args.iter().format(", "))?;
+                }
+            }
+            BaseTy::Adt(did, substs) => {
+                write!(f, "{}", pretty::def_id_to_string(*did))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+            }
             BaseTy::Slice(ty) => write!(f, "[{ty:?}]")?,
-        }
-        if let BaseTy::Adt(_, substs) = self && !substs.is_empty() {
-            write!(f, "<{:?}>", substs.iter().format(", "))?;
         }
         Ok(())
     }

@@ -51,9 +51,9 @@ fn check_invariant(
             let ty = rcx.unpack(ty);
             rcx.assume_invariants(&ty);
         }
-
+        let (.., idxs) = variant.ret.expect_adt();
         rcx.check_pred(
-            invariant.pred.replace_bvars(&variant.ret.args),
+            invariant.pred.replace_bvars(idxs.args()),
             Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }

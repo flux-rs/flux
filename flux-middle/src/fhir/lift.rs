@@ -88,7 +88,7 @@ fn lift_path(early_cx: &EarlyCtxt, path: &hir::Path) -> Result<fhir::BtyOrTy, Er
         }
         hir::def::Res::Def(DefKind::TyAlias, def_id) => {
             let args = path.segments.last().unwrap().args;
-            fhir::Ty::Alias(def_id, lift_generic_args(early_cx, args)?, vec![]).into()
+            fhir::BaseTy::Alias(def_id, lift_generic_args(early_cx, args)?, vec![]).into()
         }
         hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Ty::Param(def_id).into(),
         hir::def::Res::PrimTy(hir::PrimTy::Bool) => fhir::BaseTy::Bool.into(),

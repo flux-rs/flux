@@ -677,7 +677,6 @@ impl Node {
                 } else {
                     gen.check_constructor(rcx, &variant, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
-                        .to_ty()
                 };
                 *self = Node::owned(ty.clone());
                 ty
@@ -854,8 +853,9 @@ fn downcast_enum(
         .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
         .replace_generics(substs);
 
-    debug_assert_eq!(variant_def.ret.args.len(), args.len());
-    let constr = Expr::and(iter::zip(&variant_def.ret.args, args).filter_map(|(arg1, arg2)| {
+    let (.., idxs) = variant_def.ret.expect_adt();
+    debug_assert_eq!(idxs.args().len(), args.len());
+    let constr = Expr::and(iter::zip(idxs.args(), args).filter_map(|(arg1, arg2)| {
         if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
             Some(Expr::eq(e1, e2))
         } else {

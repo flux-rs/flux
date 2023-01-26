@@ -273,11 +273,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::Alias(_, substs, _) => {
-                substs
-                    .iter()
-                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
-            }
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)
@@ -293,6 +288,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
+            fhir::BaseTy::Alias(_, substs, _) => {
+                // FIXME(nilehmann) check early bound params
+                substs
+                    .iter()
+                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
+            }
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
         }
@@ -305,7 +306,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.early_cx.sorts_of(def_id);
+        let sorts = self.early_cx.index_sorts_of(def_id);
         if args.len() != sorts.len() {
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),

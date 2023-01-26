@@ -454,22 +454,23 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         args: &[surface::RefineArg],
     ) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match &path.res {
-            Res::PrimTy(PrimTy::Bool) => BtyOrTy::Bty(fhir::BaseTy::Bool),
-            Res::PrimTy(PrimTy::Str) => BtyOrTy::Ty(fhir::Ty::Str),
-            Res::PrimTy(PrimTy::Char) => BtyOrTy::Ty(fhir::Ty::Char),
-            Res::PrimTy(PrimTy::Int(int_ty)) => BtyOrTy::Bty(fhir::BaseTy::Int(*int_ty)),
-            Res::PrimTy(PrimTy::Uint(uint_ty)) => BtyOrTy::Bty(fhir::BaseTy::Uint(*uint_ty)),
-            Res::PrimTy(PrimTy::Float(float_ty)) => BtyOrTy::Ty(fhir::Ty::Float(*float_ty)),
+            Res::PrimTy(PrimTy::Bool) => fhir::BaseTy::Bool.into(),
+            Res::PrimTy(PrimTy::Str) => fhir::Ty::Str.into(),
+            Res::PrimTy(PrimTy::Char) => fhir::Ty::Char.into(),
+            Res::PrimTy(PrimTy::Int(int_ty)) => fhir::BaseTy::Int(*int_ty).into(),
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => fhir::BaseTy::Uint(*uint_ty).into(),
+            Res::PrimTy(PrimTy::Float(float_ty)) => fhir::Ty::Float(*float_ty).into(),
             Res::Adt(def_id) => {
-                BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?))
+                fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?).into()
             }
             Res::Param(def_id) => BtyOrTy::Ty(fhir::Ty::Param(*def_id)),
             Res::Alias(def_id) => {
-                BtyOrTy::Ty(fhir::Ty::Alias(
+                fhir::BaseTy::Alias(
                     *def_id,
                     self.desugar_generic_args(&path.args)?,
                     self.desugar_refine_args(args)?,
-                ))
+                )
+                .into()
             }
         };
         Ok(bty)
@@ -1116,10 +1117,12 @@ impl Binder {
             Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => {
                 Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true)
             }
-            Res::Adt(def_id) => Binder::Refined(name_gen.fresh(), fhir::Sort::Adt(def_id), true),
-            Res::Alias(_)
-            | Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char)
-            | Res::Param(..) => Binder::Unrefined,
+            Res::Alias(def_id) | Res::Adt(def_id) => {
+                Binder::Refined(name_gen.fresh(), fhir::Sort::Adt(def_id), true)
+            }
+            Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char) | Res::Param(..) => {
+                Binder::Unrefined
+            }
         }
     }
 
@@ -1137,7 +1140,7 @@ fn sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::
             match path.res {
                 Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
                 Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
-                Res::Adt(def_id) | Res::Alias(def_id) => early_cx.sorts_of(def_id),
+                Res::Adt(def_id) | Res::Alias(def_id) => early_cx.index_sorts_of(def_id),
                 Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_)) | Res::Param(..) => &[],
             }
         }

@@ -82,7 +82,7 @@ impl CrateStore for CStore {
             .cloned()
     }
 
-    fn sorts_of(&self, def_id: DefId) -> Option<&[rty::Sort]> {
+    fn index_sorts(&self, def_id: DefId) -> Option<&[rty::Sort]> {
         self.adt(def_id).map(|adt| adt.adt_def.sorts())
     }
 

@@ -42,7 +42,15 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         if let Some(local_id) = def_id.as_local() {
             self.map.get_adt(local_id).sorts()
         } else {
-            self.cstore.sorts_of(def_id).unwrap_or_default()
+            todo!()
+        }
+    }
+
+    pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
+        if let Some(local_id) = def_id.as_local() {
+            self.map.get_adt(local_id).index_sorts()
+        } else {
+            self.cstore.index_sorts(def_id).unwrap_or_default()
         }
     }
 
@@ -86,7 +94,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
     }
 
     pub fn is_single_field_adt<'b>(&'b self, sort: &fhir::Sort) -> Option<&'b fhir::Sort> {
-        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.sorts_of(*def_id) {
+        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.index_sorts_of(*def_id) {
             Some(sort)
         } else {
             None

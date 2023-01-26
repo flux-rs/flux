@@ -13,14 +13,15 @@ pub Alias: surface::Alias = {
     "type"
     <name:Ident>
     <rblo:@L>
-    <params:("(" <Comma<RefineParam>> ")")?>
+    <early_bound_params:("(" <Comma<RefineParam>> ")")?>
+    <params:("[" <Comma<RefineParam>> "]")?>
     <rbhi:@R>
     "="
     <ty:Ty>
     <hi:@R> => {
         let refined_by = surface::RefinedBy {
-            params: vec![],
-            early_bound_params: params.unwrap_or_default(),
+            early_bound_params: early_bound_params.unwrap_or_default(),
+            params: params.unwrap_or_default(),
             span: mk_span(rblo, rbhi)
         };
         surface::Alias { name, refined_by, ty, span: mk_span(lo, hi) }
@@ -142,24 +143,6 @@ pub Ty: surface::Ty = {
         span: mk_span(lo, hi)
     }
 }
-
-// // FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
-// ArgTyKind: surface::TyKind = {
-    // "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
-    // "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
-    // "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
-    // "{" <ty:Ty> ":" <pred:Expr> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
-    // "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
-    //     let span = mk_span(lo, hi);
-    //     if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
-    //         Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }))
-    //     } else {
-    //         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-    //     }
-    // },
-    // <bty:BaseTy>                                      => surface::TyKind::Base(<>),
-    // <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
-// }
 
 TyKind: surface::TyKind = {
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
