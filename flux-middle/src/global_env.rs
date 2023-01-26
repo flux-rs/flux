@@ -276,7 +276,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 }
             }
         } else {
-            todo!("")
+            Binders::new(self.default_type_of(def_id), vec![])
         }
     }
 

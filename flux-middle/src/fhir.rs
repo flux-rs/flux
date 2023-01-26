@@ -824,8 +824,8 @@ impl fmt::Debug for Expr {
             ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
-            ExprKind::Const(x, _) => write!(f, "{x:?}"),
-            ExprKind::App(uf, es) => write!(f, "{uf:?}({es:?})"),
+            ExprKind::Const(x, _) => write!(f, "{}", pretty::def_id_to_string(*x)),
+            ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
             ExprKind::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }

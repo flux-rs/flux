@@ -58,7 +58,8 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         if let Some(local_id) = def_id.as_local() {
             self.map.get_adt(local_id).early_bound_sorts()
         } else {
-            todo!()
+            // FIXME(nilehmann) support for extern type aliases
+            &[]
         }
     }
 

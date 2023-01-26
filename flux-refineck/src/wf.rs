@@ -289,11 +289,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
-            fhir::BaseTy::Alias(_, substs, _) => {
-                // FIXME(nilehmann) check early bound params
+            fhir::BaseTy::Alias(def_id, substs, args) => {
                 substs
                     .iter()
-                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
+                    .try_for_each_exhaust(|arg| self.check_type(env, arg))?;
+
+                let sorts = self.early_cx.early_bound_sorts_of(*def_id);
+                iter::zip(args, sorts)
+                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))
             }
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
             fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
