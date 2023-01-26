@@ -1137,10 +1137,8 @@ fn sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::
             match path.res {
                 Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
                 Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
-                Res::Adt(def_id) => early_cx.sorts_of(def_id),
-                Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_))
-                | Res::Param(..)
-                | Res::Alias(_) => &[],
+                Res::Adt(def_id) | Res::Alias(def_id) => early_cx.sorts_of(def_id),
+                Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_)) | Res::Param(..) => &[],
             }
         }
         surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
