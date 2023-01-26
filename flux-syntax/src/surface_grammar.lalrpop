@@ -56,13 +56,13 @@ Qualifier: surface::Qualifier = {
 }
 
 Defn: surface::Defn = {
-    <lo:@L> "fn" <name:Ident> "(" <args:RefinedBy> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
+    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
         surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }
     }
 }
 
 Uif: surface::UifDef = {
-    <lo:@L> "fn" <name:Ident> "(" <args:RefinedBy> ")" "->" <sort:Sort> ";" <hi:@R> => {
+    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> ";" <hi:@R> => {
         surface::UifDef { name, args, sort, span: mk_span(lo, hi) }
     }
 }

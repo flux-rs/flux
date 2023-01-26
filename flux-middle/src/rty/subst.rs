@@ -141,7 +141,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
            && let RefineArg::Abs(abs) = &self.args[bvar.index]
         {
             let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-            abs.replace_bvars(&args)
+            abs.shift_in_bvars(self.current_index.as_u32()).replace_bvars(&args)
         } else {
             e.super_fold_with(self)
         }

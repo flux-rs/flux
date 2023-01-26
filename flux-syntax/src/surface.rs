@@ -40,7 +40,7 @@ pub enum Def {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Ident,
-    pub args: RefinedBy,
+    pub args: Vec<RefineParam>,
     pub sort: Sort,
     pub expr: Expr,
     pub span: Span,
@@ -51,7 +51,7 @@ pub struct UifDef {
     /// name of the uninterpreted function
     pub name: Ident,
     /// input sorts
-    pub args: RefinedBy,
+    pub args: Vec<RefineParam>,
     /// output sort
     pub sort: Sort,
     /// definition source position

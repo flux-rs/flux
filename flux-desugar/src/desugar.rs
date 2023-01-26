@@ -35,7 +35,7 @@ pub fn desugar_defn(
     early_cx: &EarlyCtxt,
     defn: surface::Defn,
 ) -> Result<fhir::Defn, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, &defn.args.params)?;
+    let mut binders = Binders::from_params(early_cx, &defn.args)?;
     let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&defn.expr)?;
     let name = defn.name.name;
     let sort = resolve_sort(early_cx, &defn.sort)?;
