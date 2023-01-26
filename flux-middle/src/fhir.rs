@@ -25,7 +25,7 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::{FloatTy, IntTy, UintTy};
+use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
@@ -160,6 +160,7 @@ pub enum Ty {
     Param(DefId),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
+    RawPtr(Box<Ty>, Mutability),
     Never,
 }
 
@@ -738,6 +739,8 @@ impl fmt::Debug for Ty {
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
             Ty::Str => write!(f, "str"),
             Ty::Char => write!(f, "char"),
+            Ty::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            Ty::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
         }
     }
 }

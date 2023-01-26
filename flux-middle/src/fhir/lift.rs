@@ -88,12 +88,14 @@ fn lift_ty(early_cx: &EarlyCtxt, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuarante
             fhir::Ty::Tuple(tys.iter().map(|ty| lift_ty(early_cx, ty)).try_collect()?)
         }
         hir::TyKind::Path(hir::QPath::Resolved(_, path)) => lift_path(early_cx, path)?,
+        hir::TyKind::Ptr(mut_ty) => {
+            fhir::Ty::RawPtr(Box::new(lift_ty(early_cx, mut_ty.ty)?), mut_ty.mutbl)
+        }
         hir::TyKind::Path(_)
         | hir::TyKind::OpaqueDef(_, _, _)
         | hir::TyKind::TraitObject(_, _, _)
         | hir::TyKind::Typeof(_)
         | hir::TyKind::BareFn(_)
-        | hir::TyKind::Ptr(_)
         | hir::TyKind::Infer
         | hir::TyKind::Err => todo!(),
     };

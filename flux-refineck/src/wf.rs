@@ -273,6 +273,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
+            fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
             fhir::Ty::Never
             | fhir::Ty::Param(_)
             | fhir::Ty::Float(_)

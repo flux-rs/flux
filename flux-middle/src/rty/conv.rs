@@ -302,6 +302,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             fhir::Ty::Str => rty::Ty::str(),
             fhir::Ty::Char => rty::Ty::char(),
+            fhir::Ty::RawPtr(ty, mutability) => {
+                rty::Ty::indexed(
+                    rty::BaseTy::RawPtr(self.conv_ty(ty), *mutability),
+                    rty::RefineArgs::empty(),
+                )
+            }
         }
     }
 
