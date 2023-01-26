@@ -305,17 +305,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_refine_args(
-        &mut self,
-        args: &[fhir::RefineArg],
-        sorts: &[fhir::Sort],
-    ) -> Vec<rty::RefineArg> {
-        iter::zip(args, sorts)
-            .flat_map(|(arg, sort)| self.conv_refine_arg(arg, sort))
-            .map(|(arg, _)| arg)
-            .collect()
-    }
-
     fn conv_refine_arg(
         &mut self,
         arg: &fhir::RefineArg,

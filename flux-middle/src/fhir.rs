@@ -185,6 +185,12 @@ pub enum WeakKind {
     Arr,
 }
 
+impl From<BaseTy> for Ty {
+    fn from(bty: BaseTy) -> Ty {
+        Ty::BaseTy(bty)
+    }
+}
+
 impl From<RefKind> for WeakKind {
     fn from(rk: RefKind) -> WeakKind {
         match rk {
@@ -193,16 +199,6 @@ impl From<RefKind> for WeakKind {
         }
     }
 }
-
-// pub struct Index {
-//     pub kind: IndexKind,
-//     pub span: Span,
-// }
-
-// pub enum IndexKind {
-//     Single(RefineArg),
-//     Aggregate(DefId, Vec<RefineArg>),
-// }
 
 pub enum RefineArg {
     Expr {

@@ -385,10 +385,12 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
             if spec.trusted {
                 early_cx.map.add_trusted(def_id);
             }
-            if let Some(fn_sig) = spec.fn_sig {
-                let fn_sig = desugar::desugar_fn_sig(early_cx, def_id, fn_sig)?;
-                early_cx.map.insert_fn_sig(def_id, fn_sig);
-            }
+            let fn_sig = if let Some(fn_sig) = spec.fn_sig {
+                desugar::desugar_fn_sig(early_cx, def_id, fn_sig)?
+            } else {
+                fhir::lift::lift_fn_sig(early_cx, def_id)?
+            };
+            early_cx.map.insert_fn_sig(def_id, fn_sig);
             if let Some(quals) = spec.qual_names {
                 early_cx.map.insert_fn_quals(def_id, quals.names);
             }
