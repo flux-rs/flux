@@ -4,7 +4,7 @@ use std::iter;
 
 use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::rustc::ty::Mutability;
+use flux_middle::{fhir::lift::errors::UnsupportedHir, rustc::ty::Mutability};
 use flux_syntax::surface::{self, Res};
 use hir::{
     def::{DefKind, Res as HirRes},
@@ -130,9 +130,8 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         let self_ty = match tcx.hir().owner(owner_id) {
             hir::OwnerNode::Item(item) => {
                 if matches!(item.kind, hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..)) {
-                    let self_ty = SimplifiedSelfTy::try_from(item).map_err(|err| {
-                        sess.emit_err(errors::UnsupportedHir::new(tcx, def_id, err))
-                    })?;
+                    let self_ty = SimplifiedSelfTy::try_from(item)
+                        .map_err(|err| sess.emit_err(UnsupportedHir::new(tcx, def_id, err)))?;
                     Some(self_ty)
                 } else {
                     None
@@ -309,7 +308,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         let hir_path = &SimplifiedHirPath::try_from(hir_path).map_err(|err| {
             self.sess
-                .emit_err(errors::UnsupportedHir::new(self.tcx, self.def_id, err))
+                .emit_err(UnsupportedHir::new(self.tcx, self.def_id, err))
         })?;
 
         match (path.res, hir_path.res) {
@@ -369,13 +368,13 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
             }
             Ok(())
         } else {
-            return self.emit_err(errors::UnsupportedHir::new(self.tcx, self.def_id, "only interger literals are supported for array lengths"))
+            return self.emit_err(UnsupportedHir::new(self.tcx, self.def_id, "only interger literals are supported for array lengths"))
         }
     }
 
     fn zip_with_self_ty(&self, path: &surface::Path<Res>) -> Result<(), ErrorGuaranteed> {
         let Some(self_ty) = self.self_ty.as_ref() else {
-            todo!("no self type")
+            bug!("no self type")
         };
         let def_id = if let Res::Adt(def_id) = path.res && def_id == self_ty.def_id {
             def_id
@@ -535,28 +534,6 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     use super::{SimplifiedHirPath, SimplifiedSelfTy};
-
-    #[derive(Diagnostic)]
-    #[diag(hir_annot_check::unsupported_hir, code = "FLUX")]
-    #[note]
-    pub(super) struct UnsupportedHir<'a> {
-        #[primary_span]
-        #[label]
-        span: Span,
-        def_kind: &'static str,
-        note: &'a str,
-    }
-
-    impl<'a> UnsupportedHir<'a> {
-        pub(super) fn new(tcx: TyCtxt, def_id: impl Into<DefId>, note: &'a str) -> Self {
-            let def_id = def_id.into();
-            let span = tcx
-                .def_ident_span(def_id)
-                .unwrap_or_else(|| tcx.def_span(def_id));
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            Self { span, def_kind, note }
-        }
-    }
 
     #[derive(Diagnostic)]
     #[diag(hir_annot_check::array_len_mismatch, code = "FLUX")]

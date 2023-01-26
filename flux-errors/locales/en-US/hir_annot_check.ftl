@@ -3,11 +3,6 @@ hir_annot_check_array_len_mismatch =
     .label = expected {$hir_len}, found {$flux_len}
     .hir_label = expected length
 
-hir_annot_check_unsupported_hir =
-    refinement of unsupported {$def_kind}
-    .label = this {$def_kind} contains unsupported features
-    .note = {$note}
-
 hir_annot_check_expected_default_return =
     return type mismatch
     .label = refined signature has a return type
