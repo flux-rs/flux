@@ -101,10 +101,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for struct_def in map.structs() {
             let local_id = struct_def.def_id;
-            let refined_by = map.refined_by(local_id);
-            let variant =
-                rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
-                    .map(|v| v.normalize(&self.defns));
+            let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, struct_def)
+                .map(|v| v.normalize(&self.defns));
             let variants = variant.map(|variant_def| vec![variant_def]);
 
             self.adt_variants
@@ -185,7 +183,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.variances_of(did)
     }
 
-    pub fn adt_def(&self, def_id: DefId) -> rty::AdtDef {
+    pub fn adt_def(&self, def_id: impl Into<DefId>) -> rty::AdtDef {
+        let def_id = def_id.into();
         self.adt_defs
             .borrow_mut()
             .entry(def_id)
@@ -268,8 +267,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             match self.tcx.def_kind(def_id) {
                 DefKind::TyAlias => {
                     let alias = self.early_cx.map.get_alias(local_id);
-                    let refined_by = self.early_cx.map.refined_by(local_id);
-                    rty::conv::expand_alias(self, refined_by, alias)
+                    rty::conv::expand_alias(self, alias)
                 }
                 kind => {
                     bug!("`{:?}` not supported", kind.descr(def_id))

@@ -19,13 +19,7 @@ pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::Refine
     let item = early_cx.hir().expect_item(def_id);
     match item.kind {
         hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-            fhir::RefinedBy {
-                def_id,
-                params: vec![],
-                early_bound: 0,
-                sorts: vec![],
-                span: item.ident.span,
-            }
+            fhir::RefinedBy::new(def_id, [], [], item.ident.span)
         }
         _ => {
             bug!("expected struct, enum or type alias");
@@ -43,7 +37,7 @@ pub fn lift_alias(
     };
     let cx = LiftCtxt::new(early_cx, def_id);
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::Alias { def_id, ty, span: item.span })
+    Ok(fhir::Alias { def_id, params: vec![], ty, span: item.span })
 }
 
 pub fn lift_field_def(

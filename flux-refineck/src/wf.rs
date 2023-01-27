@@ -99,9 +99,8 @@ impl Wf<'_, '_> {
     }
 
     pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::Alias) -> Result<(), ErrorGuaranteed> {
-        let refined_by = early_cx.map.refined_by(alias.def_id);
         let wf = Wf::new(early_cx);
-        let mut env = Env::from(&refined_by.params[..]);
+        let mut env = Env::from(&alias.params[..]);
         wf.check_type(&mut env, &alias.ty)
     }
 
@@ -109,9 +108,8 @@ impl Wf<'_, '_> {
         early_cx: &EarlyCtxt,
         struct_def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let refined_by = early_cx.map.refined_by(struct_def.def_id);
         let wf = Wf::new(early_cx);
-        let mut env = Env::from(&refined_by.params[..]);
+        let mut env = Env::from(&struct_def.params[..]);
 
         struct_def
             .invariants
@@ -130,10 +128,9 @@ impl Wf<'_, '_> {
         early_cx: &EarlyCtxt,
         enum_def: &fhir::EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let refined_by = early_cx.map.refined_by(enum_def.def_id);
         let wf = Wf::new(early_cx);
 
-        let env = Env::from(&refined_by.params[..]);
+        let env = Env::from(&enum_def.params[..]);
         enum_def
             .invariants
             .iter()
@@ -871,7 +868,7 @@ mod errors {
             let mut has_params = false;
             if let Some(local_id) = def_id.as_local()
                 && let refined_by = map.refined_by(local_id)
-                && !refined_by.params.is_empty()
+                && !refined_by.index_sorts().is_empty()
             {
                 sp.push_span_label(refined_by.span, "");
                 has_params = true;

@@ -26,6 +26,7 @@ use std::{
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
@@ -82,6 +83,7 @@ pub struct Map {
 #[derive(Debug)]
 pub struct Alias {
     pub def_id: LocalDefId,
+    pub params: Vec<(Ident, Sort)>,
     pub ty: Ty,
     pub span: Span,
 }
@@ -89,6 +91,7 @@ pub struct Alias {
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: LocalDefId,
+    pub params: Vec<(Ident, Sort)>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
 }
@@ -102,6 +105,7 @@ pub enum StructKind {
 #[derive(Debug)]
 pub struct EnumDef {
     pub def_id: LocalDefId,
+    pub params: Vec<(Ident, Sort)>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
 }
@@ -399,14 +403,15 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-#[derive(Debug)]
+#[derive(Clone, Debug, Encodable, Decodable)]
 pub struct RefinedBy {
     pub def_id: LocalDefId,
-    /// Both early bound and index parameters. Early bound parameter appear first.
-    pub params: Vec<(Ident, Sort)>,
-    /// The number of early bound parameters
-    pub early_bound: usize,
     pub span: Span,
+    /// Index parameters indexed by their name and in the same order they appear in the definition.
+    index_params: FxIndexMap<Symbol, Sort>,
+    /// The number of early bound parameters
+    early_bound: usize,
+    /// Sorts of both early bound and index parameters. Early bound parameter appear first.
     sorts: Vec<Sort>,
 }
 
@@ -427,31 +432,28 @@ pub struct Defn {
 impl RefinedBy {
     pub fn new(
         def_id: LocalDefId,
-        params: Vec<(Ident, Sort)>,
-        early_bound: usize,
+        early_bound_params: impl IntoIterator<Item = (Symbol, Sort)>,
+        index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         span: Span,
     ) -> Self {
-        let sorts = params.iter().map(|(_, sort)| sort.clone()).collect_vec();
-        RefinedBy { def_id, params, early_bound, span, sorts }
+        let mut sorts = early_bound_params
+            .into_iter()
+            .map(|(_, sort)| sort)
+            .collect_vec();
+        let early_bound = sorts.len();
+        let index_params = index_params
+            .into_iter()
+            .inspect(|(_, sort)| sorts.push(sort.clone()))
+            .collect();
+        RefinedBy { def_id, span, index_params, early_bound, sorts }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
-        self.params
-            .iter()
-            .find_position(|(ident, _)| ident.sym() == fld)
-            .map(|res| res.0)
+        self.index_params.get_index_of(&fld)
     }
 
     pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
-        self.params.iter().find_map(
-            |(ident, sort)| {
-                if ident.sym() == fld {
-                    Some(sort)
-                } else {
-                    None
-                }
-            },
-        )
+        self.index_params.get(&fld)
     }
 
     pub fn early_bound_sorts(&self) -> &[Sort] {

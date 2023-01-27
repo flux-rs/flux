@@ -20,17 +20,14 @@ use std::path::PathBuf;
 
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
-use flux_middle::{cstore::CrateStore, global_env::GlobalEnv, rty};
+use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, rty};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{config::OutputType, utils::CanonicalizedPath};
-use rustc_span::{
-    def_id::{CrateNum, DefId, DefIndex},
-    Symbol,
-};
+use rustc_span::def_id::{CrateNum, DefId, DefIndex};
 
 pub use crate::encoder::encode_metadata;
 
@@ -44,12 +41,12 @@ pub struct CStore {
 #[derive(TyEncodable, TyDecodable)]
 pub struct CrateMetadata {
     fn_sigs: FxHashMap<DefIndex, rty::PolySig>,
+    refined_bys: FxHashMap<DefIndex, fhir::RefinedBy>,
     adts: FxHashMap<DefIndex, AdtMetadata>,
 }
 
 #[derive(TyEncodable, TyDecodable)]
 struct AdtMetadata {
-    refined_by: Vec<(Symbol, rty::Sort)>,
     adt_def: rty::AdtDef,
     variants: Option<Vec<rty::PolyVariant>>,
 }
@@ -82,28 +79,8 @@ impl CrateStore for CStore {
             .cloned()
     }
 
-    fn index_sorts(&self, def_id: DefId) -> Option<&[rty::Sort]> {
-        self.adt(def_id).map(|adt| adt.adt_def.sorts())
-    }
-
-    fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
-        self.adt(def_id)?
-            .refined_by
-            .iter()
-            .find_position(|(name, _)| *name == fld)
-            .map(|res| res.0)
-    }
-
-    fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&rty::Sort> {
-        self.adt(def_id)?.refined_by.iter().find_map(
-            |(name, sort)| {
-                if *name == fld {
-                    Some(sort)
-                } else {
-                    None
-                }
-            },
-        )
+    fn refined_by(&self, def_id: DefId) -> Option<&fhir::RefinedBy> {
+        self.meta.get(&def_id.krate)?.refined_bys.get(&def_id.index)
     }
 
     fn adt_def(&self, def_id: DefId) -> Option<&rty::AdtDef> {
@@ -120,6 +97,7 @@ impl CrateMetadata {
         let tcx = genv.tcx;
         let mut fn_sigs = FxHashMap::default();
         let mut adts = FxHashMap::default();
+        let mut refined_bys = FxHashMap::default();
 
         for local_id in tcx.iter_local_def_id() {
             let def_id = local_id.to_def_id();
@@ -134,7 +112,6 @@ impl CrateMetadata {
                     );
                 }
                 DefKind::Enum | DefKind::Struct => {
-                    let refined_by = genv.map().refined_by(local_id);
                     let adt_def = genv.adt_def(def_id);
                     let variants = if adt_def.is_opaque() {
                         None
@@ -149,21 +126,18 @@ impl CrateMetadata {
                                 .collect_vec(),
                         )
                     };
-                    let meta = AdtMetadata {
-                        refined_by: refined_by
-                            .params
-                            .iter()
-                            .map(|(ident, sort)| (ident.sym(), sort.clone()))
-                            .collect(),
-                        adt_def,
-                        variants,
-                    };
+                    let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
+
+                    refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
+                }
+                DefKind::TyAlias => {
+                    refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 _ => {}
             }
         }
-        Self { fn_sigs, adts }
+        Self { fn_sigs, refined_bys, adts }
     }
 }
 

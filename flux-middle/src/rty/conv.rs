@@ -38,13 +38,9 @@ struct Layer {
     map: FxHashMap<fhir::Name, (fhir::Sort, Range<usize>)>,
 }
 
-pub(crate) fn expand_alias(
-    genv: &GlobalEnv,
-    refined_by: &fhir::RefinedBy,
-    alias: &fhir::Alias,
-) -> rty::Binders<rty::Ty> {
-    let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
-    let sorts = flatten_sorts(genv.early_cx(), refined_by.sorts());
+pub(crate) fn expand_alias(genv: &GlobalEnv, alias: &fhir::Alias) -> rty::Binders<rty::Ty> {
+    let mut cx = ConvCtxt::from_params(genv, &alias.params);
+    let sorts = flatten_sorts(genv.early_cx(), genv.map().refined_by(alias.def_id).sorts());
     let ty = cx.conv_ty(&alias.ty);
     rty::Binders::new(ty, sorts)
 }
@@ -54,7 +50,7 @@ pub(crate) fn adt_def_for_struct(
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
     let refined_by = early_cx.map.refined_by(struct_def.def_id);
-    let env = Env::from_refined_by(early_cx, refined_by);
+    let env = Env::from_params(early_cx, &struct_def.params);
     let sorts = flatten_sorts(early_cx, refined_by.sorts());
     let invariants = env.conv_invariants(&sorts, &struct_def.invariants);
 
@@ -67,22 +63,21 @@ pub(crate) fn adt_def_for_struct(
 }
 
 pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -> rty::AdtDef {
-    let refined_by = early_cx.map.refined_by(enum_def.def_id);
-    let env = Env::from_refined_by(early_cx, refined_by);
-    let sorts = flatten_sorts(early_cx, refined_by.sorts());
+    let env = Env::from_params(early_cx, &enum_def.params);
+    let sorts = flatten_sorts(early_cx, early_cx.map.refined_by(enum_def.def_id).sorts());
     let invariants = env.conv_invariants(&sorts, &enum_def.invariants);
-    rty::AdtDef::new(early_cx.tcx.adt_def(refined_by.def_id), sorts, invariants, false)
+    rty::AdtDef::new(early_cx.tcx.adt_def(enum_def.def_id), sorts, invariants, false)
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
-    let env = Env::from_args(early_cx, &defn.args);
+    let env = Env::from_params(early_cx, &defn.args);
     let sorts = flatten_sorts(early_cx, defn.args.iter().map(|(_, sort)| sort));
     let expr = Binders::new(env.conv_expr(&defn.expr), sorts);
     rty::Defn { name: defn.name, expr }
 }
 
 pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
-    let env = Env::from_args(early_cx, &qualifier.args);
+    let env = Env::from_params(early_cx, &qualifier.args);
     let sorts = flatten_sorts(early_cx, qualifier.args.iter().map(|(_, sort)| sort));
     let body = Binders::new(env.conv_expr(&qualifier.expr), sorts);
     rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
@@ -109,13 +104,13 @@ pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySi
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
-    fn from_refined_by(genv: &'a GlobalEnv<'a, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
-        let env = Env::from_refined_by(genv.early_cx(), refined_by);
+    fn from_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[(fhir::Ident, fhir::Sort)]) -> Self {
+        let env = Env::from_params(genv.early_cx(), params);
         Self { genv, env }
     }
 
     fn from_fun_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
-        let env = Env::from_params(genv.early_cx(), params);
+        let env = Env::from_fun_params(genv.early_cx(), params);
         Self { genv, env }
     }
 
@@ -180,12 +175,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
-        refined_by: &fhir::RefinedBy,
         struct_def: &fhir::StructDef,
     ) -> Option<rty::PolyVariant> {
-        let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
+        let mut cx = ConvCtxt::from_params(genv, &struct_def.params);
 
-        let def_id = struct_def.def_id.to_def_id();
+        let def_id = struct_def.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let fields = fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
 
@@ -206,7 +200,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 })
                 .collect_vec();
 
-            let sorts = flatten_sorts(genv.early_cx(), refined_by.sorts());
+            let sorts = flatten_sorts(genv.early_cx(), genv.map().refined_by(def_id).sorts());
             let ret = rty::Ty::indexed(
                 rty::BaseTy::adt(genv.adt_def(def_id), substs),
                 rty::RefineArgs::bound(sorts.len()),
@@ -433,32 +427,32 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
         Self { early_cx, layers: vec![layer] }
     }
 
-    fn from_args(early_cx: &'a EarlyCtxt<'a, 'tcx>, slice: &[(fhir::Ident, fhir::Sort)]) -> Self {
+    fn from_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, slice: &[(fhir::Ident, fhir::Sort)]) -> Self {
         Self::new(
             early_cx,
             Layer::new(early_cx, slice.iter().map(|(ident, sort)| (&ident.name, sort))),
         )
     }
 
-    fn from_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
+    fn from_fun_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
         Self::new(
             early_cx,
             Layer::new(early_cx, params.iter().map(|param| (&param.name.name, &param.sort))),
         )
     }
 
-    fn from_refined_by(early_cx: &'a EarlyCtxt<'a, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
-        Self::new(
-            early_cx,
-            Layer::new(
-                early_cx,
-                refined_by
-                    .params
-                    .iter()
-                    .map(|(ident, sort)| (&ident.name, sort)),
-            ),
-        )
-    }
+    // fn from_refined_by(early_cx: &'a EarlyCtxt<'a, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
+    //     Self::new(
+    //         early_cx,
+    //         Layer::new(
+    //             early_cx,
+    //             refined_by
+    //                 .params
+    //                 .iter()
+    //                 .map(|(ident, sort)| (&ident.name, sort)),
+    //         ),
+    //     )
+    // }
 
     fn push_layer(&mut self, layer: Layer) {
         self.layers.push(layer);
