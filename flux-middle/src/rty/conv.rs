@@ -39,10 +39,13 @@ struct Layer {
     map: FxHashMap<fhir::Name, (fhir::Sort, Range<usize>)>,
 }
 
-pub(crate) fn expand_alias(genv: &GlobalEnv, alias: &fhir::Alias) -> rty::Binders<rty::Ty> {
-    let mut cx = ConvCtxt::from_refined_by(genv, &alias.refined_by);
-    let sorts =
-        flatten_sorts(genv.early_cx(), alias.refined_by.params.iter().map(|(_, sort)| sort));
+pub(crate) fn expand_alias(
+    genv: &GlobalEnv,
+    refined_by: &fhir::RefinedBy,
+    alias: &fhir::Alias,
+) -> rty::Binders<rty::Ty> {
+    let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
+    let sorts = flatten_sorts(genv.early_cx(), refined_by.sorts());
     let ty = cx.conv_ty(&alias.ty);
     rty::Binders::new(ty, sorts)
 }
@@ -51,13 +54,13 @@ pub(crate) fn adt_def_for_struct(
     early_cx: &EarlyCtxt,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let adt_def = early_cx.map.get_adt(struct_def.def_id);
-    let env = Env::from_refined_by(early_cx, &adt_def.refined_by);
-    let sorts = flatten_sorts(early_cx, adt_def.refined_by.params.iter().map(|(_, sort)| sort));
+    let refined_by = early_cx.map.refined_by(struct_def.def_id);
+    let env = Env::from_refined_by(early_cx, refined_by);
+    let sorts = flatten_sorts(early_cx, refined_by.sorts());
     let invariants = env.conv_invariants(&sorts, &struct_def.invariants);
 
     rty::AdtDef::new(
-        early_cx.tcx.adt_def(adt_def.def_id),
+        early_cx.tcx.adt_def(struct_def.def_id),
         sorts,
         invariants,
         struct_def.is_opaque(),
@@ -65,11 +68,11 @@ pub(crate) fn adt_def_for_struct(
 }
 
 pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -> rty::AdtDef {
-    let adt_def = early_cx.map.get_adt(enum_def.def_id);
-    let env = Env::from_refined_by(early_cx, &adt_def.refined_by);
-    let sorts = flatten_sorts(early_cx, adt_def.refined_by.params.iter().map(|(_, sort)| sort));
+    let refined_by = early_cx.map.refined_by(enum_def.def_id);
+    let env = Env::from_refined_by(early_cx, refined_by);
+    let sorts = flatten_sorts(early_cx, refined_by.sorts());
     let invariants = env.conv_invariants(&sorts, &enum_def.invariants);
-    rty::AdtDef::new(early_cx.tcx.adt_def(adt_def.def_id), sorts, invariants, false)
+    rty::AdtDef::new(early_cx.tcx.adt_def(refined_by.def_id), sorts, invariants, false)
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
@@ -144,7 +147,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         params
             .iter()
             .flat_map(|param| {
-                let n = if let fhir::Sort::Adt(def_id) = &param.sort {
+                let n = if let fhir::Sort::Aggregate(def_id) = &param.sort {
                     self.early_cx().index_sorts_of(*def_id).len()
                 } else {
                     1
@@ -515,7 +518,7 @@ impl Env<'_, '_> {
             }
             fhir::ExprKind::Dot(var, fld) => {
                 let (sort, vars) = self.get(var.name);
-                if let fhir::Sort::Adt(def_id) = sort {
+                if let fhir::Sort::Aggregate(def_id) = sort {
                     let idx = self
                         .early_cx
                         .field_index(*def_id, fld.name)
@@ -563,7 +566,7 @@ impl Layer {
         let mut map = FxHashMap::default();
         let mut i = 0;
         for (name, sort) in iter.into_iter() {
-            let nsorts = if let fhir::Sort::Adt(def_id) = sort {
+            let nsorts = if let fhir::Sort::Aggregate(def_id) = sort {
                 early_cx.index_sorts_of(*def_id).len()
             } else {
                 1
@@ -603,7 +606,7 @@ fn flatten_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> Vec<rty::Sort> {
             vec![rty::Sort::Tuple(List::from_vec(flatten_sorts(early_cx, sorts)))]
         }
         fhir::Sort::Func(fsort) => vec![rty::Sort::Func(flatten_func_sort(early_cx, fsort))],
-        fhir::Sort::Adt(def_id) => flatten_sorts(early_cx, early_cx.index_sorts_of(*def_id)),
+        fhir::Sort::Aggregate(def_id) => flatten_sorts(early_cx, early_cx.index_sorts_of(*def_id)),
         fhir::Sort::Int
         | fhir::Sort::Real
         | fhir::Sort::Bool

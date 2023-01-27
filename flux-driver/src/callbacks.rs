@@ -277,8 +277,8 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(early_cx, *def_id, refined_by)?;
-            early_cx.map.insert_adt(*def_id, adt_def);
+            let adt_def = desugar::desugar_refined_by(early_cx, *def_id, refined_by)?;
+            early_cx.map.insert_refined_by(*def_id, adt_def);
             Ok(())
         })
         .err()
@@ -288,8 +288,8 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(early_cx, *def_id, refined_by)?;
-            early_cx.map.insert_adt(*def_id, adt_def);
+            let adt_def = desugar::desugar_refined_by(early_cx, *def_id, refined_by)?;
+            early_cx.map.insert_refined_by(*def_id, adt_def);
             Ok(())
         })
         .err()
@@ -299,11 +299,11 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, alias)| {
             let adt_def = if let Some(alias) = alias {
-                desugar::desugar_adt_def(early_cx, *def_id, &alias.refined_by)?
+                desugar::desugar_refined_by(early_cx, *def_id, &alias.refined_by)?
             } else {
-                fhir::lift::lift_adt_def(early_cx, *def_id)
+                fhir::lift::lift_refined_by(early_cx, *def_id)
             };
-            early_cx.map.insert_adt(*def_id, adt_def);
+            early_cx.map.insert_refined_by(*def_id, adt_def);
             Ok(())
         })
         .err()
@@ -422,17 +422,11 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for struct_def in early_cx.map.structs() {
-        let refined_by = &early_cx.map.get_adt(struct_def.def_id).refined_by;
-        err = Wf::check_struct_def(early_cx, refined_by, struct_def)
-            .err()
-            .or(err);
+        err = Wf::check_struct_def(early_cx, struct_def).err().or(err);
     }
 
     for enum_def in early_cx.map.enums() {
-        let refined_by = &early_cx.map.get_adt(enum_def.def_id).refined_by;
-        err = Wf::check_enum_def(early_cx, refined_by, enum_def)
-            .err()
-            .or(err);
+        err = Wf::check_enum_def(early_cx, enum_def).err().or(err);
     }
 
     for (_, fn_sig) in early_cx.map.fn_sigs() {

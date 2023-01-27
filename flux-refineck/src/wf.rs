@@ -99,16 +99,17 @@ impl Wf<'_, '_> {
     }
 
     pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::Alias) -> Result<(), ErrorGuaranteed> {
+        let refined_by = early_cx.map.refined_by(alias.def_id);
         let wf = Wf::new(early_cx);
-        let mut env = Env::from(&alias.refined_by.params[..]);
+        let mut env = Env::from(&refined_by.params[..]);
         wf.check_type(&mut env, &alias.ty)
     }
 
     pub fn check_struct_def(
         early_cx: &EarlyCtxt,
-        refined_by: &fhir::RefinedBy,
         struct_def: &fhir::StructDef,
     ) -> Result<(), ErrorGuaranteed> {
+        let refined_by = early_cx.map.refined_by(struct_def.def_id);
         let wf = Wf::new(early_cx);
         let mut env = Env::from(&refined_by.params[..]);
 
@@ -131,9 +132,9 @@ impl Wf<'_, '_> {
 
     pub fn check_enum_def(
         early_cx: &EarlyCtxt,
-        refined_by: &fhir::RefinedBy,
         enum_def: &fhir::EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
+        let refined_by = early_cx.map.refined_by(enum_def.def_id);
         let wf = Wf::new(early_cx);
 
         let env = Env::from(&refined_by.params[..]);
@@ -359,7 +360,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::RefineArg::Aggregate(def_id, flds, span) => {
                 self.check_aggregate(env, *def_id, flds, *span)?;
-                let found = fhir::Sort::Adt(*def_id);
+                let found = fhir::Sort::Aggregate(*def_id);
                 if &found != expected {
                     return self.emit_err(errors::SortMismatch::new(*span, expected, &found));
                 }
@@ -412,7 +413,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = &env[var.name];
-                if let fhir::Sort::Adt(def_id) = sort {
+                if let fhir::Sort::Aggregate(def_id) = sort {
                     self.early_cx
                         .field_sort(*def_id, fld.name)
                         .cloned()
@@ -850,7 +851,7 @@ mod errors {
 
             let mut has_params = false;
             if let Some(local_id) = def_id.as_local()
-                && let refined_by = &map.get_adt(local_id).refined_by
+                && let refined_by = map.refined_by(local_id)
                 && !refined_by.params.is_empty()
             {
                 sp.push_span_label(refined_by.span, "");

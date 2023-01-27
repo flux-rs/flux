@@ -101,7 +101,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for struct_def in map.structs() {
             let local_id = struct_def.def_id;
-            let refined_by = &map.get_adt(local_id).refined_by;
+            let refined_by = map.refined_by(local_id);
             let variant =
                 rty::conv::ConvCtxt::conv_struct_def_variant(self, refined_by, struct_def)
                     .map(|v| v.normalize(&self.defns));
@@ -269,7 +269,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             match self.tcx.def_kind(def_id) {
                 DefKind::TyAlias => {
                     let alias = self.early_cx.map.get_alias(local_id);
-                    rty::conv::expand_alias(self, alias)
+                    let refined_by = self.early_cx.map.refined_by(local_id);
+                    rty::conv::expand_alias(self, refined_by, alias)
                 }
                 kind => {
                     bug!("`{:?}` not supported", kind.descr(def_id))

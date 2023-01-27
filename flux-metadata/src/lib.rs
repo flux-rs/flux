@@ -134,7 +134,7 @@ impl CrateMetadata {
                     );
                 }
                 DefKind::Enum | DefKind::Struct => {
-                    let refined_by = &genv.map().get_adt(local_id).refined_by;
+                    let refined_by = genv.map().refined_by(local_id);
                     let adt_def = genv.adt_def(def_id);
                     let variants = if adt_def.is_opaque() {
                         None

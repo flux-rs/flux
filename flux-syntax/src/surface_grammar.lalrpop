@@ -12,17 +12,17 @@ pub Alias: surface::Alias = {
   <lo:@L>
     "type"
     <name:Ident>
-    <rblo:@L>
+    <refined_by_lo:@L>
     <early_bound_params:("(" <Comma<RefineParam>> ")")?>
     <params:("[" <Comma<RefineParam>> "]")?>
-    <rbhi:@R>
+    <refined_by_hi:@R>
     "="
     <ty:Ty>
     <hi:@R> => {
         let refined_by = surface::RefinedBy {
             early_bound_params: early_bound_params.unwrap_or_default(),
             params: params.unwrap_or_default(),
-            span: mk_span(rblo, rbhi)
+            span: mk_span(refined_by_lo, refined_by_hi)
         };
         surface::Alias { name, refined_by, ty, span: mk_span(lo, hi) }
     }
