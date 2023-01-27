@@ -37,7 +37,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
-    adt_variants: RefCell<FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>>,
+    adt_variants: RefCell<VariantMap>,
     check_asserts: AssertBehavior,
     defns: Defns,
 }
@@ -117,15 +117,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for enum_def in map.enums() {
             let local_id = enum_def.def_id;
-            if let Some(variants) = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def) {
-                let variants = variants
-                    .into_iter()
-                    .map(|variant| variant.normalize(&self.defns))
-                    .collect_vec();
-                self.adt_variants
-                    .get_mut()
-                    .insert(local_id.to_def_id(), Some(variants));
-            }
+            let variants = rty::conv::ConvCtxt::conv_enum_def_variants(self, enum_def);
+            let variants = variants
+                .into_iter()
+                .map(|variant| variant.normalize(&self.defns))
+                .collect_vec();
+            self.adt_variants
+                .get_mut()
+                .insert(local_id.to_def_id(), Some(variants));
         }
     }
 
