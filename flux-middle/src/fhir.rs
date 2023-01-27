@@ -405,7 +405,7 @@ impl Ident {
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
 #[derive(Clone, Debug, Encodable, Decodable)]
 pub struct RefinedBy {
-    pub def_id: LocalDefId,
+    pub def_id: DefId,
     pub span: Span,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
@@ -431,21 +431,18 @@ pub struct Defn {
 
 impl RefinedBy {
     pub fn new(
-        def_id: LocalDefId,
-        early_bound_params: impl IntoIterator<Item = (Symbol, Sort)>,
+        def_id: impl Into<DefId>,
+        early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         span: Span,
     ) -> Self {
-        let mut sorts = early_bound_params
-            .into_iter()
-            .map(|(_, sort)| sort)
-            .collect_vec();
+        let mut sorts = early_bound_params.into_iter().collect_vec();
         let early_bound = sorts.len();
         let index_params = index_params
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        RefinedBy { def_id, span, index_params, early_bound, sorts }
+        RefinedBy { def_id: def_id.into(), span, index_params, early_bound, sorts }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {

@@ -262,19 +262,23 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.refine_ty(rustc_ty, &mut |sorts| Binders::new(rty::Expr::tt(), sorts))
     }
 
-    pub(crate) fn type_of(&self, def_id: DefId) -> Binders<rty::Ty> {
-        if let Some(local_id) = def_id.as_local() {
-            match self.tcx.def_kind(def_id) {
-                DefKind::TyAlias => {
+    pub fn type_of(&self, def_id: DefId) -> Binders<rty::Ty> {
+        match self.tcx.def_kind(def_id) {
+            DefKind::TyAlias => {
+                if let Some(local_id) = def_id.as_local() {
                     let alias = self.early_cx.map.get_alias(local_id);
                     rty::conv::expand_alias(self, alias)
-                }
-                kind => {
-                    bug!("`{:?}` not supported", kind.descr(def_id))
+                } else {
+                    self.early_cx
+                        .cstore
+                        .type_of(def_id)
+                        .cloned()
+                        .unwrap_or_else(|| Binders::new(self.default_type_of(def_id), vec![]))
                 }
             }
-        } else {
-            Binders::new(self.default_type_of(def_id), vec![])
+            kind => {
+                bug!("`{:?}` not supported", kind.descr(def_id))
+            }
         }
     }
 

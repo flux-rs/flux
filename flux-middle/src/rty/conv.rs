@@ -441,19 +441,6 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
         )
     }
 
-    // fn from_refined_by(early_cx: &'a EarlyCtxt<'a, 'tcx>, refined_by: &fhir::RefinedBy) -> Self {
-    //     Self::new(
-    //         early_cx,
-    //         Layer::new(
-    //             early_cx,
-    //             refined_by
-    //                 .params
-    //                 .iter()
-    //                 .map(|(ident, sort)| (&ident.name, sort)),
-    //         ),
-    //     )
-    // }
-
     fn push_layer(&mut self, layer: Layer) {
         self.layers.push(layer);
     }

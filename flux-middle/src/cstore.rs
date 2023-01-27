@@ -7,6 +7,7 @@ pub trait CrateStore {
     fn refined_by(&self, def_id: DefId) -> Option<&fhir::RefinedBy>;
     fn adt_def(&self, def_id: DefId) -> Option<&rty::AdtDef>;
     fn variants(&self, def_id: DefId) -> Option<Option<&[rty::PolyVariant]>>;
+    fn type_of(&self, def_id: DefId) -> Option<&rty::Binders<rty::Ty>>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

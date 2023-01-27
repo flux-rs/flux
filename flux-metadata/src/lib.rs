@@ -43,6 +43,8 @@ pub struct CrateMetadata {
     fn_sigs: FxHashMap<DefIndex, rty::PolySig>,
     refined_bys: FxHashMap<DefIndex, fhir::RefinedBy>,
     adts: FxHashMap<DefIndex, AdtMetadata>,
+    /// For now it only store type of aliases
+    type_of: FxHashMap<DefIndex, rty::Binders<rty::Ty>>,
 }
 
 #[derive(TyEncodable, TyDecodable)]
@@ -90,6 +92,10 @@ impl CrateStore for CStore {
     fn variants(&self, def_id: DefId) -> Option<Option<&[rty::PolyVariant]>> {
         self.adt(def_id).map(|adt| adt.variants.as_deref())
     }
+
+    fn type_of(&self, def_id: DefId) -> Option<&rty::Binders<rty::Ty>> {
+        self.meta.get(&def_id.krate)?.type_of.get(&def_id.index)
+    }
 }
 
 impl CrateMetadata {
@@ -98,6 +104,7 @@ impl CrateMetadata {
         let mut fn_sigs = FxHashMap::default();
         let mut adts = FxHashMap::default();
         let mut refined_bys = FxHashMap::default();
+        let mut type_of = FxHashMap::default();
 
         for local_id in tcx.iter_local_def_id() {
             let def_id = local_id.to_def_id();
@@ -132,12 +139,13 @@ impl CrateMetadata {
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 DefKind::TyAlias => {
+                    type_of.insert(def_id.index, genv.type_of(def_id));
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 _ => {}
             }
         }
-        Self { fn_sigs, refined_bys, adts }
+        Self { fn_sigs, refined_bys, adts, type_of }
     }
 }
 

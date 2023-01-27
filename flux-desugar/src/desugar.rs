@@ -99,7 +99,7 @@ pub fn desugar_refined_by(
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params
         .iter()
-        .map(|param| Ok((param.name.name, resolve_sort(early_cx, &param.sort)?)))
+        .map(|param| resolve_sort(early_cx, &param.sort))
         .try_collect_exhaust()?;
 
     let index_params: Vec<_> = refined_by
