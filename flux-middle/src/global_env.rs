@@ -356,6 +356,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
             rustc::ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(self.refine_ty_true(ty), *mu),
+            rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
+            rustc::ty::TyKind::Closure(_, _) => todo!("refine_ty: Closure"),
         };
         let pred = mk_pred(bty.sorts());
         if pred.params().is_empty() && pred.is_trivially_true() {

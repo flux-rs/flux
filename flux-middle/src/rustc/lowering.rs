@@ -103,7 +103,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         stmt: &rustc_mir::Statement<'tcx>,
     ) -> Result<Statement, ErrorGuaranteed> {
         let span = stmt.source_info.span;
-        println!("TRACE: lower_statement: {stmt:?}");
         let kind = match &stmt.kind {
             rustc_mir::StatementKind::Assign(box (place, rvalue)) => {
                 StatementKind::Assign(
@@ -183,7 +182,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_substs(self.tcx, substs)
-                            .map_err(|_| errors::UnsupportedMir::from(terminator))
+                            .map_err(|err| {
+                                panic!("TRACE: AAA {:?}", err.reason);
+                                errors::UnsupportedMir::from(terminator)
+                            })
                             .emit(self.sess)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
@@ -192,12 +194,14 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
                 let destination = self
                     .lower_place(destination)
-                    .map_err(|reason| errors::UnsupportedMir::new(span, "terminator", reason))
+                    .map_err(|reason| {
+                        errors::UnsupportedMir::new(span, "terminator destination", reason)
+                    })
                     .emit(self.sess)?;
 
                 let resolved_call = self
                     .resolve_call(func, substs.orig)
-                    .map_err(|err| errors::UnsupportedMir::new(span, "terminator", err.reason))
+                    .map_err(|err| errors::UnsupportedMir::new(span, "terminator call", err.reason))
                     .emit(self.sess)?;
 
                 TerminatorKind::Call {
@@ -209,7 +213,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         .iter()
                         .map(|arg| {
                             self.lower_operand(arg).map_err(|reason| {
-                                errors::UnsupportedMir::new(span, "terminator", reason)
+                                errors::UnsupportedMir::new(span, "terminator args", reason)
                             })
                         })
                         .try_collect()
@@ -332,7 +336,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
             }
             rustc_mir::Rvalue::Aggregate(aggregate_kind, args) => {
-                println!("TRACE: lower_aggregate {aggregate_kind:?} with {args:?}");
                 let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
@@ -387,9 +390,10 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             }
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Closure(did, substs) => {
-                let substs = substs.as_closure();
-                panic!("unsupported closure `{did:?}` / `{substs:?}`")
+                let lowered_substs = lower_substs(self.tcx, substs).map_err(|err| err.reason)?;
+                // panic!("unsupported closure `{did:?}` / `{substs:?}`")
                 // Err(format!("unsupported closure `{did:?}` / `{substs:?}`"))
+                Ok(AggregateKind::Closure(*did, lowered_substs))
             }
             rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
                 Err(format!("unsupported aggregate kind `{aggregate_kind:?}`"))
@@ -624,12 +628,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
         rustc_ty::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
         rustc_ty::Adt(adt_def, substs) => {
-            let substs = List::from_vec(
-                substs
-                    .iter()
-                    .map(|arg| lower_generic_arg(tcx, arg))
-                    .try_collect()?,
-            );
+            let substs = lower_substs(tcx, substs)?;
             Ok(Ty::mk_adt(adt_def.did(), substs))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
@@ -654,7 +653,18 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             let ty = lower_ty(tcx, t.ty)?;
             Ok(Ty::mk_raw_ptr(ty, mutbl))
         }
-        _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
+        rustc_ty::FnPtr(fn_sig) => {
+            let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
+            Ok(Ty::mk_fn_sig(fn_sig))
+        }
+        rustc_ty::FnDef(a, b) => {
+            Err(UnsupportedType { reason: format!("unsupported type FNDEF`{a:?}` and `{b:?}`") })
+        }
+        rustc_ty::Closure(did, substs) => {
+            let substs = lower_substs(tcx, substs)?;
+            Ok(Ty::mk_closure(*did, substs))
+        }
+        _ => Err(UnsupportedType { reason: format!("GOOBER unsupported type `{ty:?}`") }),
     }
 }
 

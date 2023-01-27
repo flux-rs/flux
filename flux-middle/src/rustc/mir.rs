@@ -51,6 +51,11 @@ pub struct CallSubsts<'tcx> {
     pub lowered: List<GenericArg>,
 }
 
+pub struct ClosureSubsts<'tcx> {
+    pub orig: SubstsRef<'tcx>,
+    pub lowered: List<GenericArg>,
+}
+
 /// An `Instance` is the resolved call-target at a particular trait-call-site
 #[derive(Debug)]
 pub struct Instance {
@@ -157,10 +162,12 @@ pub enum PointerCast {
     MutToConstPointer,
 }
 
+#[derive(Debug)]
 pub enum AggregateKind {
     Adt(DefId, VariantIdx, List<GenericArg>),
     Array(Ty),
     Tuple,
+    Closure(LocalDefId, List<GenericArg>),
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -460,6 +467,9 @@ impl fmt::Debug for Rvalue {
                         args.iter().format(", ")
                     )
                 }
+            }
+            Rvalue::Aggregate(AggregateKind::Closure(_, _), args) => {
+                write!(f, "closure({:?})", args.iter().format(", "))
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))

@@ -638,6 +638,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
+            Rvalue::Aggregate(AggregateKind::Closure(_did, _substs), _args) => {
+                panic!("TODO: check the closure")
+            }
             Rvalue::Discriminant(place) => {
                 let gen = &mut self.constr_gen(rcx, stmt_span);
                 let ty = env
