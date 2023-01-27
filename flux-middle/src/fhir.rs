@@ -213,12 +213,22 @@ pub enum RefineArg {
 
 /// These are types of things that may be refined with indices or existentials
 pub enum BaseTy {
+    Path(Path),
+    Slice(Box<Ty>),
+}
+
+pub struct Path {
+    pub res: Res,
+    pub generics: Vec<Ty>,
+    pub span: Span,
+}
+
+pub enum Res {
     Int(IntTy),
     Uint(UintTy),
     Bool,
-    Alias(DefId, Vec<Ty>, Vec<RefineArg>),
-    Adt(DefId, Vec<Ty>),
-    Slice(Box<Ty>),
+    Alias(DefId, Vec<RefineArg>),
+    Adt(DefId),
 }
 
 #[derive(Debug)]
@@ -338,14 +348,26 @@ impl BaseTy {
     ///
     /// [`Bool`]: BaseTy::Bool
     pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
+        matches!(self, Self::Path(Path { res: Res::Bool, .. }))
+    }
+
+    pub fn is_aggregate(&self) -> Option<DefId> {
+        if let BaseTy::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) = self {
+            Some(*def_id)
+        } else {
+            None
+        }
     }
 
     pub fn sort(&self) -> Sort {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Alias(def_id, ..) | BaseTy::Adt(def_id, _) => Sort::Aggregate(*def_id),
+            BaseTy::Path(Path { res: Res::Int(_) | Res::Uint(_), .. }) | BaseTy::Slice(_) => {
+                Sort::Int
+            }
+            BaseTy::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
+            BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
+                Sort::Aggregate(*def_id)
+            }
         }
     }
 }
@@ -756,27 +778,30 @@ impl fmt::Debug for ArrayLen {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BaseTy::Int(int_ty) => write!(f, "{}", int_ty.name_str())?,
-            BaseTy::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str())?,
-            BaseTy::Bool => write!(f, "bool")?,
-            BaseTy::Alias(def_id, substs, args) => {
+            BaseTy::Path(Path { res: Res::Int(int_ty), .. }) => write!(f, "{}", int_ty.name_str()),
+            BaseTy::Path(Path { res: Res::Uint(uint_ty), .. }) => {
+                write!(f, "{}", uint_ty.name_str())
+            }
+            BaseTy::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
+            BaseTy::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*def_id))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                if !generics.is_empty() {
+                    write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
                 if !args.is_empty() {
                     write!(f, "({:?})", args.iter().format(", "))?;
                 }
+                Ok(())
             }
-            BaseTy::Adt(did, substs) => {
+            BaseTy::Path(Path { res: Res::Adt(did), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*did))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                if !generics.is_empty() {
+                    write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
+                Ok(())
             }
-            BaseTy::Slice(ty) => write!(f, "[{ty:?}]")?,
+            BaseTy::Slice(ty) => write!(f, "[{ty:?}]"),
         }
-        Ok(())
     }
 }
 

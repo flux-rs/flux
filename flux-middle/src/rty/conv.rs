@@ -371,17 +371,26 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_base_ty(&mut self, bty: &fhir::BaseTy, idx: rty::RefineArgs) -> rty::Ty {
-        let bty = match bty {
-            fhir::BaseTy::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)),
-            fhir::BaseTy::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)),
-            fhir::BaseTy::Bool => rty::BaseTy::Bool,
-            fhir::BaseTy::Slice(ty) => rty::BaseTy::slice(self.conv_ty(ty)),
-            fhir::BaseTy::Adt(did, args) => {
-                let substs = self.conv_generic_args(*did, args);
+        match bty {
+            fhir::BaseTy::Path(path) => self.conv_path(path, idx),
+            fhir::BaseTy::Slice(ty) => {
+                let slice = rty::BaseTy::slice(self.conv_ty(ty));
+                rty::Ty::indexed(slice, idx)
+            }
+        }
+    }
+
+    fn conv_path(&mut self, path: &fhir::Path, idx: rty::RefineArgs) -> rty::Ty {
+        let bty = match &path.res {
+            fhir::Res::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)),
+            fhir::Res::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)),
+            fhir::Res::Bool => rty::BaseTy::Bool,
+            fhir::Res::Adt(did) => {
+                let substs = self.conv_generic_args(*did, &path.generics);
                 let adt_def = self.genv.adt_def(*did);
                 rty::BaseTy::adt(adt_def, substs)
             }
-            fhir::BaseTy::Alias(def_id, generics, early) => {
+            fhir::Res::Alias(def_id, early) => {
                 let mut args = vec![];
                 for (arg, sort) in iter::zip(early, self.genv.early_bound_sorts_of(*def_id)) {
                     self.conv_refine_arg_aux(arg, sort, &mut args);
@@ -394,7 +403,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return self
                     .genv
                     .type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, generics))
+                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
                     .replace_bvars(&args);
             }
         };

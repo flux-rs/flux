@@ -380,9 +380,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         bty: &fhir::BaseTy,
         idxs: &surface::Indices,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
-        if let fhir::BaseTy::Adt(def_id, _) = bty && idxs.indices.len() != 1 {
+        if let Some(def_id) = bty.is_aggregate() && idxs.indices.len() != 1 {
             let flds = self.desugar_refine_args(&idxs.indices)?;
-            Ok(fhir::RefineArg::Aggregate(*def_id, flds, idxs.span))
+            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span))
         } else {
             let arg = idxs.indices.first().unwrap();
             self.desugar_refine_arg(arg)
@@ -451,27 +451,19 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         args: &[surface::RefineArg],
     ) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match &path.res {
-            Res::PrimTy(PrimTy::Bool) => fhir::BaseTy::Bool.into(),
-            Res::PrimTy(PrimTy::Str) => fhir::Ty::Str.into(),
-            Res::PrimTy(PrimTy::Char) => fhir::Ty::Char.into(),
-            Res::PrimTy(PrimTy::Int(int_ty)) => fhir::BaseTy::Int(*int_ty).into(),
-            Res::PrimTy(PrimTy::Uint(uint_ty)) => fhir::BaseTy::Uint(*uint_ty).into(),
-            Res::PrimTy(PrimTy::Float(float_ty)) => fhir::Ty::Float(*float_ty).into(),
-            Res::Adt(def_id) => {
-                fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?).into()
-            }
-            Res::Param(def_id) => BtyOrTy::Ty(fhir::Ty::Param(*def_id)),
-            Res::Alias(def_id) => {
-                fhir::BaseTy::Alias(
-                    *def_id,
-                    self.desugar_generic_args(&path.args)?,
-                    self.desugar_refine_args(args)?,
-                )
-                .into()
-            }
+        let res = match &path.res {
+            Res::PrimTy(PrimTy::Bool) => fhir::Res::Bool,
+            Res::PrimTy(PrimTy::Int(int_ty)) => fhir::Res::Int(*int_ty),
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => fhir::Res::Uint(*uint_ty),
+            Res::Adt(def_id) => fhir::Res::Adt(*def_id),
+            Res::Alias(def_id) => fhir::Res::Alias(*def_id, self.desugar_refine_args(args)?),
+            Res::PrimTy(PrimTy::Float(float_ty)) => return Ok(fhir::Ty::Float(*float_ty).into()),
+            Res::PrimTy(PrimTy::Str) => return Ok(fhir::Ty::Str.into()),
+            Res::PrimTy(PrimTy::Char) => return Ok(fhir::Ty::Char.into()),
+            Res::Param(def_id) => return Ok(fhir::Ty::Param(*def_id).into()),
         };
-        Ok(bty)
+        let generics = self.desugar_generic_args(&path.args)?;
+        Ok(fhir::BaseTy::Path(fhir::Path { res, generics, span: path.span }).into())
     }
 
     fn desugar_generic_args(

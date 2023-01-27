@@ -3,11 +3,30 @@ wf_sort_mismatch =
     .label = expected `{$expected}`, found `{$found}`
 
 wf_arg_count_mismatch =
-    this {$thing} takes {$expected} refinement parameters but {$found ->
+    this {$thing} takes {$expected ->
+        [one] {$expected} refinement argument
+        *[other] {$expected} refinement arguments
+    } but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
-    .label = expected {$expected} arguments, found {$found}
+    .label = expected {$expected ->
+        [one] {$expected} argument
+        *[other] {$expected} arguments
+    }, found {$found}
+
+wf_early_bound_arg_count_mismatch =
+    this type alias takes {$expected ->
+        [one] {$expected} early bound argument
+        *[other] {$expected} early bound arguments
+    } but {$found ->
+        [one] {$found} was found
+        *[other] {$found} were found
+    }
+    .label = expected {$expected ->
+        [one] {$expected} early bound argument
+        *[other] {$expected} early bound arguments
+    }, found {$found}
 
 wf_illegal_binder =
     illegal binder
