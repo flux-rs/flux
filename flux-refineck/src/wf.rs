@@ -268,11 +268,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(env, ty)
             }
             fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Never
-            | fhir::Ty::Param(_)
-            | fhir::Ty::Float(_)
-            | fhir::Ty::Str
-            | fhir::Ty::Char => Ok(()),
+            fhir::Ty::Never | fhir::Ty::Param(_) => Ok(()),
         }
     }
 
@@ -297,7 +293,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 iter::zip(args, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
             }
-            fhir::Res::Adt(_) | fhir::Res::Int(_) | fhir::Res::Uint(_) | fhir::Res::Bool => {}
+            fhir::Res::Adt(_)
+            | fhir::Res::Int(_)
+            | fhir::Res::Uint(_)
+            | fhir::Res::Bool
+            | fhir::Res::Float(_)
+            | fhir::Res::Str
+            | fhir::Res::Char => {}
         }
         path.generics
             .iter()

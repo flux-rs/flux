@@ -163,12 +163,10 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Bool) => fhir::Res::Bool,
             hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => fhir::Res::Int(int_ty),
             hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => fhir::Res::Uint(uint_ty),
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => fhir::Res::Char,
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => fhir::Res::Str,
+            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => fhir::Res::Float(float_ty),
             hir::def::Res::Def(DefKind::TyParam, def_id) => return Ok(fhir::Ty::Param(def_id)),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => return Ok(fhir::Ty::Char),
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => return Ok(fhir::Ty::Str),
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
-                return Ok(fhir::Ty::Float(float_ty))
-            }
             hir::def::Res::SelfTyAlias { alias_to, .. } => {
                 return self.lift_self_ty_alias(alias_to)
             }
