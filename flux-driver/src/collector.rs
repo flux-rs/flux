@@ -189,7 +189,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        // TODO(nilehmann) error on field attrs if opaque
         // TODO(nilehmann) error if it has non-struct attrs
 
         let opaque = attrs.opaque();
@@ -237,10 +236,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let variants = enum_def
             .variants
             .iter()
-            .map(|variant| self.parse_variant_spec(variant, refined_by.is_some()))
+            .map(|variant| self.parse_variant(variant, refined_by.is_some()))
             .try_collect_exhaust()?;
-
-        let variants = if let Some(variants) = variants { variants } else { vec![] };
 
         let invariants = attrs.invariants();
 
@@ -250,22 +247,22 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_variant_spec(
+    fn parse_variant(
         &mut self,
         variant: &rustc_hir::Variant,
         has_refined_by: bool,
-    ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
+    ) -> Result<surface::VariantDef, ErrorGuaranteed> {
         let attrs = self.tcx.hir().attrs(variant.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
 
-        if let Some(variant) = attrs.variant() {
-            Ok(Some(variant))
-        } else if has_refined_by {
-            Err(self.emit_err(errors::MissingVariant::new(variant.span)))
-        } else {
-            Ok(None)
+        let data = attrs.variant();
+
+        if data.is_none() && has_refined_by {
+            return Err(self.emit_err(errors::MissingVariant::new(variant.span)));
         }
+
+        Ok(surface::VariantDef { def_id: variant.def_id, data })
     }
 
     fn parse_fn_spec(
@@ -378,16 +375,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
+        let mut err = None;
         for (name, dups) in attrs.dups() {
             for attr in dups {
                 if attr.allow_dups() {
                     continue;
                 }
-                self.error_guaranteed =
-                    Some(self.emit_err(errors::DuplicatedAttr { span: attr.span, name }));
+                err = Some(self.emit_err(errors::DuplicatedAttr { span: attr.span, name }));
             }
         }
-        if let Some(e) = self.error_guaranteed {
+        if let Some(e) = err {
+            self.error_guaranteed = Some(e);
             Err(e)
         } else {
             Ok(())
@@ -458,7 +456,7 @@ enum FluxAttrKind {
     Items(Vec<surface::Item>),
     TypeAlias(surface::Alias),
     Field(surface::Ty),
-    Variant(surface::VariantDef),
+    Variant(surface::VariantData),
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
@@ -547,7 +545,7 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
-    fn variant(&mut self) -> Option<surface::VariantDef> {
+    fn variant(&mut self) -> Option<surface::VariantData> {
         read_attr!(self, Variant)
     }
 

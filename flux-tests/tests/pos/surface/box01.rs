@@ -1,12 +1,8 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[path = "../../lib/my_option.rs"]
-mod my_option;
-use my_option::MyOption;
-
 // test that we allow moving out of a Box
-pub fn mv(b: Box<MyOption<i32>>) -> MyOption<i32> {
+pub fn mv(b: Box<Option<i32>>) -> Option<i32> {
     *b
 }
 
