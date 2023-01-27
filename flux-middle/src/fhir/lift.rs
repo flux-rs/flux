@@ -112,23 +112,21 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
     }
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let ty = match path.res {
-            hir::def::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => {
-                let args = path.segments.last().unwrap().args;
-                fhir::Ty::BaseTy(fhir::BaseTy::Adt(def_id, self.lift_generic_args(args)?))
+        let res = match path.res {
+            hir::def::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => fhir::Res::Adt(def_id),
+            hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id, vec![]),
+            hir::def::Res::PrimTy(hir::PrimTy::Bool) => fhir::Res::Bool,
+            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => fhir::Res::Int(int_ty),
+            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => fhir::Res::Uint(uint_ty),
+            hir::def::Res::Def(DefKind::TyParam, def_id) => return Ok(fhir::Ty::Param(def_id)),
+            hir::def::Res::PrimTy(hir::PrimTy::Char) => return Ok(fhir::Ty::Char),
+            hir::def::Res::PrimTy(hir::PrimTy::Str) => return Ok(fhir::Ty::Str),
+            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => {
+                return Ok(fhir::Ty::Float(float_ty))
             }
-            hir::def::Res::Def(DefKind::TyAlias, def_id) => {
-                let args = path.segments.last().unwrap().args;
-                fhir::BaseTy::Alias(def_id, self.lift_generic_args(args)?, vec![]).into()
+            hir::def::Res::SelfTyAlias { alias_to, .. } => {
+                return self.lift_self_ty_alias(alias_to)
             }
-            hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Ty::Param(def_id),
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => fhir::BaseTy::Bool.into(),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => fhir::Ty::Char,
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => fhir::Ty::Str,
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => fhir::BaseTy::Int(int_ty).into(),
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => fhir::BaseTy::Uint(uint_ty).into(),
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => fhir::Ty::Float(float_ty),
-            hir::def::Res::SelfTyAlias { alias_to, .. } => self.lift_self_ty_alias(alias_to)?,
             _ => {
                 return self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
@@ -136,7 +134,12 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
                 ));
             }
         };
-        Ok(ty)
+        let path = fhir::Path {
+            res,
+            generics: self.lift_generic_args(path.segments.last().unwrap().args)?,
+            span: path.span,
+        };
+        Ok(fhir::BaseTy::Path(path).into())
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {

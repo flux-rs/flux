@@ -285,23 +285,30 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
         match bty {
-            fhir::BaseTy::Adt(_, substs) => {
-                substs
-                    .iter()
-                    .try_for_each_exhaust(|ty| self.check_type(env, ty))
-            }
-            fhir::BaseTy::Alias(def_id, substs, args) => {
-                substs
-                    .iter()
-                    .try_for_each_exhaust(|arg| self.check_type(env, arg))?;
-
-                let sorts = self.early_cx.early_bound_sorts_of(*def_id);
-                iter::zip(args, sorts)
-                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))
-            }
+            fhir::BaseTy::Path(path) => self.check_path(env, path),
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
-            fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
         }
+    }
+
+    fn check_path(&self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
+        match &path.res {
+            fhir::Res::Alias(def_id, args) => {
+                let sorts = self.early_cx.early_bound_sorts_of(*def_id);
+                if args.len() != sorts.len() {
+                    return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
+                        path.span,
+                        sorts.len(),
+                        args.len(),
+                    ));
+                }
+                iter::zip(args, sorts)
+                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
+            }
+            fhir::Res::Adt(_) | fhir::Res::Int(_) | fhir::Res::Uint(_) | fhir::Res::Bool => {}
+        }
+        path.generics
+            .iter()
+            .try_for_each_exhaust(|ty| self.check_type(env, ty))
     }
 
     fn check_aggregate(
@@ -679,6 +686,22 @@ mod errors {
             found: usize,
         ) -> Self {
             Self { span, expected, found, thing }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::early_bound_arg_count_mismatch, code = "FLUX")]
+    pub(super) struct EarlyBoundArgCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        expected: usize,
+        found: usize,
+    }
+
+    impl EarlyBoundArgCountMismatch {
+        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
+            Self { span, expected, found }
         }
     }
 
