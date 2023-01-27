@@ -59,6 +59,44 @@ pub fn lift_field_def(
     LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)
 }
 
+pub fn lift_variant_def(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+) -> Result<fhir::VariantDef, ErrorGuaranteed> {
+    let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
+    let node = early_cx.hir().get(hir_id);
+    let hir::Node::Variant(variant) = node else {
+        bug!("expected a variant")
+    };
+    let enum_id = early_cx.hir().get_parent_item(hir_id);
+    let hir::OwnerNode::Item(hir::Item {
+        ident,
+        kind: hir::ItemKind::Enum(_, generics),
+        ..
+    }) = early_cx.hir().owner(enum_id) else {
+        bug!("expected an enum")
+    };
+
+    let cx = LiftCtxt::new(early_cx, def_id);
+
+    let fields = variant
+        .data
+        .fields()
+        .iter()
+        .map(|field| cx.lift_ty(field.ty))
+        .try_collect_exhaust()?;
+
+    let ret = fhir::VariantRet {
+        bty: fhir::BaseTy::Path(fhir::Path {
+            res: fhir::Res::Adt(enum_id.to_def_id()),
+            generics: cx.generic_params_into_args(generics)?,
+            span: ident.span,
+        }),
+        idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
+    };
+    Ok(fhir::VariantDef { params: vec![], fields, ret })
+}
+
 pub fn lift_fn_sig(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
@@ -198,6 +236,25 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         } else {
             self.emit_unsupported("only interger literals are supported for array lengths")
         }
+    }
+
+    fn generic_params_into_args(
+        &self,
+        generics: &hir::Generics,
+    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
+        let mut args = vec![];
+        for param in generics.params.iter() {
+            match param.kind {
+                hir::GenericParamKind::Type { .. } => {
+                    args.push(fhir::Ty::Param(param.def_id.to_def_id()));
+                }
+                hir::GenericParamKind::Lifetime { .. } => {}
+                hir::GenericParamKind::Const { .. } => {
+                    return self.emit_unsupported("const generics are not supported");
+                }
+            }
+        }
+        Ok(args)
     }
 
     fn emit_unsupported<T>(&self, msg: &str) -> Result<T, ErrorGuaranteed> {

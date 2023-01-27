@@ -107,13 +107,18 @@ impl<'sess> Resolver<'sess> {
         &self,
         variant: surface::VariantDef,
     ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
-        let fields = variant
-            .fields
-            .into_iter()
-            .map(|ty| self.resolve_ty(ty))
-            .try_collect_exhaust()?;
-        let ret = self.resolve_variant_ret(variant.ret)?;
-        Ok(surface::VariantDef { fields, ret, span: variant.span })
+        let data = if let Some(data) = variant.data {
+            let fields = data
+                .fields
+                .into_iter()
+                .map(|ty| self.resolve_ty(ty))
+                .try_collect_exhaust()?;
+            let ret = self.resolve_variant_ret(data.ret)?;
+            Some(surface::VariantData { fields, ret, span: data.span })
+        } else {
+            None
+        };
+        Ok(surface::VariantDef { def_id: variant.def_id, data })
     }
 
     fn resolve_variant_ret(

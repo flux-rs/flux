@@ -91,6 +91,12 @@ pub struct EnumDef<R = ()> {
 
 #[derive(Debug)]
 pub struct VariantDef<R = ()> {
+    pub def_id: LocalDefId,
+    pub data: Option<VariantData<R>>,
+}
+
+#[derive(Debug)]
+pub struct VariantData<R = ()> {
     pub fields: Vec<Ty<R>>,
     pub ret: VariantRet<R>,
     pub span: Span,

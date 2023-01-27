@@ -159,21 +159,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
-    ) -> Option<Vec<PolyVariant>> {
-        let variants: Vec<PolyVariant> = enum_def
+    ) -> Vec<PolyVariant> {
+        enum_def
             .variants
             .iter()
             .map(|variant_def| ConvCtxt::conv_variant(genv, variant_def))
-            .collect();
-
-        // Return `None` if there are *no* refined variants as, in that case,
-        // we want to fall back to using "default" `rustc` variant-signatures
-        // at the match/downcast sites as done in `GlobalEnv::variant`.
-        if variants.is_empty() {
-            None
-        } else {
-            Some(variants)
-        }
+            .collect()
     }
 
     fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> PolyVariant {

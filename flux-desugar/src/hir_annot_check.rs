@@ -146,24 +146,27 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
 
     fn zip_enum_variant(
         &self,
-        variant: &surface::VariantDef<Res>,
+        variant_def: &surface::VariantDef<Res>,
         hir_variant: &hir::Variant,
     ) -> Result<(), ErrorGuaranteed> {
-        let flux_fields = variant.fields.len();
+        let Some(data) = &variant_def.data else {
+            return Ok(());
+        };
+        let flux_fields = data.fields.len();
         let hir_fields = hir_variant.data.fields().len();
         if flux_fields != hir_fields {
             return self.emit_err(errors::FieldCountMismatch::new(
-                variant.span,
+                data.span,
                 flux_fields,
                 hir_variant.span,
                 hir_fields,
             ));
         }
 
-        iter::zip(&variant.fields, hir_variant.data.fields())
+        iter::zip(&data.fields, hir_variant.data.fields())
             .try_for_each_exhaust(|(ty, hir_field)| self.zip_ty(ty, hir_field.ty))?;
 
-        self.zip_with_self_ty(&variant.ret.path)?;
+        self.zip_with_self_ty(&data.ret.path)?;
 
         Ok(())
     }

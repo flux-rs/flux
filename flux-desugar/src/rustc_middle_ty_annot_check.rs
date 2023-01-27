@@ -89,20 +89,23 @@ impl<'sess, 'tcx> ZipChecker<'sess, 'tcx> {
         variant_def: &VariantDef<Res>,
         rust_variant_def: &rustc_ty::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let flux_fields = variant_def.fields.len();
+        let Some(data) = &variant_def.data else {
+            return Ok(());
+        };
+        let flux_fields = data.fields.len();
         let rust_fields = rust_variant_def.field_tys.len();
         if flux_fields != rust_fields {
             return Err(self.sess.emit_err(errors::FieldCountMismatch::new(
-                variant_def.span,
+                data.span,
                 flux_fields,
                 self.tcx.def_span(rust_variant_def.def_id),
                 rust_fields,
             )));
         }
-        iter::zip(&variant_def.fields, rust_variant_def.field_tys.iter())
+        iter::zip(&data.fields, rust_variant_def.field_tys.iter())
             .try_for_each_exhaust(|(ty, rust_ty)| self.zip_ty(ty, rust_ty))?;
 
-        self.zip_path(&variant_def.ret.path, &rust_variant_def.ret)
+        self.zip_path(&data.ret.path, &rust_variant_def.ret)
     }
 
     fn zip_return_ty(
