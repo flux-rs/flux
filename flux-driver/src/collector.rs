@@ -115,21 +115,32 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_fn_spec(
+    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorGuaranteed> {
+        // TODO(atgeller) error if non-crate attributes
+        // TODO(atgeller) error if >1 cfg attributes
+
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        if attrs.ignore() {
+            self.specs.ignores.insert(IgnoreKey::Crate);
+        }
+
+        self.specs.extend_items(attrs.items());
+
+        let crate_config = attrs.crate_config();
+        self.specs.crate_config = crate_config;
+        Ok(())
+    }
+
+    fn parse_mod_spec(
         &mut self,
         def_id: LocalDefId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.report_dups(&attrs)?;
-        // TODO(nilehmann) error if it has non-fun attrs
-
-        let trusted = attrs.trusted();
-        let fn_sig = attrs.fn_sig();
-        let qual_names = attrs.qual_names();
-        self.specs
-            .fns
-            .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
+        self.specs.extend_items(attrs.items());
+        if attrs.ignore() {
+            self.specs.ignores.insert(IgnoreKey::Module(def_id));
+        }
         Ok(())
     }
 
@@ -170,47 +181,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_mod_spec(
-        &mut self,
-        def_id: LocalDefId,
-        attrs: &[Attribute],
-    ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.specs.extend_items(attrs.items());
-        if attrs.ignore() {
-            self.specs.ignores.insert(IgnoreKey::Module(def_id));
-        }
-        Ok(())
-    }
-
-    fn parse_enum_def(
-        &mut self,
-        def_id: LocalDefId,
-        attrs: &[Attribute],
-        def: &EnumDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.report_dups(&attrs)?;
-        let refined_by = attrs.refined_by();
-        let variants = def
-            .variants
-            .iter()
-            .map(|variant| self.parse_variant_spec(self.tcx.hir().attrs(variant.hir_id)))
-            .try_collect_exhaust()?;
-
-        let variants = match variants {
-            Some(v) => v,
-            None => vec![],
-        };
-
-        let invariants = attrs.invariants();
-
-        self.specs
-            .enums
-            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, invariants });
-        Ok(())
-    }
-
     fn parse_struct_def(
         &mut self,
         def_id: LocalDefId,
@@ -241,22 +211,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorGuaranteed> {
-        // TODO(atgeller) error if non-crate attributes
-        // TODO(atgeller) error if >1 cfg attributes
-
-        let mut attrs = self.parse_flux_attrs(attrs)?;
-        if attrs.ignore() {
-            self.specs.ignores.insert(IgnoreKey::Crate);
-        }
-
-        self.specs.extend_items(attrs.items());
-
-        let crate_config = attrs.crate_config();
-        self.specs.crate_config = crate_config;
-        Ok(())
-    }
-
     fn parse_field_spec(
         &mut self,
         field: &rustc_hir::FieldDef,
@@ -271,13 +225,65 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(surface::FieldDef { def_id: field.def_id, ty: attrs.field() })
     }
 
-    fn parse_variant_spec(
+    fn parse_enum_def(
         &mut self,
+        def_id: LocalDefId,
         attrs: &[Attribute],
-    ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
+        enum_def: &EnumDef,
+    ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        Ok(attrs.variant())
+        let refined_by = attrs.refined_by();
+        let variants = enum_def
+            .variants
+            .iter()
+            .map(|variant| self.parse_variant_spec(variant, refined_by.is_some()))
+            .try_collect_exhaust()?;
+
+        let variants = if let Some(variants) = variants { variants } else { vec![] };
+
+        let invariants = attrs.invariants();
+
+        self.specs
+            .enums
+            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, invariants });
+        Ok(())
+    }
+
+    fn parse_variant_spec(
+        &mut self,
+        variant: &rustc_hir::Variant,
+        has_refined_by: bool,
+    ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
+        let attrs = self.tcx.hir().attrs(variant.hir_id);
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+
+        if let Some(variant) = attrs.variant() {
+            Ok(Some(variant))
+        } else if has_refined_by {
+            Err(self.emit_err(errors::MissingVariant::new(variant.span)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_fn_spec(
+        &mut self,
+        def_id: LocalDefId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+        // TODO(nilehmann) error if it has non-fun attrs
+
+        let trusted = attrs.trusted();
+        let fn_sig = attrs.fn_sig();
+        let qual_names = attrs.qual_names();
+        self.specs
+            .fns
+            .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
+        Ok(())
     }
 
     fn parse_flux_attrs(&mut self, attrs: &[Attribute]) -> Result<FluxAttrs, ErrorGuaranteed> {
@@ -750,6 +756,21 @@ mod errors {
         pub(super) fn new(span: Span, field: &rustc_hir::FieldDef) -> Self {
             let field_span = field.ident.span;
             Self { span, field_span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(parse::missing_variant, code = "FLUX")]
+    #[note]
+    pub(super) struct MissingVariant {
+        #[primary_span]
+        #[label]
+        span: Span,
+    }
+
+    impl MissingVariant {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 
