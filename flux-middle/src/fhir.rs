@@ -30,7 +30,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
-use rustc_span::{Span, Symbol, DUMMY_SP};
+use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
 use crate::{
@@ -70,7 +70,7 @@ pub struct Map {
     defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
-    adts: FxHashMap<LocalDefId, AdtDef>,
+    refined_by: FxHashMap<LocalDefId, RefinedBy>,
     aliases: FxHashMap<LocalDefId, Alias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
@@ -82,7 +82,6 @@ pub struct Map {
 #[derive(Debug)]
 pub struct Alias {
     pub def_id: LocalDefId,
-    pub refined_by: RefinedBy,
     pub ty: Ty,
     pub span: Span,
 }
@@ -250,7 +249,9 @@ pub enum Sort {
     Loc,
     Tuple(List<Sort>),
     Func(FuncSort),
-    Adt(DefId),
+    /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
+    /// Values of an aggregate sort can be projected using the `.` operator to extract its fields.
+    Aggregate(DefId),
     Infer,
     /// User defined sort
     User(Symbol),
@@ -344,7 +345,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Alias(def_id, ..) | BaseTy::Adt(def_id, _) => Sort::Adt(*def_id),
+            BaseTy::Alias(def_id, ..) | BaseTy::Adt(def_id, _) => Sort::Aggregate(*def_id),
         }
     }
 }
@@ -367,18 +368,24 @@ impl Ident {
     }
 }
 
-#[derive(Debug)]
-pub struct AdtDef {
-    pub def_id: LocalDefId,
-    pub refined_by: RefinedBy,
-    sorts: Vec<Sort>,
-}
-
+/// Information about the refinement parameters associated with a type alias or a struct/enum.
+///
+/// For a type alias `type A(x1: s1, x2: s2, ..)[y1: s, y2 : s, ..] = ..` we call `x1, x2, ..`
+/// _early bound_ parameters. In contrast, `y1, y2, ..` are called _index parameters_. The term
+/// [early bound] is borrowed from rust, but besides using the same name there's no connection
+/// between both concepts. Our use is related to the positions a parameter is allowed to appear
+/// in a definition.
+///
+/// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
 #[derive(Debug)]
 pub struct RefinedBy {
+    pub def_id: LocalDefId,
+    /// Both early bound and index parameters. Early bound parameter appear first.
     pub params: Vec<(Ident, Sort)>,
+    /// The number of early bound parameters
     pub early_bound: usize,
     pub span: Span,
+    sorts: Vec<Sort>,
 }
 
 #[derive(Debug)]
@@ -395,22 +402,26 @@ pub struct Defn {
     pub expr: Expr,
 }
 
-impl AdtDef {
-    pub fn new(def_id: LocalDefId, refined_by: RefinedBy) -> Self {
-        let sorts = refined_by.sorts().cloned().collect_vec();
-        AdtDef { def_id, refined_by, sorts }
+impl RefinedBy {
+    pub fn new(
+        def_id: LocalDefId,
+        params: Vec<(Ident, Sort)>,
+        early_bound: usize,
+        span: Span,
+    ) -> Self {
+        let sorts = params.iter().map(|(_, sort)| sort.clone()).collect_vec();
+        RefinedBy { def_id, params, early_bound, span, sorts }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
-        self.refined_by
-            .params
+        self.params
             .iter()
             .find_position(|(ident, _)| ident.sym() == fld)
             .map(|res| res.0)
     }
 
     pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
-        self.refined_by.params.iter().find_map(
+        self.params.iter().find_map(
             |(ident, sort)| {
                 if ident.sym() == fld {
                     Some(sort)
@@ -421,25 +432,16 @@ impl AdtDef {
         )
     }
 
-    pub fn index_sorts(&self) -> &[Sort] {
-        &self.sorts[self.refined_by.early_bound..]
+    pub fn early_bound_sorts(&self) -> &[Sort] {
+        &self.sorts[..self.early_bound]
     }
 
-    pub fn early_bound_sorts(&self) -> &[Sort] {
-        &self.sorts[..self.refined_by.early_bound]
+    pub fn index_sorts(&self) -> &[Sort] {
+        &self.sorts[self.early_bound..]
     }
 
     pub(crate) fn sorts(&self) -> &[Sort] {
         &self.sorts
-    }
-}
-
-impl RefinedBy {
-    pub const DUMMY: &'static RefinedBy =
-        &RefinedBy { params: vec![], early_bound: 0, span: DUMMY_SP };
-
-    pub fn sorts(&self) -> impl Iterator<Item = &Sort> {
-        self.params.iter().map(|(_, sort)| sort)
     }
 }
 
@@ -561,12 +563,12 @@ impl Map {
 
     // ADT
 
-    pub fn insert_adt(&mut self, def_id: LocalDefId, sort_info: AdtDef) {
-        self.adts.insert(def_id, sort_info);
+    pub fn insert_refined_by(&mut self, def_id: LocalDefId, refined_by: RefinedBy) {
+        self.refined_by.insert(def_id, refined_by);
     }
 
-    pub fn get_adt(&self, def_id: LocalDefId) -> &AdtDef {
-        &self.adts[&def_id]
+    pub fn refined_by(&self, def_id: LocalDefId) -> &RefinedBy {
+        &self.refined_by[&def_id]
     }
 
     // Aliases
@@ -868,7 +870,7 @@ impl fmt::Display for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
-            Sort::Adt(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
+            Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::Infer => write!(f, "_"),
             Sort::User(name) => write!(f, "{name}"),
         }

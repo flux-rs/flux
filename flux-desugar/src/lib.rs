@@ -19,7 +19,7 @@ mod rustc_middle_ty_annot_check;
 mod table_resolver;
 
 pub use desugar::{
-    desugar_adt_def, desugar_defn, desugar_qualifier, resolve_defn_uif, resolve_uif_def,
+    desugar_defn, desugar_qualifier, desugar_refined_by, resolve_defn_uif, resolve_uif_def,
 };
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use flux_syntax::surface;

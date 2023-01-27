@@ -7,7 +7,6 @@ use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::DUMMY_SP;
 
 use crate::{early_ctxt::EarlyCtxt, fhir};
 
@@ -16,13 +15,17 @@ struct LiftCtxt<'a, 'sess, 'tcx> {
     def_id: LocalDefId,
 }
 
-pub fn lift_adt_def(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::AdtDef {
+pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
     let item = early_cx.hir().expect_item(def_id);
     match item.kind {
         hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-            let refined_by =
-                fhir::RefinedBy { params: vec![], early_bound: 0, span: item.ident.span };
-            fhir::AdtDef::new(def_id, refined_by)
+            fhir::RefinedBy {
+                def_id,
+                params: vec![],
+                early_bound: 0,
+                sorts: vec![],
+                span: item.ident.span,
+            }
         }
         _ => {
             bug!("expected struct, enum or type alias");
@@ -39,9 +42,8 @@ pub fn lift_alias(
         bug!("expected type alias");
     };
     let cx = LiftCtxt::new(early_cx, def_id);
-    let refined_by = fhir::RefinedBy { params: vec![], early_bound: 0, span: DUMMY_SP };
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::Alias { def_id, refined_by, ty, span: item.span })
+    Ok(fhir::Alias { def_id, ty, span: item.span })
 }
 
 pub fn lift_fn_sig(

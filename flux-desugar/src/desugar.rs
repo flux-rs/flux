@@ -79,19 +79,20 @@ pub fn resolve_uif_def(
     Ok(fhir::UifDef { name: defn.name.name, sort })
 }
 
-pub fn desugar_adt_def(
+pub fn desugar_refined_by(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
     refined_by: &surface::RefinedBy,
-) -> Result<fhir::AdtDef, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, refined_by)?;
-
-    let refined_by = fhir::RefinedBy {
-        params: binders.pop_layer().into_params(),
-        early_bound: refined_by.early_bound_params.len(),
-        span: refined_by.span,
-    };
-    Ok(fhir::AdtDef::new(def_id, refined_by))
+) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
+    let mut binders = Binders::new();
+    binders.insert_params(early_cx, &refined_by.params)?;
+    binders.insert_params(early_cx, &refined_by.early_bound_params)?;
+    Ok(fhir::RefinedBy::new(
+        def_id,
+        binders.pop_layer().into_params(),
+        refined_by.early_bound_params.len(),
+        refined_by.span,
+    ))
 }
 
 pub fn desugar_alias(
@@ -103,12 +104,7 @@ pub fn desugar_alias(
     let mut cx = DesugarCtxt::new(early_cx, binders);
     let ty = cx.desugar_ty(None, &alias.ty)?;
 
-    let refined_by = fhir::RefinedBy {
-        params: cx.binders.pop_layer().into_params(),
-        early_bound: alias.refined_by.early_bound_params.len(),
-        span: alias.refined_by.span,
-    };
-    Ok(fhir::Alias { def_id, refined_by, ty, span: alias.span })
+    Ok(fhir::Alias { def_id, ty, span: alias.span })
 }
 
 pub fn desugar_struct_def(
@@ -253,8 +249,10 @@ struct Layer {
 #[derive(Debug, Clone)]
 enum Binder {
     /// A normal binder to a refinable type that will be desugared as an explicit parameter.
-    /// The boolean indicates whether the binder was declared _implicitly_ with the `@` syntax and
-    /// it is used to determine the inference mode for abstract refinements.
+    /// The boolean indicates whether the binder was declared _implicitly_ with the `@` or `#`
+    /// syntax and it is used to determine the [inference mode] for abstract refinements.
+    ///
+    /// [inference mode]: fhir::InferMode
     Refined(fhir::Name, fhir::Sort, /*implicit*/ bool),
     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
@@ -895,7 +893,7 @@ impl Binders {
                     }
                     self.insert_binder(early_cx.sess, ident, binder)?;
                 } else {
-                    let refined_by = sorts(early_cx, bty);
+                    let refined_by = index_sorts(early_cx, bty);
                     let exp = refined_by.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -1118,7 +1116,7 @@ impl Binder {
                 Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true)
             }
             Res::Alias(def_id) | Res::Adt(def_id) => {
-                Binder::Refined(name_gen.fresh(), fhir::Sort::Adt(def_id), true)
+                Binder::Refined(name_gen.fresh(), fhir::Sort::Aggregate(def_id), true)
             }
             Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char) | Res::Param(..) => {
                 Binder::Unrefined
@@ -1134,7 +1132,7 @@ impl Binder {
     }
 }
 
-fn sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::Sort] {
+fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::Sort] {
     match bty {
         surface::BaseTy::Path(path, _) => {
             match path.res {
