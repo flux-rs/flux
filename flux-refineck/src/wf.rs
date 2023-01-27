@@ -119,13 +119,9 @@ impl Wf<'_, '_> {
             .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            fields.iter().try_for_each_exhaust(|ty| {
-                if let Some(ty) = ty {
-                    wf.check_type(&mut env, ty)
-                } else {
-                    Ok(())
-                }
-            })?;
+            fields
+                .iter()
+                .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty))?;
         }
         Ok(())
     }

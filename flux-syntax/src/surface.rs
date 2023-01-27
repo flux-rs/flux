@@ -70,9 +70,15 @@ pub struct Alias<R = ()> {
 pub struct StructDef<R = ()> {
     pub def_id: LocalDefId,
     pub refined_by: Option<RefinedBy>,
-    pub fields: Vec<Option<Ty<R>>>,
+    pub fields: Vec<FieldDef<R>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
+}
+
+#[derive(Debug)]
+pub struct FieldDef<R = ()> {
+    pub def_id: LocalDefId,
+    pub ty: Option<Ty<R>>,
 }
 
 #[derive(Debug)]

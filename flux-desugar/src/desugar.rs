@@ -128,7 +128,13 @@ pub fn desugar_struct_def(
         let fields = struct_def
             .fields
             .iter()
-            .map(|ty| ty.as_ref().map(|ty| cx.desugar_ty(None, ty)).transpose())
+            .map(|field| {
+                if let Some(ty) = &field.ty {
+                    cx.desugar_ty(None, ty)
+                } else {
+                    fhir::lift::lift_field_def(early_cx, field.def_id)
+                }
+            })
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };

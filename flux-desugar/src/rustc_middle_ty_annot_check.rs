@@ -29,8 +29,8 @@ pub fn check_struct_def(
     let rust_adt_def = lowering::lower_adt_def(tcx, sess, tcx.adt_def(def_id))?;
     let rust_variant_def = &rust_adt_def.variants[0];
     iter::zip(&struct_def.fields, rust_variant_def.fields()).try_for_each_exhaust(
-        |(ty, (rust_ty, field_def_id))| {
-            if let Some(ty) = ty {
+        |(field, (rust_ty, field_def_id))| {
+            if let Some(ty) = &field.ty {
                 ZipChecker::new(tcx, sess, *field_def_id).zip_ty(ty, rust_ty)?;
             }
             Ok(())

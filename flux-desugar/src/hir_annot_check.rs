@@ -47,8 +47,8 @@ pub(crate) fn check_struct_def(
         bug!("expected struct");
     };
     iter::zip(&struct_def.fields, hir_variant.fields()).try_for_each_exhaust(
-        |(opt_ty, hir_field)| {
-            if let Some(ty) = opt_ty {
+        |(field, hir_field)| {
+            if let Some(ty) = &field.ty {
                 let zipper = Zipper::new(tcx, sess, hir_field.def_id)?;
                 zipper.zip_ty(ty, hir_field.ty)?;
             }

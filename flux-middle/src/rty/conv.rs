@@ -13,7 +13,6 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_target::abi::VariantIdx;
 
 use super::{fold::TypeFoldable, Binders, PolyVariant};
 use crate::{
@@ -196,16 +195,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let mut cx = ConvCtxt::from_refined_by(genv, refined_by);
 
         let def_id = struct_def.def_id.to_def_id();
-        let rustc_adt = genv.tcx.adt_def(def_id);
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            let fields = iter::zip(fields, &rustc_adt.variant(VariantIdx::from_u32(0)).fields)
-                .map(|(ty, field)| {
-                    match ty {
-                        Some(ty) => cx.conv_ty(ty),
-                        None => genv.default_type_of(field.did),
-                    }
-                })
-                .collect_vec();
+            let fields = fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
 
             let substs = genv
                 .generics_of(def_id)
