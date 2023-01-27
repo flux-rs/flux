@@ -60,7 +60,7 @@ pub struct UifDef {
 
 #[derive(Debug)]
 pub struct Alias<R = ()> {
-    pub name: Ident,
+    pub path: Path,
     pub refined_by: RefinedBy,
     pub ty: Ty<R>,
     pub span: Span,

@@ -11,7 +11,7 @@ grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 pub Alias: surface::Alias = {
   <lo:@L>
     "type"
-    <name:Ident>
+    <path:Path>
     <refined_by_lo:@L>
     <early_bound_params:("(" <Comma<RefineParam>> ")")?>
     <index_params:("[" <Comma<RefineParam>> "]")?>
@@ -24,7 +24,7 @@ pub Alias: surface::Alias = {
             index_params: index_params.unwrap_or_default(),
             span: mk_span(refined_by_lo, refined_by_hi)
         };
-        surface::Alias { name, refined_by, ty, span: mk_span(lo, hi) }
+        surface::Alias { path, refined_by, ty, span: mk_span(lo, hi) }
     }
 }
 
