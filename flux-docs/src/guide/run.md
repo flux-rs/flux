@@ -35,7 +35,7 @@ in order to get `flux` to check your code.
 
 ## Developing locally
 
-You can set the `FLUX_DRIVER_PATH` environment variable to `./target/debug/flux` if you
+You can set the `FLUX_DRIVER_PATH` environment variable to `./target/debug/flux-driver` if you
 want `cargo-flux` and `rustc-flux` to use the version of `flux-driver` that is built
 when you run `cargo build`. This is useful if you want to run `cargo build` instead
 of `cargo install --path flux` every time you make a change.
@@ -101,7 +101,7 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 
 ```json
 {
-  "rust-analyzer.checkOnSave.overrideCommand": [
+  "rust-analyzer.check.overrideCommand": [
     "cargo-flux",
     "check",
     "--workspace",
@@ -110,14 +110,14 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 }
 ```
 
-If you want to change the `flux` used by `cargo-flux`, then also specify the
+If you want to change the `flux-driver` used by `cargo-flux`, then also specify the
 `FLUX_PATH` like in the example below, which uses the version generated when you
 run `cargo build`.
 
 ``` json
 {
-  "rust-analyzer.checkOnSave.extraEnv": {
-    "FLUX_PATH": "/path/to/flux-repo/target/debug/flux",
+  "rust-analyzer.check.extraEnv": {
+    "FLUX_DRIVER_PATH": "/path/to/flux-repo/target/debug/flux-driver",
   }
 }
 ```
