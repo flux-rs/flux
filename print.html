@@ -191,7 +191,7 @@ instead of running <code>cargo check</code>, you should run</p>
 </code></pre>
 <p>in order to get <code>flux</code> to check your code.</p>
 <h2 id="developing-locally"><a class="header" href="#developing-locally">Developing locally</a></h2>
-<p>You can set the <code>FLUX_DRIVER_PATH</code> environment variable to <code>./target/debug/flux</code> if you
+<p>You can set the <code>FLUX_DRIVER_PATH</code> environment variable to <code>./target/debug/flux-driver</code> if you
 want <code>cargo-flux</code> and <code>rustc-flux</code> to use the version of <code>flux-driver</code> that is built
 when you run <code>cargo build</code>. This is useful if you want to run <code>cargo build</code> instead
 of <code>cargo install --path flux</code> every time you make a change.</p>
@@ -238,7 +238,7 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
 <p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
 <pre><code class="language-json">{
-  &quot;rust-analyzer.checkOnSave.overrideCommand&quot;: [
+  &quot;rust-analyzer.check.overrideCommand&quot;: [
     &quot;cargo-flux&quot;,
     &quot;check&quot;,
     &quot;--workspace&quot;,
@@ -246,12 +246,12 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
   ]
 }
 </code></pre>
-<p>If you want to change the <code>flux</code> used by <code>cargo-flux</code>, then also specify the
+<p>If you want to change the <code>flux-driver</code> used by <code>cargo-flux</code>, then also specify the
 <code>FLUX_PATH</code> like in the example below, which uses the version generated when you
 run <code>cargo build</code>.</p>
 <pre><code class="language-json">{
-  &quot;rust-analyzer.checkOnSave.extraEnv&quot;: {
-    &quot;FLUX_PATH&quot;: &quot;/path/to/flux-repo/target/debug/flux&quot;,
+  &quot;rust-analyzer.check.extraEnv&quot;: {
+    &quot;FLUX_DRIVER_PATH&quot;: &quot;/path/to/flux-repo/target/debug/flux-driver&quot;,
   }
 }
 </code></pre>
