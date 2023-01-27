@@ -14,14 +14,14 @@ pub Alias: surface::Alias = {
     <name:Ident>
     <refined_by_lo:@L>
     <early_bound_params:("(" <Comma<RefineParam>> ")")?>
-    <params:("[" <Comma<RefineParam>> "]")?>
+    <index_params:("[" <Comma<RefineParam>> "]")?>
     <refined_by_hi:@R>
     "="
     <ty:Ty>
     <hi:@R> => {
         let refined_by = surface::RefinedBy {
             early_bound_params: early_bound_params.unwrap_or_default(),
-            params: params.unwrap_or_default(),
+            index_params: index_params.unwrap_or_default(),
             span: mk_span(refined_by_lo, refined_by_hi)
         };
         surface::Alias { name, refined_by, ty, span: mk_span(lo, hi) }
@@ -29,7 +29,7 @@ pub Alias: surface::Alias = {
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, early_bound_params: vec![], span: mk_span(lo, hi) }
+    <lo:@L> <index_params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { index_params, early_bound_params: vec![], span: mk_span(lo, hi) }
 }
 
 pub Items: Vec<surface::Item> = {

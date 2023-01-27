@@ -42,7 +42,10 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         if let Some(local_id) = def_id.as_local() {
             self.map.refined_by(local_id).index_sorts()
         } else {
-            self.cstore.index_sorts(def_id).unwrap_or_default()
+            self.cstore
+                .refined_by(def_id)
+                .map(fhir::RefinedBy::index_sorts)
+                .unwrap_or_default()
         }
     }
 
@@ -50,8 +53,10 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         if let Some(local_id) = def_id.as_local() {
             self.map.refined_by(local_id).early_bound_sorts()
         } else {
-            // FIXME(nilehmann) support for extern type aliases
-            &[]
+            self.cstore
+                .refined_by(def_id)
+                .map(fhir::RefinedBy::early_bound_sorts)
+                .unwrap_or_default()
         }
     }
 
@@ -59,7 +64,9 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         if let Some(local_id) = def_id.as_local() {
             self.map.refined_by(local_id).field_index(fld)
         } else {
-            self.cstore.field_index(def_id, fld)
+            self.cstore
+                .refined_by(def_id)
+                .and_then(|refined_by| refined_by.field_index(fld))
         }
     }
 
@@ -67,7 +74,9 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         if let Some(local_id) = def_id.as_local() {
             self.map.refined_by(local_id).field_sort(fld)
         } else {
-            self.cstore.field_sort(def_id, fld)
+            self.cstore
+                .refined_by(def_id)
+                .and_then(|refined_by| refined_by.field_sort(fld))
         }
     }
 

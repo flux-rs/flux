@@ -1,14 +1,13 @@
-use rustc_span::{def_id::DefId, Symbol};
+use rustc_span::def_id::DefId;
 
-use crate::rty;
+use crate::{fhir, rty};
 
 pub trait CrateStore {
     fn fn_sig(&self, def_id: DefId) -> Option<rty::PolySig>;
-    fn index_sorts(&self, def_id: DefId) -> Option<&[rty::Sort]>;
-    fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize>;
-    fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&rty::Sort>;
+    fn refined_by(&self, def_id: DefId) -> Option<&fhir::RefinedBy>;
     fn adt_def(&self, def_id: DefId) -> Option<&rty::AdtDef>;
     fn variants(&self, def_id: DefId) -> Option<Option<&[rty::PolyVariant]>>;
+    fn type_of(&self, def_id: DefId) -> Option<&rty::Binders<rty::Ty>>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

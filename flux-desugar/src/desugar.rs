@@ -12,6 +12,7 @@ use flux_syntax::surface::{self, PrimTy, Res};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{sym, symbol::kw, Span, Symbol};
 
@@ -84,15 +85,30 @@ pub fn desugar_refined_by(
     def_id: LocalDefId,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
-    let mut binders = Binders::new();
-    binders.insert_params(early_cx, &refined_by.params)?;
-    binders.insert_params(early_cx, &refined_by.early_bound_params)?;
-    Ok(fhir::RefinedBy::new(
-        def_id,
-        binders.pop_layer().into_params(),
-        refined_by.early_bound_params.len(),
-        refined_by.span,
-    ))
+    let mut set = FxHashSet::default();
+    refined_by.iter().try_for_each_exhaust(|param| {
+        if let Some(old) = set.get(&param.name) {
+            return Err(early_cx
+                .sess
+                .emit_err(errors::DuplicateParam::new(*old, param.name)));
+        } else {
+            set.insert(param.name);
+        }
+        Ok(())
+    })?;
+    let early_bound_params: Vec<_> = refined_by
+        .early_bound_params
+        .iter()
+        .map(|param| resolve_sort(early_cx, &param.sort))
+        .try_collect_exhaust()?;
+
+    let index_params: Vec<_> = refined_by
+        .index_params
+        .iter()
+        .map(|param| Ok((param.name.name, resolve_sort(early_cx, &param.sort)?)))
+        .try_collect_exhaust()?;
+
+    Ok(fhir::RefinedBy::new(def_id, early_bound_params, index_params, refined_by.span))
 }
 
 pub fn desugar_alias(
@@ -104,7 +120,7 @@ pub fn desugar_alias(
     let mut cx = DesugarCtxt::new(early_cx, binders);
     let ty = cx.desugar_ty(None, &alias.ty)?;
 
-    Ok(fhir::Alias { def_id, ty, span: alias.span })
+    Ok(fhir::Alias { def_id, params: cx.binders.pop_layer().into_params(), ty, span: alias.span })
 }
 
 pub fn desugar_struct_def(
@@ -138,7 +154,7 @@ pub fn desugar_struct_def(
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };
-    Ok(fhir::StructDef { def_id, kind, invariants })
+    Ok(fhir::StructDef { def_id, params: cx.binders.pop_layer().into_params(), kind, invariants })
 }
 
 pub fn desugar_enum_def(
@@ -152,14 +168,14 @@ pub fn desugar_enum_def(
         .map(|variant| desugar_variant_def(early_cx, variant))
         .try_collect_exhaust()?;
 
-    let binders = Binders::from_params(early_cx, enum_def.refined_by.iter().flatten())?;
+    let mut binders = Binders::from_params(early_cx, enum_def.refined_by.iter().flatten())?;
     let invariants = enum_def
         .invariants
         .iter()
         .map(|invariant| ExprCtxt::new(early_cx, &binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
-    Ok(fhir::EnumDef { def_id, variants, invariants })
+    Ok(fhir::EnumDef { def_id, params: binders.pop_layer().into_params(), variants, invariants })
 }
 
 fn desugar_variant_def(
