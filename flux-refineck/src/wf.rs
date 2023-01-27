@@ -546,11 +546,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
-    /// [`Adt`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
+    /// [`Aggregate`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
     /// versa, i.e., we can automatically project the field out of the adt or inject a value into an
     /// adt.
     ///
-    /// [`Adt`]: fhir::Sort::Adt
+    /// [`Aggregate`]: fhir::Sort::Aggregate
     fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
