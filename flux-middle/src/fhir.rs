@@ -95,7 +95,7 @@ pub struct StructDef {
 
 #[derive(Debug)]
 pub enum StructKind {
-    Transparent { fields: Vec<Option<Ty>> },
+    Transparent { fields: Vec<Ty> },
     Opaque,
 }
 

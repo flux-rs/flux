@@ -37,13 +37,26 @@ pub fn lift_alias(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
 ) -> Result<fhir::Alias, ErrorGuaranteed> {
-    let item = early_cx.tcx.hir().expect_item(def_id);
+    let item = early_cx.hir().expect_item(def_id);
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
     let cx = LiftCtxt::new(early_cx, def_id);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::Alias { def_id, ty, span: item.span })
+}
+
+pub fn lift_field_def(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+) -> Result<fhir::Ty, ErrorGuaranteed> {
+    let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
+    let node = early_cx.hir().get(hir_id);
+    let hir::Node::Field(field_def) = node else {
+        bug!("expected a field")
+    };
+    let parent_id = early_cx.hir().get_parent_item(hir_id);
+    LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)
 }
 
 pub fn lift_fn_sig(
