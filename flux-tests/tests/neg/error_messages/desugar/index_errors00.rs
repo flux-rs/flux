@@ -30,23 +30,8 @@ pub fn myint2(x: i32) -> i32 {
     x
 }
 
-#[flux::sig(fn(f: f32) -> i32[f])] //~ ERROR invalid use of refinement parameter
-fn ipa(f: f32) -> i32 {
-    0
-}
-
-#[flux::sig(fn(f: f32) -> i32[f.x])] //~ ERROR invalid use of refinement parameter
-fn ris(f: f32) -> i32 {
-    0
-}
-
-#[flux::sig(fn(f: &mut f32[@x]) -> i32[f])] //~ ERROR this type takes 0 refinement parameters
+#[flux::sig(fn(f: &mut f32) -> i32[f])] //~ ERROR invalid use of refinement parameter
 fn dipa(f: &mut f32) -> i32 {
-    0
-}
-
-#[flux::sig(fn(f32{v : v > 0}) -> i32[0])] //~ ERROR this type takes 0 refinement parameters
-fn ira(f: f32) -> i32 {
     0
 }
 

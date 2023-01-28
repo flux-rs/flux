@@ -25,7 +25,22 @@ pub fn myint1(x: i32) -> i32 {
     x
 }
 
-#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR no field `a` on refinement
+#[flux::sig(fn(f: f32) -> i32[f.x])] //~ ERROR no field `x` on sort `()`
+fn ris(f: f32) -> i32 {
+    0
+}
+
+#[flux::sig(fn(f: f32) -> i32[f])] //~ ERROR mismatched sorts
+fn ipa(f: f32) -> i32 {
+    0
+}
+
+#[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR no field `a` on sort `Chair`
 pub fn use_chair(c: Chair) -> i32 {
     c.x
+}
+
+#[flux::sig(fn(f32{v : v > 0}) -> i32[0])] //~ ERROR mismatched sorts
+fn ira(f: f32) -> i32 {
+    0
 }

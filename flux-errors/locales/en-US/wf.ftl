@@ -70,11 +70,10 @@ wf_param_count_mismatch =
     } was expected
 
 wf_field_not_found =
-    no field `{$fld}` on refinement parameters for {$def_kind} `{$def_name}`
+    no field `{$fld}` on sort `{$sort}`
 
 wf_invalid_primitive_dot_access =
     `{$sort}` is a primitive sort and therefore doesn't have fields
-    .label = field access on parameter `{$param_name}`
 
 wf_def_span_note =
     {$has_params ->

@@ -485,10 +485,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<BtyOrTy, ErrorGuaranteed> {
         let res = match &path.res {
             Res::PrimTy(PrimTy::Bool) => fhir::Res::Bool,
-            Res::PrimTy(PrimTy::Char) => fhir::Res::Char,
-            Res::PrimTy(PrimTy::Str) => fhir::Res::Str,
             Res::PrimTy(PrimTy::Int(int_ty)) => fhir::Res::Int(*int_ty),
             Res::PrimTy(PrimTy::Uint(uint_ty)) => fhir::Res::Uint(*uint_ty),
+            Res::PrimTy(PrimTy::Char) => fhir::Res::Char,
+            Res::PrimTy(PrimTy::Str) => fhir::Res::Str,
             Res::PrimTy(PrimTy::Float(float_ty)) => fhir::Res::Float(*float_ty),
             Res::Adt(def_id) => fhir::Res::Adt(*def_id),
             Res::Alias(def_id) => fhir::Res::Alias(*def_id, self.desugar_refine_args(args)?),
