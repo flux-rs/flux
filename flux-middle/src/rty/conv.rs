@@ -306,7 +306,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
                 is_binder,
             } => {
-                let (_, bvars) = self.env.get(var.name);
+                let (_, bvars) = self.env.get(*var);
                 output.extend(
                     bvars
                         .into_iter()
@@ -447,9 +447,9 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
         self.layers.pop();
     }
 
-    fn get(&self, name: impl Borrow<fhir::Name>) -> (&fhir::Sort, Vec<rty::BoundVar>) {
+    fn get(&self, name: fhir::Ident) -> (&fhir::Sort, Vec<rty::BoundVar>) {
         for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some((sort, range)) = layer.get(name.borrow()) {
+            if let Some((sort, range)) = layer.get(name.name) {
                 let vars = range
                     .clone()
                     .map(|idx| rty::BoundVar::new(idx, DebruijnIndex::new(level as u32)))
@@ -457,11 +457,11 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
                 return (sort, vars);
             }
         }
-        panic!("no entry found for key: `{:?}`", name.borrow());
+        span_bug!(name.span(), "no entry found for key: `{:?}`", name);
     }
 
     fn expect_one_var(&self, name: fhir::Ident) -> rty::BoundVar {
-        let (_, mut vars) = self.get(name.name);
+        let (_, mut vars) = self.get(name);
         if vars.len() == 1 {
             vars.pop().unwrap()
         } else {
@@ -474,7 +474,19 @@ impl Env<'_, '_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.expect_one_var(*var).to_expr(),
+            fhir::ExprKind::Var(var) => {
+                let (_, bvars) = self.get(*var);
+                match &bvars[..] {
+                    [bvar] => bvar.to_expr(),
+                    [] => rty::Expr::unit(),
+                    _ => {
+                        span_bug!(
+                            var.span(),
+                            "conversion of tuples is not supported in this position"
+                        )
+                    }
+                }
+            }
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
@@ -487,7 +499,7 @@ impl Env<'_, '_> {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let (sort, vars) = self.get(var.name);
+                let (sort, vars) = self.get(*var);
                 if let fhir::Sort::Aggregate(def_id) = sort {
                     let idx = self
                         .early_cx
