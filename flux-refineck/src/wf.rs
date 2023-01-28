@@ -353,7 +353,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                             params.len(),
                         ));
                     }
-                    env.push_layer(iter::zip(params, fsort.inputs()));
+                    let params = iter::zip(params, fsort.inputs())
+                        .map(|((name, _), sort)| (&name.name, sort));
+                    env.push_layer(params);
                     self.check_expr(env, body, fsort.output())?;
                     self.check_param_uses(env, body, true)
                 } else {

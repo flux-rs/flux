@@ -122,13 +122,13 @@ pub struct QualNames {
     pub names: Vec<Ident>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Sort {
     /// A _base_ sort, e.g., `int` or `bool`.
     Base(Ident),
@@ -225,7 +225,7 @@ pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     Bind(Ident, BindKind, Span),
     Expr(Expr),
-    Abs(Vec<Ident>, Expr, Span),
+    Abs(Vec<RefineParam>, Expr, Span),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -323,16 +323,6 @@ impl<'a> IntoIterator for &'a RefinedBy {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
-    }
-}
-
-impl IntoIterator for RefinedBy {
-    type Item = RefineParam;
-
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.index_params.into_iter()
     }
 }
 

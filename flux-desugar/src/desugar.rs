@@ -9,7 +9,6 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface::{self, PrimTy, Res};
-use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
@@ -460,13 +459,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
-                let (body, names) =
-                    self.binders
-                        .with_abs_params(self.early_cx.sess, params, |binders| {
-                            let cx = ExprCtxt::new(self.early_cx, binders);
-                            cx.desugar_expr(body)
-                        })?;
-                Ok(fhir::RefineArg::Abs(names, body, *span))
+                self.binders.push_layer();
+                self.binders.insert_params(self.early_cx, params)?;
+                let body = self.as_expr_ctxt().desugar_expr(body)?;
+                let params = self.binders.pop_layer().into_params();
+                Ok(fhir::RefineArg::Abs(params, body, *span))
             }
         }
     }
@@ -761,34 +758,6 @@ impl Binders {
 
     fn get(&self, ident: impl Borrow<surface::Ident>) -> Option<&Binder> {
         self.iter_layers(|layer| layer.get(ident.borrow()))
-    }
-
-    fn with_abs_params<R>(
-        &mut self,
-        sess: &FluxSession,
-        params: &[surface::Ident],
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<(R, Vec<fhir::Name>), ErrorGuaranteed> {
-        let names = params.iter().map(|_| self.fresh()).collect_vec();
-        let binders = iter::zip(&names, params)
-            .map(|(name, param)| (*param, Binder::Refined(*name, fhir::Sort::Infer, false)))
-            .collect_vec();
-        self.push_layer();
-        self.insert_binders(sess, binders)?;
-        let r = f(self)?;
-        self.pop_layer();
-        Ok((r, names))
-    }
-
-    fn insert_binders(
-        &mut self,
-        sess: &FluxSession,
-        binders: impl IntoIterator<Item = (surface::Ident, Binder)>,
-    ) -> Result<(), ErrorGuaranteed> {
-        for (ident, binder) in binders {
-            self.insert_binder(sess, ident, binder)?;
-        }
-        Ok(())
     }
 
     fn insert_binder(

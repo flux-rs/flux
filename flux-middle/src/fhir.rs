@@ -209,7 +209,7 @@ pub enum RefineArg {
         /// inferring parameters at function calls.
         is_binder: bool,
     },
-    Abs(Vec<Name>, Expr, Span),
+    Abs(Vec<(Ident, Sort)>, Expr, Span),
     Aggregate(DefId, Vec<RefineArg>, Span),
 }
 
