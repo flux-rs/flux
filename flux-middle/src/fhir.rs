@@ -155,9 +155,6 @@ pub enum Ty {
     /// Constrained types `{T : p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
-    Float(FloatTy),
-    Str,
-    Char,
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
     Param(DefId),
@@ -231,6 +228,9 @@ pub enum Res {
     Int(IntTy),
     Uint(UintTy),
     Bool,
+    Float(FloatTy),
+    Str,
+    Char,
     Alias(DefId, Vec<RefineArg>),
     Adt(DefId),
 }
@@ -264,11 +264,13 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(FuncSort),
     /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
-    /// Values of an aggregate sort can be projected using the `.` operator to extract its fields.
+    /// Values of an aggregate sort can be projected using dot notation to extract their fields.
     Aggregate(DefId),
-    Infer,
     /// User defined sort
     User(Symbol),
+    /// A sort to be inferred, this is only partially implemented now and is only used for arguments
+    /// to abstract refinement predicates.
+    Infer,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -372,6 +374,7 @@ impl BaseTy {
             BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
                 Sort::Aggregate(*def_id)
             }
+            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::unit(),
         }
     }
 }
@@ -751,7 +754,6 @@ impl fmt::Debug for Ty {
             Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
             Ty::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
             Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
-            Ty::Float(float_ty) => write!(f, "{}", float_ty.name_str()),
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
             Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
@@ -760,8 +762,6 @@ impl fmt::Debug for Ty {
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Never => write!(f, "!"),
             Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
-            Ty::Str => write!(f, "str"),
-            Ty::Char => write!(f, "char"),
             Ty::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             Ty::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
         }
@@ -792,6 +792,11 @@ impl fmt::Debug for BaseTy {
                 }
                 Ok(())
             }
+            BaseTy::Path(Path { res: Res::Float(float_ty), .. }) => {
+                write!(f, "{}", float_ty.name_str())
+            }
+            BaseTy::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
+            BaseTy::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
             BaseTy::Path(Path { res: Res::Adt(did), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*did))?;
                 if !generics.is_empty() {

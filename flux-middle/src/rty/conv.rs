@@ -143,6 +143,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .flat_map(|param| {
                 let n = if let fhir::Sort::Aggregate(def_id) = &param.sort {
                     self.early_cx().index_sorts_of(*def_id).len()
+                } else if let fhir::Sort::Tuple(sorts) = &param.sort {
+                    sorts.len()
                 } else {
                     1
                 };
@@ -265,7 +267,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let param_ty = rty::ParamTy { index, name: self.genv.hir().ty_param_name(def_id) };
                 rty::Ty::param(param_ty)
             }
-            fhir::Ty::Float(float_ty) => rty::Ty::float(rustc_middle::ty::float_ty(*float_ty)),
             fhir::Ty::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.conv_ty(ty)).collect_vec();
                 rty::Ty::tuple(tys)
@@ -278,9 +279,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let pred = self.env.conv_expr(pred);
                 rty::Ty::constr(pred, self.conv_ty(ty))
             }
-
-            fhir::Ty::Str => rty::Ty::str(),
-            fhir::Ty::Char => rty::Ty::char(),
             fhir::Ty::RawPtr(ty, mutability) => {
                 rty::Ty::indexed(
                     rty::BaseTy::RawPtr(self.conv_ty(ty), *mutability),
@@ -358,9 +356,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_path(&mut self, path: &fhir::Path, idx: rty::RefineArgs) -> rty::Ty {
         let bty = match &path.res {
+            fhir::Res::Bool => rty::BaseTy::Bool,
+            fhir::Res::Str => rty::BaseTy::Str,
+            fhir::Res::Char => rty::BaseTy::Char,
             fhir::Res::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)),
             fhir::Res::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)),
-            fhir::Res::Bool => rty::BaseTy::Bool,
+            fhir::Res::Float(float_ty) => rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty)),
             fhir::Res::Adt(did) => {
                 let substs = self.conv_generic_args(*did, &path.generics);
                 let adt_def = self.genv.adt_def(*did);
@@ -540,6 +541,8 @@ impl Layer {
         for (name, sort) in iter.into_iter() {
             let nsorts = if let fhir::Sort::Aggregate(def_id) = sort {
                 early_cx.index_sorts_of(*def_id).len()
+            } else if let fhir::Sort::Tuple(sorts) = sort {
+                sorts.len()
             } else {
                 1
             };
@@ -574,9 +577,7 @@ fn flatten_sorts<'a>(
 
 fn flatten_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> Vec<rty::Sort> {
     match sort {
-        fhir::Sort::Tuple(sorts) => {
-            vec![rty::Sort::Tuple(List::from_vec(flatten_sorts(early_cx, sorts)))]
-        }
+        fhir::Sort::Tuple(sorts) => flatten_sorts(early_cx, sorts),
         fhir::Sort::Func(fsort) => vec![rty::Sort::Func(flatten_func_sort(early_cx, fsort))],
         fhir::Sort::Aggregate(def_id) => flatten_sorts(early_cx, early_cx.index_sorts_of(*def_id)),
         fhir::Sort::Int

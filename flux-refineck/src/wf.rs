@@ -268,11 +268,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(env, ty)
             }
             fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Never
-            | fhir::Ty::Param(_)
-            | fhir::Ty::Float(_)
-            | fhir::Ty::Str
-            | fhir::Ty::Char => Ok(()),
+            fhir::Ty::Never | fhir::Ty::Param(_) => Ok(()),
         }
     }
 
@@ -297,7 +293,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 iter::zip(args, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
             }
-            fhir::Res::Adt(_) | fhir::Res::Int(_) | fhir::Res::Uint(_) | fhir::Res::Bool => {}
+            fhir::Res::Adt(_)
+            | fhir::Res::Int(_)
+            | fhir::Res::Uint(_)
+            | fhir::Res::Bool
+            | fhir::Res::Float(_)
+            | fhir::Res::Str
+            | fhir::Res::Char => {}
         }
         path.generics
             .iter()
@@ -398,6 +400,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
+        struct S {
+            x: i32,
+        }
         match &e.kind {
             fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
@@ -413,20 +418,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = &env[var.name];
-                if let fhir::Sort::Aggregate(def_id) = sort {
-                    self.early_cx
-                        .field_sort(*def_id, fld.name)
-                        .cloned()
-                        .ok_or_else(|| {
-                            self.early_cx.emit_err(errors::FieldNotFound::new(
-                                self.early_cx.tcx,
-                                &self.early_cx.map,
-                                *def_id,
-                                *fld,
-                            ))
-                        })
-                } else {
-                    self.emit_err(errors::InvalidPrimitiveDotAccess::new(*var, sort, *fld))
+                match sort {
+                    fhir::Sort::Aggregate(def_id) => {
+                        self.early_cx
+                            .field_sort(*def_id, fld.name)
+                            .cloned()
+                            .ok_or_else(|| {
+                                self.early_cx
+                                    .emit_err(errors::FieldNotFound::new(sort, *fld))
+                            })
+                    }
+                    fhir::Sort::Bool | fhir::Sort::Int | fhir::Sort::Real => {
+                        self.emit_err(errors::InvalidPrimitiveDotAccess::new(sort, *fld))
+                    }
+                    _ => self.emit_err(errors::FieldNotFound::new(sort, *fld)),
                 }
             }
         }
@@ -816,39 +821,30 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(wf::field_not_found, code = "FLUX")]
-    pub struct FieldNotFound {
+    pub(super) struct FieldNotFound<'a> {
         #[primary_span]
         span: Span,
+        sort: &'a fhir::Sort,
         fld: SurfaceIdent,
-        def_kind: &'static str,
-        def_name: String,
-        #[subdiagnostic]
-        def_note: Option<DefSpanNote>,
     }
 
-    impl FieldNotFound {
-        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: SurfaceIdent) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_name = tcx.def_path_str(def_id);
-            let def_note = DefSpanNote::new(tcx, map, def_id);
-            Self { span: fld.span, fld, def_kind, def_name, def_note }
+    impl<'a> FieldNotFound<'a> {
+        pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+            Self { span: fld.span, sort, fld }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(wf::invalid_primitive_dot_access, code = "FLUX")]
-    pub struct InvalidPrimitiveDotAccess<'a> {
+    pub(super) struct InvalidPrimitiveDotAccess<'a> {
         #[primary_span]
-        #[label]
         span: Span,
-        param_name: Symbol,
         sort: &'a fhir::Sort,
     }
 
     impl<'a> InvalidPrimitiveDotAccess<'a> {
-        pub fn new(var: fhir::Ident, sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
-            let span = var.span().to(fld.span);
-            Self { sort, span, param_name: var.sym() }
+        pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+            Self { sort, span: fld.span }
         }
     }
 

@@ -168,7 +168,7 @@ pub enum Arg<R = ()> {
     Constr(Ident, Path<R>, Expr),
     /// example `v: &strg i32`
     StrgRef(Ident, Ty<R>),
-    /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v : v > 0}`.
+    /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v: v > 0}`.
     /// The binder has a different meaning depending on the type.
     Ty(Option<Ident>, Ty<R>),
 }
