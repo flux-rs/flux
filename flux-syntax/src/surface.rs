@@ -122,13 +122,13 @@ pub struct QualNames {
     pub names: Vec<Ident>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Sort {
     /// A _base_ sort, e.g., `int` or `bool`.
     Base(Ident),
@@ -214,13 +214,13 @@ pub struct ArrayLen {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Indices {
     pub indices: Vec<RefineArg>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     Bind(Ident, BindKind, Span),
