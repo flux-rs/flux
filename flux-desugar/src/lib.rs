@@ -69,7 +69,7 @@ pub fn desugar_fn_sig(
     hir_annot_check::check_fn_sig(early_cx.tcx, early_cx.sess, def_id, &fn_sig)?;
 
     // Desugar
-    desugar::desugar_fn_sig(early_cx, def_id, &fn_sig)
+    desugar::desugar_fn_sig(early_cx, &fn_sig)
 }
 
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {

@@ -400,9 +400,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
-        struct S {
-            x: i32,
-        }
         match &e.kind {
             fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
@@ -642,11 +639,8 @@ fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
 }
 
 mod errors {
-    use flux_macros::{Diagnostic, Subdiagnostic};
+    use flux_macros::Diagnostic;
     use flux_middle::fhir::{self, SurfaceIdent};
-    use rustc_errors::MultiSpan;
-    use rustc_hir::def_id::DefId;
-    use rustc_middle::ty::TyCtxt;
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -845,33 +839,6 @@ mod errors {
     impl<'a> InvalidPrimitiveDotAccess<'a> {
         pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
             Self { sort, span: fld.span }
-        }
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(wf::def_span_note)]
-    struct DefSpanNote {
-        #[primary_span]
-        sp: MultiSpan,
-        def_kind: &'static str,
-        has_params: bool,
-    }
-
-    impl DefSpanNote {
-        fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
-            let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
-
-            let mut has_params = false;
-            if let Some(local_id) = def_id.as_local()
-                && let refined_by = map.refined_by(local_id)
-                && !refined_by.index_sorts().is_empty()
-            {
-                sp.push_span_label(refined_by.span, "");
-                has_params = true;
-            }
-
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            Some(Self { sp, def_kind, has_params })
         }
     }
 }

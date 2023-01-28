@@ -9,7 +9,7 @@
 //! 3. Refinements are well-sorted
 use std::{borrow::Borrow, iter, ops::Range};
 
-use flux_common::bug;
+use flux_common::span_bug;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -218,7 +218,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         match constr {
             fhir::Constraint::Type(loc, ty) => {
                 rty::Constraint::Type(
-                    self.env.expect_one_var(loc.name).to_var().to_path(),
+                    self.env.expect_one_var(*loc).to_var().to_path(),
                     self.conv_ty(ty),
                 )
             }
@@ -253,10 +253,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::Ty::exists(Binders::new(rty::Ty::constr(pred, ty), sorts))
             }
             fhir::Ty::Ptr(loc) => {
-                rty::Ty::ptr(
-                    rty::RefKind::Mut,
-                    self.env.expect_one_var(loc.name).to_var().to_path(),
-                )
+                rty::Ty::ptr(rty::RefKind::Mut, self.env.expect_one_var(*loc).to_var().to_path())
             }
             fhir::Ty::Ref(rk, ty) => rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)),
             fhir::Ty::Param(def_id) => {
@@ -463,12 +460,12 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
         panic!("no entry found for key: `{:?}`", name.borrow());
     }
 
-    fn expect_one_var(&self, name: fhir::Name) -> rty::BoundVar {
-        let (_, mut vars) = self.get(name);
+    fn expect_one_var(&self, name: fhir::Ident) -> rty::BoundVar {
+        let (_, mut vars) = self.get(name.name);
         if vars.len() == 1 {
             vars.pop().unwrap()
         } else {
-            todo!()
+            span_bug!(name.span(), "expected exactly one variable, found {}", vars.len());
         }
     }
 }
@@ -477,7 +474,7 @@ impl Env<'_, '_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.expect_one_var(var.name).to_expr(),
+            fhir::ExprKind::Var(var) => self.expect_one_var(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
@@ -495,7 +492,7 @@ impl Env<'_, '_> {
                     let idx = self
                         .early_cx
                         .field_index(*def_id, fld.name)
-                        .unwrap_or_else(|| bug!("field not found `{fld:?}`"));
+                        .unwrap_or_else(|| span_bug!(expr.span, "field not found `{fld:?}`"));
                     vars[idx].to_expr()
                 } else {
                     todo!()
@@ -506,7 +503,7 @@ impl Env<'_, '_> {
 
     fn conv_func(&self, func: &fhir::Func) -> rty::Func {
         match func {
-            fhir::Func::Var(ident) => rty::Func::Var(self.expect_one_var(ident.name).to_var()),
+            fhir::Func::Var(ident) => rty::Func::Var(self.expect_one_var(*ident).to_var()),
             fhir::Func::Uif(sym, _) => rty::Func::Uif(*sym),
         }
     }

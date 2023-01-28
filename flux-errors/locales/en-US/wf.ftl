@@ -75,12 +75,6 @@ wf_field_not_found =
 wf_invalid_primitive_dot_access =
     `{$sort}` is a primitive sort and therefore doesn't have fields
 
-wf_def_span_note =
-    {$has_params ->
-        [true] {$def_kind} defined here
-        *[false] {$def_kind} defined here with no parameters
-    }
-
 wf_expected_numeric=
     mismatched sorts
     .label = expected numeric sort, found `{$found}`

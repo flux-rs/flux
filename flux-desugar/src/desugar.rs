@@ -1,7 +1,7 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
+use flux_common::{index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -117,7 +117,7 @@ pub fn desugar_alias(
     alias: surface::Alias<Res>,
 ) -> Result<fhir::Alias, ErrorGuaranteed> {
     let binders = Binders::from_params(early_cx, &alias.refined_by)?;
-    let mut cx = DesugarCtxt::new(early_cx, def_id, binders);
+    let mut cx = DesugarCtxt::new(early_cx, binders);
     let ty = cx.desugar_ty(None, &alias.ty)?;
 
     Ok(fhir::Alias { def_id, params: cx.binders.pop_layer().into_params(), ty, span: alias.span })
@@ -130,7 +130,7 @@ pub fn desugar_struct_def(
     let def_id = struct_def.def_id;
     let binders = Binders::from_params(early_cx, struct_def.refined_by.iter().flatten())?;
 
-    let mut cx = DesugarCtxt::new(early_cx, struct_def.def_id, binders);
+    let mut cx = DesugarCtxt::new(early_cx, binders);
 
     let invariants = struct_def
         .invariants
@@ -184,7 +184,7 @@ fn desugar_variant_def(
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
     let mut binders = Binders::new();
     binders.gather_params_variant(early_cx, variant_def)?;
-    let mut cx = DesugarCtxt::new(early_cx, variant_def.def_id, binders);
+    let mut cx = DesugarCtxt::new(early_cx, binders);
 
     if let Some(data) = &variant_def.data {
         let fields = data
@@ -195,7 +195,12 @@ fn desugar_variant_def(
 
         let ret = cx.desugar_variant_ret(&data.ret)?;
 
-        Ok(fhir::VariantDef { params: cx.binders.pop_layer().into_fun_params(), fields, ret })
+        Ok(fhir::VariantDef {
+            def_id: variant_def.def_id,
+            params: cx.binders.pop_layer().into_fun_params(),
+            fields,
+            ret,
+        })
     } else {
         fhir::lift::lift_variant_def(early_cx, variant_def.def_id)
     }
@@ -203,14 +208,13 @@ fn desugar_variant_def(
 
 pub fn desugar_fn_sig(
     early_cx: &EarlyCtxt,
-    def_id: LocalDefId,
     fn_sig: &surface::FnSig<Res>,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
 
     // # Desugar inputs
     binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
-    let mut cx = DesugarCtxt::new(early_cx, def_id, binders);
+    let mut cx = DesugarCtxt::new(early_cx, binders);
 
     if let Some(e) = &fn_sig.requires {
         let pred = cx.as_expr_ctxt().desugar_expr(e)?;
@@ -256,7 +260,6 @@ pub fn desugar_fn_sig(
 
 pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
-    def_id: LocalDefId,
     binders: Binders,
     requires: Vec<fhir::Constraint>,
 }
@@ -302,12 +305,8 @@ enum FuncRes<'a> {
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
-    fn new(
-        early_cx: &'a EarlyCtxt<'a, 'tcx>,
-        def_id: LocalDefId,
-        binders: Binders,
-    ) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { early_cx, def_id, binders, requires: vec![] }
+    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, binders: Binders) -> DesugarCtxt<'a, 'tcx> {
+        DesugarCtxt { early_cx, binders, requires: vec![] }
     }
 
     fn as_expr_ctxt(&self) -> ExprCtxt<'_, 'tcx> {
@@ -440,7 +439,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(fhir::RefineArg::Expr { expr, is_binder: true })
             }
-            Some(Binder::Unrefined) => span_bug!(self.def_span(), "desugaring unrefined binder"),
+            Some(Binder::Unrefined) => span_bug!(ident.span, "desugaring unrefined binder"),
             None => Err(self.early_cx.emit_err(errors::UnresolvedVar::new(ident))),
         }
     }
@@ -540,10 +539,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 panic!("variant output desugared to an unrefined type")
             }
         }
-    }
-
-    fn def_span(&self) -> Span {
-        self.early_cx.tcx.def_span(self.def_id)
     }
 }
 
@@ -1109,7 +1104,7 @@ impl Layer {
                 let name = fhir::Ident::new(name, ident);
                 args.push((name, sort));
             } else {
-                bug!("unexpected refined binder");
+                span_bug!(ident.span, "unexpected refined binder");
             }
         }
         args

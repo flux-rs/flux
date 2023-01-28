@@ -88,7 +88,7 @@ pub fn lift_variant_def(
         }),
         idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
     };
-    Ok(fhir::VariantDef { params: vec![], fields, ret })
+    Ok(fhir::VariantDef { def_id, params: vec![], fields, ret })
 }
 
 pub fn lift_fn_sig(

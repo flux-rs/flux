@@ -112,6 +112,7 @@ pub struct EnumDef {
 
 #[derive(Debug)]
 pub struct VariantDef {
+    pub def_id: LocalDefId,
     pub params: Vec<FunRefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
