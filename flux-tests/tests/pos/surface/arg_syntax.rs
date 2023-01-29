@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn(x: i32{v : v > 0 && x < 10}) -> i32{v : v > x && v < 11})]
+#[flux::sig(fn(x: i32{v: v > 0 && v < 10}) -> i32{v : v > 0 && v < 11})]
 fn exists(x: i32) -> i32 {
     x + 1
 }
