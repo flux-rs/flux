@@ -318,8 +318,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = self.expect_func(sort);
-                self.env
-                    .push_layer(Layer::new(self.early_cx(), iter::zip(params, fsort.inputs())));
+                let params =
+                    iter::zip(params, fsort.inputs()).map(|((name, _), sort)| (&name.name, sort));
+                self.env.push_layer(Layer::new(self.early_cx(), params));
                 let pred = self.env.conv_expr(body);
                 let abs = rty::Binders::new(pred, flatten_sorts(self.early_cx(), fsort.inputs()));
                 self.env.pop_layer();

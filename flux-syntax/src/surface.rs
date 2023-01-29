@@ -214,18 +214,18 @@ pub struct ArrayLen {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Indices {
     pub indices: Vec<RefineArg>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     Bind(Ident, BindKind, Span),
     Expr(Expr),
-    Abs(Vec<Ident>, Expr, Span),
+    Abs(Vec<RefineParam>, Expr, Span),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -323,16 +323,6 @@ impl<'a> IntoIterator for &'a RefinedBy {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
-    }
-}
-
-impl IntoIterator for RefinedBy {
-    type Item = RefineParam;
-
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.index_params.into_iter()
     }
 }
 

@@ -9,7 +9,6 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface::{self, PrimTy, Res};
-use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
@@ -360,22 +359,25 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::Exists { bind: ident, bty, pred } => {
                 match self.desugar_bty(bty)? {
                     BtyOrTy::Bty(bty) => {
-                        if let Some(bind) = bind {
+                        let ty = if let Some(bind) = bind {
                             let binder = self.binders[bind].clone();
-                            let pred = self.binders.with_binder(*ident, binder, |binders| {
-                                ExprCtxt::new(self.early_cx, binders).desugar_expr(pred)
-                            })?;
+                            self.binders
+                                .insert_binder(self.early_cx.sess, *ident, binder)?;
+                            let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                             let idxs = self.bind_into_refine_arg(bind)?;
-                            Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
+                            fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
                         } else {
+                            self.binders.push_layer();
                             let name = self.binders.fresh();
                             let binder = Binder::Refined(name, bty.sort(), false);
-                            let pred = self.binders.with_binder(*ident, binder, |binders| {
-                                ExprCtxt::new(self.early_cx, binders).desugar_expr(pred)
-                            })?;
+                            self.binders
+                                .insert_binder(self.early_cx.sess, *ident, binder)?;
+                            let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                             let bind = fhir::Ident::new(name, *ident);
-                            Ok(fhir::Ty::Exists(bty, bind, pred))
-                        }
+                            self.binders.pop_layer();
+                            fhir::Ty::Exists(bty, bind, pred)
+                        };
+                        Ok(ty)
                     }
                     BtyOrTy::Ty(_) => {
                         Err(self
@@ -457,11 +459,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
-                let (body, names) = self.binders.with_abs_params(params, |binders| {
-                    let cx = ExprCtxt::new(self.early_cx, binders);
-                    cx.desugar_expr(body)
-                })?;
-                Ok(fhir::RefineArg::Abs(names, body, *span))
+                self.binders.push_layer();
+                self.binders.insert_params(self.early_cx, params)?;
+                let body = self.as_expr_ctxt().desugar_expr(body)?;
+                let params = self.binders.pop_layer().into_params();
+                Ok(fhir::RefineArg::Abs(params, body, *span))
             }
         }
     }
@@ -758,57 +760,13 @@ impl Binders {
         self.iter_layers(|layer| layer.get(ident.borrow()))
     }
 
-    fn with_binder<R>(
-        &mut self,
-        ident: surface::Ident,
-        binder: Binder,
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<R, ErrorGuaranteed> {
-        self.with_binders([(ident, binder)], f)
-    }
-
-    fn with_abs_params<R>(
-        &mut self,
-        params: &[surface::Ident],
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<(R, Vec<fhir::Name>), ErrorGuaranteed> {
-        let names = params.iter().map(|_| self.fresh()).collect_vec();
-        let binders = iter::zip(&names, params)
-            .map(|(name, param)| (*param, Binder::Refined(*name, fhir::Sort::Infer, false)))
-            .collect_vec();
-        let r = self.with_binders(binders, f)?;
-        Ok((r, names))
-    }
-
-    fn with_binders<R>(
-        &mut self,
-        binders: impl IntoIterator<Item = (surface::Ident, Binder)>,
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<R, ErrorGuaranteed> {
-        self.push_layer();
-        for (ident, binder) in binders {
-            self.top_layer().insert(ident, binder);
-        }
-        let r = f(self)?;
-        self.pop_layer();
-        Ok(r)
-    }
-
     fn insert_binder(
         &mut self,
         sess: &FluxSession,
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
-        match self.top_layer().entry(ident) {
-            IndexEntry::Occupied(entry) => {
-                Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
-            }
-            IndexEntry::Vacant(entry) => {
-                entry.insert(binder);
-                Ok(())
-            }
-        }
+        self.top_layer().insert(sess, ident, binder)
     }
 
     fn gather_params_variant(
@@ -1089,12 +1047,21 @@ impl Layer {
         self.map.get(key.borrow())
     }
 
-    fn insert(&mut self, ident: surface::Ident, binder: Binder) {
-        self.map.insert(ident, binder);
-    }
-
-    fn entry(&mut self, ident: surface::Ident) -> IndexEntry<surface::Ident, Binder> {
-        self.map.entry(ident)
+    fn insert(
+        &mut self,
+        sess: &FluxSession,
+        ident: surface::Ident,
+        binder: Binder,
+    ) -> Result<(), ErrorGuaranteed> {
+        match self.map.entry(ident) {
+            IndexEntry::Occupied(entry) => {
+                Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
+            }
+            IndexEntry::Vacant(entry) => {
+                entry.insert(binder);
+                Ok(())
+            }
+        }
     }
 
     fn into_params(self) -> Vec<(fhir::Ident, fhir::Sort)> {

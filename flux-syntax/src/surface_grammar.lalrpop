@@ -205,6 +205,10 @@ RefineArg: surface::RefineArg = {
     <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, mk_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
+        let params = params
+            .into_iter()
+            .map(|param| surface::RefineParam { name: param, sort: surface::Sort::Infer })
+            .collect();
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
     }
 };
