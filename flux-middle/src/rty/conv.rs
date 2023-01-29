@@ -40,8 +40,8 @@ struct Layer {
 
 pub(crate) fn expand_alias(genv: &GlobalEnv, alias: &fhir::Alias) -> rty::Binders<rty::Ty> {
     let mut cx = ConvCtxt::from_params(genv, &alias.params);
-    let sorts = flatten_sorts(genv.early_cx(), genv.map().refined_by(alias.def_id).sorts());
     let ty = cx.conv_ty(&alias.ty);
+    let sorts = cx.env.pop_layer().into_sorts();
     rty::Binders::new(ty, sorts)
 }
 
@@ -444,8 +444,8 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
         self.layers.push(layer);
     }
 
-    fn pop_layer(&mut self) {
-        self.layers.pop();
+    fn pop_layer(&mut self) -> Layer {
+        self.layers.pop().expect("bottom of layer stack")
     }
 
     fn get(&self, name: fhir::Ident) -> (&fhir::Sort, Vec<rty::BoundVar>) {
@@ -568,6 +568,10 @@ impl Layer {
 
     fn get(&self, name: impl Borrow<fhir::Name>) -> Option<&(fhir::Sort, Range<usize>)> {
         self.map.get(name.borrow())
+    }
+
+    fn into_sorts(self) -> Vec<fhir::Sort> {
+        self.map.into_values().map(|(sort, _)| sort).collect()
     }
 }
 
