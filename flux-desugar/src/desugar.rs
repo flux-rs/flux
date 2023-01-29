@@ -211,7 +211,7 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
 
-    // # Desugar inputs
+    // Desugar inputs
     binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
     let mut cx = DesugarCtxt::new(early_cx, binders);
 
@@ -227,7 +227,7 @@ pub fn desugar_fn_sig(
         .map(|arg| cx.desugar_fun_arg(arg))
         .try_collect_exhaust()?;
 
-    // # Desugar output
+    // Desugar output
     cx.binders.push_layer();
     cx.binders.gather_output_params_fn_sig(early_cx, fn_sig)?;
     let ret = match &fn_sig.returns {
@@ -359,25 +359,16 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::Exists { bind: ident, bty, pred } => {
                 match self.desugar_bty(bty)? {
                     BtyOrTy::Bty(bty) => {
-                        let ty = if let Some(bind) = bind {
-                            let binder = self.binders[bind].clone();
-                            self.binders
-                                .insert_binder(self.early_cx.sess, *ident, binder)?;
-                            let pred = self.as_expr_ctxt().desugar_expr(pred)?;
-                            let idxs = self.bind_into_refine_arg(bind)?;
-                            fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs)))
-                        } else {
-                            self.binders.push_layer();
-                            let name = self.binders.fresh();
-                            let binder = Binder::Refined(name, bty.sort(), false);
-                            self.binders
-                                .insert_binder(self.early_cx.sess, *ident, binder)?;
-                            let pred = self.as_expr_ctxt().desugar_expr(pred)?;
-                            let bind = fhir::Ident::new(name, *ident);
-                            self.binders.pop_layer();
-                            fhir::Ty::Exists(bty, bind, pred)
-                        };
-                        Ok(ty)
+                        self.binders.push_layer();
+
+                        let name = self.binders.fresh();
+                        let binder = Binder::Refined(name, bty.sort(), false);
+                        self.binders.insert_binder(self.sess(), *ident, binder)?;
+                        let pred = self.as_expr_ctxt().desugar_expr(pred)?;
+                        let bind = fhir::Ident::new(name, *ident);
+
+                        self.binders.pop_layer();
+                        Ok(fhir::Ty::Exists(bty, bind, pred))
                     }
                     BtyOrTy::Ty(_) => {
                         Err(self
@@ -542,6 +533,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
         }
     }
+
+    fn sess(&self) -> &'a FluxSession {
+        self.early_cx.sess
+    }
 }
 
 impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
@@ -606,10 +601,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             match b {
                 Binder::Refined(name, sort, _) => return Ok(FuncRes::Param(*name, sort)),
                 Binder::Unrefined => {
-                    let def_ident = self.binders.def_ident(func).unwrap();
                     return Err(self
                         .early_cx
-                        .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)));
+                        .emit_err(errors::InvalidUnrefinedParam::new(func)));
                 }
             }
         }
@@ -647,10 +641,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 fhir::ExprKind::Var(fhir::Ident::new(*name, ident))
             }
             (Some(Binder::Unrefined), _) => {
-                let def_ident = self.binders.def_ident(ident).unwrap();
                 return Err(self
                     .early_cx
-                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, ident)));
+                    .emit_err(errors::InvalidUnrefinedParam::new(ident)));
             }
             (None, Some(const_info)) => fhir::ExprKind::Const(const_info.def_id, ident.span),
             (None, None) => return Err(self.early_cx.emit_err(errors::UnresolvedVar::new(ident))),
@@ -750,10 +743,6 @@ impl Binders {
 
     fn fresh(&self) -> fhir::Name {
         self.name_gen.fresh()
-    }
-
-    fn def_ident(&self, ident: impl Borrow<surface::Ident>) -> Option<surface::Ident> {
-        self.iter_layers(|layer| Some(*layer.get_key_value(ident.borrow())?.0))
     }
 
     fn get(&self, ident: impl Borrow<surface::Ident>) -> Option<&Binder> {
@@ -926,7 +915,7 @@ impl Binders {
             }
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::from_bty(&self.name_gen, bty))?;
+                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
                 self.gather_params_bty(early_cx, bty, pos)
             }
@@ -1036,13 +1025,6 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 }
 
 impl Layer {
-    fn get_key_value(
-        &self,
-        key: impl Borrow<surface::Ident>,
-    ) -> Option<(&surface::Ident, &Binder)> {
-        self.map.get_key_value(key.borrow())
-    }
-
     fn get(&self, key: impl Borrow<surface::Ident>) -> Option<&Binder> {
         self.map.get(key.borrow())
     }
@@ -1258,13 +1240,11 @@ mod errors {
         #[label]
         span: Span,
         var: Ident,
-        #[label(desugar::defined_here)]
-        def_span: Span,
     }
 
     impl InvalidUnrefinedParam {
-        pub(super) fn new(def: Ident, var: Ident) -> Self {
-            Self { def_span: def.span, var, span: var.span }
+        pub(super) fn new(var: Ident) -> Self {
+            Self { var, span: var.span }
         }
     }
 

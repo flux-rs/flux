@@ -464,10 +464,6 @@ impl RefinedBy {
     pub fn index_sorts(&self) -> &[Sort] {
         &self.sorts[self.early_bound..]
     }
-
-    pub(crate) fn sorts(&self) -> &[Sort] {
-        &self.sorts
-    }
 }
 
 impl Sort {

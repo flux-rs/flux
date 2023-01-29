@@ -30,7 +30,6 @@ desugar_param_count_mismatch =
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter
     .label = parameter `{$var}` refers to a type with no indices
-    .defined_here = `{$var}` bound here
 
 desugar_illegal_binder =
     illegal binder

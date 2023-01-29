@@ -860,12 +860,14 @@ mod pretty {
     impl Pretty for Binders<FnOutput> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!(
-                "exists<{:?}> {:?}; [{:?}]",
-                join!(", ", self.params()),
-                &self.value.ret,
-                join!(", ", &self.value.ensures)
-            )
+            if !self.params().is_empty() {
+                w!("exists<{:?}>", join!(", ", self.params()))?;
+            }
+            w!("{:?}", &self.value.ret)?;
+            if !self.value.ensures.is_empty() {
+                w!("; [{:?}]", join!(", ", &self.value.ensures))?;
+            }
+            Ok(())
         }
     }
 
@@ -894,7 +896,7 @@ mod pretty {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{[{:?}]. {:?}}}", join!(", ", params), ty)
+                        w!("{{∃ {:?}. {:?}}}", join!(", ", params), ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
