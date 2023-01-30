@@ -896,7 +896,7 @@ mod pretty {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{∃ {:?}. {:?}}}", join!(", ", params), ty)
+                        w!("{{ ∃[{:?}]. {:?} }}", join!(", ", params), ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),

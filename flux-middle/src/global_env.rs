@@ -376,13 +376,17 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(self.refine_ty_true(ty), *mu),
         };
         let pred = mk_pred(bty.sorts());
-        if pred.params().is_empty() && pred.is_trivially_true() {
-            rty::Ty::indexed(bty, rty::RefineArgs::empty())
-        } else {
-            let ty = pred.map(|pred| {
-                let args = rty::RefineArgs::bound(bty.sorts().len());
+        let ty = pred.map(|pred| {
+            let args = rty::RefineArgs::bound(bty.sorts().len());
+            if pred.is_trivially_true() {
+                rty::Ty::indexed(bty, args)
+            } else {
                 rty::Ty::constr(pred, rty::Ty::indexed(bty, args))
-            });
+            }
+        });
+        if ty.params().is_empty() {
+            ty.skip_binders()
+        } else {
             rty::Ty::exists(ty)
         }
     }

@@ -21,7 +21,6 @@ mod table_resolver;
 pub use desugar::{
     desugar_defn, desugar_qualifier, desugar_refined_by, resolve_defn_uif, resolve_uif_def,
 };
-use flux_common::{config, dbg};
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -70,11 +69,7 @@ pub fn desugar_fn_sig(
     hir_annot_check::check_fn_sig(early_cx.tcx, early_cx.sess, def_id, &fn_sig)?;
 
     // Desugar
-    let fn_sig = desugar::desugar_fn_sig(early_cx, &fn_sig)?;
-    if config::dump_fhir() {
-        dbg::dump_item_info(early_cx.tcx, def_id.to_def_id(), "fhir", &fn_sig).unwrap();
-    }
-    Ok(fn_sig)
+    desugar::desugar_fn_sig(early_cx, &fn_sig)
 }
 
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {

@@ -390,6 +390,9 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
             } else {
                 fhir::lift::lift_fn_sig(early_cx, def_id)?
             };
+            if config::dump_fhir() {
+                dbg::dump_item_info(early_cx.tcx, def_id.to_def_id(), "fhir", &fn_sig).unwrap();
+            }
             early_cx.map.insert_fn_sig(def_id, fn_sig);
             if let Some(quals) = spec.qual_names {
                 early_cx.map.insert_fn_quals(def_id, quals.names);
