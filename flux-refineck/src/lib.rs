@@ -6,7 +6,8 @@
     let_chains,
     type_alias_impl_trait,
     box_patterns,
-    drain_filter
+    drain_filter,
+    result_option_inspect
 )]
 ///! Refinement type checking
 extern crate rustc_data_structures;
