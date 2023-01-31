@@ -381,7 +381,6 @@ impl TypeFoldable for Ty {
                         .expect("folding produced an invalid path"),
                 )
             }
-            TyKind::Ref(rk, ty) => Ty::mk_ref(*rk, ty.fold_with(folder)),
             TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
             TyKind::Uninit | TyKind::Param(_) | TyKind::Never | TyKind::Discr(..) => self.clone(),
         }
@@ -398,7 +397,6 @@ impl TypeFoldable for Ty {
             }
             TyKind::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             TyKind::Array(ty, _) => ty.visit_with(visitor),
-            TyKind::Ref(_, ty) => ty.visit_with(visitor),
             TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor);
@@ -462,6 +460,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
+            BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, ty.fold_with(folder)),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -476,6 +475,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
+            BaseTy::Ref(_, ty) => ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool

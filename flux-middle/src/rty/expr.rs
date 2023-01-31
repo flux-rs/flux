@@ -1,5 +1,6 @@
 use std::{fmt, sync::OnceLock};
 
+use flux_common::bug;
 use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use rustc_hir::def_id::DefId;
@@ -195,12 +196,13 @@ impl Expr {
             }
             BaseTy::Uint(_) => ExprKind::Constant(Constant::from(bits)).intern(),
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(_, _)
+            BaseTy::Adt(..)
+            | BaseTy::Ref(..)
             | BaseTy::Str
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
             | BaseTy::Char
-            | BaseTy::RawPtr(_, _) => panic!(),
+            | BaseTy::RawPtr(_, _) => bug!(),
         }
     }
 

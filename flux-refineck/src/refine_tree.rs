@@ -170,6 +170,14 @@ impl RefineCtxt<'_> {
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                 )
             }
+            BaseTy::Ref(rk, ty) => {
+                let ty = if flags.contains(UnpackFlags::SHALLOW) {
+                    ty.clone()
+                } else {
+                    self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags)
+                };
+                BaseTy::Ref(*rk, ty)
+            }
             _ => bty.clone(),
         }
     }
@@ -196,14 +204,6 @@ impl RefineCtxt<'_> {
                 self.assume_pred(pred);
                 self.unpack_inner(ty, in_mut_ref, flags)
             }
-            TyKind::Ref(rk, ty) => {
-                let ty = if flags.contains(UnpackFlags::SHALLOW) {
-                    ty.clone()
-                } else {
-                    self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags)
-                };
-                Ty::mk_ref(*rk, ty)
-            }
             TyKind::Tuple(tys) => {
                 let tys = tys
                     .iter()
@@ -227,8 +227,12 @@ impl RefineCtxt<'_> {
         struct Visitor<'a, 'rcx>(&'a mut RefineCtxt<'rcx>);
         impl TypeVisitor for Visitor<'_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) {
-                if let BaseTy::Adt(adt_def, substs) = bty && adt_def.is_box() {
-                    substs.visit_with(self);
+                match bty {
+                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                        substs.visit_with(self);
+                    }
+                    BaseTy::Ref(_, ty) => ty.visit_with(self),
+                    _ => {}
                 }
             }
 

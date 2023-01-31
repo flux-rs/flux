@@ -8,8 +8,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, RefKind, RefineArg, Sort, Ty,
-        TyKind,
+        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, RefineArg, Sort,
+        Ty, TyKind,
     },
     rustc::{
         self,
@@ -100,7 +100,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // mutable references.
         let actuals = iter::zip(actuals, fn_sig.fn_sig.as_ref().skip_binders().args())
             .map(|(actual, formal)| {
-                if let (TyKind::Ref(RefKind::Mut, _), TyKind::Ref(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+                if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
@@ -145,11 +145,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
-                (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
                     let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound);
                 }
-                (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
+                (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
                     infcx.subtyping(rcx, &ty, bound);
                 }
@@ -243,11 +243,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut, path), TyKind::Ref(RefKind::Mut, bound)) => {
+                (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
                     let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound);
                 }
-                (TyKind::Ptr(PtrKind::Shr, path), TyKind::Ref(RefKind::Shr, bound)) => {
+                (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
                     infcx.subtyping(rcx, &ty, bound);
                 }
@@ -369,13 +369,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
-            (TyKind::Ref(RefKind::Mut, ty1), TyKind::Ref(RefKind::Mut, ty2)) => {
-                self.subtyping(rcx, ty1, ty2);
-                self.subtyping(rcx, ty2, ty1);
-            }
-            (TyKind::Ref(RefKind::Shr, ty1), TyKind::Ref(RefKind::Shr, ty2)) => {
-                self.subtyping(rcx, ty1, ty2);
-            }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
             }
@@ -421,6 +414,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
 
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
+                self.subtyping(rcx, ty1, ty2);
+            }
+            (BaseTy::Ref(RefKind::Mut, ty1), BaseTy::Ref(RefKind::Mut, ty2)) => {
+                self.subtyping(rcx, ty1, ty2);
+                self.subtyping(rcx, ty2, ty1);
+            }
+            (BaseTy::Ref(RefKind::Shr, ty1), BaseTy::Ref(RefKind::Shr, ty2)) => {
                 self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Bool, BaseTy::Bool)

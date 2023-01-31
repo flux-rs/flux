@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, RefineArg, Sort, Substs, Ty, TyKind,
-        Var, VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, Ref, RefineArg, Sort, Substs, Ty,
+        TyKind, Var, VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
 };
@@ -246,7 +246,7 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            TyKind::Ref(rk, ty) => {
+                            Ref!(rk, ty) => {
                                 let (rk, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
@@ -319,7 +319,7 @@ impl PathsTree {
                 ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             }
             match (elem, ty.kind()) {
-                (Deref, TyKind::Ref(rk2, ty2)) => {
+                (Deref, Ref!(rk2, ty2)) => {
                     rk = rk.min(WeakKind::from(*rk2));
                     ty = ty2.clone();
                 }

@@ -138,7 +138,6 @@ pub enum TyKind {
     Array(Ty, Const),
     Uninit,
     Ptr(PtrKind, Path),
-    Ref(RefKind, Ty),
     Param(ParamTy),
     Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -185,6 +184,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
+    Ref(RefKind, Ty),
 }
 
 pub type Substs = List<GenericArg>;
@@ -454,10 +454,6 @@ impl Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
-    pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
-        TyKind::Ref(mode, ty).intern()
-    }
-
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
         TyKind::Tuple(tys.into()).intern()
     }
@@ -525,14 +521,6 @@ impl Ty {
         Ty::tuple(vec![])
     }
 
-    pub fn str() -> Ty {
-        Ty::indexed(BaseTy::Str, RefineArgs::empty())
-    }
-
-    pub fn char() -> Ty {
-        Ty::indexed(BaseTy::Char, RefineArgs::empty())
-    }
-
     pub fn never() -> Ty {
         TyKind::Never.intern()
     }
@@ -557,8 +545,25 @@ impl Ty {
         Ty::uint(UintTy::Usize)
     }
 
+    pub fn str() -> Ty {
+        Ty::index_by_unit(BaseTy::Str)
+    }
+
+    pub fn char() -> Ty {
+        Ty::index_by_unit(BaseTy::Char)
+    }
+
     pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::indexed(BaseTy::Float(float_ty), RefineArgs::empty())
+        Ty::index_by_unit(BaseTy::Float(float_ty))
+    }
+
+    pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
+        Ty::index_by_unit(BaseTy::Ref(mode, ty))
+    }
+
+    fn index_by_unit(bty: BaseTy) -> Ty {
+        debug_assert_eq!(bty.sorts().len(), 0);
+        Ty::indexed(bty, RefineArgs::empty())
     }
 }
 
@@ -689,7 +694,8 @@ impl BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
             | BaseTy::RawPtr(_, _)
-            | BaseTy::Char => &[],
+            | BaseTy::Char
+            | BaseTy::Ref(_, _) => &[],
         }
     }
 
@@ -698,7 +704,11 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
             BaseTy::Bool => &[Sort::Bool],
             BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char | BaseTy::RawPtr(_, _) => &[],
+            BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::RawPtr(..)
+            | BaseTy::Ref(..) => &[],
         }
     }
 }
@@ -757,11 +767,19 @@ pub use crate::_Bool as Bool;
 
 #[macro_export]
 macro_rules! _Float {
-    ($float_ty:pat, $idxs:pat) => {
-        TyKind::Indexed(BaseTy::Float($float_ty), $idxs)
+    ($float_ty:pat) => {
+        TyKind::Indexed(BaseTy::Float($float_ty), _)
     };
 }
 pub use crate::_Float as Float;
+
+#[macro_export]
+macro_rules! _Ref {
+    ($rk:pat, $ty:pat) => {
+        TyKind::Indexed(BaseTy::Ref($rk, $ty), _)
+    };
+}
+pub use crate::_Ref as Ref;
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
@@ -901,8 +919,6 @@ mod pretty {
                 }
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
-                TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
-                TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
@@ -977,6 +993,8 @@ mod pretty {
                 BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
+                BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty)?,
+                BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty)?,
             }
             if let BaseTy::Adt(_, args) = self && !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;
