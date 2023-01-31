@@ -370,7 +370,6 @@ impl TypeFoldable for Ty {
                 Ty::indexed(bty.fold_with(folder), idxs.fold_with(folder))
             }
             TyKind::Exists(exists) => TyKind::Exists(exists.fold_with(folder)).intern(),
-            TyKind::Array(ty, c) => Ty::array(ty.fold_with(folder), c.clone()),
             TyKind::Ptr(pk, path) => {
                 Ty::ptr(
                     *pk,
@@ -394,7 +393,6 @@ impl TypeFoldable for Ty {
             TyKind::Exists(exists) => {
                 exists.visit_with(visitor);
             }
-            TyKind::Array(ty, _) => ty.visit_with(visitor),
             TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor);
@@ -460,6 +458,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
             BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, ty.fold_with(folder)),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.fold_with(folder)),
+            BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -476,6 +475,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
             BaseTy::Ref(_, ty) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
+            BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool

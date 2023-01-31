@@ -134,7 +134,6 @@ pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
     Exists(Binders<Ty>),
     Constr(Expr, Ty),
-    Array(Ty, Const),
     Uninit,
     Ptr(PtrKind, Path),
     Param(ParamTy),
@@ -185,6 +184,7 @@ pub enum BaseTy {
     RawPtr(Ty, Mutability),
     Ref(RefKind, Ty),
     Tuple(List<Ty>),
+    Array(Ty, Const),
 }
 
 pub type Substs = List<GenericArg>;
@@ -454,10 +454,6 @@ impl Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
-    pub fn array(ty: Ty, c: Const) -> Ty {
-        TyKind::Array(ty, c).intern()
-    }
-
     pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
@@ -559,6 +555,10 @@ impl Ty {
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
         Ty::indexed_by_unit(BaseTy::Tuple(tys.into()))
+    }
+
+    pub fn array(ty: Ty, c: Const) -> Ty {
+        Ty::indexed_by_unit(BaseTy::Array(ty, c))
     }
 
     fn indexed_by_unit(bty: BaseTy) -> Ty {
@@ -696,7 +696,8 @@ impl BaseTy {
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
             | BaseTy::Ref(_, _)
-            | BaseTy::Tuple(_) => &[],
+            | BaseTy::Tuple(_)
+            | BaseTy::Array(_, _) => &[],
         }
     }
 
@@ -710,7 +711,8 @@ impl BaseTy {
             | BaseTy::Char
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
-            | BaseTy::Tuple(_) => &[],
+            | BaseTy::Tuple(_)
+            | BaseTy::Array(_, _) => &[],
         }
     }
 }
@@ -922,7 +924,6 @@ mod pretty {
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
                 TyKind::Param(param) => w!("{}", ^param),
-                TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => {
@@ -1003,6 +1004,7 @@ mod pretty {
                 BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 BaseTy::Tuple(tys) => w!("({:?})", join!(", ", tys)),
+                BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
             }
         }
     }

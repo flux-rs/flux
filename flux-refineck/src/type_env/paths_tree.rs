@@ -284,7 +284,7 @@ impl PathsTree {
                     PlaceElem::Index(_) => {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
-                            TyKind::Array(arr_ty, _) => {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
                                 let (rk, ty) =
                                     Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
                                 return Ok(LookupResult {
@@ -292,7 +292,7 @@ impl PathsTree {
                                     kind: LookupKind::Weak(rk, ty),
                                 });
                             }
-                            _ => tracked_span_bug!("Unsupported Index: {elem:?} {ty:?}"),
+                            _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
                         }
                     }
                 }

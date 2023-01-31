@@ -667,7 +667,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .map_err(|err| CheckerError::from(err).with_span(source_span))?;
 
         let idxs = match ty.kind() {
-            TyKind::Array(_, len) => RefineArgs::one(Expr::constant(rty::Constant::from(len.val))),
+            TyKind::Indexed(BaseTy::Array(_, len), _) => {
+                RefineArgs::one(Expr::constant(rty::Constant::from(len.val)))
+            }
             TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };

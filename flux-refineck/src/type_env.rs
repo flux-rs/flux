@@ -418,7 +418,6 @@ impl TypeEnvInfer {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Array(ty, c) => Ty::array(Self::pack_ty(scope, ty), c.clone()),
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_)
             | TyKind::Never
@@ -450,6 +449,7 @@ impl TypeEnvInfer {
             }
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, Self::pack_ty(scope, ty)),
+            BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -630,10 +630,6 @@ impl TypeEnvInfer {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
             }
-            (TyKind::Array(ty1, len1), TyKind::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
-                Ty::array(self.join_ty(ty1, ty2), len1.clone())
-            }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
@@ -656,6 +652,10 @@ impl TypeEnvInfer {
             (BaseTy::Ref(rk1, ty1), BaseTy::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);
                 BaseTy::Ref(*rk1, self.join_ty(ty1, ty2))
+            }
+            (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
+                debug_assert_eq!(len1, len2);
+                BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
             }
             _ => {
                 debug_assert_eq!(bty1, bty2);
