@@ -418,9 +418,8 @@ impl TypeEnvInfer {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
+            // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)
-            | TyKind::Never
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
             | TyKind::Uninit
@@ -456,7 +455,8 @@ impl TypeEnvInfer {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::RawPtr(_, _)
-            | BaseTy::Char => bty.clone(),
+            | BaseTy::Char
+            | BaseTy::Never => bty.clone(),
         }
     }
 

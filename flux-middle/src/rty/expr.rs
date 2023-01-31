@@ -204,7 +204,8 @@ impl Expr {
             | BaseTy::Char
             | BaseTy::RawPtr(_, _)
             | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _) => bug!(),
+            | BaseTy::Array(_, _)
+            | BaseTy::Never => bug!(),
         }
     }
 

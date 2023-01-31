@@ -137,7 +137,6 @@ pub enum TyKind {
     Uninit,
     Ptr(PtrKind, Path),
     Param(ParamTy),
-    Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
     /// when checking [`TerminatorKind::SwitchInt`].
@@ -185,6 +184,7 @@ pub enum BaseTy {
     Ref(RefKind, Ty),
     Tuple(List<Ty>),
     Array(Ty, Const),
+    Never,
 }
 
 pub type Substs = List<GenericArg>;
@@ -513,10 +513,6 @@ impl Ty {
         Ty::tuple(vec![])
     }
 
-    pub fn never() -> Ty {
-        TyKind::Never.intern()
-    }
-
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
         TyKind::Discr(adt_def, place).intern()
     }
@@ -559,6 +555,10 @@ impl Ty {
 
     pub fn array(ty: Ty, c: Const) -> Ty {
         Ty::indexed_by_unit(BaseTy::Array(ty, c))
+    }
+
+    pub fn never() -> Ty {
+        Ty::indexed_by_unit(BaseTy::Never)
     }
 
     fn indexed_by_unit(bty: BaseTy) -> Ty {
@@ -697,7 +697,8 @@ impl BaseTy {
             | BaseTy::Char
             | BaseTy::Ref(_, _)
             | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _) => &[],
+            | BaseTy::Array(_, _)
+            | BaseTy::Never => &[],
         }
     }
 
@@ -712,7 +713,8 @@ impl BaseTy {
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _) => &[],
+            | BaseTy::Array(_, _)
+            | BaseTy::Never => &[],
         }
     }
 }
@@ -924,7 +926,6 @@ mod pretty {
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
                 TyKind::Param(param) => w!("{}", ^param),
-                TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => {
                     if cx.hide_refinements {
@@ -1005,6 +1006,7 @@ mod pretty {
                 BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 BaseTy::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
+                BaseTy::Never => w!("!"),
             }
         }
     }
