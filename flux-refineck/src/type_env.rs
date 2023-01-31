@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
-        Expr, ExprKind, GenericArg, Path, PtrKind, RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        Expr, ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, RefineArg, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -250,11 +250,7 @@ impl TypeEnv {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
-            (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
-                debug_assert_eq!(rk1, rk2);
-                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
-            }
-            (TyKind::Ptr(pk1, path), TyKind::Ref(rk2, ty2)) => {
+            (TyKind::Ptr(pk1, path), Ref!(rk2, ty2)) => {
                 debug_assert_eq!(pk1, &PtrKind::from(*rk2));
                 if let Binding::Owned(ty1) = self.bindings.get(path) {
                     self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, ty2, subst);
@@ -285,12 +281,17 @@ impl TypeEnv {
         bty2: &BaseTy,
         subst: &mut FVarSubst,
     ) {
-        if bty1.is_box()  &&
-           let BaseTy::Adt(_, substs1) = bty1 &&
-           let BaseTy::Adt(_, substs2) = bty2 {
-            for (arg1, arg2) in iter::zip(substs1, substs2) {
-                self.infer_subst_for_bb_env_generic_arg(bb_env, params, arg1, arg2, subst);
+        match (bty1, bty2) {
+            (BaseTy::Ref(rk1, ty1), BaseTy::Ref(rk2, ty2)) => {
+                debug_assert_eq!(rk1, rk2);
+                self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
             }
+            (BaseTy::Adt(adt, substs1), BaseTy::Adt(_, substs2)) if adt.is_box() => {
+                for (arg1, arg2) in iter::zip(substs1, substs2) {
+                    self.infer_subst_for_bb_env_generic_arg(bb_env, params, arg1, arg2, subst);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -330,7 +331,7 @@ impl TypeEnv {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(RefKind::Mut, bound)) => {
                         let ty = self
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path)?
@@ -340,7 +341,7 @@ impl TypeEnv {
                         self.bindings
                             .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
                     }
-                    (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(RefKind::Shr, _)) => {
                         let ty = self
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path)?
@@ -417,22 +418,11 @@ impl TypeEnvInfer {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Tuple(tys) => {
-                let tys = tys
-                    .iter()
-                    .map(|ty| TypeEnvInfer::pack_ty(scope, ty))
-                    .collect_vec();
-                Ty::tuple(tys)
-            }
-
-            TyKind::Array(ty, c) => Ty::array(Self::pack_ty(scope, ty), c.clone()),
-            // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
+            // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)
-            | TyKind::Never
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
             | TyKind::Uninit
-            | TyKind::Ref(..)
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
         }
@@ -449,14 +439,24 @@ impl TypeEnvInfer {
                 );
                 BaseTy::adt(adt_def.clone(), substs)
             }
+            BaseTy::Tuple(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|ty| TypeEnvInfer::pack_ty(scope, ty))
+                    .collect();
+                BaseTy::Tuple(tys)
+            }
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
+            BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, Self::pack_ty(scope, ty)),
+            BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::RawPtr(_, _)
-            | BaseTy::Char => bty.clone(),
+            | BaseTy::Char
+            | BaseTy::Never => bty.clone(),
         }
     }
 
@@ -522,11 +522,11 @@ impl TypeEnvInfer {
                         self.update(path, Ty::mk_ref(RefKind::Shr, ty1));
                         other.update(path, Ty::mk_ref(RefKind::Shr, ty2));
                     }
-                    (TyKind::Ptr(PtrKind::Shr, ptr_path), TyKind::Ref(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(RefKind::Shr, _)) => {
                         let ty = self.block(rcx, gen, ptr_path);
                         self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
-                    (TyKind::Ref(RefKind::Shr, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
+                    (Ref!(RefKind::Shr, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
                         let ty = other.block(rcx, gen, ptr_path);
                         other.update(path, Ty::mk_ref(RefKind::Shr, ty));
                     }
@@ -543,12 +543,12 @@ impl TypeEnvInfer {
                         self.block_with(rcx, gen, path1, ty1);
                         other.block_with(rcx, gen, path2, ty2);
                     }
-                    (TyKind::Ptr(PtrKind::Mut, ptr_path), TyKind::Ref(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(RefKind::Mut, bound)) => {
                         let bound = bound.with_holes();
                         self.block_with(rcx, gen, ptr_path, bound.clone());
                         self.update(path, Ty::mk_ref(RefKind::Mut, bound));
                     }
-                    (TyKind::Ref(RefKind::Mut, bound), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
+                    (Ref!(RefKind::Mut, bound), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
                         let bound = bound.with_holes();
                         other.block_with(rcx, gen, ptr_path, bound.clone());
                         other.update(path, Ty::mk_ref(RefKind::Mut, bound));
@@ -626,38 +626,41 @@ impl TypeEnvInfer {
                 debug_assert_eq!(path1, path2);
                 Ty::ptr(*rk1, path1.clone())
             }
-            (TyKind::Ref(rk1, ty1), TyKind::Ref(rk2, ty2)) => {
-                debug_assert_eq!(rk1, rk2);
-                Ty::mk_ref(*rk1, self.join_ty(ty1, ty2))
-            }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
-            }
-            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
-                let tys = iter::zip(tys1, tys2)
-                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
-                    .collect_vec();
-                Ty::tuple(tys)
-            }
-            (TyKind::Array(ty1, len1), TyKind::Array(ty2, len2)) => {
-                debug_assert_eq!(len1, len2);
-                Ty::array(self.join_ty(ty1, ty2), len1.clone())
             }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
 
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
-        if let (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) = (bty1, bty2) {
-            debug_assert_eq!(def1.def_id(), def2.def_id());
-            let substs = iter::zip(substs1, substs2)
-                .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
-                .collect();
-            BaseTy::adt(def1.clone(), List::from_vec(substs))
-        } else {
-            debug_assert_eq!(bty1, bty2);
-            bty1.clone()
+        match (bty1, bty2) {
+            (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
+                debug_assert_eq!(def1.def_id(), def2.def_id());
+                let substs = iter::zip(substs1, substs2)
+                    .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
+                    .collect();
+                BaseTy::adt(def1.clone(), List::from_vec(substs))
+            }
+            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
+                let tys = iter::zip(tys1, tys2)
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
+                    .collect();
+                BaseTy::Tuple(tys)
+            }
+            (BaseTy::Ref(rk1, ty1), BaseTy::Ref(rk2, ty2)) => {
+                debug_assert_eq!(rk1, rk2);
+                BaseTy::Ref(*rk1, self.join_ty(ty1, ty2))
+            }
+            (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
+                debug_assert_eq!(len1, len2);
+                BaseTy::Array(self.join_ty(ty1, ty2), len1.clone())
+            }
+            _ => {
+                debug_assert_eq!(bty1, bty2);
+                bty1.clone()
+            }
         }
     }
 
@@ -747,10 +750,6 @@ impl Generalizer {
                 self.preds.push(pred.clone());
                 ty.clone()
             }
-            TyKind::Ref(RefKind::Shr, ty) => {
-                let ty = self.generalize_ty(ty);
-                Ty::mk_ref(RefKind::Shr, ty)
-            }
             _ => ty.clone(),
         }
     }
@@ -764,6 +763,10 @@ impl Generalizer {
                     adt_def.clone(),
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                 )
+            }
+            BaseTy::Ref(RefKind::Shr, ty) => {
+                let ty = self.generalize_ty(ty);
+                BaseTy::Ref(RefKind::Shr, ty)
             }
             _ => bty.clone(),
         }

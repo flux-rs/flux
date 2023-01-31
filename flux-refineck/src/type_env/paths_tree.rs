@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, RefineArg, Sort, Substs, Ty, TyKind,
-        Var, VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, Ref, RefineArg, Sort, Substs, Ty,
+        TyKind, Var, VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
 };
@@ -246,7 +246,7 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            TyKind::Ref(rk, ty) => {
+                            Ref!(rk, ty) => {
                                 let (rk, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
@@ -284,7 +284,7 @@ impl PathsTree {
                     PlaceElem::Index(_) => {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
-                            TyKind::Array(arr_ty, _) => {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
                                 let (rk, ty) =
                                     Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
                                 return Ok(LookupResult {
@@ -292,7 +292,7 @@ impl PathsTree {
                                     kind: LookupKind::Weak(rk, ty),
                                 });
                             }
-                            _ => tracked_span_bug!("Unsupported Index: {elem:?} {ty:?}"),
+                            _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
                         }
                     }
                 }
@@ -319,7 +319,7 @@ impl PathsTree {
                 ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             }
             match (elem, ty.kind()) {
-                (Deref, TyKind::Ref(rk2, ty2)) => {
+                (Deref, Ref!(rk2, ty2)) => {
                     rk = rk.min(WeakKind::from(*rk2));
                     ty = ty2.clone();
                 }
@@ -327,7 +327,7 @@ impl PathsTree {
                     let (boxed, _) = box_args(substs);
                     ty = boxed.clone();
                 }
-                (Field(field), TyKind::Tuple(tys)) => {
+                (Field(field), TyKind::Indexed(BaseTy::Tuple(tys), _)) => {
                     ty = tys[field.as_usize()].clone();
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
@@ -601,7 +601,7 @@ impl Node {
     fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
         let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
-            TyKind::Tuple(tys) => {
+            TyKind::Indexed(BaseTy::Tuple(tys), _) => {
                 let children = tys
                     .iter()
                     .cloned()

@@ -667,7 +667,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .map_err(|err| CheckerError::from(err).with_span(source_span))?;
 
         let idxs = match ty.kind() {
-            TyKind::Array(_, len) => RefineArgs::one(Expr::constant(rty::Constant::from(len.val))),
+            TyKind::Indexed(BaseTy::Array(_, len), _) => {
+                RefineArgs::one(Expr::constant(rty::Constant::from(len.val)))
+            }
             TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
@@ -688,7 +690,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty2 = self.check_operand(rcx, env, source_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
-            (Float!(float_ty1, _), Float!(float_ty2, _)) => {
+            (Float!(float_ty1), Float!(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
                 match bin_op {
                     mir::BinOp::Eq
@@ -760,7 +762,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                             RefineArgs::one(idxs.nth(0).as_expr().neg()),
                         )
                     }
-                    Float!(float_ty, _) => Ty::float(*float_ty),
+                    Float!(float_ty) => Ty::float(*float_ty),
                     _ => tracked_span_bug!("incompatible type: `{:?}`", ty),
                 }
             }
