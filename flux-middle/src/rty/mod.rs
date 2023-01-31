@@ -134,7 +134,6 @@ pub enum TyKind {
     Indexed(BaseTy, RefineArgs),
     Exists(Binders<Ty>),
     Constr(Expr, Ty),
-    Tuple(List<Ty>),
     Array(Ty, Const),
     Uninit,
     Ptr(PtrKind, Path),
@@ -185,6 +184,7 @@ pub enum BaseTy {
     Float(FloatTy),
     RawPtr(Ty, Mutability),
     Ref(RefKind, Ty),
+    Tuple(List<Ty>),
 }
 
 pub type Substs = List<GenericArg>;
@@ -454,10 +454,6 @@ impl Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
-    pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
-        TyKind::Tuple(tys.into()).intern()
-    }
-
     pub fn array(ty: Ty, c: Const) -> Ty {
         TyKind::Array(ty, c).intern()
     }
@@ -546,22 +542,26 @@ impl Ty {
     }
 
     pub fn str() -> Ty {
-        Ty::index_by_unit(BaseTy::Str)
+        Ty::indexed_by_unit(BaseTy::Str)
     }
 
     pub fn char() -> Ty {
-        Ty::index_by_unit(BaseTy::Char)
+        Ty::indexed_by_unit(BaseTy::Char)
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::index_by_unit(BaseTy::Float(float_ty))
+        Ty::indexed_by_unit(BaseTy::Float(float_ty))
     }
 
     pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
-        Ty::index_by_unit(BaseTy::Ref(mode, ty))
+        Ty::indexed_by_unit(BaseTy::Ref(mode, ty))
     }
 
-    fn index_by_unit(bty: BaseTy) -> Ty {
+    pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
+        Ty::indexed_by_unit(BaseTy::Tuple(tys.into()))
+    }
+
+    fn indexed_by_unit(bty: BaseTy) -> Ty {
         debug_assert_eq!(bty.sorts().len(), 0);
         Ty::indexed(bty, RefineArgs::empty())
     }
@@ -695,7 +695,8 @@ impl BaseTy {
             | BaseTy::Slice(_)
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
-            | BaseTy::Ref(_, _) => &[],
+            | BaseTy::Ref(_, _)
+            | BaseTy::Tuple(_) => &[],
         }
     }
 
@@ -708,7 +709,8 @@ impl BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..) => &[],
+            | BaseTy::Ref(..)
+            | BaseTy::Tuple(_) => &[],
         }
     }
 }
@@ -920,7 +922,6 @@ mod pretty {
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
                 TyKind::Param(param) => w!("{}", ^param),
-                TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
                 TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
@@ -983,23 +984,26 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                BaseTy::Int(int_ty) => w!("{}", ^int_ty.name_str())?,
-                BaseTy::Uint(uint_ty) => w!("{}", ^uint_ty.name_str())?,
-                BaseTy::Bool => w!("bool")?,
-                BaseTy::Str => w!("str")?,
-                BaseTy::Char => w!("char")?,
-                BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
-                BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
-                BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
-                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
-                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
-                BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty)?,
-                BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty)?,
+                BaseTy::Int(int_ty) => w!("{}", ^int_ty.name_str()),
+                BaseTy::Uint(uint_ty) => w!("{}", ^uint_ty.name_str()),
+                BaseTy::Bool => w!("bool"),
+                BaseTy::Str => w!("str"),
+                BaseTy::Char => w!("char"),
+                BaseTy::Adt(adt_def, substs) => {
+                    w!("{:?}", adt_def.def_id())?;
+                    if !substs.is_empty() {
+                        w!("<{:?}>", join!(", ", substs))?;
+                    }
+                    Ok(())
+                }
+                BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
+                BaseTy::Slice(ty) => w!("[{:?}]", ty),
+                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
+                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
+                BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
+                BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
+                BaseTy::Tuple(tys) => w!("({:?})", join!(", ", tys)),
             }
-            if let BaseTy::Adt(_, args) = self && !args.is_empty() {
-                w!("<{:?}>", join!(", ", args))?;
-            }
-            Ok(())
         }
     }
 

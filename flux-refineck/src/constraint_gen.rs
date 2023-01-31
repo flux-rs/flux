@@ -375,12 +375,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (TyKind::Param(param1), TyKind::Param(param2)) => {
                 debug_assert_eq!(param1, param2);
             }
-            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
-                debug_assert_eq!(tys1.len(), tys2.len());
-                for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    self.subtyping(rcx, ty1, ty2);
-                }
-            }
             (TyKind::Array(ty1, len1), TyKind::Array(ty2, len2)) => {
                 debug_assert_eq!(len1.val, len2.val);
                 self.subtyping(rcx, ty1, ty2);
@@ -422,6 +416,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (BaseTy::Ref(RefKind::Shr, ty1), BaseTy::Ref(RefKind::Shr, ty2)) => {
                 self.subtyping(rcx, ty1, ty2);
+            }
+            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
+                debug_assert_eq!(tys1.len(), tys2.len());
+                for (ty1, ty2) in iter::zip(tys1, tys2) {
+                    self.subtyping(rcx, ty1, ty2);
+                }
             }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)

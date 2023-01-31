@@ -418,14 +418,6 @@ impl TypeEnvInfer {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Tuple(tys) => {
-                let tys = tys
-                    .iter()
-                    .map(|ty| TypeEnvInfer::pack_ty(scope, ty))
-                    .collect_vec();
-                Ty::tuple(tys)
-            }
-
             TyKind::Array(ty, c) => Ty::array(Self::pack_ty(scope, ty), c.clone()),
             // TODO(nilehmann) [`TyKind::Exists`] could also in theory contains free variables.
             TyKind::Exists(_)
@@ -448,6 +440,13 @@ impl TypeEnvInfer {
                         .collect(),
                 );
                 BaseTy::adt(adt_def.clone(), substs)
+            }
+            BaseTy::Tuple(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|ty| TypeEnvInfer::pack_ty(scope, ty))
+                    .collect();
+                BaseTy::Tuple(tys)
             }
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, Self::pack_ty(scope, ty)),
@@ -631,12 +630,6 @@ impl TypeEnvInfer {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
             }
-            (TyKind::Tuple(tys1), TyKind::Tuple(tys2)) => {
-                let tys = iter::zip(tys1, tys2)
-                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
-                    .collect_vec();
-                Ty::tuple(tys)
-            }
             (TyKind::Array(ty1, len1), TyKind::Array(ty2, len2)) => {
                 debug_assert_eq!(len1, len2);
                 Ty::array(self.join_ty(ty1, ty2), len1.clone())
@@ -653,6 +646,12 @@ impl TypeEnvInfer {
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();
                 BaseTy::adt(def1.clone(), List::from_vec(substs))
+            }
+            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
+                let tys = iter::zip(tys1, tys2)
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
+                    .collect();
+                BaseTy::Tuple(tys)
             }
             (BaseTy::Ref(rk1, ty1), BaseTy::Ref(rk2, ty2)) => {
                 debug_assert_eq!(rk1, rk2);

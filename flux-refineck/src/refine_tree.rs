@@ -156,14 +156,14 @@ impl RefineCtxt<'_> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
+    fn unpack_bty(&mut self, bty: &BaseTy, in_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
                 let (boxed, alloc) = box_args(substs);
                 let boxed = if flags.contains(UnpackFlags::SHALLOW) {
                     boxed.clone()
                 } else {
-                    self.unpack_inner(boxed, inside_mut_ref, flags)
+                    self.unpack_inner(boxed, in_mut_ref, flags)
                 };
                 BaseTy::adt(
                     adt_def.clone(),
@@ -177,6 +177,13 @@ impl RefineCtxt<'_> {
                     self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags)
                 };
                 BaseTy::Ref(*rk, ty)
+            }
+            BaseTy::Tuple(tys) => {
+                let tys = tys
+                    .iter()
+                    .map(|ty| self.unpack_inner(ty, in_mut_ref, flags))
+                    .collect();
+                BaseTy::Tuple(tys)
             }
             _ => bty.clone(),
         }
@@ -204,13 +211,6 @@ impl RefineCtxt<'_> {
                 self.assume_pred(pred);
                 self.unpack_inner(ty, in_mut_ref, flags)
             }
-            TyKind::Tuple(tys) => {
-                let tys = tys
-                    .iter()
-                    .map(|ty| self.unpack_inner(ty, in_mut_ref, flags))
-                    .collect_vec();
-                Ty::tuple(tys)
-            }
             _ => ty.clone(),
         }
     }
@@ -232,6 +232,7 @@ impl RefineCtxt<'_> {
                         substs.visit_with(self);
                     }
                     BaseTy::Ref(_, ty) => ty.visit_with(self),
+                    BaseTy::Tuple(tys) => tys.visit_with(self),
                     _ => {}
                 }
             }

@@ -327,7 +327,7 @@ impl PathsTree {
                     let (boxed, _) = box_args(substs);
                     ty = boxed.clone();
                 }
-                (Field(field), TyKind::Tuple(tys)) => {
+                (Field(field), TyKind::Indexed(BaseTy::Tuple(tys), _)) => {
                     ty = tys[field.as_usize()].clone();
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
@@ -601,7 +601,7 @@ impl Node {
     fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
         let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
-            TyKind::Tuple(tys) => {
+            TyKind::Indexed(BaseTy::Tuple(tys), _) => {
                 let children = tys
                     .iter()
                     .cloned()

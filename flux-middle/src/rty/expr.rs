@@ -202,7 +202,8 @@ impl Expr {
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
             | BaseTy::Char
-            | BaseTy::RawPtr(_, _) => bug!(),
+            | BaseTy::RawPtr(_, _)
+            | BaseTy::Tuple(_) => bug!(),
         }
     }
 
