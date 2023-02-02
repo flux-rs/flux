@@ -1,6 +1,7 @@
 //! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
+use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
@@ -180,7 +181,7 @@ pub trait TypeFoldable: Sized {
                     if let RefineArg::Expr(e) = sol {
                         e.clone()
                     } else {
-                        panic!("expected expr for `{expr:?}` but found `{sol:?}` when substituting")
+                        bug!("expected expr for `{expr:?}` but found `{sol:?}` when substituting")
                     }
                 } else if let ExprKind::App(Func::Var(Var::EVar(evar)), args) = expr.kind()
                     && let Some(sol) = self.0.get(*evar)
@@ -343,7 +344,7 @@ impl TypeFoldable for Constraint {
                 let path_expr = path.to_expr().fold_with(folder);
                 Constraint::Type(
                     path_expr.to_path().unwrap_or_else(|| {
-                        panic!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
+                        bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
                     }),
                     ty.fold_with(folder),
                 )

@@ -16,7 +16,7 @@ pub use evars::{EVar, EVarGen};
 pub use expr::{
     BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
 };
-use flux_common::index::IndexGen;
+use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -323,11 +323,11 @@ impl RefineArgsData {
 
 impl RefineArg {
     #[track_caller]
-    pub fn as_expr(&self) -> &Expr {
+    pub fn expect_expr(&self) -> &Expr {
         if let RefineArg::Expr(e) = self {
             e
         } else {
-            panic!("expected an `RefineArg::Expr`")
+            bug!("expected an `RefineArg::Expr`")
         }
     }
 }
