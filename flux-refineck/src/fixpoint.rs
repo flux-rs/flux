@@ -382,23 +382,25 @@ impl KVarStore {
         let mut scope_sorts = vec![];
         let mut scope_exprs = vec![];
         for (name, sort) in scope {
-            if !sort.is_loc() {
+            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
                 scope_sorts.push(sort);
                 scope_exprs.push(rty::Expr::fvar(name));
             }
         }
+        let mut arg_sorts = vec![];
+        let mut arg_exprs = vec![];
+        for (idx, sort) in sorts.iter().enumerate() {
+            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
+                arg_sorts.push(sort.clone());
+                arg_exprs.push(rty::Expr::bvar(BoundVar::innermost(idx)));
+            }
+        }
 
-        let args = (0..sorts.len())
-            .map(|idx| rty::Expr::bvar(BoundVar::innermost(idx)))
-            .collect_vec();
+        let kvid =
+            self.kvars
+                .push(KVarDecl { args: arg_sorts, scope: scope_sorts.clone(), encoding });
 
-        let kvid = self.kvars.push(KVarDecl {
-            args: sorts.to_vec(),
-            scope: scope_sorts.clone(),
-            encoding,
-        });
-
-        let kvar = rty::KVar::new(kvid, args, scope_exprs.clone());
+        let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs.clone());
         Binders::new(rty::Expr::kvar(kvar), sorts)
     }
 }
