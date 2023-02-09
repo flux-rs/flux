@@ -64,11 +64,11 @@ pub fn check_fn<'tcx>(
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
 
-        let mut fcx = fixpoint::FixpointCtxt::new(genv, kvars);
+        let mut fcx = fixpoint::FixpointCtxt::new(genv, def_id, kvars);
 
         let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-        let result = match fcx.check(cache, def_id, constraint) {
+        let result = match fcx.check(cache, constraint) {
             Ok(_) => Ok(()),
             Err(tags) => report_errors(genv, tags),
         };

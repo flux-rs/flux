@@ -57,9 +57,9 @@ fn check_invariant(
             Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }
-    let mut fcx = FixpointCtxt::new(genv, KVarStore::default());
+    let mut fcx = FixpointCtxt::new(genv, adt_def.def_id(), KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(cache, adt_def.def_id(), constraint)
+    fcx.check(cache, constraint)
         .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
 }
 
