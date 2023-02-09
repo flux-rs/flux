@@ -220,6 +220,14 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             )
             .unwrap();
         }
+        if config::dump_rty() {
+            let def_id = def_id.to_def_id();
+            let fn_sig = self
+                .genv
+                .lookup_fn_sig(def_id)
+                .unwrap_or_else(|_| panic!("no fn sig for {def_id:?}"));
+            dbg::dump_item_info(self.genv.tcx, def_id, "rty", &fn_sig).unwrap();
+        }
 
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
