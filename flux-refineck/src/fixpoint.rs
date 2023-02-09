@@ -5,6 +5,7 @@ use flux_common::{
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
+    span_bug,
 };
 use flux_config as config;
 use flux_fixpoint as fixpoint;
@@ -17,6 +18,7 @@ use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
+use rustc_span::Span;
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -65,6 +67,16 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     const_map: ConstMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: FxHashMap<T, TagIdx>,
+    /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
+    /// invariants.
+    def_id: DefId,
+}
+
+struct ExprCtxt<'a> {
+    name_map: &'a NameMap,
+    const_map: &'a ConstMap,
+    /// Used to report bugs
+    dbg_span: Span,
 }
 
 #[derive(Debug)]
@@ -77,7 +89,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, kvars: KVarStore) -> Self {
+    pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: DefId, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
         let const_map = fixpoint_const_map(genv, &name_gen);
         Self {
@@ -90,6 +102,7 @@ where
             const_map,
             tags: IndexVec::new(),
             tags_inv: FxHashMap::default(),
+            def_id,
         }
     }
 
@@ -123,13 +136,13 @@ where
     pub fn check(
         self,
         cache: &mut QueryCache,
-        did: DefId,
         constraint: fixpoint::Constraint<TagIdx>,
     ) -> Result<(), Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
             return Ok(());
         }
+        let span = self.def_span();
 
         let kvars = self
             .fixpoint_kvars
@@ -144,8 +157,8 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(did)
-            .map(|qual| qualifier_to_fixpoint(&self.const_map, qual))
+            .qualifiers(self.def_id)
+            .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
             .collect();
 
         let constants = self
@@ -166,10 +179,10 @@ where
         let task =
             fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx, did, "smt2", &task).unwrap();
+            dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();
         }
 
-        let task_key = self.genv.tcx.def_path_str(did);
+        let task_key = self.genv.tcx.def_path_str(self.def_id);
 
         match task.check_with_cache(task_key, cache) {
             Ok(FixpointResult::Safe(_)) => Ok(()),
@@ -180,8 +193,8 @@ where
                     .unique()
                     .collect_vec())
             }
-            Ok(FixpointResult::Crash(err)) => panic!("fixpoint crash: {err:?}"),
-            Err(err) => panic!("failed to run fixpoint: {err:?}"),
+            Ok(FixpointResult::Crash(err)) => span_bug!(span, "fixpoint crash: {err:?}"),
+            Err(err) => span_bug!(span, "failed to run fixpoint: {err:?}"),
         }
     }
 
@@ -217,11 +230,7 @@ where
                 preds.push(self.kvar_to_fixpoint(kvar, bindings));
             }
             _ => {
-                preds.push(fixpoint::Pred::Expr(expr_to_fixpoint(
-                    expr,
-                    &self.name_map,
-                    &self.const_map,
-                )));
+                preds.push(fixpoint::Pred::Expr(self.as_expr_cx().expr_to_fixpoint(expr)));
             }
         }
     }
@@ -301,22 +310,31 @@ where
     ) -> fixpoint::Name {
         match arg.kind() {
             rty::ExprKind::FreeVar(name) => {
-                *self
-                    .name_map
-                    .get(name)
-                    .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"))
+                *self.name_map.get(name).unwrap_or_else(|| {
+                    span_bug!(self.def_span(), "no entry found for key: `{name:?}`")
+                })
             }
-            rty::ExprKind::BoundVar(_) => panic!("unexpected free bound variable"),
+            rty::ExprKind::BoundVar(_) => {
+                span_bug!(self.def_span(), "unexpected free bound variable")
+            }
             _ => {
                 let fresh = self.fresh_name();
                 let pred = fixpoint::Expr::eq(
                     fixpoint::Expr::Var(fresh),
-                    expr_to_fixpoint(arg, &self.name_map, &self.const_map),
+                    self.as_expr_cx().expr_to_fixpoint(arg),
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
                 fresh
             }
         }
+    }
+
+    fn as_expr_cx(&self) -> ExprCtxt<'_> {
+        ExprCtxt::new(&self.name_map, &self.const_map, self.def_span())
+    }
+
+    fn def_span(&self) -> Span {
+        self.genv.tcx.def_span(self.def_id)
     }
 }
 
@@ -468,7 +486,104 @@ fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
     fixpoint::UifDef::new(uif_def.name.to_string(), sort)
 }
 
-fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
+impl<'a> ExprCtxt<'a> {
+    fn new(name_map: &'a NameMap, const_map: &'a ConstMap, dbg_span: Span) -> Self {
+        Self { name_map, const_map, dbg_span }
+    }
+
+    fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
+        match expr.kind() {
+            rty::ExprKind::FreeVar(name) => {
+                let name = self.name_map.get(name).unwrap_or_else(|| {
+                    span_bug!(self.dbg_span, "no entry found for key: `{name:?}`")
+                });
+                fixpoint::Expr::Var(*name)
+            }
+            rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
+            rty::ExprKind::BinaryOp(op, e1, e2) => {
+                fixpoint::Expr::BinaryOp(
+                    *op,
+                    Box::new([self.expr_to_fixpoint(e1), self.expr_to_fixpoint(e2)]),
+                )
+            }
+            rty::ExprKind::UnaryOp(op, e) => {
+                fixpoint::Expr::UnaryOp(*op, Box::new(self.expr_to_fixpoint(e)))
+            }
+            rty::ExprKind::TupleProj(e, field) => {
+                itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
+                    .chain([fixpoint::Proj::Fst])
+                    .fold(self.expr_to_fixpoint(e), |e, proj| {
+                        fixpoint::Expr::Proj(Box::new(e), proj)
+                    })
+            }
+            rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
+            rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(self.const_map[did].name),
+            rty::ExprKind::App(func, args) => {
+                let func = self.func_to_fixpoint(func);
+                let args = self.exprs_to_fixpoint(args);
+                fixpoint::Expr::App(func, args)
+            }
+            rty::ExprKind::IfThenElse(p, e1, e2) => {
+                fixpoint::Expr::IfThenElse(Box::new([
+                    self.expr_to_fixpoint(p),
+                    self.expr_to_fixpoint(e1),
+                    self.expr_to_fixpoint(e2),
+                ]))
+            }
+            rty::ExprKind::EVar(_)
+            | rty::ExprKind::Hole
+            | rty::ExprKind::KVar(_)
+            | rty::ExprKind::Local(_)
+            | rty::ExprKind::BoundVar(_)
+            | rty::ExprKind::PathProj(..) => {
+                span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
+            }
+        }
+    }
+
+    fn exprs_to_fixpoint<'b>(
+        &self,
+        exprs: impl IntoIterator<Item = &'b rty::Expr>,
+    ) -> Vec<fixpoint::Expr> {
+        exprs
+            .into_iter()
+            .map(|e| self.expr_to_fixpoint(e))
+            .collect()
+    }
+
+    fn tuple_to_fixpoint(&self, exprs: &[rty::Expr]) -> fixpoint::Expr {
+        match exprs {
+            [] => fixpoint::Expr::Unit,
+            [e, exprs @ ..] => {
+                fixpoint::Expr::Pair(Box::new([
+                    self.expr_to_fixpoint(e),
+                    self.tuple_to_fixpoint(exprs),
+                ]))
+            }
+        }
+    }
+
+    fn func_to_fixpoint(&self, func: &rty::Func) -> fixpoint::Func {
+        match func {
+            rty::Func::Var(rty::Var::Free(name)) => {
+                let name = self.name_map.get(name).unwrap_or_else(|| {
+                    span_bug!(self.dbg_span, "no entry found for key: `{name:?}`")
+                });
+                fixpoint::Func::Var(*name)
+            }
+            rty::Func::Uif(func) => fixpoint::Func::Uif(func.to_string()),
+            rty::Func::Var(var) => {
+                span_bug!(self.dbg_span, "unexpected var `{var:?}` in function application")
+            }
+        }
+    }
+}
+
+fn qualifier_to_fixpoint(
+    dbg_span: Span,
+    const_map: &ConstMap,
+    qualifier: &rty::Qualifier,
+) -> fixpoint::Qualifier {
     let (args, body) = qualifier.with_fresh_fvars();
     let name_gen = IndexGen::skipping(const_map.len());
     let mut name_map = NameMap::default();
@@ -481,102 +596,8 @@ fn qualifier_to_fixpoint(const_map: &ConstMap, qualifier: &rty::Qualifier) -> fi
         })
         .collect_vec();
     let name = qualifier.name.clone();
-    let body = expr_to_fixpoint(&body, &name_map, const_map);
+    let cx = ExprCtxt::new(&name_map, const_map, dbg_span);
+    let body = cx.expr_to_fixpoint(&body);
     let global = qualifier.global;
     fixpoint::Qualifier { name, args, body, global }
-}
-
-fn expr_to_fixpoint(expr: &rty::Expr, name_map: &NameMap, const_map: &ConstMap) -> fixpoint::Expr {
-    match expr.kind() {
-        rty::ExprKind::FreeVar(name) => {
-            let name = name_map
-                .get(name)
-                .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
-            fixpoint::Expr::Var(*name)
-        }
-        rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
-        rty::ExprKind::BinaryOp(op, e1, e2) => {
-            fixpoint::Expr::BinaryOp(
-                *op,
-                Box::new([
-                    expr_to_fixpoint(e1, name_map, const_map),
-                    expr_to_fixpoint(e2, name_map, const_map),
-                ]),
-            )
-        }
-        rty::ExprKind::UnaryOp(op, e) => {
-            fixpoint::Expr::UnaryOp(*op, Box::new(expr_to_fixpoint(e, name_map, const_map)))
-        }
-        rty::ExprKind::TupleProj(e, field) => {
-            itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
-                .chain([fixpoint::Proj::Fst])
-                .fold(expr_to_fixpoint(e, name_map, const_map), |e, proj| {
-                    fixpoint::Expr::Proj(Box::new(e), proj)
-                })
-        }
-        rty::ExprKind::Tuple(exprs) => tuple_to_fixpoint(exprs, name_map, const_map),
-        rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(const_map[did].name),
-        rty::ExprKind::App(func, args) => {
-            let func = func_to_fixpoint(func, name_map);
-            let args = exprs_to_fixpoint(args, name_map, const_map);
-            fixpoint::Expr::App(func, args)
-        }
-        rty::ExprKind::IfThenElse(p, e1, e2) => {
-            fixpoint::Expr::IfThenElse(Box::new([
-                expr_to_fixpoint(p, name_map, const_map),
-                expr_to_fixpoint(e1, name_map, const_map),
-                expr_to_fixpoint(e2, name_map, const_map),
-            ]))
-        }
-        rty::ExprKind::EVar(_)
-        | rty::ExprKind::Hole
-        | rty::ExprKind::KVar(_)
-        | rty::ExprKind::Local(_)
-        | rty::ExprKind::BoundVar(_)
-        | rty::ExprKind::PathProj(..) => {
-            panic!("unexpected expr: `{expr:?}`")
-        }
-    }
-}
-
-fn func_to_fixpoint(func: &rty::Func, name_map: &NameMap) -> fixpoint::Func {
-    match func {
-        rty::Func::Var(rty::Var::Free(name)) => {
-            let name = name_map
-                .get(name)
-                .unwrap_or_else(|| panic!("no entry found for key: `{name:?}`"));
-            fixpoint::Func::Var(*name)
-        }
-        rty::Func::Uif(func) => fixpoint::Func::Uif(func.to_string()),
-        rty::Func::Var(var) => {
-            panic!("unexpected var `{var:?}` in function application")
-        }
-    }
-}
-
-fn exprs_to_fixpoint<'a>(
-    exprs: impl IntoIterator<Item = &'a rty::Expr>,
-    name_map: &NameMap,
-    const_map: &ConstMap,
-) -> Vec<fixpoint::Expr> {
-    exprs
-        .into_iter()
-        .map(|e| expr_to_fixpoint(e, name_map, const_map))
-        .collect()
-}
-
-fn tuple_to_fixpoint(
-    exprs: &[rty::Expr],
-    name_map: &NameMap,
-    const_map: &ConstMap,
-) -> fixpoint::Expr {
-    match exprs {
-        [] => fixpoint::Expr::Unit,
-        [e, exprs @ ..] => {
-            fixpoint::Expr::Pair(Box::new([
-                expr_to_fixpoint(e, name_map, const_map),
-                tuple_to_fixpoint(exprs, name_map, const_map),
-            ]))
-        }
-    }
 }
