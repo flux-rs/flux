@@ -41,6 +41,10 @@ pub fn dump_fhir() -> bool {
     CONFIG.dump_fhir
 }
 
+pub fn dump_rty() -> bool {
+    CONFIG.dump_rty
+}
+
 pub fn pointer_width() -> u64 {
     CONFIG.pointer_width
 }
@@ -94,6 +98,7 @@ struct Config {
     dump_checker_trace: bool,
     dump_timings: bool,
     dump_fhir: bool,
+    dump_rty: bool,
     check_asserts: AssertBehavior,
     dump_mir: bool,
     pointer_width: u64,
@@ -112,6 +117,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("dump_timings", false)?
             .set_default("dump_mir", false)?
             .set_default("dump_fhir", false)?
+            .set_default("dump_rty", false)?
             .set_default("check_asserts", "assume")?
             .set_default("pointer_width", 64)?
             .set_default("check_def", "")?
