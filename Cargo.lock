@@ -470,6 +470,7 @@ name = "flux"
 version = "0.1.0"
 dependencies = [
  "flux-common",
+ "flux-config",
  "flux-driver",
  "tracing",
  "tracing-subscriber",
@@ -482,7 +483,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dirs",
- "flux-common",
+ "flux-config",
  "rust-toolchain-file",
 ]
 
@@ -491,7 +492,17 @@ name = "flux-common"
 version = "0.1.0"
 dependencies = [
  "config",
+ "flux-config",
  "once_cell",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "flux-config"
+version = "0.1.0"
+dependencies = [
+ "config",
  "serde",
  "toml",
 ]
@@ -514,6 +525,7 @@ name = "flux-driver"
 version = "0.1.0"
 dependencies = [
  "flux-common",
+ "flux-config",
  "flux-desugar",
  "flux-errors",
  "flux-fixpoint",
@@ -538,6 +550,7 @@ name = "flux-fixpoint"
 version = "0.1.0"
 dependencies = [
  "flux-common",
+ "flux-config",
  "itertools",
  "serde",
  "serde_json",
@@ -574,6 +587,7 @@ version = "0.1.0"
 dependencies = [
  "dashmap",
  "flux-common",
+ "flux-config",
  "flux-errors",
  "flux-fixpoint",
  "flux-macros",
@@ -587,6 +601,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "flux-common",
+ "flux-config",
  "flux-errors",
  "flux-fixpoint",
  "flux-macros",

@@ -1,4 +1,5 @@
-use flux_common::{cache::QueryCache, config, dbg, iter::IterExt};
+use flux_common::{cache::QueryCache, dbg, iter::IterExt};
+use flux_config as config;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_metadata::CStore;
@@ -53,7 +54,7 @@ impl Callbacks for FluxCallbacks {
             return Compilation::Stop;
         }
 
-        queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+        queries.global_ctxt().unwrap().enter(|tcx| {
             if !is_tool_registered(tcx) {
                 return;
             }

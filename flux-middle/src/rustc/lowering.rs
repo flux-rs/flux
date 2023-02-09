@@ -150,7 +150,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::Intrinsic(_) => {
+            | rustc_mir::StatementKind::Intrinsic(_)
+            | rustc_mir::StatementKind::ConstEvalCounter => {
                 return Err(errors::UnsupportedMir::from(stmt)).emit(self.sess);
             }
         };
@@ -569,7 +570,7 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
         .infer_ctxt()
         .build()
         .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
-        .normalize(fn_sig);
+        .normalize(fn_sig.subst_identity());
     lower_fn_sig(tcx, result.value)
         .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }

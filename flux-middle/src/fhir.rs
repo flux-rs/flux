@@ -920,21 +920,3 @@ impl fmt::Debug for FuncSort {
         fmt::Display::fmt(self, f)
     }
 }
-
-impl rustc_errors::IntoDiagnosticArg for &Sort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        let cow = match self {
-            Sort::Bool => Cow::Borrowed("bool"),
-            Sort::Int => Cow::Borrowed("int"),
-            Sort::Loc => Cow::Borrowed("loc"),
-            _ => Cow::Owned(format!("{self}")),
-        };
-        rustc_errors::DiagnosticArgValue::Str(cow)
-    }
-}
-
-impl rustc_errors::IntoDiagnosticArg for &FuncSort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
-    }
-}

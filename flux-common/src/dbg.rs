@@ -4,10 +4,9 @@ use std::{
     io::{self, Write},
 };
 
+use flux_config as config;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-
-use crate::config;
 
 pub fn writer_for_item(
     tcx: TyCtxt,

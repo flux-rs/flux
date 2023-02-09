@@ -3,9 +3,10 @@ use std::iter;
 use fixpoint::FixpointResult;
 use flux_common::{
     cache::QueryCache,
-    config, dbg,
+    dbg,
     index::{IndexGen, IndexVec},
 };
+use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
