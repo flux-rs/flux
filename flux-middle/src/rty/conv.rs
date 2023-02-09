@@ -11,7 +11,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::span_bug;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::DefId;
 
 use super::{fold::TypeFoldable, Binders, PolyVariant};
@@ -35,7 +35,7 @@ struct Env<'a, 'tcx> {
 }
 
 struct Layer {
-    map: FxHashMap<fhir::Name, LayerEntry>,
+    map: FxIndexMap<fhir::Name, LayerEntry>,
 }
 
 struct LayerEntry {
@@ -544,7 +544,7 @@ impl Layer {
         early_cx: &EarlyCtxt,
         iter: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>,
     ) -> Self {
-        let mut map = FxHashMap::default();
+        let mut map = FxIndexMap::default();
         let mut index = 0;
         for (name, sort) in iter.into_iter() {
             let flattened = flatten_sort(early_cx, sort);
@@ -557,7 +557,7 @@ impl Layer {
     }
 
     fn empty() -> Self {
-        Self { map: FxHashMap::default() }
+        Self { map: FxIndexMap::default() }
     }
 
     fn get(&self, name: impl Borrow<fhir::Name>) -> Option<&LayerEntry> {
