@@ -276,7 +276,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     self.check_terminator(&mut rcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, rcx, env);
 
-                println!("set {bb:?}");
                 self.snapshots[bb] = Some(rcx.snapshot());
                 let term_span = last_stmt_span.unwrap_or(terminator.source_info.span);
                 self.check_successors(rcx, env, term_span, successors)
@@ -1055,7 +1054,7 @@ impl PartialEq for Item<'_> {
 
 impl PartialOrd for Item<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.dominators.rank_partial_cmp(self.bb, other.bb)
+        self.dominators.rank_partial_cmp(other.bb, self.bb)
     }
 }
 impl Eq for Item<'_> {}
