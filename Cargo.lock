@@ -491,11 +491,7 @@ dependencies = [
 name = "flux-common"
 version = "0.1.0"
 dependencies = [
- "config",
  "flux-config",
- "once_cell",
- "serde",
- "toml",
 ]
 
 [[package]]
