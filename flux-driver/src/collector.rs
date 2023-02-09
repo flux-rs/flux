@@ -1,9 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use flux_common::{
-    config::{self, AssertBehavior, CrateConfig},
-    iter::IterExt,
-};
+use flux_common::iter::IterExt;
+use flux_config::{self as config, AssertBehavior, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
 use flux_syntax::{

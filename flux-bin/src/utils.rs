@@ -1,7 +1,7 @@
 use std::{env, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use flux_common::config;
+use flux_config as config;
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";

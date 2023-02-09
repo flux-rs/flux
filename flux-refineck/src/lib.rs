@@ -33,7 +33,8 @@ mod sigs;
 
 use checker::Checker;
 use constraint_gen::{ConstrReason, Tag};
-use flux_common::{cache::QueryCache, config, dbg};
+use flux_common::{cache::QueryCache, dbg};
+use flux_config as config;
 use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;

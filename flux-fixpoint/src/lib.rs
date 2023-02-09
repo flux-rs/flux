@@ -19,7 +19,8 @@ pub use constraint::{
     BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj, Qualifier,
     Sign, Sort, UifDef, UnOp,
 };
-use flux_common::{cache::QueryCache, config, format::PadAdapter};
+use flux_common::{cache::QueryCache, format::PadAdapter};
+use flux_config as config;
 use itertools::Itertools;
 use serde::{de, Deserialize};
 

@@ -9,13 +9,8 @@ extern crate rustc_span;
 
 use std::collections::{hash_map::Entry, BinaryHeap};
 
-use flux_common::{
-    bug,
-    config::{self, AssertBehavior},
-    dbg,
-    index::IndexVec,
-    span_bug, tracked_span_bug,
-};
+use flux_common::{bug, dbg, index::IndexVec, span_bug, tracked_span_bug};
+use flux_config::{self as config, AssertBehavior};
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
@@ -195,8 +190,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
-            let snapshot = ck.snapshot_at_dominator(bb);
             if ck.visited.contains(bb) {
+                let snapshot = ck.snapshot_at_dominator(bb);
                 refine_tree.clear(snapshot);
                 ck.clear(bb);
             }
@@ -245,7 +240,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         // TODO(nilehmann) there should be a better way to iterate over all dominated blocks.
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
-            if bb != root && self.dominators.is_dominated_by(bb, root) {
+            if bb != root && self.dominators.dominates(root, bb) {
                 self.phase.clear(bb);
                 self.visited.remove(bb);
             }
@@ -1059,7 +1054,7 @@ impl PartialEq for Item<'_> {
 
 impl PartialOrd for Item<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.dominators.rank_partial_cmp(self.bb, other.bb)
+        self.dominators.rank_partial_cmp(other.bb, self.bb)
     }
 }
 impl Eq for Item<'_> {}

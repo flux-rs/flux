@@ -1,9 +1,7 @@
 use std::{cell::RefCell, collections::hash_map, string::ToString};
 
-use flux_common::{
-    bug,
-    config::{self, AssertBehavior},
-};
+use flux_common::bug;
+use flux_config::{self as config, AssertBehavior};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
