@@ -315,7 +315,7 @@ where
                 })
             }
             rty::ExprKind::BoundVar(_) => {
-                span_bug!(self.def_span(), "unexpected free bound variable")
+                span_bug!(self.def_span(), "unexpected escaping variable")
             }
             _ => {
                 let fresh = self.fresh_name();
@@ -535,6 +535,7 @@ impl<'a> ExprCtxt<'a> {
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::BoundVar(_)
+            | rty::ExprKind::Abs(_)
             | rty::ExprKind::PathProj(..) => {
                 span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
             }

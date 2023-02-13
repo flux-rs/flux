@@ -5,11 +5,11 @@ use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
-use rustc_macros::{Decodable, Encodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy};
+use super::{evars::EVar, BaseTy, Binders};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -18,12 +18,12 @@ use crate::{
 
 pub type Expr = Interned<ExprS>;
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExprS {
     kind: ExprKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExprKind {
     FreeVar(Name),
     EVar(EVar),
@@ -39,6 +39,11 @@ pub enum ExprKind {
     PathProj(Expr, Field),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
+    /// Lambda abstractions. They show up in refinements when an explicit abstract predicate is
+    /// provided as the index to a type. Abstractions can only be used directly as an index or
+    /// replaced in positions where they can be fully applied, i.e., abstractions are purely
+    /// syntactic and we don't encode them in the logic.
+    Abs(Binders<Expr>),
     Hole,
 }
 
@@ -46,7 +51,7 @@ pub enum ExprKind {
 /// fixpoint makes a diference between the first and the rest of the variables, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list.
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct KVar {
     pub kvid: KVid,
     pub args: List<Expr>,
@@ -108,6 +113,15 @@ newtype_index! {
 impl ExprKind {
     fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
+    }
+
+    pub fn to_var(&self) -> Option<Var> {
+        match self {
+            ExprKind::FreeVar(name) => Some(Var::Free(*name)),
+            ExprKind::BoundVar(bvar) => Some(Var::Bound(*bvar)),
+            ExprKind::EVar(evar) => Some(Var::EVar(*evar)),
+            _ => None,
+        }
     }
 }
 
@@ -211,6 +225,10 @@ impl Expr {
 
     pub fn ite(p: impl Into<Expr>, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
+    }
+
+    pub fn abs(body: Binders<Expr>) -> Expr {
+        ExprKind::Abs(body).intern()
     }
 
     pub fn hole() -> Expr {
@@ -378,12 +396,7 @@ impl Expr {
     }
 
     pub fn to_var(&self) -> Option<Var> {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Some(Var::Free(*name)),
-            ExprKind::BoundVar(bvar) => Some(Var::Bound(*bvar)),
-            ExprKind::EVar(evar) => Some(Var::EVar(*evar)),
-            _ => None,
-        }
+        self.kind().to_var()
     }
 
     pub fn to_fvar(&self) -> Option<Name> {
@@ -411,6 +424,10 @@ impl Expr {
         };
         proj.reverse();
         Some(Path::new(loc, proj))
+    }
+
+    pub fn is_abs(&self) -> bool {
+        matches!(self.kind(), ExprKind::Abs(..))
     }
 }
 
@@ -756,6 +773,9 @@ mod pretty {
                 }
                 ExprKind::KVar(kvar) => {
                     w!("{:?}", kvar)
+                }
+                ExprKind::Abs(body) => {
+                    w!("{:?}", body)
                 }
             }
         }
