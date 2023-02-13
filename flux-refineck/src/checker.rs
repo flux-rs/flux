@@ -10,7 +10,7 @@ extern crate rustc_span;
 use std::collections::{hash_map::Entry, BinaryHeap};
 
 use flux_common::{bug, dbg, index::IndexVec, span_bug, tracked_span_bug};
-use flux_config::{self as config, AssertBehavior};
+use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
@@ -463,31 +463,20 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             tracked_span_bug!("unexpected ty `{ty:?}`")
         };
 
-        match msg {
-            AssertKind::BoundsCheck => {
-                self.constr_gen(rcx, terminator_span).check_pred(
-                    rcx,
-                    pred.clone(),
-                    ConstrReason::Assert("bound_check"),
-                );
-                Ok(Guard::Pred(pred))
-            }
-            AssertKind::Other(assert_msg) => {
-                match self.genv.check_asserts() {
-                    AssertBehavior::Ignore => Ok(Guard::None),
-                    AssertBehavior::Assume => Ok(Guard::Pred(pred)),
-                    AssertBehavior::Check => {
-                        self.constr_gen(rcx, terminator_span).check_pred(
-                            rcx,
-                            pred.clone(),
-                            ConstrReason::Assert(assert_msg),
-                        );
-
-                        Ok(Guard::Pred(pred))
-                    }
-                }
-            }
-        }
+        let msg = match msg {
+            AssertKind::DivisionByZero => "possible division by zero",
+            AssertKind::BoundsCheck => "possible out-of-bounds access",
+            AssertKind::RemainderByZero => "possible remainder with a divisor of zero",
+            AssertKind::Overflow(mir::BinOp::Div) => "possible division with overflow",
+            AssertKind::Overflow(mir::BinOp::Rem) => "possible reminder with overflow",
+            AssertKind::Overflow(_) => return Ok(Guard::Pred(pred)),
+        };
+        self.constr_gen(rcx, terminator_span).check_pred(
+            rcx,
+            pred.clone(),
+            ConstrReason::Assert(msg),
+        );
+        Ok(Guard::Pred(pred))
     }
 
     fn check_if(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
@@ -604,6 +593,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Use(operand) => self.check_operand(rcx, env, stmt_span, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
                 self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)
+            }
+            Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
+                // TODO(nilehmann) should we somehow connect the result of the operation with the bool?
+                let ty = self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)?;
+                Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
             Rvalue::MutRef(place) => {
                 let gen = &mut self.constr_gen(rcx, stmt_span);

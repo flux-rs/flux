@@ -18,10 +18,6 @@ You could for example check a file as a library instead of a binary like so
 rustc-flux --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment flux passes some default flags (like `-O` and
-`-Cpanic=abort`) because otherwise the resulting mir will have features not yet
-supported.
-
 ## Running on a Crate: `cargo-flux`
 
 You can use `cargo-flux` as you would use `cargo`. For the most part this means
@@ -139,8 +135,7 @@ You can set various `env` variables to customize the behavior of `flux`.
 * `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
 * `FLUX_DUMP_TIMINGS=1` saves the profile information
 * `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
-* `FLUX_CHECK_ASSERTS={ignore, assume, check}` TODO
-* `FLUX_POINTER_WIDTH=N` TODO (default `64`)
+* `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
 * `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
 * `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
 * `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`
