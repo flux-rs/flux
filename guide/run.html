@@ -32,6 +32,7 @@
 
     </head>
     <body>
+    <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
             var path_to_root = "../";
@@ -152,9 +153,6 @@ For example, the following command checks the file <code>test.rs</code>.</p>
 You could for example check a file as a library instead of a binary like so</p>
 <pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
-<p>Additionally, at the moment flux passes some default flags (like <code>-O</code> and
-<code>-Cpanic=abort</code>) because otherwise the resulting mir will have features not yet
-supported.</p>
 <h2 id="running-on-a-crate-cargo-flux"><a class="header" href="#running-on-a-crate-cargo-flux">Running on a Crate: <code>cargo-flux</code></a></h2>
 <p>You can use <code>cargo-flux</code> as you would use <code>cargo</code>. For the most part this means
 instead of running <code>cargo check</code>, you should run</p>
@@ -246,8 +244,7 @@ run <code>cargo build</code>.</p>
 <li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
 <li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
-<li><code>FLUX_CHECK_ASSERTS={ignore, assume, check}</code> TODO</li>
-<li><code>FLUX_POINTER_WIDTH=N</code> TODO (default <code>64</code>)</li>
+<li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
 <li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
@@ -323,5 +320,6 @@ entire crate.</p>
         <script src="../js/flux.js"></script>
 
 
+    </div>
     </body>
 </html>
