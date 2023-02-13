@@ -900,11 +900,13 @@ fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
 }
 
 fn uint_bit_width(uint_ty: UintTy) -> u64 {
-    uint_ty.bit_width().unwrap_or(config::pointer_width())
+    uint_ty
+        .bit_width()
+        .unwrap_or(config::pointer_width().bits())
 }
 
 fn int_bit_width(int_ty: IntTy) -> u64 {
-    int_ty.bit_width().unwrap_or(config::pointer_width())
+    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
 }
 
 impl Phase for Inference<'_> {
