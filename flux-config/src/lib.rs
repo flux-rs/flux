@@ -37,7 +37,7 @@ pub fn dump_rty() -> bool {
     CONFIG.dump_rty
 }
 
-pub fn pointer_width() -> u64 {
+pub fn pointer_width() -> PointerWidth {
     CONFIG.pointer_width
 }
 
@@ -74,10 +74,38 @@ struct Config {
     dump_fhir: bool,
     dump_rty: bool,
     dump_mir: bool,
-    pointer_width: u64,
+    pointer_width: PointerWidth,
     check_def: String,
     cache: bool,
     cache_file: String,
+}
+
+#[derive(Copy, Clone, Deserialize)]
+#[serde(try_from = "u8")]
+pub enum PointerWidth {
+    W32,
+    W64,
+}
+
+impl PointerWidth {
+    pub fn bits(self) -> u64 {
+        match self {
+            PointerWidth::W32 => 32,
+            PointerWidth::W64 => 64,
+        }
+    }
+}
+
+impl TryFrom<u8> for PointerWidth {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            32 => Ok(PointerWidth::W32),
+            64 => Ok(PointerWidth::W64),
+            _ => Err("pointer width must be 32 or 64"),
+        }
+    }
 }
 
 static CONFIG: LazyLock<Config> = LazyLock::new(|| {
@@ -92,7 +120,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("dump_fhir", false)?
             .set_default("dump_rty", false)?
             .set_default("check_asserts", "assume")?
-            .set_default("pointer_width", 64)?
+            .set_default("pointer_width", "64")?
             .set_default("check_def", "")?
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?;
