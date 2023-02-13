@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use flux_common::iter::IterExt;
-use flux_config::{self as config, AssertBehavior, CrateConfig};
+use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
 use flux_syntax::{
@@ -683,8 +683,6 @@ impl FluxAttrCFG {
             try_read_setting!(self, "dump_constraint", bool, config::dump_constraint())?;
         let dump_checker_trace =
             try_read_setting!(self, "dump_checker_trace", bool, config::dump_checker_trace())?;
-        let check_asserts =
-            try_read_setting!(self, "check_asserts", AssertBehavior, config::assert_behavior())?;
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {
@@ -693,7 +691,7 @@ impl FluxAttrCFG {
             });
         }
 
-        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace, check_asserts })
+        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace })
     }
 }
 

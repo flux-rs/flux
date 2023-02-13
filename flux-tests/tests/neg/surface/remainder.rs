@@ -20,4 +20,6 @@ pub fn test_mod() -> usize {
 #[flux::sig(fn(a: i32, b: i32) -> i32[a % b])]
 pub fn mod_signed(a: i32, b: i32) -> i32 {
     a % b //~ ERROR postcondition might not hold
+          //~^ ERROR assertion might fail
+          //~^^ ERROR assertion might fail
 }

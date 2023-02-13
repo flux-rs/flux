@@ -109,11 +109,10 @@ pub enum TerminatorKind<'tcx> {
 #[derive(Debug)]
 pub enum AssertKind {
     BoundsCheck,
-    Other(&'static str),
-    // Overflow(BinOp, O, O),
+    RemainderByZero,
+    Overflow(BinOp),
+    DivisionByZero,
     // OverflowNeg(O),
-    // DivisionByZero(O),
-    // RemainderByZero(O),
     // ResumedAfterReturn(GeneratorKind),
     // ResumedAfterPanic(GeneratorKind),
 }
@@ -137,6 +136,7 @@ pub enum Rvalue {
     MutRef(Place),
     ShrRef(Place),
     BinaryOp(BinOp, Operand, Operand),
+    CheckedBinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
     Aggregate(AggregateKind, Vec<Operand>),
     Discriminant(Place),
@@ -444,6 +444,9 @@ impl fmt::Debug for Rvalue {
             Rvalue::ShrRef(place) => write!(f, "&{place:?}"),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
+            Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
+                write!(f, "Checked{bin_op:?}({op1:?}, {op2:?})")
+            }
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {

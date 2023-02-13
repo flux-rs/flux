@@ -315,11 +315,18 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     fn lower_rvalue(&self, rvalue: &rustc_mir::Rvalue<'tcx>) -> Result<Rvalue, String> {
         match rvalue {
             rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
-            rustc_mir::Rvalue::BinaryOp(bin_op, operands) => {
+            rustc_mir::Rvalue::BinaryOp(bin_op, box (op1, op2)) => {
                 Ok(Rvalue::BinaryOp(
                     self.lower_bin_op(*bin_op)?,
-                    self.lower_operand(&operands.0)?,
-                    self.lower_operand(&operands.1)?,
+                    self.lower_operand(op1)?,
+                    self.lower_operand(op2)?,
+                ))
+            }
+            rustc_mir::Rvalue::CheckedBinaryOp(bin_op, box (op1, op2)) => {
+                Ok(Rvalue::CheckedBinaryOp(
+                    self.lower_bin_op(*bin_op)?,
+                    self.lower_operand(op1)?,
+                    self.lower_operand(op2)?,
                 ))
             }
             rustc_mir::Rvalue::Ref(_, rustc_mir::BorrowKind::Mut { .. }, p) => {
@@ -348,7 +355,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             | rustc_mir::Rvalue::Ref(_, _, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::CheckedBinaryOp(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
@@ -478,16 +484,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         use rustc_mir::AssertKind::*;
         match msg {
             BoundsCheck { .. } => Some(AssertKind::BoundsCheck),
-            DivisionByZero(_) => Some(AssertKind::Other("possible division by zero")),
-            RemainderByZero(_) => {
-                Some(AssertKind::Other("possible remainder with a divisor of zero"))
-            }
-            Overflow(rustc_mir::BinOp::Div, _, _) => {
-                Some(AssertKind::Other("possible division with overflow"))
-            }
-            Overflow(rustc_mir::BinOp::Rem, _, _) => {
-                Some(AssertKind::Other("possible remainder with overflow"))
-            }
+            DivisionByZero(_) => Some(AssertKind::DivisionByZero),
+            RemainderByZero(_) => Some(AssertKind::RemainderByZero),
+            Overflow(bin_op, ..) => Some(AssertKind::Overflow(self.lower_bin_op(*bin_op).ok()?)),
             _ => None,
         }
     }

@@ -9,14 +9,6 @@ pub use toml::Value;
 const FLUX_ENV_VAR_PREFIX: &str = "FLUX";
 const FLUX_CONFIG_ENV_VAR: &str = "FLUX_CONFIG";
 
-#[derive(Debug, Deserialize, Copy, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum AssertBehavior {
-    Ignore,
-    Assume,
-    Check,
-}
-
 pub fn check_def() -> &'static str {
     &CONFIG.check_def
 }
@@ -49,10 +41,6 @@ pub fn pointer_width() -> u64 {
     CONFIG.pointer_width
 }
 
-pub fn assert_behavior() -> AssertBehavior {
-    CONFIG.check_asserts
-}
-
 pub fn log_dir() -> &'static PathBuf {
     &CONFIG.log_dir
 }
@@ -69,25 +57,11 @@ pub fn driver_path() -> Option<&'static PathBuf> {
     CONFIG.driver_path.as_ref()
 }
 
-impl std::str::FromStr for AssertBehavior {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "ignore" => Ok(AssertBehavior::Ignore),
-            "assume" => Ok(AssertBehavior::Assume),
-            "check" => Ok(AssertBehavior::Check),
-            _ => Err(()),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct CrateConfig {
     pub log_dir: PathBuf,
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
-    pub check_asserts: AssertBehavior,
 }
 
 #[derive(Deserialize)]
@@ -99,7 +73,6 @@ struct Config {
     dump_timings: bool,
     dump_fhir: bool,
     dump_rty: bool,
-    check_asserts: AssertBehavior,
     dump_mir: bool,
     pointer_width: u64,
     check_def: String,

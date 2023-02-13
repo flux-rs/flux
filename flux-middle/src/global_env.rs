@@ -1,7 +1,6 @@
 use std::{cell::RefCell, collections::hash_map, string::ToString};
 
 use flux_common::bug;
-use flux_config::{self as config, AssertBehavior};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
@@ -36,14 +35,11 @@ pub struct GlobalEnv<'sess, 'tcx> {
     early_cx: EarlyCtxt<'sess, 'tcx>,
     adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     adt_variants: RefCell<VariantMap>,
-    check_asserts: AssertBehavior,
     defns: Defns,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn new(early_cx: EarlyCtxt<'sess, 'tcx>) -> Result<Self, ErrorGuaranteed> {
-        let check_asserts = config::assert_behavior();
-
         let mut defns: FxHashMap<Symbol, rty::Defn> = FxHashMap::default();
         for defn in early_cx.map.defns() {
             let defn = rty::conv::conv_defn(&early_cx, defn);
@@ -82,7 +78,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             qualifiers,
             tcx: early_cx.tcx,
             sess: early_cx.sess,
-            check_asserts,
             early_cx,
             uifs,
             defns,
@@ -154,10 +149,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.uifs.values()
     }
 
-    pub fn register_assert_behavior(&mut self, behavior: AssertBehavior) {
-        self.check_asserts = behavior;
-    }
-
     pub fn lookup_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
         match self.fn_sigs.borrow_mut().entry(def_id) {
             hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
@@ -209,10 +200,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
         rty::Ty::indexed(bty, rty::RefineArgs::empty())
-    }
-
-    pub fn check_asserts(&self) -> &AssertBehavior {
-        &self.check_asserts
     }
 
     pub fn variant(

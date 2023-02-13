@@ -89,12 +89,6 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         tracing::info!("Callbacks::check_wf");
 
         let mut genv = GlobalEnv::new(early_cx)?;
-        // Assert behavior from Crate config
-        // TODO(atgeller) rest of settings from crate config
-        if let Some(crate_config) = specs.crate_config {
-            let assert_behavior = crate_config.check_asserts;
-            genv.register_assert_behavior(assert_behavior);
-        }
 
         let mut ck = CrateChecker::new(&mut genv, specs.ignores);
 

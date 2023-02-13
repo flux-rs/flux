@@ -1,12 +1,12 @@
-//! Conversion types in [`crate::fhir`] to types in [`crate::rty`]
+//! Conversion from types in [`crate::fhir`] to types in [`crate::rty`]
 //!
-//! Conversion assumes well-formedness and will panic if they are not.  Well-formedness implies
-//! among other things:
-//! 1. Names are bound correctly
+//! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
+//! well-formedness implies:
+//! 1. Names are bound correctly.
 //! 2. Refinement parameters appear in allowed positions. This is particularly important for
 //!    refinement predicates, aka abstract refinements, since the syntax in [`crate::rty`] has
 //!    syntactic restrictions on predicates.
-//! 3. Refinements are well-sorted
+//! 3. Refinements are well-sorted.
 use std::{borrow::Borrow, iter};
 
 use flux_common::span_bug;
