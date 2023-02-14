@@ -536,6 +536,7 @@ impl<'a> ExprCtxt<'a> {
             | rty::ExprKind::Local(_)
             | rty::ExprKind::BoundVar(_)
             | rty::ExprKind::Abs(_)
+            | rty::ExprKind::Func(_)
             | rty::ExprKind::PathProj(..) => {
                 span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
             }
@@ -564,17 +565,17 @@ impl<'a> ExprCtxt<'a> {
         }
     }
 
-    fn func_to_fixpoint(&self, func: &rty::Func) -> fixpoint::Func {
-        match func {
-            rty::Func::Var(rty::Var::Free(name)) => {
+    fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
+        match func.kind() {
+            rty::ExprKind::FreeVar(name) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found for key: `{name:?}`")
                 });
                 fixpoint::Func::Var(*name)
             }
-            rty::Func::Uif(func) => fixpoint::Func::Uif(func.to_string()),
-            rty::Func::Var(var) => {
-                span_bug!(self.dbg_span, "unexpected var `{var:?}` in function application")
+            rty::ExprKind::Func(name) => fixpoint::Func::Uif(name.to_string()),
+            _ => {
+                span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")
             }
         }
     }

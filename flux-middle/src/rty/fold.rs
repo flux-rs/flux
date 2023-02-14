@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, Interned, List},
-    rty::{subst::GenericsSubstFolder, BoundVar, Func, Var, VariantDef},
+    rty::{subst::GenericsSubstFolder, BoundVar, Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -72,12 +72,16 @@ pub trait TypeFoldable: Sized {
 
         impl<'a> TypeFolder for Normalize<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(func, args) = expr.kind()
-                   && let Func::Uif(sym) = func
-                {
-                    let args =
-                        args.iter().map(|arg| arg.super_fold_with(self)).collect_vec();
-                    self.0.app(sym, &args)
+                if let ExprKind::App(func, args) = expr.kind() {
+                    let args = args
+                        .iter()
+                        .map(|arg| arg.super_fold_with(self))
+                        .collect_vec();
+                    match func.kind() {
+                        ExprKind::Func(sym) => self.0.app(*sym, &args),
+                        ExprKind::Abs(body) => body.replace_bvars(&args),
+                        _ => Expr::app(func.clone(), args),
+                    }
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -168,6 +172,7 @@ pub trait TypeFoldable: Sized {
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {
         self.fold_with(&mut EVarSubstFolder::new(evars))
+            .normalize(&Default::default())
     }
 
     fn shift_in_bvars(&self, amount: u32) -> Self {
@@ -503,6 +508,7 @@ impl TypeFoldable for Expr {
             ExprKind::Hole => Expr::hole(),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
             ExprKind::Abs(body) => Expr::abs(body.fold_with(folder)),
+            ExprKind::Func(func) => Expr::func(*func),
         }
     }
 
@@ -539,6 +545,7 @@ impl TypeFoldable for Expr {
             | ExprKind::BoundVar(_)
             | ExprKind::EVar(_)
             | ExprKind::Local(_)
+            | ExprKind::Func(_)
             | ExprKind::ConstDefId(_) => {}
         }
     }
@@ -549,22 +556,6 @@ impl TypeFoldable for Expr {
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_expr(self);
-    }
-}
-
-impl TypeFoldable for Func {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Func::Var(var) => Func::Var(var.fold_with(folder)),
-            Func::Uif(sym) => Func::Uif(*sym),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        match self {
-            Func::Var(var) => var.visit_with(visitor),
-            Func::Uif(_) => {}
-        }
     }
 }
 

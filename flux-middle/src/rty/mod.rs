@@ -14,7 +14,7 @@ use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
+    BoundVar, DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
 };
 use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -118,6 +118,7 @@ pub struct UifDef {
     pub sort: FuncSort,
 }
 
+#[derive(Default)]
 pub struct Defns {
     defns: FxHashMap<Symbol, Defn>,
 }
@@ -240,7 +241,9 @@ where
     T: TypeFoldable,
 {
     pub fn replace_bvars(&self, args: &[Expr]) -> T {
-        self.value.fold_with(&mut BVarSubstFolder::new(args))
+        self.value
+            .fold_with(&mut BVarSubstFolder::new(args))
+            .normalize(&Default::default())
     }
 
     pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
@@ -1015,7 +1018,7 @@ impl Defns {
         impl<'a> TypeFolder for Deps<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::App(func, _) = expr.kind()
-                   && let Func::Uif(sym) = func
+                   && let ExprKind::Func(sym) = func.kind()
                 {
                     self.0.insert(*sym);
                 }
@@ -1093,11 +1096,11 @@ impl Defns {
     }
 
     // expand a particular app if there is a known defn for it
-    pub fn app(&self, func: &Symbol, args: &[Expr]) -> Expr {
-        if let Some(defn) = self.func_defn(func) {
+    pub fn app(&self, func: Symbol, args: &[Expr]) -> Expr {
+        if let Some(defn) = self.func_defn(&func) {
             Self::expand_defn(defn, args)
         } else {
-            Expr::app(Func::Uif(*func), args)
+            Expr::app(Expr::func(func), args)
         }
     }
 }
