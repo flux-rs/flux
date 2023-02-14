@@ -44,8 +44,8 @@ pub enum ExprKind {
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
-    ///    More generaly, what we need is to be able to partially evaluate expressions such that all
-    ///    abstractions are eliminated before encoding into the logic. Right now, the implementation
+    ///    More generaly, we need to be able to partially evaluate expressions such that all abstractions
+    ///    in non-index position are eliminated before encoding into fixpoint. Right now, the implementation
     ///    immediately applies the abstraction when it is substituted, thus the restriction.
     Abs(Binders<Expr>),
     Hole,
