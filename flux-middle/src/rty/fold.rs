@@ -6,9 +6,12 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, subst::EVarSubstFolder, AdtDef, AdtDefData, BaseTy, Binders, Constraint,
-    DebruijnIndex, Defns, Expr, ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name,
-    PolySig, Qualifier, RefineArgs, RefineArgsData, Sort, Ty, TyKind, INNERMOST,
+    evars::EVarSol,
+    normalize::{Defns, Normalizer},
+    subst::EVarSubstFolder,
+    AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput,
+    FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArgs, RefineArgsData, Sort,
+    Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -67,27 +70,9 @@ pub trait TypeFoldable: Sized {
         self.super_visit_with(visitor);
     }
 
+    /// Normalize expressions by applying some beta reductions (tuple projection and function application)
     fn normalize(&self, defns: &Defns) -> Self {
-        struct Normalize<'a>(&'a Defns);
-
-        impl<'a> TypeFolder for Normalize<'a> {
-            fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(func, args) = expr.kind() {
-                    let args = args
-                        .iter()
-                        .map(|arg| arg.super_fold_with(self))
-                        .collect_vec();
-                    match func.kind() {
-                        ExprKind::Func(sym) => self.0.app(*sym, &args),
-                        ExprKind::Abs(body) => body.replace_bvars(&args),
-                        _ => Expr::app(func.clone(), args),
-                    }
-                } else {
-                    expr.super_fold_with(self)
-                }
-            }
-        }
-        self.fold_with(&mut Normalize(defns))
+        self.fold_with(&mut Normalizer::new(defns))
     }
 
     /// Returns the set of all free variables.
@@ -496,7 +481,7 @@ impl TypeFoldable for Expr {
                 Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder))
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder)),
-            ExprKind::TupleProj(e, proj) => Expr::proj(e.fold_with(folder), *proj),
+            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.fold_with(folder), *proj),
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
