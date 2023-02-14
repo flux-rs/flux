@@ -305,7 +305,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &mut self,
         arg: &fhir::RefineArg,
         sort: &fhir::Sort,
-    ) -> Vec<(rty::RefineArg, bool)> {
+    ) -> Vec<(rty::Expr, bool)> {
         let mut output = vec![];
         self.conv_refine_arg_aux(arg, sort, &mut output);
         output
@@ -315,7 +315,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &mut self,
         arg: &fhir::RefineArg,
         sort: &fhir::Sort,
-        output: &mut Vec<(rty::RefineArg, bool)>,
+        output: &mut Vec<(rty::Expr, bool)>,
     ) {
         match arg {
             fhir::RefineArg::Expr {
@@ -326,11 +326,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     self.env
                         .lookup(*var)
                         .bvars()
-                        .map(|bvar| (rty::RefineArg::Expr(bvar.to_expr()), *is_binder)),
+                        .map(|bvar| (bvar.to_expr(), *is_binder)),
                 );
             }
             fhir::RefineArg::Expr { expr, is_binder } => {
-                output.push((rty::RefineArg::Expr(self.env.conv_expr(expr)), *is_binder));
+                output.push((self.env.conv_expr(expr), *is_binder));
             }
             fhir::RefineArg::Abs(params, body, _) => {
                 let fsort = self.expect_func(sort);
@@ -339,8 +339,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.env.push_layer(Layer::new(self.early_cx(), params));
                 let pred = self.env.conv_expr(body);
                 let sorts = self.env.pop_layer().to_sorts();
-                let abs = rty::Binders::new(pred, sorts);
-                output.push((rty::RefineArg::Abs(abs), false));
+                let body = rty::Binders::new(pred, sorts);
+                output.push((rty::Expr::abs(body), false));
             }
             fhir::RefineArg::Aggregate(def_id, flds, _) => {
                 let sorts = self.genv.index_sorts_of(*def_id);

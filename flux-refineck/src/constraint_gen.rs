@@ -8,8 +8,7 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binders, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, RefineArg, Sort,
-        Ty, TyKind,
+        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, Ty, TyKind,
     },
     rustc::{
         self,
@@ -294,13 +293,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.evar_gen.fresh_in_cx(*cx)
     }
 
-    fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> RefineArg {
+    fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                RefineArg::Abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
+                Expr::abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
             }
-            InferMode::EVar => RefineArg::Expr(Expr::evar(self.fresh_evar())),
+            InferMode::EVar => Expr::evar(self.fresh_evar()),
         }
     }
 
@@ -354,8 +353,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 =
-                    ty2.replace_bvars_with(|_| RefineArg::Expr(Expr::evar(self.fresh_evar())));
+                let ty2 = ty2.replace_bvars_with(|_| Expr::evar(self.fresh_evar()));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
@@ -460,40 +458,35 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn refine_arg_subtyping(
         &mut self,
         rcx: &mut RefineCtxt,
-        arg1: &RefineArg,
-        arg2: &RefineArg,
+        arg1: &Expr,
+        arg2: &Expr,
         is_binder: bool,
     ) {
         if arg1 == arg2 {
             return;
         }
-        self.unify_args(arg1, arg2, is_binder);
-        match (arg1, arg2) {
-            (RefineArg::Expr(e1), RefineArg::Expr(e2)) => {
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
-            }
-            (RefineArg::Abs(abs1), RefineArg::Abs(abs2)) => {
+        self.unify_exprs(arg1, arg2, is_binder);
+        match (arg1.kind(), arg2.kind()) {
+            (ExprKind::Abs(abs1), ExprKind::Abs(abs2)) => {
                 debug_assert_eq!(abs1.params(), abs2.params());
                 let args = rcx
                     .define_vars(abs1.params())
                     .into_iter()
-                    .map(|var| RefineArg::Expr(var.into()))
+                    .map(Expr::from)
                     .collect_vec();
                 let pred1 = abs1.replace_bvars(&args);
                 let pred2 = abs2.replace_bvars(&args);
                 rcx.check_impl(&pred1, &pred2, self.tag);
                 rcx.check_impl(pred2, pred1, self.tag);
             }
-            (RefineArg::Expr(expr), RefineArg::Abs(abs))
-            | (RefineArg::Abs(abs), RefineArg::Expr(expr)) => {
+            (expr, ExprKind::Abs(abs)) | (ExprKind::Abs(abs), expr) => {
                 if let Option::Some(var) = expr.to_var() {
-                    let args = rcx
+                    let args: List<_> = rcx
                         .define_vars(abs.params())
                         .into_iter()
                         .map(Expr::from)
-                        .collect_vec();
-                    let pred1 = Expr::app(var, List::from(&args[..]));
-                    let args = args.into_iter().map(RefineArg::from).collect_vec();
+                        .collect();
+                    let pred1 = Expr::app(var, args.clone());
                     let pred2 = abs.replace_bvars(&args);
                     rcx.check_impl(&pred1, &pred2, self.tag);
                     rcx.check_impl(pred2, pred1, self.tag);
@@ -503,16 +496,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     );
                 }
             }
-        }
-    }
-
-    fn unify_args(&mut self, arg1: &RefineArg, arg2: &RefineArg, replace: bool) {
-        if let RefineArg::Expr(e) = arg2
-           && let ExprKind::EVar(evar) = e.kind()
-           && let scope = &self.scopes[&evar.cx()]
-           && !scope.has_free_vars(arg1)
-        {
-            self.evar_gen.unify(*evar, arg1, replace);
+            _ => {
+                rcx.check_pred(Expr::binary_op(BinOp::Eq, arg1, arg2), self.tag);
+            }
         }
     }
 

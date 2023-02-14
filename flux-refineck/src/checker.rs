@@ -455,9 +455,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = self.check_operand(rcx, env, terminator_span, cond)?;
         let pred = if let TyKind::Indexed(BaseTy::Bool, idxs) = ty.kind() {
             if expected {
-                idxs.nth(0).expect_expr().clone()
+                idxs.nth(0).clone()
             } else {
-                idxs.nth(0).expect_expr().not()
+                idxs.nth(0).not()
             }
         } else {
             tracked_span_bug!("unexpected ty `{ty:?}`")
@@ -484,17 +484,13 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, idxs) => {
                     if bits == 0 {
-                        idxs.nth(0).expect_expr().not()
+                        idxs.nth(0).not()
                     } else {
-                        idxs.nth(0).expect_expr().clone()
+                        idxs.nth(0).clone()
                     }
                 }
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idxs) => {
-                    Expr::binary_op(
-                        BinOp::Eq,
-                        idxs.nth(0).expect_expr().clone(),
-                        Expr::from_bits(bty, bits),
-                    )
+                    Expr::binary_op(BinOp::Eq, idxs.nth(0).clone(), Expr::from_bits(bty, bits))
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -704,8 +700,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 debug_assert_eq!(idxs2.args().len(), 1);
 
                 let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
-                let (e1, e2) =
-                    (idxs1.nth(0).expect_expr().clone(), idxs2.nth(0).expect_expr().clone());
+                let (e1, e2) = (idxs1.nth(0).clone(), idxs2.nth(0).clone());
                 if let sigs::Pre::Some(reason, constr) = sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
@@ -739,7 +734,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = match un_op {
             mir::UnOp::Not => {
                 if let Bool!(idxs) = ty.kind() {
-                    Ty::indexed(BaseTy::Bool, RefineArgs::one(idxs.nth(0).expect_expr().not()))
+                    Ty::indexed(BaseTy::Bool, RefineArgs::one(idxs.nth(0).not()))
                 } else {
                     tracked_span_bug!("incompatible type: `{:?}`", ty)
                 }
@@ -747,10 +742,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             mir::UnOp::Neg => {
                 match ty.kind() {
                     Int!(int_ty, idxs) => {
-                        Ty::indexed(
-                            BaseTy::Int(*int_ty),
-                            RefineArgs::one(idxs.nth(0).expect_expr().neg()),
-                        )
+                        Ty::indexed(BaseTy::Int(*int_ty), RefineArgs::one(idxs.nth(0).neg()))
                     }
                     Float!(float_ty) => Ty::float(*float_ty),
                     _ => tracked_span_bug!("incompatible type: `{:?}`", ty),
@@ -765,20 +757,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match kind {
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
-                    (Bool!(idxs), RustTy::Int(int_ty)) => {
-                        bool_int_cast(idxs.nth(0).expect_expr(), *int_ty)
-                    }
-                    (Bool!(idxs), RustTy::Uint(uint_ty)) => {
-                        bool_uint_cast(idxs.nth(0).expect_expr(), *uint_ty)
-                    }
+                    (Bool!(idxs), RustTy::Int(int_ty)) => bool_int_cast(idxs.nth(0), *int_ty),
+                    (Bool!(idxs), RustTy::Uint(uint_ty)) => bool_uint_cast(idxs.nth(0), *uint_ty),
                     (Int!(int_ty1, idxs), RustTy::Int(int_ty2)) => {
-                        int_int_cast(idxs.nth(0).expect_expr(), *int_ty1, *int_ty2)
+                        int_int_cast(idxs.nth(0), *int_ty1, *int_ty2)
                     }
                     (Uint!(uint_ty1, idxs), RustTy::Uint(uint_ty2)) => {
-                        uint_uint_cast(idxs.nth(0).expect_expr(), *uint_ty1, *uint_ty2)
+                        uint_uint_cast(idxs.nth(0), *uint_ty1, *uint_ty2)
                     }
                     (Uint!(uint_ty, idxs), RustTy::Int(int_ty)) => {
-                        uint_int_cast(idxs.nth(0).expect_expr(), *uint_ty, *int_ty)
+                        uint_int_cast(idxs.nth(0), *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => {

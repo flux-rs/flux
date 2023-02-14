@@ -1,7 +1,10 @@
 use flux_common::bug;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::fold::{TypeFoldable, TypeFolder};
+use super::{
+    evars::EVarSol,
+    fold::{TypeFoldable, TypeFolder},
+};
 use crate::rty::*;
 
 /// A substitution for [free variables]
@@ -33,17 +36,6 @@ impl FVarSubst {
         loc_expr
             .to_loc()
             .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
-    }
-
-    pub fn infer_from_refine_args(
-        &mut self,
-        params: &FxHashSet<Name>,
-        arg1: &RefineArg,
-        arg2: &RefineArg,
-    ) {
-        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-            self.infer_from_exprs(params, e1, e2);
-        }
     }
 
     pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
@@ -95,14 +87,15 @@ impl TypeFolder for FVarSubstFolder<'_> {
 }
 
 /// Substitution for [bound variables]
+///
 /// [bound variables]: `crate::rty::expr::ExprKind::BoundVar`
 pub(super) struct BVarSubstFolder<'a> {
     current_index: DebruijnIndex,
-    args: &'a [RefineArg],
+    args: &'a [Expr],
 }
 
 impl<'a> BVarSubstFolder<'a> {
-    pub(super) fn new(args: &'a [RefineArg]) -> BVarSubstFolder<'a> {
+    pub(super) fn new(args: &'a [Expr]) -> BVarSubstFolder<'a> {
         BVarSubstFolder { args, current_index: INNERMOST }
     }
 }
@@ -118,30 +111,47 @@ impl TypeFolder for BVarSubstFolder<'_> {
         r
     }
 
-    fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
-        if let RefineArg::Expr(expr) = arg
-           && let ExprKind::BoundVar(bvar) = expr.kind()
-           && bvar.debruijn == self.current_index
-        {
-            self.args[bvar.index].shift_in_bvars(self.current_index.as_u32())
-        } else {
-            arg.super_fold_with(self)
-        }
-    }
-
     fn fold_expr(&mut self, e: &Expr) -> Expr {
         if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.current_index {
-            if let RefineArg::Expr(e) = &self.args[bvar.index] {
-                e.shift_in_bvars(self.current_index.as_u32())
-            } else {
-                panic!("expected expr for `{bvar:?}` but found `{:?}` when substituting", self.args[bvar.index])
-            }
+            self.args[bvar.index]
+                .shift_in_bvars(self.current_index.as_u32())
         } else if let ExprKind::App(Func::Var(Var::Bound(bvar)), args) = e.kind()
-           && bvar.debruijn == self.current_index
-           && let RefineArg::Abs(abs) = &self.args[bvar.index]
+            && bvar.debruijn == self.current_index
+            && let ExprKind::Abs(body) = &self.args[bvar.index].kind()
         {
-            let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-            abs.shift_in_bvars(self.current_index.as_u32()).replace_bvars(&args)
+            let args = args.iter().map(|arg| arg.fold_with(self)).collect_vec();
+            body.shift_in_bvars(self.current_index.as_u32()).replace_bvars(&args)
+        } else {
+            e.super_fold_with(self)
+        }
+    }
+}
+
+/// Substitution for [existential variables]
+///
+/// [existential variables]: `crate::rty::expr::ExprKind::EVar`
+pub(super) struct EVarSubstFolder<'a> {
+    evars: &'a EVarSol,
+}
+
+impl<'a> EVarSubstFolder<'a> {
+    pub(super) fn new(evars: &'a EVarSol) -> Self {
+        Self { evars }
+    }
+}
+
+impl TypeFolder for EVarSubstFolder<'_> {
+    fn fold_expr(&mut self, e: &Expr) -> Expr {
+        if let ExprKind::EVar(evar) = e.kind()
+            && let Some(sol) = self.evars.get(*evar)
+        {
+            sol.clone()
+        } else if let ExprKind::App(Func::Var(Var::EVar(evar)), args) = e.kind()
+            && let Some(sol) = self.evars.get(*evar)
+            && let ExprKind::Abs(abs) = sol.kind()
+        {
+            let args = args.iter().map(|arg| arg.fold_with(self)).collect_vec();
+            abs.replace_bvars(&args)
         } else {
             e.super_fold_with(self)
         }

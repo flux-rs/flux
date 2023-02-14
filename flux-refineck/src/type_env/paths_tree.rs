@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, Ref, RefineArg, Sort, Substs, Ty,
-        TyKind, Var, VariantIdx,
+        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var,
+        VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
 };
@@ -797,7 +797,7 @@ fn downcast(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    args: &[RefineArg],
+    args: &[Expr],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     if genv.tcx.adt_def(def_id).is_struct() {
         downcast_struct(genv, def_id, variant_idx, substs, args)
@@ -821,7 +821,7 @@ fn downcast_struct(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    args: &[RefineArg],
+    args: &[Expr],
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
@@ -845,7 +845,7 @@ fn downcast_enum(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    args: &[RefineArg],
+    args: &[Expr],
 ) -> Vec<Ty> {
     let variant_def = genv
         .variant(def_id, variant_idx)
@@ -856,8 +856,8 @@ fn downcast_enum(
     let (.., idxs) = variant_def.ret.expect_adt();
     debug_assert_eq!(idxs.args().len(), args.len());
     let constr = Expr::and(iter::zip(idxs.args(), args).filter_map(|(arg1, arg2)| {
-        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-            Some(Expr::eq(e1, e2))
+        if !arg1.is_abs() && !arg2.is_abs() {
+            Some(Expr::eq(arg1, arg2))
         } else {
             None
         }

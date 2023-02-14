@@ -16,7 +16,7 @@ pub use evars::{EVar, EVarGen};
 pub use expr::{
     BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
 };
-use flux_common::{bug, index::IndexGen};
+use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -158,16 +158,10 @@ pub struct RefineArgs(Interned<RefineArgsData>);
 
 #[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 struct RefineArgsData {
-    args: Vec<RefineArg>,
+    args: Vec<Expr>,
     /// Set containing all the indices of arguments that were used as binders in the surface syntax.
     /// This is used as a hint for inferring parameters at call sites.
     is_binder: BitSet<usize>,
-}
-
-#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-pub enum RefineArg {
-    Expr(Expr),
-    Abs(Binders<Expr>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -245,24 +239,24 @@ impl<T> Binders<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvars(&self, args: &[RefineArg]) -> T {
+    pub fn replace_bvars(&self, args: &[Expr]) -> T {
         self.value.fold_with(&mut BVarSubstFolder::new(args))
     }
 
-    pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> RefineArg) -> T {
+    pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
         let args = self.params.iter().map(f).collect_vec();
         self.replace_bvars(&args)
     }
 
     pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-        self.replace_bvars_with(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
+        self.replace_bvars_with(|sort| Expr::fvar(fresh(sort)))
     }
 }
 
 impl RefineArgs {
     pub fn new<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = (RefineArg, bool)>,
+        T: IntoIterator<Item = (Expr, bool)>,
         T::IntoIter: ExactSizeIterator,
     {
         let iter = iter.into_iter();
@@ -279,34 +273,30 @@ impl RefineArgs {
         RefineArgsData { args, is_binder: bitset }.intern()
     }
 
-    pub fn multi(args: Vec<RefineArg>) -> Self {
+    pub fn multi(args: Vec<Expr>) -> Self {
         let is_binder = BitSet::new_empty(args.len());
         RefineArgsData { args, is_binder }.intern()
     }
 
-    pub fn one(arg: impl Into<RefineArg>) -> Self {
+    pub fn one(arg: impl Into<Expr>) -> Self {
         RefineArgsData { args: vec![arg.into()], is_binder: BitSet::new_empty(1) }.intern()
     }
 
     /// Return a list of bound variables. The returned value will have escaping vars which
     /// need to be put inside a [`Binders`]
     pub fn bound(n: usize) -> RefineArgs {
-        RefineArgs::multi(
-            (0..n)
-                .map(|i| RefineArg::Expr(Expr::bvar(BoundVar::innermost(i))))
-                .collect(),
-        )
+        RefineArgs::multi((0..n).map(|i| Expr::bvar(BoundVar::innermost(i))).collect())
     }
 
     pub fn is_binder(&self, i: usize) -> bool {
         self.0.is_binder.contains(i)
     }
 
-    pub fn nth(&self, idx: usize) -> &RefineArg {
+    pub fn nth(&self, idx: usize) -> &Expr {
         &self.args()[idx]
     }
 
-    pub fn args(&self) -> &[RefineArg] {
+    pub fn args(&self) -> &[Expr] {
         &self.0.args
     }
 
@@ -321,17 +311,6 @@ impl RefineArgsData {
     }
 }
 
-impl RefineArg {
-    #[track_caller]
-    pub fn expect_expr(&self) -> &Expr {
-        if let RefineArg::Expr(e) = self {
-            e
-        } else {
-            bug!("expected an `RefineArg::Expr`")
-        }
-    }
-}
-
 impl PolySig {
     pub fn new(fn_sig: Binders<FnSig>, modes: impl Into<List<InferMode>>) -> PolySig {
         let modes = modes.into();
@@ -339,7 +318,7 @@ impl PolySig {
         PolySig { fn_sig, modes }
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> RefineArg) -> FnSig {
+    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
         let args = iter::zip(&self.fn_sig.params, &self.modes)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
@@ -633,24 +612,6 @@ impl From<RefKind> for PtrKind {
     }
 }
 
-impl From<&RefineArg> for RefineArg {
-    fn from(arg: &RefineArg) -> Self {
-        arg.clone()
-    }
-}
-
-impl From<Expr> for RefineArg {
-    fn from(expr: Expr) -> Self {
-        RefineArg::Expr(expr)
-    }
-}
-
-impl From<&Expr> for RefineArg {
-    fn from(expr: &Expr) -> Self {
-        RefineArg::Expr(expr.clone())
-    }
-}
-
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
         BaseTy::Adt(adt_def, substs.into())
@@ -743,7 +704,6 @@ impl_internable!(
     [GenericArg],
     [Field],
     [Constraint],
-    [RefineArg],
     [InferMode],
 );
 
@@ -972,16 +932,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for RefineArg {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                RefineArg::Expr(e) => w!("{:?}", e),
-                RefineArg::Abs(abs) => w!("{:?}", abs),
-            }
-        }
-    }
-
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1047,7 +997,6 @@ mod pretty {
         BaseTy,
         FnSig,
         GenericArg,
-        RefineArg,
         RefineArgs,
         VariantDef,
         PtrKind,
@@ -1139,16 +1088,12 @@ impl Defns {
         None
     }
 
-    fn expand_defn(defn: &Defn, args: List<Expr>) -> Expr {
-        let args = args
-            .iter()
-            .map(|e| RefineArg::Expr(e.clone()))
-            .collect_vec();
-        defn.expr.replace_bvars(&args)
+    fn expand_defn(defn: &Defn, args: &[Expr]) -> Expr {
+        defn.expr.replace_bvars(args)
     }
 
     // expand a particular app if there is a known defn for it
-    pub fn app(&self, func: &Symbol, args: List<Expr>) -> Expr {
+    pub fn app(&self, func: &Symbol, args: &[Expr]) -> Expr {
         if let Some(defn) = self.func_defn(func) {
             Self::expand_defn(defn, args)
         } else {

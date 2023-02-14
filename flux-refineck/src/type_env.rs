@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
-        Expr, ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, RefineArg, RefineArgs, Ty, TyKind,
+        Expr, ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, RefineArgs, Ty, TyKind,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -243,7 +243,7 @@ impl TypeEnv {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 self.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
                 for (idx1, idx2) in iter::zip(idxs1.args(), idxs2.args()) {
-                    subst.infer_from_refine_args(params, idx1, idx2);
+                    subst.infer_from_exprs(params, idx1, idx2);
                 }
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
@@ -609,7 +609,7 @@ impl TypeEnvInfer {
                             arg1.clone()
                         } else {
                             sorts.push(sort.clone());
-                            RefineArg::Expr(Expr::bvar(BoundVar::innermost(sorts.len() - 1)))
+                            Expr::bvar(BoundVar::innermost(sorts.len() - 1))
                         }
                     })
                     .collect();
@@ -688,10 +688,7 @@ impl TypeEnvInfer {
             .into_iter()
             .filter(|pred| !matches!(pred.kind(), ExprKind::Hole))
             .collect_vec();
-        let exprs = names
-            .iter()
-            .map(|name| RefineArg::Expr(Expr::fvar(*name)))
-            .collect_vec();
+        let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
         let kvar = kvar_store
             .fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
             .replace_bvars(&exprs);

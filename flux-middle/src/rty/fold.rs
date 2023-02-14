@@ -6,9 +6,9 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Defns, Expr,
-    ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArg,
-    RefineArgs, RefineArgsData, Sort, Ty, TyKind, INNERMOST,
+    evars::EVarSol, subst::EVarSubstFolder, AdtDef, AdtDefData, BaseTy, Binders, Constraint,
+    DebruijnIndex, Defns, Expr, ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name,
+    PolySig, Qualifier, RefineArgs, RefineArgsData, Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
@@ -53,10 +53,6 @@ pub trait TypeFolder: Sized {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         expr.super_fold_with(self)
     }
-
-    fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
-        arg.super_fold_with(self)
-    }
 }
 
 pub trait TypeFoldable: Sized {
@@ -79,9 +75,9 @@ pub trait TypeFoldable: Sized {
                 if let ExprKind::App(func, args) = expr.kind()
                    && let Func::Uif(sym) = func
                 {
-                    let exp_args: List<Expr> =
-                        args.iter().map(|arg| arg.super_fold_with(self)).collect();
-                    self.0.app(sym, exp_args)
+                    let args =
+                        args.iter().map(|arg| arg.super_fold_with(self)).collect_vec();
+                    self.0.app(sym, &args)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -171,31 +167,7 @@ pub trait TypeFoldable: Sized {
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {
-        struct EVarFolder<'a>(&'a EVarSol);
-
-        impl TypeFolder for EVarFolder<'_> {
-            fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::EVar(evar) = expr.kind()
-                   && let Some(sol) = self.0.get(*evar)
-                {
-                    if let RefineArg::Expr(e) = sol {
-                        e.clone()
-                    } else {
-                        bug!("expected expr for `{expr:?}` but found `{sol:?}` when substituting")
-                    }
-                } else if let ExprKind::App(Func::Var(Var::EVar(evar)), args) = expr.kind()
-                    && let Some(sol) = self.0.get(*evar)
-                    && let RefineArg::Abs(abs) = sol
-                {
-                    let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-                    abs.replace_bvars(&args)
-                } else {
-                    expr.super_fold_with(self)
-                }
-            }
-        }
-
-        self.fold_with(&mut EVarFolder(evars))
+        self.fold_with(&mut EVarSubstFolder::new(evars))
     }
 
     fn shift_in_bvars(&self, amount: u32) -> Self {
@@ -431,26 +403,6 @@ impl TypeFoldable for RefineArgs {
     }
 }
 
-impl TypeFoldable for RefineArg {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            RefineArg::Expr(e) => RefineArg::Expr(e.fold_with(folder)),
-            RefineArg::Abs(abs) => RefineArg::Abs(abs.fold_with(folder)),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        match self {
-            RefineArg::Expr(e) => e.visit_with(visitor),
-            RefineArg::Abs(kvar) => kvar.visit_with(visitor),
-        }
-    }
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_refine_arg(self)
-    }
-}
-
 impl TypeFoldable for BaseTy {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
@@ -550,6 +502,7 @@ impl TypeFoldable for Expr {
             }
             ExprKind::Hole => Expr::hole(),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
+            ExprKind::Abs(body) => Expr::abs(body.fold_with(folder)),
         }
     }
 
@@ -580,6 +533,7 @@ impl TypeFoldable for Expr {
                 e2.visit_with(visitor);
             }
             ExprKind::KVar(kvar) => kvar.visit_with(visitor),
+            ExprKind::Abs(body) => body.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole
             | ExprKind::BoundVar(_)
