@@ -1,20 +1,16 @@
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
-    slice,
 };
 
 use bitflags::bitflags;
-use flux_common::{
-    bug,
-    index::{IndexGen, IndexVec},
-};
+use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
     fold::{TypeFoldable, TypeVisitor},
-    BaseTy, Expr, ExprKind, GenericArg, Name, RefKind, Sort, Ty, TyKind,
+    BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 

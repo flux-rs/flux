@@ -14,7 +14,7 @@ use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::DefId;
 
-use super::{fold::TypeFoldable, Binder, PolyVariant};
+use super::{Binder, PolyVariant};
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, SurfaceIdent},
@@ -359,7 +359,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let adt_def = self.genv.adt_def(*did);
                 rty::BaseTy::adt(adt_def, substs)
             }
-            fhir::Res::Alias(def_id, early) => {
+            fhir::Res::Alias(_def_id, _early) => {
                 todo!()
                 // let mut args = vec![];
                 // for (arg, sort) in iter::zip(early, self.genv.early_bound_sorts_of(*def_id)) {

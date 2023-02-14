@@ -6,9 +6,9 @@ use flux_middle::{
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binder, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
-        GenericArg, Index, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort,
-        TupleTree, Ty, TyKind,
+        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
+        Index, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty,
+        TyKind,
     },
     rustc::{
         self,

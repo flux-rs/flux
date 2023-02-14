@@ -68,7 +68,7 @@ newtype_index! {
     pub struct KVid {}
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
     Bound(DebruijnIndex),

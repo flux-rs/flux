@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Index, Path, PtrKind, Ref, RefKind, Ty, TyKind, INNERMOST,
+        ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
