@@ -45,9 +45,9 @@ pub enum ExprKind {
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
-    ///    More generaly, we need to be able to partially evaluate expressions such that all abstractions
-    ///    in non-index position are eliminated before encoding into fixpoint. Right now, the implementation
-    ///    immediately applies the abstraction when it is substituted, thus the restriction.
+    ///    More generaly, we need to partially evaluate expressions such that all abstractions in
+    ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
+    ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
     Abs(Binders<Expr>),
     Hole,
 }
@@ -282,7 +282,7 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    pub fn proj(e: impl Into<Expr>, proj: u32) -> Expr {
+    pub fn tuple_proj(e: impl Into<Expr>, proj: u32) -> Expr {
         ExprKind::TupleProj(e.into(), proj).intern()
     }
 
