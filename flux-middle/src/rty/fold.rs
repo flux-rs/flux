@@ -6,13 +6,16 @@ use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
 use super::{
-    evars::EVarSol, subst::EVarSubstFolder, AdtDef, AdtDefData, BaseTy, Binders, Constraint,
-    DebruijnIndex, Defns, Expr, ExprKind, FnOutput, FnSig, GenericArg, Invariant, KVar, Name,
-    PolySig, Qualifier, RefineArgs, RefineArgsData, Sort, Ty, TyKind, INNERMOST,
+    evars::EVarSol,
+    normalize::{Defns, Normalizer},
+    subst::EVarSubstFolder,
+    AdtDef, AdtDefData, BaseTy, Binders, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput,
+    FnSig, GenericArg, Invariant, KVar, Name, PolySig, Qualifier, RefineArgs, RefineArgsData, Sort,
+    Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, Interned, List},
-    rty::{subst::GenericsSubstFolder, BoundVar, Func, Var, VariantDef},
+    rty::{subst::GenericsSubstFolder, BoundVar, Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -67,23 +70,9 @@ pub trait TypeFoldable: Sized {
         self.super_visit_with(visitor);
     }
 
+    /// Normalize expressions by applying some beta reductions (tuple projection and function application)
     fn normalize(&self, defns: &Defns) -> Self {
-        struct Normalize<'a>(&'a Defns);
-
-        impl<'a> TypeFolder for Normalize<'a> {
-            fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(func, args) = expr.kind()
-                   && let Func::Uif(sym) = func
-                {
-                    let args =
-                        args.iter().map(|arg| arg.super_fold_with(self)).collect_vec();
-                    self.0.app(sym, &args)
-                } else {
-                    expr.super_fold_with(self)
-                }
-            }
-        }
-        self.fold_with(&mut Normalize(defns))
+        self.fold_with(&mut Normalizer::new(defns))
     }
 
     /// Returns the set of all free variables.
@@ -168,6 +157,7 @@ pub trait TypeFoldable: Sized {
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {
         self.fold_with(&mut EVarSubstFolder::new(evars))
+            .normalize(&Default::default())
     }
 
     fn shift_in_bvars(&self, amount: u32) -> Self {
@@ -491,7 +481,7 @@ impl TypeFoldable for Expr {
                 Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder))
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder)),
-            ExprKind::TupleProj(e, proj) => Expr::proj(e.fold_with(folder), *proj),
+            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.fold_with(folder), *proj),
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
@@ -503,6 +493,7 @@ impl TypeFoldable for Expr {
             ExprKind::Hole => Expr::hole(),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
             ExprKind::Abs(body) => Expr::abs(body.fold_with(folder)),
+            ExprKind::Func(func) => Expr::func(*func),
         }
     }
 
@@ -539,6 +530,7 @@ impl TypeFoldable for Expr {
             | ExprKind::BoundVar(_)
             | ExprKind::EVar(_)
             | ExprKind::Local(_)
+            | ExprKind::Func(_)
             | ExprKind::ConstDefId(_) => {}
         }
     }
@@ -549,22 +541,6 @@ impl TypeFoldable for Expr {
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_expr(self);
-    }
-}
-
-impl TypeFoldable for Func {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Func::Var(var) => Func::Var(var.fold_with(folder)),
-            Func::Uif(sym) => Func::Uif(*sym),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        match self {
-            Func::Var(var) => var.visit_with(visitor),
-            Func::Uif(_) => {}
-        }
     }
 }
 

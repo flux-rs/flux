@@ -14,7 +14,7 @@ pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, VariantIdx},
-    rty::{self, fold::TypeFoldable, Binders, Defns},
+    rty::{self, fold::TypeFoldable, normalize::Defns, Binders},
     rustc,
 };
 

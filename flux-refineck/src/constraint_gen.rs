@@ -486,7 +486,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                         .into_iter()
                         .map(Expr::from)
                         .collect();
-                    let pred1 = Expr::app(var, args.clone());
+                    let pred1 = Expr::app(var.to_expr(), args.clone());
                     let pred2 = abs.replace_bvars(&args);
                     rcx.check_impl(&pred1, &pred2, self.tag);
                     rcx.check_impl(pred2, pred1, self.tag);

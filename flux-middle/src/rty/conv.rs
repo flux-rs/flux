@@ -517,10 +517,10 @@ impl Env<'_, '_> {
         }
     }
 
-    fn conv_func(&self, func: &fhir::Func) -> rty::Func {
+    fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
-            fhir::Func::Var(ident) => rty::Func::Var(self.lookup(*ident).expect_one().to_var()),
-            fhir::Func::Uif(sym, _) => rty::Func::Uif(*sym),
+            fhir::Func::Var(ident) => self.lookup(*ident).expect_one().to_expr(),
+            fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
         }
     }
 

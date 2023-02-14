@@ -8,18 +8,18 @@ pub mod conv;
 pub mod evars;
 mod expr;
 pub mod fold;
+pub(crate) mod normalize;
 pub mod subst;
 
-use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
+use std::{fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
+    BoundVar, DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
 };
 use flux_common::index::IndexGen;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -27,12 +27,8 @@ use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
-use toposort_scc::IndexGraph;
 
-use self::{
-    fold::{TypeFoldable, TypeFolder},
-    subst::BVarSubstFolder,
-};
+use self::{fold::TypeFoldable, subst::BVarSubstFolder};
 pub use crate::{
     fhir::{FuncSort, InferMode, RefKind, Sort},
     rustc::ty::Const,
@@ -116,10 +112,6 @@ pub struct Defn {
 pub struct UifDef {
     pub name: Symbol,
     pub sort: FuncSort,
-}
-
-pub struct Defns {
-    defns: FxHashMap<Symbol, Defn>,
 }
 
 pub type Ty = Interned<TyS>;
@@ -240,7 +232,9 @@ where
     T: TypeFoldable,
 {
     pub fn replace_bvars(&self, args: &[Expr]) -> T {
-        self.value.fold_with(&mut BVarSubstFolder::new(args))
+        self.value
+            .fold_with(&mut BVarSubstFolder::new(args))
+            .normalize(&Default::default())
     }
 
     pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
@@ -1002,102 +996,4 @@ mod pretty {
         PtrKind,
         Binders<FnOutput>
     );
-}
-
-impl Defns {
-    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Result<Self, Vec<Symbol>> {
-        let raw = Defns { defns };
-        raw.normalize()
-    }
-
-    fn defn_deps(&self, expr: &Binders<Expr>) -> HashSet<Symbol> {
-        struct Deps<'a>(&'a mut HashSet<Symbol>);
-        impl<'a> TypeFolder for Deps<'a> {
-            fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(func, _) = expr.kind()
-                   && let Func::Uif(sym) = func
-                {
-                    self.0.insert(*sym);
-                }
-                expr.super_fold_with(self)
-            }
-        }
-        let mut e_deps = HashSet::new();
-        expr.fold_with(&mut Deps(&mut e_deps));
-        e_deps
-    }
-
-    /// Returns
-    /// * either Ok(d1...dn) which are topologically sorted such that
-    ///   forall i < j, di does not depend on i.e. "call" dj
-    /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-    fn sorted_defns(&self) -> Result<Vec<Symbol>, Vec<Symbol>> {
-        // 1. Make the Symbol-Index
-        let mut i2s: Vec<Symbol> = Vec::new();
-        let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
-        for (i, s) in self.defns.keys().enumerate() {
-            i2s.push(*s);
-            s2i.insert(*s, i);
-        }
-
-        // 2. Make the dependency graph
-        let mut adj_list: Vec<Vec<usize>> = vec![];
-        for name in i2s.iter() {
-            let defn = self.defns.get(name).unwrap();
-            let deps = self.defn_deps(&defn.expr);
-            let ddeps: Vec<usize> = deps
-                .iter()
-                .filter_map(|s| s2i.get(s).copied())
-                .collect_vec();
-            adj_list.push(ddeps);
-        }
-        let mut g = IndexGraph::from_adjacency_list(&adj_list);
-        g.transpose();
-
-        // 3. Topologically sort the graph
-        match g.toposort_or_scc() {
-            Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
-            Err(mut scc) => {
-                let cycle = scc.pop().unwrap();
-                Err(cycle.iter().map(|i| i2s[*i]).collect())
-            }
-        }
-    }
-
-    // private function normalize (expand_defns) which does the SCC-expansion
-    fn normalize(mut self) -> Result<Self, Vec<Symbol>> {
-        // 1. Topologically sort the Defns
-        let ds = self.sorted_defns()?;
-
-        // 2. Expand each defn in the sorted order
-        let mut exp_defns = Defns { defns: FxHashMap::default() };
-        for d in ds {
-            if let Some(defn) = self.defns.remove(&d) {
-                let expr = defn.expr.normalize(&exp_defns);
-                let exp_defn = Defn { expr, ..defn };
-                exp_defns.defns.insert(d, exp_defn);
-            }
-        }
-        Ok(exp_defns)
-    }
-
-    fn func_defn(&self, f: &Symbol) -> Option<&Defn> {
-        if let Some(defn) = self.defns.get(f) {
-            return Some(defn);
-        }
-        None
-    }
-
-    fn expand_defn(defn: &Defn, args: &[Expr]) -> Expr {
-        defn.expr.replace_bvars(args)
-    }
-
-    // expand a particular app if there is a known defn for it
-    pub fn app(&self, func: &Symbol, args: &[Expr]) -> Expr {
-        if let Some(defn) = self.func_defn(func) {
-            Self::expand_defn(defn, args)
-        } else {
-            Expr::app(Func::Uif(*func), args)
-        }
-    }
 }
