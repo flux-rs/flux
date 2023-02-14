@@ -49,7 +49,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     def_id: DefId,
     invariants: Vec<Invariant>,
-    sorts: Vec<Sort>,
+    sort: Sort,
     flags: AdtFlags,
     nvariants: usize,
     opaque: bool,
@@ -357,14 +357,14 @@ impl FnOutput {
 impl AdtDef {
     pub(crate) fn new(
         rustc_def: rustc_middle::ty::AdtDef,
-        sorts: Vec<Sort>,
+        sort: Sort,
         invariants: Vec<Invariant>,
         opaque: bool,
     ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
             invariants,
-            sorts,
+            sort,
             flags: rustc_def.flags(),
             nvariants: rustc_def.variants().len(),
             opaque,
@@ -375,8 +375,8 @@ impl AdtDef {
         self.0.def_id
     }
 
-    pub fn sorts(&self) -> &[Sort] {
-        &self.0.sorts
+    pub fn sort(&self) -> &Sort {
+        &self.0.sort
     }
 
     pub fn flags(&self) -> &AdtFlags {
@@ -479,7 +479,7 @@ impl Ty {
     /// Note that the arguments `bty` and `pred` may have escaping vars, which will be closed by
     /// wrapping them inside a [`Binders`].
     pub fn full_exists(bty: BaseTy, pred: Expr) -> Ty {
-        let sorts = List::from(bty.sorts());
+        let sorts = List::from(bty.sort().as_tuple());
         let ty = Ty::indexed(bty, RefineArgs::bound(sorts.len()));
         Ty::exists(Binders::new(Ty::constr(pred, ty), sorts))
     }
@@ -541,7 +541,7 @@ impl Ty {
     }
 
     fn indexed_by_unit(bty: BaseTy) -> Ty {
-        debug_assert_eq!(bty.sorts().len(), 0);
+        debug_assert!(bty.sort().is_unit());
         Ty::indexed(bty, RefineArgs::empty())
     }
 }
@@ -663,11 +663,11 @@ impl BaseTy {
         }
     }
 
-    pub fn sorts(&self) -> &[Sort] {
+    pub fn sort(&self) -> Sort {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
-            BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Adt(adt_def, _) => adt_def.sorts(),
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
             BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
@@ -675,7 +675,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Never => &[],
+            | BaseTy::Never => Sort::unit(),
         }
     }
 }

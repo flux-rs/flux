@@ -67,7 +67,7 @@ pub(crate) fn adt_def_for_struct(
 
     rty::AdtDef::new(
         early_cx.tcx.adt_def(struct_def.def_id),
-        sorts,
+        rty::Sort::tuple(sorts),
         invariants,
         struct_def.is_opaque(),
     )
@@ -77,7 +77,12 @@ pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -
     let env = Env::from_params(early_cx, &enum_def.params);
     let sorts = env.top_layer().to_sorts();
     let invariants = env.conv_invariants(&sorts, &enum_def.invariants);
-    rty::AdtDef::new(early_cx.tcx.adt_def(enum_def.def_id), sorts, invariants, false)
+    rty::AdtDef::new(
+        early_cx.tcx.adt_def(enum_def.def_id),
+        rty::Sort::tuple(sorts),
+        invariants,
+        false,
+    )
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {

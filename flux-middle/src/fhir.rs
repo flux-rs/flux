@@ -20,7 +20,7 @@ pub mod lift;
 
 use std::{
     borrow::{Borrow, Cow},
-    fmt,
+    fmt, slice,
 };
 
 pub use flux_fixpoint::{BinOp, UnOp};
@@ -491,6 +491,10 @@ impl Sort {
         matches!(self, Self::Loc)
     }
 
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
+    }
+
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -514,6 +518,14 @@ impl Sort {
             InferMode::KVar
         } else {
             InferMode::EVar
+        }
+    }
+
+    pub fn as_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            slice::from_ref(self)
         }
     }
 }

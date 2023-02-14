@@ -625,7 +625,7 @@ impl TypeFoldable for AdtDef {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: self.def_id(),
-            sorts: self.sorts().to_vec(),
+            sort: self.sort().clone(),
             flags: *self.flags(),
             nvariants: self.0.nvariants,
             opaque: self.0.opaque,

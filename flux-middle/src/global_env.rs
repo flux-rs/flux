@@ -181,7 +181,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 if let Some(adt_def) = self.early_cx.cstore.adt_def(def_id) {
                     adt_def.clone()
                 } else {
-                    rty::AdtDef::new(self.tcx.adt_def(def_id), vec![], vec![], false)
+                    rty::AdtDef::new(self.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false)
                 }
             })
             .clone()
@@ -195,7 +195,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         // it is indexed by unit. We leave this as a reminder in case
         // that ever changes.
         debug_assert_eq!(self.generics_of(def_id).params.len(), 2);
-        debug_assert!(adt_def.sorts().is_empty());
+        debug_assert!(adt_def.sort().is_unit());
 
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
@@ -360,9 +360,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
             rustc::ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(self.refine_ty_true(ty), *mu),
         };
-        let pred = mk_pred(bty.sorts());
+        let sort = bty.sort();
+        let pred = mk_pred(sort.as_tuple());
         let ty = pred.map(|pred| {
-            let args = rty::RefineArgs::bound(bty.sorts().len());
+            let args = rty::RefineArgs::bound(sort.as_tuple().len());
             if pred.is_trivially_true() {
                 rty::Ty::indexed(bty, args)
             } else {

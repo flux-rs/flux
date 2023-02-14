@@ -596,7 +596,7 @@ impl TypeEnvInfer {
             (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
-                let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sorts())
+                let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sort().as_tuple())
                     .map(|(arg1, arg2, sort)| {
                         let has_free_vars2 = self.scope.has_free_vars(arg2);
                         let has_escaping_vars1 = arg1.has_escaping_bvars();
