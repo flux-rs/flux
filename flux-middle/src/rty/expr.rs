@@ -1,4 +1,4 @@
-use std::{fmt, sync::OnceLock};
+use std::{fmt, slice, sync::OnceLock};
 
 use flux_common::bug;
 use flux_fixpoint::Sign;
@@ -9,7 +9,7 @@ use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy, Binders};
+use super::{evars::EVar, BaseTy, Binder};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -27,7 +27,7 @@ pub struct ExprS {
 pub enum ExprKind {
     FreeVar(Name),
     EVar(EVar),
-    BoundVar(BoundVar),
+    BoundVar(DebruijnIndex),
     Local(Local),
     Constant(Constant),
     ConstDefId(DefId),
@@ -48,7 +48,7 @@ pub enum ExprKind {
     ///    More generaly, we need to partially evaluate expressions such that all abstractions in
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
     ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
-    Abs(Binders<Expr>),
+    Abs(Binder<Expr>),
     Hole,
 }
 
@@ -71,7 +71,7 @@ newtype_index! {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    Bound(BoundVar),
+    Bound(DebruijnIndex),
     EVar(EVar),
 }
 
@@ -87,23 +87,13 @@ pub enum Loc {
     Var(Var),
 }
 
-/// A bound *var*riable is represented as a debruijn index
-/// into a list of [`Binders`] and index into that list.
-///
-/// [`Binders`]: super::Binders
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
-pub struct BoundVar {
-    pub debruijn: DebruijnIndex,
-    pub index: usize,
-}
-
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
 }
 
 newtype_index! {
-    #[debug_format = "DebruijnIndex({})"]
+    #[debug_format = "^{}"]
     pub struct DebruijnIndex {
         const INNERMOST = 0;
     }
@@ -165,7 +155,15 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::bvar(BoundVar::NU)
+        Expr::bvar(INNERMOST)
+    }
+
+    pub fn as_tuple(&self) -> &[Expr] {
+        if let ExprKind::Tuple(tup) = self.kind() {
+            tup
+        } else {
+            slice::from_ref(self)
+        }
     }
 
     pub fn unit() -> Expr {
@@ -180,7 +178,7 @@ impl Expr {
         ExprKind::EVar(evar).intern()
     }
 
-    pub fn bvar(bvar: BoundVar) -> Expr {
+    pub fn bvar(bvar: DebruijnIndex) -> Expr {
         ExprKind::BoundVar(bvar).intern()
     }
 
@@ -226,7 +224,7 @@ impl Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
-    pub fn abs(body: Binders<Expr>) -> Expr {
+    pub fn abs(body: Binder<Expr>) -> Expr {
         ExprKind::Abs(body).intern()
     }
 
@@ -508,26 +506,6 @@ impl Loc {
     }
 }
 
-impl BoundVar {
-    pub const NU: BoundVar = BoundVar { debruijn: INNERMOST, index: 0 };
-
-    pub fn new(index: usize, debruijn: DebruijnIndex) -> Self {
-        BoundVar { debruijn, index }
-    }
-
-    pub fn innermost(index: usize) -> BoundVar {
-        BoundVar::new(index, INNERMOST)
-    }
-
-    pub fn to_expr(self) -> Expr {
-        Expr::bvar(self)
-    }
-
-    pub fn to_var(self) -> Var {
-        Var::Bound(self)
-    }
-}
-
 impl DebruijnIndex {
     pub fn new(depth: u32) -> DebruijnIndex {
         DebruijnIndex::from_u32(depth)
@@ -636,8 +614,8 @@ impl From<Name> for Expr {
     }
 }
 
-impl From<BoundVar> for Expr {
-    fn from(bvar: BoundVar) -> Self {
+impl From<DebruijnIndex> for Expr {
+    fn from(bvar: DebruijnIndex) -> Self {
         Expr::bvar(bvar)
     }
 }
@@ -711,7 +689,7 @@ mod pretty {
             }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
-                ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
+                ExprKind::BoundVar(bvar) => w!("{:?}", ^bvar),
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
                 ExprKind::EVar(evar) => w!("{:?}", evar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
@@ -815,13 +793,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for BoundVar {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
-            w!("^{}.{:?}", ^self.debruijn.as_u32(), ^self.index)
-        }
-    }
-
     impl Pretty for BinOp {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -855,5 +826,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, BoundVar, Var, KVar);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar);
 }

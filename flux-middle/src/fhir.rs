@@ -72,7 +72,7 @@ pub struct Map {
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     refined_by: FxHashMap<LocalDefId, RefinedBy>,
-    aliases: FxHashMap<LocalDefId, Alias>,
+    aliases: FxHashMap<LocalDefId, TyAlias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
@@ -81,7 +81,7 @@ pub struct Map {
 }
 
 #[derive(Debug)]
-pub struct Alias {
+pub struct TyAlias {
     pub def_id: LocalDefId,
     pub params: Vec<(Ident, Sort)>,
     pub ty: Ty,
@@ -606,15 +606,15 @@ impl Map {
 
     // Aliases
 
-    pub fn insert_alias(&mut self, def_id: LocalDefId, alias: Alias) {
+    pub fn insert_alias(&mut self, def_id: LocalDefId, alias: TyAlias) {
         self.aliases.insert(def_id, alias);
     }
 
-    pub fn aliases(&self) -> impl Iterator<Item = &Alias> {
+    pub fn aliases(&self) -> impl Iterator<Item = &TyAlias> {
         self.aliases.values()
     }
 
-    pub fn get_alias(&self, def_id: impl Borrow<LocalDefId>) -> &Alias {
+    pub fn get_ty_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
         &self.aliases[def_id.borrow()]
     }
 

@@ -14,14 +14,11 @@ pub mod subst;
 use std::{fmt, hash::Hash, iter, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{
-    BoundVar, DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
-};
-use flux_common::index::IndexGen;
+pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST};
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_index::bit_set::BitSet;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
@@ -34,7 +31,7 @@ pub use crate::{
     rustc::ty::Const,
 };
 use crate::{
-    intern::{impl_internable, Interned, List},
+    intern::{impl_internable, Internable, Interned, List},
     rustc::mir::Place,
 };
 
@@ -53,10 +50,10 @@ pub struct AdtDefData {
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
-    pub pred: Binders<Expr>,
+    pub pred: Binder<Expr>,
 }
 
-pub type PolyVariant = Binders<VariantDef>;
+pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
@@ -65,14 +62,23 @@ pub struct VariantDef {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub struct Binders<T> {
-    params: List<Sort>,
+pub struct Binder<T> {
+    sort: Sort,
     value: T,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum TupleTree<T>
+where
+    [TupleTree<T>]: Internable,
+{
+    Tuple(List<TupleTree<T>>),
+    Leaf(T),
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolySig {
-    pub fn_sig: Binders<FnSig>,
+    pub fn_sig: Binder<FnSig>,
     pub modes: List<InferMode>,
 }
 
@@ -80,7 +86,7 @@ pub struct PolySig {
 pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
-    output: Binders<FnOutput>,
+    output: Binder<FnOutput>,
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
@@ -100,13 +106,13 @@ pub enum Constraint {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub body: Binders<Expr>,
+    pub body: Binder<Expr>,
     pub global: bool,
 }
 
 pub struct Defn {
     pub name: Symbol,
-    pub expr: Binders<Expr>,
+    pub expr: Binder<Expr>,
 }
 
 pub struct UifDef {
@@ -123,8 +129,8 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum TyKind {
-    Indexed(BaseTy, RefineArgs),
-    Exists(Binders<Ty>),
+    Indexed(BaseTy, Index),
+    Exists(Binder<Ty>),
     Constr(Expr, Ty),
     Uninit,
     Ptr(PtrKind, Path),
@@ -146,15 +152,18 @@ pub enum PtrKind {
 }
 
 #[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-pub struct RefineArgs(Interned<RefineArgsData>);
-
-#[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-struct RefineArgsData {
-    args: Vec<Expr>,
-    /// Set containing all the indices of arguments that were used as binders in the surface syntax.
-    /// This is used as a hint for inferring parameters at call sites.
-    is_binder: BitSet<usize>,
+pub struct Index {
+    pub expr: Expr,
+    pub is_binder: TupleTree<bool>,
 }
+
+// #[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
+// struct RefineArgsData {
+//     args: Vec<Expr>,
+//     /// Set containing all the indices of arguments that were used as binders in the surface syntax.
+//     /// This is used as a hint for inferring parameters at call sites.
+//     is_binder: BitSet<usize>,
+// }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BaseTy {
@@ -184,36 +193,37 @@ pub enum GenericArg {
 
 impl Qualifier {
     pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
-        let name_gen = IndexGen::new();
-        let mut args = vec![];
-        let body = self.body.replace_bvars_with_fresh_fvars(|sort| {
-            let fresh = name_gen.fresh();
-            args.push((fresh, sort.clone()));
-            fresh
-        });
-        (args, body)
+        // let name_gen = IndexGen::new();
+        // let mut args = vec![];
+        todo!()
+        // let body = self.body.replace_bvars_with_fresh_fvars(|sort| {
+        //     let fresh = name_gen.fresh();
+        //     args.push((fresh, sort.clone()));
+        //     fresh
+        // });
+        // (args, body)
     }
 }
 
-impl<T> Binders<T> {
-    pub fn new(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
-        Binders { params: params.into(), value }
+impl<T> Binder<T> {
+    pub fn new(value: T, sort: Sort) -> Binder<T> {
+        Binder { sort, value }
     }
 
-    pub fn params(&self) -> &[Sort] {
-        &self.params
+    pub fn sort(&self) -> &Sort {
+        &self.sort
     }
 
-    pub fn as_ref(&self) -> Binders<&T> {
-        Binders { params: self.params.clone(), value: &self.value }
+    pub fn as_ref(&self) -> Binder<&T> {
+        Binder { sort: self.sort.clone(), value: &self.value }
     }
 
     pub fn skip_binders(self) -> T {
         self.value
     }
 
-    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binders<S> {
-        Binders { params: self.params, value: f(self.value) }
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binder<S> {
+        Binder { sort: self.sort, value: f(self.value) }
     }
 }
 
@@ -227,96 +237,119 @@ impl VariantDef {
     }
 }
 
-impl<T> Binders<T>
+impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvars(&self, args: &[Expr]) -> T {
+    pub fn replace_bvars(&self, expr: &Expr) -> T {
         self.value
-            .fold_with(&mut BVarSubstFolder::new(args))
+            .fold_with(&mut BVarSubstFolder::new(expr))
             .normalize(&Default::default())
     }
 
-    pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
-        let args = self.params.iter().map(f).collect_vec();
-        self.replace_bvars(&args)
+    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
+        let expr = f(&self.sort);
+        self.replace_bvars(&expr)
     }
 
-    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-        self.replace_bvars_with(|sort| Expr::fvar(fresh(sort)))
+    // pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
+    //     self.replace_bvars_with(|sort| Expr::fvar(fresh(sort)))
+    // }
+}
+
+impl<T> TupleTree<T>
+where
+    [TupleTree<T>]: Internable,
+{
+    fn unit() -> Self {
+        TupleTree::Tuple(List::from_vec(vec![]))
     }
 }
 
-impl RefineArgs {
-    pub fn new<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = (Expr, bool)>,
-        T::IntoIter: ExactSizeIterator,
-    {
-        let iter = iter.into_iter();
-        let mut bitset = BitSet::new_empty(iter.len());
-        let args = iter
-            .enumerate()
-            .map(|(idx, (arg, is_binder))| {
-                if is_binder {
-                    bitset.insert(idx);
-                }
-                arg
-            })
-            .collect();
-        RefineArgsData { args, is_binder: bitset }.intern()
+impl<T> TupleTree<T>
+where
+    [TupleTree<T>]: Internable,
+    T: Clone,
+{
+    pub fn from_expr(e: &Expr, value: T) -> Self {
+        Self::from_expr_inner(e, value)
     }
 
-    pub fn multi(args: Vec<Expr>) -> Self {
-        let is_binder = BitSet::new_empty(args.len());
-        RefineArgsData { args, is_binder }.intern()
+    fn from_expr_inner(e: &Expr, value: T) -> Self {
+        if let ExprKind::Tuple(es) = e.kind() {
+            TupleTree::Tuple(List::from_vec(
+                es.iter()
+                    .map(|e| Self::from_expr_inner(e, value.clone()))
+                    .collect(),
+            ))
+        } else {
+            TupleTree::Leaf(value)
+        }
     }
+}
 
-    pub fn one(arg: impl Into<Expr>) -> Self {
-        RefineArgsData { args: vec![arg.into()], is_binder: BitSet::new_empty(1) }.intern()
-    }
-
+impl Index {
     /// Return a list of bound variables. The returned value will have escaping vars which
     /// need to be put inside a [`Binders`]
-    pub fn bound(n: usize) -> RefineArgs {
-        RefineArgs::multi((0..n).map(|i| Expr::bvar(BoundVar::innermost(i))).collect())
+    pub fn bound(sort: &Sort) -> Index {
+        fn go(sort: &Sort) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(
+                    sorts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, sort)| Expr::tuple_proj(go(sort), i as u32))
+                        .collect_vec(),
+                )
+            } else {
+                Expr::nu()
+            }
+        }
+        Index::from(go(sort))
     }
 
-    pub fn is_binder(&self, i: usize) -> bool {
-        self.0.is_binder.contains(i)
+    pub fn unit() -> Self {
+        Index { expr: Expr::unit(), is_binder: TupleTree::unit() }
     }
 
-    pub fn nth(&self, idx: usize) -> &Expr {
-        &self.args()[idx]
-    }
-
-    pub fn args(&self) -> &[Expr] {
-        &self.0.args
-    }
-
-    pub fn empty() -> Self {
-        RefineArgsData { args: vec![], is_binder: BitSet::new_empty(0) }.intern()
+    pub fn tuple(exprs: Vec<Expr>) -> Self {
+        let is_binder = TupleTree::Tuple(List::from_vec(
+            exprs
+                .iter()
+                .map(|e| TupleTree::from_expr(e, false))
+                .collect(),
+        ));
+        let expr = Expr::tuple(exprs);
+        Index { expr, is_binder }
     }
 }
 
-impl RefineArgsData {
-    pub fn intern(self) -> RefineArgs {
-        RefineArgs(Interned::new(self))
+impl From<Expr> for Index {
+    fn from(expr: Expr) -> Self {
+        let is_binder = TupleTree::from_expr(&expr, false);
+        Self { expr, is_binder }
+    }
+}
+
+impl From<(Expr, TupleTree<bool>)> for Index {
+    fn from((expr, is_binder): (Expr, TupleTree<bool>)) -> Self {
+        Self { expr, is_binder }
     }
 }
 
 impl PolySig {
-    pub fn new(fn_sig: Binders<FnSig>, modes: impl Into<List<InferMode>>) -> PolySig {
+    pub fn new(params: &[Sort], fn_sig: FnSig, modes: impl Into<List<InferMode>>) -> PolySig {
         let modes = modes.into();
-        debug_assert_eq!(fn_sig.params.len(), modes.len());
+        debug_assert_eq!(params.len(), modes.len());
+        let fn_sig = Binder::new(fn_sig, Sort::tuple(params));
         PolySig { fn_sig, modes }
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
-        let args = iter::zip(&self.fn_sig.params, &self.modes)
+        let exprs = iter::zip(self.fn_sig.sort.as_tuple(), &self.modes)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
-        self.fn_sig.replace_bvars(&args)
+        self.fn_sig.replace_bvars(&Expr::tuple(exprs))
     }
 }
 
@@ -324,7 +357,7 @@ impl FnSig {
     pub fn new(
         requires: impl Into<List<Constraint>>,
         args: impl Into<List<Ty>>,
-        output: Binders<FnOutput>,
+        output: Binder<FnOutput>,
     ) -> Self {
         FnSig { requires: requires.into(), args: args.into(), output }
     }
@@ -337,7 +370,7 @@ impl FnSig {
         &self.args
     }
 
-    pub fn output(&self) -> &Binders<FnOutput> {
+    pub fn output(&self) -> &Binder<FnOutput> {
         &self.output
     }
 }
@@ -408,17 +441,21 @@ impl AdtDef {
 
 impl PolyVariant {
     pub fn to_fn_sig(&self) -> PolySig {
-        let fn_sig = self.as_ref().map(|variant| {
-            let ret = variant.ret.shift_in_bvars(1);
-            let output = Binders::new(FnOutput::new(ret, vec![]), vec![]);
-            FnSig::new(vec![], variant.fields.clone(), output)
-        });
-        let modes = fn_sig
-            .params
+        let fn_sig = self
+            .as_ref()
+            .map(|variant| {
+                let ret = variant.ret.shift_in_bvars(1);
+                let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
+                FnSig::new(vec![], variant.fields.clone(), output)
+            })
+            .skip_binders();
+        let modes = self
+            .sort
+            .as_tuple()
             .iter()
             .map(Sort::default_infer_mode)
             .collect_vec();
-        PolySig::new(fn_sig, modes)
+        PolySig::new(self.sort.as_tuple(), fn_sig, modes)
     }
 }
 
@@ -448,11 +485,11 @@ impl Ty {
         TyKind::Uninit.intern()
     }
 
-    pub fn indexed(bty: BaseTy, args: RefineArgs) -> Ty {
-        TyKind::Indexed(bty, args).intern()
+    pub fn indexed(bty: BaseTy, idx: impl Into<Index>) -> Ty {
+        TyKind::Indexed(bty, idx.into()).intern()
     }
 
-    pub fn exists(ty: Binders<Ty>) -> Ty {
+    pub fn exists(ty: Binder<Ty>) -> Ty {
         TyKind::Exists(ty).intern()
     }
 
@@ -473,9 +510,9 @@ impl Ty {
     /// Note that the arguments `bty` and `pred` may have escaping vars, which will be closed by
     /// wrapping them inside a [`Binders`].
     pub fn full_exists(bty: BaseTy, pred: Expr) -> Ty {
-        let sorts = List::from(bty.sort().as_tuple());
-        let ty = Ty::indexed(bty, RefineArgs::bound(sorts.len()));
-        Ty::exists(Binders::new(Ty::constr(pred, ty), sorts))
+        let sort = bty.sort();
+        let ty = Ty::indexed(bty, Index::bound(&sort));
+        Ty::exists(Binder::new(Ty::constr(pred, ty), sort))
     }
 
     pub fn param(param: ParamTy) -> Ty {
@@ -536,7 +573,7 @@ impl Ty {
 
     fn indexed_by_unit(bty: BaseTy) -> Ty {
         debug_assert!(bty.sort().is_unit());
-        Ty::indexed(bty, RefineArgs::empty())
+        Ty::indexed(bty, Index::unit())
     }
 }
 
@@ -561,7 +598,7 @@ impl TyS {
     }
 
     #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &RefineArgs) {
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Index) {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
             (adt_def, substs, idxs)
         } else {
@@ -633,10 +670,7 @@ impl BaseTy {
     pub fn invariants(&self) -> &[Invariant] {
         static GE0: LazyLock<Invariant> = LazyLock::new(|| {
             Invariant {
-                pred: Binders::new(
-                    Expr::binary_op(BinOp::Ge, BoundVar::NU, Expr::zero()),
-                    vec![Sort::Int],
-                ),
+                pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
             }
         });
 
@@ -674,7 +708,7 @@ impl BaseTy {
     }
 }
 
-impl Binders<Expr> {
+impl Binder<Expr> {
     /// See [`Expr::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
@@ -691,7 +725,6 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
 }
 
 impl_internable!(
-    RefineArgsData,
     AdtDefData,
     TyS,
     [Ty],
@@ -699,6 +732,7 @@ impl_internable!(
     [Field],
     [Constraint],
     [InferMode],
+    [TupleTree<bool>],
 );
 
 #[macro_export]
@@ -747,20 +781,13 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    impl<T> Pretty for Binders<T>
+    impl<T> Pretty for Binder<T>
     where
         T: Pretty,
     {
         default fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.params.is_empty() {
-                w!("for<{}> ",
-                    ^self.params.iter().format_with(", ", |sort, f| {
-                        f(&format_args_cx!("{:?}", ^sort))
-                    })
-                )?;
-            }
-            w!("{:?}", &self.value)
+            w!("for<{:?}> {:?}", &self.sort, &self.value)
         }
     }
 
@@ -770,48 +797,38 @@ mod pretty {
         }
     }
 
-    impl Pretty for Binders<Expr> {
+    impl Pretty for Binder<Expr> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("|{:?}| {:?}", join!(", ", &self.params), &self.value)
+            w!("|{:?}| {:?}", &self.sort, &self.value)
         }
     }
 
-    impl<T> std::fmt::Debug for Binders<T>
+    impl<T> std::fmt::Debug for Binder<T>
     where
         T: std::fmt::Debug,
     {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            if !self.params.is_empty() {
-                write!(
-                    f,
-                    "for<{}> ",
-                    self.params
-                        .iter()
-                        .format_with(", ", |sort, f| { f(&format_args_cx!("{:?}", ^sort)) })
-                )?;
-            }
-            write!(f, "{:?}", self.value)
+            write!(f, "for<{:?}> {:?}", self.sort, self.value)
         }
     }
 
     impl Pretty for PolySig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.fn_sig.params.is_empty() {
+            if !self.fn_sig.sort.as_tuple().is_empty() {
                 write!(
                     f,
                     "forall<{}> ",
-                    self.fn_sig
-                        .params
-                        .iter()
-                        .enumerate()
-                        .format_with(", ", |(i, sort), f| {
+                    self.fn_sig.sort.as_tuple().iter().enumerate().format_with(
+                        ", ",
+                        |(i, sort), f| {
                             match self.modes[i] {
                                 InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
                                 InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
                             }
-                        })
+                        }
+                    )
                 )?;
             }
             w!("{:?}", &self.fn_sig.value)
@@ -835,11 +852,11 @@ mod pretty {
         }
     }
 
-    impl Pretty for Binders<FnOutput> {
+    impl Pretty for Binder<FnOutput> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.params().is_empty() {
-                w!("exists<{:?}>", join!(", ", self.params()))?;
+            if !self.sort().as_tuple().is_empty() {
+                w!("exists<{:?}>", join!(", ", self.sort().as_tuple()))?;
             }
             w!("{:?}", &self.value.ret)?;
             if !self.value.ensures.is_empty() {
@@ -863,18 +880,18 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Indexed(bty, idxs) => {
+                TyKind::Indexed(bty, idx) => {
                     w!("{:?}", bty)?;
-                    if !cx.hide_refinements && !idxs.args().is_empty() {
-                        w!("[{:?}]", idxs)?;
+                    if !cx.hide_refinements && !bty.sort().is_unit() {
+                        w!("[{:?}]", idx)?;
                     }
                     Ok(())
                 }
-                TyKind::Exists(Binders { params, value: ty }) => {
+                TyKind::Exists(Binder { sort, value: ty }) => {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{ ∃[{:?}]. {:?} }}", join!(", ", params), ty)
+                        w!("{{ ∃{:?}. {:?} }}", sort, ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
@@ -907,22 +924,37 @@ mod pretty {
         }
     }
 
-    impl Pretty for RefineArgs {
+    impl Pretty for Index {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(
-                "{}",
-                ^self.args()
-                    .iter()
-                    .enumerate()
-                    .format_with(", ", |(i, arg), f| {
-                        if cx.show_is_binder && self.is_binder(i) {
-                            f(&format_args_cx!("@{:?}", arg))
-                        } else {
-                            f(&format_args_cx!("{:?}", arg))
+            fn go(
+                cx: &PPrintCx,
+                f: &mut fmt::Formatter<'_>,
+                is_binder: &TupleTree<bool>,
+                expr: &Expr,
+            ) -> fmt::Result {
+                define_scoped!(cx, f);
+                match (is_binder, expr.kind()) {
+                    (TupleTree::Tuple(ts), ExprKind::Tuple(es)) => {
+                        debug_assert_eq!(ts.len(), es.len());
+                        w!("(")?;
+                        for (t, e) in ts.iter().zip(es.iter()) {
+                            go(cx, f, is_binder, e)?;
+                            w!(", ")?;
                         }
-                    })
-            )
+                        w!(")")?;
+                    }
+                    (TupleTree::Leaf(is_binder), _) => {
+                        if *is_binder {
+                            w!("@{:?}", expr)?
+                        } else {
+                            w!("{:?}", expr)?
+                        }
+                    }
+                    _ => bug!(),
+                }
+                Ok(())
+            }
+            go(cx, f, &self.is_binder, &self.expr)
         }
     }
 
@@ -970,7 +1002,7 @@ mod pretty {
             define_scoped!(cx, f);
 
             match self {
-                Var::Bound(bvar) => w!("{:?}", bvar),
+                Var::Bound(bvar) => w!("{:?}", ^bvar),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
             }
@@ -991,9 +1023,9 @@ mod pretty {
         BaseTy,
         FnSig,
         GenericArg,
-        RefineArgs,
+        Index,
         VariantDef,
         PtrKind,
-        Binders<FnOutput>
+        Binder<FnOutput>
     );
 }

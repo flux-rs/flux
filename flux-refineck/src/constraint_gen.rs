@@ -3,12 +3,12 @@ use std::iter;
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
-    intern::List,
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binders, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, Ty, TyKind,
+        BaseTy, BinOp, Binder, Const, Constraint, EVar, EVarGen, Expr, ExprKind, FnOutput,
+        GenericArg, Index, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort,
+        TupleTree, Ty, TyKind,
     },
     rustc::{
         self,
@@ -92,7 +92,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<Binders<FnOutput>, CheckerError> {
+    ) -> Result<Binder<FnOutput>, CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -113,7 +113,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -169,7 +169,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        output: &Binders<FnOutput>,
+        output: &Binder<FnOutput>,
     ) -> Result<(), CheckerError> {
         let ret_place_ty = env
             .lookup_place(rcx, self, Place::RETURN)
@@ -284,22 +284,35 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr> {
-        self.kvar_gen.fresh(sorts, encoding)
+    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
+        self.kvar_gen.fresh(sort, encoding)
     }
 
-    fn fresh_evar(&mut self) -> EVar {
+    fn fresh_evars(&mut self, sort: &Sort) -> Expr {
+        fn go(this: &mut InferCtxt, sort: &Sort, cx: EVarCxId) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(
+                    sorts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, sort)| Expr::tuple_proj(go(this, sort, cx), i as u32))
+                        .collect_vec(),
+                )
+            } else {
+                Expr::evar(this.evar_gen.fresh_in_cx(cx))
+            }
+        }
         let cx = self.scopes.last().unwrap().0;
-        self.evar_gen.fresh_in_cx(*cx)
+        go(self, sort, *cx)
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                Expr::abs(self.fresh_kvar(fsort.inputs(), KVarEncoding::Single))
+                Expr::abs(self.fresh_kvar(Sort::tuple(fsort.inputs()), KVarEncoding::Single))
             }
-            InferMode::EVar => Expr::evar(self.fresh_evar()),
+            InferMode::EVar => self.fresh_evars(sort),
         }
     }
 
@@ -344,7 +357,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
+                let ty1 = ty1.replace_bvars_with(|sort| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
@@ -353,15 +366,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2.replace_bvars_with(|_| Expr::evar(self.fresh_evar()));
+                let ty2 = ty2.replace_bvars_with(|sort| self.fresh_evars(sort));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
-            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
+            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 self.bty_subtyping(rcx, bty1, bty2);
-                for (i, (arg1, arg2)) in iter::zip(idxs1.args(), idxs2.args()).enumerate() {
-                    self.refine_arg_subtyping(rcx, arg1, arg2, idxs2.is_binder(i));
-                }
+                self.index_subtyping(rcx, idx1, idx2);
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
                 debug_assert_eq!(pk1, pk2);
@@ -455,49 +466,60 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         };
     }
 
-    fn refine_arg_subtyping(
+    fn index_subtyping(&mut self, rcx: &mut RefineCtxt, idx1: &Index, idx2: &Index) {
+        self.index_subtyping_inner(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
+    }
+
+    fn index_subtyping_inner(
         &mut self,
         rcx: &mut RefineCtxt,
-        arg1: &Expr,
-        arg2: &Expr,
-        is_binder: bool,
+        e1: &Expr,
+        e2: &Expr,
+        is_binder: &TupleTree<bool>,
     ) {
-        if arg1 == arg2 {
+        match (e1.kind(), e2.kind(), is_binder) {
+            (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2), TupleTree::Tuple(is_binder)) => {
+                debug_assert_eq!(tup1.len(), tup2.len());
+                debug_assert_eq!(is_binder.len(), tup2.len());
+
+                for (e1, e2, is_binder) in izip!(tup1, tup2, is_binder) {
+                    self.index_subtyping_inner(rcx, e1, e2, is_binder);
+                }
+            }
+            (_, _, TupleTree::Leaf(is_binder)) => self.expr_subtyping(rcx, e1, e2, *is_binder),
+            _ => {
+                tracked_span_bug!("invalid index subtyping: `{e1:?}`, `{e2:?}`, `{is_binder:?}`");
+            }
+        }
+    }
+
+    fn expr_subtyping(&mut self, rcx: &mut RefineCtxt, e1: &Expr, e2: &Expr, is_binder: bool) {
+        if e1 == e2 {
             return;
         }
-        self.unify_exprs(arg1, arg2, is_binder);
-        match (arg1.kind(), arg2.kind()) {
+        self.unify_exprs(e1, e2, is_binder);
+        match (e1.kind(), e2.kind()) {
             (ExprKind::Abs(abs1), ExprKind::Abs(abs2)) => {
-                debug_assert_eq!(abs1.params(), abs2.params());
-                let args = rcx
-                    .define_vars(abs1.params())
-                    .into_iter()
-                    .map(Expr::from)
-                    .collect_vec();
-                let pred1 = abs1.replace_bvars(&args);
-                let pred2 = abs2.replace_bvars(&args);
+                debug_assert_eq!(abs1.sort(), abs2.sort());
+                let vars = rcx.define_vars(abs1.sort());
+                let pred1 = abs1.replace_bvars(&vars);
+                let pred2 = abs2.replace_bvars(&vars);
                 rcx.check_impl(&pred1, &pred2, self.tag);
                 rcx.check_impl(pred2, pred1, self.tag);
             }
             (expr, ExprKind::Abs(abs)) | (ExprKind::Abs(abs), expr) => {
                 if let Option::Some(var) = expr.to_var() {
-                    let args: List<_> = rcx
-                        .define_vars(abs.params())
-                        .into_iter()
-                        .map(Expr::from)
-                        .collect();
-                    let pred1 = Expr::app(var.to_expr(), args.clone());
-                    let pred2 = abs.replace_bvars(&args);
+                    let vars = rcx.define_vars(abs.sort());
+                    let pred1 = Expr::app(var.to_expr(), vars.as_tuple().to_vec());
+                    let pred2 = abs.replace_bvars(&vars);
                     rcx.check_impl(&pred1, &pred2, self.tag);
                     rcx.check_impl(pred2, pred1, self.tag);
                 } else {
-                    tracked_span_bug!(
-                        "invalid refinement argument subtyping `{arg1:?}` - `{arg2:?}`"
-                    );
+                    tracked_span_bug!("invalid refinement argument subtyping `{e1:?}` - `{e2:?}`");
                 }
             }
             _ => {
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, arg1, arg2), self.tag);
+                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
             }
         }
     }

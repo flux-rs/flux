@@ -98,7 +98,7 @@ impl Wf<'_, '_> {
         Ok(())
     }
 
-    pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::Alias) -> Result<(), ErrorGuaranteed> {
+    pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
         let wf = Wf::new(early_cx);
         let mut env = Env::from(&alias.params[..]);
         wf.check_type(&mut env, &alias.ty)

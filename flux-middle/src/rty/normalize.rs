@@ -5,7 +5,7 @@ use toposort_scc::IndexGraph;
 
 use crate::rty::{
     fold::{TypeFoldable, TypeFolder, TypeVisitor},
-    Binders, Defn, Expr, ExprKind,
+    Binder, Defn, Expr, ExprKind,
 };
 
 #[derive(Default)]
@@ -23,7 +23,7 @@ impl Defns {
         raw.normalize()
     }
 
-    fn defn_deps(&self, expr: &Binders<Expr>) -> FxHashSet<Symbol> {
+    fn defn_deps(&self, expr: &Binder<Expr>) -> FxHashSet<Symbol> {
         struct DepsVisitor(FxHashSet<Symbol>);
         impl TypeVisitor for DepsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
@@ -110,9 +110,9 @@ impl<'a> Normalizer<'a> {
     fn app(&self, func: &Expr, args: &[Expr]) -> Expr {
         match func.kind() {
             ExprKind::Func(sym) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bvars(args)
+                defn.expr.replace_bvars(&Expr::tuple(args))
             }
-            ExprKind::Abs(body) => body.replace_bvars(args),
+            ExprKind::Abs(body) => body.replace_bvars(&Expr::tuple(args)),
             _ => Expr::app(func.clone(), args),
         }
     }

@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     intern::List,
     rty::{
-        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binders, BoundVar,
-        Expr, ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, RefineArgs, Ty, TyKind,
+        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
+        ExprKind, GenericArg, Index, Path, PtrKind, Ref, RefKind, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -240,11 +240,9 @@ impl TypeEnv {
         subst: &mut FVarSubst,
     ) {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
+            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 self.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
-                for (idx1, idx2) in iter::zip(idxs1.args(), idxs2.args()) {
-                    subst.infer_from_exprs(params, idx1, idx2);
-                }
+                subst.infer_from_idxs(params, idx1, idx2);
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
                 debug_assert_eq!(pk1, pk2);
@@ -583,42 +581,38 @@ impl TypeEnvInfer {
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
-            (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.as_ref().skip_binders();
-                self.join_ty(ty1, ty2)
-            }
-            (_, TyKind::Exists(ty2)) => {
-                let ty2 = ty2.as_ref().skip_binders();
-                self.join_ty(ty1, ty2)
-            }
+            (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binders(), ty2),
+            (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binders()),
             (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
             (_, TyKind::Constr(_, ty2)) => self.join_ty(ty1, ty2),
-            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
+            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
-                let args = itertools::izip!(idxs1.args(), idxs2.args(), bty.sort().as_tuple())
-                    .map(|(arg1, arg2, sort)| {
-                        let has_free_vars2 = self.scope.has_free_vars(arg2);
-                        let has_escaping_vars1 = arg1.has_escaping_bvars();
-                        let has_escaping_vars2 = arg2.has_escaping_bvars();
-                        if !has_free_vars2
-                            && !has_escaping_vars1
-                            && !has_escaping_vars2
-                            && arg1 == arg2
-                        {
-                            arg1.clone()
-                        } else {
-                            sorts.push(sort.clone());
-                            Expr::bvar(BoundVar::innermost(sorts.len() - 1))
-                        }
-                    })
-                    .collect();
-                let args = RefineArgs::multi(args);
-                if sorts.is_empty() {
-                    Ty::indexed(bty, args)
+                let exprs = itertools::izip!(
+                    idx1.expr.as_tuple(),
+                    idx2.expr.as_tuple(),
+                    bty.sort().as_tuple()
+                )
+                .map(|(arg1, arg2, sort)| {
+                    let has_free_vars2 = self.scope.has_free_vars(arg2);
+                    let has_escaping_vars1 = arg1.has_escaping_bvars();
+                    let has_escaping_vars2 = arg2.has_escaping_bvars();
+                    if !has_free_vars2 && !has_escaping_vars1 && !has_escaping_vars2 && arg1 == arg2
+                    {
+                        arg1.clone()
+                    } else {
+                        sorts.push(sort.clone());
+                        Expr::tuple_proj(Expr::bvar(INNERMOST), (sorts.len() - 1) as u32)
+                    }
+                })
+                .collect();
+                let sort = Sort::tuple(sorts);
+                let idx = Index::tuple(exprs);
+                if sort.is_unit() {
+                    Ty::indexed(bty, idx)
                 } else {
-                    let ty = Ty::constr(Expr::hole(), Ty::indexed(bty, args));
-                    Ty::exists(Binders::new(ty, sorts))
+                    let ty = Ty::constr(Expr::hole(), Ty::indexed(bty, idx));
+                    Ty::exists(Binder::new(ty, sort))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -690,16 +684,16 @@ impl TypeEnvInfer {
             .collect_vec();
         let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
         let kvar = kvar_store
-            .fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
-            .replace_bvars(&exprs);
+            .fresh(Sort::tuple(&sorts[..]), self.scope.iter(), KVarEncoding::Conj)
+            .replace_bvars(&Expr::tuple(exprs));
         constrs.push(kvar);
 
         let params = iter::zip(names, sorts).collect_vec();
 
         // Replace holes that weren't generalized by fresh kvars
-        let kvar_gen = &mut |sorts: &[Sort]| {
+        let kvar_gen = &mut |sort| {
             kvar_store.fresh(
-                sorts,
+                sort,
                 self.scope.iter().chain(params.iter().cloned()),
                 KVarEncoding::Conj,
             )
@@ -735,12 +729,7 @@ impl Generalizer {
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(ty) => {
-                let ty = ty.replace_bvars_with_fresh_fvars(|sort| {
-                    let fresh = self.name_gen.fresh();
-                    self.names.push(fresh);
-                    self.sorts.push(sort.clone());
-                    fresh
-                });
+                let ty = ty.replace_bvars_with(|sort| self.fresh_vars(sort));
                 self.generalize_ty(&ty)
             }
             TyKind::Constr(pred, ty) => {
@@ -767,6 +756,24 @@ impl Generalizer {
             }
             _ => bty.clone(),
         }
+    }
+
+    fn fresh_vars(&mut self, sort: &Sort) -> Expr {
+        fn go(this: &mut Generalizer, sort: &Sort) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(sorts.iter().map(|sort| go(this, sort)).collect_vec())
+            } else {
+                Expr::fvar(this.fresh_var(sort))
+            }
+        }
+        go(self, sort)
+    }
+
+    fn fresh_var(&mut self, sort: &Sort) -> Name {
+        let fresh = self.name_gen.fresh();
+        self.names.push(fresh);
+        self.sorts.push(sort.clone());
+        fresh
     }
 }
 

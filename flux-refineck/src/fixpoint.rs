@@ -11,7 +11,7 @@ use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
-    rty::{self, Binders, BoundVar, Constant},
+    rty::{self, Binder, Constant, INNERMOST},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -50,7 +50,7 @@ pub enum KVarEncoding {
 }
 
 pub trait KVarGen {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr>;
+    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr>;
 }
 
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
@@ -340,22 +340,22 @@ where
 
 impl<F> KVarGen for F
 where
-    F: FnMut(&[rty::Sort], KVarEncoding) -> Binders<rty::Expr>,
+    F: FnMut(rty::Sort, KVarEncoding) -> Binder<rty::Expr>,
 {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr> {
-        (self)(sorts, kind)
+    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
+        (self)(sort, kind)
     }
 }
 
 impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr> {
-        (**self).fresh(sorts, kind)
+    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
+        (**self).fresh(sort, kind)
     }
 }
 
 impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sorts: &[rty::Sort], kind: KVarEncoding) -> Binders<rty::Expr> {
-        (**self).fresh(sorts, kind)
+    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
+        (**self).fresh(sort, kind)
     }
 }
 
@@ -391,10 +391,10 @@ impl KVarStore {
 
     pub fn fresh<S>(
         &mut self,
-        sorts: &[rty::Sort],
+        sort: rty::Sort,
         scope: S,
         encoding: KVarEncoding,
-    ) -> Binders<rty::Expr>
+    ) -> Binder<rty::Expr>
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
@@ -408,10 +408,10 @@ impl KVarStore {
         }
         let mut arg_sorts = vec![];
         let mut arg_exprs = vec![];
-        for (idx, sort) in sorts.iter().enumerate() {
+        for (i, sort) in sort.as_tuple().iter().enumerate() {
             if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
                 arg_sorts.push(sort.clone());
-                arg_exprs.push(rty::Expr::bvar(BoundVar::innermost(idx)));
+                arg_exprs.push(rty::Expr::tuple_proj(rty::Expr::bvar(INNERMOST), i as u32));
             }
         }
 
@@ -420,7 +420,7 @@ impl KVarStore {
                 .push(KVarDecl { args: arg_sorts, scope: scope_sorts.clone(), encoding });
 
         let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs.clone());
-        Binders::new(rty::Expr::kvar(kvar), sorts)
+        Binder::new(rty::Expr::kvar(kvar), sort)
     }
 }
 

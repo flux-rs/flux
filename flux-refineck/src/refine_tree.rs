@@ -5,13 +5,16 @@ use std::{
 };
 
 use bitflags::bitflags;
-use flux_common::index::{IndexGen, IndexVec};
+use flux_common::{
+    bug,
+    index::{IndexGen, IndexVec},
+};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
     fold::{TypeFoldable, TypeVisitor},
-    BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
+    BaseTy, Expr, ExprKind, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -117,40 +120,50 @@ impl RefineTree {
 }
 
 impl RefineCtxt<'_> {
-    pub fn breadcrumb(&mut self) -> RefineCtxt {
+    pub(crate) fn breadcrumb(&mut self) -> RefineCtxt {
         RefineCtxt { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub fn snapshot(&self) -> Snapshot {
+    pub(crate) fn snapshot(&self) -> Snapshot {
         Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }
 
-    pub fn scope(&self) -> Scope {
+    pub(crate) fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
     }
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
     /// generated name for the variable.
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.ptr.push_foralls(slice::from_ref(sort)).pop().unwrap()
+    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+        let fresh = self.ptr.name_gen().fresh();
+        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        fresh
     }
 
-    pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
-        self.ptr.push_foralls(sorts)
+    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
+        fn go(this: &mut RefineCtxt, sort: &Sort) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(sorts.iter().map(|sort| go(this, sort)).collect_vec())
+            } else {
+                let fresh = this.define_var(sort);
+                Expr::fvar(fresh)
+            }
+        }
+        go(self, sort)
     }
 
-    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.ptr.push_guard(pred);
     }
 
-    pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }
 
-    pub fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
             .push_node(NodeKind::Guard(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
@@ -201,7 +214,7 @@ impl RefineCtxt<'_> {
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let ty = bound_ty.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
+                    let ty = bound_ty.replace_bvars_with(|sort| self.define_vars(sort));
                     self.unpack_inner(&ty, in_mut_ref, flags)
                 } else {
                     ty.clone()
@@ -238,9 +251,9 @@ impl RefineCtxt<'_> {
             }
 
             fn visit_ty(&mut self, ty: &Ty) {
-                if let TyKind::Indexed(bty, idxs) = ty.kind() {
+                if let TyKind::Indexed(bty, idx) = ty.kind() {
                     for invariant in bty.invariants() {
-                        let invariant = invariant.pred.replace_bvars(idxs.args());
+                        let invariant = invariant.pred.replace_bvars(&idx.expr);
                         self.0.assume_pred(invariant);
                     }
                 }
@@ -316,17 +329,6 @@ impl NodePtr {
         if !pred.is_trivially_true() {
             *self = self.push_node(NodeKind::Guard(pred));
         }
-    }
-
-    fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {
-        let name_gen = self.name_gen();
-        let mut names = vec![];
-        for sort in sorts {
-            let fresh = name_gen.fresh();
-            names.push(fresh);
-            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()));
-        }
-        names
     }
 
     fn name_gen(&self) -> IndexGen<Name> {

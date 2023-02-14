@@ -80,7 +80,7 @@ pub fn desugar_alias(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
     alias: surface::Alias,
-) -> Result<fhir::Alias, ErrorGuaranteed> {
+) -> Result<fhir::TyAlias, ErrorGuaranteed> {
     // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
     let alias = resolver.resolve_alias(alias)?;
