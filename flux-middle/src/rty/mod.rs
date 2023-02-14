@@ -164,12 +164,6 @@ struct RefineArgsData {
     is_binder: BitSet<usize>,
 }
 
-// #[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-// pub enum RefineArg {
-//     Expr(Expr),
-//     Abs(Binders<Expr>),
-// }
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BaseTy {
     Int(IntTy),
