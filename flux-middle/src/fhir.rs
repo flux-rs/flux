@@ -907,7 +907,13 @@ impl fmt::Display for Sort {
             Sort::Real => write!(f, "real"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
+            Sort::Tuple(sorts) => {
+                if let [sort] = &sorts[..] {
+                    write!(f, "({sort},)")
+                } else {
+                    write!(f, "({})", sorts.iter().join(", "))
+                }
+            }
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::Infer => write!(f, "_"),
             Sort::User(name) => write!(f, "{name}"),

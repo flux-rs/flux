@@ -45,6 +45,7 @@ struct LayerEntry {
 
 struct LookupResult<'a> {
     name: fhir::Ident,
+    idx: u32,
     level: u32,
     entry: &'a LayerEntry,
 }
@@ -232,7 +233,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     self.conv_base_ty(bty, rty::Index::unit())
                 } else {
                     self.env.push_layer(Layer::empty());
-                    let ty = self.conv_base_ty(bty, rty::Index::bound(&sort));
+                    let ty = self.conv_base_ty(bty, rty::Expr::nu().into());
                     self.env.pop_layer();
                     rty::Ty::exists(Binder::new(ty, sort))
                 }
@@ -242,21 +243,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.conv_base_ty(bty, idxs)
             }
             fhir::Ty::Exists(bty, bind, pred) => {
-                let sort = conv_sort(self.early_cx(), &bty.sort());
-                if sort.is_unit() {
-                    let ty = self.conv_base_ty(bty, rty::Index::unit());
-                    let pred = self.env.conv_expr(pred);
-                    rty::Ty::constr(pred, ty)
-                } else {
-                    let layer = Layer::new(self.early_cx(), [(&bind.name, &bty.sort())]);
-                    self.env.push_layer(layer);
+                let layer = Layer::new(self.early_cx(), [(&bind.name, &bty.sort())]);
 
-                    let ty = self.conv_base_ty(bty, rty::Index::bound(&sort));
-                    let pred = self.env.conv_expr(pred);
+                self.env.push_layer(layer);
+                let idx = rty::Expr::tuple_proj(rty::Expr::nu(), 0).into();
+                let ty = self.conv_base_ty(bty, idx);
+                let pred = self.env.conv_expr(pred);
+                let sorts = self.env.pop_layer().into_sorts();
 
-                    self.env.pop_layer();
-                    rty::Ty::exists(Binder::new(rty::Ty::constr(pred, ty), sort))
-                }
+                rty::Ty::exists(Binder::new(rty::Ty::constr(pred, ty), rty::Sort::tuple(sorts)))
             }
             fhir::Ty::Ptr(loc) => rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path()),
             fhir::Ty::Ref(rk, ty) => rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)),
@@ -451,8 +446,8 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
 
     fn lookup(&self, name: fhir::Ident) -> LookupResult {
         for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(entry) = layer.get(name.name) {
-                return LookupResult { name, level: level as u32, entry };
+            if let Some((idx, entry)) = layer.get(name.name) {
+                return LookupResult { name, idx: idx as u32, level: level as u32, entry };
             }
         }
         span_bug!(name.span(), "no entry found for key: `{:?}`", name);
@@ -525,8 +520,9 @@ impl Layer {
         Self { map: FxIndexMap::default() }
     }
 
-    fn get(&self, name: impl Borrow<fhir::Name>) -> Option<&LayerEntry> {
-        self.map.get(name.borrow())
+    fn get(&self, name: impl Borrow<fhir::Name>) -> Option<(usize, &LayerEntry)> {
+        let (idx, _, entry) = self.map.get_full(name.borrow())?;
+        Some((idx, entry))
     }
 
     fn into_sorts(self) -> Vec<fhir::Sort> {
@@ -540,7 +536,7 @@ impl Layer {
 
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
-        rty::Expr::bvar(DebruijnIndex::new(self.level))
+        rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(self.level)), self.idx)
         // fn go(sort: &rty::Sort, debruijn: DebruijnIndex) -> rty::Expr {
         //     if let fhir::Sort::Tuple(sorts) = sort {
         //         rty::Expr::tuple(
@@ -558,9 +554,9 @@ impl LookupResult<'_> {
     }
 
     fn to_path(&self) -> rty::Path {
-        self.to_expr()
-            .to_path()
-            .unwrap_or_else(|| span_bug!(self.name.span(), "expected path"))
+        self.to_expr().to_path().unwrap_or_else(|| {
+            span_bug!(self.name.span(), "expected path, found `{:?}`", self.to_expr())
+        })
     }
 
     fn get_field(&self, early_cx: &EarlyCtxt, fld: SurfaceIdent) -> rty::Expr {
@@ -568,7 +564,7 @@ impl LookupResult<'_> {
             let i = early_cx
                 .field_index(*def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
-            rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(self.level)), i as u32)
+            rty::Expr::tuple_proj(self.to_expr(), i as u32)
         } else {
             span_bug!(fld.span, "expected aggregate sort, got `{:?}`", self.entry.sort)
         }

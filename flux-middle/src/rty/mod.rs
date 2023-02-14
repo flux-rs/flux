@@ -291,7 +291,7 @@ where
 impl Index {
     /// Return a list of bound variables. The returned value will have escaping vars which
     /// need to be put inside a [`Binders`]
-    pub fn bound(sort: &Sort) -> Index {
+    pub(crate) fn bound(sort: &Sort) -> Index {
         fn go(sort: &Sort) -> Expr {
             if let Sort::Tuple(sorts) = sort {
                 Expr::tuple(
@@ -891,7 +891,7 @@ mod pretty {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{ ∃{:?}. {:?} }}", sort, ty)
+                        w!("∃{:?}. {:?}", sort, ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
@@ -934,10 +934,10 @@ mod pretty {
             ) -> fmt::Result {
                 define_scoped!(cx, f);
                 match (is_binder, expr.kind()) {
-                    (TupleTree::Tuple(ts), ExprKind::Tuple(es)) => {
-                        debug_assert_eq!(ts.len(), es.len());
+                    (TupleTree::Tuple(is_binder), ExprKind::Tuple(es)) => {
+                        debug_assert_eq!(is_binder.len(), es.len());
                         w!("(")?;
-                        for (t, e) in ts.iter().zip(es.iter()) {
+                        for (is_binder, e) in iter::zip(is_binder, es) {
                             go(cx, f, is_binder, e)?;
                             w!(", ")?;
                         }
@@ -945,12 +945,12 @@ mod pretty {
                     }
                     (TupleTree::Leaf(is_binder), _) => {
                         if *is_binder {
-                            w!("@{:?}", expr)?
+                            w!("@{:?}", expr)?;
                         } else {
-                            w!("{:?}", expr)?
+                            w!("{:?}", expr)?;
                         }
                     }
-                    _ => bug!(),
+                    _ => bug!("{is_binder:?} {expr:?}"),
                 }
                 Ok(())
             }

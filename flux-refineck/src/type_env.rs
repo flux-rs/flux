@@ -13,7 +13,7 @@ use flux_middle::{
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
@@ -588,26 +588,8 @@ impl TypeEnvInfer {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
-                let exprs = itertools::izip!(
-                    idx1.expr.as_tuple(),
-                    idx2.expr.as_tuple(),
-                    bty.sort().as_tuple()
-                )
-                .map(|(arg1, arg2, sort)| {
-                    let has_free_vars2 = self.scope.has_free_vars(arg2);
-                    let has_escaping_vars1 = arg1.has_escaping_bvars();
-                    let has_escaping_vars2 = arg2.has_escaping_bvars();
-                    if !has_free_vars2 && !has_escaping_vars1 && !has_escaping_vars2 && arg1 == arg2
-                    {
-                        arg1.clone()
-                    } else {
-                        sorts.push(sort.clone());
-                        Expr::tuple_proj(Expr::bvar(INNERMOST), (sorts.len() - 1) as u32)
-                    }
-                })
-                .collect();
+                let idx = self.join_expr(&idx1.expr, &idx2.expr, &bty.sort(), &mut sorts);
                 let sort = Sort::tuple(sorts);
-                let idx = Index::tuple(exprs);
                 if sort.is_unit() {
                     Ty::indexed(bty, idx)
                 } else {
@@ -625,6 +607,31 @@ impl TypeEnvInfer {
                 Ty::param(*param_ty1)
             }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
+        }
+    }
+
+    fn join_expr(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
+        match (e1.kind(), e2.kind(), sort) {
+            (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) => {
+                debug_assert_eq!(es1.len(), es2.len());
+                debug_assert_eq!(es1.len(), sorts.len());
+                Expr::tuple(
+                    izip!(es1, es2, sorts)
+                        .map(|(e1, e2, sort)| self.join_expr(e1, e2, sort, bound_sorts))
+                        .collect_vec(),
+                )
+            }
+            _ => {
+                let has_free_vars2 = self.scope.has_free_vars(e2);
+                let has_escaping_vars1 = e1.has_escaping_bvars();
+                let has_escaping_vars2 = e2.has_escaping_bvars();
+                if !has_free_vars2 && !has_escaping_vars1 && !has_escaping_vars2 && e1 == e2 {
+                    e1.clone()
+                } else {
+                    bound_sorts.push(sort.clone());
+                    Expr::tuple_proj(Expr::bvar(INNERMOST), (bound_sorts.len() - 1) as u32)
+                }
+            }
         }
     }
 

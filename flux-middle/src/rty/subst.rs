@@ -40,10 +40,10 @@ impl FVarSubst {
     }
 
     pub fn infer_from_idxs(&mut self, params: &FxHashSet<Name>, idx1: &Index, idx2: &Index) {
-        todo!()
+        self.infer_from_exprs(params, &idx1.expr, &idx2.expr);
     }
 
-    pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
+    fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
                 if let Some(old_e) = self.insert(*fvar, e1.clone()) {

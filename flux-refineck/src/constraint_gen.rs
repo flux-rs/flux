@@ -291,13 +291,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
         fn go(this: &mut InferCtxt, sort: &Sort, cx: EVarCxId) -> Expr {
             if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(
-                    sorts
-                        .iter()
-                        .enumerate()
-                        .map(|(i, sort)| Expr::tuple_proj(go(this, sort, cx), i as u32))
-                        .collect_vec(),
-                )
+                Expr::tuple(sorts.iter().map(|sort| go(this, sort, cx)).collect_vec())
             } else {
                 Expr::evar(this.evar_gen.fresh_in_cx(cx))
             }
