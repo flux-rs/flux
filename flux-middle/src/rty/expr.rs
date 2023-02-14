@@ -39,10 +39,14 @@ pub enum ExprKind {
     PathProj(Expr, Field),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
-    /// Lambda abstractions. They show up in refinements when an explicit abstract predicate is
-    /// provided as the index to a type. Abstractions can only be used directly as an index or
-    /// replaced in positions where they can be fully applied, i.e., abstractions are purely
-    /// syntactic and we don't encode them in the logic.
+    /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
+    /// they have some syntactic restrictions that we must carefully maintain:
+    ///
+    /// 1. They can appear as an index at the top level.
+    /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
+    ///    More generaly, what we need is to be able to partially evaluate expressions such that all
+    ///    abstractions are eliminated before encoding into the logic. Right now, the implementation
+    ///    immediately applies the abstraction when it is substituted, thus the restriction.
     Abs(Binders<Expr>),
     Hole,
 }
