@@ -32,7 +32,8 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Func, List<Expr>),
+    App(Expr, List<Expr>),
+    Func(Symbol),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
@@ -65,12 +66,6 @@ pub struct KVar {
 newtype_index! {
     #[debug_format = "$k{}"]
     pub struct KVid {}
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum Func {
-    Var(Var),
-    Uif(Symbol),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -247,8 +242,12 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(func: impl Into<Func>, args: impl Into<List<Expr>>) -> Expr {
+    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
         ExprKind::App(func.into(), args.into()).intern()
+    }
+
+    pub fn func(func: Symbol) -> Expr {
+        ExprKind::Func(func).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -603,12 +602,6 @@ macro_rules! impl_ops {
 }
 impl_ops!(Add: add, Sub: sub, Mul: mul, Div: div);
 
-impl From<Var> for Func {
-    fn from(var: Var) -> Self {
-        Func::Var(var)
-    }
-}
-
 impl From<i32> for Expr {
     fn from(value: i32) -> Self {
         if value < 0 {
@@ -781,6 +774,7 @@ mod pretty {
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)
                 }
+                ExprKind::Func(func) => w!("{:?}", ^func),
             }
         }
     }
@@ -797,16 +791,6 @@ mod pretty {
                 KVarArgs::Hide => {}
             }
             Ok(())
-        }
-    }
-
-    impl Pretty for Func {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                Func::Var(f) => w!("{:?}", f),
-                Func::Uif(f) => w!("{}", ^f),
-            }
         }
     }
 
