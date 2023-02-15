@@ -285,6 +285,10 @@ impl Expr {
         ExprKind::TupleProj(e.into(), proj).intern()
     }
 
+    pub fn tuple_projs(e: impl Into<Expr>, projs: &[u32]) -> Expr {
+        projs.iter().copied().fold(e.into(), Expr::tuple_proj)
+    }
+
     pub fn path_proj(base: Expr, field: Field) -> Expr {
         ExprKind::PathProj(base, field).intern()
     }

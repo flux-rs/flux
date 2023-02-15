@@ -165,7 +165,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     fn default_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
         let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
-        Ok(self.refine_fn_sig(&fn_sig, &mut |sorts| Binder::new(rty::Expr::tt(), sorts)))
+        Ok(self.refine_fn_sig(&fn_sig, rty::Expr::tt))
     }
 
     pub fn variances_of(&self, did: DefId) -> &[Variance] {
@@ -243,8 +243,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.early_cx.early_bound_sorts_of(def_id)
     }
 
-    fn refine_ty_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
-        self.refine_ty(rustc_ty, &mut |sort| Binder::new(rty::Expr::tt(), sort))
+    pub fn refine_with_true(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
+        self.refine_ty(rustc_ty, rty::Expr::tt)
+    }
+
+    pub fn refine_with_holes(&self, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
+        self.refine_ty(rustc_ty, rty::Expr::hole)
     }
 
     pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
@@ -271,7 +275,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {
         match rustc::lowering::lower_type_of(self.tcx, self.sess, def_id) {
-            Ok(rustc_ty) => self.refine_ty_true(&rustc_ty),
+            Ok(rustc_ty) => self.refine_with_true(&rustc_ty),
             Err(_) => FatalError.raise(),
         }
     }
@@ -287,16 +291,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let fields = variant_def
                 .field_tys
                 .iter()
-                .map(|ty| self.refine_ty_true(ty))
+                .map(|ty| self.refine_with_true(ty))
                 .collect_vec();
             let rustc::ty::TyKind::Adt(def_id, substs) = variant_def.ret.kind() else {
                 panic!();
             };
             let substs = substs
                 .iter()
-                .map(|arg| {
-                    self.refine_generic_arg(arg, &mut |sort| Binder::new(rty::Expr::tt(), sort))
-                })
+                .map(|arg| self.refine_generic_arg(arg, rty::Expr::tt))
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
             let ret = rty::Ty::indexed(bty, rty::Index::unit());
@@ -306,11 +308,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn refine_fn_sig(
-        &self,
-        fn_sig: &rustc::ty::FnSig,
-        mk_pred: &mut impl FnMut(rty::Sort) -> Binder<rty::Expr>,
-    ) -> rty::PolySig {
+    fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig, mk_pred: fn() -> rty::Expr) -> rty::PolySig {
         let args = fn_sig
             .inputs()
             .iter()
@@ -321,11 +319,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         rty::PolySig::new(&[], rty::FnSig::new(vec![], args, output), vec![])
     }
 
-    pub fn refine_ty(
-        &self,
-        ty: &rustc::ty::Ty,
-        mk_pred: &mut impl FnMut(rty::Sort) -> Binder<rty::Expr>,
-    ) -> rty::Ty {
+    fn refine_ty(&self, ty: &rustc::ty::Ty, mk_pred: fn() -> rty::Expr) -> rty::Ty {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Never => return rty::Ty::never(),
             rustc::ty::TyKind::Param(param_ty) => return rty::Ty::param(*param_ty),
@@ -360,28 +354,33 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(self.refine_ty_true(ty), *mu),
-        };
-        let pred = mk_pred(bty.sort());
-        let ty = pred.map(|pred| {
-            let args = rty::Index::bound(&bty.sort());
-            if pred.is_trivially_true() {
-                rty::Ty::indexed(bty, args)
-            } else {
-                rty::Ty::constr(pred, rty::Ty::indexed(bty, args))
+            rustc::ty::TyKind::RawPtr(ty, mu) => {
+                rty::BaseTy::RawPtr(self.refine_with_true(ty), *mu)
             }
-        });
-        if ty.sort().is_unit() {
-            ty.skip_binders()
+        };
+        let pred = mk_pred();
+        let sort = bty.sort();
+        let args = rty::Index::bound(&sort);
+        let ty = if pred.is_trivially_true() {
+            rty::Ty::indexed(bty, args)
         } else {
-            rty::Ty::exists(ty)
+            rty::Ty::constr(pred, rty::Ty::indexed(bty, args))
+        };
+        if sort.is_unit() {
+            ty
+        } else {
+            rty::Ty::exists(Binder::new(ty, sort))
         }
     }
 
-    pub fn refine_generic_arg(
+    pub fn refine_generic_arg_with_holes(&self, arg: &rustc::ty::GenericArg) -> rty::GenericArg {
+        self.refine_generic_arg(arg, rty::Expr::hole)
+    }
+
+    fn refine_generic_arg(
         &self,
         ty: &rustc::ty::GenericArg,
-        mk_pred: &mut impl FnMut(rty::Sort) -> Binder<rty::Expr>,
+        mk_pred: fn() -> rty::Expr,
     ) -> rty::GenericArg {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),

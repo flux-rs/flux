@@ -236,9 +236,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        println!("\n{arr_ty:?}");
-        let arr_ty = genv.refine_ty(arr_ty, &mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
-        println!("{arr_ty:?}");
+        let arr_ty = genv
+            .refine_with_holes(arr_ty)
+            .replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
 
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`

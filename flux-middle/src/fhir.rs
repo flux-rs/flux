@@ -25,7 +25,7 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
+use rustc_ast::{ptr::P, FloatTy, IntTy, Mutability, UintTy};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -529,16 +529,19 @@ impl Sort {
         }
     }
 
-    pub fn flatten(&self) -> Vec<Sort> {
-        fn fold(mut flattened: Vec<Sort>, sort: &Sort) -> Vec<Sort> {
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
             if let Sort::Tuple(sorts) = sort {
-                sorts.iter().fold(flattened, fold)
+                sorts.iter().enumerate().for_each(|(i, sort)| {
+                    proj.push(i as u32);
+                    go(sort, f, proj);
+                    proj.pop();
+                });
             } else {
-                flattened.push(sort.clone());
-                flattened
+                f(sort, proj);
             }
         }
-        fold(vec![], self)
+        go(self, &mut f, &mut vec![]);
     }
 }
 

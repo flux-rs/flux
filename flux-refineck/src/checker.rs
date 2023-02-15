@@ -418,10 +418,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let substs = substs
             .iter()
-            .map(|arg| {
-                self.genv
-                    .refine_generic_arg(arg, &mut |sorts| Binder::new(Expr::hole(), sorts))
-            })
+            .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
             .collect_vec();
 
         let output = self
@@ -770,8 +767,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
-                self.genv
-                    .refine_ty(to, &mut |sorts| Binder::new(Expr::tt(), sorts))
+                self.genv.refine_with_true(to)
             }
         }
     }
