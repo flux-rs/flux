@@ -384,11 +384,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     args.push(expr);
                 }
                 args.extend(
-                    idx.expr
-                        .eta_expand_tuple(&rty::Sort::tuple(self.genv.index_sorts_of(*def_id)))
-                        .expect_tuple()
-                        .iter()
-                        .cloned(),
+                    eta_expand_tuple(
+                        &idx.expr,
+                        &rty::Sort::tuple(self.genv.index_sorts_of(*def_id)),
+                    )
+                    .expect_tuple()
+                    .iter()
+                    .cloned(),
                 );
 
                 return self
@@ -669,5 +671,18 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Int(n) => rty::Constant::from(n),
         fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
+    }
+}
+
+fn eta_expand_tuple(expr: &rty::Expr, sort: &rty::Sort) -> rty::Expr {
+    match (expr.kind(), sort) {
+        (rty::ExprKind::Tuple(exprs), rty::Sort::Tuple(sorts)) => {
+            rty::Expr::tuple(
+                iter::zip(exprs, sorts)
+                    .map(|(e, s)| eta_expand_tuple(e, s))
+                    .collect_vec(),
+            )
+        }
+        _ => rty::Expr::fold_sort(sort, |_, projs| rty::Expr::tuple_projs(expr, projs)),
     }
 }
