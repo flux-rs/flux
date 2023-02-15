@@ -51,7 +51,7 @@ struct LookupResult<'a> {
     entry: &'a LayerEntry,
 }
 
-pub(crate) fn expand_ty_alias(genv: &GlobalEnv, alias: &fhir::TyAlias) -> rty::Binder<rty::Ty> {
+pub(crate) fn expand_type_alias(genv: &GlobalEnv, alias: &fhir::TyAlias) -> rty::Binder<rty::Ty> {
     let mut cx = ConvCtxt::from_params(genv, &alias.params);
     let ty = cx.conv_ty(&alias.ty);
     let sorts = cx.env.pop_layer().into_sorts();

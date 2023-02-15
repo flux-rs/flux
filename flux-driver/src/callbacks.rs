@@ -347,11 +347,11 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .into_iter()
         .try_for_each_exhaust(|(def_id, alias)| {
             let alias = if let Some(alias) = alias {
-                desugar::desugar_alias(early_cx, def_id, alias)?
+                desugar::desugar_type_alias(early_cx, def_id, alias)?
             } else {
-                fhir::lift::lift_alias(early_cx, def_id)?
+                fhir::lift::lift_type_alias(early_cx, def_id)?
             };
-            early_cx.map.insert_alias(def_id, alias);
+            early_cx.map.insert_type_alias(def_id, alias);
             Ok(())
         })
         .err()
@@ -423,7 +423,7 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
         err = Wf::check_qualifier(early_cx, qualifier).err().or(err);
     }
 
-    for alias in early_cx.map.aliases() {
+    for alias in early_cx.map.type_aliases() {
         err = Wf::check_alias(early_cx, alias).err().or(err);
     }
 

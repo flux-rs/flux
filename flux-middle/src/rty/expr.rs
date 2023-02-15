@@ -64,11 +64,6 @@ pub struct KVar {
     pub scope: List<Expr>,
 }
 
-newtype_index! {
-    #[debug_format = "$k{}"]
-    pub struct KVid {}
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
@@ -86,6 +81,11 @@ pub struct Path {
 pub enum Loc {
     Local(Local),
     Var(Var, List<u32>),
+}
+
+newtype_index! {
+    #[debug_format = "$k{}"]
+    pub struct KVid {}
 }
 
 newtype_index! {
@@ -641,12 +641,6 @@ impl From<&Expr> for Expr {
         e.clone()
     }
 }
-
-// impl From<Loc> for Expr {
-//     fn from(loc: Loc) -> Self {
-//         loc.to_expr()
-//     }
-// }
 
 impl From<Path> for Expr {
     fn from(path: Path) -> Self {

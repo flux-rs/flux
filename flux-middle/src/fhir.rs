@@ -73,7 +73,7 @@ pub struct Map {
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     refined_by: FxHashMap<LocalDefId, RefinedBy>,
-    aliases: FxHashMap<LocalDefId, TyAlias>,
+    type_aliases: FxHashMap<LocalDefId, TyAlias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
@@ -327,7 +327,7 @@ pub struct Ident {
 
 newtype_index! {
     #[debug_format = "a{}"]
-    pub struct Name { }
+    pub struct Name {}
 }
 
 impl BtyOrTy {
@@ -505,10 +505,6 @@ impl Sort {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
     }
 
-    pub fn is_singleton_tuple(&self) -> bool {
-        matches!(self, Sort::Tuple(sorts) if sorts.len() == 1)
-    }
-
     #[track_caller]
     pub fn expect_func(&self) -> &FuncSort {
         if let Sort::Func(sort) = self {
@@ -633,16 +629,16 @@ impl Map {
 
     // Aliases
 
-    pub fn insert_alias(&mut self, def_id: LocalDefId, alias: TyAlias) {
-        self.aliases.insert(def_id, alias);
+    pub fn insert_type_alias(&mut self, def_id: LocalDefId, alias: TyAlias) {
+        self.type_aliases.insert(def_id, alias);
     }
 
-    pub fn aliases(&self) -> impl Iterator<Item = &TyAlias> {
-        self.aliases.values()
+    pub fn type_aliases(&self) -> impl Iterator<Item = &TyAlias> {
+        self.type_aliases.values()
     }
 
-    pub fn get_ty_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
-        &self.aliases[def_id.borrow()]
+    pub fn get_type_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
+        &self.type_aliases[def_id.borrow()]
     }
 
     // Structs

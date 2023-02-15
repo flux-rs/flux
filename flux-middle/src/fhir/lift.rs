@@ -27,7 +27,7 @@ pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::Refine
     }
 }
 
-pub fn lift_alias(
+pub fn lift_type_alias(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {

@@ -251,12 +251,16 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.refine_ty(rustc_ty, rty::Expr::hole)
     }
 
+    pub fn refine_generic_arg_with_holes(&self, arg: &rustc::ty::GenericArg) -> rty::GenericArg {
+        self.refine_generic_arg(arg, rty::Expr::hole)
+    }
+
     pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
         match self.tcx.def_kind(def_id) {
             DefKind::TyAlias => {
                 if let Some(local_id) = def_id.as_local() {
-                    let alias = self.early_cx.map.get_ty_alias(local_id);
-                    rty::conv::expand_ty_alias(self, alias)
+                    let alias = self.early_cx.map.get_type_alias(local_id);
+                    rty::conv::expand_type_alias(self, alias)
                 } else {
                     self.early_cx
                         .cstore
@@ -371,10 +375,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         } else {
             rty::Ty::exists(Binder::new(ty, sort))
         }
-    }
-
-    pub fn refine_generic_arg_with_holes(&self, arg: &rustc::ty::GenericArg) -> rty::GenericArg {
-        self.refine_generic_arg(arg, rty::Expr::hole)
     }
 
     fn refine_generic_arg(

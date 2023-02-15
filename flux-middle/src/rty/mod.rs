@@ -157,14 +157,6 @@ pub struct Index {
     pub is_binder: TupleTree<bool>,
 }
 
-// #[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-// struct RefineArgsData {
-//     args: Vec<Expr>,
-//     /// Set containing all the indices of arguments that were used as binders in the surface syntax.
-//     /// This is used as a hint for inferring parameters at call sites.
-//     is_binder: BitSet<usize>,
-// }
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BaseTy {
     Int(IntTy),

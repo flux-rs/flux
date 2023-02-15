@@ -47,7 +47,7 @@ impl<'sess> Resolver<'sess> {
         Ok(Self { sess, table })
     }
 
-    pub(crate) fn resolve_alias(
+    pub(crate) fn resolve_type_alias(
         &self,
         alias_def: surface::TyAlias,
     ) -> Result<surface::TyAlias<Res>, ErrorGuaranteed> {
