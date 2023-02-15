@@ -1,4 +1,4 @@
-use std::{fmt, slice, sync::OnceLock};
+use std::{fmt, iter, slice, sync::OnceLock};
 
 use flux_common::bug;
 use flux_fixpoint::Sign;
@@ -164,6 +164,14 @@ impl Expr {
             tup
         } else {
             slice::from_ref(self)
+        }
+    }
+
+    pub fn expect_tuple(&self) -> &[Expr] {
+        if let ExprKind::Tuple(tup) = self.kind() {
+            tup
+        } else {
+            bug!("expected tuple")
         }
     }
 
@@ -441,6 +449,19 @@ impl Expr {
 
     pub fn is_tuple(&self) -> bool {
         matches!(self.kind(), ExprKind::Tuple(..))
+    }
+
+    pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
+        match (self.kind(), sort) {
+            (ExprKind::Tuple(exprs), Sort::Tuple(sorts)) => {
+                Expr::tuple(
+                    iter::zip(exprs, sorts)
+                        .map(|(e, s)| e.eta_expand_tuple(s))
+                        .collect_vec(),
+                )
+            }
+            _ => Expr::fold_sort(sort, |_, projs| Expr::tuple_projs(self, projs)),
+        }
     }
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort, &[u32]) -> Expr) -> Expr {

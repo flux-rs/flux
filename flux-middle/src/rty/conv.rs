@@ -361,20 +361,19 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     let (expr, _) = self.conv_refine_arg(arg, sort);
                     args.push(expr);
                 }
-                let alias = self
+                args.extend(
+                    idx.expr
+                        .eta_expand_tuple(&rty::Sort::tuple(self.genv.index_sorts_of(*def_id)))
+                        .expect_tuple()
+                        .iter()
+                        .cloned(),
+                );
+
+                return self
                     .genv
                     .type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics));
-                println!("{alias:?}");
-                println!("{args:?}");
-                println!("{idx:?}");
-                todo!()
-                // args.extend(idx.args().iter().cloned());
-                // return self
-                //     .genv
-                //     .type_of(*def_id)
-                //     .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
-                //     .replace_bvars(&args);
+                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
+                    .replace_bvars(&rty::Expr::tuple(args));
             }
         };
         rty::Ty::indexed(bty, idx)
@@ -547,7 +546,7 @@ impl LookupResult<'_> {
         if proj_single_field && self.entry.conv.is_singleton_tuple() {
             rty::Expr::tuple_proj(e, 0)
         } else {
-            rty::Expr::fold_sort(&self.entry.conv, |_, projs| rty::Expr::tuple_projs(&e, projs))
+            e.eta_expand_tuple(&self.entry.conv)
         }
     }
 
