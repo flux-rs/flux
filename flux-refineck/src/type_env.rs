@@ -588,7 +588,7 @@ impl TypeEnvInfer {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
-                let idx = self.join_expr(&idx1.expr, &idx2.expr, &bty.sort(), &mut sorts);
+                let idx = self.join_idx(&idx1.expr, &idx2.expr, &bty.sort(), &mut sorts);
                 let sort = Sort::tuple(sorts);
                 if sort.is_unit() {
                     Ty::indexed(bty, idx)
@@ -610,14 +610,14 @@ impl TypeEnvInfer {
         }
     }
 
-    fn join_expr(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
+    fn join_idx(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
         match (e1.kind(), e2.kind(), sort) {
             (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) => {
                 debug_assert_eq!(es1.len(), es2.len());
                 debug_assert_eq!(es1.len(), sorts.len());
                 Expr::tuple(
                     izip!(es1, es2, sorts)
-                        .map(|(e1, e2, sort)| self.join_expr(e1, e2, sort, bound_sorts))
+                        .map(|(e1, e2, sort)| self.join_idx(e1, e2, sort, bound_sorts))
                         .collect_vec(),
                 )
             }
@@ -766,14 +766,7 @@ impl Generalizer {
     }
 
     fn fresh_vars(&mut self, sort: &Sort) -> Expr {
-        fn go(this: &mut Generalizer, sort: &Sort) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(this, sort)).collect_vec())
-            } else {
-                Expr::fvar(this.fresh_var(sort))
-            }
-        }
-        go(self, sort)
+        Expr::fold_sort(sort, |sort| Expr::fvar(self.fresh_var(sort)))
     }
 
     fn fresh_var(&mut self, sort: &Sort) -> Name {

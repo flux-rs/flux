@@ -137,15 +137,7 @@ impl RefineCtxt<'_> {
     }
 
     pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
-        fn go(this: &mut RefineCtxt, sort: &Sort) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(this, sort)).collect_vec())
-            } else {
-                let fresh = this.define_var(sort);
-                Expr::fvar(fresh)
-            }
-        }
-        go(self, sort)
+        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
     pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {

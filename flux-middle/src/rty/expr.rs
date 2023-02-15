@@ -3,13 +3,14 @@ use std::{fmt, slice, sync::OnceLock};
 use flux_common::bug;
 use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
+use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy, Binder};
+use super::{evars::EVar, BaseTy, Binder, Sort};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -81,10 +82,10 @@ pub struct Path {
     projection: List<Field>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
-    Var(Var),
+    Var(Var, List<u32>),
 }
 
 newtype_index! {
@@ -386,16 +387,6 @@ impl Expr {
         self.fold_with(&mut Simplify)
     }
 
-    pub fn to_loc(&self) -> Option<Loc> {
-        match self.kind() {
-            ExprKind::Local(local) => Some(Loc::Local(*local)),
-            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name))),
-            ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar))),
-            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar))),
-            _ => None,
-        }
-    }
-
     pub fn to_var(&self) -> Option<Var> {
         self.kind().to_var()
     }
@@ -407,28 +398,52 @@ impl Expr {
         }
     }
 
+    pub fn to_loc(&self) -> Option<Loc> {
+        if let ExprKind::Local(local) = self.kind() {
+            return Some(Loc::Local(*local));
+        }
+
+        let mut proj = vec![];
+        let mut expr = self;
+        while let ExprKind::TupleProj(e, field) = expr.kind() {
+            proj.push(*field);
+            expr = e;
+        }
+        proj.reverse();
+        let proj = List::from(proj);
+
+        match expr.kind() {
+            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name), proj)),
+            ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar), proj)),
+            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar), proj)),
+            _ => None,
+        }
+    }
+
     pub fn to_path(&self) -> Option<Path> {
         let mut expr = self;
         let mut proj = vec![];
-        let loc = loop {
-            match expr.kind() {
-                ExprKind::PathProj(e, field) => {
-                    proj.push(*field);
-                    expr = e;
-                }
-                ExprKind::FreeVar(name) => break Loc::Var(Var::Free(*name)),
-                ExprKind::BoundVar(bvar) => break Loc::Var(Var::Bound(*bvar)),
-                ExprKind::EVar(evar) => break Loc::Var(Var::EVar(*evar)),
-                ExprKind::Local(local) => break Loc::Local(*local),
-                _ => return None,
-            }
-        };
+        while let ExprKind::PathProj(e, field) = expr.kind() {
+            proj.push(*field);
+            expr = e;
+        }
         proj.reverse();
-        Some(Path::new(loc, proj))
+        Some(Path::new(expr.to_loc()?, proj))
     }
 
     pub fn is_abs(&self) -> bool {
         matches!(self.kind(), ExprKind::Abs(..))
+    }
+
+    pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
+            } else {
+                f(sort)
+            }
+        }
+        go(sort, &mut f)
     }
 }
 
@@ -451,13 +466,13 @@ impl Var {
         }
     }
 
-    pub fn to_path(&self) -> Path {
-        self.to_loc().into()
-    }
+    // pub fn to_path(&self) -> Path {
+    //     self.to_loc().into()
+    // }
 
-    pub fn to_loc(&self) -> Loc {
-        Loc::Var(*self)
-    }
+    // pub fn to_loc(&self) -> Loc {
+    //     Loc::Var(*self)
+    // }
 }
 
 impl Path {
@@ -490,7 +505,7 @@ impl Path {
 
     pub fn to_loc(&self) -> Option<Loc> {
         if self.projection.is_empty() {
-            Some(self.loc)
+            Some(self.loc.clone())
         } else {
             None
         }
@@ -501,7 +516,7 @@ impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
             Loc::Local(local) => Expr::local(*local),
-            Loc::Var(var) => var.to_expr(),
+            Loc::Var(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
         }
     }
 }
@@ -596,11 +611,11 @@ impl From<&Expr> for Expr {
     }
 }
 
-impl From<Loc> for Expr {
-    fn from(loc: Loc) -> Self {
-        loc.to_expr()
-    }
-}
+// impl From<Loc> for Expr {
+//     fn from(loc: Loc) -> Self {
+//         loc.to_expr()
+//     }
+// }
 
 impl From<Path> for Expr {
     fn from(path: Path) -> Self {
@@ -628,7 +643,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Var(Var::Free(name))
+        Loc::Var(Var::Free(name), List::from(vec![]))
     }
 }
 
@@ -638,7 +653,7 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS, [Expr], [KVar]);
+impl_internable!(ExprS, [Expr], [KVar], [u32]);
 
 mod pretty {
     use super::*;
@@ -775,7 +790,7 @@ mod pretty {
     impl Pretty for Path {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?}", self.loc)?;
+            w!("{:?}", &self.loc)?;
             for field in self.projection.iter() {
                 w!(".{}", ^u32::from(*field))?;
             }
@@ -788,7 +803,13 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Var(var) => w!("{:?}", var),
+                Loc::Var(var, proj) => {
+                    w!("{:?}", var)?;
+                    for field in proj.iter() {
+                        w!(".{}", ^field)?;
+                    }
+                    Ok(())
+                }
             }
         }
     }

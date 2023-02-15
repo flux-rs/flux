@@ -236,8 +236,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty =
-            genv.refine_ty(arr_ty, &mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj));
+        println!("\n{arr_ty:?}");
+        let arr_ty = genv.refine_ty(arr_ty, &mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        println!("{arr_ty:?}");
 
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
@@ -289,15 +290,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
-        fn go(this: &mut InferCtxt, sort: &Sort, cx: EVarCxId) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(this, sort, cx)).collect_vec())
-            } else {
-                Expr::evar(this.evar_gen.fresh_in_cx(cx))
-            }
-        }
-        let cx = self.scopes.last().unwrap().0;
-        go(self, sort, *cx)
+        let cx = *self.scopes.last().unwrap().0;
+        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {

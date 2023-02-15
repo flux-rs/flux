@@ -78,7 +78,7 @@ impl LookupKey for Path {
     type Iter<'a> = impl Iterator<Item = PlaceElem> + 'a;
 
     fn loc(&self) -> Loc {
-        self.loc
+        self.loc.clone()
     }
 
     fn proj(&self) -> Self::Iter<'_> {
@@ -161,7 +161,7 @@ impl PathsTree {
     pub(super) fn iter(&self, mut f: impl FnMut(&LocKind, Path, &Binding)) {
         fn go(
             ptr: &NodePtr,
-            loc: Loc,
+            loc: &Loc,
             kind: &LocKind,
             proj: &mut Vec<Field>,
             f: &mut impl FnMut(&LocKind, Path, &Binding),
@@ -169,7 +169,7 @@ impl PathsTree {
             let node = ptr.borrow();
             match &*node {
                 Node::Leaf(binding) => {
-                    f(kind, Path::new(loc, proj.as_slice()), binding);
+                    f(kind, Path::new(loc.clone(), proj.as_slice()), binding);
                 }
                 Node::Internal(_, children) => {
                     for (idx, ptr) in children.iter().enumerate() {
@@ -182,7 +182,7 @@ impl PathsTree {
         }
         let mut proj = vec![];
         for (loc, root) in &self.map {
-            go(&root.ptr, *loc, &root.kind, &mut proj, &mut f);
+            go(&root.ptr, loc, &root.kind, &mut proj, &mut f);
         }
     }
 
@@ -220,7 +220,7 @@ impl PathsTree {
         let place_proj = &mut key.proj();
 
         'outer: loop {
-            let loc = path.loc;
+            let loc = path.loc.clone();
             let mut path_proj = vec![];
 
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
@@ -263,8 +263,12 @@ impl PathsTree {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::from(fresh);
-                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc));
-                                self.insert(loc, boxed.clone(), LocKind::Box(alloc.clone()));
+                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc.clone()));
+                                self.insert(
+                                    loc.clone(),
+                                    boxed.clone(),
+                                    LocKind::Box(alloc.clone()),
+                                );
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -355,9 +359,10 @@ impl PathsTree {
             let mut node = ptr.borrow_mut();
             if let Node::Leaf(Binding::Owned(ty)) = &mut *node
                 && let TyKind::Ptr(_, path) = ty.kind()
-                && let Some(Loc::Var(Var::Free(name))) = path.to_loc()
+                && let Some(Loc::Var(Var::Free(name), proj)) = path.to_loc()
                 && !scope.contains(name)
             {
+                debug_assert!(proj.is_empty());
                 node.fold(&mut self.map, rcx, gen, false, true);
             }
         }

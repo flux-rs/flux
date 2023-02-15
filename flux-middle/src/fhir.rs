@@ -528,6 +528,18 @@ impl Sort {
             slice::from_ref(self)
         }
     }
+
+    pub fn flatten(&self) -> Vec<Sort> {
+        fn fold(mut flattened: Vec<Sort>, sort: &Sort) -> Vec<Sort> {
+            if let Sort::Tuple(sorts) = sort {
+                sorts.iter().fold(flattened, fold)
+            } else {
+                flattened.push(sort.clone());
+                flattened
+            }
+        }
+        fold(vec![], self)
+    }
 }
 
 impl From<FuncSort> for Sort {

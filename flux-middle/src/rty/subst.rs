@@ -32,13 +32,6 @@ impl FVarSubst {
             .normalize(&Default::default())
     }
 
-    pub fn subst_loc(&self, loc: Loc) -> Loc {
-        let loc_expr = self.apply(&loc.to_expr());
-        loc_expr
-            .to_loc()
-            .unwrap_or_else(|| bug!("substitution produces invalid loc: {loc_expr:?}"))
-    }
-
     pub fn infer_from_idxs(&mut self, params: &FxHashSet<Name>, idx1: &Index, idx2: &Index) {
         self.infer_from_exprs(params, &idx1.expr, &idx2.expr);
     }

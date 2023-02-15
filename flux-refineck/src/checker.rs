@@ -213,7 +213,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 rty::Constraint::Type(path, ty) => {
                     assert!(path.projection().is_empty());
                     let ty = rcx.unpack(ty);
-                    env.alloc_universal_loc(path.loc, ty);
+                    env.alloc_universal_loc(path.loc.clone(), ty);
                 }
                 rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -617,6 +617,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, ty)
+                    .map_err(|err| err.with_span(stmt_span))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;

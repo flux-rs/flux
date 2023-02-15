@@ -408,19 +408,20 @@ impl KVarStore {
         }
         let mut arg_sorts = vec![];
         let mut arg_exprs = vec![];
-        for (i, sort) in sort.as_tuple().iter().enumerate() {
+        for (i, sort) in sort.flatten().into_iter().enumerate() {
             if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
                 arg_sorts.push(sort.clone());
                 arg_exprs.push(rty::Expr::tuple_proj(rty::Expr::bvar(INNERMOST), i as u32));
             }
         }
+        let tuple_sort = rty::Sort::tuple(&arg_sorts[..]);
 
         let kvid =
             self.kvars
                 .push(KVarDecl { args: arg_sorts, scope: scope_sorts.clone(), encoding });
 
         let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs.clone());
-        Binder::new(rty::Expr::kvar(kvar), sort)
+        Binder::new(rty::Expr::kvar(kvar), tuple_sort)
     }
 }
 
