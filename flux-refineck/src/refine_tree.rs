@@ -137,7 +137,7 @@ impl RefineCtxt<'_> {
     }
 
     pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
+        Expr::fold_sort(sort, |sort, _| Expr::fvar(self.define_var(sort)))
     }
 
     pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {

@@ -11,7 +11,7 @@ pub mod fold;
 pub(crate) mod normalize;
 pub mod subst;
 
-use std::{fmt, hash::Hash, iter, sync::LazyLock};
+use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST};
@@ -251,10 +251,6 @@ where
         let expr = f(&self.sort);
         self.replace_bvars(&expr)
     }
-
-    // pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-    //     self.replace_bvars_with(|sort| Expr::fvar(fresh(sort)))
-    // }
 }
 
 impl<T> TupleTree<T>
@@ -264,26 +260,18 @@ where
     fn unit() -> Self {
         TupleTree::Tuple(List::from_vec(vec![]))
     }
-}
 
-impl<T> TupleTree<T>
-where
-    [TupleTree<T>]: Internable,
-    T: Clone,
-{
-    pub fn from_expr(e: &Expr, value: T) -> Self {
-        Self::from_expr_inner(e, value)
+    pub fn split(&self) -> impl Iterator<Item = &TupleTree<T>> {
+        match self {
+            TupleTree::Tuple(values) => values.iter().cycle(),
+            TupleTree::Leaf(_) => slice::from_ref(self).iter().cycle(),
+        }
     }
 
-    fn from_expr_inner(e: &Expr, value: T) -> Self {
-        if let ExprKind::Tuple(es) = e.kind() {
-            TupleTree::Tuple(List::from_vec(
-                es.iter()
-                    .map(|e| Self::from_expr_inner(e, value.clone()))
-                    .collect(),
-            ))
-        } else {
-            TupleTree::Leaf(value)
+    pub fn expect_leaf(&self) -> &T {
+        match self {
+            TupleTree::Leaf(value) => value,
+            _ => bug!("expected leaf"),
         }
     }
 }
@@ -313,12 +301,7 @@ impl Index {
     }
 
     pub fn tuple(exprs: Vec<Expr>) -> Self {
-        let is_binder = TupleTree::Tuple(List::from_vec(
-            exprs
-                .iter()
-                .map(|e| TupleTree::from_expr(e, false))
-                .collect(),
-        ));
+        let is_binder = TupleTree::Leaf(false);
         let expr = Expr::tuple(exprs);
         Index { expr, is_binder }
     }
@@ -326,7 +309,7 @@ impl Index {
 
 impl From<Expr> for Index {
     fn from(expr: Expr) -> Self {
-        let is_binder = TupleTree::from_expr(&expr, false);
+        let is_binder = TupleTree::Leaf(false);
         Self { expr, is_binder }
     }
 }

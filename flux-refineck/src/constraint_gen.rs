@@ -179,6 +179,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let output = output
             .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
+        // println!("\n{:?}", output.ret);
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -291,7 +292,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
         let cx = *self.scopes.last().unwrap().0;
-        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
+        Expr::fold_sort(sort, |_, _| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
@@ -341,6 +342,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
+        // println!("{ty1:?} <: {ty2:?}");
         let rcx = &mut rcx.breadcrumb();
 
         match (ty1.kind(), ty2.kind()) {
@@ -455,38 +457,27 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn index_subtyping(&mut self, rcx: &mut RefineCtxt, idx1: &Index, idx2: &Index) {
-        self.index_subtyping_inner(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
+        self.expr_subtyping(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
     }
 
-    fn index_subtyping_inner(
+    fn expr_subtyping(
         &mut self,
         rcx: &mut RefineCtxt,
         e1: &Expr,
         e2: &Expr,
         is_binder: &TupleTree<bool>,
     ) {
-        match (e1.kind(), e2.kind(), is_binder) {
-            (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2), TupleTree::Tuple(is_binder)) => {
-                debug_assert_eq!(tup1.len(), tup2.len());
-                debug_assert_eq!(is_binder.len(), tup2.len());
-
-                for (e1, e2, is_binder) in izip!(tup1, tup2, is_binder) {
-                    self.index_subtyping_inner(rcx, e1, e2, is_binder);
-                }
-            }
-            (_, _, TupleTree::Leaf(is_binder)) => self.expr_subtyping(rcx, e1, e2, *is_binder),
-            _ => {
-                tracked_span_bug!("invalid index subtyping: `{e1:?}`, `{e2:?}`, `{is_binder:?}`");
-            }
-        }
-    }
-
-    fn expr_subtyping(&mut self, rcx: &mut RefineCtxt, e1: &Expr, e2: &Expr, is_binder: bool) {
         if e1 == e2 {
             return;
         }
-        self.unify_exprs(e1, e2, is_binder);
         match (e1.kind(), e2.kind()) {
+            (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2)) => {
+                debug_assert_eq!(tup1.len(), tup2.len());
+
+                for (e1, e2, is_binder) in izip!(tup1, tup2, is_binder.split()) {
+                    self.expr_subtyping(rcx, e1, e2, is_binder);
+                }
+            }
             (ExprKind::Abs(abs1), ExprKind::Abs(abs2)) => {
                 debug_assert_eq!(abs1.sort(), abs2.sort());
                 let vars = rcx.define_vars(abs1.sort());
@@ -495,18 +486,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.check_impl(&pred1, &pred2, self.tag);
                 rcx.check_impl(pred2, pred1, self.tag);
             }
-            (expr, ExprKind::Abs(abs)) | (ExprKind::Abs(abs), expr) => {
-                if let Option::Some(var) = expr.to_var() {
-                    let vars = rcx.define_vars(abs.sort());
-                    let pred1 = Expr::app(var.to_expr(), vars.as_tuple().to_vec());
-                    let pred2 = abs.replace_bvars(&vars);
-                    rcx.check_impl(&pred1, &pred2, self.tag);
-                    rcx.check_impl(pred2, pred1, self.tag);
-                } else {
-                    tracked_span_bug!("invalid refinement argument subtyping `{e1:?}` - `{e2:?}`");
-                }
+            (_, ExprKind::Abs(abs)) => {
+                let vars = rcx.define_vars(abs.sort());
+                let pred1 = Expr::app(e1, vars.as_tuple().to_vec());
+                let pred2 = abs.replace_bvars(&vars);
+                rcx.check_impl(&pred1, &pred2, self.tag);
+                rcx.check_impl(pred2, pred1, self.tag);
+            }
+            (ExprKind::Abs(abs), _) => {
+                self.unify_exprs(e1, e2, *is_binder.expect_leaf());
+                let vars = rcx.define_vars(abs.sort());
+                let pred1 = abs.replace_bvars(&vars);
+                let pred2 = Expr::app(e2, vars.as_tuple().to_vec());
+                rcx.check_impl(&pred1, &pred2, self.tag);
+                rcx.check_impl(pred2, pred1, self.tag);
             }
             _ => {
+                self.unify_exprs(e1, e2, *is_binder.expect_leaf());
                 rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
             }
         }

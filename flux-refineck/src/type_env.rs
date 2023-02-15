@@ -766,7 +766,7 @@ impl Generalizer {
     }
 
     fn fresh_vars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(self.fresh_var(sort)))
+        Expr::fold_sort(sort, |sort, _| Expr::fvar(self.fresh_var(sort)))
     }
 
     fn fresh_var(&mut self, sort: &Sort) -> Name {

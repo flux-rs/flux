@@ -25,7 +25,7 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::{ptr::P, FloatTy, IntTy, Mutability, UintTy};
+use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -502,6 +502,10 @@ impl Sort {
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    pub fn is_singleton_tuple(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.len() == 1)
     }
 
     #[track_caller]

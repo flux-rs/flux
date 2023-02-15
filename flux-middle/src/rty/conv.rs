@@ -20,7 +20,7 @@ use crate::{
     fhir::{self, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
-    rty::{self, DebruijnIndex},
+    rty::{self, fold::TypeFoldable, DebruijnIndex},
     rustc::ty::GenericParamDefKind,
 };
 
@@ -289,19 +289,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         arg: &fhir::RefineArg,
         sort: &fhir::Sort,
     ) -> (rty::Expr, rty::TupleTree<bool>) {
-        match arg {
-            // fhir::RefineArg::Expr {
-            //     expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
-            //     is_binder,
-            // } => {
-            //     todo!()
-            //     // output.extend(
-            //     //     self.env
-            //     //         .lookup(*var)
-            //     //         .bvars()
-            //     //         .map(|bvar| (bvar.to_expr(), *is_binder)),
-            //     // );
-            // }
+        let (mut expr, is_binder) = match arg {
+            fhir::RefineArg::Expr {
+                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
+                is_binder,
+            } => (self.env.lookup(*var).to_tuple(false), rty::TupleTree::Leaf(*is_binder)),
             fhir::RefineArg::Expr { expr, is_binder } => {
                 (self.env.conv_expr(expr), rty::TupleTree::Leaf(*is_binder))
             }
@@ -326,7 +318,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
+        };
+        if self.early_cx().is_single_field_adt(sort).is_some() && !expr.is_tuple() {
+            expr = rty::Expr::tuple(vec![expr]);
         }
+        (expr, is_binder)
     }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
@@ -359,13 +355,20 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let adt_def = self.genv.adt_def(*did);
                 rty::BaseTy::adt(adt_def, substs)
             }
-            fhir::Res::Alias(_def_id, _early) => {
+            fhir::Res::Alias(def_id, early) => {
+                let mut args = vec![];
+                for (arg, sort) in iter::zip(early, self.genv.early_bound_sorts_of(*def_id)) {
+                    let (expr, _) = self.conv_refine_arg(arg, sort);
+                    args.push(expr);
+                }
+                let alias = self
+                    .genv
+                    .type_of(*def_id)
+                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics));
+                println!("{alias:?}");
+                println!("{args:?}");
+                println!("{idx:?}");
                 todo!()
-                // let mut args = vec![];
-                // for (arg, sort) in iter::zip(early, self.genv.early_bound_sorts_of(*def_id)) {
-                //     let (expr, _) = self.conv_refine_arg(arg, sort);
-                //     args.push(expr);
-                // }
                 // args.extend(idx.args().iter().cloned());
                 // return self
                 //     .genv
@@ -458,7 +461,7 @@ impl Env<'_, '_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.lookup(*var).to_expr(),
+            fhir::ExprKind::Var(var) => self.lookup(*var).to_tuple(true),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
@@ -476,7 +479,7 @@ impl Env<'_, '_> {
 
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
-            fhir::Func::Var(ident) => self.lookup(*ident).to_expr(),
+            fhir::Func::Var(ident) => self.lookup(*ident).to_tuple(true),
             fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
         }
     }
@@ -537,20 +540,15 @@ impl Layer {
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(self.level)), self.idx)
-        // fn go(sort: &rty::Sort, debruijn: DebruijnIndex) -> rty::Expr {
-        //     if let fhir::Sort::Tuple(sorts) = sort {
-        //         rty::Expr::tuple(
-        //             sorts
-        //                 .iter()
-        //                 .enumerate()
-        //                 .map(|(i, sort)| rty::Expr::tuple_proj(go(sort, debruijn), i as u32))
-        //                 .collect_vec(),
-        //         )
-        //     } else {
-        //         rty::Expr::bvar(debruijn)
-        //     }
-        // }
-        // go(&self.entry.conv, DebruijnIndex::new(self.level))
+    }
+
+    fn to_tuple(&self, proj_single_field: bool) -> rty::Expr {
+        let e = self.to_expr();
+        if proj_single_field && self.entry.conv.is_singleton_tuple() {
+            rty::Expr::tuple_proj(e, 0)
+        } else {
+            rty::Expr::fold_sort(&self.entry.conv, |_, projs| rty::Expr::tuple_projs(&e, projs))
+        }
     }
 
     fn to_path(&self) -> rty::Path {

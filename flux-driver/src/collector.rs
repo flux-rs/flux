@@ -452,7 +452,7 @@ enum FluxAttrKind {
     RefinedBy(surface::RefinedBy),
     QualNames(surface::QualNames),
     Items(Vec<surface::Item>),
-    TypeAlias(surface::Alias),
+    TypeAlias(surface::TyAlias),
     Field(surface::Ty),
     Variant(surface::VariantData),
     ConstSig(surface::ConstSig),
@@ -531,7 +531,7 @@ impl FluxAttrs {
         read_attr!(self, QualNames)
     }
 
-    fn alias(&mut self) -> Option<surface::Alias> {
+    fn alias(&mut self) -> Option<surface::TyAlias> {
         read_attr!(self, TypeAlias)
     }
 

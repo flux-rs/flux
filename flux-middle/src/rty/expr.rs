@@ -439,15 +439,34 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
-    pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
+    pub fn is_tuple(&self) -> bool {
+        matches!(self.kind(), ExprKind::Tuple(..))
+    }
+
+    pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort, &[u32]) -> Expr) -> Expr {
+        fn go(
+            sort: &Sort,
+            projs: &mut Vec<u32>,
+            f: &mut impl FnMut(&Sort, &[u32]) -> Expr,
+        ) -> Expr {
             if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
+                Expr::tuple(
+                    sorts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, sort)| {
+                            projs.push(i as u32);
+                            let e = go(sort, projs, f);
+                            projs.pop();
+                            e
+                        })
+                        .collect_vec(),
+                )
             } else {
-                f(sort)
+                f(sort, projs)
             }
         }
-        go(sort, &mut f)
+        go(sort, &mut vec![], &mut f)
     }
 }
 
@@ -469,14 +488,6 @@ impl Var {
             Var::EVar(evar) => Expr::evar(*evar),
         }
     }
-
-    // pub fn to_path(&self) -> Path {
-    //     self.to_loc().into()
-    // }
-
-    // pub fn to_loc(&self) -> Loc {
-    //     Loc::Var(*self)
-    // }
 }
 
 impl Path {
@@ -747,7 +758,11 @@ mod pretty {
                     }
                 }
                 ExprKind::Tuple(exprs) => {
-                    w!("({:?})", join!(", ", exprs))
+                    if let [e] = &exprs[..] {
+                        w!("({:?},)", e)
+                    } else {
+                        w!("({:?})", join!(", ", exprs))
+                    }
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_binary_op() {
