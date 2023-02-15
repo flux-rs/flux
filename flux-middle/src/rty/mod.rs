@@ -329,7 +329,7 @@ impl PolySig {
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
-        let exprs = iter::zip(self.fn_sig.sort.as_tuple(), &self.modes)
+        let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
         self.fn_sig.replace_bvars(&Expr::tuple(exprs))
@@ -434,11 +434,11 @@ impl PolyVariant {
             .skip_binders();
         let modes = self
             .sort
-            .as_tuple()
+            .expect_tuple()
             .iter()
             .map(Sort::default_infer_mode)
             .collect_vec();
-        PolySig::new(self.sort.as_tuple(), fn_sig, modes)
+        PolySig::new(self.sort.expect_tuple(), fn_sig, modes)
     }
 }
 
@@ -799,19 +799,17 @@ mod pretty {
     impl Pretty for PolySig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.fn_sig.sort.as_tuple().is_empty() {
+            let sorts = self.fn_sig.sort.expect_tuple();
+            if !sorts.is_empty() {
                 write!(
                     f,
                     "forall<{}> ",
-                    self.fn_sig.sort.as_tuple().iter().enumerate().format_with(
-                        ", ",
-                        |(i, sort), f| {
-                            match self.modes[i] {
-                                InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
-                                InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
-                            }
+                    sorts.iter().enumerate().format_with(", ", |(i, sort), f| {
+                        match self.modes[i] {
+                            InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
+                            InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
                         }
-                    )
+                    })
                 )?;
             }
             w!("{:?}", &self.fn_sig.value)
@@ -838,8 +836,9 @@ mod pretty {
     impl Pretty for Binder<FnOutput> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.sort().as_tuple().is_empty() {
-                w!("exists<{:?}>", join!(", ", self.sort().as_tuple()))?;
+            let sorts = self.sort.expect_tuple();
+            if !sorts.is_empty() {
+                w!("exists<{:?}>", join!(", ", sorts))?;
             }
             w!("{:?}", &self.value.ret)?;
             if !self.value.ensures.is_empty() {

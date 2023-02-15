@@ -41,11 +41,12 @@ struct Layer {
 struct LayerEntry {
     sort: fhir::Sort,
     conv: rty::Sort,
+    flattened: Vec<rty::Sort>,
+    idx: u32,
 }
 
 struct LookupResult<'a> {
     name: fhir::Ident,
-    idx: u32,
     level: u32,
     entry: &'a LayerEntry,
 }
@@ -153,7 +154,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_infer_modes(&self, params: &[fhir::FunRefineParam]) -> Vec<rty::InferMode> {
-        params.iter().map(|param| param.mode).collect()
+        let layer = self.env.top_layer();
+        params
+            .iter()
+            .flat_map(|param| {
+                let n = layer[param.name.name].len();
+                (0..n).map(|_| param.mode)
+            })
+            .collect()
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -228,14 +236,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
         match ty {
             fhir::Ty::BaseTy(bty) => {
-                let sort = conv_sort(self.early_cx(), &bty.sort());
-                if sort.is_unit() {
+                let entry = LayerEntry::new(self.early_cx(), 0, bty.sort());
+                if entry.is_empty() {
                     self.conv_base_ty(bty, rty::Index::unit())
                 } else {
                     self.env.push_layer(Layer::empty());
-                    let ty = self.conv_base_ty(bty, rty::Expr::nu().into());
+                    let idx = rty::Index::from(entry.to_expr(0));
+                    let ty = self.conv_base_ty(bty, idx);
                     self.env.pop_layer();
-                    rty::Ty::exists(Binder::new(ty, sort))
+                    rty::Ty::exists(Binder::new(ty, entry.into_tuple_sort()))
                 }
             }
             fhir::Ty::Indexed(bty, idx) => {
@@ -246,12 +255,17 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let layer = Layer::new(self.early_cx(), [(&bind.name, &bty.sort())]);
 
                 self.env.push_layer(layer);
-                let idx = rty::Expr::tuple_proj(rty::Expr::nu(), 0).into();
+                let idx = rty::Index::from(self.env.lookup(*bind).to_expr());
                 let ty = self.conv_base_ty(bty, idx);
                 let pred = self.env.conv_expr(pred);
                 let sorts = self.env.pop_layer().into_sorts();
 
-                rty::Ty::exists(Binder::new(rty::Ty::constr(pred, ty), rty::Sort::tuple(sorts)))
+                let constr = rty::Ty::constr(pred, ty);
+                if sorts.is_empty() {
+                    constr.shift_out_bvars(1)
+                } else {
+                    rty::Ty::exists(Binder::new(constr, rty::Sort::tuple(sorts)))
+                }
             }
             fhir::Ty::Ptr(loc) => rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path()),
             fhir::Ty::Ref(rk, ty) => rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)),
@@ -293,7 +307,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::RefineArg::Expr {
                 expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
                 is_binder,
-            } => (self.env.lookup(*var).to_tuple(), rty::TupleTree::Leaf(*is_binder)),
+            } => (self.env.lookup(*var).to_expr(), rty::TupleTree::Leaf(*is_binder)),
             fhir::RefineArg::Expr { expr, is_binder } => {
                 (self.env.conv_expr(expr), rty::TupleTree::Leaf(*is_binder))
             }
@@ -456,8 +470,8 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
 
     fn lookup(&self, name: fhir::Ident) -> LookupResult {
         for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some((idx, entry)) = layer.get(name.name) {
-                return LookupResult { name, idx: idx as u32, level: level as u32, entry };
+            if let Some(entry) = layer.get(name.name) {
+                return LookupResult { name, level: level as u32, entry };
             }
         }
         span_bug!(name.span(), "no entry found for key: `{:?}`", name);
@@ -468,7 +482,7 @@ impl Env<'_, '_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.lookup(*var).to_tuple().singleton_proj_coercion(),
+            fhir::ExprKind::Var(var) => self.lookup(*var).to_expr().singleton_proj_coercion(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
@@ -486,7 +500,7 @@ impl Env<'_, '_> {
 
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
-            fhir::Func::Var(ident) => self.lookup(*ident).to_tuple().singleton_proj_coercion(),
+            fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
             fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
         }
     }
@@ -516,11 +530,13 @@ impl Layer {
         early_cx: &EarlyCtxt,
         iter: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>,
     ) -> Self {
+        let mut idx = 0;
         let map = iter
             .into_iter()
             .map(|(name, sort)| {
-                let conv = conv_sort(early_cx, sort);
-                (*name, LayerEntry { sort: sort.clone(), conv })
+                let entry = LayerEntry::new(early_cx, idx, sort.clone());
+                idx += entry.len();
+                (*name, entry)
             })
             .collect();
         Self { map }
@@ -530,28 +546,68 @@ impl Layer {
         Self { map: FxIndexMap::default() }
     }
 
-    fn get(&self, name: impl Borrow<fhir::Name>) -> Option<(usize, &LayerEntry)> {
-        let (idx, _, entry) = self.map.get_full(name.borrow())?;
-        Some((idx, entry))
+    fn get(&self, name: impl Borrow<fhir::Name>) -> Option<&LayerEntry> {
+        self.map.get(name.borrow())
     }
 
     fn into_sorts(self) -> Vec<fhir::Sort> {
-        self.map.into_values().map(|entry| entry.conv).collect()
+        self.map
+            .into_values()
+            .flat_map(|entry| entry.flattened)
+            .collect()
     }
 
     fn to_sorts(&self) -> Vec<fhir::Sort> {
-        self.map.values().map(|entry| entry.conv.clone()).collect()
+        self.map
+            .values()
+            .flat_map(|entry| entry.flattened.iter().cloned())
+            .collect()
+    }
+}
+
+impl<N> std::ops::Index<N> for Layer
+where
+    N: Borrow<fhir::Name>,
+{
+    type Output = LayerEntry;
+
+    fn index(&self, name: N) -> &Self::Output {
+        &self.map[name.borrow()]
+    }
+}
+
+impl LayerEntry {
+    fn new(early_cx: &EarlyCtxt, idx: u32, sort: fhir::Sort) -> Self {
+        let conv = conv_sort(early_cx, &sort);
+        let flattened = conv.flatten();
+        LayerEntry { sort, conv, flattened, idx }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.flattened.is_empty()
+    }
+
+    fn len(&self) -> u32 {
+        self.flattened.len() as u32
+    }
+
+    fn to_expr(&self, level: u32) -> rty::Expr {
+        let mut i = self.idx;
+        rty::Expr::fold_sort(&self.conv, |_, _| {
+            let e = rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(level)), i);
+            i += 1;
+            e
+        })
+    }
+
+    fn into_tuple_sort(self) -> rty::Sort {
+        rty::Sort::tuple(self.flattened)
     }
 }
 
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
-        rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(self.level)), self.idx)
-    }
-
-    fn to_tuple(&self) -> rty::Expr {
-        let e = self.to_expr();
-        e.eta_expand_tuple(&self.entry.conv)
+        self.entry.to_expr(self.level)
     }
 
     fn to_path(&self) -> rty::Path {

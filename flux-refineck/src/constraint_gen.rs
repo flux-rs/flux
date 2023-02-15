@@ -116,12 +116,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
             .collect_vec();
 
-        // println!("\n{fn_sig:?}");
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evar_or_kvar(sort, kind));
-        // println!("{fn_sig:?}");
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -343,7 +341,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        // println!("{ty1:?} <: {ty2:?}");
         let rcx = &mut rcx.breadcrumb();
 
         match (ty1.kind(), ty2.kind()) {

@@ -189,6 +189,23 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
     }
 
+    fn shift_out_bvars(&self, amount: u32) -> Self {
+        struct Shifter {
+            amount: u32,
+        }
+
+        impl TypeFolder for Shifter {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::BoundVar(debruijn) = expr.kind() {
+                    Expr::bvar(debruijn.shifted_out(self.amount))
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut Shifter { amount })
+    }
+
     fn has_escaping_bvars(&self) -> bool {
         struct HasEscapingVars {
             /// Anything bound by `outer_index` or "above" is escaping.
@@ -203,7 +220,7 @@ pub trait TypeFoldable: Sized {
                 self.outer_index.shift_out(1);
             }
 
-            // TODO(nilehmann) keep track the outermost binder to optimize this, i.e.,
+            // TODO(nilehmann) keep track of the outermost binder to optimize this, i.e.,
             // what rustc calls outer_exclusive_binder.
             fn visit_expr(&mut self, expr: &Expr) {
                 if let ExprKind::BoundVar(debruijn) = expr.kind() {

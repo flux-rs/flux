@@ -20,9 +20,10 @@ pub mod lift;
 
 use std::{
     borrow::{Borrow, Cow},
-    fmt, slice,
+    fmt,
 };
 
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
@@ -326,7 +327,7 @@ pub struct Ident {
 
 newtype_index! {
     #[debug_format = "a{}"]
-    pub struct Name {}
+    pub struct Name { }
 }
 
 impl BtyOrTy {
@@ -513,7 +514,16 @@ impl Sort {
         if let Sort::Func(sort) = self {
             sort
         } else {
-            panic!("expected `Sort::Func`")
+            bug!("expected `Sort::Func`")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            bug!("expected `Sort::Tuple`")
         }
     }
 
@@ -525,12 +535,10 @@ impl Sort {
         }
     }
 
-    pub fn as_tuple(&self) -> &[Sort] {
-        if let Sort::Tuple(sorts) = self {
-            sorts
-        } else {
-            slice::from_ref(self)
-        }
+    pub fn flatten(&self) -> Vec<Sort> {
+        let mut sorts = vec![];
+        self.walk(|sort, _| sorts.push(sort.clone()));
+        sorts
     }
 
     pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
