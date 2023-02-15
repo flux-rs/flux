@@ -289,11 +289,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         arg: &fhir::RefineArg,
         sort: &fhir::Sort,
     ) -> (rty::Expr, rty::TupleTree<bool>) {
-        let (mut expr, is_binder) = match arg {
-            fhir::RefineArg::Expr {
-                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
-                is_binder,
-            } => (self.env.lookup(*var).to_tuple(false), rty::TupleTree::Leaf(*is_binder)),
+        let (expr, is_binder) = match arg {
             fhir::RefineArg::Expr { expr, is_binder } => {
                 (self.env.conv_expr(expr), rty::TupleTree::Leaf(*is_binder))
             }
@@ -319,10 +315,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
         };
+        (self.coerce_index(expr, sort), is_binder)
+    }
+
+    fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
         if self.early_cx().is_single_field_adt(sort).is_some() && !expr.is_tuple() {
             expr = rty::Expr::tuple(vec![expr]);
+        } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Tuple(_))
+            && expr.is_tuple()
+        {
+            expr = rty::Expr::tuple_proj(expr, 0);
         }
-        (expr, is_binder)
+        expr
     }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
@@ -460,14 +464,21 @@ impl Env<'_, '_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.lookup(*var).to_tuple(true),
+            fhir::ExprKind::Var(var) => self.lookup(*var).to_tuple(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
-                rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
+                rty::Expr::binary_op(
+                    *op,
+                    self.conv_expr(e1).singleton_proj_coercion(),
+                    self.conv_expr(e2).singleton_proj_coercion(),
+                )
             }
             fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(e)),
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(func), self.conv_exprs(args))
+                rty::Expr::app(
+                    self.conv_func(func).singleton_proj_coercion(),
+                    self.conv_exprs(args),
+                )
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
@@ -478,7 +489,7 @@ impl Env<'_, '_> {
 
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
-            fhir::Func::Var(ident) => self.lookup(*ident).to_tuple(true),
+            fhir::Func::Var(ident) => self.lookup(*ident).to_tuple(),
             fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
         }
     }
@@ -541,13 +552,9 @@ impl LookupResult<'_> {
         rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(self.level)), self.idx)
     }
 
-    fn to_tuple(&self, proj_single_field: bool) -> rty::Expr {
+    fn to_tuple(&self) -> rty::Expr {
         let e = self.to_expr();
-        if proj_single_field && self.entry.conv.is_singleton_tuple() {
-            rty::Expr::tuple_proj(e, 0)
-        } else {
-            e.eta_expand_tuple(&self.entry.conv)
-        }
+        e.eta_expand_tuple(&self.entry.conv)
     }
 
     fn to_path(&self) -> rty::Path {
