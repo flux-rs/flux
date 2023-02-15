@@ -752,7 +752,7 @@ mod pretty {
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
                 ExprKind::EVar(evar) => w!("{:?}", evar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!("{:?}", ^did),
+                ExprKind::ConstDefId(did) => w!("{}", ^pretty::def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!("{}", ^c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {

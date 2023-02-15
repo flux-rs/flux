@@ -290,6 +290,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         sort: &fhir::Sort,
     ) -> (rty::Expr, rty::TupleTree<bool>) {
         let (expr, is_binder) = match arg {
+            fhir::RefineArg::Expr {
+                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
+                is_binder,
+            } => (self.env.lookup(*var).to_tuple(), rty::TupleTree::Leaf(*is_binder)),
             fhir::RefineArg::Expr { expr, is_binder } => {
                 (self.env.conv_expr(expr), rty::TupleTree::Leaf(*is_binder))
             }
@@ -464,21 +468,14 @@ impl Env<'_, '_> {
     fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
         match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.lookup(*var).to_tuple(),
+            fhir::ExprKind::Var(var) => self.lookup(*var).to_tuple().singleton_proj_coercion(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
-                rty::Expr::binary_op(
-                    *op,
-                    self.conv_expr(e1).singleton_proj_coercion(),
-                    self.conv_expr(e2).singleton_proj_coercion(),
-                )
+                rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
             }
             fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(e)),
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(
-                    self.conv_func(func).singleton_proj_coercion(),
-                    self.conv_exprs(args),
-                )
+                rty::Expr::app(self.conv_func(func), self.conv_exprs(args))
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
@@ -489,7 +486,7 @@ impl Env<'_, '_> {
 
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
-            fhir::Func::Var(ident) => self.lookup(*ident).to_tuple(),
+            fhir::Func::Var(ident) => self.lookup(*ident).to_tuple().singleton_proj_coercion(),
             fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
         }
     }

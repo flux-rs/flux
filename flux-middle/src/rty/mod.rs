@@ -15,7 +15,7 @@ use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST};
-use flux_common::bug;
+use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -193,15 +193,15 @@ pub enum GenericArg {
 
 impl Qualifier {
     pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
-        // let name_gen = IndexGen::new();
-        // let mut args = vec![];
-        todo!()
-        // let body = self.body.replace_bvars_with_fresh_fvars(|sort| {
-        //     let fresh = name_gen.fresh();
-        //     args.push((fresh, sort.clone()));
-        //     fresh
-        // });
-        // (args, body)
+        let name_gen = IndexGen::new();
+        let mut params = vec![];
+        let arg = Expr::fold_sort(self.body.sort(), |sort, _| {
+            let fresh = name_gen.fresh();
+            params.push((fresh, sort.clone()));
+            Expr::fvar(fresh)
+        });
+        let body = self.body.replace_bvars(&arg);
+        (params, body)
     }
 }
 
