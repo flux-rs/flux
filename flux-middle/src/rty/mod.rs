@@ -389,11 +389,10 @@ impl From<(Expr, TupleTree<bool>)> for Index {
 }
 
 impl PolySig {
-    pub fn new(params: &[Sort], fn_sig: FnSig, modes: impl Into<List<InferMode>>) -> PolySig {
-        let modes = modes.into();
-        debug_assert_eq!(params.len(), modes.len());
-        let fn_sig = Binder::new(fn_sig, Sort::tuple(params));
-        PolySig { fn_sig, modes }
+    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolySig {
+        let (sorts, modes) = params.into_iter().unzip();
+        let fn_sig = Binder::new(fn_sig, Sort::Tuple(List::from_vec(sorts)));
+        PolySig { fn_sig, modes: List::from_vec(modes) }
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
@@ -500,13 +499,13 @@ impl PolyVariant {
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
             .skip_binders();
-        let modes = self
+        let params = self
             .sort
             .expect_tuple()
             .iter()
-            .map(Sort::default_infer_mode)
+            .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
             .collect_vec();
-        PolySig::new(self.sort.expect_tuple(), fn_sig, modes)
+        PolySig::new(params, fn_sig)
     }
 }
 
