@@ -274,11 +274,6 @@ impl Sort {
 }
 
 impl FuncSort {
-    // pub(crate) fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
-    //     inputs.push(output);
-    //     FuncSort { inputs_and_output: List::from_vec(inputs) }
-    // }
-
     pub fn inputs(&self) -> &[Sort] {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
@@ -840,19 +835,19 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Sort::Bool => w!(f, "bool"),
-                Sort::Int => w!(f, "int"),
-                Sort::Real => w!(f, "real"),
-                Sort::Loc => w!(f, "loc"),
-                Sort::Func(sort) => w!(f, "{:?}", sort),
+                Sort::Bool => w!("bool"),
+                Sort::Int => w!("int"),
+                Sort::Real => w!("real"),
+                Sort::Loc => w!("loc"),
+                Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
-                        w!(f, "({:?},)", sort)
+                        w!("({:?},)", sort)
                     } else {
-                        w!(f, "({:?})", join!(", ", sorts))
+                        w!("({:?})", join!(", ", sorts))
                     }
                 }
-                Sort::User(name) => w!(f, "{name}"),
+                Sort::User(name) => w!("{}", ^name),
             }
         }
     }
@@ -1084,6 +1079,7 @@ mod pretty {
 
     impl_debug_with_default_cx!(
         Constraint,
+        Sort,
         TyS => "ty",
         PolySig,
         BaseTy,
@@ -1093,6 +1089,5 @@ mod pretty {
         VariantDef,
         PtrKind,
         Binder<FnOutput>,
-        Sort
     );
 }
