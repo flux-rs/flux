@@ -706,7 +706,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 match sig.out.clone() {
                     sigs::Output::Indexed(bty, mk) => Ok(Ty::indexed(bty, mk([e1, e2]))),
                     sigs::Output::Exists(bty, mk) => {
-                        Ok(Ty::full_exists(bty, mk(Expr::nu(), [e1, e2])))
+                        Ok(Ty::exists_with_constr(bty, mk(Expr::nu(), [e1, e2])))
                     }
                 }
             }

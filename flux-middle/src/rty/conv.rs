@@ -215,7 +215,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             let sort = rty::Sort::tuple(cx.env.pop_layer().to_sorts());
             let ret = rty::Ty::indexed(
                 rty::BaseTy::adt(genv.adt_def(def_id), substs),
-                rty::Index::bound(&sort),
+                rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
             Some(Binder::new(variant, sort))
@@ -384,13 +384,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     args.push(expr);
                 }
                 args.extend(
-                    eta_expand_tuple(
-                        &idx.expr,
-                        &rty::Sort::tuple(self.genv.index_sorts_of(*def_id)),
-                    )
-                    .expect_tuple()
-                    .iter()
-                    .cloned(),
+                    idx.expr
+                        .eta_expand_tuple(&rty::Sort::tuple(self.genv.index_sorts_of(*def_id)))
+                        .expect_tuple()
+                        .iter()
+                        .cloned(),
                 );
 
                 return self
@@ -595,7 +593,7 @@ impl LayerEntry {
 
     fn to_expr(&self, level: u32) -> rty::Expr {
         let mut i = self.idx;
-        rty::Expr::fold_sort(&self.conv, |_, _| {
+        rty::Expr::fold_sort(&self.conv, |_| {
             let e = rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(level)), i);
             i += 1;
             e
@@ -671,18 +669,5 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Int(n) => rty::Constant::from(n),
         fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
-    }
-}
-
-fn eta_expand_tuple(expr: &rty::Expr, sort: &rty::Sort) -> rty::Expr {
-    match (expr.kind(), sort) {
-        (rty::ExprKind::Tuple(exprs), rty::Sort::Tuple(sorts)) => {
-            rty::Expr::tuple(
-                iter::zip(exprs, sorts)
-                    .map(|(e, s)| eta_expand_tuple(e, s))
-                    .collect_vec(),
-            )
-        }
-        _ => rty::Expr::fold_sort(sort, |_, projs| rty::Expr::tuple_projs(expr, projs)),
     }
 }

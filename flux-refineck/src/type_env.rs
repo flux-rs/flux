@@ -411,7 +411,7 @@ impl TypeEnvInfer {
             TyKind::Indexed(bty, idxs) => {
                 let bty = TypeEnvInfer::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
-                    Ty::full_exists(bty, Expr::hole())
+                    Ty::exists_with_constr(bty, Expr::hole())
                 } else {
                     Ty::indexed(bty, idxs.clone())
                 }
@@ -766,7 +766,7 @@ impl Generalizer {
     }
 
     fn fresh_vars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |sort, _| Expr::fvar(self.fresh_var(sort)))
+        Expr::fold_sort(sort, |sort| Expr::fvar(self.fresh_var(sort)))
     }
 
     fn fresh_var(&mut self, sort: &Sort) -> Name {

@@ -291,7 +291,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
         let cx = *self.scopes.last().unwrap().0;
-        Expr::fold_sort(sort, |_, _| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
+        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
     fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {

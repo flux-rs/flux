@@ -364,11 +364,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         };
         let pred = mk_pred();
         let sort = bty.sort();
-        let args = rty::Index::bound(&sort);
+        let idx = rty::Expr::nu().eta_expand_tuple(&sort);
         let ty = if pred.is_trivially_true() {
-            rty::Ty::indexed(bty, args)
+            rty::Ty::indexed(bty, idx)
         } else {
-            rty::Ty::constr(pred, rty::Ty::indexed(bty, args))
+            rty::Ty::constr(pred, rty::Ty::indexed(bty, idx))
         };
         if sort.is_unit() {
             ty

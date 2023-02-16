@@ -135,7 +135,7 @@ pub trait TypeFoldable: Sized {
                         if self.in_exists {
                             ty.super_fold_with(self)
                         } else {
-                            Ty::full_exists(bty.fold_with(self), Expr::hole())
+                            Ty::exists_with_constr(bty.fold_with(self), Expr::hole())
                         }
                     }
                     TyKind::Exists(ty) => {

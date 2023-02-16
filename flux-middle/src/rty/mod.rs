@@ -187,7 +187,7 @@ impl Qualifier {
     pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
         let name_gen = IndexGen::new();
         let mut params = vec![];
-        let arg = Expr::fold_sort(self.body.sort(), |sort, _| {
+        let arg = Expr::fold_sort(self.body.sort(), |sort| {
             let fresh = name_gen.fresh();
             params.push((fresh, sort.clone()));
             Expr::fvar(fresh)
@@ -260,6 +260,7 @@ where
         }
     }
 
+    #[track_caller]
     pub fn expect_leaf(&self) -> &T {
         match self {
             TupleTree::Leaf(value) => value,
@@ -269,33 +270,8 @@ where
 }
 
 impl Index {
-    /// Return a list of bound variables. The returned value will have escaping vars which
-    /// need to be put inside a [`Binders`]
-    pub(crate) fn bound(sort: &Sort) -> Index {
-        fn go(sort: &Sort) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(
-                    sorts
-                        .iter()
-                        .enumerate()
-                        .map(|(i, sort)| Expr::tuple_proj(go(sort), i as u32))
-                        .collect_vec(),
-                )
-            } else {
-                Expr::nu()
-            }
-        }
-        Index::from(go(sort))
-    }
-
-    pub fn unit() -> Self {
+    pub(crate) fn unit() -> Self {
         Index { expr: Expr::unit(), is_binder: TupleTree::unit() }
-    }
-
-    pub fn tuple(exprs: Vec<Expr>) -> Self {
-        let is_binder = TupleTree::Leaf(false);
-        let expr = Expr::tuple(exprs);
-        Index { expr, is_binder }
     }
 }
 
@@ -468,25 +444,9 @@ impl Ty {
         TyKind::Exists(ty).intern()
     }
 
-    /// Makes a *fully applied* existential, i.e., an existential that has binders for all the
-    /// indices of the [`BaseTy`]. For example, if we have
-    ///
-    /// ```ignore
-    /// #[flux::refined_by(a: int, b: int)]
-    /// struct Pair {
-    ///     #[flux::field(i32[@a])]
-    ///     fst: i32,
-    ///     #[flux::field(i32[@b])]
-    ///     snd: i32,
-    /// }
-    /// ```
-    /// Then, a fully applied existential for `Pair` binds both indices: `{int,int. Pair[^0.0, ^0.1] | p}`.
-    ///
-    /// Note that the arguments `bty` and `pred` may have escaping vars, which will be closed by
-    /// wrapping them inside a [`Binders`].
-    pub fn full_exists(bty: BaseTy, pred: Expr) -> Ty {
+    pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
-        let ty = Ty::indexed(bty, Index::bound(&sort));
+        let ty = Ty::indexed(bty, Expr::nu());
         Ty::exists(Binder::new(Ty::constr(pred, ty), sort))
     }
 
@@ -503,15 +463,15 @@ impl Ty {
     }
 
     pub fn bool() -> Ty {
-        Ty::full_exists(BaseTy::Bool, Expr::tt())
+        Ty::exists(Binder::new(Ty::indexed(BaseTy::Bool, Expr::nu()), Sort::Bool))
     }
 
     pub fn int(int_ty: IntTy) -> Ty {
-        Ty::full_exists(BaseTy::Int(int_ty), Expr::tt())
+        Ty::exists(Binder::new(Ty::indexed(BaseTy::Int(int_ty), Expr::nu()), Sort::Int))
     }
 
     pub fn uint(uint_ty: UintTy) -> Ty {
-        Ty::full_exists(BaseTy::Uint(uint_ty), Expr::tt())
+        Ty::exists(Binder::new(Ty::indexed(BaseTy::Uint(uint_ty), Expr::nu()), Sort::Int))
     }
 
     pub fn usize() -> Ty {
