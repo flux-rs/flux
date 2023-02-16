@@ -395,7 +395,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .genv
                     .type_of(*def_id)
                     .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
-                    .replace_bvars(&rty::Expr::tuple(args));
+                    .replace_bvar(&rty::Expr::tuple(args));
             }
         };
         rty::Ty::indexed(bty, idx)

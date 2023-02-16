@@ -425,7 +425,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?
-            .replace_bvars_with(|sort| rcx.define_vars(sort));
+            .replace_bvar_with(|sort| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {

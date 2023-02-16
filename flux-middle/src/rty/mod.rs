@@ -192,7 +192,7 @@ impl Qualifier {
             params.push((fresh, sort.clone()));
             Expr::fvar(fresh)
         });
-        let body = self.body.replace_bvars(&arg);
+        let body = self.body.replace_bvar(&arg);
         (params, body)
     }
 }
@@ -233,15 +233,15 @@ impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvars(&self, expr: &Expr) -> T {
+    pub fn replace_bvar(&self, expr: &Expr) -> T {
         self.value
             .fold_with(&mut BVarSubstFolder::new(expr))
             .normalize(&Default::default())
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
+    pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
         let expr = f(&self.sort);
-        self.replace_bvars(&expr)
+        self.replace_bvar(&expr)
     }
 }
 
@@ -300,7 +300,7 @@ impl PolySig {
         let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
-        self.fn_sig.replace_bvars(&Expr::tuple(exprs))
+        self.fn_sig.replace_bvar(&Expr::tuple(exprs))
     }
 }
 

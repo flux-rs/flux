@@ -110,9 +110,9 @@ impl<'a> Normalizer<'a> {
     fn app(&self, func: &Expr, args: &[Expr]) -> Expr {
         match func.kind() {
             ExprKind::Func(sym) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bvars(&Expr::tuple(args))
+                defn.expr.replace_bvar(&Expr::tuple(args))
             }
-            ExprKind::Abs(body) => body.replace_bvars(&Expr::tuple(args)),
+            ExprKind::Abs(body) => body.replace_bvar(&Expr::tuple(args)),
             _ => Expr::app(func.clone(), args),
         }
     }

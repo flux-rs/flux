@@ -817,7 +817,7 @@ fn downcast_struct(
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
-        .replace_bvars(&idx.expr)
+        .replace_bvar(&idx.expr)
         .replace_generics(substs)
         .fields
         .to_vec())
@@ -842,7 +842,7 @@ fn downcast_enum(
     let variant_def = genv
         .variant(def_id, variant_idx)
         .unwrap()
-        .replace_bvars_with(|sort| rcx.define_vars(sort))
+        .replace_bvar_with(|sort| rcx.define_vars(sort))
         .replace_generics(substs);
 
     let (.., idx2) = variant_def.ret.expect_adt();

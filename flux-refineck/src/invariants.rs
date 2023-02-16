@@ -40,7 +40,7 @@ fn check_invariant(
         let variant = genv
             .variant(adt_def.def_id(), variant_idx)
             .expect("cannot check opaque structs")
-            .replace_bvars_with(|sort| rcx.define_vars(sort));
+            .replace_bvar_with(|sort| rcx.define_vars(sort));
 
         for ty in variant.fields() {
             let ty = rcx.unpack(ty);
@@ -48,7 +48,7 @@ fn check_invariant(
         }
         let (.., idx) = variant.ret.expect_adt();
         rcx.check_pred(
-            invariant.pred.replace_bvars(&idx.expr),
+            invariant.pred.replace_bvar(&idx.expr),
             Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }

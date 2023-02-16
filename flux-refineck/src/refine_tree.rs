@@ -202,7 +202,7 @@ impl RefineCtxt<'_> {
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let ty = bound_ty.replace_bvars_with(|sort| self.define_vars(sort));
+                    let ty = bound_ty.replace_bvar_with(|sort| self.define_vars(sort));
                     self.unpack_inner(&ty, in_mut_ref, flags)
                 } else {
                     ty.clone()
@@ -241,7 +241,7 @@ impl RefineCtxt<'_> {
             fn visit_ty(&mut self, ty: &Ty) {
                 if let TyKind::Indexed(bty, idx) = ty.kind() {
                     for invariant in bty.invariants() {
-                        let invariant = invariant.pred.replace_bvars(&idx.expr);
+                        let invariant = invariant.pred.replace_bvar(&idx.expr);
                         self.0.assume_pred(invariant);
                     }
                 }

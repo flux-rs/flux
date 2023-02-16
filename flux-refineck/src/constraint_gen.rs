@@ -178,7 +178,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output = output
-            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bvar_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -211,7 +211,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .replace_generics(&substs)
-            .replace_bvars_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bvar_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -345,7 +345,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bvars_with(|sort| rcx.define_vars(sort));
+                let ty1 = ty1.replace_bvar_with(|sort| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
@@ -354,7 +354,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2.replace_bvars_with(|sort| self.fresh_evars(sort));
+                let ty2 = ty2.replace_bvar_with(|sort| self.fresh_evars(sort));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
@@ -479,22 +479,22 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (ExprKind::Abs(abs1), ExprKind::Abs(abs2)) => {
                 debug_assert_eq!(abs1.sort(), abs2.sort());
                 let vars = rcx.define_vars(abs1.sort());
-                let pred1 = abs1.replace_bvars(&vars);
-                let pred2 = abs2.replace_bvars(&vars);
+                let pred1 = abs1.replace_bvar(&vars);
+                let pred2 = abs2.replace_bvar(&vars);
                 rcx.check_impl(&pred1, &pred2, self.tag);
                 rcx.check_impl(pred2, pred1, self.tag);
             }
             (_, ExprKind::Abs(abs)) => {
                 let vars = rcx.define_vars(abs.sort());
                 let pred1 = Expr::app(e1, vars.as_tuple().to_vec());
-                let pred2 = abs.replace_bvars(&vars);
+                let pred2 = abs.replace_bvar(&vars);
                 rcx.check_impl(&pred1, &pred2, self.tag);
                 rcx.check_impl(pred2, pred1, self.tag);
             }
             (ExprKind::Abs(abs), _) => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
                 let vars = rcx.define_vars(abs.sort());
-                let pred1 = abs.replace_bvars(&vars);
+                let pred1 = abs.replace_bvar(&vars);
                 let pred2 = Expr::app(e2, vars.as_tuple().to_vec());
                 rcx.check_impl(&pred1, &pred2, self.tag);
                 rcx.check_impl(pred2, pred1, self.tag);

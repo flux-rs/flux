@@ -692,7 +692,7 @@ impl TypeEnvInfer {
         let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
         let kvar = kvar_store
             .fresh(Sort::tuple(&sorts[..]), self.scope.iter(), KVarEncoding::Conj)
-            .replace_bvars(&Expr::tuple(exprs));
+            .replace_bvar(&Expr::tuple(exprs));
         constrs.push(kvar);
 
         let params = iter::zip(names, sorts).collect_vec();
@@ -736,7 +736,7 @@ impl Generalizer {
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(ty) => {
-                let ty = ty.replace_bvars_with(|sort| self.fresh_vars(sort));
+                let ty = ty.replace_bvar_with(|sort| self.fresh_vars(sort));
                 self.generalize_ty(&ty)
             }
             TyKind::Constr(pred, ty) => {
