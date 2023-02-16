@@ -1084,7 +1084,7 @@ impl Binder {
             Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
             Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
             Res::Alias(def_id) | Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
-            Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char) => fhir::Sort::unit(),
+            Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
             Res::Param(..) => {
                 return Binder::Unrefined;
             }

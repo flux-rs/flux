@@ -235,11 +235,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .unwrap_or_else(|_| FatalError.raise())
     }
 
-    pub fn index_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+    pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
         self.early_cx.index_sorts_of(def_id)
     }
 
-    pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[rty::Sort] {
+    pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
         self.early_cx.early_bound_sorts_of(def_id)
     }
 

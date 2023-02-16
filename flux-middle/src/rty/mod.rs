@@ -19,7 +19,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
@@ -27,13 +27,29 @@ pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarSubstFolder};
 pub use crate::{
-    fhir::{FuncSort, InferMode, RefKind, Sort},
+    fhir::{InferMode, RefKind},
     rustc::ty::Const,
 };
 use crate::{
     intern::{impl_internable, Internable, Interned, List},
     rustc::mir::Place,
 };
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum Sort {
+    Int,
+    Bool,
+    Real,
+    Loc,
+    Tuple(List<Sort>),
+    Func(FuncSort),
+    User(Symbol),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct FuncSort {
+    pub inputs_and_output: List<Sort>,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -181,6 +197,95 @@ pub enum GenericArg {
     Ty(Ty),
     /// We treat lifetime opaquely
     Lifetime,
+}
+
+impl Sort {
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
+    }
+
+    pub(crate) fn unit() -> Self {
+        Self::tuple(vec![])
+    }
+
+    #[track_caller]
+    fn expect_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            bug!("expected `Sort::Tuple`")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_func(&self) -> &FuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            bug!("expected `Sort::Func`")
+        }
+    }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
+    pub(crate) fn is_unit(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
+    }
+
+    /// Whether the sort is a function with return sort bool
+    fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub fn flatten(&self) -> Vec<Sort> {
+        let mut sorts = vec![];
+        self.walk(|sort, _| sorts.push(sort.clone()));
+        sorts
+    }
+
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
+            if let Sort::Tuple(sorts) = sort {
+                sorts.iter().enumerate().for_each(|(i, sort)| {
+                    proj.push(i as u32);
+                    go(sort, f, proj);
+                    proj.pop();
+                });
+            } else {
+                f(sort, proj);
+            }
+        }
+        go(self, &mut f, &mut vec![]);
+    }
+}
+
+impl FuncSort {
+    // pub(crate) fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
+    //     inputs.push(output);
+    //     FuncSort { inputs_and_output: List::from_vec(inputs) }
+    // }
+
+    pub fn inputs(&self) -> &[Sort] {
+        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
+    }
+
+    fn output(&self) -> &Sort {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    }
 }
 
 impl Qualifier {
@@ -672,6 +777,7 @@ impl_internable!(
     [Constraint],
     [InferMode],
     [TupleTree<bool>],
+    [Sort]
 );
 
 #[macro_export]
@@ -731,8 +837,30 @@ mod pretty {
     }
 
     impl Pretty for Sort {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            std::fmt::Display::fmt(self, f)
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Sort::Bool => w!(f, "bool"),
+                Sort::Int => w!(f, "int"),
+                Sort::Real => w!(f, "real"),
+                Sort::Loc => w!(f, "loc"),
+                Sort::Func(sort) => w!(f, "{:?}", sort),
+                Sort::Tuple(sorts) => {
+                    if let [sort] = &sorts[..] {
+                        w!(f, "({:?},)", sort)
+                    } else {
+                        w!(f, "({:?})", join!(", ", sorts))
+                    }
+                }
+                Sort::User(name) => w!(f, "{name}"),
+            }
+        }
+    }
+
+    impl Pretty for FuncSort {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("({:?}) -> {:?}", join!(", ", self.inputs()), self.output())
         }
     }
 
@@ -964,6 +1092,7 @@ mod pretty {
         Index,
         VariantDef,
         PtrKind,
-        Binder<FnOutput>
+        Binder<FnOutput>,
+        Sort
     );
 }

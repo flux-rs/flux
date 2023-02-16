@@ -219,15 +219,7 @@ impl TypeEnv {
             }
         });
 
-        param_infer::check_inference(
-            &subst,
-            bb_env
-                .params
-                .iter()
-                .filter(|(_, sort)| !sort.is_loc())
-                .map(|(name, _)| *name),
-        )
-        .unwrap();
+        param_infer::check_inference(&subst, bb_env.params.iter().map(|(name, _)| *name)).unwrap();
         subst
     }
 
@@ -589,12 +581,11 @@ impl TypeEnvInfer {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
                 let idx = self.join_idx(&idx1.expr, &idx2.expr, &bty.sort(), &mut sorts);
-                let sort = Sort::tuple(sorts);
-                if sort.is_unit() {
+                if sorts.is_empty() {
                     Ty::indexed(bty, idx)
                 } else {
                     let ty = Ty::constr(Expr::hole(), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::new(ty, sort))
+                    Ty::exists(Binder::new(ty, Sort::tuple(sorts)))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
