@@ -9,7 +9,7 @@
 //! 3. Refinements are well-sorted.
 use std::{borrow::Borrow, iter};
 
-use flux_common::span_bug;
+use flux_common::{bug, span_bug};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::def_id::DefId;
@@ -339,9 +339,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
         if self.early_cx().is_single_field_adt(sort).is_some() && !expr.is_tuple() {
             expr = rty::Expr::tuple(vec![expr]);
-        } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Tuple(_))
-            && expr.is_tuple()
-        {
+        } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Unit) && expr.is_tuple() {
             expr = rty::Expr::tuple_proj(expr, 0);
         }
         expr
@@ -383,9 +381,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     let (expr, _) = self.conv_refine_arg(arg, sort);
                     args.push(expr);
                 }
+                let index_sorts = conv_sorts(self.early_cx(), self.genv.index_sorts_of(*def_id));
                 args.extend(
                     idx.expr
-                        .eta_expand_tuple(&rty::Sort::tuple(self.genv.index_sorts_of(*def_id)))
+                        .eta_expand_tuple(&rty::Sort::tuple(index_sorts))
                         .expect_tuple()
                         .iter()
                         .cloned(),
@@ -550,14 +549,14 @@ impl Layer {
         self.map.get(name.borrow())
     }
 
-    fn into_sorts(self) -> Vec<fhir::Sort> {
+    fn into_sorts(self) -> Vec<rty::Sort> {
         self.map
             .into_values()
             .flat_map(|entry| entry.flattened)
             .collect()
     }
 
-    fn to_sorts(&self) -> Vec<fhir::Sort> {
+    fn to_sorts(&self) -> Vec<rty::Sort> {
         self.map
             .values()
             .flat_map(|entry| entry.flattened.iter().cloned())
@@ -644,17 +643,17 @@ fn conv_sorts<'a>(
 
 fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
     match sort {
-        fhir::Sort::Tuple(sorts) => rty::Sort::tuple(conv_sorts(early_cx, sorts)),
+        fhir::Sort::Int => rty::Sort::Int,
+        fhir::Sort::Real => rty::Sort::Real,
+        fhir::Sort::Bool => rty::Sort::Bool,
+        fhir::Sort::Loc => rty::Sort::Loc,
+        fhir::Sort::Unit => rty::Sort::unit(),
+        fhir::Sort::User(name) => rty::Sort::User(*name),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(early_cx, fsort)),
         fhir::Sort::Aggregate(def_id) => {
             rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
         }
-        fhir::Sort::Int
-        | fhir::Sort::Real
-        | fhir::Sort::Bool
-        | fhir::Sort::Loc
-        | fhir::Sort::User(_)
-        | fhir::Sort::Infer => sort.clone(),
+        fhir::Sort::Infer => bug!("unexpected sort `Infer`"),
     }
 }
 

@@ -23,7 +23,6 @@ use std::{
     fmt,
 };
 
-use flux_common::bug;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
@@ -263,7 +262,7 @@ pub enum Sort {
     Bool,
     Real,
     Loc,
-    Tuple(List<Sort>),
+    Unit,
     Func(FuncSort),
     /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of an aggregate sort can be projected using dot notation to extract their fields.
@@ -376,7 +375,7 @@ impl BaseTy {
             BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
                 Sort::Aggregate(*def_id)
             }
-            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::unit(),
+            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
         }
     }
 }
@@ -468,32 +467,12 @@ impl RefinedBy {
 }
 
 impl Sort {
-    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
-        Sort::Tuple(sorts.into())
-    }
-
-    pub fn unit() -> Self {
-        Self::tuple(vec![])
-    }
-
     /// Returns `true` if the sort is [`Bool`].
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
-    pub fn is_bool(&self) -> bool {
+    fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
-    }
-
-    /// Returns `true` if the sort is [`Loc`].
-    ///
-    /// [`Loc`]: Sort::Loc
-    #[must_use]
-    pub fn is_loc(&self) -> bool {
-        matches!(self, Self::Loc)
-    }
-
-    pub fn is_unit(&self) -> bool {
-        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
 
     pub fn is_numeric(&self) -> bool {
@@ -503,53 +482,6 @@ impl Sort {
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
-    }
-
-    #[track_caller]
-    pub fn expect_func(&self) -> &FuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            bug!("expected `Sort::Func`")
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Sort] {
-        if let Sort::Tuple(sorts) = self {
-            sorts
-        } else {
-            bug!("expected `Sort::Tuple`")
-        }
-    }
-
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
-    pub fn flatten(&self) -> Vec<Sort> {
-        let mut sorts = vec![];
-        self.walk(|sort, _| sorts.push(sort.clone()));
-        sorts
-    }
-
-    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
-            if let Sort::Tuple(sorts) = sort {
-                sorts.iter().enumerate().for_each(|(i, sort)| {
-                    proj.push(i as u32);
-                    go(sort, f, proj);
-                    proj.pop();
-                });
-            } else {
-                f(sort, proj);
-            }
-        }
-        go(self, &mut f, &mut vec![]);
     }
 }
 
@@ -930,13 +862,7 @@ impl fmt::Display for Sort {
             Sort::Real => write!(f, "real"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::Tuple(sorts) => {
-                if let [sort] = &sorts[..] {
-                    write!(f, "({sort},)")
-                } else {
-                    write!(f, "({})", sorts.iter().join(", "))
-                }
-            }
+            Sort::Unit => write!(f, "()"),
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::Infer => write!(f, "_"),
             Sort::User(name) => write!(f, "{name}"),

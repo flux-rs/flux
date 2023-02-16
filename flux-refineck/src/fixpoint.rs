@@ -2,6 +2,7 @@ use std::iter;
 
 use fixpoint::FixpointResult;
 use flux_common::{
+    bug,
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
@@ -464,9 +465,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         // test for equality.
         rty::Sort::User(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Infer | rty::Sort::Aggregate(_) | rty::Sort::Loc => {
-            unreachable!("unexpected sort {sort:?}")
-        }
+        rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
     }
 }
 
