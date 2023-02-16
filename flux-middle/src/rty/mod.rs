@@ -419,19 +419,6 @@ impl Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
 
-    pub fn unconstr(&self) -> (Ty, Expr) {
-        fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
-            if let TyKind::Constr(pred, ty) = this.kind() {
-                preds.push(pred.clone());
-                go(ty, preds)
-            } else {
-                this.clone()
-            }
-        }
-        let mut preds = vec![];
-        (go(self, &mut preds), Expr::and(preds))
-    }
-
     pub fn uninit() -> Ty {
         TyKind::Uninit.intern()
     }
@@ -454,24 +441,24 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
-    pub fn unit() -> Ty {
-        Ty::tuple(vec![])
-    }
-
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
         TyKind::Discr(adt_def, place).intern()
     }
 
+    pub fn unit() -> Ty {
+        Ty::tuple(vec![])
+    }
+
     pub fn bool() -> Ty {
-        Ty::exists(Binder::new(Ty::indexed(BaseTy::Bool, Expr::nu()), Sort::Bool))
+        BaseTy::Bool.into_ty()
     }
 
     pub fn int(int_ty: IntTy) -> Ty {
-        Ty::exists(Binder::new(Ty::indexed(BaseTy::Int(int_ty), Expr::nu()), Sort::Int))
+        BaseTy::Int(int_ty).into_ty()
     }
 
     pub fn uint(uint_ty: UintTy) -> Ty {
-        Ty::exists(Binder::new(Ty::indexed(BaseTy::Uint(uint_ty), Expr::nu()), Sort::Int))
+        BaseTy::Uint(uint_ty).into_ty()
     }
 
     pub fn usize() -> Ty {
@@ -479,36 +466,44 @@ impl Ty {
     }
 
     pub fn str() -> Ty {
-        Ty::indexed_by_unit(BaseTy::Str)
+        BaseTy::Str.into_ty()
     }
 
     pub fn char() -> Ty {
-        Ty::indexed_by_unit(BaseTy::Char)
+        BaseTy::Char.into_ty()
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::indexed_by_unit(BaseTy::Float(float_ty))
+        BaseTy::Float(float_ty).into_ty()
     }
 
     pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
-        Ty::indexed_by_unit(BaseTy::Ref(mode, ty))
+        BaseTy::Ref(mode, ty).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
-        Ty::indexed_by_unit(BaseTy::Tuple(tys.into()))
+        BaseTy::Tuple(tys.into()).into_ty()
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
-        Ty::indexed_by_unit(BaseTy::Array(ty, c))
+        BaseTy::Array(ty, c).into_ty()
     }
 
     pub fn never() -> Ty {
-        Ty::indexed_by_unit(BaseTy::Never)
+        BaseTy::Never.into_ty()
     }
 
-    fn indexed_by_unit(bty: BaseTy) -> Ty {
-        debug_assert!(bty.sort().is_unit());
-        Ty::indexed(bty, Index::unit())
+    pub fn unconstr(&self) -> (Ty, Expr) {
+        fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
+            if let TyKind::Constr(pred, ty) = this.kind() {
+                preds.push(pred.clone());
+                go(ty, preds)
+            } else {
+                this.clone()
+            }
+        }
+        let mut preds = vec![];
+        (go(self, &mut preds), Expr::and(preds))
     }
 }
 
@@ -528,7 +523,7 @@ impl TyS {
         if let TyKind::Discr(adt_def, place) = self.kind() {
             (adt_def, place)
         } else {
-            panic!("expected discr")
+            bug!("expected discr")
         }
     }
 
@@ -537,7 +532,7 @@ impl TyS {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
             (adt_def, substs, idxs)
         } else {
-            panic!("expected adt")
+            bug!("expected adt")
         }
     }
 
@@ -559,7 +554,7 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
             TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
@@ -626,6 +621,15 @@ impl BaseTy {
         }
     }
 
+    fn into_ty(self) -> Ty {
+        let sort = self.sort();
+        if sort.is_unit() {
+            Ty::indexed(self, Index::unit())
+        } else {
+            Ty::exists(Binder::new(Ty::indexed(self, Expr::nu()), sort))
+        }
+    }
+
     pub fn sort(&self) -> Sort {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
@@ -655,7 +659,7 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
     if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &substs[..] {
         (boxed, alloc)
     } else {
-        panic!("invalid generic arguments for box");
+        bug!("invalid generic arguments for box");
     }
 }
 
