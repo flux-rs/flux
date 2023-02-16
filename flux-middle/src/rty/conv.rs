@@ -38,12 +38,10 @@ struct Layer {
     map: FxIndexMap<fhir::Name, LayerEntry>,
 }
 
-struct LayerEntry {
-    sort: fhir::Sort,
-    infer_mode: rty::InferMode,
-    conv: rty::Sort,
-    // flattened: Vec<rty::Sort>,
-    idx: u32,
+#[derive(Debug)]
+enum LayerEntry {
+    Normal { sort: fhir::Sort, infer_mode: rty::InferMode, conv: rty::Sort, idx: u32 },
+    Unit,
 }
 
 struct LookupResult<'a> {
@@ -143,17 +141,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         Binder::new(output, rty::Sort::tuple(sorts))
     }
-
-    // fn conv_infer_modes(&self, params: &[fhir::FunRefineParam]) -> Vec<rty::InferMode> {
-    //     let layer = self.env.top_layer();
-    //     params
-    //         .iter()
-    //         .flat_map(|param| {
-    //             let n = layer[param.name.name].len();
-    //             (0..n).map(|_| param.mode)
-    //         })
-    //         .collect()
-    // }
 
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
@@ -534,7 +521,7 @@ impl Layer {
             .iter()
             .map(|param| {
                 let entry = LayerEntry::new(early_cx, idx, param.sort.clone(), Some(param.mode));
-                idx += 1;
+                idx += !matches!(entry, LayerEntry::Unit) as u32;
                 (param.name.name, entry)
             })
             .collect();
@@ -550,17 +537,36 @@ impl Layer {
     }
 
     fn into_fun_params(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
-        self.map
-            .into_values()
-            .map(|entry| (entry.conv, entry.infer_mode))
+        self.map.into_values().filter_map(|entry| {
+            match entry {
+                LayerEntry::Normal { infer_mode, conv, .. } => Some((conv, infer_mode)),
+                LayerEntry::Unit => None,
+            }
+        })
     }
 
     fn into_sorts(self) -> Vec<rty::Sort> {
-        self.map.into_values().map(|entry| entry.conv).collect()
+        self.map
+            .into_values()
+            .filter_map(|entry| {
+                match entry {
+                    LayerEntry::Normal { conv, .. } => Some(conv),
+                    LayerEntry::Unit => None,
+                }
+            })
+            .collect_vec()
     }
 
     fn to_sorts(&self) -> Vec<rty::Sort> {
-        self.map.values().map(|entry| entry.conv.clone()).collect()
+        self.map
+            .values()
+            .filter_map(|entry| {
+                match entry {
+                    LayerEntry::Normal { conv, .. } => Some(conv.clone()),
+                    LayerEntry::Unit => None,
+                }
+            })
+            .collect_vec()
     }
 }
 
@@ -583,31 +589,23 @@ impl LayerEntry {
         infer_mode: Option<fhir::InferMode>,
     ) -> Self {
         let conv = conv_sort(early_cx, &sort);
-        let infer_mode = infer_mode.unwrap_or_else(|| conv.default_infer_mode());
-        LayerEntry { sort, infer_mode, conv, idx }
+        if conv.is_unit() {
+            LayerEntry::Unit
+        } else {
+            let infer_mode = infer_mode.unwrap_or_else(|| conv.default_infer_mode());
+            LayerEntry::Normal { sort, infer_mode, conv, idx }
+        }
     }
-
-    // fn is_empty(&self) -> bool {
-    //     self.flattened.is_empty()
-    // }
-
-    // fn len(&self) -> u32 {
-    //     self.flattened.len() as u32
-    // }
 
     fn to_expr(&self, level: u32) -> rty::Expr {
-        rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(level)), self.idx)
-            .eta_expand_tuple(&self.conv)
-        // rty::Expr::fold_sort(&self.conv, |_| {
-        //     let e = rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(level)), i);
-        //     i += 1;
-        //     e
-        // })
+        match self {
+            LayerEntry::Normal { idx, conv, .. } => {
+                rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(level)), *idx)
+                    .eta_expand_tuple(conv)
+            }
+            LayerEntry::Unit => rty::Expr::unit(),
+        }
     }
-
-    // fn into_tuple_sort(self) -> rty::Sort {
-    //     rty::Sort::tuple(self.flattened)
-    // }
 }
 
 impl LookupResult<'_> {
@@ -622,13 +620,15 @@ impl LookupResult<'_> {
     }
 
     fn get_field(&self, early_cx: &EarlyCtxt, fld: SurfaceIdent) -> rty::Expr {
-        if let fhir::Sort::Aggregate(def_id) = &self.entry.sort {
+        if let LayerEntry::Normal { sort, .. } = &self.entry
+            && let fhir::Sort::Aggregate(def_id) = sort
+        {
             let i = early_cx
                 .field_index(*def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
             rty::Expr::tuple_proj(self.to_expr(), i as u32)
         } else {
-            span_bug!(fld.span, "expected aggregate sort, got `{:?}`", self.entry.sort)
+            span_bug!(fld.span, "expected aggregate sort, got `{:?}`", self.entry)
         }
     }
 }

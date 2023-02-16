@@ -119,7 +119,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generics(&substs)
-            .replace_bvars_with(|sort, kind| infcx.fresh_evar_or_kvar(sort, kind));
+            .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -178,7 +178,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output = output
-            .replace_bvar_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -211,7 +211,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .replace_generics(&substs)
-            .replace_bvar_with(|sort| infcx.fresh_evar_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -294,7 +294,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    fn fresh_evar_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
+    fn fresh_evars_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();

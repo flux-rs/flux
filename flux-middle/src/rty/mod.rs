@@ -914,11 +914,7 @@ mod pretty {
     impl Pretty for Binder<FnOutput> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let sorts = self.sort.expect_tuple();
-            if !sorts.is_empty() {
-                w!("exists<{:?}>", join!(", ", sorts))?;
-            }
-            w!("{:?}", &self.value.ret)?;
+            w!("∃{:?}. {:?}", &self.sort, &self.value.ret)?;
             if !self.value.ensures.is_empty() {
                 w!("; [{:?}]", join!(", ", &self.value.ensures))?;
             }
