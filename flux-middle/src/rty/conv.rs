@@ -52,7 +52,8 @@ struct LookupResult<'a> {
 }
 
 pub(crate) fn expand_type_alias(genv: &GlobalEnv, alias: &fhir::TyAlias) -> rty::Binder<rty::Ty> {
-    let mut cx = ConvCtxt::from_params(genv, &alias.params);
+    let layer = Layer::from_params(genv.early_cx(), &alias.params);
+    let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
     let ty = cx.conv_ty(&alias.ty);
     let sorts = cx.env.pop_layer().into_sorts();
     rty::Binder::new(ty, rty::Sort::tuple(sorts))
@@ -62,7 +63,7 @@ pub(crate) fn adt_def_for_struct(
     early_cx: &EarlyCtxt,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let env = Env::from_params(early_cx, &struct_def.params);
+    let env = Env::with_layer(early_cx, Layer::from_params(early_cx, &struct_def.params));
     let sorts = env.top_layer().to_sorts();
     let invariants = env.conv_invariants(&sorts, &struct_def.invariants);
 
@@ -75,7 +76,7 @@ pub(crate) fn adt_def_for_struct(
 }
 
 pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -> rty::AdtDef {
-    let env = Env::from_params(early_cx, &enum_def.params);
+    let env = Env::with_layer(early_cx, Layer::from_params(early_cx, &enum_def.params));
     let sorts = env.top_layer().to_sorts();
     let invariants = env.conv_invariants(&sorts, &enum_def.invariants);
     rty::AdtDef::new(
@@ -87,21 +88,22 @@ pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
-    let mut env = Env::from_params(early_cx, &defn.args);
+    let mut env = Env::with_layer(early_cx, Layer::from_params(early_cx, &defn.args));
     let expr = env.conv_expr(&defn.expr);
     let expr = Binder::new(expr, rty::Sort::tuple(env.pop_layer().into_sorts()));
     rty::Defn { name: defn.name, expr }
 }
 
 pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
-    let mut env = Env::from_params(early_cx, &qualifier.args);
+    let mut env = Env::with_layer(early_cx, Layer::from_params(early_cx, &qualifier.args));
     let body = env.conv_expr(&qualifier.expr);
     let body = Binder::new(body, rty::Sort::tuple(env.pop_layer().into_sorts()));
     rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
 }
 
 pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
-    let mut cx = ConvCtxt::from_fun_params(genv, &fn_sig.params);
+    let layer = Layer::from_fun_params(genv.early_cx(), &fn_sig.params);
+    let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
@@ -121,13 +123,7 @@ pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySi
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
-    fn from_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[(fhir::Ident, fhir::Sort)]) -> Self {
-        let env = Env::from_params(genv.early_cx(), params);
-        Self { genv, env }
-    }
-
-    fn from_fun_params(genv: &'a GlobalEnv<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
-        let env = Env::from_fun_params(genv.early_cx(), params);
+    fn new(genv: &'a GlobalEnv<'a, 'tcx>, env: Env<'a, 'tcx>) -> Self {
         Self { genv, env }
     }
 
@@ -176,7 +172,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> PolyVariant {
-        let mut cx = ConvCtxt::from_fun_params(genv, &variant.params);
+        let layer = Layer::from_fun_params(genv.early_cx(), &variant.params);
+        let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
         let fields = variant.fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
         let args = rty::Index::from(cx.conv_refine_arg(&variant.ret.idx, &variant.ret.bty.sort()));
         let ret = cx.conv_base_ty(&variant.ret.bty, args);
@@ -189,7 +186,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         genv: &GlobalEnv,
         struct_def: &fhir::StructDef,
     ) -> Option<rty::PolyVariant> {
-        let mut cx = ConvCtxt::from_params(genv, &struct_def.params);
+        let layer = Layer::from_params(genv.early_cx(), &struct_def.params);
+        let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
         let def_id = struct_def.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
@@ -437,22 +435,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> Env<'a, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, layer: Layer) -> Env<'a, 'tcx> {
+    fn with_layer(early_cx: &'a EarlyCtxt<'a, 'tcx>, layer: Layer) -> Self {
         Self { early_cx, layers: vec![layer] }
-    }
-
-    fn from_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, slice: &[(fhir::Ident, fhir::Sort)]) -> Self {
-        Self::new(
-            early_cx,
-            Layer::new(early_cx, slice.iter().map(|(ident, sort)| (&ident.name, sort))),
-        )
-    }
-
-    fn from_fun_params(early_cx: &'a EarlyCtxt<'a, 'tcx>, params: &[fhir::FunRefineParam]) -> Self {
-        Self::new(
-            early_cx,
-            Layer::new(early_cx, params.iter().map(|param| (&param.name.name, &param.sort))),
-        )
     }
 
     fn push_layer(&mut self, layer: Layer) {
@@ -539,6 +523,14 @@ impl Layer {
             })
             .collect();
         Self { map }
+    }
+
+    fn from_params(early_cx: &EarlyCtxt, slice: &[(fhir::Ident, fhir::Sort)]) -> Self {
+        Layer::new(early_cx, slice.iter().map(|(ident, sort)| (&ident.name, sort)))
+    }
+
+    fn from_fun_params(early_cx: &EarlyCtxt, params: &[fhir::FunRefineParam]) -> Self {
+        Layer::new(early_cx, params.iter().map(|param| (&param.name.name, &param.sort)))
     }
 
     fn empty() -> Self {
