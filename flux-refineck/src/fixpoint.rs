@@ -538,8 +538,8 @@ impl<'a> ExprCtxt<'a> {
                     })
             }
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
-            rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(self.const_map[did].name),
-            rty::ExprKind::App(func, arg) => {
+            rty::ExprKind::ConstDefId(did) => fixpoint::Expr::ConstDefId(self.const_map[did].name),
+            rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func);
                 let args = self.exprs_to_fixpoint(arg.as_tuple());
                 fixpoint::Expr::App(func, args)

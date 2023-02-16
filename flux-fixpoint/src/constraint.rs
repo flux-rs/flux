@@ -41,6 +41,7 @@ pub enum Pred {
 #[derive(Hash)]
 pub enum Expr {
     Var(Name),
+    ConstDefId(Name),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     App(Func, Vec<Expr>),
@@ -340,6 +341,7 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Var(x) => write!(f, "{x:?}"),
+            Expr::ConstDefId(x) => write!(f, "$c{x:?}"),
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;

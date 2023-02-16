@@ -167,7 +167,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for (name, sort) in &self.constants {
-            write!(f, "(constant {name:?} {sort:?})")?;
+            write!(f, "(constant $c{name:?} {sort:?})")?;
         }
         for uif_def in &self.uifs {
             writeln!(f, "{uif_def}")?;
