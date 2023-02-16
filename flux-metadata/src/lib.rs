@@ -44,7 +44,7 @@ pub struct CrateMetadata {
     refined_bys: FxHashMap<DefIndex, fhir::RefinedBy>,
     adts: FxHashMap<DefIndex, AdtMetadata>,
     /// For now it only store type of aliases
-    type_of: FxHashMap<DefIndex, rty::Binders<rty::Ty>>,
+    type_of: FxHashMap<DefIndex, rty::Binder<rty::Ty>>,
 }
 
 #[derive(TyEncodable, TyDecodable)]
@@ -93,7 +93,7 @@ impl CrateStore for CStore {
         self.adt(def_id).map(|adt| adt.variants.as_deref())
     }
 
-    fn type_of(&self, def_id: DefId) -> Option<&rty::Binders<rty::Ty>> {
+    fn type_of(&self, def_id: DefId) -> Option<&rty::Binder<rty::Ty>> {
         self.meta.get(&def_id.krate)?.type_of.get(&def_id.index)
     }
 }

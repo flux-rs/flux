@@ -47,13 +47,13 @@ impl<'sess> Resolver<'sess> {
         Ok(Self { sess, table })
     }
 
-    pub(crate) fn resolve_alias(
+    pub(crate) fn resolve_type_alias(
         &self,
-        alias_def: surface::Alias,
-    ) -> Result<surface::Alias<Res>, ErrorGuaranteed> {
+        alias_def: surface::TyAlias,
+    ) -> Result<surface::TyAlias<Res>, ErrorGuaranteed> {
         let ty = self.resolve_ty(alias_def.ty)?;
 
-        Ok(surface::Alias {
+        Ok(surface::TyAlias {
             path: alias_def.path,
             refined_by: alias_def.refined_by,
             ty,

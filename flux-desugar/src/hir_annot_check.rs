@@ -25,7 +25,7 @@ pub(crate) fn check_alias(
     tcx: TyCtxt,
     sess: &FluxSession,
     def_id: LocalDefId,
-    alias: &surface::Alias<Res>,
+    alias: &surface::TyAlias<Res>,
 ) -> Result<(), ErrorGuaranteed> {
     let item = tcx.hir().expect_item(def_id);
     let hir::ItemKind::TyAlias(hir_ty, _) = &item.kind else {

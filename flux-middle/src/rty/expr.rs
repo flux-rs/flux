@@ -1,15 +1,16 @@
-use std::{fmt, sync::OnceLock};
+use std::{fmt, iter, slice, sync::OnceLock};
 
 use flux_common::bug;
 use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
+use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Local};
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy, Binders};
+use super::{evars::EVar, BaseTy, Binder, Sort};
 use crate::{
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
@@ -27,7 +28,7 @@ pub struct ExprS {
 pub enum ExprKind {
     FreeVar(Name),
     EVar(EVar),
-    BoundVar(BoundVar),
+    BoundVar(DebruijnIndex),
     Local(Local),
     Constant(Constant),
     ConstDefId(DefId),
@@ -48,7 +49,7 @@ pub enum ExprKind {
     ///    More generaly, we need to partially evaluate expressions such that all abstractions in
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
     ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
-    Abs(Binders<Expr>),
+    Abs(Binder<Expr>),
     Hole,
 }
 
@@ -63,15 +64,10 @@ pub struct KVar {
     pub scope: List<Expr>,
 }
 
-newtype_index! {
-    #[debug_format = "$k{}"]
-    pub struct KVid {}
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    Bound(BoundVar),
+    Bound(DebruijnIndex),
     EVar(EVar),
 }
 
@@ -81,20 +77,15 @@ pub struct Path {
     projection: List<Field>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
-    Var(Var),
+    Var(Var, List<u32>),
 }
 
-/// A bound *var*riable is represented as a debruijn index
-/// into a list of [`Binders`] and index into that list.
-///
-/// [`Binders`]: super::Binders
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
-pub struct BoundVar {
-    pub debruijn: DebruijnIndex,
-    pub index: usize,
+newtype_index! {
+    #[debug_format = "$k{}"]
+    pub struct KVid {}
 }
 
 newtype_index! {
@@ -103,7 +94,7 @@ newtype_index! {
 }
 
 newtype_index! {
-    #[debug_format = "DebruijnIndex({})"]
+    #[debug_format = "^{}"]
     pub struct DebruijnIndex {
         const INNERMOST = 0;
     }
@@ -165,7 +156,31 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::bvar(BoundVar::NU)
+        Expr::bvar(INNERMOST)
+    }
+
+    pub fn as_tuple(&self) -> &[Expr] {
+        if let ExprKind::Tuple(tup) = self.kind() {
+            tup
+        } else {
+            slice::from_ref(self)
+        }
+    }
+
+    pub fn expect_tuple(&self) -> &[Expr] {
+        if let ExprKind::Tuple(tup) = self.kind() {
+            tup
+        } else {
+            bug!("expected tuple")
+        }
+    }
+
+    pub fn singleton_proj_coercion(self) -> Expr {
+        if let ExprKind::Tuple(tup) = self.kind() && tup.len() == 1 {
+            Expr::tuple_proj(self, 0)
+        } else {
+            self
+        }
     }
 
     pub fn unit() -> Expr {
@@ -180,7 +195,7 @@ impl Expr {
         ExprKind::EVar(evar).intern()
     }
 
-    pub fn bvar(bvar: BoundVar) -> Expr {
+    pub fn bvar(bvar: DebruijnIndex) -> Expr {
         ExprKind::BoundVar(bvar).intern()
     }
 
@@ -226,7 +241,7 @@ impl Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
     }
 
-    pub fn abs(body: Binders<Expr>) -> Expr {
+    pub fn abs(body: Binder<Expr>) -> Expr {
         ExprKind::Abs(body).intern()
     }
 
@@ -284,6 +299,10 @@ impl Expr {
 
     pub fn tuple_proj(e: impl Into<Expr>, proj: u32) -> Expr {
         ExprKind::TupleProj(e.into(), proj).intern()
+    }
+
+    pub fn tuple_projs(e: impl Into<Expr>, projs: &[u32]) -> Expr {
+        projs.iter().copied().fold(e.into(), Expr::tuple_proj)
     }
 
     pub fn path_proj(base: Expr, field: Field) -> Expr {
@@ -388,16 +407,6 @@ impl Expr {
         self.fold_with(&mut Simplify)
     }
 
-    pub fn to_loc(&self) -> Option<Loc> {
-        match self.kind() {
-            ExprKind::Local(local) => Some(Loc::Local(*local)),
-            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name))),
-            ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar))),
-            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar))),
-            _ => None,
-        }
-    }
-
     pub fn to_var(&self) -> Option<Var> {
         self.kind().to_var()
     }
@@ -409,28 +418,86 @@ impl Expr {
         }
     }
 
+    pub fn to_loc(&self) -> Option<Loc> {
+        if let ExprKind::Local(local) = self.kind() {
+            return Some(Loc::Local(*local));
+        }
+
+        let mut proj = vec![];
+        let mut expr = self;
+        while let ExprKind::TupleProj(e, field) = expr.kind() {
+            proj.push(*field);
+            expr = e;
+        }
+        proj.reverse();
+        let proj = List::from(proj);
+
+        match expr.kind() {
+            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name), proj)),
+            ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar), proj)),
+            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar), proj)),
+            _ => None,
+        }
+    }
+
     pub fn to_path(&self) -> Option<Path> {
         let mut expr = self;
         let mut proj = vec![];
-        let loc = loop {
-            match expr.kind() {
-                ExprKind::PathProj(e, field) => {
-                    proj.push(*field);
-                    expr = e;
-                }
-                ExprKind::FreeVar(name) => break Loc::Var(Var::Free(*name)),
-                ExprKind::BoundVar(bvar) => break Loc::Var(Var::Bound(*bvar)),
-                ExprKind::EVar(evar) => break Loc::Var(Var::EVar(*evar)),
-                ExprKind::Local(local) => break Loc::Local(*local),
-                _ => return None,
-            }
-        };
+        while let ExprKind::PathProj(e, field) = expr.kind() {
+            proj.push(*field);
+            expr = e;
+        }
         proj.reverse();
-        Some(Path::new(loc, proj))
+        Some(Path::new(expr.to_loc()?, proj))
     }
 
     pub fn is_abs(&self) -> bool {
         matches!(self.kind(), ExprKind::Abs(..))
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        matches!(self.kind(), ExprKind::Tuple(..))
+    }
+
+    pub(crate) fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
+        fn go(sort: &Sort, projs: &mut Vec<u32>, f: &impl Fn(&[u32]) -> Expr) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(
+                    sorts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, sort)| {
+                            projs.push(i as u32);
+                            let e = go(sort, projs, f);
+                            projs.pop();
+                            e
+                        })
+                        .collect_vec(),
+                )
+            } else {
+                f(projs)
+            }
+        }
+        if let (ExprKind::Tuple(exprs), Sort::Tuple(sorts)) = (self.kind(), sort) {
+            Expr::tuple(
+                iter::zip(exprs, sorts)
+                    .map(|(e, s)| e.eta_expand_tuple(s))
+                    .collect_vec(),
+            )
+        } else {
+            go(sort, &mut vec![], &|projs| Expr::tuple_projs(self, projs))
+        }
+    }
+
+    pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
+            if let Sort::Tuple(sorts) = sort {
+                Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
+            } else {
+                f(sort)
+            }
+        }
+        go(sort, &mut f)
     }
 }
 
@@ -451,14 +518,6 @@ impl Var {
             Var::Free(name) => Expr::fvar(*name),
             Var::EVar(evar) => Expr::evar(*evar),
         }
-    }
-
-    pub fn to_path(&self) -> Path {
-        self.to_loc().into()
-    }
-
-    pub fn to_loc(&self) -> Loc {
-        Loc::Var(*self)
     }
 }
 
@@ -492,7 +551,7 @@ impl Path {
 
     pub fn to_loc(&self) -> Option<Loc> {
         if self.projection.is_empty() {
-            Some(self.loc)
+            Some(self.loc.clone())
         } else {
             None
         }
@@ -503,28 +562,8 @@ impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
             Loc::Local(local) => Expr::local(*local),
-            Loc::Var(var) => var.to_expr(),
+            Loc::Var(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
         }
-    }
-}
-
-impl BoundVar {
-    pub const NU: BoundVar = BoundVar { debruijn: INNERMOST, index: 0 };
-
-    pub fn new(index: usize, debruijn: DebruijnIndex) -> Self {
-        BoundVar { debruijn, index }
-    }
-
-    pub fn innermost(index: usize) -> BoundVar {
-        BoundVar::new(index, INNERMOST)
-    }
-
-    pub fn to_expr(self) -> Expr {
-        Expr::bvar(self)
-    }
-
-    pub fn to_var(self) -> Var {
-        Var::Bound(self)
     }
 }
 
@@ -618,12 +657,6 @@ impl From<&Expr> for Expr {
     }
 }
 
-impl From<Loc> for Expr {
-    fn from(loc: Loc) -> Self {
-        loc.to_expr()
-    }
-}
-
 impl From<Path> for Expr {
     fn from(path: Path) -> Self {
         path.to_expr()
@@ -636,8 +669,8 @@ impl From<Name> for Expr {
     }
 }
 
-impl From<BoundVar> for Expr {
-    fn from(bvar: BoundVar) -> Self {
+impl From<DebruijnIndex> for Expr {
+    fn from(bvar: DebruijnIndex) -> Self {
         Expr::bvar(bvar)
     }
 }
@@ -650,7 +683,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Var(Var::Free(name))
+        Loc::Var(Var::Free(name), List::from(vec![]))
     }
 }
 
@@ -660,7 +693,7 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS, [Expr], [KVar]);
+impl_internable!(ExprS, [Expr], [KVar], [u32]);
 
 mod pretty {
     use super::*;
@@ -711,11 +744,11 @@ mod pretty {
             }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
-                ExprKind::BoundVar(bvar) => w!("{:?}", bvar),
+                ExprKind::BoundVar(bvar) => w!("{:?}", ^bvar),
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
                 ExprKind::EVar(evar) => w!("{:?}", evar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
-                ExprKind::ConstDefId(did) => w!("{:?}", ^did),
+                ExprKind::ConstDefId(did) => w!("{}", ^pretty::def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!("{}", ^c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
@@ -750,7 +783,11 @@ mod pretty {
                     }
                 }
                 ExprKind::Tuple(exprs) => {
-                    w!("({:?})", join!(", ", exprs))
+                    if let [e] = &exprs[..] {
+                        w!("({:?},)", e)
+                    } else {
+                        w!("({:?})", join!(", ", exprs))
+                    }
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_binary_op() {
@@ -797,7 +834,7 @@ mod pretty {
     impl Pretty for Path {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?}", self.loc)?;
+            w!("{:?}", &self.loc)?;
             for field in self.projection.iter() {
                 w!(".{}", ^u32::from(*field))?;
             }
@@ -810,15 +847,14 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Var(var) => w!("{:?}", var),
+                Loc::Var(var, proj) => {
+                    w!("{:?}", var)?;
+                    for field in proj.iter() {
+                        w!(".{}", ^field)?;
+                    }
+                    Ok(())
+                }
             }
-        }
-    }
-
-    impl Pretty for BoundVar {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
-            w!("^{}.{:?}", ^self.debruijn.as_u32(), ^self.index)
         }
     }
 
@@ -855,5 +891,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, BoundVar, Var, KVar);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar);
 }

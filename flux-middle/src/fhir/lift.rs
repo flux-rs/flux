@@ -27,17 +27,17 @@ pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::Refine
     }
 }
 
-pub fn lift_alias(
+pub fn lift_type_alias(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
-) -> Result<fhir::Alias, ErrorGuaranteed> {
+) -> Result<fhir::TyAlias, ErrorGuaranteed> {
     let item = early_cx.hir().expect_item(def_id);
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
     let cx = LiftCtxt::new(early_cx, def_id);
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::Alias { def_id, params: vec![], ty, span: item.span })
+    Ok(fhir::TyAlias { def_id, params: vec![], ty, span: item.span })
 }
 
 pub fn lift_field_def(

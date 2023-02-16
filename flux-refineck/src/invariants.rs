@@ -37,23 +37,18 @@ fn check_invariant(
     for variant_idx in adt_def.variants() {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let mut names = vec![];
         let variant = genv
             .variant(adt_def.def_id(), variant_idx)
             .expect("cannot check opaque structs")
-            .replace_bvars_with_fresh_fvars(|sort| {
-                let fresh = rcx.define_var(sort);
-                names.push(fresh);
-                fresh
-            });
+            .replace_bvar_with(|sort| rcx.define_vars(sort));
 
         for ty in variant.fields() {
             let ty = rcx.unpack(ty);
             rcx.assume_invariants(&ty);
         }
-        let (.., idxs) = variant.ret.expect_adt();
+        let (.., idx) = variant.ret.expect_adt();
         rcx.check_pred(
-            invariant.pred.replace_bvars(idxs.args()),
+            invariant.pred.replace_bvar(&idx.expr),
             Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }

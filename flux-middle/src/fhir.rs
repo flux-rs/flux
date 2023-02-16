@@ -23,6 +23,7 @@ use std::{
     fmt,
 };
 
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
@@ -72,7 +73,7 @@ pub struct Map {
     consts: FxHashMap<Symbol, ConstInfo>,
     qualifiers: Vec<Qualifier>,
     refined_by: FxHashMap<LocalDefId, RefinedBy>,
-    aliases: FxHashMap<LocalDefId, Alias>,
+    type_aliases: FxHashMap<LocalDefId, TyAlias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
@@ -81,7 +82,7 @@ pub struct Map {
 }
 
 #[derive(Debug)]
-pub struct Alias {
+pub struct TyAlias {
     pub def_id: LocalDefId,
     pub params: Vec<(Ident, Sort)>,
     pub ty: Ty,
@@ -491,6 +492,10 @@ impl Sort {
         matches!(self, Self::Loc)
     }
 
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
+    }
+
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -505,7 +510,16 @@ impl Sort {
         if let Sort::Func(sort) = self {
             sort
         } else {
-            panic!("expected `Sort::Func`")
+            bug!("expected `Sort::Func`")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            bug!("expected `Sort::Tuple`")
         }
     }
 
@@ -515,6 +529,27 @@ impl Sort {
         } else {
             InferMode::EVar
         }
+    }
+
+    pub fn flatten(&self) -> Vec<Sort> {
+        let mut sorts = vec![];
+        self.walk(|sort, _| sorts.push(sort.clone()));
+        sorts
+    }
+
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
+            if let Sort::Tuple(sorts) = sort {
+                sorts.iter().enumerate().for_each(|(i, sort)| {
+                    proj.push(i as u32);
+                    go(sort, f, proj);
+                    proj.pop();
+                });
+            } else {
+                f(sort, proj);
+            }
+        }
+        go(self, &mut f, &mut vec![]);
     }
 }
 
@@ -594,16 +629,16 @@ impl Map {
 
     // Aliases
 
-    pub fn insert_alias(&mut self, def_id: LocalDefId, alias: Alias) {
-        self.aliases.insert(def_id, alias);
+    pub fn insert_type_alias(&mut self, def_id: LocalDefId, alias: TyAlias) {
+        self.type_aliases.insert(def_id, alias);
     }
 
-    pub fn aliases(&self) -> impl Iterator<Item = &Alias> {
-        self.aliases.values()
+    pub fn type_aliases(&self) -> impl Iterator<Item = &TyAlias> {
+        self.type_aliases.values()
     }
 
-    pub fn get_alias(&self, def_id: impl Borrow<LocalDefId>) -> &Alias {
-        &self.aliases[def_id.borrow()]
+    pub fn get_type_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
+        &self.type_aliases[def_id.borrow()]
     }
 
     // Structs
@@ -895,7 +930,13 @@ impl fmt::Display for Sort {
             Sort::Real => write!(f, "real"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::Tuple(sorts) => write!(f, "({})", sorts.iter().join(", ")),
+            Sort::Tuple(sorts) => {
+                if let [sort] = &sorts[..] {
+                    write!(f, "({sort},)")
+                } else {
+                    write!(f, "({})", sorts.iter().join(", "))
+                }
+            }
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::Infer => write!(f, "_"),
             Sort::User(name) => write!(f, "{name}"),

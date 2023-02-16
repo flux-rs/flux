@@ -8,7 +8,7 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub Alias: surface::Alias = {
+pub TyAlias: surface::TyAlias = {
   <lo:@L>
     "type"
     <path:Path>
@@ -24,7 +24,7 @@ pub Alias: surface::Alias = {
             index_params: index_params.unwrap_or_default(),
             span: mk_span(refined_by_lo, refined_by_hi)
         };
-        surface::Alias { path, refined_by, ty, span: mk_span(lo, hi) }
+        surface::TyAlias { path, refined_by, ty, span: mk_span(lo, hi) }
     }
 }
 

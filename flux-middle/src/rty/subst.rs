@@ -32,14 +32,11 @@ impl FVarSubst {
             .normalize(&Default::default())
     }
 
-    pub fn subst_loc(&self, loc: Loc) -> Loc {
-        let loc_expr = self.apply(&loc.to_expr());
-        loc_expr
-            .to_loc()
-            .unwrap_or_else(|| bug!("substitution produces invalid loc: {loc_expr:?}"))
+    pub fn infer_from_idxs(&mut self, params: &FxHashSet<Name>, idx1: &Index, idx2: &Index) {
+        self.infer_from_exprs(params, &idx1.expr, &idx2.expr);
     }
 
-    pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
+    fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
                 if let Some(old_e) = self.insert(*fvar, e1.clone()) {
@@ -92,17 +89,17 @@ impl TypeFolder for FVarSubstFolder<'_> {
 /// [bound variables]: `crate::rty::expr::ExprKind::BoundVar`
 pub(super) struct BVarSubstFolder<'a> {
     current_index: DebruijnIndex,
-    args: &'a [Expr],
+    expr: &'a Expr,
 }
 
 impl<'a> BVarSubstFolder<'a> {
-    pub(super) fn new(args: &'a [Expr]) -> BVarSubstFolder<'a> {
-        BVarSubstFolder { args, current_index: INNERMOST }
+    pub(super) fn new(expr: &'a Expr) -> BVarSubstFolder<'a> {
+        BVarSubstFolder { expr, current_index: INNERMOST }
     }
 }
 
 impl TypeFolder for BVarSubstFolder<'_> {
-    fn fold_binders<T>(&mut self, t: &Binders<T>) -> Binders<T>
+    fn fold_binders<T>(&mut self, t: &Binder<T>) -> Binder<T>
     where
         T: TypeFoldable,
     {
@@ -113,8 +110,8 @@ impl TypeFolder for BVarSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.current_index {
-            self.args[bvar.index].shift_in_bvars(self.current_index.as_u32())
+        if let ExprKind::BoundVar(debruijn) = e.kind() && *debruijn == self.current_index {
+            self.expr.shift_in_bvars(self.current_index.as_u32())
         } else {
             e.super_fold_with(self)
         }

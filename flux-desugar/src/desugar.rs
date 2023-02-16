@@ -110,16 +110,16 @@ pub fn desugar_refined_by(
     Ok(fhir::RefinedBy::new(def_id, early_bound_params, index_params, refined_by.span))
 }
 
-pub fn desugar_alias(
+pub fn desugar_type_alias(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
-    alias: surface::Alias<Res>,
-) -> Result<fhir::Alias, ErrorGuaranteed> {
+    alias: surface::TyAlias<Res>,
+) -> Result<fhir::TyAlias, ErrorGuaranteed> {
     let binders = Binders::from_params(early_cx, &alias.refined_by)?;
     let mut cx = DesugarCtxt::new(early_cx, binders);
     let ty = cx.desugar_ty(None, &alias.ty)?;
 
-    Ok(fhir::Alias { def_id, params: cx.binders.pop_layer().into_params(), ty, span: alias.span })
+    Ok(fhir::TyAlias { def_id, params: cx.binders.pop_layer().into_params(), ty, span: alias.span })
 }
 
 pub fn desugar_struct_def(

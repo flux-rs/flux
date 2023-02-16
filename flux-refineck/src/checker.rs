@@ -14,8 +14,8 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binders, Bool, Constraint, Expr, Float, FnOutput, FnSig, Int, IntTy,
-        PolySig, RefKind, RefineArgs, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, Index, Int,
+        IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -48,7 +48,7 @@ pub struct Checker<'a, 'tcx, P> {
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
     phase: P,
-    output: Binders<FnOutput>,
+    output: Binder<FnOutput>,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
@@ -74,7 +74,7 @@ pub trait Phase: Sized {
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr>;
+    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr>;
 
     fn clear(&mut self, bb: BasicBlock);
 }
@@ -103,7 +103,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
-        output: Binders<FnOutput>,
+        output: Binder<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
         phase: P,
     ) -> Self {
@@ -180,8 +180,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .unwrap_or_else(|_| {
                 span_bug!(body.span(), "checking function with unsupported signature")
             })
-            .fn_sig
-            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
+            .replace_bvars_with(|sort, _| rcx.define_vars(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);
 
@@ -214,7 +213,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 rty::Constraint::Type(path, ty) => {
                     assert!(path.projection().is_empty());
                     let ty = rcx.unpack(ty);
-                    env.alloc_universal_loc(path.loc, ty);
+                    env.alloc_universal_loc(path.loc.clone(), ty);
                 }
                 rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -419,17 +418,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let substs = substs
             .iter()
-            .map(|arg| {
-                self.genv
-                    .refine_generic_arg(arg, &mut |sorts| Binders::new(Expr::hole(), sorts))
-            })
+            .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
             .collect_vec();
 
         let output = self
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?
-            .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort));
+            .replace_bvar_with(|sort| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {
@@ -453,11 +449,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, terminator_span, cond)?;
-        let pred = if let TyKind::Indexed(BaseTy::Bool, idxs) = ty.kind() {
+        let pred = if let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() {
             if expected {
-                idxs.nth(0).clone()
+                idx.expr.clone()
             } else {
-                idxs.nth(0).not()
+                idx.expr.not()
             }
         } else {
             tracked_span_bug!("unexpected ty `{ty:?}`")
@@ -482,15 +478,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn check_if(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
-                TyKind::Indexed(BaseTy::Bool, idxs) => {
+                TyKind::Indexed(BaseTy::Bool, idx) => {
                     if bits == 0 {
-                        idxs.nth(0).not()
+                        idx.expr.not()
                     } else {
-                        idxs.nth(0).clone()
+                        idx.expr.clone()
                     }
                 }
-                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idxs) => {
-                    Expr::binary_op(BinOp::Eq, idxs.nth(0).clone(), Expr::from_bits(bty, bits))
+                TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
+                    Expr::binary_op(BinOp::Eq, idx.expr.clone(), Expr::from_bits(bty, bits))
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -618,6 +614,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, ty)
+                    .map_err(|err| err.with_span(stmt_span))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
@@ -651,15 +648,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .lookup_place(rcx, gen, place)
             .map_err(|err| CheckerError::from(err).with_span(source_span))?;
 
-        let idxs = match ty.kind() {
+        let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => {
-                RefineArgs::one(Expr::constant(rty::Constant::from(len.val)))
+                Index::from(Expr::constant(rty::Constant::from(len.val)))
             }
-            TyKind::Indexed(BaseTy::Slice(_), idxs) => idxs.clone(),
+            TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
 
-        Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idxs))
+        Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
     }
 
     fn check_binary_op(
@@ -695,12 +692,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     | mir::BinOp::Rem => Ok(Ty::float(*float_ty1)),
                 }
             }
-            (TyKind::Indexed(bty1, idxs1), TyKind::Indexed(bty2, idxs2)) => {
-                debug_assert_eq!(idxs1.args().len(), 1);
-                debug_assert_eq!(idxs2.args().len(), 1);
-
+            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
-                let (e1, e2) = (idxs1.nth(0).clone(), idxs2.nth(0).clone());
+                let (e1, e2) = (idx1.expr.clone(), idx2.expr.clone());
                 if let sigs::Pre::Some(reason, constr) = sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
@@ -710,11 +704,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 }
 
                 match sig.out.clone() {
-                    sigs::Output::Indexed(bty, mk) => {
-                        Ok(Ty::indexed(bty, RefineArgs::one(mk([e1, e2]))))
-                    }
+                    sigs::Output::Indexed(bty, mk) => Ok(Ty::indexed(bty, mk([e1, e2]))),
                     sigs::Output::Exists(bty, mk) => {
-                        Ok(Ty::full_exists(bty, mk(Expr::nu(), [e1, e2])))
+                        Ok(Ty::exists_with_constr(bty, mk(Expr::nu(), [e1, e2])))
                     }
                 }
             }
@@ -733,17 +725,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let ty = self.check_operand(rcx, env, source_span, op)?;
         let ty = match un_op {
             mir::UnOp::Not => {
-                if let Bool!(idxs) = ty.kind() {
-                    Ty::indexed(BaseTy::Bool, RefineArgs::one(idxs.nth(0).not()))
+                if let Bool!(idx) = ty.kind() {
+                    Ty::indexed(BaseTy::Bool, idx.expr.not())
                 } else {
                     tracked_span_bug!("incompatible type: `{:?}`", ty)
                 }
             }
             mir::UnOp::Neg => {
                 match ty.kind() {
-                    Int!(int_ty, idxs) => {
-                        Ty::indexed(BaseTy::Int(*int_ty), RefineArgs::one(idxs.nth(0).neg()))
-                    }
+                    Int!(int_ty, idx) => Ty::indexed(BaseTy::Int(*int_ty), idx.expr.neg()),
                     Float!(float_ty) => Ty::float(*float_ty),
                     _ => tracked_span_bug!("incompatible type: `{:?}`", ty),
                 }
@@ -757,16 +747,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match kind {
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
-                    (Bool!(idxs), RustTy::Int(int_ty)) => bool_int_cast(idxs.nth(0), *int_ty),
-                    (Bool!(idxs), RustTy::Uint(uint_ty)) => bool_uint_cast(idxs.nth(0), *uint_ty),
-                    (Int!(int_ty1, idxs), RustTy::Int(int_ty2)) => {
-                        int_int_cast(idxs.nth(0), *int_ty1, *int_ty2)
+                    (Bool!(idx), RustTy::Int(int_ty)) => bool_int_cast(&idx.expr, *int_ty),
+                    (Bool!(idx), RustTy::Uint(uint_ty)) => bool_uint_cast(&idx.expr, *uint_ty),
+                    (Int!(int_ty1, idx), RustTy::Int(int_ty2)) => {
+                        int_int_cast(&idx.expr, *int_ty1, *int_ty2)
                     }
-                    (Uint!(uint_ty1, idxs), RustTy::Uint(uint_ty2)) => {
-                        uint_uint_cast(idxs.nth(0), *uint_ty1, *uint_ty2)
+                    (Uint!(uint_ty1, idx), RustTy::Uint(uint_ty2)) => {
+                        uint_uint_cast(&idx.expr, *uint_ty1, *uint_ty2)
                     }
-                    (Uint!(uint_ty, idxs), RustTy::Int(int_ty)) => {
-                        uint_int_cast(idxs.nth(0), *uint_ty, *int_ty)
+                    (Uint!(uint_ty, idx), RustTy::Int(int_ty)) => {
+                        uint_int_cast(&idx.expr, *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => {
@@ -777,8 +767,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
-                self.genv
-                    .refine_ty(to, &mut |sorts| Binders::new(Expr::tt(), sorts))
+                self.genv.refine_with_true(to)
             }
         }
     }
@@ -825,15 +814,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
-                Ty::indexed(BaseTy::Int(*int_ty), RefineArgs::one(idx))
+                Ty::indexed(BaseTy::Int(*int_ty), idx)
             }
             Constant::Uint(n, uint_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
-                Ty::indexed(BaseTy::Uint(*uint_ty), RefineArgs::one(idx))
+                Ty::indexed(BaseTy::Uint(*uint_ty), idx)
             }
             Constant::Bool(b) => {
                 let idx = Expr::constant(rty::Constant::from(*b));
-                Ty::indexed(BaseTy::Bool, RefineArgs::one(idx))
+                Ty::indexed(BaseTy::Bool, idx)
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
@@ -855,17 +844,17 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
 fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
     let idx = Expr::ite(b, 1, 0);
-    Ty::indexed(BaseTy::Int(int_ty), RefineArgs::one(idx))
+    Ty::indexed(BaseTy::Int(int_ty), idx)
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
     let idx = Expr::ite(b, 1, 0);
-    Ty::indexed(BaseTy::Uint(uint_ty), RefineArgs::one(idx))
+    Ty::indexed(BaseTy::Uint(uint_ty), idx)
 }
 
 fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
     if int_bit_width(int_ty1) <= int_bit_width(int_ty2) {
-        Ty::indexed(BaseTy::Int(int_ty2), RefineArgs::one(idx))
+        Ty::indexed(BaseTy::Int(int_ty2), idx.clone())
     } else {
         Ty::int(int_ty2)
     }
@@ -873,7 +862,7 @@ fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
 
 fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
     if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
-        Ty::indexed(BaseTy::Int(int_ty), RefineArgs::one(idx))
+        Ty::indexed(BaseTy::Int(int_ty), idx.clone())
     } else {
         Ty::int(int_ty)
     }
@@ -881,7 +870,7 @@ fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
 
 fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
     if uint_bit_width(uint_ty1) <= uint_bit_width(uint_ty2) {
-        Ty::indexed(BaseTy::Uint(uint_ty2), RefineArgs::one(idx))
+        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
     } else {
         Ty::uint(uint_ty2)
     }
@@ -904,7 +893,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts), span)
+        ConstrGen::new(genv, |sort, _| Binder::new(Expr::hole(), sort), span)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -922,11 +911,8 @@ impl Phase for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
-        let mut gen = ConstrGen::new(
-            ck.genv,
-            |sorts: &[Sort], _| Binders::new(Expr::hole(), sorts),
-            terminator_span,
-        );
+        let mut gen =
+            ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
@@ -939,8 +925,8 @@ impl Phase for Inference<'_> {
         Ok(modified)
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], _: KVarEncoding) -> Binders<Expr> {
-        Binders::new(Expr::hole(), sorts)
+    fn fresh_kvar(&mut self, sort: Sort, _: KVarEncoding) -> Binder<Expr> {
+        Binder::new(Expr::hole(), sort)
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -956,8 +942,7 @@ impl Phase for Check<'_> {
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
-        let kvar_gen =
-            move |sorts: &[Sort], encoding| self.kvars.fresh(sorts, scope.iter(), encoding);
+        let kvar_gen = move |sort, encoding| self.kvars.fresh(sort, scope.iter(), encoding);
         ConstrGen::new(genv, kvar_gen, span)
     }
 
@@ -977,8 +962,7 @@ impl Phase for Check<'_> {
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
-        let kvar_gen =
-            |sorts: &[Sort], encoding| ck.phase.kvars.fresh(sorts, bb_env.scope().iter(), encoding);
+        let kvar_gen = |sort, encoding| ck.phase.kvars.fresh(sort, bb_env.scope().iter(), encoding);
         let gen = &mut ConstrGen::new(ck.genv, kvar_gen, terminator_span);
         env.check_goto(&mut rcx, gen, bb_env, target)
             .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
@@ -986,8 +970,8 @@ impl Phase for Check<'_> {
         Ok(!ck.visited.contains(target))
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Binders<Expr> {
-        self.kvars.fresh(sorts, [], encoding)
+    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
+        self.kvars.fresh(sort, [], encoding)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
