@@ -320,7 +320,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .collect_vec();
         let ret = self.refine_ty(&fn_sig.output(), mk_pred);
         let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
-        rty::PolySig::new(&[], rty::FnSig::new(vec![], args, output), vec![])
+        rty::PolySig::new([], rty::FnSig::new(vec![], args, output))
     }
 
     fn refine_ty(&self, ty: &rustc::ty::Ty, mk_pred: fn() -> rty::Expr) -> rty::Ty {
