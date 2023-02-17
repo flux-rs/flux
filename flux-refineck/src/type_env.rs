@@ -659,11 +659,34 @@ impl TypeEnvInfer {
         match (arg1, arg2) {
             (GenericArg::BaseTy(arg1), GenericArg::BaseTy(arg2)) => {
                 debug_assert_eq!(arg1.sort(), arg2.sort());
-                todo!("{arg1:?} {arg2:?}");
-                // GenericArg::BaseTy(self.join_ty(ty1, ty2))
+                let (ty1, pred1) = arg1.as_ref().skip_binders().unconstr();
+                let (ty2, pred2) = arg2.as_ref().skip_binders().unconstr();
+                let (bty1, _) = ty1.expect_indexed();
+                let (bty2, _) = ty2.expect_indexed();
+                let bty = self.join_bty(bty1, bty2);
+                let pred = self.join_constrs(&pred1, &pred2);
+                let sort = bty.sort();
+                let ty = if pred.is_trivially_true() {
+                    Ty::indexed(bty, Expr::nu())
+                } else {
+                    Ty::constr(pred, Ty::indexed(bty, Expr::nu()))
+                };
+                GenericArg::BaseTy(Binder::new(ty, sort))
             }
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
             _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
+        }
+    }
+
+    fn join_constrs(&self, pred1: &Expr, pred2: &Expr) -> Expr {
+        let has_free_vars2 = self.scope.has_free_vars(pred2);
+        let has_escaping_vars1 = pred1.has_escaping_bvars();
+        let has_escaping_vars2 = pred2.has_escaping_bvars();
+        if !has_free_vars2 && !has_escaping_vars1 && !has_escaping_vars2 && pred1 == pred2 {
+            pred1.clone()
+        } else {
+            Expr::hole()
         }
     }
 

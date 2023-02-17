@@ -686,10 +686,19 @@ impl TyS {
 
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Index) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
-            (adt_def, substs, idxs)
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) = self.kind() {
+            (adt_def, substs, idx)
         } else {
             bug!("expected adt")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_indexed(&self) -> (&BaseTy, &Index) {
+        if let TyKind::Indexed(bty, idx) = self.kind() {
+            (bty, idx)
+        } else {
+            bug!("expected indexed")
         }
     }
 
