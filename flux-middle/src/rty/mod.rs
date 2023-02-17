@@ -19,7 +19,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
@@ -35,18 +35,19 @@ use crate::{
     rustc::mir::Place,
 };
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
     Real,
     Loc,
+    Param(ParamTy),
     Tuple(List<Sort>),
     Func(FuncSort),
     User(Symbol),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     input_and_output: List<Sort>,
 }
@@ -158,7 +159,6 @@ pub enum TyKind {
     Constr(Expr, Ty),
     Uninit,
     Ptr(PtrKind, Path),
-    Param(ParamTy),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
     /// when checking [`TerminatorKind::SwitchInt`].
@@ -196,6 +196,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
+    Param(ParamTy),
 }
 
 pub type Substs = List<GenericArg>;
@@ -203,6 +204,7 @@ pub type Substs = List<GenericArg>;
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
+    BaseTy(Binder<Ty>),
     /// We treat lifetime opaquely
     Lifetime,
 }
@@ -589,10 +591,6 @@ impl Ty {
         Ty::exists(Binder::new(Ty::constr(pred, ty), sort))
     }
 
-    pub fn param(param: ParamTy) -> Ty {
-        TyKind::Param(param).intern()
-    }
-
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
         TyKind::Discr(adt_def, place).intern()
     }
@@ -611,6 +609,13 @@ impl Ty {
 
     pub fn uint(uint_ty: UintTy) -> Ty {
         BaseTy::Uint(uint_ty).into_ty()
+    }
+
+    pub fn param(param_ty: ParamTy) -> Ty {
+        Ty::exists(Binder::new(
+            Ty::indexed(BaseTy::Param(param_ty), Expr::nu()),
+            Sort::Param(param_ty),
+        ))
     }
 
     pub fn usize() -> Ty {
@@ -769,7 +774,8 @@ impl BaseTy {
             | BaseTy::Ref(_, _)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Never => &[],
+            | BaseTy::Never
+            | BaseTy::Param(_) => &[],
         }
     }
 
@@ -787,6 +793,7 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
+            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
             BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
@@ -899,6 +906,7 @@ mod pretty {
                         w!("({:?})", join!(", ", sorts))
                     }
                 }
+                Sort::Param(param_ty) => w!("sortof({})", ^param_ty),
                 Sort::User(name) => w!("{}", ^name),
             }
         }
@@ -1006,7 +1014,6 @@ mod pretty {
                 }
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
-                TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => {
                     if cx.hide_refinements {
@@ -1084,6 +1091,7 @@ mod pretty {
                     }
                     Ok(())
                 }
+                BaseTy::Param(param) => w!("{}", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
@@ -1107,7 +1115,10 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                GenericArg::Ty(ty) => w!("{:?}", ty),
+                GenericArg::Ty(arg) => w!("{:?}", arg),
+                GenericArg::BaseTy(arg) => {
+                    w!("{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
+                }
                 GenericArg::Lifetime => w!("'_"),
             }
         }

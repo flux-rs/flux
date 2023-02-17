@@ -276,11 +276,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub(crate) fn default_type_of(&self, def_id: DefId) -> rty::Ty {
-        match rustc::lowering::lower_type_of(self.tcx, self.sess, def_id) {
-            Ok(rustc_ty) => self.refine_with_true(&rustc_ty),
-            Err(_) => FatalError.raise(),
-        }
+    pub(crate) fn lower_type_of(&self, def_id: DefId) -> rustc::ty::Ty {
+        rustc::lowering::lower_type_of(self.tcx, self.sess, def_id)
+            .unwrap_or_else(|_| FatalError.raise())
+    }
+
+    fn default_type_of(&self, def_id: DefId) -> rty::Ty {
+        let rustc_ty = self.lower_type_of(def_id);
+        self.refine_with_true(&rustc_ty)
     }
 
     fn default_variant_def(
@@ -323,26 +326,45 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     fn refine_ty(&self, ty: &rustc::ty::Ty, mk_pred: fn() -> rty::Expr) -> rty::Ty {
+        let ty = self.refine_ty_inner(ty, mk_pred);
+        if ty.sort().is_unit() {
+            ty.skip_binders()
+        } else {
+            rty::Ty::exists(ty)
+        }
+    }
+
+    pub(crate) fn refine_generic_arg(
+        &self,
+        ty: &rustc::ty::GenericArg,
+        mk_pred: fn() -> rty::Expr,
+    ) -> rty::GenericArg {
+        match ty {
+            rustc::ty::GenericArg::Ty(ty) => {
+                rty::GenericArg::BaseTy(self.refine_ty_inner(ty, mk_pred))
+            }
+            rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
+        }
+    }
+
+    fn refine_ty_inner(&self, ty: &rustc::ty::Ty, mk_pred: fn() -> rty::Expr) -> Binder<rty::Ty> {
         let bty = match ty.kind() {
-            rustc::ty::TyKind::Never => return rty::Ty::never(),
-            rustc::ty::TyKind::Param(param_ty) => return rty::Ty::param(*param_ty),
+            rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
-                return rty::Ty::mk_ref(rty::RefKind::Mut, self.refine_ty(ty, mk_pred));
+                rty::BaseTy::Ref(rty::RefKind::Mut, self.refine_ty(ty, mk_pred))
             }
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Not) => {
-                return rty::Ty::mk_ref(rty::RefKind::Shr, self.refine_ty(ty, mk_pred));
+                rty::BaseTy::Ref(rty::RefKind::Shr, self.refine_ty(ty, mk_pred))
             }
-            rustc::ty::TyKind::Float(float_ty) => return rty::Ty::float(*float_ty),
+            rustc::ty::TyKind::Float(float_ty) => rty::BaseTy::Float(*float_ty),
             rustc::ty::TyKind::Tuple(tys) => {
-                let tys = tys
-                    .iter()
-                    .map(|ty| self.refine_ty(ty, mk_pred))
-                    .collect_vec();
-                return rty::Ty::tuple(tys);
+                let tys = tys.iter().map(|ty| self.refine_ty(ty, mk_pred)).collect();
+                rty::BaseTy::Tuple(tys)
             }
             rustc::ty::TyKind::Array(ty, len) => {
-                return rty::Ty::array(self.refine_ty(ty, mk_pred), len.clone());
+                rty::BaseTy::Array(self.refine_ty(ty, mk_pred), len.clone())
             }
+            rustc::ty::TyKind::Param(param_ty) => rty::BaseTy::Param(*param_ty),
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.adt_def(*def_id);
                 let substs = substs
@@ -369,22 +391,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         } else {
             rty::Ty::constr(pred, rty::Ty::indexed(bty, idx))
         };
-        if sort.is_unit() {
-            ty
-        } else {
-            rty::Ty::exists(Binder::new(ty, sort))
-        }
-    }
-
-    fn refine_generic_arg(
-        &self,
-        ty: &rustc::ty::GenericArg,
-        mk_pred: fn() -> rty::Expr,
-    ) -> rty::GenericArg {
-        match ty {
-            rustc::ty::GenericArg::Ty(ty) => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),
-            rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
-        }
+        Binder::new(ty, sort)
     }
 
     pub(crate) fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {

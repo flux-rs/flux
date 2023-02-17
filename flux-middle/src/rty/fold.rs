@@ -9,11 +9,11 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    AdtDef, AdtDefData, BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig,
+    BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FuncSort,
     GenericArg, Index, Invariant, KVar, Name, PolySig, Qualifier, Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
-    intern::{Internable, Interned, List},
+    intern::{Internable, List},
     rty::{subst::GenericsSubstFolder, Var, VariantDef},
 };
 
@@ -44,6 +44,10 @@ pub trait TypeFolder: Sized {
         t.super_fold_with(self)
     }
 
+    fn fold_sort(&mut self, sort: &Sort) -> Sort {
+        sort.super_fold_with(self)
+    }
+
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         ty.super_fold_with(self)
     }
@@ -69,7 +73,7 @@ pub trait TypeFoldable: Sized {
         self.super_visit_with(visitor);
     }
 
-    /// Normalize expressions by applying some beta reductions (tuple projection and function application)
+    /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
     fn normalize(&self, defns: &Defns) -> Self {
         self.fold_with(&mut Normalizer::new(defns))
     }
@@ -238,12 +242,40 @@ pub trait TypeFoldable: Sized {
     }
 }
 
+impl TypeFoldable for Sort {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            Sort::Tuple(sorts) => Sort::tuple(sorts.fold_with(folder)),
+            Sort::Func(fsort) => {
+                Sort::Func(FuncSort {
+                    inputs_and_output: fsort.inputs_and_output.fold_with(folder),
+                })
+            }
+            Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::Param(_) | Sort::User(_) => {
+                self.clone()
+            }
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            Sort::Tuple(sorts) => sorts.visit_with(visitor),
+            Sort::Func(fsort) => fsort.inputs_and_output.visit_with(visitor),
+            Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::Param(_) | Sort::User(_) => {}
+        }
+    }
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_sort(self)
+    }
+}
+
 impl<T> TypeFoldable for Binder<T>
 where
     T: TypeFoldable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binder::new(self.value.fold_with(folder), self.sort.clone())
+        Binder::new(self.value.fold_with(folder), self.sort.fold_with(folder))
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -362,7 +394,7 @@ impl TypeFoldable for Ty {
                 )
             }
             TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
-            TyKind::Uninit | TyKind::Param(_) | TyKind::Discr(..) => self.clone(),
+            TyKind::Uninit | TyKind::Discr(..) => self.clone(),
         }
     }
 
@@ -380,7 +412,7 @@ impl TypeFoldable for Ty {
                 pred.visit_with(visitor);
                 ty.visit_with(visitor);
             }
-            TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => {}
+            TyKind::Discr(..) | TyKind::Uninit => {}
         }
     }
 
@@ -413,6 +445,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.fold_with(folder)),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Int(_)
+            | BaseTy::Param(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
@@ -436,7 +469,8 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Never => {}
+            | BaseTy::Never
+            | BaseTy::Param(_) => {}
         }
     }
 
@@ -453,6 +487,7 @@ impl TypeFoldable for GenericArg {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
+            GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.fold_with(folder)),
             GenericArg::Lifetime => GenericArg::Lifetime,
         }
     }
@@ -460,6 +495,7 @@ impl TypeFoldable for GenericArg {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
+            GenericArg::BaseTy(ty) => ty.visit_with(visitor),
             GenericArg::Lifetime => {}
         }
     }
@@ -605,28 +641,28 @@ impl TypeFoldable for Qualifier {
     }
 }
 
-impl TypeFoldable for AdtDef {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        AdtDef(Interned::new(AdtDefData {
-            def_id: self.def_id(),
-            sort: self.sort().clone(),
-            flags: *self.flags(),
-            nvariants: self.0.nvariants,
-            opaque: self.0.opaque,
-            invariants: self
-                .invariants()
-                .iter()
-                .map(|inv| inv.fold_with(folder))
-                .collect_vec(),
-        }))
-    }
+// impl TypeFoldable for AdtDef {
+//     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+//         AdtDef(Interned::new(AdtDefData {
+//             def_id: self.def_id(),
+//             sort: self.sort().clone(),
+//             flags: *self.flags(),
+//             nvariants: self.0.nvariants,
+//             opaque: self.0.opaque,
+//             invariants: self
+//                 .invariants()
+//                 .iter()
+//                 .map(|inv| inv.fold_with(folder))
+//                 .collect_vec(),
+//         }))
+//     }
 
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.invariants()
-            .iter()
-            .for_each(|inv| inv.visit_with(visitor));
-    }
-}
+//     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+//         self.invariants()
+//             .iter()
+//             .for_each(|inv| inv.visit_with(visitor));
+//     }
+// }
 
 impl TypeFoldable for Invariant {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {

@@ -12,7 +12,11 @@ use std::{borrow::Borrow, iter};
 use flux_common::{bug, span_bug};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    PrimTy,
+};
+use rustc_middle::ty::TyCtxt;
 
 use super::{Binder, PolyVariant};
 use crate::{
@@ -21,7 +25,7 @@ use crate::{
     global_env::GlobalEnv,
     intern::List,
     rty::{self, fold::TypeFoldable, DebruijnIndex},
-    rustc::ty::GenericParamDefKind,
+    rustc::{self, ty::GenericParamDefKind},
 };
 
 pub struct ConvCtxt<'a, 'tcx> {
@@ -188,10 +192,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .map(|param| {
                     match param.kind {
                         GenericParamDefKind::Type { .. } => {
-                            rty::GenericArg::Ty(rty::Ty::param(rty::ParamTy {
-                                index: param.index,
-                                name: param.name,
-                            }))
+                            let param_ty = rty::ParamTy { index: param.index, name: param.name };
+                            let bty = rty::BaseTy::Param(param_ty);
+                            let ty = rty::Ty::indexed(bty, rty::Expr::nu());
+                            rty::GenericArg::BaseTy(Binder::new(ty, rty::Sort::Param(param_ty)))
                         }
                         GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
                     }
@@ -257,14 +261,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Ty::Ptr(loc) => rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path()),
             fhir::Ty::Ref(rk, ty) => rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)),
-            fhir::Ty::Param(def_id) => {
-                let def_id = def_id.expect_local();
-                let item_def_id = self.genv.hir().ty_param_owner(def_id);
-                let generics = self.genv.generics_of(item_def_id);
-                let index = generics.rustc.param_def_id_to_index[&def_id.to_def_id()];
-                let param_ty = rty::ParamTy { index, name: self.genv.hir().ty_param_name(def_id) };
-                rty::Ty::param(param_ty)
-            }
             fhir::Ty::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.conv_ty(ty)).collect_vec();
                 rty::Ty::tuple(tys)
@@ -346,7 +342,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_base_ty(&mut self, bty: &fhir::BaseTy, idx: rty::Index) -> rty::Ty {
         match bty {
-            fhir::BaseTy::Path(path) => self.conv_path(path, idx),
+            fhir::BaseTy::Path(path, args) => self.conv_path(path, args, idx),
             fhir::BaseTy::Slice(ty) => {
                 let slice = rty::BaseTy::slice(self.conv_ty(ty));
                 rty::Ty::indexed(slice, idx)
@@ -354,20 +350,34 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_path(&mut self, path: &fhir::Path, idx: rty::Index) -> rty::Ty {
+    fn conv_path(
+        &mut self,
+        path: &fhir::Path,
+        early: &[fhir::RefineArg],
+        idx: rty::Index,
+    ) -> rty::Ty {
         let bty = match &path.res {
-            fhir::Res::Bool => rty::BaseTy::Bool,
-            fhir::Res::Str => rty::BaseTy::Str,
-            fhir::Res::Char => rty::BaseTy::Char,
-            fhir::Res::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)),
-            fhir::Res::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)),
-            fhir::Res::Float(float_ty) => rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty)),
+            fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
+            fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
+            fhir::Res::PrimTy(PrimTy::Char) => rty::BaseTy::Char,
+            fhir::Res::PrimTy(PrimTy::Int(int_ty)) => {
+                rty::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty))
+            }
+            fhir::Res::PrimTy(PrimTy::Uint(uint_ty)) => {
+                rty::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty))
+            }
+            fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
+                rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
+            }
             fhir::Res::Adt(did) => {
                 let substs = self.conv_generic_args(*did, &path.generics);
                 let adt_def = self.genv.adt_def(*did);
                 rty::BaseTy::adt(adt_def, substs)
             }
-            fhir::Res::Alias(def_id, early) => {
+            fhir::Res::Param(def_id) => {
+                rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
+            }
+            fhir::Res::Alias(def_id) => {
                 let mut args = vec![];
                 for (arg, sort) in iter::zip(early, self.genv.early_bound_sorts_of(*def_id)) {
                     let (expr, _) = self.conv_refine_arg(arg, sort);
@@ -406,7 +416,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             self.conv_generic_arg(&args[i - 1])
                         } else {
                             debug_assert!(has_default);
-                            rty::GenericArg::Ty(self.genv.default_type_of(generic.def_id))
+                            let arg =
+                                rustc::ty::GenericArg::Ty(self.genv.lower_type_of(generic.def_id));
+                            self.genv.refine_generic_arg(&arg, rty::Expr::tt)
                         }
                     }
                     GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
@@ -416,7 +428,22 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_generic_arg(&mut self, arg: &fhir::Ty) -> rty::GenericArg {
-        rty::GenericArg::Ty(self.conv_ty(arg))
+        match self.conv_ty(arg).kind() {
+            rty::TyKind::Indexed(bty, idx) => {
+                let pred = rty::Expr::eq(rty::Expr::nu(), &idx.expr);
+                let ty = if pred.is_trivially_true() {
+                    rty::Ty::indexed(bty.clone(), rty::Expr::nu())
+                } else {
+                    rty::Ty::constr(pred, rty::Ty::indexed(bty.clone(), rty::Expr::nu()))
+                };
+                rty::GenericArg::BaseTy(rty::Binder::new(ty, bty.sort()))
+            }
+            rty::TyKind::Exists(ty) => rty::GenericArg::BaseTy(ty.clone()),
+            rty::TyKind::Constr(_, _) => todo!(),
+            rty::TyKind::Uninit | rty::TyKind::Ptr(_, _) | rty::TyKind::Discr(_, _) => {
+                bug!()
+            }
+        }
     }
 
     fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {
@@ -695,6 +722,9 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Aggregate(def_id) => {
             rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
         }
+        fhir::Sort::Param(def_id) => {
+            rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
+        }
         fhir::Sort::Infer => bug!("unexpected sort `Infer`"),
     }
 }
@@ -712,4 +742,11 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
     }
+}
+
+fn def_id_to_param_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
+    let item_def_id = tcx.hir().ty_param_owner(def_id);
+    let generics = tcx.generics_of(item_def_id);
+    let index = generics.param_def_id_to_index[&def_id.to_def_id()];
+    rty::ParamTy { index, name: tcx.hir().ty_param_name(def_id) }
 }

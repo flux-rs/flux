@@ -268,38 +268,37 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(env, ty)
             }
             fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Never | fhir::Ty::Param(_) => Ok(()),
+            fhir::Ty::Never => Ok(()),
         }
     }
 
     fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
         match bty {
-            fhir::BaseTy::Path(path) => self.check_path(env, path),
+            fhir::BaseTy::Path(path, early) => self.check_path(env, path, early),
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
         }
     }
 
-    fn check_path(&self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
+    fn check_path(
+        &self,
+        env: &mut Env,
+        path: &fhir::Path,
+        early: &[fhir::RefineArg],
+    ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
-            fhir::Res::Alias(def_id, args) => {
+            fhir::Res::Alias(def_id) => {
                 let sorts = self.early_cx.early_bound_sorts_of(*def_id);
-                if args.len() != sorts.len() {
+                if early.len() != sorts.len() {
                     return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
                         path.span,
                         sorts.len(),
-                        args.len(),
+                        early.len(),
                     ));
                 }
-                iter::zip(args, sorts)
+                iter::zip(early, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
             }
-            fhir::Res::Adt(_)
-            | fhir::Res::Int(_)
-            | fhir::Res::Uint(_)
-            | fhir::Res::Bool
-            | fhir::Res::Float(_)
-            | fhir::Res::Str
-            | fhir::Res::Char => {}
+            fhir::Res::Adt(_) | fhir::Res::PrimTy(..) | fhir::Res::Param(_) => {}
         }
         path.generics
             .iter()

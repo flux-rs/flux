@@ -150,9 +150,17 @@ pub(super) struct GenericsSubstFolder<'a> {
 }
 
 impl TypeFolder for GenericsSubstFolder<'_> {
+    fn fold_sort(&mut self, sort: &Sort) -> Sort {
+        if let Sort::Param(param_ty) = sort {
+            self.sort_for_param(*param_ty)
+        } else {
+            sort.super_fold_with(self)
+        }
+    }
+
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        if let TyKind::Param(param_ty) = ty.kind() {
-            self.ty_for_param(*param_ty)
+        if let TyKind::Indexed(BaseTy::Param(param_ty), idx) = ty.kind() {
+            self.ty_for_param(*param_ty, idx)
         } else {
             ty.super_fold_with(self)
         }
@@ -160,9 +168,23 @@ impl TypeFolder for GenericsSubstFolder<'_> {
 }
 
 impl GenericsSubstFolder<'_> {
-    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
+    fn ty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
         match self.substs.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
+            Some(GenericArg::Ty(arg)) => {
+                bug!("expected base type for generic parameter, found `{:?}`", arg)
+            }
+            Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
+        match self.substs.get(param_ty.index as usize) {
+            Some(GenericArg::BaseTy(arg)) => arg.sort().clone(),
+            Some(GenericArg::Ty(arg)) => {
+                bug!("expected base type for generic parameter, found `{:?}`", arg)
+            }
             Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
             None => bug!("type parameter out of range"),
         }

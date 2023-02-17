@@ -413,7 +413,6 @@ impl TypeEnvInfer {
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
             | TyKind::Uninit
-            | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
         }
     }
@@ -440,6 +439,7 @@ impl TypeEnvInfer {
             BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, Self::pack_ty(scope, ty)),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
+            | BaseTy::Param(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
@@ -453,6 +453,9 @@ impl TypeEnvInfer {
     fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
+            GenericArg::BaseTy(arg) => {
+                GenericArg::BaseTy(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
+            }
             GenericArg::Lifetime => GenericArg::Lifetime,
         }
     }
@@ -593,10 +596,6 @@ impl TypeEnvInfer {
                 debug_assert_eq!(path1, path2);
                 Ty::ptr(*rk1, path1.clone())
             }
-            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
-                debug_assert_eq!(param_ty1, param_ty2);
-                Ty::param(*param_ty1)
-            }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
@@ -658,7 +657,11 @@ impl TypeEnvInfer {
 
     fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
+            (GenericArg::BaseTy(arg1), GenericArg::BaseTy(arg2)) => {
+                debug_assert_eq!(arg1.sort(), arg2.sort());
+                todo!("{arg1:?} {arg2:?}");
+                // GenericArg::BaseTy(self.join_ty(ty1, ty2))
+            }
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
             _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
         }

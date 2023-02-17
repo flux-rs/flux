@@ -1,14 +1,14 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
-use std::{borrow::Borrow, iter};
+use std::{borrow::Borrow, iter, slice};
 
 use flux_common::{index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, BtyOrTy},
+    fhir::{self, BtyOrTy, Res},
     intern::List,
 };
-use flux_syntax::surface::{self, PrimTy, Res};
+use flux_syntax::surface;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
@@ -475,19 +475,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         args: &[surface::RefineArg],
     ) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let res = match &path.res {
-            Res::PrimTy(PrimTy::Bool) => fhir::Res::Bool,
-            Res::PrimTy(PrimTy::Int(int_ty)) => fhir::Res::Int(*int_ty),
-            Res::PrimTy(PrimTy::Uint(uint_ty)) => fhir::Res::Uint(*uint_ty),
-            Res::PrimTy(PrimTy::Char) => fhir::Res::Char,
-            Res::PrimTy(PrimTy::Str) => fhir::Res::Str,
-            Res::PrimTy(PrimTy::Float(float_ty)) => fhir::Res::Float(*float_ty),
-            Res::Adt(def_id) => fhir::Res::Adt(*def_id),
-            Res::Alias(def_id) => fhir::Res::Alias(*def_id, self.desugar_refine_args(args)?),
-            Res::Param(def_id) => return Ok(fhir::Ty::Param(*def_id).into()),
-        };
         let generics = self.desugar_generic_args(&path.args)?;
-        Ok(fhir::BaseTy::Path(fhir::Path { res, generics, span: path.span }).into())
+        Ok(fhir::BaseTy::Path(
+            fhir::Path { res: path.res, generics, span: path.span },
+            self.desugar_refine_args(args)?,
+        )
+        .into())
     }
 
     fn desugar_generic_args(
@@ -861,7 +854,8 @@ impl Binders {
                     }
                     self.insert_binder(early_cx.sess, ident, binder)?;
                 } else {
-                    let refined_by = index_sorts(early_cx, bty);
+                    let sort = index_sort(bty);
+                    let refined_by = as_tuple(early_cx, &sort);
                     let exp = refined_by.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -971,7 +965,7 @@ fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
     }
 }
 
-fn is_box(early_cx: &EarlyCtxt, res: surface::Res) -> bool {
+fn is_box(early_cx: &EarlyCtxt, res: fhir::Res) -> bool {
     if let Res::Adt(def_id) = res {
         early_cx.tcx.adt_def(def_id).is_box()
     } else {
@@ -1079,38 +1073,27 @@ impl Layer {
 }
 
 impl Binder {
-    fn from_res(name_gen: &IndexGen<fhir::Name>, res: surface::Res) -> Binder {
-        let sort = match res {
-            Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
-            Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
-            Res::Alias(def_id) | Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
-            Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
-            Res::Param(..) => {
-                return Binder::Unrefined;
-            }
-        };
-        Binder::Refined(name_gen.fresh(), sort, true)
+    fn from_res(name_gen: &IndexGen<fhir::Name>, res: fhir::Res) -> Binder {
+        Binder::Refined(name_gen.fresh(), res.sort(), true)
     }
 
     fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
-        match bty {
-            surface::BaseTy::Path(path, _) => Binder::from_res(name_gen, path.res),
-            surface::BaseTy::Slice(_) => Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true),
-        }
+        Binder::Refined(name_gen.fresh(), index_sort(bty), true)
     }
 }
 
-fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::Sort] {
+fn index_sort(bty: &surface::BaseTy<Res>) -> fhir::Sort {
     match bty {
-        surface::BaseTy::Path(path, _) => {
-            match path.res {
-                Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
-                Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
-                Res::Adt(def_id) | Res::Alias(def_id) => early_cx.index_sorts_of(def_id),
-                Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_)) | Res::Param(..) => &[],
-            }
-        }
-        surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
+        surface::BaseTy::Path(path, _) => path.res.sort(),
+        surface::BaseTy::Slice(_) => fhir::Sort::Int,
+    }
+}
+
+fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sort] {
+    if let fhir::Sort::Aggregate(def_id) = sort {
+        early_cx.index_sorts_of(*def_id)
+    } else {
+        slice::from_ref(sort)
     }
 }
 

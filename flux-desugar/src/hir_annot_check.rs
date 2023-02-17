@@ -4,8 +4,11 @@ use std::iter;
 
 use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::{fhir::lift::errors::UnsupportedHir, rustc::ty::Mutability};
-use flux_syntax::surface::{self, Res};
+use flux_middle::{
+    fhir::{lift::errors::UnsupportedHir, Res},
+    rustc::ty::Mutability,
+};
+use flux_syntax::surface;
 use hir::{
     def::{DefKind, Res as HirRes},
     def_id::DefId,

@@ -81,11 +81,14 @@ pub fn lift_variant_def(
         .try_collect_exhaust()?;
 
     let ret = fhir::VariantRet {
-        bty: fhir::BaseTy::Path(fhir::Path {
-            res: fhir::Res::Adt(enum_id.to_def_id()),
-            generics: cx.generic_params_into_args(generics)?,
-            span: ident.span,
-        }),
+        bty: fhir::BaseTy::Path(
+            fhir::Path {
+                res: fhir::Res::Adt(enum_id.to_def_id()),
+                generics: cx.generic_params_into_args(generics)?,
+                span: ident.span,
+            },
+            vec![],
+        ),
         idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret })
@@ -159,14 +162,9 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
         let res = match path.res {
             hir::def::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => fhir::Res::Adt(def_id),
-            hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id, vec![]),
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => fhir::Res::Bool,
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => fhir::Res::Int(int_ty),
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => fhir::Res::Uint(uint_ty),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => fhir::Res::Char,
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => fhir::Res::Str,
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => fhir::Res::Float(float_ty),
-            hir::def::Res::Def(DefKind::TyParam, def_id) => return Ok(fhir::Ty::Param(def_id)),
+            hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id),
+            hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
+            hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Res::Param(def_id),
             hir::def::Res::SelfTyAlias { alias_to, .. } => {
                 return self.lift_self_ty_alias(alias_to)
             }
@@ -182,7 +180,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
             generics: self.lift_generic_args(path.segments.last().unwrap().args)?,
             span: path.span,
         };
-        Ok(fhir::BaseTy::Path(path).into())
+        Ok(fhir::BaseTy::Path(path, vec![]).into())
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -238,7 +236,9 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         for param in generics.params.iter() {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
-                    args.push(fhir::Ty::Param(param.def_id.to_def_id()));
+                    let res = fhir::Res::Param(param.def_id.to_def_id());
+                    let path = fhir::Path { res, generics: vec![], span: param.span };
+                    args.push(fhir::BaseTy::Path(path, vec![]).into());
                 }
                 hir::GenericParamKind::Lifetime { .. } => {}
                 hir::GenericParamKind::Const { .. } => {

@@ -252,6 +252,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .refine_with_holes(arr_ty)
             .replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
 
+        let (arr_ty, pred) = arr_ty.unconstr();
+        infcx.check_pred(rcx, pred);
+
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
@@ -381,9 +384,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
             }
-            (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2);
-            }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2, self.tag);
                 self.subtyping(rcx, ty1, ty2);
@@ -432,6 +432,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(len1.val, len2.val);
                 self.subtyping(rcx, ty1, ty2);
             }
+            (BaseTy::Param(param1), BaseTy::Param(param2)) => {
+                debug_assert_eq!(param1, param2);
+            }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
@@ -450,7 +453,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         arg2: &GenericArg,
     ) {
         match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
+            (GenericArg::BaseTy(ty1), GenericArg::BaseTy(ty2)) => {
+                debug_assert_eq!(ty1.sort(), ty2.sort());
+                let arg = rcx.define_vars(ty1.sort());
+                let ty1 = &ty1.replace_bvar(&arg);
+                let ty2 = &ty2.replace_bvar(&arg);
                 match variance {
                     Variance::Covariant => self.subtyping(rcx, ty1, ty2),
                     Variance::Invariant => {

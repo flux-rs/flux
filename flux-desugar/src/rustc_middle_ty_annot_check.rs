@@ -4,13 +4,15 @@ use std::{collections::HashMap, iter};
 
 use flux_common::iter::IterExt;
 use flux_errors::{ErrorGuaranteed, FluxSession, ResultExt};
-use flux_middle::rustc::{
-    lowering,
-    ty::{self as rustc_ty, Mutability},
+use flux_middle::{
+    fhir::Res,
+    rustc::{
+        lowering,
+        ty::{self as rustc_ty, Mutability},
+    },
 };
 use flux_syntax::surface::{
-    Arg, BaseTy, EnumDef, FnSig, Ident, Path, PrimTy, RefKind, Res, StructDef, Ty, TyKind,
-    VariantDef,
+    Arg, BaseTy, EnumDef, FnSig, Ident, Path, PrimTy, RefKind, StructDef, Ty, TyKind, VariantDef,
 };
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;

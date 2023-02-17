@@ -25,12 +25,13 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
+use rustc_ast::Mutability;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
+pub use rustc_hir::PrimTy;
 use rustc_index::newtype_index;
-use rustc_macros::{Decodable, Encodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -158,7 +159,6 @@ pub enum Ty {
     Constr(Expr, Box<Ty>),
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
-    Param(DefId),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
@@ -215,7 +215,7 @@ pub enum RefineArg {
 
 /// These are types of things that may be refined with indices or existentials
 pub enum BaseTy {
-    Path(Path),
+    Path(Path, Vec<RefineArg>),
     Slice(Box<Ty>),
 }
 
@@ -225,15 +225,12 @@ pub struct Path {
     pub span: Span,
 }
 
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Res {
-    Int(IntTy),
-    Uint(UintTy),
-    Bool,
-    Float(FloatTy),
-    Str,
-    Char,
-    Alias(DefId, Vec<RefineArg>),
+    PrimTy(PrimTy),
+    Alias(DefId),
     Adt(DefId),
+    Param(DefId),
 }
 
 #[derive(Debug)]
@@ -256,7 +253,7 @@ pub enum InferMode {
     KVar,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -269,12 +266,14 @@ pub enum Sort {
     Aggregate(DefId),
     /// User defined sort
     User(Symbol),
+    /// The sort associated to a type variable
+    Param(DefId),
     /// A sort to be inferred, this is only partially implemented now and is only used for arguments
     /// to abstract refinement predicates.
     Infer,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
@@ -352,11 +351,11 @@ impl From<Ty> for BtyOrTy {
 
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Path(Path { res: Res::Bool, .. }))
+        matches!(self, Self::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }, _))
     }
 
     pub fn is_aggregate(&self) -> Option<DefId> {
-        if let BaseTy::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) = self {
+        if let BaseTy::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id), .. }, _) = self {
             Some(*def_id)
         } else {
             None
@@ -365,14 +364,20 @@ impl BaseTy {
 
     pub fn sort(&self) -> Sort {
         match self {
-            BaseTy::Path(Path { res: Res::Int(_) | Res::Uint(_), .. }) | BaseTy::Slice(_) => {
-                Sort::Int
-            }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
-            BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
-                Sort::Aggregate(*def_id)
-            }
-            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
+            BaseTy::Path(Path { res, .. }, _) => res.sort(),
+            BaseTy::Slice(_) => Sort::Int,
+        }
+    }
+}
+
+impl Res {
+    pub fn sort(&self) -> Sort {
+        match self {
+            Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Sort::Int,
+            Res::PrimTy(PrimTy::Bool) => Sort::Bool,
+            Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => Sort::Unit,
+            Res::Param(def_id) => Sort::Param(*def_id),
+            Res::Alias(def_id) | Res::Adt(def_id) => Sort::Aggregate(*def_id),
         }
     }
 }
@@ -404,7 +409,7 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-#[derive(Clone, Debug, Encodable, Decodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
@@ -718,7 +723,6 @@ impl fmt::Debug for Ty {
             Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
             Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
-            Ty::Param(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             Ty::Never => write!(f, "!"),
@@ -738,12 +742,14 @@ impl fmt::Debug for ArrayLen {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BaseTy::Path(Path { res: Res::Int(int_ty), .. }) => write!(f, "{}", int_ty.name_str()),
-            BaseTy::Path(Path { res: Res::Uint(uint_ty), .. }) => {
+            BaseTy::Path(Path { res: Res::PrimTy(PrimTy::Int(int_ty)), .. }, _) => {
+                write!(f, "{}", int_ty.name_str())
+            }
+            BaseTy::Path(Path { res: Res::PrimTy(PrimTy::Uint(uint_ty)), .. }, _) => {
                 write!(f, "{}", uint_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
-            BaseTy::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
+            BaseTy::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }, _) => write!(f, "bool"),
+            BaseTy::Path(Path { res: Res::Alias(def_id), generics, .. }, args) => {
                 write!(f, "{}", pretty::def_id_to_string(*def_id))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
@@ -753,17 +759,20 @@ impl fmt::Debug for BaseTy {
                 }
                 Ok(())
             }
-            BaseTy::Path(Path { res: Res::Float(float_ty), .. }) => {
+            BaseTy::Path(Path { res: Res::PrimTy(PrimTy::Float(float_ty)), .. }, _) => {
                 write!(f, "{}", float_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
-            BaseTy::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
-            BaseTy::Path(Path { res: Res::Adt(did), generics, .. }) => {
+            BaseTy::Path(Path { res: Res::PrimTy(PrimTy::Str), .. }, _) => write!(f, "str"),
+            BaseTy::Path(Path { res: Res::PrimTy(PrimTy::Char), .. }, _) => write!(f, "char"),
+            BaseTy::Path(Path { res: Res::Adt(did), generics, .. }, _) => {
                 write!(f, "{}", pretty::def_id_to_string(*did))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
                 Ok(())
+            }
+            BaseTy::Path(Path { res: Res::Param(def_id), .. }, _) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))
             }
             BaseTy::Slice(ty) => write!(f, "[{ty:?}]"),
         }
@@ -861,8 +870,9 @@ impl fmt::Display for Sort {
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
-            Sort::Infer => write!(f, "_"),
             Sort::User(name) => write!(f, "{name}"),
+            Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            Sort::Infer => write!(f, "_"),
         }
     }
 }
