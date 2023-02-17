@@ -319,9 +319,7 @@ impl PathsTree {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
-            if matches!(elem, Field(_) | Downcast(_)) {
-                ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
-            }
+            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             match (elem, ty.kind()) {
                 (Deref, Ref!(rk2, ty2)) => {
                     rk = rk.min(WeakKind::from(*rk2));

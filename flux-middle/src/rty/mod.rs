@@ -1037,7 +1037,13 @@ mod pretty {
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
                 BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
                 BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
-                BaseTy::Tuple(tys) => w!("({:?})", join!(", ", tys)),
+                BaseTy::Tuple(tys) => {
+                    if let [ty] = &tys[..] {
+                        w!("({:?},)", ty)
+                    } else {
+                        w!("({:?})", join!(", ", tys))
+                    }
+                }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
             }

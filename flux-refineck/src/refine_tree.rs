@@ -166,25 +166,20 @@ impl RefineCtxt<'_> {
     }
 
     fn unpack_bty(&mut self, bty: &BaseTy, in_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
+        if flags.contains(UnpackFlags::SHALLOW) {
+            return bty.clone();
+        }
         match bty {
             BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
                 let (boxed, alloc) = box_args(substs);
-                let boxed = if flags.contains(UnpackFlags::SHALLOW) {
-                    boxed.clone()
-                } else {
-                    self.unpack_inner(boxed, in_mut_ref, flags)
-                };
+                let boxed = self.unpack_inner(boxed, in_mut_ref, flags);
                 BaseTy::adt(
                     adt_def.clone(),
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                 )
             }
             BaseTy::Ref(rk, ty) => {
-                let ty = if flags.contains(UnpackFlags::SHALLOW) {
-                    ty.clone()
-                } else {
-                    self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags)
-                };
+                let ty = self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags);
                 BaseTy::Ref(*rk, ty)
             }
             BaseTy::Tuple(tys) => {
