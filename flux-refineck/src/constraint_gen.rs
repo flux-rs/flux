@@ -136,6 +136,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check arguments
         for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
+            let rcx = &mut rcx.push_comment(format!("{actual:?} <: {formal:?}"));
+
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {

@@ -75,6 +75,7 @@ struct WeakNodePtr(Weak<RefCell<Node>>);
 
 enum NodeKind {
     Conj,
+    Comment(String),
     ForAll(Name, Sort),
     Guard(Expr),
     Head(Expr, Tag),
@@ -116,6 +117,7 @@ impl RefineTree {
 }
 
 impl RefineCtxt<'_> {
+    #[must_use]
     pub(crate) fn breadcrumb(&mut self) -> RefineCtxt {
         RefineCtxt { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
     }
@@ -126,6 +128,12 @@ impl RefineCtxt<'_> {
 
     pub(crate) fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
+    }
+
+    #[must_use]
+    pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {
+        let ptr = self.ptr.push_node(NodeKind::Comment(comment.to_string()));
+        RefineCtxt { _tree: self._tree, ptr }
     }
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
@@ -392,12 +400,13 @@ impl Node {
                         || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
                 });
             }
-            NodeKind::Conj | NodeKind::ForAll(..) => {
+            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) => {
                 self.children
                     .drain_filter(|child| matches!(&child.borrow().kind, NodeKind::True));
             }
         }
-        if !self.is_leaf() && self.children.is_empty() {
+        if !self.is_leaf() && self.children.is_empty() && !matches!(self.kind, NodeKind::Comment(_))
+        {
             self.kind = NodeKind::True;
         }
     }
@@ -415,13 +424,13 @@ impl Node {
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
-            NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
+            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
-            NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::ForAll(name, sort) => {
@@ -591,6 +600,10 @@ mod pretty {
             define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
+                NodeKind::Comment(comment) => {
+                    w!("@ {}", ^comment)?;
+                    w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
+                }
                 NodeKind::Conj => {
                     let nodes = flatten_conjs(slice::from_ref(self));
                     w!("{:?}", join!("\n", nodes))
@@ -706,5 +719,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(RefineTree => "refine_tree", RefineCtxt<'_> => "refine_ctxt", Scope);
+    impl_debug_with_default_cx!(RefineTree => "refine_tree", RefineCtxt<'_> => "refine_ctxt", Scope, NodePtr);
 }
