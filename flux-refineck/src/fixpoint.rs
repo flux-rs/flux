@@ -59,9 +59,10 @@ type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxIndexMap<DefId, ConstInfo>;
 
 pub struct FixpointCtxt<'genv, 'tcx, T> {
+    comments: Vec<String>,
     genv: &'genv GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
-    fixpoint_kvars: IndexVec<fixpoint::KVid, Vec<fixpoint::Sort>>,
+    fixpoint_kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
     kvid_map: KVidMap,
     name_gen: IndexGen<fixpoint::Name>,
     name_map: NameMap,
@@ -71,6 +72,11 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     def_id: DefId,
+}
+
+struct FixpointKVar {
+    sorts: Vec<fixpoint::Sort>,
+    orig: rty::KVid,
 }
 
 struct ExprCtxt<'a> {
@@ -94,6 +100,7 @@ where
         let name_gen = IndexGen::new();
         let const_map = fixpoint_const_map(genv, &name_gen);
         Self {
+            comments: vec![],
             kvars,
             genv,
             name_gen,
@@ -148,7 +155,9 @@ where
         let kvars = self
             .fixpoint_kvars
             .into_iter_enumerated()
-            .map(|(kvid, sorts)| fixpoint::KVar(kvid, sorts))
+            .map(|(kvid, kvar)| {
+                fixpoint::KVar::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
+            })
             .collect_vec();
 
         let mut closed_constraint = constraint;
@@ -177,8 +186,15 @@ where
             .map(|sort_decl| sort_decl.name.to_string())
             .collect_vec();
 
-        let task =
-            fixpoint::Task::new(constants, kvars, closed_constraint, qualifiers, uifs, sorts);
+        let task = fixpoint::Task::new(
+            self.comments,
+            constants,
+            kvars,
+            closed_constraint,
+            qualifiers,
+            uifs,
+            sorts,
+        );
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();
         }
@@ -199,11 +215,15 @@ where
         }
     }
 
-    pub fn tag_idx(&mut self, tag: Tag) -> TagIdx {
-        *self
-            .tags_inv
-            .entry(tag)
-            .or_insert_with(|| self.tags.push(tag))
+    pub fn tag_idx(&mut self, tag: Tag) -> TagIdx
+    where
+        Tag: std::fmt::Debug,
+    {
+        *self.tags_inv.entry(tag).or_insert_with(|| {
+            let idx = self.tags.push(tag);
+            self.comments.push(format!("Tag {idx}: {tag:?}"));
+            idx
+        })
     }
 
     pub fn pred_to_fixpoint(
@@ -281,13 +301,13 @@ where
 
             if all_args.is_empty() {
                 let sorts = vec![fixpoint::Sort::Unit];
-                let kvid = self.fixpoint_kvars.push(sorts);
+                let kvid = self.fixpoint_kvars.push(FixpointKVar::new(sorts, kvid));
                 return vec![kvid];
             }
 
             match decl.encoding {
                 KVarEncoding::Single => {
-                    let kvid = self.fixpoint_kvars.push(all_args);
+                    let kvid = self.fixpoint_kvars.push(FixpointKVar::new(all_args, kvid));
                     vec![kvid]
                 }
                 KVarEncoding::Conj => {
@@ -295,7 +315,7 @@ where
                     (0..n)
                         .map(|i| {
                             let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
-                            self.fixpoint_kvars.push(sorts)
+                            self.fixpoint_kvars.push(FixpointKVar::new(sorts, kvid))
                         })
                         .collect_vec()
                 }
@@ -336,6 +356,12 @@ where
 
     fn def_span(&self) -> Span {
         self.genv.tcx.def_span(self.def_id)
+    }
+}
+
+impl FixpointKVar {
+    fn new(sorts: Vec<fixpoint::Sort>, orig: rty::KVid) -> Self {
+        Self { sorts, orig }
     }
 }
 

@@ -27,6 +27,7 @@ use serde::{de, Deserialize};
 use crate::constraint::DEFAULT_QUALIFIERS;
 
 pub struct Task<Tag> {
+    pub comments: Vec<String>,
     pub constants: Vec<(Name, Sort)>,
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
@@ -73,10 +74,15 @@ pub struct Stats {
 pub struct CrashInfo(Vec<serde_json::Value>);
 
 #[derive(Debug, Hash)]
-pub struct KVar(pub KVid, pub Vec<Sort>);
+pub struct KVar {
+    kvid: KVid,
+    sorts: Vec<Sort>,
+    comment: String,
+}
 
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
     pub fn new(
+        comments: Vec<String>,
         constants: Vec<(Name, Sort)>,
         kvars: Vec<KVar>,
         constraint: Constraint<Tag>,
@@ -84,7 +90,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         uifs: Vec<UifDef>,
         sorts: Vec<String>,
     ) -> Self {
-        Task { constants, kvars, constraint, qualifiers, uifs, sorts }
+        Task { comments, constants, kvars, constraint, qualifiers, uifs, sorts }
     }
 
     pub fn hash_with_default(&self) -> u64 {
@@ -126,8 +132,6 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         std::mem::swap(&mut stdin, &mut child.stdin);
         {
             let mut w = BufWriter::new(stdin.unwrap());
-            // let mut w = BufWriter::new(std::io::stdout());
-
             writeln!(w, "{self}")?;
         }
         let out = child.wait_with_output()?;
@@ -138,8 +142,19 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
     }
 }
 
+impl KVar {
+    pub fn new(kvid: KVid, sorts: Vec<Sort>, comment: String) -> Self {
+        Self { kvid, sorts, comment }
+    }
+}
+
 impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for line in &self.comments {
+            writeln!(f, "// {line}")?;
+        }
+        writeln!(f)?;
+
         for qualif in DEFAULT_QUALIFIERS.iter() {
             writeln!(f, "{qualif}")?;
         }
@@ -154,7 +169,6 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         for (name, sort) in &self.constants {
             write!(f, "(constant {name:?} {sort:?})")?;
         }
-
         for uif_def in &self.uifs {
             writeln!(f, "{uif_def}")?;
         }
@@ -174,11 +188,12 @@ impl fmt::Display for KVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(var {:?} ({}))",
-            self.0,
-            self.1
+            "(var {:?} ({})) // {}",
+            self.kvid,
+            self.sorts
                 .iter()
-                .format_with(" ", |sort, f| f(&format_args!("({sort})")))
+                .format_with(" ", |sort, f| f(&format_args!("({sort})"))),
+            self.comment
         )
     }
 }
