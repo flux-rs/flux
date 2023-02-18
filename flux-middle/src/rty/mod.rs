@@ -64,6 +64,12 @@ pub struct AdtDefData {
     opaque: bool,
 }
 
+#[derive(TyEncodable, TyDecodable)]
+pub enum Opaqueness<T> {
+    Opaque,
+    Transparent(T),
+}
+
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
     pub pred: Binder<Expr>,
@@ -486,6 +492,39 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
+    }
+}
+
+impl<T> Opaqueness<T> {
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Opaqueness<S> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(f(value)),
+        }
+    }
+
+    pub fn as_ref(&self) -> Opaqueness<&T> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value),
+        }
+    }
+
+    pub fn as_deref(&self) -> Opaqueness<&T::Target>
+    where
+        T: std::ops::Deref,
+    {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value.deref()),
+        }
+    }
+
+    pub fn ok_or<E>(self, err: E) -> Result<T, E> {
+        match self {
+            Opaqueness::Opaque => Err(err),
+            Opaqueness::Transparent(value) => Ok(value),
+        }
     }
 }
 

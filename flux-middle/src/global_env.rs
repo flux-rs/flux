@@ -21,7 +21,7 @@ use crate::{
 #[derive(Debug)]
 pub struct OpaqueStructErr(pub DefId);
 
-type VariantMap = FxHashMap<DefId, Option<Vec<rty::PolyVariant>>>;
+type VariantMap = FxHashMap<DefId, rty::Opaqueness<Vec<rty::PolyVariant>>>;
 type FnSigMap = FxHashMap<DefId, rty::PolySig>;
 
 pub struct GlobalEnv<'sess, 'tcx> {
@@ -94,9 +94,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for struct_def in map.structs() {
             let local_id = struct_def.def_id;
-            let variant = rty::conv::ConvCtxt::conv_struct_def_variant(self, struct_def)
-                .map(|v| v.normalize(&self.defns));
-            let variants = variant.map(|variant_def| vec![variant_def]);
+            let variants = rty::conv::ConvCtxt::conv_struct_def_variant(self, struct_def)
+                .map(|v| vec![v.normalize(&self.defns)]);
 
             self.adt_variants
                 .get_mut()
@@ -115,7 +114,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 .collect_vec();
             self.adt_variants
                 .get_mut()
-                .insert(local_id.to_def_id(), Some(variants));
+                .insert(local_id.to_def_id(), rty::Opaqueness::Transparent(variants));
         }
     }
 
@@ -215,7 +214,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 if let Some(variants) = self.early_cx.cstore.variants(def_id) {
                     variants.map(<[_]>::to_vec)
                 } else {
-                    Some(
+                    rty::Opaqueness::Transparent(
                         self.tcx
                             .adt_def(def_id)
                             .variants()
