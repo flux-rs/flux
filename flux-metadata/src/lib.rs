@@ -50,7 +50,7 @@ pub struct CrateMetadata {
 #[derive(TyEncodable, TyDecodable)]
 struct AdtMetadata {
     adt_def: rty::AdtDef,
-    variants: Option<Vec<rty::PolyVariant>>,
+    variants: rty::Opaqueness<Vec<rty::PolyVariant>>,
 }
 
 impl CStore {
@@ -89,7 +89,7 @@ impl CrateStore for CStore {
         self.adt(def_id).map(|adt| &adt.adt_def)
     }
 
-    fn variants(&self, def_id: DefId) -> Option<Option<&[rty::PolyVariant]>> {
+    fn variants(&self, def_id: DefId) -> Option<rty::Opaqueness<&[rty::PolyVariant]>> {
         self.adt(def_id).map(|adt| adt.variants.as_deref())
     }
 
@@ -121,9 +121,9 @@ impl CrateMetadata {
                 DefKind::Enum | DefKind::Struct => {
                     let adt_def = genv.adt_def(def_id);
                     let variants = if adt_def.is_opaque() {
-                        None
+                        rty::Opaqueness::Opaque
                     } else {
-                        Some(
+                        rty::Opaqueness::Transparent(
                             adt_def
                                 .variants()
                                 .map(|variant_idx| {

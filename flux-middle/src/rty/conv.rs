@@ -173,7 +173,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
         struct_def: &fhir::StructDef,
-    ) -> Option<rty::PolyVariant> {
+    ) -> rty::Opaqueness<rty::PolyVariant> {
         let layer = Layer::from_params(genv.early_cx(), &struct_def.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
@@ -204,9 +204,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
-            Some(Binder::new(variant, sort))
+            rty::Opaqueness::Transparent(Binder::new(variant, sort))
         } else {
-            None
+            rty::Opaqueness::Opaque
         }
     }
 
