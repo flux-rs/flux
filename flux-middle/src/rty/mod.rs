@@ -64,6 +64,8 @@ pub struct AdtDefData {
     opaque: bool,
 }
 
+/// Option-like enum to explicitly mark that we don't have information about an ADT because it was
+/// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
 #[derive(TyEncodable, TyDecodable)]
 pub enum Opaqueness<T> {
     Opaque,
