@@ -907,7 +907,7 @@ mod pretty {
     impl Pretty for FuncSort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("({:?}) -> {:?}", self.input(), self.output())
+            w!("{:?} -> {:?}", self.input(), self.output())
         }
     }
 
