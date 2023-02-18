@@ -48,7 +48,7 @@ pub enum Sort {
 
 #[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct FuncSort {
-    pub inputs_and_output: List<Sort>,
+    input_and_output: List<Sort>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -242,6 +242,14 @@ impl Sort {
         }
     }
 
+    pub fn as_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            slice::from_ref(self)
+        }
+    }
+
     pub(crate) fn is_unit(&self) -> bool {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
@@ -282,12 +290,16 @@ impl Sort {
 }
 
 impl FuncSort {
-    pub fn inputs(&self) -> &[Sort] {
-        &self.inputs_and_output[..self.inputs_and_output.len() - 1]
+    pub(crate) fn new(input: Sort, output: Sort) -> Self {
+        FuncSort { input_and_output: List::from_vec(vec![input, output]) }
     }
 
-    fn output(&self) -> &Sort {
-        &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    pub fn input(&self) -> &Sort {
+        &self.input_and_output[0]
+    }
+
+    pub fn output(&self) -> &Sort {
+        &self.input_and_output[1]
     }
 }
 
@@ -895,7 +907,7 @@ mod pretty {
     impl Pretty for FuncSort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("({:?}) -> {:?}", join!(", ", self.inputs()), self.output())
+            w!("{:?} -> {:?}", self.input(), self.output())
         }
     }
 

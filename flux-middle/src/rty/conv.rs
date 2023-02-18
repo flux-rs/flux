@@ -466,7 +466,7 @@ impl Env<'_, '_> {
             }
             fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(e)),
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(func), self.conv_exprs(args))
+                rty::Expr::app(self.conv_func(func), rty::Expr::tuple(self.conv_exprs(args)))
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
@@ -700,9 +700,10 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
 }
 
 fn conv_func_sort(early_cx: &EarlyCtxt, fsort: &fhir::FuncSort) -> rty::FuncSort {
-    rty::FuncSort {
-        inputs_and_output: List::from_vec(conv_sorts(early_cx, fsort.inputs_and_output.iter())),
-    }
+    rty::FuncSort::new(
+        rty::Sort::tuple(conv_sorts(early_cx, fsort.inputs())),
+        conv_sort(early_cx, fsort.output()),
+    )
 }
 
 fn conv_lit(lit: fhir::Lit) -> rty::Constant {

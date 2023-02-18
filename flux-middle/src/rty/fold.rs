@@ -496,7 +496,7 @@ impl TypeFoldable for Expr {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
-            ExprKind::App(func, args) => Expr::app(func.fold_with(folder), args.fold_with(folder)),
+            ExprKind::App(func, arg) => Expr::app(func.fold_with(folder), arg.fold_with(folder)),
             ExprKind::IfThenElse(p, e1, e2) => {
                 Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
             }
@@ -522,11 +522,9 @@ impl TypeFoldable for Expr {
             ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
                 e.visit_with(visitor);
             }
-            ExprKind::App(func, args) => {
+            ExprKind::App(func, arg) => {
                 func.visit_with(visitor);
-                for e in args {
-                    e.visit_with(visitor);
-                }
+                arg.visit_with(visitor);
             }
             ExprKind::IfThenElse(p, e1, e2) => {
                 p.visit_with(visitor);

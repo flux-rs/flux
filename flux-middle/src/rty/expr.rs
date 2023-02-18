@@ -33,7 +33,7 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Expr, List<Expr>),
+    App(Expr, Expr),
     Func(Symbol),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
@@ -257,8 +257,8 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
-        ExprKind::App(func.into(), args.into()).intern()
+    pub fn app(func: impl Into<Expr>, arg: impl Into<Expr>) -> Expr {
+        ExprKind::App(func.into(), arg.into()).intern()
     }
 
     pub fn func(func: Symbol) -> Expr {
@@ -457,6 +457,10 @@ impl Expr {
 
     pub fn is_tuple(&self) -> bool {
         matches!(self.kind(), ExprKind::Tuple(..))
+    }
+
+    pub fn eta_expand_abs(&self, sort: &Sort) -> Binder<Expr> {
+        Binder::new(Expr::app(self, Expr::nu()), sort.clone())
     }
 
     pub(crate) fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
@@ -796,8 +800,8 @@ mod pretty {
                         w!("{:?}.{:?}", e, field)
                     }
                 }
-                ExprKind::App(func, exprs) => {
-                    w!("{:?}({:?})", func, join!(", ", exprs))
+                ExprKind::App(func, arg) => {
+                    w!("{:?}({:?})", func, arg)
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
