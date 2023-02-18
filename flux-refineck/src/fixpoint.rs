@@ -495,14 +495,11 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     }
 }
 
-fn func_sort_to_fixpoint(sort: &rty::FuncSort) -> fixpoint::FuncSort {
-    fixpoint::FuncSort {
-        inputs_and_output: sort
-            .inputs_and_output
-            .iter()
-            .map(sort_to_fixpoint)
-            .collect(),
-    }
+fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
+    fixpoint::FuncSort::new(
+        fsort.input().as_tuple().iter().map(sort_to_fixpoint),
+        sort_to_fixpoint(fsort.output()),
+    )
 }
 
 fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
@@ -542,9 +539,9 @@ impl<'a> ExprCtxt<'a> {
             }
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
             rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(self.const_map[did].name),
-            rty::ExprKind::App(func, args) => {
+            rty::ExprKind::App(func, arg) => {
                 let func = self.func_to_fixpoint(func);
-                let args = self.exprs_to_fixpoint(args);
+                let args = self.exprs_to_fixpoint(arg.as_tuple());
                 fixpoint::Expr::App(func, args)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {

@@ -7,8 +7,7 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
-        Index, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty,
-        TyKind,
+        InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
     },
     rustc::{
         self,
@@ -300,7 +299,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                Expr::abs(self.fresh_kvar(Sort::tuple(fsort.inputs()), KVarEncoding::Single))
+                Expr::abs(self.fresh_kvar(fsort.input().clone(), KVarEncoding::Single))
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
@@ -362,7 +361,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 self.bty_subtyping(rcx, bty1, bty2);
-                self.index_subtyping(rcx, idx1, idx2);
+                self.idx_subtyping(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
                 debug_assert_eq!(pk1, pk2);
@@ -442,13 +441,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
                 match variance {
-                    rustc_middle::ty::Variance::Covariant => self.subtyping(rcx, ty1, ty2),
-                    rustc_middle::ty::Variance::Invariant => {
+                    Variance::Covariant => self.subtyping(rcx, ty1, ty2),
+                    Variance::Invariant => {
                         self.subtyping(rcx, ty1, ty2);
                         self.subtyping(rcx, ty2, ty1);
                     }
-                    rustc_middle::ty::Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
-                    rustc_middle::ty::Variance::Bivariant => {}
+                    Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
+                    Variance::Bivariant => {}
                 }
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
@@ -456,11 +455,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         };
     }
 
-    fn index_subtyping(&mut self, rcx: &mut RefineCtxt, idx1: &Index, idx2: &Index) {
-        self.expr_subtyping(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
-    }
-
-    fn expr_subtyping(
+    fn idx_subtyping(
         &mut self,
         rcx: &mut RefineCtxt,
         e1: &Expr,
@@ -475,37 +470,33 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(tup1.len(), tup2.len());
 
                 for (e1, e2, is_binder) in izip!(tup1, tup2, is_binder.split()) {
-                    self.expr_subtyping(rcx, e1, e2, is_binder);
+                    self.idx_subtyping(rcx, e1, e2, is_binder);
                 }
             }
-            (ExprKind::Abs(abs1), ExprKind::Abs(abs2)) => {
-                debug_assert_eq!(abs1.sort(), abs2.sort());
-                let vars = rcx.define_vars(abs1.sort());
-                let pred1 = abs1.replace_bvar(&vars);
-                let pred2 = abs2.replace_bvar(&vars);
-                rcx.check_impl(&pred1, &pred2, self.tag);
-                rcx.check_impl(pred2, pred1, self.tag);
+            (ExprKind::Abs(p1), ExprKind::Abs(p2)) => {
+                self.pred_subtyping(rcx, p1, p2);
             }
-            (_, ExprKind::Abs(abs)) => {
-                let vars = rcx.define_vars(abs.sort());
-                let pred1 = Expr::app(e1, vars.as_tuple().to_vec());
-                let pred2 = abs.replace_bvar(&vars);
-                rcx.check_impl(&pred1, &pred2, self.tag);
-                rcx.check_impl(pred2, pred1, self.tag);
+            (_, ExprKind::Abs(p)) => {
+                self.pred_subtyping(rcx, &e1.eta_expand_abs(p.sort()), p);
             }
-            (ExprKind::Abs(abs), _) => {
+            (ExprKind::Abs(p), _) => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
-                let vars = rcx.define_vars(abs.sort());
-                let pred1 = abs.replace_bvar(&vars);
-                let pred2 = Expr::app(e2, vars.as_tuple().to_vec());
-                rcx.check_impl(&pred1, &pred2, self.tag);
-                rcx.check_impl(pred2, pred1, self.tag);
+                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(p.sort()));
             }
             _ => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
                 rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
             }
         }
+    }
+
+    fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Binder<Expr>, p2: &Binder<Expr>) {
+        debug_assert_eq!(p1.sort(), p2.sort());
+        let vars = rcx.define_vars(p1.sort());
+        let p1 = p1.replace_bvar(&vars);
+        let p2 = p2.replace_bvar(&vars);
+        rcx.check_impl(&p1, &p2, self.tag);
+        rcx.check_impl(&p2, &p1, self.tag);
     }
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {

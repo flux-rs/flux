@@ -107,13 +107,13 @@ impl<'a> Normalizer<'a> {
         Self { defs }
     }
 
-    fn app(&self, func: &Expr, args: &[Expr]) -> Expr {
+    fn app(&self, func: &Expr, arg: &Expr) -> Expr {
         match func.kind() {
             ExprKind::Func(sym) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bvar(&Expr::tuple(args))
+                defn.expr.replace_bvar(arg)
             }
-            ExprKind::Abs(body) => body.replace_bvar(&Expr::tuple(args)),
-            _ => Expr::app(func.clone(), args),
+            ExprKind::Abs(body) => body.replace_bvar(arg),
+            _ => Expr::app(func.clone(), arg),
         }
     }
 
@@ -130,7 +130,7 @@ impl TypeFolder for Normalizer<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         let expr = expr.super_fold_with(self);
         match expr.kind() {
-            ExprKind::App(func, args) => self.app(func, args),
+            ExprKind::App(func, arg) => self.app(func, arg),
             ExprKind::TupleProj(tup, proj) => self.tuple_proj(tup, *proj),
             _ => expr,
         }
