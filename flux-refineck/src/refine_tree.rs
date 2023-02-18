@@ -9,7 +9,7 @@ use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
-    fold::{TypeFoldable, TypeVisitor},
+    fold::{TypeFoldable, TypeFolder, TypeVisitor},
     BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
@@ -165,66 +165,68 @@ impl RefineCtxt<'_> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    fn unpack_bty(&mut self, bty: &BaseTy, in_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
-        if flags.contains(UnpackFlags::SHALLOW) {
-            return bty.clone();
+    pub fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
+        struct Unpacker<'a, 'rcx> {
+            rcx: &'a mut RefineCtxt<'rcx>,
+            in_mut_ref: bool,
+            flags: UnpackFlags,
         }
-        match bty {
-            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let (boxed, alloc) = box_args(substs);
-                let boxed = self.unpack_inner(boxed, in_mut_ref, flags);
-                BaseTy::adt(
-                    adt_def.clone(),
-                    vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
-                )
-            }
-            BaseTy::Ref(rk, ty) => {
-                let ty = self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags);
-                BaseTy::Ref(*rk, ty)
-            }
-            BaseTy::Tuple(tys) => {
-                let tys = tys
-                    .iter()
-                    .map(|ty| self.unpack_inner(ty, in_mut_ref, flags))
-                    .collect();
-                BaseTy::Tuple(tys)
-            }
-            _ => bty.clone(),
-        }
-    }
 
-    fn unpack_inner(&mut self, ty: &Ty, in_mut_ref: bool, flags: UnpackFlags) -> Ty {
-        match ty.kind() {
-            TyKind::Indexed(bty, idxs) => {
-                let bty = self.unpack_bty(bty, in_mut_ref, flags);
-                Ty::indexed(bty, idxs.clone())
-            }
-            TyKind::Exists(bound_ty) => {
-                // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-                // that makes the refered type too specific. We only have this as a workaround to
-                // infer parameters under mutable references and it should be removed once we implement
-                // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let ty = bound_ty.replace_bvar_with(|sort| self.define_vars(sort));
-                    self.unpack_inner(&ty, in_mut_ref, flags)
-                } else {
-                    ty.clone()
+        impl TypeFolder for Unpacker<'_, '_> {
+            fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                match ty.kind() {
+                    TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
+                    TyKind::Exists(bound_ty) => {
+                        // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+                        // that makes the refered type too specific. We only have this as a workaround to
+                        // infer parameters under mutable references and it should be removed once we implement
+                        // opening of mutable references. See also `ConstrGen::check_fn_call`.
+                        if !self.in_mut_ref || self.flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
+                            bound_ty
+                                .replace_bvar_with(|sort| self.rcx.define_vars(sort))
+                                .fold_with(self)
+                        } else {
+                            ty.clone()
+                        }
+                    }
+                    TyKind::Constr(pred, ty) => {
+                        self.rcx.assume_pred(pred);
+                        ty.fold_with(self)
+                    }
+                    _ => ty.clone(),
                 }
             }
-            TyKind::Constr(pred, ty) => {
-                self.assume_pred(pred);
-                self.unpack_inner(ty, in_mut_ref, flags)
-            }
-            _ => ty.clone(),
-        }
-    }
 
-    pub fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
-        self.unpack_inner(ty, false, flags)
+            fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+                if self.flags.contains(UnpackFlags::SHALLOW) {
+                    return bty.clone();
+                }
+                match bty {
+                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                        let (boxed, alloc) = box_args(substs);
+                        let boxed = boxed.fold_with(self);
+                        BaseTy::adt(
+                            adt_def.clone(),
+                            vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                        )
+                    }
+                    BaseTy::Ref(rk, ty) => {
+                        let in_mut_ref = self.in_mut_ref;
+                        self.in_mut_ref = matches!(rk, RefKind::Mut);
+                        let ty = ty.fold_with(self);
+                        self.in_mut_ref = in_mut_ref;
+                        BaseTy::Ref(*rk, ty)
+                    }
+                    BaseTy::Tuple(_) => bty.super_fold_with(self),
+                    _ => bty.clone(),
+                }
+            }
+        }
+        ty.fold_with(&mut Unpacker { rcx: self, in_mut_ref: false, flags })
     }
 
     pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.unpack_inner(ty, false, UnpackFlags::empty())
+        self.unpack_with(ty, UnpackFlags::empty())
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
