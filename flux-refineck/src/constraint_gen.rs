@@ -453,6 +453,17 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         arg2: &GenericArg,
     ) {
         match (arg1, arg2) {
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
+                match variance {
+                    rustc_middle::ty::Variance::Covariant => self.subtyping(rcx, ty1, ty2),
+                    rustc_middle::ty::Variance::Invariant => {
+                        self.subtyping(rcx, ty1, ty2);
+                        self.subtyping(rcx, ty2, ty1);
+                    }
+                    rustc_middle::ty::Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
+                    rustc_middle::ty::Variance::Bivariant => {}
+                }
+            }
             (GenericArg::BaseTy(ty1), GenericArg::BaseTy(ty2)) => {
                 debug_assert_eq!(ty1.sort(), ty2.sort());
                 let arg = rcx.define_vars(ty1.sort());

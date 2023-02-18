@@ -209,6 +209,12 @@ pub enum GenericArg {
     Lifetime,
 }
 
+#[derive(Copy, Clone)]
+pub enum TyVarKind {
+    Type,
+    BaseTy,
+}
+
 impl Sort {
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())

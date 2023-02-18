@@ -445,8 +445,7 @@ impl Node {
                     .drain_filter(|child| matches!(&child.borrow().kind, NodeKind::True));
             }
         }
-        if !self.is_leaf() && self.children.is_empty() && !matches!(self.kind, NodeKind::Comment(_))
-        {
+        if !self.is_leaf() && self.children.is_empty() {
             self.kind = NodeKind::True;
         }
     }

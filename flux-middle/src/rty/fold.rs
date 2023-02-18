@@ -247,9 +247,7 @@ impl TypeFoldable for Sort {
         match self {
             Sort::Tuple(sorts) => Sort::tuple(sorts.fold_with(folder)),
             Sort::Func(fsort) => {
-                Sort::Func(FuncSort {
-                    inputs_and_output: fsort.inputs_and_output.fold_with(folder),
-                })
+                Sort::Func(FuncSort { input_and_output: fsort.input_and_output.fold_with(folder) })
             }
             Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::Param(_) | Sort::User(_) => {
                 self.clone()
@@ -260,7 +258,7 @@ impl TypeFoldable for Sort {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Sort::Tuple(sorts) => sorts.visit_with(visitor),
-            Sort::Func(fsort) => fsort.inputs_and_output.visit_with(visitor),
+            Sort::Func(fsort) => fsort.input_and_output.visit_with(visitor),
             Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::Param(_) | Sort::User(_) => {}
         }
     }
@@ -640,29 +638,6 @@ impl TypeFoldable for Qualifier {
         self.body.visit_with(visitor);
     }
 }
-
-// impl TypeFoldable for AdtDef {
-//     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-//         AdtDef(Interned::new(AdtDefData {
-//             def_id: self.def_id(),
-//             sort: self.sort().clone(),
-//             flags: *self.flags(),
-//             nvariants: self.0.nvariants,
-//             opaque: self.0.opaque,
-//             invariants: self
-//                 .invariants()
-//                 .iter()
-//                 .map(|inv| inv.fold_with(folder))
-//                 .collect_vec(),
-//         }))
-//     }
-
-//     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-//         self.invariants()
-//             .iter()
-//             .for_each(|inv| inv.visit_with(visitor));
-//     }
-// }
 
 impl TypeFoldable for Invariant {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {

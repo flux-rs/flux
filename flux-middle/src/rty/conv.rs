@@ -370,8 +370,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
             fhir::Res::Adt(did) => {
-                let substs = self.conv_generic_args(*did, &path.generics);
                 let adt_def = self.genv.adt_def(*did);
+                let substs = self.conv_generic_args(*did, &path.generics, adt_def.is_box());
                 rty::BaseTy::adt(adt_def, substs)
             }
             fhir::Res::Param(def_id) => {
@@ -395,15 +395,21 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return self
                     .genv
                     .type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
+                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics, false))
                     .replace_bvar(&rty::Expr::tuple(args));
             }
         };
         rty::Ty::indexed(bty, idx)
     }
 
-    fn conv_generic_args(&mut self, def_id: DefId, args: &[fhir::Ty]) -> Vec<rty::GenericArg> {
+    fn conv_generic_args(
+        &mut self,
+        def_id: DefId,
+        args: &[fhir::Ty],
+        is_box: bool,
+    ) -> Vec<rty::GenericArg> {
         let mut i = 0;
+        let kind = if is_box { rty::TyVarKind::Type } else { rty::TyVarKind::BaseTy };
         self.genv
             .generics_of(def_id)
             .params
@@ -413,12 +419,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     GenericParamDefKind::Type { has_default } => {
                         if i < args.len() {
                             i += 1;
-                            self.conv_generic_arg(&args[i - 1])
+                            self.conv_generic_arg(&args[i - 1], kind)
                         } else {
                             debug_assert!(has_default);
                             let arg =
                                 rustc::ty::GenericArg::Ty(self.genv.lower_type_of(generic.def_id));
-                            self.genv.refine_generic_arg(&arg, rty::Expr::tt)
+                            self.genv.refine_generic_arg(&arg, rty::Expr::tt, kind)
                         }
                     }
                     GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
@@ -427,19 +433,27 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .collect()
     }
 
-    fn conv_generic_arg(&mut self, arg: &fhir::Ty) -> rty::GenericArg {
-        match self.conv_ty(arg).kind() {
+    fn conv_generic_arg(&mut self, arg: &fhir::Ty, kind: rty::TyVarKind) -> rty::GenericArg {
+        let ty = self.conv_ty(arg);
+        if matches!(kind, rty::TyVarKind::Type) {
+            return rty::GenericArg::Ty(ty);
+        }
+        match ty.kind() {
             rty::TyKind::Indexed(bty, idx) => {
-                let pred = rty::Expr::eq(rty::Expr::nu(), &idx.expr);
+                let bty = bty.shift_in_bvars(1);
+                let sort = bty.sort();
+                let pred = rty::Expr::eq(rty::Expr::nu(), &idx.expr.shift_in_bvars(1));
                 let ty = if pred.is_trivially_true() {
-                    rty::Ty::indexed(bty.clone(), rty::Expr::nu())
+                    rty::Ty::indexed(bty, rty::Expr::nu())
                 } else {
-                    rty::Ty::constr(pred, rty::Ty::indexed(bty.clone(), rty::Expr::nu()))
+                    rty::Ty::constr(pred, rty::Ty::indexed(bty, rty::Expr::nu()))
                 };
-                rty::GenericArg::BaseTy(rty::Binder::new(ty, bty.sort()))
+                rty::GenericArg::BaseTy(rty::Binder::new(ty, sort))
             }
             rty::TyKind::Exists(ty) => rty::GenericArg::BaseTy(ty.clone()),
-            rty::TyKind::Constr(_, _) => todo!(),
+            rty::TyKind::Constr(..) => {
+                todo!()
+            }
             rty::TyKind::Uninit | rty::TyKind::Ptr(_, _) | rty::TyKind::Discr(_, _) => {
                 bug!()
             }

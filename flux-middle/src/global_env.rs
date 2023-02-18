@@ -250,8 +250,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.refine_ty(rustc_ty, rty::Expr::hole)
     }
 
-    pub fn refine_generic_arg_with_holes(&self, arg: &rustc::ty::GenericArg) -> rty::GenericArg {
-        self.refine_generic_arg(arg, rty::Expr::hole)
+    pub fn refine_generic_arg_with_holes(
+        &self,
+        arg: &rustc::ty::GenericArg,
+        kind: rty::TyVarKind,
+    ) -> rty::GenericArg {
+        self.refine_generic_arg(arg, rty::Expr::hole, kind)
     }
 
     pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
@@ -304,7 +308,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             };
             let substs = substs
                 .iter()
-                .map(|arg| self.refine_generic_arg(arg, rty::Expr::tt))
+                .map(|arg| self.refine_generic_arg(arg, rty::Expr::tt, rty::TyVarKind::BaseTy))
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
             let ret = rty::Ty::indexed(bty, rty::Index::unit());
@@ -338,10 +342,16 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         ty: &rustc::ty::GenericArg,
         mk_pred: fn() -> rty::Expr,
+        kind: rty::TyVarKind,
     ) -> rty::GenericArg {
         match ty {
             rustc::ty::GenericArg::Ty(ty) => {
-                rty::GenericArg::BaseTy(self.refine_ty_inner(ty, mk_pred))
+                match kind {
+                    rty::TyVarKind::Type => rty::GenericArg::Ty(self.refine_ty(ty, mk_pred)),
+                    rty::TyVarKind::BaseTy => {
+                        rty::GenericArg::BaseTy(self.refine_ty_inner(ty, mk_pred))
+                    }
+                }
             }
             rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
         }
@@ -367,9 +377,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => rty::BaseTy::Param(*param_ty),
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.adt_def(*def_id);
+                let kind =
+                    if adt_def.is_box() { rty::TyVarKind::Type } else { rty::TyVarKind::BaseTy };
                 let substs = substs
                     .iter()
-                    .map(|arg| self.refine_generic_arg(arg, mk_pred))
+                    .map(|arg| self.refine_generic_arg(arg, mk_pred, kind))
                     .collect_vec();
                 rty::BaseTy::adt(adt_def, substs)
             }
