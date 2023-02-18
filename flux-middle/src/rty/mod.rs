@@ -1132,7 +1132,7 @@ mod pretty {
             match self {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
                 GenericArg::BaseTy(arg) => {
-                    w!("{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
+                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
                 }
                 GenericArg::Lifetime => w!("'_"),
             }
