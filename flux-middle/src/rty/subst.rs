@@ -8,7 +8,8 @@ use super::{
 use crate::rty::*;
 
 /// A substitution for [free variables]
-/// [free variables]: `crate::rty::expr::ExprKind::FreeVar`
+///
+/// [free variables]: `crate::rty::ExprKind::FreeVar`
 #[derive(Debug)]
 pub struct FVarSubst {
     fvar_map: FxHashMap<Name, Expr>,
@@ -86,7 +87,7 @@ impl TypeFolder for FVarSubstFolder<'_> {
 
 /// Substitution for [bound variables]
 ///
-/// [bound variables]: `crate::rty::expr::ExprKind::BoundVar`
+/// [bound variables]: `crate::rty::ExprKind::BoundVar`
 pub(super) struct BVarSubstFolder<'a> {
     current_index: DebruijnIndex,
     expr: &'a Expr,
@@ -120,7 +121,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
 
 /// Substitution for [existential variables]
 ///
-/// [existential variables]: `crate::rty::expr::ExprKind::EVar`
+/// [existential variables]: `crate::rty::ExprKind::EVar`
 pub(super) struct EVarSubstFolder<'a> {
     evars: &'a EVarSol,
 }

@@ -754,7 +754,7 @@ impl Binding {
         }
     }
 
-    pub fn unblock(&mut self, rcx: &mut RefineCtxt) -> Ty {
+    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
             Binding::Blocked(ty) => {

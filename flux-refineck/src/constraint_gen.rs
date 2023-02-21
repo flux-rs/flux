@@ -74,17 +74,28 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         ConstrGen { genv, kvar_gen: Box::new(kvar_gen), span }
     }
 
-    pub fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>, reason: ConstrReason) {
+    pub(crate) fn check_pred(
+        &self,
+        rcx: &mut RefineCtxt,
+        pred: impl Into<Expr>,
+        reason: ConstrReason,
+    ) {
         rcx.check_pred(pred, Tag::new(reason, self.span));
     }
 
-    pub fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty, reason: ConstrReason) {
+    pub(crate) fn subtyping(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        ty1: &Ty,
+        ty2: &Ty,
+        reason: ConstrReason,
+    ) {
         let mut infcx = self.infcx(rcx, reason);
         infcx.subtyping(rcx, ty1, ty2);
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
-    pub fn check_fn_call(
+    pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
@@ -166,7 +177,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(output)
     }
 
-    pub fn check_ret(
+    pub(crate) fn check_ret(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
@@ -192,7 +203,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(())
     }
 
-    pub fn check_constructor(
+    pub(crate) fn check_constructor(
         &mut self,
         rcx: &mut RefineCtxt,
         variant: &PolyVariant,
@@ -226,7 +237,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(variant.ret.replace_evars(&evars_sol))
     }
 
-    pub fn check_mk_array(
+    pub(crate) fn check_mk_array(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
@@ -331,7 +342,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         env: &mut TypeEnv,
         constraint: &Constraint,
     ) -> Result<(), OpaqueStructErr> {
-        let rcx = &mut rcx.breadcrumb();
+        let rcx = &mut rcx.branch();
         match constraint {
             Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty),
             Constraint::Pred(e) => {
@@ -342,7 +353,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
-        let rcx = &mut rcx.breadcrumb();
+        let rcx = &mut rcx.branch();
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
