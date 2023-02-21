@@ -44,8 +44,6 @@ pub fn foo(b: Option<bool>) -> Option<i32> {
     b.map(|z| if z { 1 } else { 2 })
 }
 
-
-
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
@@ -402,7 +400,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Closure(did, substs) => {
                 let lowered_substs = lower_substs(self.tcx, substs).map_err(|err| err.reason)?;
-                Ok(AggregateKind::Closure(*did, lowered_substs))
+                let did = did.as_local().ok_or("expected local closure")?;
+                Ok(AggregateKind::Closure(did, lowered_substs))
             }
             rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
                 Err(format!("unsupported aggregate kind `{aggregate_kind:?}`"))
@@ -574,8 +573,7 @@ pub fn lower_variant_def(
 
 pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
     let fn_sig = tcx.fn_sig(def_id);
-    let preds = tcx.explicit_predicates_of(def_id);
-    println!("TRACE: lower_fn_sig {def_id:?} : {fn_sig:?} : {preds:?}");
+    // println!("TRACE: lower_fn_sig {def_id:?} : {fn_sig:?} : {:?}", tcx.explicit_predicates_of(def_id));
     let span = tcx.def_span(def_id);
     let param_env = tcx.param_env(def_id);
     let result = tcx

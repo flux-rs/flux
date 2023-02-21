@@ -287,7 +287,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let stmt_span = stmt.source_info.span;
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                println!("TRACE: check_statement {stmt:?}");
+                // println!("TRACE: check_statement {stmt:?}");
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
                 let gen = &mut self.constr_gen(rcx, stmt_span);
