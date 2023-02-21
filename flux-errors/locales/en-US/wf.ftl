@@ -3,11 +3,30 @@ wf_sort_mismatch =
     .label = expected `{$expected}`, found `{$found}`
 
 wf_arg_count_mismatch =
-    this {$thing} takes {$expected} refinement parameters but {$found ->
+    this {$thing} takes {$expected ->
+        [one] {$expected} refinement argument
+        *[other] {$expected} refinement arguments
+    } but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
-    .label = expected {$expected} arguments, found {$found}
+    .label = expected {$expected ->
+        [one] {$expected} argument
+        *[other] {$expected} arguments
+    }, found {$found}
+
+wf_early_bound_arg_count_mismatch =
+    this type alias takes {$expected ->
+        [one] {$expected} early bound argument
+        *[other] {$expected} early bound arguments
+    } but {$found ->
+        [one] {$found} was found
+        *[other] {$found} were found
+    }
+    .label = expected {$expected ->
+        [one] {$expected} early bound argument
+        *[other] {$expected} early bound arguments
+    }, found {$found}
 
 wf_illegal_binder =
     illegal binder
@@ -51,17 +70,10 @@ wf_param_count_mismatch =
     } was expected
 
 wf_field_not_found =
-    no field `{$fld}` on refinement parameters for {$def_kind} `{$def_name}`
+    no field `{$fld}` on sort `{$sort}`
 
 wf_invalid_primitive_dot_access =
     `{$sort}` is a primitive sort and therefore doesn't have fields
-    .label = field access on parameter `{$param_name}`
-
-wf_def_span_note =
-    {$has_params ->
-        [true] {$def_kind} defined here
-        *[false] {$def_kind} defined here with no parameters
-    }
 
 wf_expected_numeric=
     mismatched sorts

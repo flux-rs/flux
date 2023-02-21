@@ -18,10 +18,6 @@ You could for example check a file as a library instead of a binary like so
 rustc-flux --crate-type=lib path/to/test.rs
 ```
 
-Additionally, at the moment flux passes some default flags (like `-O` and
-`-Cpanic=abort`) because otherwise the resulting mir will have features not yet
-supported.
-
 ## Running on a Crate: `cargo-flux`
 
 You can use `cargo-flux` as you would use `cargo`. For the most part this means
@@ -35,7 +31,7 @@ in order to get `flux` to check your code.
 
 ## Developing locally
 
-You can set the `FLUX_DRIVER_PATH` environment variable to `./target/debug/flux` if you
+You can set the `FLUX_DRIVER_PATH` environment variable to `./target/debug/flux-driver` if you
 want `cargo-flux` and `rustc-flux` to use the version of `flux-driver` that is built
 when you run `cargo build`. This is useful if you want to run `cargo build` instead
 of `cargo install --path flux` every time you make a change.
@@ -101,7 +97,7 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 
 ```json
 {
-  "rust-analyzer.checkOnSave.overrideCommand": [
+  "rust-analyzer.check.overrideCommand": [
     "cargo-flux",
     "check",
     "--workspace",
@@ -110,14 +106,14 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 }
 ```
 
-If you want to change the `flux` used by `cargo-flux`, then also specify the
+If you want to change the `flux-driver` used by `cargo-flux`, then also specify the
 `FLUX_PATH` like in the example below, which uses the version generated when you
 run `cargo build`.
 
 ``` json
 {
-  "rust-analyzer.checkOnSave.extraEnv": {
-    "FLUX_PATH": "/path/to/flux-repo/target/debug/flux",
+  "rust-analyzer.check.extraEnv": {
+    "FLUX_DRIVER_PATH": "/path/to/flux-repo/target/debug/flux-driver",
   }
 }
 ```
@@ -139,8 +135,7 @@ You can set various `env` variables to customize the behavior of `flux`.
 * `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
 * `FLUX_DUMP_TIMINGS=1` saves the profile information
 * `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
-* `FLUX_CHECK_ASSERTS={ignore, assume, check}` TODO
-* `FLUX_POINTER_WIDTH=N` TODO (default `64`)
+* `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
 * `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
 * `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
 * `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`

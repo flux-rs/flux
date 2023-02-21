@@ -1,11 +1,15 @@
 use flux_common::bug;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::fold::{TypeFoldable, TypeFolder};
+use super::{
+    evars::EVarSol,
+    fold::{TypeFoldable, TypeFolder},
+};
 use crate::rty::*;
 
 /// A substitution for [free variables]
-/// [free variables]: `crate::rty::expr::ExprKind::FreeVar`
+///
+/// [free variables]: `crate::rty::ExprKind::FreeVar`
 #[derive(Debug)]
 pub struct FVarSubst {
     fvar_map: FxHashMap<Name, Expr>,
@@ -26,37 +30,24 @@ impl FVarSubst {
 
     pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
         t.fold_with(&mut FVarSubstFolder { subst: self })
+            .normalize(&Default::default())
     }
 
-    pub fn subst_loc(&self, loc: Loc) -> Loc {
-        let loc_expr = self.apply(&loc.to_expr());
-        loc_expr
-            .to_loc()
-            .unwrap_or_else(|| panic!("substitution produces invalid loc: {loc_expr:?}"))
+    pub fn infer_from_idxs(&mut self, params: &FxHashSet<Name>, idx1: &Index, idx2: &Index) {
+        self.infer_from_exprs(params, &idx1.expr, &idx2.expr);
     }
 
-    pub fn infer_from_refine_args(
-        &mut self,
-        params: &FxHashSet<Name>,
-        arg1: &RefineArg,
-        arg2: &RefineArg,
-    ) {
-        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-            self.infer_from_exprs(params, e1, e2);
-        }
-    }
-
-    pub fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
+    fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
             (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
                 if let Some(old_e) = self.insert(*fvar, e1.clone()) {
                     if &old_e != e1 {
-                        todo!(
+                        bug!(
                             "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
                             *fvar,
                             old_e,
                             e1
-                        )
+                        );
                     }
                 }
             }
@@ -95,53 +86,56 @@ impl TypeFolder for FVarSubstFolder<'_> {
 }
 
 /// Substitution for [bound variables]
-/// [bound variables]: `crate::rty::expr::ExprKind::BoundVar`
+///
+/// [bound variables]: `crate::rty::ExprKind::BoundVar`
 pub(super) struct BVarSubstFolder<'a> {
-    outer_binder: DebruijnIndex,
-    args: &'a [RefineArg],
+    current_index: DebruijnIndex,
+    expr: &'a Expr,
 }
 
 impl<'a> BVarSubstFolder<'a> {
-    pub(super) fn new(args: &'a [RefineArg]) -> BVarSubstFolder<'a> {
-        BVarSubstFolder { args, outer_binder: INNERMOST }
+    pub(super) fn new(expr: &'a Expr) -> BVarSubstFolder<'a> {
+        BVarSubstFolder { expr, current_index: INNERMOST }
     }
 }
 
 impl TypeFolder for BVarSubstFolder<'_> {
-    fn fold_binders<T>(&mut self, t: &Binders<T>) -> Binders<T>
+    fn fold_binders<T>(&mut self, t: &Binder<T>) -> Binder<T>
     where
         T: TypeFoldable,
     {
-        self.outer_binder.shift_in(1);
+        self.current_index.shift_in(1);
         let r = t.super_fold_with(self);
-        self.outer_binder.shift_out(1);
+        self.current_index.shift_out(1);
         r
     }
 
-    fn fold_refine_arg(&mut self, arg: &RefineArg) -> RefineArg {
-        if let RefineArg::Expr(expr) = arg
-           && let ExprKind::BoundVar(bvar) = expr.kind()
-           && bvar.debruijn == self.outer_binder
-        {
-            self.args[bvar.index].clone()
+    fn fold_expr(&mut self, e: &Expr) -> Expr {
+        if let ExprKind::BoundVar(debruijn) = e.kind() && *debruijn == self.current_index {
+            self.expr.shift_in_bvars(self.current_index.as_u32())
         } else {
-            arg.super_fold_with(self)
+            e.super_fold_with(self)
         }
     }
+}
 
+/// Substitution for [existential variables]
+///
+/// [existential variables]: `crate::rty::ExprKind::EVar`
+pub(super) struct EVarSubstFolder<'a> {
+    evars: &'a EVarSol,
+}
+
+impl<'a> EVarSubstFolder<'a> {
+    pub(super) fn new(evars: &'a EVarSol) -> Self {
+        Self { evars }
+    }
+}
+
+impl TypeFolder for EVarSubstFolder<'_> {
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::BoundVar(bvar) = e.kind() && bvar.debruijn == self.outer_binder {
-            if let RefineArg::Expr(e) = &self.args[bvar.index] {
-                e.clone()
-            } else {
-                panic!("expected expr for `{bvar:?}` but found `{:?}` when substituting", self.args[bvar.index])
-            }
-        } else if let ExprKind::App(Func::Var(Var::Bound(bvar)), args) = e.kind()
-           && bvar.debruijn == self.outer_binder
-           && let RefineArg::Abs(abs) = &self.args[bvar.index]
-        {
-            let args = args.iter().map(|arg| RefineArg::Expr(arg.fold_with(self))).collect_vec();
-            abs.replace_bvars(&args)
+        if let ExprKind::EVar(evar) = e.kind() && let Some(sol) = self.evars.get(*evar) {
+            sol.clone()
         } else {
             e.super_fold_with(self)
         }
@@ -169,7 +163,7 @@ impl GenericsSubstFolder<'_> {
     fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
         match self.substs.get(param_ty.index as usize) {
             Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(GenericArg::Lifetime) => todo!("substitution for lifetimes is not supported"),
+            Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
             None => bug!("type parameter out of range"),
         }
     }

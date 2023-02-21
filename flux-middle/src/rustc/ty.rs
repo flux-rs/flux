@@ -8,8 +8,8 @@ use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt,
-        UintTy,
+        BoundVar, DebruijnIndex, EarlyBinder, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid,
+        ScalarInt, UintTy,
     },
 };
 use rustc_span::Symbol;

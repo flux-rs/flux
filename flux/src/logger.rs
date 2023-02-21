@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use flux_common::config;
+use flux_config as config;
 use tracing::{Dispatch, Level};
 use tracing_subscriber::{filter::Targets, fmt::writer::BoxMakeWriter, prelude::*, Registry};
 use tracing_timing::TimingLayer;

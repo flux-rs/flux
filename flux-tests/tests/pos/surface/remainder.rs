@@ -16,7 +16,7 @@ pub fn test_mod() -> i32 {
     0
 }
 
-#[flux::sig(fn(a: i32{a >= 0}, b: i32{b >= 0}) -> i32[a % b])]
+#[flux::sig(fn(a: i32{a >= 0}, b: i32{b > 0}) -> i32[a % b])]
 pub fn mod_signed_pos(a: i32, b: i32) -> i32 {
     a % b
 }

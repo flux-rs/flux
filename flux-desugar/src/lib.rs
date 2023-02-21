@@ -19,7 +19,7 @@ mod rustc_middle_ty_annot_check;
 mod table_resolver;
 
 pub use desugar::{
-    desugar_adt_def, desugar_defn, desugar_qualifier, resolve_defn_uif, resolve_uif_def,
+    desugar_defn, desugar_qualifier, desugar_refined_by, resolve_defn_uif, resolve_uif_def,
 };
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use flux_syntax::surface;
@@ -74,4 +74,20 @@ pub fn desugar_fn_sig(
 
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
     fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
+}
+
+pub fn desugar_type_alias(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+    alias: surface::TyAlias,
+) -> Result<fhir::TyAlias, ErrorGuaranteed> {
+    // Resolve
+    let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
+    let alias = resolver.resolve_type_alias(alias)?;
+
+    // Check
+    hir_annot_check::check_alias(early_cx.tcx, early_cx.sess, def_id, &alias)?;
+
+    // Desugar
+    desugar::desugar_type_alias(early_cx, def_id, alias)
 }

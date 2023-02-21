@@ -1,4 +1,4 @@
-use flux_common::iter::IterExt;
+use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
 use hir::{ItemKind, PathSegment};
@@ -30,23 +30,62 @@ enum ResEntry {
 }
 
 impl<'sess> Resolver<'sess> {
-    pub fn new(
+    pub(crate) fn new(
         tcx: TyCtxt,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
         let table = match tcx.def_kind(def_id) {
-            hir::def::DefKind::Struct | hir::def::DefKind::Enum | hir::def::DefKind::Fn => {
-                NameResTable::from_item(tcx, sess, def_id)?
-            }
+            hir::def::DefKind::Struct
+            | hir::def::DefKind::Enum
+            | hir::def::DefKind::Fn
+            | hir::def::DefKind::TyAlias => NameResTable::from_item(tcx, sess, def_id)?,
             hir::def::DefKind::AssocFn => NameResTable::from_impl_item(tcx, sess, def_id)?,
-            kind => panic!("unsupported kind {kind:?}"),
+            kind => bug!("unsupported kind {kind:?}"),
         };
 
         Ok(Self { sess, table })
     }
 
-    pub fn resolve_enum_def(
+    pub(crate) fn resolve_type_alias(
+        &self,
+        alias_def: surface::TyAlias,
+    ) -> Result<surface::TyAlias<Res>, ErrorGuaranteed> {
+        let ty = self.resolve_ty(alias_def.ty)?;
+
+        Ok(surface::TyAlias {
+            path: alias_def.path,
+            refined_by: alias_def.refined_by,
+            ty,
+            span: alias_def.span,
+        })
+    }
+
+    pub(crate) fn resolve_struct_def(
+        &self,
+        struct_def: surface::StructDef,
+    ) -> Result<surface::StructDef<Res>, ErrorGuaranteed> {
+        let fields = struct_def
+            .fields
+            .into_iter()
+            .map(|field| {
+                Ok(surface::FieldDef {
+                    def_id: field.def_id,
+                    ty: field.ty.map(|ty| self.resolve_ty(ty)).transpose()?,
+                })
+            })
+            .try_collect_exhaust()?;
+
+        Ok(surface::StructDef {
+            def_id: struct_def.def_id,
+            refined_by: struct_def.refined_by,
+            fields,
+            opaque: struct_def.opaque,
+            invariants: struct_def.invariants,
+        })
+    }
+
+    pub(crate) fn resolve_enum_def(
         &self,
         enum_def: surface::EnumDef,
     ) -> Result<surface::EnumDef<Res>, ErrorGuaranteed> {
@@ -68,13 +107,18 @@ impl<'sess> Resolver<'sess> {
         &self,
         variant: surface::VariantDef,
     ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
-        let fields = variant
-            .fields
-            .into_iter()
-            .map(|ty| self.resolve_ty(ty))
-            .try_collect_exhaust()?;
-        let ret = self.resolve_variant_ret(variant.ret)?;
-        Ok(surface::VariantDef { fields, ret, span: variant.span })
+        let data = if let Some(data) = variant.data {
+            let fields = data
+                .fields
+                .into_iter()
+                .map(|ty| self.resolve_ty(ty))
+                .try_collect_exhaust()?;
+            let ret = self.resolve_variant_ret(data.ret)?;
+            Some(surface::VariantData { fields, ret, span: data.span })
+        } else {
+            None
+        };
+        Ok(surface::VariantDef { def_id: variant.def_id, data })
     }
 
     fn resolve_variant_ret(
@@ -85,27 +129,8 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
-    pub fn resolve_struct_def(
-        &self,
-        struct_def: surface::StructDef,
-    ) -> Result<surface::StructDef<Res>, ErrorGuaranteed> {
-        let fields = struct_def
-            .fields
-            .into_iter()
-            .map(|ty| ty.map(|ty| self.resolve_ty(ty)).transpose())
-            .try_collect_exhaust()?;
-
-        Ok(surface::StructDef {
-            def_id: struct_def.def_id,
-            refined_by: struct_def.refined_by,
-            fields,
-            opaque: struct_def.opaque,
-            invariants: struct_def.invariants,
-        })
-    }
-
     #[allow(dead_code)]
-    pub fn resolve_fn_sig(
+    pub(crate) fn resolve_fn_sig(
         &self,
         fn_sig: surface::FnSig,
     ) -> Result<surface::FnSig<Res>, ErrorGuaranteed> {
@@ -140,7 +165,6 @@ impl<'sess> Resolver<'sess> {
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(bind, ty) => Ok(surface::Arg::Ty(bind, self.resolve_ty(ty)?)),
-            surface::Arg::Alias(_, _, _) => panic!("Unexpected 'Alias' in resolve_arg"),
         }
     }
 
@@ -202,8 +226,7 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
         match bty {
-            BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
-
+            BaseTy::Path(path, args) => Ok(BaseTy::Path(self.resolve_path(path)?, args)),
             BaseTy::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 Ok(BaseTy::Slice(Box::new(ty)))
@@ -221,6 +244,9 @@ impl<'sess> NameResTable<'sess> {
         let item = tcx.hir().expect_item(def_id);
         let mut table = Self::new(sess);
         match &item.kind {
+            ItemKind::TyAlias(ty, _) => {
+                table.collect_from_ty(ty)?;
+            }
             ItemKind::Struct(data, _) => {
                 table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
 

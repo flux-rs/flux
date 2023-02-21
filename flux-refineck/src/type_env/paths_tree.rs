@@ -7,7 +7,7 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Loc, Path, PtrKind, RefineArg, Sort, Substs, Ty, TyKind,
+        AdtDef, BaseTy, Expr, GenericArg, Index, Loc, Path, PtrKind, Ref, Sort, Substs, Ty, TyKind,
         Var, VariantIdx,
     },
     rustc::mir::{Field, Place, PlaceElem},
@@ -78,7 +78,7 @@ impl LookupKey for Path {
     type Iter<'a> = impl Iterator<Item = PlaceElem> + 'a;
 
     fn loc(&self) -> Loc {
-        self.loc
+        self.loc.clone()
     }
 
     fn proj(&self) -> Self::Iter<'_> {
@@ -161,7 +161,7 @@ impl PathsTree {
     pub(super) fn iter(&self, mut f: impl FnMut(&LocKind, Path, &Binding)) {
         fn go(
             ptr: &NodePtr,
-            loc: Loc,
+            loc: &Loc,
             kind: &LocKind,
             proj: &mut Vec<Field>,
             f: &mut impl FnMut(&LocKind, Path, &Binding),
@@ -169,7 +169,7 @@ impl PathsTree {
             let node = ptr.borrow();
             match &*node {
                 Node::Leaf(binding) => {
-                    f(kind, Path::new(loc, proj.as_slice()), binding);
+                    f(kind, Path::new(loc.clone(), proj.as_slice()), binding);
                 }
                 Node::Internal(_, children) => {
                     for (idx, ptr) in children.iter().enumerate() {
@@ -182,7 +182,7 @@ impl PathsTree {
         }
         let mut proj = vec![];
         for (loc, root) in &self.map {
-            go(&root.ptr, *loc, &root.kind, &mut proj, &mut f);
+            go(&root.ptr, loc, &root.kind, &mut proj, &mut f);
         }
     }
 
@@ -220,7 +220,7 @@ impl PathsTree {
         let place_proj = &mut key.proj();
 
         'outer: loop {
-            let loc = path.loc;
+            let loc = path.loc.clone();
             let mut path_proj = vec![];
 
             let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
@@ -246,7 +246,7 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            TyKind::Ref(rk, ty) => {
+                            Ref!(rk, ty) => {
                                 let (rk, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
@@ -263,8 +263,12 @@ impl PathsTree {
                                 let (boxed, alloc) = box_args(substs);
                                 let fresh = rcx.define_var(&Sort::Loc);
                                 let loc = Loc::from(fresh);
-                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc));
-                                self.insert(loc, boxed.clone(), LocKind::Box(alloc.clone()));
+                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc.clone()));
+                                self.insert(
+                                    loc.clone(),
+                                    boxed.clone(),
+                                    LocKind::Box(alloc.clone()),
+                                );
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -284,7 +288,7 @@ impl PathsTree {
                     PlaceElem::Index(_) => {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
-                            TyKind::Array(arr_ty, _) => {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
                                 let (rk, ty) =
                                     Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
                                 return Ok(LookupResult {
@@ -292,7 +296,7 @@ impl PathsTree {
                                     kind: LookupKind::Weak(rk, ty),
                                 });
                             }
-                            _ => tracked_span_bug!("Unsupported Index: {elem:?} {ty:?}"),
+                            _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
                         }
                     }
                 }
@@ -315,11 +319,9 @@ impl PathsTree {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
-            if matches!(elem, Field(_) | Downcast(_)) {
-                ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
-            }
+            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             match (elem, ty.kind()) {
-                (Deref, TyKind::Ref(rk2, ty2)) => {
+                (Deref, Ref!(rk2, ty2)) => {
                     rk = rk.min(WeakKind::from(*rk2));
                     ty = ty2.clone();
                 }
@@ -327,23 +329,16 @@ impl PathsTree {
                     let (boxed, _) = box_args(substs);
                     ty = boxed.clone();
                 }
-                (Field(field), TyKind::Tuple(tys)) => {
+                (Field(field), TyKind::Indexed(BaseTy::Tuple(tys), _)) => {
                     ty = tys[field.as_usize()].clone();
                 }
-                (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idxs)) => {
-                    let fields = downcast(
-                        genv,
-                        rcx,
-                        adt.def_id(),
-                        VariantIdx::from_u32(0),
-                        substs,
-                        idxs.args(),
-                    )?;
+                (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idx)) => {
+                    let fields =
+                        downcast(genv, rcx, adt.def_id(), VariantIdx::from_u32(0), substs, idx)?;
                     ty = fields[field.as_usize()].clone();
                 }
-                (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs)) => {
-                    let tys =
-                        downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idxs.args())?;
+                (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
+                    let tys = downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?;
                     ty = Ty::tuple(tys);
                     rcx.assume_invariants(&ty);
                 }
@@ -362,9 +357,10 @@ impl PathsTree {
             let mut node = ptr.borrow_mut();
             if let Node::Leaf(Binding::Owned(ty)) = &mut *node
                 && let TyKind::Ptr(_, path) = ty.kind()
-                && let Some(Loc::Var(Var::Free(name))) = path.to_loc()
+                && let Some(Loc::Var(Var::Free(name), proj)) = path.to_loc()
                 && !scope.contains(name)
             {
+                debug_assert!(proj.is_empty());
                 node.fold(&mut self.map, rcx, gen, false, true);
             }
         }
@@ -565,22 +561,16 @@ impl Node {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
                 match ty.kind() {
-                    TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) => {
-                        let fields = downcast(
-                            genv,
-                            rcx,
-                            adt_def.def_id(),
-                            variant_idx,
-                            substs,
-                            idxs.args(),
-                        )?
-                        .into_iter()
-                        .map(|ty| {
-                            let ty = rcx.unpack(&ty);
-                            rcx.assume_invariants(&ty);
-                            Node::owned(ty).into_ptr()
-                        })
-                        .collect();
+                    TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) => {
+                        let fields =
+                            downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?
+                                .into_iter()
+                                .map(|ty| {
+                                    let ty = rcx.unpack(&ty);
+                                    rcx.assume_invariants(&ty);
+                                    Node::owned(ty).into_ptr()
+                                })
+                                .collect();
                         *self = Node::Internal(
                             NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
                             fields,
@@ -601,7 +591,7 @@ impl Node {
     fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
         let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
-            TyKind::Tuple(tys) => {
+            TyKind::Indexed(BaseTy::Tuple(tys), _) => {
                 let children = tys
                     .iter()
                     .cloned()
@@ -677,7 +667,6 @@ impl Node {
                 } else {
                     gen.check_constructor(rcx, &variant, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
-                        .to_ty()
                 };
                 *self = Node::owned(ty.clone());
                 ty
@@ -765,7 +754,7 @@ impl Binding {
         }
     }
 
-    pub fn unblock(&mut self, rcx: &mut RefineCtxt) -> Ty {
+    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt) -> Ty {
         match self {
             Binding::Owned(ty) => ty.clone(),
             Binding::Blocked(ty) => {
@@ -798,12 +787,12 @@ fn downcast(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    args: &[RefineArg],
+    idx: &Index,
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     if genv.tcx.adt_def(def_id).is_struct() {
-        downcast_struct(genv, def_id, variant_idx, substs, args)
+        downcast_struct(genv, def_id, variant_idx, substs, idx)
     } else if genv.tcx.adt_def(def_id).is_enum() {
-        Ok(downcast_enum(genv, rcx, def_id, variant_idx, substs, args))
+        Ok(downcast_enum(genv, rcx, def_id, variant_idx, substs, idx))
     } else {
         tracked_span_bug!("Downcast without struct or enum!")
     }
@@ -822,11 +811,11 @@ fn downcast_struct(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    args: &[RefineArg],
+    idx: &Index,
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
         .variant(def_id, variant_idx)?
-        .replace_bvars(args)
+        .replace_bvar(&idx.expr)
         .replace_generics(substs)
         .fields
         .to_vec())
@@ -846,22 +835,25 @@ fn downcast_enum(
     def_id: DefId,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
-    args: &[RefineArg],
+    idx1: &Index,
 ) -> Vec<Ty> {
     let variant_def = genv
         .variant(def_id, variant_idx)
         .unwrap()
-        .replace_bvars_with_fresh_fvars(|sort| rcx.define_var(sort))
+        .replace_bvar_with(|sort| rcx.define_vars(sort))
         .replace_generics(substs);
 
-    debug_assert_eq!(variant_def.ret.args.len(), args.len());
-    let constr = Expr::and(iter::zip(&variant_def.ret.args, args).filter_map(|(arg1, arg2)| {
-        if let (RefineArg::Expr(e1), RefineArg::Expr(e2)) = (arg1, arg2) {
-            Some(Expr::eq(e1, e2))
-        } else {
-            None
-        }
-    }));
+    let (.., idx2) = variant_def.ret.expect_adt();
+    // FIXME(nilehmann) flatten indices
+    debug_assert_eq!(idx2.expr.as_tuple().len(), idx1.expr.as_tuple().len());
+    let constr =
+        Expr::and(iter::zip(idx1.expr.as_tuple(), idx2.expr.as_tuple()).filter_map(|(e1, e2)| {
+            if !e1.is_abs() && !e2.is_abs() {
+                Some(Expr::eq(e1, e2))
+            } else {
+                None
+            }
+        }));
     rcx.assume_pred(constr);
 
     variant_def.fields.to_vec()

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt};
 
-use flux_common::config;
+use flux_config as config;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{mir::Field, ty::TyCtxt};
 use rustc_span::{Pos, Span};
@@ -101,7 +101,7 @@ macro_rules! _impl_debug_with_default_cx {
                     #[allow(unused_mut)]
                     let mut cx = <$ty>::default_cx(tcx);
                     $(
-                    if let Some(opts) = flux_common::config::CONFIG_FILE
+                    if let Some(opts) = flux_config::CONFIG_FILE
                         .get("dev")
                         .and_then(|dev| dev.get("pprint"))
                         .and_then(|pprint| pprint.get($key))

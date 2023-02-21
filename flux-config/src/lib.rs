@@ -1,3 +1,5 @@
+#![feature(once_cell)]
+
 use std::{io::Read, path::PathBuf, sync::LazyLock};
 
 use config::{Environment, File};
@@ -6,14 +8,6 @@ pub use toml::Value;
 
 const FLUX_ENV_VAR_PREFIX: &str = "FLUX";
 const FLUX_CONFIG_ENV_VAR: &str = "FLUX_CONFIG";
-
-#[derive(Debug, Deserialize, Copy, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum AssertBehavior {
-    Ignore,
-    Assume,
-    Check,
-}
 
 pub fn check_def() -> &'static str {
     &CONFIG.check_def
@@ -35,12 +29,16 @@ pub fn dump_constraint() -> bool {
     CONFIG.dump_constraint
 }
 
-pub fn pointer_width() -> u64 {
-    CONFIG.pointer_width
+pub fn dump_fhir() -> bool {
+    CONFIG.dump_fhir
 }
 
-pub fn assert_behavior() -> AssertBehavior {
-    CONFIG.check_asserts
+pub fn dump_rty() -> bool {
+    CONFIG.dump_rty
+}
+
+pub fn pointer_width() -> PointerWidth {
+    CONFIG.pointer_width
 }
 
 pub fn log_dir() -> &'static PathBuf {
@@ -59,25 +57,11 @@ pub fn driver_path() -> Option<&'static PathBuf> {
     CONFIG.driver_path.as_ref()
 }
 
-impl std::str::FromStr for AssertBehavior {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "ignore" => Ok(AssertBehavior::Ignore),
-            "assume" => Ok(AssertBehavior::Assume),
-            "check" => Ok(AssertBehavior::Check),
-            _ => Err(()),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct CrateConfig {
     pub log_dir: PathBuf,
     pub dump_constraint: bool,
     pub dump_checker_trace: bool,
-    pub check_asserts: AssertBehavior,
 }
 
 #[derive(Deserialize)]
@@ -87,12 +71,41 @@ struct Config {
     dump_constraint: bool,
     dump_checker_trace: bool,
     dump_timings: bool,
-    check_asserts: AssertBehavior,
+    dump_fhir: bool,
+    dump_rty: bool,
     dump_mir: bool,
-    pointer_width: u64,
+    pointer_width: PointerWidth,
     check_def: String,
     cache: bool,
     cache_file: String,
+}
+
+#[derive(Copy, Clone, Deserialize)]
+#[serde(try_from = "u8")]
+pub enum PointerWidth {
+    W32,
+    W64,
+}
+
+impl PointerWidth {
+    pub fn bits(self) -> u64 {
+        match self {
+            PointerWidth::W32 => 32,
+            PointerWidth::W64 => 64,
+        }
+    }
+}
+
+impl TryFrom<u8> for PointerWidth {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            32 => Ok(PointerWidth::W32),
+            64 => Ok(PointerWidth::W64),
+            _ => Err("pointer width must be 32 or 64"),
+        }
+    }
 }
 
 static CONFIG: LazyLock<Config> = LazyLock::new(|| {
@@ -104,8 +117,10 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("dump_checker_trace", false)?
             .set_default("dump_timings", false)?
             .set_default("dump_mir", false)?
+            .set_default("dump_fhir", false)?
+            .set_default("dump_rty", false)?
             .set_default("check_asserts", "assume")?
-            .set_default("pointer_width", 64)?
+            .set_default("pointer_width", "64")?
             .set_default("check_def", "")?
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?;

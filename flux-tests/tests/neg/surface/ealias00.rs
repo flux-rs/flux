@@ -11,9 +11,9 @@ pub fn test1(x: i32) -> i32 {
 }
 
 #[flux::alias(type Nat() = i32{v:nat(v)})]
-type _Nat = i32;
+type Nat = i32;
 
-#[flux::sig(fn(x:Nat) -> Nat)]
-pub fn test2(x: i32) -> i32 {
+#[flux::sig(fn(x: Nat) -> Nat)]
+pub fn test2(x: Nat) -> Nat {
     x - 1 //~ ERROR postcondition
 }

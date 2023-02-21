@@ -1,6 +1,7 @@
 #![feature(rustc_private, never_type)]
 
 extern crate rustc_data_structures;
+extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_session;
 extern crate rustc_span;
@@ -23,8 +24,6 @@ use rustc_session::{
 };
 use rustc_span::source_map::SourceMap;
 
-// These are sorted loosely following the order of the pipeline except for lowering and metadata
-// which don't quite fit this ordering.
 fluent_messages! {
     parse => "../locales/en-US/parse.ftl",
     resolver => "../locales/en-US/resolver.ftl",
@@ -36,6 +35,7 @@ fluent_messages! {
     refineck => "../locales/en-US/refineck.ftl",
     lowering => "../locales/en-US/lowering.ftl",
     metadata => "../locales/en-US/metadata.ftl",
+    lift => "../locales/en-US/lift.ftl"
 }
 
 pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
@@ -109,6 +109,7 @@ fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter
                     None,
                     false,
                     track_diagnostics,
+                    opts.unstable_opts.terminal_urls,
                 );
                 Box::new(emitter)
             }
@@ -124,6 +125,7 @@ fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter
                 None,
                 false,
                 track_diagnostics,
+                opts.unstable_opts.terminal_urls,
             ))
         }
     }

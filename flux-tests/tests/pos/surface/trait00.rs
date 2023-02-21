@@ -1,3 +1,5 @@
+// ignore-test disabled until we implement type holes
+
 #![feature(register_tool)]
 #![register_tool(flux)]
 

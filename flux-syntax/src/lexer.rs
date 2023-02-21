@@ -3,7 +3,7 @@ use std::{collections::VecDeque, iter::Peekable};
 pub use rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
 use rustc_ast::{
     token::{self, TokenKind},
-    tokenstream::{self, TokenStream, TokenTree},
+    tokenstream::{TokenStream, TokenTree, TokenTreeCursor},
 };
 use rustc_span::{symbol::kw, BytePos, Symbol};
 
@@ -81,7 +81,7 @@ struct Symbols {
 }
 
 struct Frame {
-    cursor: Peekable<tokenstream::Cursor>,
+    cursor: Peekable<TokenTreeCursor>,
     close: Option<(Location, Token, Location)>,
 }
 

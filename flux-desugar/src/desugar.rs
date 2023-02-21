@@ -1,14 +1,18 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, index::IndexGen, iter::IterExt};
+use flux_common::{index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
-use flux_middle::{early_ctxt::EarlyCtxt, fhir, intern::List};
+use flux_middle::{
+    early_ctxt::EarlyCtxt,
+    fhir::{self, BtyOrTy},
+    intern::List,
+};
 use flux_syntax::surface::{self, PrimTy, Res};
-use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def_id::DefId;
+use rustc_hash::FxHashSet;
+use rustc_hir::def_id::LocalDefId;
 use rustc_span::{sym, symbol::kw, Span, Symbol};
 
 pub fn desugar_qualifier(
@@ -21,7 +25,7 @@ pub fn desugar_qualifier(
 
     Ok(fhir::Qualifier {
         name,
-        args: binders.pop_layer().into_args(),
+        args: binders.pop_layer().into_params(),
         global: qualifier.global,
         expr: expr?,
     })
@@ -31,11 +35,11 @@ pub fn desugar_defn(
     early_cx: &EarlyCtxt,
     defn: surface::Defn,
 ) -> Result<fhir::Defn, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, &defn.args.params)?;
+    let mut binders = Binders::from_params(early_cx, &defn.args)?;
     let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&defn.expr)?;
     let name = defn.name.name;
     let sort = resolve_sort(early_cx, &defn.sort)?;
-    let args = binders.pop_layer().into_args();
+    let args = binders.pop_layer().into_params();
     Ok(fhir::Defn { name, args, sort, expr })
 }
 
@@ -75,45 +79,81 @@ pub fn resolve_uif_def(
     Ok(fhir::UifDef { name: defn.name.name, sort })
 }
 
-pub fn desugar_adt_def(
+pub fn desugar_refined_by(
     early_cx: &EarlyCtxt,
-    def_id: DefId,
+    def_id: LocalDefId,
     refined_by: &surface::RefinedBy,
-    invariants: &[surface::Expr],
-    opaque: bool,
-) -> Result<fhir::AdtDef, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, refined_by)?;
-
-    let invariants = invariants
+) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
+    let mut set = FxHashSet::default();
+    refined_by.iter().try_for_each_exhaust(|param| {
+        if let Some(old) = set.get(&param.name) {
+            return Err(early_cx
+                .sess
+                .emit_err(errors::DuplicateParam::new(*old, param.name)));
+        } else {
+            set.insert(param.name);
+        }
+        Ok(())
+    })?;
+    let early_bound_params: Vec<_> = refined_by
+        .early_bound_params
         .iter()
-        .map(|invariant| ExprCtxt::new(early_cx, &binders).desugar_expr(invariant))
+        .map(|param| resolve_sort(early_cx, &param.sort))
         .try_collect_exhaust()?;
 
-    let refined_by =
-        fhir::RefinedBy { params: binders.pop_layer().into_args(), span: refined_by.span };
-    Ok(fhir::AdtDef::new(def_id, refined_by, invariants, opaque))
+    let index_params: Vec<_> = refined_by
+        .index_params
+        .iter()
+        .map(|param| Ok((param.name.name, resolve_sort(early_cx, &param.sort)?)))
+        .try_collect_exhaust()?;
+
+    Ok(fhir::RefinedBy::new(def_id, early_bound_params, index_params, refined_by.span))
+}
+
+pub fn desugar_type_alias(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+    alias: surface::TyAlias<Res>,
+) -> Result<fhir::TyAlias, ErrorGuaranteed> {
+    let binders = Binders::from_params(early_cx, &alias.refined_by)?;
+    let mut cx = DesugarCtxt::new(early_cx, binders);
+    let ty = cx.desugar_ty(None, &alias.ty)?;
+
+    Ok(fhir::TyAlias { def_id, params: cx.binders.pop_layer().into_params(), ty, span: alias.span })
 }
 
 pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
-    adt_def: surface::StructDef<Res>,
+    struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let def_id = adt_def.def_id;
-    let binders = Binders::from_params(early_cx, adt_def.refined_by.iter().flatten())?;
+    let def_id = struct_def.def_id;
+    let binders = Binders::from_params(early_cx, struct_def.refined_by.iter().flatten())?;
 
     let mut cx = DesugarCtxt::new(early_cx, binders);
 
-    let kind = if adt_def.opaque {
+    let invariants = struct_def
+        .invariants
+        .iter()
+        .map(|invariant| cx.as_expr_ctxt().desugar_expr(invariant))
+        .try_collect_exhaust()?;
+
+    let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let fields = adt_def
+        let fields = struct_def
             .fields
             .iter()
-            .map(|ty| ty.as_ref().map(|ty| cx.desugar_ty(None, ty)).transpose())
+            .map(|field| {
+                if let Some(ty) = &field.ty {
+                    cx.desugar_ty(None, ty)
+                } else {
+                    fhir::lift::lift_field_def(early_cx, field.def_id)
+                }
+            })
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };
-    Ok(fhir::StructDef { def_id, kind })
+    Ok(fhir::StructDef { def_id, params: cx.binders.pop_layer().into_params(), kind, invariants })
 }
 
 pub fn desugar_enum_def(
@@ -124,29 +164,45 @@ pub fn desugar_enum_def(
     let variants = enum_def
         .variants
         .iter()
-        .map(|variant| desugar_variant(early_cx, variant))
+        .map(|variant| desugar_variant_def(early_cx, variant))
         .try_collect_exhaust()?;
 
-    Ok(fhir::EnumDef { def_id, variants })
+    let mut binders = Binders::from_params(early_cx, enum_def.refined_by.iter().flatten())?;
+    let invariants = enum_def
+        .invariants
+        .iter()
+        .map(|invariant| ExprCtxt::new(early_cx, &binders).desugar_expr(invariant))
+        .try_collect_exhaust()?;
+
+    Ok(fhir::EnumDef { def_id, params: binders.pop_layer().into_params(), variants, invariants })
 }
 
-fn desugar_variant(
+fn desugar_variant_def(
     early_cx: &EarlyCtxt,
-    variant: &surface::VariantDef<Res>,
+    variant_def: &surface::VariantDef<Res>,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
     let mut binders = Binders::new();
-    binders.gather_params_variant(early_cx, variant)?;
+    binders.gather_params_variant(early_cx, variant_def)?;
     let mut cx = DesugarCtxt::new(early_cx, binders);
 
-    let fields = variant
-        .fields
-        .iter()
-        .map(|ty| cx.desugar_ty(None, ty))
-        .try_collect_exhaust()?;
+    if let Some(data) = &variant_def.data {
+        let fields = data
+            .fields
+            .iter()
+            .map(|ty| cx.desugar_ty(None, ty))
+            .try_collect_exhaust()?;
 
-    let ret = cx.desugar_variant_ret(&variant.ret)?;
+        let ret = cx.desugar_variant_ret(&data.ret)?;
 
-    Ok(fhir::VariantDef { params: cx.binders.pop_layer().into_params(), fields, ret })
+        Ok(fhir::VariantDef {
+            def_id: variant_def.def_id,
+            params: cx.binders.pop_layer().into_fun_params(),
+            fields,
+            ret,
+        })
+    } else {
+        fhir::lift::lift_variant_def(early_cx, variant_def.def_id)
+    }
 }
 
 pub fn desugar_fn_sig(
@@ -155,7 +211,7 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
 
-    // # Desugar inputs
+    // Desugar inputs
     binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
     let mut cx = DesugarCtxt::new(early_cx, binders);
 
@@ -171,7 +227,7 @@ pub fn desugar_fn_sig(
         .map(|arg| cx.desugar_fun_arg(arg))
         .try_collect_exhaust()?;
 
-    // # Desugar output
+    // Desugar output
     cx.binders.push_layer();
     cx.binders.gather_output_params_fn_sig(early_cx, fn_sig)?;
     let ret = match &fn_sig.returns {
@@ -188,13 +244,13 @@ pub fn desugar_fn_sig(
         })
         .try_collect_exhaust();
     let output = fhir::FnOutput {
-        params: cx.binders.pop_layer().into_params(),
+        params: cx.binders.pop_layer().into_fun_params(),
         ret: ret?,
         ensures: ensures?,
     };
 
     Ok(fhir::FnSig {
-        params: cx.binders.pop_layer().into_params(),
+        params: cx.binders.pop_layer().into_fun_params(),
         requires: cx.requires,
         args,
         output,
@@ -223,8 +279,10 @@ struct Layer {
 #[derive(Debug, Clone)]
 enum Binder {
     /// A normal binder to a refinable type that will be desugared as an explicit parameter.
-    /// The boolean indicates whether the binder was declared _implicitly_ with the `@` syntax and
-    /// it is used to determine the inference mode for abstract refinements.
+    /// The boolean indicates whether the binder was declared _implicitly_ with the `@` or `#`
+    /// syntax and it is used to determine the [inference mode] for abstract refinements.
+    ///
+    /// [inference mode]: fhir::InferMode
     Refined(fhir::Name, fhir::Sort, /*implicit*/ bool),
     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
@@ -238,11 +296,6 @@ enum Binder {
 struct ExprCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     binders: &'a Binders,
-}
-
-enum BtyOrTy {
-    Bty(fhir::BaseTy),
-    Ty(fhir::Ty),
 }
 
 enum FuncRes<'a> {
@@ -262,9 +315,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_fun_arg(&mut self, arg: &surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
-                let ty = match self.desugar_path(path)? {
+                let ty = match self.desugar_path(path, &[])? {
                     BtyOrTy::Bty(bty) => {
-                        let idx = self.desugar_bind(*bind)?;
+                        let idx = self.bind_into_refine_arg(*bind)?;
                         fhir::Ty::Indexed(bty, idx)
                     }
                     BtyOrTy::Ty(ty) => ty,
@@ -278,7 +331,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(fhir::Ty::Ptr(loc))
             }
             surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty),
-            surface::Arg::Alias(..) => panic!("Unexpected-Alias in desugar!"),
         }
     }
 
@@ -307,22 +359,16 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::Exists { bind: ident, bty, pred } => {
                 match self.desugar_bty(bty)? {
                     BtyOrTy::Bty(bty) => {
-                        if let Some(bind) = bind {
-                            let binder = self.binders[bind].clone();
-                            let pred = self.binders.with_binder(*ident, binder, |binders| {
-                                ExprCtxt::new(self.early_cx, binders).desugar_expr(pred)
-                            })?;
-                            let idxs = self.desugar_bind(bind)?;
-                            Ok(fhir::Ty::Constr(pred, Box::new(fhir::Ty::Indexed(bty, idxs))))
-                        } else {
-                            let name = self.binders.fresh();
-                            let binder = Binder::Refined(name, bty.sort(), false);
-                            let pred = self.binders.with_binder(*ident, binder, |binders| {
-                                ExprCtxt::new(self.early_cx, binders).desugar_expr(pred)
-                            })?;
-                            let bind = fhir::Ident::new(name, *ident);
-                            Ok(fhir::Ty::Exists(bty, bind, pred))
-                        }
+                        self.binders.push_layer();
+
+                        let name = self.binders.fresh();
+                        let binder = Binder::Refined(name, bty.sort(), false);
+                        self.binders.insert_binder(self.sess(), *ident, binder)?;
+                        let pred = self.as_expr_ctxt().desugar_expr(pred)?;
+                        let bind = fhir::Ident::new(name, *ident);
+
+                        self.binders.pop_layer();
+                        Ok(fhir::Ty::Exists(bty, bind, pred))
                     }
                     BtyOrTy::Ty(_) => {
                         Err(self
@@ -357,34 +403,36 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         bty: &fhir::BaseTy,
         idxs: &surface::Indices,
-    ) -> Result<fhir::Index, ErrorGuaranteed> {
-        let kind = if let fhir::BaseTy::Adt(def_id, _) = bty && idxs.indices.len() != 1 {
-            let args = idxs
-                .indices
-                .iter()
-                .map(|idx| self.desugar_refine_arg(idx))
-                .try_collect_exhaust()?;
-            fhir::IndexKind::Aggregate(*def_id, args)
+    ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
+        if let Some(def_id) = bty.is_aggregate() && idxs.indices.len() != 1 {
+            let flds = self.desugar_refine_args(&idxs.indices)?;
+            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span))
         } else {
             let arg = idxs.indices.first().unwrap();
-            fhir::IndexKind::Single(self.desugar_refine_arg(arg)?)
-        };
-        Ok(fhir::Index { kind, span: idxs.span })
+            self.desugar_refine_arg(arg)
+        }
     }
 
-    fn desugar_bind(&self, bind: surface::Ident) -> Result<fhir::Index, ErrorGuaranteed> {
-        let kind = fhir::IndexKind::Single(self.bind_into_arg(bind)?);
-        Ok(fhir::Index { kind, span: bind.span })
+    fn desugar_refine_args(
+        &mut self,
+        args: &[surface::RefineArg],
+    ) -> Result<Vec<fhir::RefineArg>, ErrorGuaranteed> {
+        args.iter()
+            .map(|idx| self.desugar_refine_arg(idx))
+            .try_collect_exhaust()
     }
 
-    fn bind_into_arg(&self, ident: surface::Ident) -> Result<fhir::RefineArg, ErrorGuaranteed> {
+    fn bind_into_refine_arg(
+        &self,
+        ident: surface::Ident,
+    ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match self.binders.get(ident) {
             Some(Binder::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
                 let expr = fhir::Expr { kind, span: ident.span };
                 Ok(fhir::RefineArg::Expr { expr, is_binder: true })
             }
-            Some(Binder::Unrefined) => todo!(),
+            Some(Binder::Unrefined) => span_bug!(ident.span, "desugaring unrefined binder"),
             None => Err(self.early_cx.emit_err(errors::UnresolvedVar::new(ident))),
         }
     }
@@ -394,7 +442,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         arg: &surface::RefineArg,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
         match arg {
-            surface::RefineArg::Bind(ident, ..) => self.bind_into_arg(*ident),
+            surface::RefineArg::Bind(ident, ..) => self.bind_into_refine_arg(*ident),
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
@@ -402,19 +450,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
-                let (body, names) = self.binders.with_abs_params(params, |binders| {
-                    let cx = ExprCtxt::new(self.early_cx, binders);
-                    cx.desugar_expr(body)
-                })?;
-                Ok(fhir::RefineArg::Abs(names, body, *span))
+                self.binders.push_layer();
+                self.binders.insert_params(self.early_cx, params)?;
+                let body = self.as_expr_ctxt().desugar_expr(body)?;
+                let params = self.binders.pop_layer().into_params();
+                Ok(fhir::RefineArg::Abs(params, body, *span))
             }
         }
     }
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let bty = match bty {
-            surface::BaseTy::Path(path) => self.desugar_path(path)?,
-
+            surface::BaseTy::Path(path, args) => self.desugar_path(path, args)?,
             surface::BaseTy::Slice(ty) => {
                 let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, ty)?));
                 BtyOrTy::Bty(bty)
@@ -423,29 +470,24 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         Ok(bty)
     }
 
-    fn desugar_path(&mut self, path: &surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match &path.res {
-            Res::PrimTy(PrimTy::Bool) => BtyOrTy::Bty(fhir::BaseTy::Bool),
-            Res::PrimTy(PrimTy::Str) => BtyOrTy::Ty(fhir::Ty::Str),
-            Res::PrimTy(PrimTy::Char) => BtyOrTy::Ty(fhir::Ty::Char),
-            Res::PrimTy(PrimTy::Int(int_ty)) => {
-                BtyOrTy::Bty(fhir::BaseTy::Int(rustc_middle::ty::int_ty(*int_ty)))
-            }
-            Res::PrimTy(PrimTy::Uint(uint_ty)) => {
-                BtyOrTy::Bty(fhir::BaseTy::Uint(rustc_middle::ty::uint_ty(*uint_ty)))
-            }
-            Res::PrimTy(PrimTy::Float(float_ty)) => {
-                BtyOrTy::Ty(fhir::Ty::Float(rustc_middle::ty::float_ty(*float_ty)))
-            }
-            Res::Adt(def_id) => {
-                BtyOrTy::Bty(fhir::BaseTy::Adt(*def_id, self.desugar_generic_args(&path.args)?))
-            }
-            Res::Param(def_id) => BtyOrTy::Ty(fhir::Ty::Param(*def_id)),
-            Res::Alias(def_id) => {
-                BtyOrTy::Ty(fhir::Ty::Alias(*def_id, self.desugar_generic_args(&path.args)?))
-            }
+    fn desugar_path(
+        &mut self,
+        path: &surface::Path<Res>,
+        args: &[surface::RefineArg],
+    ) -> Result<BtyOrTy, ErrorGuaranteed> {
+        let res = match &path.res {
+            Res::PrimTy(PrimTy::Bool) => fhir::Res::Bool,
+            Res::PrimTy(PrimTy::Int(int_ty)) => fhir::Res::Int(*int_ty),
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => fhir::Res::Uint(*uint_ty),
+            Res::PrimTy(PrimTy::Char) => fhir::Res::Char,
+            Res::PrimTy(PrimTy::Str) => fhir::Res::Str,
+            Res::PrimTy(PrimTy::Float(float_ty)) => fhir::Res::Float(*float_ty),
+            Res::Adt(def_id) => fhir::Res::Adt(*def_id),
+            Res::Alias(def_id) => fhir::Res::Alias(*def_id, self.desugar_refine_args(args)?),
+            Res::Param(def_id) => return Ok(fhir::Ty::Param(*def_id).into()),
         };
-        Ok(bty)
+        let generics = self.desugar_generic_args(&path.args)?;
+        Ok(fhir::BaseTy::Path(fhir::Path { res, generics, span: path.span }).into())
     }
 
     fn desugar_generic_args(
@@ -466,7 +508,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         match self.desugar_bty(bty)? {
             BtyOrTy::Bty(bty) => {
                 if let Some(bind) = bind {
-                    let idx = self.desugar_bind(bind)?;
+                    let idx = self.bind_into_refine_arg(bind)?;
                     Ok(fhir::Ty::Indexed(bty, idx))
                 } else {
                     Ok(fhir::Ty::BaseTy(bty))
@@ -479,7 +521,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         ret: &surface::VariantRet<Res>,
     ) -> Result<fhir::VariantRet, ErrorGuaranteed> {
-        match self.desugar_path(&ret.path)? {
+        match self.desugar_path(&ret.path, &[])? {
             BtyOrTy::Bty(bty) => {
                 let idx = self.desugar_indices(&bty, &ret.indices)?;
                 Ok(fhir::VariantRet { bty, idx })
@@ -490,6 +532,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 panic!("variant output desugared to an unrefined type")
             }
         }
+    }
+
+    fn sess(&self) -> &'a FluxSession {
+        self.early_cx.sess
     }
 }
 
@@ -555,10 +601,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             match b {
                 Binder::Refined(name, sort, _) => return Ok(FuncRes::Param(*name, sort)),
                 Binder::Unrefined => {
-                    let def_ident = self.binders.def_ident(func).unwrap();
                     return Err(self
                         .early_cx
-                        .emit_err(errors::InvalidUnrefinedParam::new(def_ident, func)));
+                        .emit_err(errors::InvalidUnrefinedParam::new(func)));
                 }
             }
         }
@@ -596,10 +641,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 fhir::ExprKind::Var(fhir::Ident::new(*name, ident))
             }
             (Some(Binder::Unrefined), _) => {
-                let def_ident = self.binders.def_ident(ident).unwrap();
                 return Err(self
                     .early_cx
-                    .emit_err(errors::InvalidUnrefinedParam::new(def_ident, ident)));
+                    .emit_err(errors::InvalidUnrefinedParam::new(ident)));
             }
             (None, Some(const_info)) => fhir::ExprKind::Const(const_info.def_id, ident.span),
             (None, None) => return Err(self.early_cx.emit_err(errors::UnresolvedVar::new(ident))),
@@ -634,7 +678,7 @@ fn resolve_sort(early_cx: &EarlyCtxt, sort: &surface::Sort) -> Result<fhir::Sort
         surface::Sort::Func { inputs, output } => {
             Ok(resolve_func_sort(early_cx, inputs, output)?.into())
         }
-        surface::Sort::Infer => todo!(),
+        surface::Sort::Infer => Ok(fhir::Sort::Infer),
     }
 }
 
@@ -678,62 +722,31 @@ impl Binders {
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result<Self, ErrorGuaranteed> {
         let mut binders = Self::new();
+        binders.insert_params(early_cx, params)?;
+        Ok(binders)
+    }
+
+    fn insert_params<'a>(
+        &mut self,
+        early_cx: &EarlyCtxt,
+        params: impl IntoIterator<Item = &'a surface::RefineParam>,
+    ) -> Result<(), ErrorGuaranteed> {
         for param in params {
-            binders.insert_binder(
+            self.insert_binder(
                 early_cx.sess,
                 param.name,
-                Binder::Refined(binders.fresh(), resolve_sort(early_cx, &param.sort)?, false),
+                Binder::Refined(self.fresh(), resolve_sort(early_cx, &param.sort)?, false),
             )?;
         }
-        Ok(binders)
+        Ok(())
     }
 
     fn fresh(&self) -> fhir::Name {
         self.name_gen.fresh()
     }
 
-    fn def_ident(&self, ident: impl Borrow<surface::Ident>) -> Option<surface::Ident> {
-        self.iter_layers(|layer| Some(*layer.get_key_value(ident.borrow())?.0))
-    }
-
     fn get(&self, ident: impl Borrow<surface::Ident>) -> Option<&Binder> {
         self.iter_layers(|layer| layer.get(ident.borrow()))
-    }
-
-    fn with_binder<R>(
-        &mut self,
-        ident: surface::Ident,
-        binder: Binder,
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<R, ErrorGuaranteed> {
-        self.with_binders([(ident, binder)], f)
-    }
-
-    fn with_abs_params<R>(
-        &mut self,
-        params: &[surface::Ident],
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<(R, Vec<fhir::Name>), ErrorGuaranteed> {
-        let names = params.iter().map(|_| self.fresh()).collect_vec();
-        let binders = iter::zip(&names, params)
-            .map(|(name, param)| (*param, Binder::Refined(*name, fhir::Sort::Infer, false)))
-            .collect_vec();
-        let r = self.with_binders(binders, f)?;
-        Ok((r, names))
-    }
-
-    fn with_binders<R>(
-        &mut self,
-        binders: impl IntoIterator<Item = (surface::Ident, Binder)>,
-        f: impl FnOnce(&mut Self) -> Result<R, ErrorGuaranteed>,
-    ) -> Result<R, ErrorGuaranteed> {
-        self.push_layer();
-        for (ident, binder) in binders {
-            self.top_layer().insert(ident, binder);
-        }
-        let r = f(self)?;
-        self.pop_layer();
-        Ok(r)
     }
 
     fn insert_binder(
@@ -742,40 +755,30 @@ impl Binders {
         ident: surface::Ident,
         binder: Binder,
     ) -> Result<(), ErrorGuaranteed> {
-        match self.top_layer().entry(ident) {
-            IndexEntry::Occupied(entry) => {
-                Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
-            }
-            IndexEntry::Vacant(entry) => {
-                entry.insert(binder);
-                Ok(())
-            }
-        }
+        self.top_layer().insert(sess, ident, binder)
     }
 
     fn gather_params_variant(
         &mut self,
         early_cx: &EarlyCtxt,
-        variant: &surface::VariantDef<Res>,
+        variant_def: &surface::VariantDef<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        for ty in &variant.fields {
+        let Some(data) = &variant_def.data else {
+            return Ok(())
+        };
+        for ty in &data.fields {
             self.gather_params_ty(early_cx, None, ty, TypePos::Input)?;
         }
         // Traverse return type to find illegal binders.
-        self.gather_params_path(early_cx, &variant.ret.path, TypePos::Other)?;
+        self.gather_params_path(early_cx, &data.ret.path, TypePos::Other)?;
         // Check binders in `VariantRet`
-        variant
-            .ret
-            .indices
-            .indices
-            .iter()
-            .try_for_each_exhaust(|idx| {
-                if let surface::RefineArg::Bind(_, kind, span) = idx {
-                    Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
-                } else {
-                    Ok(())
-                }
-            })
+        data.ret.indices.indices.iter().try_for_each_exhaust(|idx| {
+            if let surface::RefineArg::Bind(_, kind, span) = idx {
+                Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
+            } else {
+                Ok(())
+            }
+        })
     }
 
     fn gather_input_params_fn_sig(
@@ -835,7 +838,6 @@ impl Binders {
             surface::Arg::Ty(bind, ty) => {
                 self.gather_params_ty(early_cx, *bind, ty, TypePos::Input)?;
             }
-            surface::Arg::Alias(..) => panic!("alias are not allowed after expansion"),
         }
         Ok(())
     }
@@ -849,13 +851,8 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
-                if bind.is_some() {
-                    // This code is currently not reachable because the parser won't allow it as it conflicts with alias
-                    // applications. If we ever allow this we should think about the meaning of the syntax `x: T[@n]` and
-                    // `x: T[n]`. The second syntax should behave appropriately even when `n` is bound explicitly in the
-                    // list of refinement parameters, i.e., what's the meaning of `fn<n: int>(x: i32[n])` or the meaning
-                    // of `fn<n: int>(x: RMat[n, n])`
-                    unreachable!("[sanity check] this code is unreachable but we are leaving a not in case it is not anymore");
+                if let Some(bind) = bind {
+                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
                 if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
                     let binder = Binder::from_bty(&self.name_gen, bty);
@@ -864,7 +861,7 @@ impl Binders {
                     }
                     self.insert_binder(early_cx.sess, ident, binder)?;
                 } else {
-                    let refined_by = sorts(early_cx, bty).unwrap();
+                    let refined_by = index_sorts(early_cx, bty);
                     let exp = refined_by.len();
                     let got = indices.indices.len();
                     if exp != got {
@@ -918,7 +915,7 @@ impl Binders {
             }
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::from_bty(&self.name_gen, bty))?;
+                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
                 self.gather_params_bty(early_cx, bty, pos)
             }
@@ -944,7 +941,7 @@ impl Binders {
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         match bty {
-            surface::BaseTy::Path(path) => self.gather_params_path(early_cx, path, pos),
+            surface::BaseTy::Path(path, _) => self.gather_params_path(early_cx, path, pos),
             surface::BaseTy::Slice(ty) => self.gather_params_ty(early_cx, None, ty, TypePos::Other),
         }
     }
@@ -995,9 +992,9 @@ fn param_from_ident(
     name: fhir::Name,
     sort: fhir::Sort,
     mode: fhir::InferMode,
-) -> fhir::RefineParam {
+) -> fhir::FunRefineParam {
     let name = fhir::Ident::new(name, ident);
-    fhir::RefineParam { name, sort, mode }
+    fhir::FunRefineParam { name, sort, mode }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
@@ -1028,39 +1025,41 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 }
 
 impl Layer {
-    fn get_key_value(
-        &self,
-        key: impl Borrow<surface::Ident>,
-    ) -> Option<(&surface::Ident, &Binder)> {
-        self.map.get_key_value(key.borrow())
-    }
-
     fn get(&self, key: impl Borrow<surface::Ident>) -> Option<&Binder> {
         self.map.get(key.borrow())
     }
 
-    fn insert(&mut self, ident: surface::Ident, binder: Binder) {
-        self.map.insert(ident, binder);
+    fn insert(
+        &mut self,
+        sess: &FluxSession,
+        ident: surface::Ident,
+        binder: Binder,
+    ) -> Result<(), ErrorGuaranteed> {
+        match self.map.entry(ident) {
+            IndexEntry::Occupied(entry) => {
+                Err(sess.emit_err(errors::DuplicateParam::new(*entry.key(), ident)))
+            }
+            IndexEntry::Vacant(entry) => {
+                entry.insert(binder);
+                Ok(())
+            }
+        }
     }
 
-    fn entry(&mut self, ident: surface::Ident) -> IndexEntry<surface::Ident, Binder> {
-        self.map.entry(ident)
-    }
-
-    fn into_args(self) -> Vec<(fhir::Ident, fhir::Sort)> {
+    fn into_params(self) -> Vec<(fhir::Ident, fhir::Sort)> {
         let mut args = vec![];
         for (ident, binder) in self.map {
             if let Binder::Refined(name, sort, _) = binder {
                 let name = fhir::Ident::new(name, ident);
                 args.push((name, sort));
             } else {
-                bug!();
+                span_bug!(ident.span, "unexpected refined binder");
             }
         }
         args
     }
 
-    fn into_params(self) -> Vec<fhir::RefineParam> {
+    fn into_fun_params(self) -> Vec<fhir::FunRefineParam> {
         let mut params = vec![];
         for (ident, binder) in self.map {
             match binder {
@@ -1081,41 +1080,38 @@ impl Layer {
 
 impl Binder {
     fn from_res(name_gen: &IndexGen<fhir::Name>, res: surface::Res) -> Binder {
-        match res {
-            Res::PrimTy(PrimTy::Bool) => Binder::Refined(name_gen.fresh(), fhir::Sort::Bool, true),
-            Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => {
-                Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true)
+        let sort = match res {
+            Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
+            Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
+            Res::Alias(def_id) | Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
+            Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
+            Res::Param(..) => {
+                return Binder::Unrefined;
             }
-            Res::Adt(def_id) => Binder::Refined(name_gen.fresh(), fhir::Sort::Adt(def_id), true),
-            Res::Alias(_)
-            | Res::PrimTy(PrimTy::Float(_) | PrimTy::Str | PrimTy::Char)
-            | Res::Param(..) => Binder::Unrefined,
-        }
+        };
+        Binder::Refined(name_gen.fresh(), sort, true)
     }
 
     fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
         match bty {
-            surface::BaseTy::Path(path) => Binder::from_res(name_gen, path.res),
+            surface::BaseTy::Path(path, _) => Binder::from_res(name_gen, path.res),
             surface::BaseTy::Slice(_) => Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true),
         }
     }
 }
 
-fn sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> Option<&'a [fhir::Sort]> {
-    let sorts = match bty {
-        surface::BaseTy::Path(path) => {
+fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::Sort] {
+    match bty {
+        surface::BaseTy::Path(path, _) => {
             match path.res {
                 Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
                 Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
-                Res::Adt(def_id) => early_cx.sorts_of(def_id),
-                Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_))
-                | Res::Param(..)
-                | Res::Alias(_) => return None,
+                Res::Adt(def_id) | Res::Alias(def_id) => early_cx.index_sorts_of(def_id),
+                Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_)) | Res::Param(..) => &[],
             }
         }
         surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
-    };
-    Some(sorts)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1244,13 +1240,11 @@ mod errors {
         #[label]
         span: Span,
         var: Ident,
-        #[label(desugar::defined_here)]
-        def_span: Span,
     }
 
     impl InvalidUnrefinedParam {
-        pub(super) fn new(def: Ident, var: Ident) -> Self {
-            Self { def_span: def.span, var, span: var.span }
+        pub(super) fn new(var: Ident) -> Self {
+            Self { var, span: var.span }
         }
     }
 
