@@ -54,7 +54,8 @@ impl<'sess> Resolver<'sess> {
         let ty = self.resolve_ty(alias_def.ty)?;
 
         Ok(surface::TyAlias {
-            path: alias_def.path,
+            ident: alias_def.ident,
+            generics: alias_def.generics,
             refined_by: alias_def.refined_by,
             ty,
             span: alias_def.span,

@@ -60,7 +60,8 @@ pub struct UifDef {
 
 #[derive(Debug)]
 pub struct TyAlias<R = ()> {
-    pub path: Path,
+    pub ident: Ident,
+    pub generics: Vec<Ty>,
     pub refined_by: RefinedBy,
     pub ty: Ty<R>,
     pub span: Span,
