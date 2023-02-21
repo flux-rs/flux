@@ -273,9 +273,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
-        match bty {
-            fhir::BaseTy::Path(path) => self.check_path(env, path),
-            fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
+        match &bty.kind {
+            fhir::BaseTyKind::Path(path) => self.check_path(env, path),
+            fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
         }
     }
 

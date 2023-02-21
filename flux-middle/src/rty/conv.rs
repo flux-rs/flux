@@ -345,9 +345,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_base_ty(&mut self, bty: &fhir::BaseTy, idx: rty::Index) -> rty::Ty {
-        match bty {
-            fhir::BaseTy::Path(path) => self.conv_path(path, idx),
-            fhir::BaseTy::Slice(ty) => {
+        match &bty.kind {
+            fhir::BaseTyKind::Path(path) => self.conv_path(path, idx),
+            fhir::BaseTyKind::Slice(ty) => {
                 let slice = rty::BaseTy::slice(self.conv_ty(ty));
                 rty::Ty::indexed(slice, idx)
             }

@@ -463,7 +463,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let bty = match &bty.kind {
             surface::BaseTyKind::Path(path) => self.desugar_path(path)?,
             surface::BaseTyKind::Slice(ty) => {
-                let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, ty)?));
+                let kind = fhir::BaseTyKind::Slice(Box::new(self.desugar_ty(None, ty)?));
+                let bty = fhir::BaseTy { kind, span: bty.span };
                 BtyOrTy::Bty(bty)
             }
         };
@@ -485,7 +486,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Res::Param(def_id) => return Ok(fhir::Ty::Param(*def_id).into()),
         };
         let generics = self.desugar_generic_args(&path.generics)?;
-        Ok(fhir::BaseTy::Path(fhir::Path { res, generics, span: path.span }).into())
+        Ok(fhir::BaseTy::from(fhir::Path { res, generics, span: path.span }).into())
     }
 
     fn desugar_generic_args(

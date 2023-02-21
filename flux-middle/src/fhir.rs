@@ -213,8 +213,13 @@ pub enum RefineArg {
     Aggregate(DefId, Vec<RefineArg>, Span),
 }
 
+pub struct BaseTy {
+    pub kind: BaseTyKind,
+    pub span: Span,
+}
+
 /// These are types of things that may be refined with indices or existentials
-pub enum BaseTy {
+pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
 }
@@ -352,11 +357,13 @@ impl From<Ty> for BtyOrTy {
 
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Path(Path { res: Res::Bool, .. }))
+        matches!(self.kind, BaseTyKind::Path(Path { res: Res::Bool, .. }))
     }
 
     pub fn is_aggregate(&self) -> Option<DefId> {
-        if let BaseTy::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) = self {
+        if let BaseTyKind::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) =
+            &self.kind
+        {
             Some(*def_id)
         } else {
             None
@@ -364,16 +371,22 @@ impl BaseTy {
     }
 
     pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Path(Path { res: Res::Int(_) | Res::Uint(_), .. }) | BaseTy::Slice(_) => {
-                Sort::Int
-            }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
-            BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
+        match &self.kind {
+            BaseTyKind::Path(Path { res: Res::Int(_) | Res::Uint(_), .. })
+            | BaseTyKind::Slice(_) => Sort::Int,
+            BaseTyKind::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
+            BaseTyKind::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
                 Sort::Aggregate(*def_id)
             }
-            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
+            BaseTyKind::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
         }
+    }
+}
+
+impl From<Path> for BaseTy {
+    fn from(path: Path) -> Self {
+        let span = path.span;
+        Self { kind: BaseTyKind::Path(path), span }
     }
 }
 
@@ -737,13 +750,15 @@ impl fmt::Debug for ArrayLen {
 
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BaseTy::Path(Path { res: Res::Int(int_ty), .. }) => write!(f, "{}", int_ty.name_str()),
-            BaseTy::Path(Path { res: Res::Uint(uint_ty), .. }) => {
+        match &self.kind {
+            BaseTyKind::Path(Path { res: Res::Int(int_ty), .. }) => {
+                write!(f, "{}", int_ty.name_str())
+            }
+            BaseTyKind::Path(Path { res: Res::Uint(uint_ty), .. }) => {
                 write!(f, "{}", uint_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
-            BaseTy::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
+            BaseTyKind::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
+            BaseTyKind::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*def_id))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
@@ -753,19 +768,19 @@ impl fmt::Debug for BaseTy {
                 }
                 Ok(())
             }
-            BaseTy::Path(Path { res: Res::Float(float_ty), .. }) => {
+            BaseTyKind::Path(Path { res: Res::Float(float_ty), .. }) => {
                 write!(f, "{}", float_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
-            BaseTy::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
-            BaseTy::Path(Path { res: Res::Adt(did), generics, .. }) => {
+            BaseTyKind::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
+            BaseTyKind::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
+            BaseTyKind::Path(Path { res: Res::Adt(did), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*did))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
                 Ok(())
             }
-            BaseTy::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }
     }
 }

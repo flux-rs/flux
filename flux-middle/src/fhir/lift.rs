@@ -80,12 +80,14 @@ pub fn lift_variant_def(
         .map(|field| cx.lift_ty(field.ty))
         .try_collect_exhaust()?;
 
+    let path = fhir::Path {
+        res: fhir::Res::Adt(enum_id.to_def_id()),
+        generics: cx.generic_params_into_args(generics)?,
+        // FIXME(nilehmann) the span should also include the generic arguments
+        span: ident.span,
+    };
     let ret = fhir::VariantRet {
-        bty: fhir::BaseTy::Path(fhir::Path {
-            res: fhir::Res::Adt(enum_id.to_def_id()),
-            generics: cx.generic_params_into_args(generics)?,
-            span: ident.span,
-        }),
+        bty: fhir::BaseTy::from(path),
         idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret })
@@ -131,7 +133,10 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
 
     fn lift_ty(&self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
         let ty = match &ty.kind {
-            hir::TyKind::Slice(ty) => fhir::BaseTy::Slice(Box::new(self.lift_ty(ty)?)).into(),
+            hir::TyKind::Slice(ty) => {
+                let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
+                fhir::BaseTy { kind, span: ty.span }.into()
+            }
             hir::TyKind::Array(ty, len) => {
                 fhir::Ty::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
@@ -182,7 +187,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
             generics: self.lift_generic_args(path.segments.last().unwrap().args)?,
             span: path.span,
         };
-        Ok(fhir::BaseTy::Path(path).into())
+        Ok(fhir::BaseTy::from(path).into())
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
