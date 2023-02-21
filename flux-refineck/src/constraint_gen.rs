@@ -101,7 +101,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     pub(crate) fn check_fn_call(
