@@ -39,11 +39,6 @@ pub struct UnsupportedType {
     pub reason: String,
 }
 
-// DUMMY DELETE ME TRACE
-pub fn foo(b: Option<bool>) -> Option<i32> {
-    b.map(|z| if z { 1 } else { 2 })
-}
-
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
@@ -659,14 +654,11 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
             Ok(Ty::mk_fn_sig(fn_sig))
         }
-        rustc_ty::FnDef(a, b) => {
-            Err(UnsupportedType { reason: format!("unsupported type FNDEF`{a:?}` and `{b:?}`") })
-        }
         rustc_ty::Closure(did, substs) => {
             let substs = lower_substs(tcx, substs)?;
             Ok(Ty::mk_closure(*did, substs))
         }
-        _ => Err(UnsupportedType { reason: format!("GOOBER unsupported type `{ty:?}`") }),
+        _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }
 }
 
