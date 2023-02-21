@@ -126,30 +126,33 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
         match ret_ty {
-            hir::FnRetTy::DefaultReturn(_) => Ok(fhir::Ty::Tuple(vec![])),
+            hir::FnRetTy::DefaultReturn(_) => {
+                let kind = fhir::TyKind::Tuple(vec![]);
+                Ok(fhir::Ty { kind, span: ret_ty.span() })
+            }
             hir::FnRetTy::Return(ty) => self.lift_ty(ty),
         }
     }
 
     fn lift_ty(&self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let ty = match &ty.kind {
+        let kind = match &ty.kind {
             hir::TyKind::Slice(ty) => {
                 let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
-                fhir::BaseTy { kind, span: ty.span }.into()
+                return Ok(fhir::BaseTy { kind, span: ty.span }.into());
             }
             hir::TyKind::Array(ty, len) => {
-                fhir::Ty::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
+                fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
             hir::TyKind::Ref(_, mut_ty) => {
-                fhir::Ty::Ref(lift_mutability(mut_ty.mutbl), Box::new(self.lift_ty(mut_ty.ty)?))
+                fhir::TyKind::Ref(lift_mutability(mut_ty.mutbl), Box::new(self.lift_ty(mut_ty.ty)?))
             }
-            hir::TyKind::Never => fhir::Ty::Never,
+            hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
-                fhir::Ty::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
+                fhir::TyKind::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
             }
-            hir::TyKind::Path(hir::QPath::Resolved(_, path)) => self.lift_path(path)?,
+            hir::TyKind::Path(hir::QPath::Resolved(_, path)) => return self.lift_path(path),
             hir::TyKind::Ptr(mut_ty) => {
-                fhir::Ty::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
+                fhir::TyKind::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
             }
             _ => {
                 return self.emit_unsupported(&format!(
@@ -158,7 +161,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
                 ));
             }
         };
-        Ok(ty)
+        Ok(fhir::Ty { kind, span: ty.span })
     }
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -171,7 +174,10 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
             hir::def::Res::PrimTy(hir::PrimTy::Char) => fhir::Res::Char,
             hir::def::Res::PrimTy(hir::PrimTy::Str) => fhir::Res::Str,
             hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => fhir::Res::Float(float_ty),
-            hir::def::Res::Def(DefKind::TyParam, def_id) => return Ok(fhir::Ty::Param(def_id)),
+            hir::def::Res::Def(DefKind::TyParam, def_id) => {
+                let kind = fhir::TyKind::Param(def_id);
+                return Ok(fhir::Ty { kind, span: path.span });
+            }
             hir::def::Res::SelfTyAlias { alias_to, .. } => {
                 return self.lift_self_ty_alias(alias_to)
             }
@@ -243,7 +249,8 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         for param in generics.params.iter() {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
-                    args.push(fhir::Ty::Param(param.def_id.to_def_id()));
+                    let kind = fhir::TyKind::Param(param.def_id.to_def_id());
+                    args.push(fhir::Ty { kind, span: param.span });
                 }
                 hir::GenericParamKind::Lifetime { .. } => {}
                 hir::GenericParamKind::Const { .. } => {

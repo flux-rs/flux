@@ -220,8 +220,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
-        match ty {
-            fhir::Ty::BaseTy(bty) => {
+        match &ty.kind {
+            fhir::TyKind::BaseTy(bty) => {
                 let sort = conv_sort(self.early_cx(), &bty.sort());
 
                 if sort.is_unit() {
@@ -235,11 +235,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::Ty::exists(Binder::new(ty, sort))
                 }
             }
-            fhir::Ty::Indexed(bty, idx) => {
+            fhir::TyKind::Indexed(bty, idx) => {
                 let idxs = rty::Index::from(self.conv_refine_arg(idx, &bty.sort()));
                 self.conv_base_ty(bty, idxs)
             }
-            fhir::Ty::Exists(bty, bind, pred) => {
+            fhir::TyKind::Exists(bty, bind, pred) => {
                 let layer = Layer::single(self.early_cx(), *bind, bty.sort());
 
                 self.env.push_layer(layer);
@@ -255,9 +255,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::Ty::exists(Binder::new(constr, sort))
                 }
             }
-            fhir::Ty::Ptr(loc) => rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path()),
-            fhir::Ty::Ref(rk, ty) => rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)),
-            fhir::Ty::Param(def_id) => {
+            fhir::TyKind::Ptr(loc) => {
+                rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path())
+            }
+            fhir::TyKind::Ref(rk, ty) => {
+                rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty))
+            }
+            fhir::TyKind::Param(def_id) => {
                 let def_id = def_id.expect_local();
                 let item_def_id = self.genv.hir().ty_param_owner(def_id);
                 let generics = self.genv.generics_of(item_def_id);
@@ -265,19 +269,19 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let param_ty = rty::ParamTy { index, name: self.genv.hir().ty_param_name(def_id) };
                 rty::Ty::param(param_ty)
             }
-            fhir::Ty::Tuple(tys) => {
+            fhir::TyKind::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.conv_ty(ty)).collect_vec();
                 rty::Ty::tuple(tys)
             }
-            fhir::Ty::Array(ty, len) => {
+            fhir::TyKind::Array(ty, len) => {
                 rty::Ty::array(self.conv_ty(ty), rty::Const { val: len.val })
             }
-            fhir::Ty::Never => rty::Ty::never(),
-            fhir::Ty::Constr(pred, ty) => {
+            fhir::TyKind::Never => rty::Ty::never(),
+            fhir::TyKind::Constr(pred, ty) => {
                 let pred = self.env.conv_expr(pred);
                 rty::Ty::constr(pred, self.conv_ty(ty))
             }
-            fhir::Ty::RawPtr(ty, mutability) => {
+            fhir::TyKind::RawPtr(ty, mutability) => {
                 rty::Ty::indexed(
                     rty::BaseTy::RawPtr(self.conv_ty(ty), *mutability),
                     rty::Index::unit(),
