@@ -95,15 +95,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
-    fn _is_closure(arg: &GenericArg) -> bool {
-        if let GenericArg::Ty(ty) = arg {
-            if let TyKind::Closure(_) = ty.kind() {
-                return true;
-            }
-        }
-        false
-    }
-
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -402,7 +393,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.check_pred(p2, self.tag);
                 self.subtyping(rcx, ty1, ty2);
             }
-            (TyKind::Closure(did1), TyKind::Closure(did2)) if did1 == did2 => {}
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
@@ -451,6 +441,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
+            (BaseTy::Closure(did1), BaseTy::Closure(did2)) if did1 == did2 => {}
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }

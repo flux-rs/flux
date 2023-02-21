@@ -166,7 +166,6 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
-    Closure(DefId),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -197,6 +196,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
+    Closure(DefId),
 }
 
 pub type Substs = List<GenericArg>;
@@ -638,12 +638,12 @@ impl Ty {
         BaseTy::Tuple(tys.into()).into_ty()
     }
 
-    pub fn closure(def_id: DefId) -> Ty {
-        TyKind::Closure(def_id).intern()
-    }
-
     pub fn array(ty: Ty, c: Const) -> Ty {
         BaseTy::Array(ty, c).into_ty()
+    }
+
+    pub fn closure(did: DefId) -> Ty {
+        BaseTy::Closure(did).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -774,6 +774,7 @@ impl BaseTy {
             | BaseTy::Ref(_, _)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
+            | BaseTy::Closure(_)
             | BaseTy::Never => &[],
         }
     }
@@ -799,6 +800,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
+            | BaseTy::Closure(_)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1020,7 +1022,6 @@ mod pretty {
                         w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
-                TyKind::Closure(did) => w!("Closure({did:?})"),
             }
         }
 
@@ -1105,6 +1106,7 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
+                BaseTy::Closure(did) => w!("closure({:?})", did),
             }
         }
     }

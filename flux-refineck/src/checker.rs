@@ -620,7 +620,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 if args.is_empty() {
                     // TODO (RJ): handle case where closure "moves" in values for "free variables"
                     // let substs = substs.iter().map(|arg| *arg).collect_vec();
-                    Ok(Ty::closure(did.to_def_id()))
+                    Ok(Ty::closure(*did))
                 } else {
                     panic!("TODO: check the closure defid = {did:?}, substs = {substs:?}, args = {args:?}")
                 }

@@ -395,8 +395,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Closure(did, substs) => {
                 let lowered_substs = lower_substs(self.tcx, substs).map_err(|err| err.reason)?;
-                let did = did.as_local().ok_or("expected local closure")?;
-                Ok(AggregateKind::Closure(did, lowered_substs))
+                Ok(AggregateKind::Closure(*did, lowered_substs))
             }
             rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
                 Err(format!("unsupported aggregate kind `{aggregate_kind:?}`"))
