@@ -196,6 +196,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
+    Closure(DefId),
 }
 
 pub type Substs = List<GenericArg>;
@@ -641,6 +642,10 @@ impl Ty {
         BaseTy::Array(ty, c).into_ty()
     }
 
+    pub fn closure(did: DefId) -> Ty {
+        BaseTy::Closure(did).into_ty()
+    }
+
     pub fn never() -> Ty {
         BaseTy::Never.into_ty()
     }
@@ -769,6 +774,7 @@ impl BaseTy {
             | BaseTy::Ref(_, _)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
+            | BaseTy::Closure(_)
             | BaseTy::Never => &[],
         }
     }
@@ -794,6 +800,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
+            | BaseTy::Closure(_)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1099,6 +1106,7 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
+                BaseTy::Closure(did) => w!("closure({:?})", did),
             }
         }
     }

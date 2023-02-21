@@ -446,7 +446,8 @@ impl TypeEnvInfer {
             | BaseTy::Str
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
-            | BaseTy::Never => bty.clone(),
+            | BaseTy::Never
+            | BaseTy::Closure(_) => bty.clone(),
         }
     }
 

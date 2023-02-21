@@ -287,6 +287,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let stmt_span = stmt.source_info.span;
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
+                // println!("TRACE: check_statement {stmt:?}");
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
                 let gen = &mut self.constr_gen(rcx, stmt_span);
@@ -614,6 +615,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
+            }
+            Rvalue::Aggregate(AggregateKind::Closure(did, substs), args) => {
+                if args.is_empty() {
+                    // TODO (RJ): handle case where closure "moves" in values for "free variables"
+                    // let substs = substs.iter().map(|arg| *arg).collect_vec();
+                    Ok(Ty::closure(*did))
+                } else {
+                    panic!("TODO: check the closure defid = {did:?}, substs = {substs:?}, args = {args:?}")
+                }
             }
             Rvalue::Discriminant(place) => {
                 let gen = &mut self.constr_gen(rcx, stmt_span);

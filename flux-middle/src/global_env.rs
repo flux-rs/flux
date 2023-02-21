@@ -324,6 +324,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     fn refine_ty(&self, ty: &rustc::ty::Ty, mk_pred: fn() -> rty::Expr) -> rty::Ty {
         let bty = match ty.kind() {
+            rustc::ty::TyKind::Closure(did, _substs) => return rty::Ty::closure(*did),
             rustc::ty::TyKind::Never => return rty::Ty::never(),
             rustc::ty::TyKind::Param(param_ty) => return rty::Ty::param(*param_ty),
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
@@ -357,6 +358,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty, mk_pred)),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
+            rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.refine_with_true(ty), *mu)
             }

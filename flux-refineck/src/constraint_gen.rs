@@ -126,10 +126,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
             .collect_vec();
 
+        // println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
+        // println!("TRACE: check_fn_call substs = {substs:?}");
+
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
+
+        // println!("TRACE: check_fn_call {fn_sig:?} with {actuals:?}");
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -436,6 +441,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
+            (BaseTy::Closure(did1), BaseTy::Closure(did2)) if did1 == did2 => {}
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }

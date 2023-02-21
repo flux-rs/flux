@@ -164,7 +164,7 @@ impl GenericsSubstFolder<'_> {
         match self.substs.get(param_ty.index as usize) {
             Some(GenericArg::Ty(ty)) => ty.clone(),
             Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
-            None => bug!("type parameter out of range"),
+            None => bug!("type parameter out of range {param_ty:?}"),
         }
     }
 }
