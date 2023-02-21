@@ -245,37 +245,37 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
-        match ty {
-            fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
-            fhir::Ty::Indexed(bty, idx) => {
+        match &ty.kind {
+            fhir::TyKind::BaseTy(bty) => self.check_base_ty(env, bty),
+            fhir::TyKind::Indexed(bty, idx) => {
                 self.check_refine_arg(env, idx, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
-            fhir::Ty::Exists(bty, bind, pred) => {
+            fhir::TyKind::Exists(bty, bind, pred) => {
                 let sort = bty.sort();
                 self.check_base_ty(env, bty)?;
                 env.push_layer([(&bind.name, &sort)]);
                 self.check_pred(env, pred)
             }
-            fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
-            fhir::Ty::Tuple(tys) => {
+            fhir::TyKind::Ptr(loc) => self.check_loc(env, *loc),
+            fhir::TyKind::Tuple(tys) => {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
-            fhir::Ty::Ref(_, ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Constr(pred, ty) => {
+            fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(env, ty),
+            fhir::TyKind::Constr(pred, ty) => {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Never | fhir::Ty::Param(_) => Ok(()),
+            fhir::TyKind::RawPtr(ty, _) => self.check_type(env, ty),
+            fhir::TyKind::Never | fhir::TyKind::Param(_) => Ok(()),
         }
     }
 
     fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
-        match bty {
-            fhir::BaseTy::Path(path) => self.check_path(env, path),
-            fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
+        match &bty.kind {
+            fhir::BaseTyKind::Path(path) => self.check_path(env, path),
+            fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
         }
     }
 

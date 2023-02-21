@@ -232,7 +232,11 @@ pub fn desugar_fn_sig(
     cx.binders.gather_output_params_fn_sig(early_cx, fn_sig)?;
     let ret = match &fn_sig.returns {
         Some(returns) => cx.desugar_ty(None, returns),
-        None => Ok(fhir::Ty::Tuple(vec![])),
+        None => {
+            let kind = fhir::TyKind::Tuple(vec![]);
+            let span = fn_sig.span.with_lo(fn_sig.span.hi());
+            Ok(fhir::Ty { kind, span })
+        }
     };
     let ensures = fn_sig
         .ensures
@@ -315,20 +319,26 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_fun_arg(&mut self, arg: &surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
-                let ty = match self.desugar_path(path, &[])? {
+                let ty = match self.desugar_path(path)? {
                     BtyOrTy::Bty(bty) => {
                         let idx = self.bind_into_refine_arg(*bind)?;
-                        fhir::Ty::Indexed(bty, idx)
+                        let kind = fhir::TyKind::Indexed(bty, idx);
+                        fhir::Ty { kind, span: path.span }
                     }
                     BtyOrTy::Ty(ty) => ty,
                 };
-                Ok(fhir::Ty::Constr(self.as_expr_ctxt().desugar_expr(pred)?, Box::new(ty)))
+                let kind =
+                    fhir::TyKind::Constr(self.as_expr_ctxt().desugar_expr(pred)?, Box::new(ty));
+                let span = path.span.to(pred.span);
+                Ok(fhir::Ty { kind, span })
             }
             surface::Arg::StrgRef(loc, ty) => {
+                let span = loc.span;
                 let loc = self.as_expr_ctxt().desugar_loc(*loc)?;
                 let ty = self.desugar_ty(None, ty)?;
                 self.requires.push(fhir::Constraint::Type(loc, ty));
-                Ok(fhir::Ty::Ptr(loc))
+                let kind = fhir::TyKind::Ptr(loc);
+                Ok(fhir::Ty { kind, span })
             }
             surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty),
         }
@@ -339,20 +349,21 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         bind: Option<surface::Ident>,
         ty: &surface::Ty<Res>,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
-        match &ty.kind {
-            surface::TyKind::Base(bty) => self.desugar_bty_bind(bind, bty),
+        let span = ty.span;
+        let kind = match &ty.kind {
+            surface::TyKind::Base(bty) => return self.desugar_bty_bind(bind, bty),
             surface::TyKind::Indexed { bty, indices } => {
                 match self.desugar_bty(bty)? {
                     BtyOrTy::Bty(bty) => {
                         let idx = self.desugar_indices(&bty, indices)?;
-                        Ok(fhir::Ty::Indexed(bty, idx))
+                        fhir::TyKind::Indexed(bty, idx)
                     }
                     BtyOrTy::Ty(_) => {
-                        Err(self.early_cx.emit_err(errors::ParamCountMismatch::new(
+                        return Err(self.early_cx.emit_err(errors::ParamCountMismatch::new(
                             indices.span,
                             0,
                             indices.indices.len(),
-                        )))
+                        )));
                     }
                 }
             }
@@ -368,35 +379,36 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                         let bind = fhir::Ident::new(name, *ident);
 
                         self.binders.pop_layer();
-                        Ok(fhir::Ty::Exists(bty, bind, pred))
+                        fhir::TyKind::Exists(bty, bind, pred)
                     }
                     BtyOrTy::Ty(_) => {
-                        Err(self
+                        return Err(self
                             .early_cx
-                            .emit_err(errors::ParamCountMismatch::new(ident.span, 0, 1)))
+                            .emit_err(errors::ParamCountMismatch::new(ident.span, 0, 1)));
                     }
                 }
             }
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                 let ty = self.desugar_ty(None, ty)?;
-                Ok(fhir::Ty::Constr(pred, Box::new(ty)))
+                fhir::TyKind::Constr(pred, Box::new(ty))
             }
             surface::TyKind::Ref(rk, ty) => {
-                Ok(fhir::Ty::Ref(desugar_ref_kind(*rk), Box::new(self.desugar_ty(None, ty)?)))
+                fhir::TyKind::Ref(desugar_ref_kind(*rk), Box::new(self.desugar_ty(None, ty)?))
             }
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
                     .iter()
                     .map(|ty| self.desugar_ty(None, ty))
                     .try_collect_exhaust()?;
-                Ok(fhir::Ty::Tuple(tys))
+                fhir::TyKind::Tuple(tys)
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(None, ty)?;
-                Ok(fhir::Ty::Array(Box::new(ty), fhir::ArrayLen { val: len.val }))
+                fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val })
             }
-        }
+        };
+        Ok(fhir::Ty { kind, span })
     }
 
     fn desugar_indices(
@@ -460,21 +472,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match bty {
-            surface::BaseTy::Path(path, args) => self.desugar_path(path, args)?,
-            surface::BaseTy::Slice(ty) => {
-                let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, ty)?));
+        let bty = match &bty.kind {
+            surface::BaseTyKind::Path(path) => self.desugar_path(path)?,
+            surface::BaseTyKind::Slice(ty) => {
+                let kind = fhir::BaseTyKind::Slice(Box::new(self.desugar_ty(None, ty)?));
+                let bty = fhir::BaseTy { kind, span: bty.span };
                 BtyOrTy::Bty(bty)
             }
         };
         Ok(bty)
     }
 
-    fn desugar_path(
-        &mut self,
-        path: &surface::Path<Res>,
-        args: &[surface::RefineArg],
-    ) -> Result<BtyOrTy, ErrorGuaranteed> {
+    fn desugar_path(&mut self, path: &surface::Path<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
         let res = match &path.res {
             Res::PrimTy(PrimTy::Bool) => fhir::Res::Bool,
             Res::PrimTy(PrimTy::Int(int_ty)) => fhir::Res::Int(*int_ty),
@@ -483,11 +492,16 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Res::PrimTy(PrimTy::Str) => fhir::Res::Str,
             Res::PrimTy(PrimTy::Float(float_ty)) => fhir::Res::Float(*float_ty),
             Res::Adt(def_id) => fhir::Res::Adt(*def_id),
-            Res::Alias(def_id) => fhir::Res::Alias(*def_id, self.desugar_refine_args(args)?),
-            Res::Param(def_id) => return Ok(fhir::Ty::Param(*def_id).into()),
+            Res::Alias(def_id) => {
+                fhir::Res::Alias(*def_id, self.desugar_refine_args(&path.refine)?)
+            }
+            Res::Param(def_id) => {
+                let kind = fhir::TyKind::Param(*def_id);
+                return Ok(fhir::Ty { kind, span: path.span }.into());
+            }
         };
-        let generics = self.desugar_generic_args(&path.args)?;
-        Ok(fhir::BaseTy::Path(fhir::Path { res, generics, span: path.span }).into())
+        let generics = self.desugar_generic_args(&path.generics)?;
+        Ok(fhir::BaseTy::from(fhir::Path { res, generics, span: path.span }).into())
     }
 
     fn desugar_generic_args(
@@ -507,12 +521,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match self.desugar_bty(bty)? {
             BtyOrTy::Bty(bty) => {
-                if let Some(bind) = bind {
+                let span = bty.span;
+                let kind = if let Some(bind) = bind {
                     let idx = self.bind_into_refine_arg(bind)?;
-                    Ok(fhir::Ty::Indexed(bty, idx))
+                    fhir::TyKind::Indexed(bty, idx)
                 } else {
-                    Ok(fhir::Ty::BaseTy(bty))
-                }
+                    fhir::TyKind::BaseTy(bty)
+                };
+                Ok(fhir::Ty { kind, span })
             }
             BtyOrTy::Ty(ty) => Ok(ty),
         }
@@ -521,7 +537,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         ret: &surface::VariantRet<Res>,
     ) -> Result<fhir::VariantRet, ErrorGuaranteed> {
-        match self.desugar_path(&ret.path, &[])? {
+        match self.desugar_path(&ret.path)? {
             BtyOrTy::Bty(bty) => {
                 let idx = self.desugar_indices(&bty, &ret.indices)?;
                 Ok(fhir::VariantRet { bty, idx })
@@ -929,7 +945,7 @@ impl Binders {
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         let pos = if is_box(early_cx, path.res) { pos } else { TypePos::Other };
-        path.args
+        path.generics
             .iter()
             .try_for_each_exhaust(|ty| self.gather_params_ty(early_cx, None, ty, pos))
     }
@@ -940,9 +956,11 @@ impl Binders {
         bty: &surface::BaseTy<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
-        match bty {
-            surface::BaseTy::Path(path, _) => self.gather_params_path(early_cx, path, pos),
-            surface::BaseTy::Slice(ty) => self.gather_params_ty(early_cx, None, ty, TypePos::Other),
+        match &bty.kind {
+            surface::BaseTyKind::Path(path) => self.gather_params_path(early_cx, path, pos),
+            surface::BaseTyKind::Slice(ty) => {
+                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
+            }
         }
     }
 
@@ -1093,16 +1111,18 @@ impl Binder {
     }
 
     fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
-        match bty {
-            surface::BaseTy::Path(path, _) => Binder::from_res(name_gen, path.res),
-            surface::BaseTy::Slice(_) => Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true),
+        match &bty.kind {
+            surface::BaseTyKind::Path(path) => Binder::from_res(name_gen, path.res),
+            surface::BaseTyKind::Slice(_) => {
+                Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true)
+            }
         }
     }
 }
 
 fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::Sort] {
-    match bty {
-        surface::BaseTy::Path(path, _) => {
+    match &bty.kind {
+        surface::BaseTyKind::Path(path) => {
             match path.res {
                 Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
                 Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
@@ -1110,7 +1130,7 @@ fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [
                 Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_)) | Res::Param(..) => &[],
             }
         }
-        surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
+        surface::BaseTyKind::Slice(_) => &[fhir::Sort::Bool],
     }
 }
 

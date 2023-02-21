@@ -147,7 +147,12 @@ pub enum Constraint {
     Pred(Expr),
 }
 
-pub enum Ty {
+pub struct Ty {
+    pub kind: TyKind,
+    pub span: Span,
+}
+
+pub enum TyKind {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
@@ -189,7 +194,8 @@ pub enum WeakKind {
 
 impl From<BaseTy> for Ty {
     fn from(bty: BaseTy) -> Ty {
-        Ty::BaseTy(bty)
+        let span = bty.span;
+        Ty { kind: TyKind::BaseTy(bty), span }
     }
 }
 
@@ -213,8 +219,13 @@ pub enum RefineArg {
     Aggregate(DefId, Vec<RefineArg>, Span),
 }
 
+pub struct BaseTy {
+    pub kind: BaseTyKind,
+    pub span: Span,
+}
+
 /// These are types of things that may be refined with indices or existentials
-pub enum BaseTy {
+pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
 }
@@ -332,7 +343,7 @@ newtype_index! {
 impl BtyOrTy {
     pub fn to_ty(self) -> Ty {
         match self {
-            Self::Bty(bty) => Ty::BaseTy(bty),
+            Self::Bty(bty) => Ty::from(bty),
             Self::Ty(ty) => ty,
         }
     }
@@ -352,11 +363,13 @@ impl From<Ty> for BtyOrTy {
 
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Path(Path { res: Res::Bool, .. }))
+        matches!(self.kind, BaseTyKind::Path(Path { res: Res::Bool, .. }))
     }
 
     pub fn is_aggregate(&self) -> Option<DefId> {
-        if let BaseTy::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) = self {
+        if let BaseTyKind::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) =
+            &self.kind
+        {
             Some(*def_id)
         } else {
             None
@@ -364,16 +377,22 @@ impl BaseTy {
     }
 
     pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Path(Path { res: Res::Int(_) | Res::Uint(_), .. }) | BaseTy::Slice(_) => {
-                Sort::Int
-            }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
-            BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
+        match &self.kind {
+            BaseTyKind::Path(Path { res: Res::Int(_) | Res::Uint(_), .. })
+            | BaseTyKind::Slice(_) => Sort::Int,
+            BaseTyKind::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
+            BaseTyKind::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
                 Sort::Aggregate(*def_id)
             }
-            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
+            BaseTyKind::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
         }
+    }
+}
+
+impl From<Path> for BaseTy {
+    fn from(path: Path) -> Self {
+        let span = path.span;
+        Self { kind: BaseTyKind::Path(path), span }
     }
 }
 
@@ -711,20 +730,20 @@ impl fmt::Debug for Constraint {
 
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
-            Ty::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
-            Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
-            Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
-            Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
-            Ty::Param(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
-            Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
-            Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
-            Ty::Never => write!(f, "!"),
-            Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
-            Ty::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
-            Ty::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
+        match &self.kind {
+            TyKind::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
+            TyKind::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
+            TyKind::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
+            TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
+            TyKind::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
+            TyKind::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
+            TyKind::Param(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
+            TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
+            TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
+            TyKind::Never => write!(f, "!"),
+            TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
+            TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
         }
     }
 }
@@ -737,13 +756,15 @@ impl fmt::Debug for ArrayLen {
 
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BaseTy::Path(Path { res: Res::Int(int_ty), .. }) => write!(f, "{}", int_ty.name_str()),
-            BaseTy::Path(Path { res: Res::Uint(uint_ty), .. }) => {
+        match &self.kind {
+            BaseTyKind::Path(Path { res: Res::Int(int_ty), .. }) => {
+                write!(f, "{}", int_ty.name_str())
+            }
+            BaseTyKind::Path(Path { res: Res::Uint(uint_ty), .. }) => {
                 write!(f, "{}", uint_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
-            BaseTy::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
+            BaseTyKind::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
+            BaseTyKind::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*def_id))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
@@ -753,19 +774,19 @@ impl fmt::Debug for BaseTy {
                 }
                 Ok(())
             }
-            BaseTy::Path(Path { res: Res::Float(float_ty), .. }) => {
+            BaseTyKind::Path(Path { res: Res::Float(float_ty), .. }) => {
                 write!(f, "{}", float_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
-            BaseTy::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
-            BaseTy::Path(Path { res: Res::Adt(did), generics, .. }) => {
+            BaseTyKind::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
+            BaseTyKind::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
+            BaseTyKind::Path(Path { res: Res::Adt(did), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*did))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
                 Ok(())
             }
-            BaseTy::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }
     }
 }
