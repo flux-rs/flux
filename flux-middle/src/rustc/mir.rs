@@ -51,11 +51,6 @@ pub struct CallSubsts<'tcx> {
     pub lowered: List<GenericArg>,
 }
 
-pub struct ClosureSubsts<'tcx> {
-    pub orig: SubstsRef<'tcx>,
-    pub lowered: List<GenericArg>,
-}
-
 /// An `Instance` is the resolved call-target at a particular trait-call-site
 #[derive(Debug)]
 pub struct Instance {
