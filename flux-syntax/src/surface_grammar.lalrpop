@@ -8,24 +8,28 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
-pub Alias: surface::Alias = {
+pub TyAlias: surface::TyAlias = {
   <lo:@L>
     "type"
-    <name:Ident>
-    <params:("(" Comma<Ident> ")")?>
+    <path:Path>
+    <refined_by_lo:@L>
+    <early_bound_params:("(" <Comma<RefineParam>> ")")?>
+    <index_params:("[" <Comma<RefineParam>> "]")?>
+    <refined_by_hi:@R>
     "="
-    <defn:Ty>
+    <ty:Ty>
     <hi:@R> => {
-        let args = match params {
-            Some(xs) => xs.1,
-            None => vec![],
+        let refined_by = surface::RefinedBy {
+            early_bound_params: early_bound_params.unwrap_or_default(),
+            index_params: index_params.unwrap_or_default(),
+            span: mk_span(refined_by_lo, refined_by_hi)
         };
-        surface::Alias { name, args, defn, span: mk_span(lo, hi) }
+        surface::TyAlias { path, refined_by, ty, span: mk_span(lo, hi) }
     }
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { params, span: mk_span(lo, hi) }
+    <lo:@L> <index_params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { index_params, early_bound_params: vec![], span: mk_span(lo, hi) }
 }
 
 pub Items: Vec<surface::Item> = {
@@ -52,13 +56,13 @@ Qualifier: surface::Qualifier = {
 }
 
 Defn: surface::Defn = {
-    <lo:@L> "fn" <name:Ident> "(" <args:RefinedBy> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
+    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
         surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }
     }
 }
 
 Uif: surface::UifDef = {
-    <lo:@L> "fn" <name:Ident> "(" <args:RefinedBy> ")" "->" <sort:Sort> ";" <hi:@R> => {
+    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> ";" <hi:@R> => {
         surface::UifDef { name, args, sort, span: mk_span(lo, hi) }
     }
 }
@@ -97,13 +101,13 @@ pub FnSig: surface::FnSig = {
     }
 }
 
-pub Variant: surface::VariantDef = {
+pub Variant: surface::VariantData = {
     <lo:@L> <tys:Fields?> <ret:VariantRet> <hi:@R> => {
         let fields = match tys {
             Some(fields) => fields,
             None => vec![],
         };
-        surface::VariantDef { fields, ret, span: mk_span(lo, hi) }
+        surface::VariantData { fields, ret, span: mk_span(lo, hi) }
     }
 }
 
@@ -127,14 +131,10 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>                    => surface::Arg::StrgRef(<>),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}"     => surface::Arg::Constr(<>),
-    <bind:Ident> ":" <path:Path> "[" <indices:Indices> "]" => surface::Arg::Alias(<>),
-    <bind:Ident> ":" <lo:@L> <kind:ArgTyKind> <hi:@R> => {
-        let ty = surface::Ty { kind, span: mk_span(lo, hi) };
-        surface::Arg::Ty(Some(bind), ty)
-    },
-    <ty:Ty> => surface::Arg::Ty(None, <>),
+    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>),
+    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty),
+    <ty:Ty>                                          => surface::Arg::Ty(None, <>),
 }
 
 pub Ty: surface::Ty = {
@@ -144,12 +144,17 @@ pub Ty: surface::Ty = {
     }
 }
 
-// FIXME(nilehmann) We can't parse all types using the `x: T` syntax because it conflicts with aliases.
-ArgTyKind: surface::TyKind = {
-    "(" <tys:Comma<Ty>> ")"  => surface::TyKind::Tuple(tys),
-    "&"       <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
-    "&" "mut" <ty:Ty> => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
-    "{" <ty:Ty> ":" <pred:Expr> "}" => surface::TyKind::Constr(pred, Box::new(ty)),
+TyKind: surface::TyKind = {
+    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
+    <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
+    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
+    "{" <ty:Ty> ":" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
+
+    "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
+
+    "&" <ty:Ty>                     => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
+    "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
         let span = mk_span(lo, hi);
         if let surface::LitKind::Integer = lit.kind && let Ok(val) = lit.symbol.as_str().parse::<usize>() {
@@ -158,19 +163,12 @@ ArgTyKind: surface::TyKind = {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
     },
-    <bty:BaseTy>                                      => surface::TyKind::Base(<>),
-    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
 }
 
 #[inline]
 BaseTy: surface::BaseTy = {
-    <path:Path>     => surface::BaseTy::Path(<>),
+    <path:Path> <args:("(" <Comma<RefineArg>> ")")?> => surface::BaseTy::Path(path, args.unwrap_or_default()),
     "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
-}
-
-TyKind: surface::TyKind = {
-    <ArgTyKind>,
-    <bty:BaseTy> "[" <indices:Indices> "]" => surface::TyKind::Indexed { <> },
 }
 
 GenericArgs: Vec<surface::Ty> = {
@@ -207,6 +205,10 @@ RefineArg: surface::RefineArg = {
     <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, mk_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
+        let params = params
+            .into_iter()
+            .map(|param| surface::RefineParam { name: param, sort: surface::Sort::Infer })
+            .collect();
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
     }
 };

@@ -157,7 +157,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::Intrinsic(_) => {
+            | rustc_mir::StatementKind::Intrinsic(_)
+            | rustc_mir::StatementKind::ConstEvalCounter => {
                 return Err(errors::UnsupportedMir::from(stmt)).emit(self.sess);
             }
         };
@@ -323,11 +324,18 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     fn lower_rvalue(&self, rvalue: &rustc_mir::Rvalue<'tcx>) -> Result<Rvalue, String> {
         match rvalue {
             rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
-            rustc_mir::Rvalue::BinaryOp(bin_op, operands) => {
+            rustc_mir::Rvalue::BinaryOp(bin_op, box (op1, op2)) => {
                 Ok(Rvalue::BinaryOp(
                     self.lower_bin_op(*bin_op)?,
-                    self.lower_operand(&operands.0)?,
-                    self.lower_operand(&operands.1)?,
+                    self.lower_operand(op1)?,
+                    self.lower_operand(op2)?,
+                ))
+            }
+            rustc_mir::Rvalue::CheckedBinaryOp(bin_op, box (op1, op2)) => {
+                Ok(Rvalue::CheckedBinaryOp(
+                    self.lower_bin_op(*bin_op)?,
+                    self.lower_operand(op1)?,
+                    self.lower_operand(op2)?,
                 ))
             }
             rustc_mir::Rvalue::Ref(_, rustc_mir::BorrowKind::Mut { .. }, p) => {
@@ -356,7 +364,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             | rustc_mir::Rvalue::Ref(_, _, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::CheckedBinaryOp(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
@@ -488,16 +495,9 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         use rustc_mir::AssertKind::*;
         match msg {
             BoundsCheck { .. } => Some(AssertKind::BoundsCheck),
-            DivisionByZero(_) => Some(AssertKind::Other("possible division by zero")),
-            RemainderByZero(_) => {
-                Some(AssertKind::Other("possible remainder with a divisor of zero"))
-            }
-            Overflow(rustc_mir::BinOp::Div, _, _) => {
-                Some(AssertKind::Other("possible division with overflow"))
-            }
-            Overflow(rustc_mir::BinOp::Rem, _, _) => {
-                Some(AssertKind::Other("possible remainder with overflow"))
-            }
+            DivisionByZero(_) => Some(AssertKind::DivisionByZero),
+            RemainderByZero(_) => Some(AssertKind::RemainderByZero),
+            Overflow(bin_op, ..) => Some(AssertKind::Overflow(self.lower_bin_op(*bin_op).ok()?)),
             _ => None,
         }
     }
@@ -535,7 +535,7 @@ pub fn lower_type_of(
     def_id: DefId,
 ) -> Result<Ty, ErrorGuaranteed> {
     let span = tcx.def_span(def_id);
-    let ty = tcx.type_of(def_id);
+    let ty = tcx.type_of(def_id).subst_identity();
     lower_ty(tcx, ty)
         .map_err(|err| errors::UnsupportedTypeOf::new(span, ty, err))
         .emit(sess)
@@ -582,7 +582,7 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
         .infer_ctxt()
         .build()
         .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
-        .normalize(fn_sig);
+        .normalize(fn_sig.subst_identity());
     lower_fn_sig(tcx, result.value)
         .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
@@ -646,7 +646,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             // TODO(RJ) https://github.com/liquid-rust/flux/pull/255#discussion_r1052554570
             let param_env = ParamEnv::empty().with_reveal_all_normalized(tcx);
             let val = len
-                .try_eval_usize(tcx, param_env)
+                .try_eval_target_usize(tcx, param_env)
                 .unwrap_or_else(|| panic!("failed to evaluate array length: {len:?} in {ty:?}"))
                 as usize;
             Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val }))
@@ -706,7 +706,10 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
         }
         RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
         RegionKind::ReErased => Ok(Region::ReErased),
-        RegionKind::ReFree(_) | RegionKind::ReStatic | RegionKind::RePlaceholder(_) => {
+        RegionKind::ReFree(_)
+        | RegionKind::ReStatic
+        | RegionKind::RePlaceholder(_)
+        | RegionKind::ReError(_) => {
             Err(UnsupportedType { reason: format!("unsupported region `{region:?}`") })
         }
     }

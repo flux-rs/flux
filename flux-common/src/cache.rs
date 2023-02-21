@@ -1,8 +1,7 @@
 use std::{fs::File, path::PathBuf};
 
+use flux_config as config;
 use rustc_hash::FxHashMap;
-
-use crate::config;
 
 pub struct QueryCache {
     entries: FxHashMap<String, u64>,

@@ -28,7 +28,7 @@ pub enum Sort {
 
 #[derive(Clone, Hash)]
 pub struct FuncSort {
-    pub inputs_and_output: Vec<Sort>,
+    inputs_and_output: Vec<Sort>,
 }
 
 #[derive(Hash)]
@@ -196,7 +196,8 @@ impl Pred {
 }
 
 impl FuncSort {
-    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> FuncSort {
+    pub fn new(inputs: impl IntoIterator<Item = Sort>, output: Sort) -> FuncSort {
+        let mut inputs = inputs.into_iter().collect_vec();
         inputs.push(output);
         FuncSort { inputs_and_output: inputs }
     }

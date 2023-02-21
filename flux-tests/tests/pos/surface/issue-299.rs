@@ -24,8 +24,8 @@ struct S2 {
 }
 
 #[flux::refined_by(a: int)]
-enum E {
-    #[flux::variant((S2) -> E[10])]
+enum E1 {
+    #[flux::variant((S2) -> E1[10])]
     A(S2),
 }
 
@@ -50,11 +50,21 @@ fn test03(x: S2, y: S2) {
     arr[0].f4 += 1;
 }
 
-fn test04(x: &mut E) {
+fn test04(x: &mut E1) {
     match x {
-        E::A(y) => {
+        E1::A(y) => {
             y.f1 += 1;
             y.f4 += 1;
         }
+    }
+}
+
+enum E2 {
+    A(i32),
+}
+
+fn test05(x: &mut E2) -> &mut i32 {
+    match x {
+        E2::A(y) => y,
     }
 }

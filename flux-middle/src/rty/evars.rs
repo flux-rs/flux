@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
 
-use super::{ExprKind, RefineArg};
+use super::{Expr, ExprKind};
 
 static NEXT_CTXT_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -16,7 +16,7 @@ pub struct EVarGen {
 }
 
 pub struct EVarSol {
-    evars: FxHashMap<EVarCxId, IndexVec<EVid, RefineArg>>,
+    evars: FxHashMap<EVarCxId, IndexVec<EVid, Expr>>,
 }
 
 /// An *e*xistential *var*riable is identified by a context and an id. Two evars
@@ -35,7 +35,7 @@ pub struct UnsolvedEvar {
 #[derive(Debug)]
 enum EVarState {
     Unsolved,
-    Unified(RefineArg),
+    Unified(Expr),
 }
 
 newtype_index! {
@@ -76,7 +76,7 @@ impl EVarGen {
         EVar { id: evid, cx }
     }
 
-    pub fn unify(&mut self, evar: EVar, arg: impl Into<RefineArg>, replace: bool) {
+    pub fn unify(&mut self, evar: EVar, arg: impl Into<Expr>, replace: bool) {
         let evars = self.evars.get_mut(&evar.cx).unwrap();
         if matches!(evars[evar.id], EVarState::Unsolved) || replace {
             evars[evar.id] = EVarState::Unified(arg.into());
@@ -112,13 +112,11 @@ impl EVarSol {
         let vec = self
             .iter()
             .flat_map(|(evar, arg)| {
-                if let RefineArg::Expr(e) = arg
-                && let ExprKind::EVar(evar2) = e.kind()
-            {
-                Some((evar, self.get(*evar2).unwrap().clone()))
-            } else {
-                None
-            }
+                if let ExprKind::EVar(evar2) = arg.kind() {
+                    Some((evar, self.get(*evar2).unwrap().clone()))
+                } else {
+                    None
+                }
             })
             .collect_vec();
         for (evar, arg) in vec {
@@ -126,11 +124,11 @@ impl EVarSol {
         }
     }
 
-    pub(crate) fn get(&self, evar: EVar) -> Option<&RefineArg> {
+    pub(crate) fn get(&self, evar: EVar) -> Option<&Expr> {
         Some(&self.evars.get(&evar.cx)?[evar.id])
     }
 
-    fn iter(&self) -> impl Iterator<Item = (EVar, &RefineArg)> {
+    fn iter(&self) -> impl Iterator<Item = (EVar, &Expr)> {
         self.evars.iter().flat_map(|(cx, args)| {
             args.iter_enumerated().map(|(id, expr)| {
                 let evar = EVar { cx: *cx, id };

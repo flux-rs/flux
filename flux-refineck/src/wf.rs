@@ -36,8 +36,8 @@ impl Env {
     }
 }
 
-impl From<&[fhir::RefineParam]> for Env {
-    fn from(params: &[fhir::RefineParam]) -> Env {
+impl From<&[fhir::FunRefineParam]> for Env {
+    fn from(params: &[fhir::FunRefineParam]) -> Env {
         let sorts = params
             .iter()
             .map(|param| (param.name.name, param.sort.clone()))
@@ -84,20 +84,6 @@ impl Wf<'_, '_> {
         wf.check_expr(&env, &defn.expr, &defn.sort)
     }
 
-    pub fn check_adt_def(
-        early_cx: &EarlyCtxt,
-        adt_def: &fhir::AdtDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let env = Env::from(&adt_def.refined_by.params[..]);
-        adt_def
-            .invariants
-            .iter()
-            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
-
-        Ok(())
-    }
-
     pub fn check_fn_quals(
         sess: &FluxSession,
         qualifiers: &FxHashSet<String>,
@@ -110,6 +96,50 @@ impl Wf<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+        let mut env = Env::from(&alias.params[..]);
+        wf.check_type(&mut env, &alias.ty)
+    }
+
+    pub fn check_struct_def(
+        early_cx: &EarlyCtxt,
+        struct_def: &fhir::StructDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+        let mut env = Env::from(&struct_def.params[..]);
+
+        struct_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+        if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
+            fields
+                .iter()
+                .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty))?;
+        }
+        Ok(())
+    }
+
+    pub fn check_enum_def(
+        early_cx: &EarlyCtxt,
+        enum_def: &fhir::EnumDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        let wf = Wf::new(early_cx);
+
+        let env = Env::from(&enum_def.params[..]);
+        enum_def
+            .invariants
+            .iter()
+            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+        enum_def
+            .variants
+            .iter()
+            .try_for_each_exhaust(|variant| wf.check_variant(variant))
     }
 
     pub fn check_fn_sig(early_cx: &EarlyCtxt, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -153,35 +183,6 @@ impl Wf<'_, '_> {
 
         Ok(())
     }
-
-    pub fn check_struct_def(
-        early_cx: &EarlyCtxt,
-        refined_by: &fhir::RefinedBy,
-        def: &fhir::StructDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let mut env = Env::from(&refined_by.params[..]);
-        if let fhir::StructKind::Transparent { fields } = &def.kind {
-            fields.iter().try_for_each_exhaust(|ty| {
-                if let Some(ty) = ty {
-                    wf.check_type(&mut env, ty)
-                } else {
-                    Ok(())
-                }
-            })?;
-        }
-        Ok(())
-    }
-
-    pub fn check_enum_def(
-        early_cx: &EarlyCtxt,
-        def: &fhir::EnumDef,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        def.variants
-            .iter()
-            .try_for_each_exhaust(|variant| wf.check_variant(variant))
-    }
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
@@ -195,7 +196,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices = self.check_index(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
+        let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
         fields?;
         indices?;
         Ok(())
@@ -246,8 +247,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match ty {
             fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
-            fhir::Ty::Indexed(bty, refine) => {
-                self.check_index(env, refine, &bty.sort())?;
+            fhir::Ty::Indexed(bty, idx) => {
+                self.check_refine_arg(env, idx, &bty.sort())?;
                 self.check_base_ty(env, bty)
             }
             fhir::Ty::Exists(bty, bind, pred) => {
@@ -266,48 +267,43 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::Alias(_, substs) => {
-                substs
-                    .iter()
-                    .try_for_each_exhaust(|arg| self.check_type(env, arg))
-            }
-            fhir::Ty::Never
-            | fhir::Ty::Param(_)
-            | fhir::Ty::Float(_)
-            | fhir::Ty::Str
-            | fhir::Ty::Char => Ok(()),
+            fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
+            fhir::Ty::Never | fhir::Ty::Param(_) => Ok(()),
         }
     }
 
     fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
         match bty {
-            fhir::BaseTy::Adt(_, substs) => {
-                substs
-                    .iter()
-                    .try_for_each_exhaust(|ty| self.check_type(env, ty))
-            }
+            fhir::BaseTy::Path(path) => self.check_path(env, path),
             fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
-            fhir::BaseTy::Int(_) | fhir::BaseTy::Uint(_) | fhir::BaseTy::Bool => Ok(()),
         }
     }
 
-    fn check_index(
-        &self,
-        env: &mut Env,
-        idx: &fhir::Index,
-        expected: &fhir::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
-        match &idx.kind {
-            fhir::IndexKind::Single(arg) => self.check_refine_arg(env, arg, expected),
-            fhir::IndexKind::Aggregate(def_id, args) => {
-                self.check_aggregate(env, *def_id, args, idx.span)?;
-                let found = fhir::Sort::Adt(*def_id);
-                if &found != expected {
-                    return self.emit_err(errors::SortMismatch::new(idx.span, expected, &found));
+    fn check_path(&self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
+        match &path.res {
+            fhir::Res::Alias(def_id, args) => {
+                let sorts = self.early_cx.early_bound_sorts_of(*def_id);
+                if args.len() != sorts.len() {
+                    return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
+                        path.span,
+                        sorts.len(),
+                        args.len(),
+                    ));
                 }
-                Ok(())
+                iter::zip(args, sorts)
+                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
             }
+            fhir::Res::Adt(_)
+            | fhir::Res::Int(_)
+            | fhir::Res::Uint(_)
+            | fhir::Res::Bool
+            | fhir::Res::Float(_)
+            | fhir::Res::Str
+            | fhir::Res::Char => {}
         }
+        path.generics
+            .iter()
+            .try_for_each_exhaust(|ty| self.check_type(env, ty))
     }
 
     fn check_aggregate(
@@ -317,7 +313,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.early_cx.sorts_of(def_id);
+        let sorts = self.early_cx.index_sorts_of(def_id);
         if args.len() != sorts.len() {
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
@@ -357,12 +353,22 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                             params.len(),
                         ));
                     }
-                    env.push_layer(iter::zip(params, fsort.inputs()));
+                    let params = iter::zip(params, fsort.inputs())
+                        .map(|((name, _), sort)| (&name.name, sort));
+                    env.push_layer(params);
                     self.check_expr(env, body, fsort.output())?;
                     self.check_param_uses(env, body, true)
                 } else {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))
                 }
+            }
+            fhir::RefineArg::Aggregate(def_id, flds, span) => {
+                self.check_aggregate(env, *def_id, flds, *span)?;
+                let found = fhir::Sort::Aggregate(*def_id);
+                if &found != expected {
+                    return self.emit_err(errors::SortMismatch::new(*span, expected, &found));
+                }
+                Ok(())
             }
         }
     }
@@ -411,20 +417,20 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = &env[var.name];
-                if let fhir::Sort::Adt(def_id) = sort {
-                    self.early_cx
-                        .field_sort(*def_id, fld.name)
-                        .cloned()
-                        .ok_or_else(|| {
-                            self.early_cx.emit_err(errors::FieldNotFound::new(
-                                self.early_cx.tcx,
-                                &self.early_cx.map,
-                                *def_id,
-                                *fld,
-                            ))
-                        })
-                } else {
-                    self.emit_err(errors::InvalidPrimitiveDotAccess::new(*var, sort, *fld))
+                match sort {
+                    fhir::Sort::Aggregate(def_id) => {
+                        self.early_cx
+                            .field_sort(*def_id, fld.name)
+                            .cloned()
+                            .ok_or_else(|| {
+                                self.early_cx
+                                    .emit_err(errors::FieldNotFound::new(sort, *fld))
+                            })
+                    }
+                    fhir::Sort::Bool | fhir::Sort::Int | fhir::Sort::Real => {
+                        self.emit_err(errors::InvalidPrimitiveDotAccess::new(sort, *fld))
+                    }
+                    _ => self.emit_err(errors::FieldNotFound::new(sort, *fld)),
                 }
             }
         }
@@ -544,11 +550,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
-    /// [`Adt`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
+    /// [`Aggregate`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
     /// versa, i.e., we can automatically project the field out of the adt or inject a value into an
     /// adt.
     ///
-    /// [`Adt`]: fhir::Sort::Adt
+    /// [`Aggregate`]: fhir::Sort::Aggregate
     fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
@@ -562,13 +568,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
-        if let fhir::Sort::Func(fsort) = sort {
-            Some(fsort.clone())
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_adt(sort) {
-            Some(fsort.clone())
-        } else {
-            None
-        }
+        self.early_cx.is_coercible_to_func(sort)
     }
 
     fn is_coercible_to_numeric(&self, sort: &fhir::Sort) -> Option<fhir::Sort> {
@@ -582,11 +582,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
-        if let fhir::Sort::Adt(def_id) = sort && let [sort] = self.early_cx.sorts_of(*def_id) {
-            Some(sort)
-        } else {
-            None
-        }
+        self.early_cx.is_single_field_adt(sort)
     }
 
     /// Checks that refinement parameters are used in allowed positions.
@@ -645,11 +641,8 @@ fn synth_lit(lit: fhir::Lit) -> fhir::Sort {
 }
 
 mod errors {
-    use flux_macros::{Diagnostic, Subdiagnostic};
+    use flux_macros::Diagnostic;
     use flux_middle::fhir::{self, SurfaceIdent};
-    use rustc_errors::MultiSpan;
-    use rustc_hir::def_id::DefId;
-    use rustc_middle::ty::TyCtxt;
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -687,6 +680,22 @@ mod errors {
             found: usize,
         ) -> Self {
             Self { span, expected, found, thing }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::early_bound_arg_count_mismatch, code = "FLUX")]
+    pub(super) struct EarlyBoundArgCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        expected: usize,
+        found: usize,
+    }
+
+    impl EarlyBoundArgCountMismatch {
+        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
+            Self { span, expected, found }
         }
     }
 
@@ -808,66 +817,30 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(wf::field_not_found, code = "FLUX")]
-    pub struct FieldNotFound {
+    pub(super) struct FieldNotFound<'a> {
         #[primary_span]
         span: Span,
+        sort: &'a fhir::Sort,
         fld: SurfaceIdent,
-        def_kind: &'static str,
-        def_name: String,
-        #[subdiagnostic]
-        def_note: Option<DefSpanNote>,
     }
 
-    impl FieldNotFound {
-        pub fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId, fld: SurfaceIdent) -> Self {
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let def_name = tcx.def_path_str(def_id);
-            let def_note = DefSpanNote::new(tcx, map, def_id);
-            Self { span: fld.span, fld, def_kind, def_name, def_note }
+    impl<'a> FieldNotFound<'a> {
+        pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+            Self { span: fld.span, sort, fld }
         }
     }
 
     #[derive(Diagnostic)]
     #[diag(wf::invalid_primitive_dot_access, code = "FLUX")]
-    pub struct InvalidPrimitiveDotAccess<'a> {
+    pub(super) struct InvalidPrimitiveDotAccess<'a> {
         #[primary_span]
-        #[label]
         span: Span,
-        param_name: Symbol,
         sort: &'a fhir::Sort,
     }
 
     impl<'a> InvalidPrimitiveDotAccess<'a> {
-        pub fn new(var: fhir::Ident, sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
-            let span = var.span().to(fld.span);
-            Self { sort, span, param_name: var.sym() }
-        }
-    }
-
-    #[derive(Subdiagnostic)]
-    #[note(wf::def_span_note)]
-    struct DefSpanNote {
-        #[primary_span]
-        sp: MultiSpan,
-        def_kind: &'static str,
-        has_params: bool,
-    }
-
-    impl DefSpanNote {
-        fn new(tcx: TyCtxt, map: &fhir::Map, def_id: DefId) -> Option<Self> {
-            let mut sp = MultiSpan::from_span(tcx.def_ident_span(def_id)?);
-
-            let mut has_params = false;
-            if let Some(local_id) = def_id.as_local()
-                && let refined_by = &map.adt(local_id).refined_by
-                && !refined_by.params.is_empty()
-            {
-                sp.push_span_label(refined_by.span, "");
-                has_params = true;
-            }
-
-            let def_kind = tcx.def_kind(def_id).descr(def_id);
-            Some(Self { sp, def_kind, has_params })
+        pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+            Self { sort, span: fld.span }
         }
     }
 }

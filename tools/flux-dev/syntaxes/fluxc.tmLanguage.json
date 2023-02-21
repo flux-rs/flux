@@ -77,7 +77,7 @@
       "patterns": [
         {
           "name": "comment.line.tag.fluxc",
-          "match": "~.*$"
+          "match": "(~|@).*$"
         }
       ]
     },

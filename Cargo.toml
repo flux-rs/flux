@@ -4,6 +4,7 @@ members = [
     "flux",
     "flux-bin",
     "flux-common",
+    "flux-config",
     "flux-desugar",
     "flux-driver",
     "flux-errors",

@@ -8,39 +8,48 @@ pub mod conv;
 pub mod evars;
 mod expr;
 pub mod fold;
+pub(crate) mod normalize;
 pub mod subst;
 
-use std::{collections::HashSet, fmt, hash::Hash, iter, sync::LazyLock};
+use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{
-    BoundVar, DebruijnIndex, Expr, ExprKind, Func, KVar, KVid, Loc, Name, Path, Var, INNERMOST,
-};
-use flux_common::index::IndexGen;
+pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST};
+use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::bit_set::BitSet;
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
-use toposort_scc::IndexGraph;
 
-use self::{
-    fold::{TypeFoldable, TypeFolder},
-    subst::BVarSubstFolder,
-};
+use self::{fold::TypeFoldable, subst::BVarSubstFolder};
 pub use crate::{
-    fhir::{FuncSort, InferMode, RefKind, Sort},
+    fhir::{InferMode, RefKind},
     rustc::ty::Const,
 };
 use crate::{
-    intern::{impl_internable, Interned, List},
+    intern::{impl_internable, Internable, Interned, List},
     rustc::mir::Place,
 };
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum Sort {
+    Int,
+    Bool,
+    Real,
+    Loc,
+    Tuple(List<Sort>),
+    Func(FuncSort),
+    User(Symbol),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct FuncSort {
+    input_and_output: List<Sort>,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
@@ -49,40 +58,51 @@ pub struct AdtDef(Interned<AdtDefData>);
 pub struct AdtDefData {
     def_id: DefId,
     invariants: Vec<Invariant>,
-    sorts: Vec<Sort>,
+    sort: Sort,
     flags: AdtFlags,
     nvariants: usize,
     opaque: bool,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub struct Invariant {
-    pub pred: Binders<Expr>,
+/// Option-like enum to explicitly mark that we don't have information about an ADT because it was
+/// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
+#[derive(TyEncodable, TyDecodable)]
+pub enum Opaqueness<T> {
+    Opaque,
+    Transparent(T),
 }
 
-pub type PolyVariant = Binders<VariantDef>;
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub struct Invariant {
+    pub pred: Binder<Expr>,
+}
+
+pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub fields: List<Ty>,
-    pub ret: VariantRet,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, TyEncodable, TyDecodable)]
-pub struct VariantRet {
-    pub bty: BaseTy,
-    pub args: List<RefineArg>,
+    pub ret: Ty,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub struct Binders<T> {
-    params: List<Sort>,
+pub struct Binder<T> {
+    sort: Sort,
     value: T,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum TupleTree<T>
+where
+    [TupleTree<T>]: Internable,
+{
+    Tuple(List<TupleTree<T>>),
+    Leaf(T),
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolySig {
-    pub fn_sig: Binders<FnSig>,
+    pub fn_sig: Binder<FnSig>,
     pub modes: List<InferMode>,
 }
 
@@ -90,7 +110,7 @@ pub struct PolySig {
 pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
-    output: Binders<FnOutput>,
+    output: Binder<FnOutput>,
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
@@ -110,22 +130,18 @@ pub enum Constraint {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub body: Binders<Expr>,
+    pub body: Binder<Expr>,
     pub global: bool,
 }
 
 pub struct Defn {
     pub name: Symbol,
-    pub expr: Binders<Expr>,
+    pub expr: Binder<Expr>,
 }
 
 pub struct UifDef {
     pub name: Symbol,
     pub sort: FuncSort,
-}
-
-pub struct Defns {
-    defns: FxHashMap<Symbol, Defn>,
 }
 
 pub type Ty = Interned<TyS>;
@@ -137,16 +153,12 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum TyKind {
-    Indexed(BaseTy, RefineArgs),
-    Exists(Binders<Ty>),
+    Indexed(BaseTy, Index),
+    Exists(Binder<Ty>),
     Constr(Expr, Ty),
-    Tuple(List<Ty>),
-    Array(Ty, Const),
     Uninit,
     Ptr(PtrKind, Path),
-    Ref(RefKind, Ty),
     Param(ParamTy),
-    Never,
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
     /// when checking [`TerminatorKind::SwitchInt`].
@@ -165,20 +177,9 @@ pub enum PtrKind {
 }
 
 #[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-pub struct RefineArgs(Interned<RefineArgsData>);
-
-#[derive(Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-struct RefineArgsData {
-    args: Vec<RefineArg>,
-    /// Set containing all the indices of arguments that were used as binders in the surface syntax.
-    /// This is used as a hint for inferring parameters at call sites.
-    is_binder: BitSet<usize>,
-}
-
-#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-pub enum RefineArg {
-    Expr(Expr),
-    Abs(Binders<Expr>),
+pub struct Index {
+    pub expr: Expr,
+    pub is_binder: TupleTree<bool>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -192,6 +193,10 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
+    Ref(RefKind, Ty),
+    Tuple(List<Ty>),
+    Array(Ty, Const),
+    Never,
 }
 
 pub type Substs = List<GenericArg>;
@@ -203,144 +208,219 @@ pub enum GenericArg {
     Lifetime,
 }
 
-impl Qualifier {
-    pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
-        let name_gen = IndexGen::new();
-        let mut args = vec![];
-        let body = self.body.replace_bvars_with_fresh_fvars(|sort| {
-            let fresh = name_gen.fresh();
-            args.push((fresh, sort.clone()));
-            fresh
-        });
-        (args, body)
+impl Sort {
+    pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
+        Sort::Tuple(sorts.into())
+    }
+
+    pub(crate) fn unit() -> Self {
+        Self::tuple(vec![])
+    }
+
+    #[track_caller]
+    fn expect_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            bug!("expected `Sort::Tuple`")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_func(&self) -> &FuncSort {
+        if let Sort::Func(sort) = self {
+            sort
+        } else {
+            bug!("expected `Sort::Func`")
+        }
+    }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
+    pub fn as_tuple(&self) -> &[Sort] {
+        if let Sort::Tuple(sorts) = self {
+            sorts
+        } else {
+            slice::from_ref(self)
+        }
+    }
+
+    pub(crate) fn is_unit(&self) -> bool {
+        matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
+    }
+
+    /// Whether the sort is a function with return sort bool
+    fn is_pred(&self) -> bool {
+        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    /// Returns `true` if the sort is [`Bool`].
+    ///
+    /// [`Bool`]: Sort::Bool
+    #[must_use]
+    fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub fn flatten(&self) -> Vec<Sort> {
+        let mut sorts = vec![];
+        self.walk(|sort, _| sorts.push(sort.clone()));
+        sorts
+    }
+
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
+            if let Sort::Tuple(sorts) = sort {
+                sorts.iter().enumerate().for_each(|(i, sort)| {
+                    proj.push(i as u32);
+                    go(sort, f, proj);
+                    proj.pop();
+                });
+            } else {
+                f(sort, proj);
+            }
+        }
+        go(self, &mut f, &mut vec![]);
     }
 }
 
-impl<T> Binders<T> {
-    pub fn new(value: T, params: impl Into<List<Sort>>) -> Binders<T> {
-        Binders { params: params.into(), value }
+impl FuncSort {
+    pub(crate) fn new(input: Sort, output: Sort) -> Self {
+        FuncSort { input_and_output: List::from_vec(vec![input, output]) }
     }
 
-    pub fn params(&self) -> &[Sort] {
-        &self.params
+    pub fn input(&self) -> &Sort {
+        &self.input_and_output[0]
     }
 
-    pub fn as_ref(&self) -> Binders<&T> {
-        Binders { params: self.params.clone(), value: &self.value }
+    pub fn output(&self) -> &Sort {
+        &self.input_and_output[1]
+    }
+}
+
+impl Qualifier {
+    pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
+        let name_gen = IndexGen::new();
+        let mut params = vec![];
+        let arg = Expr::fold_sort(self.body.sort(), |sort| {
+            let fresh = name_gen.fresh();
+            params.push((fresh, sort.clone()));
+            Expr::fvar(fresh)
+        });
+        let body = self.body.replace_bvar(&arg);
+        (params, body)
+    }
+}
+
+impl<T> Binder<T> {
+    pub fn new(value: T, sort: Sort) -> Binder<T> {
+        Binder { sort, value }
+    }
+
+    pub fn sort(&self) -> &Sort {
+        &self.sort
+    }
+
+    pub fn as_ref(&self) -> Binder<&T> {
+        Binder { sort: self.sort.clone(), value: &self.value }
     }
 
     pub fn skip_binders(self) -> T {
         self.value
     }
 
-    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binders<S> {
-        Binders { params: self.params, value: f(self.value) }
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binder<S> {
+        Binder { sort: self.sort, value: f(self.value) }
     }
 }
 
-impl<T> Binders<T>
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
+    }
+}
+
+impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvars(&self, args: &[RefineArg]) -> T {
-        self.value.fold_with(&mut BVarSubstFolder::new(args))
+    pub fn replace_bvar(&self, expr: &Expr) -> T {
+        self.value
+            .fold_with(&mut BVarSubstFolder::new(expr))
+            .normalize(&Default::default())
     }
 
-    pub fn replace_bvars_with(&self, f: impl FnMut(&Sort) -> RefineArg) -> T {
-        let args = self.params.iter().map(f).collect_vec();
-        self.replace_bvars(&args)
-    }
-
-    pub fn replace_bvars_with_fresh_fvars(&self, mut fresh: impl FnMut(&Sort) -> Name) -> T {
-        self.replace_bvars_with(|sort| RefineArg::Expr(Expr::fvar(fresh(sort))))
+    pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
+        let expr = f(&self.sort);
+        self.replace_bvar(&expr)
     }
 }
 
-impl RefineArgs {
-    pub fn new<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = (RefineArg, bool)>,
-        T::IntoIter: ExactSizeIterator,
-    {
-        let iter = iter.into_iter();
-        let mut bitset = BitSet::new_empty(iter.len());
-        let args = iter
-            .enumerate()
-            .map(|(idx, (arg, is_binder))| {
-                if is_binder {
-                    bitset.insert(idx);
-                }
-                arg
-            })
-            .collect();
-        RefineArgsData { args, is_binder: bitset }.intern()
+impl<T> TupleTree<T>
+where
+    [TupleTree<T>]: Internable,
+{
+    fn unit() -> Self {
+        TupleTree::Tuple(List::from_vec(vec![]))
     }
 
-    pub fn multi(args: Vec<RefineArg>) -> Self {
-        let is_binder = BitSet::new_empty(args.len());
-        RefineArgsData { args, is_binder }.intern()
+    pub fn split(&self) -> impl Iterator<Item = &TupleTree<T>> {
+        match self {
+            TupleTree::Tuple(values) => values.iter().cycle(),
+            TupleTree::Leaf(_) => slice::from_ref(self).iter().cycle(),
+        }
     }
 
-    pub fn one(arg: impl Into<RefineArg>) -> Self {
-        RefineArgsData { args: vec![arg.into()], is_binder: BitSet::new_empty(1) }.intern()
-    }
-
-    /// Return a list of bound variables. The returned value will have escaping vars which
-    /// need to be put inside a [`Binders`]
-    pub fn bound(n: usize) -> RefineArgs {
-        RefineArgs::multi(
-            (0..n)
-                .map(|i| RefineArg::Expr(Expr::bvar(BoundVar::innermost(i))))
-                .collect(),
-        )
-    }
-
-    pub fn is_binder(&self, i: usize) -> bool {
-        self.0.is_binder.contains(i)
-    }
-
-    pub fn nth(&self, idx: usize) -> &RefineArg {
-        &self.args()[idx]
-    }
-
-    pub fn args(&self) -> &[RefineArg] {
-        &self.0.args
-    }
-
-    pub fn empty() -> Self {
-        RefineArgsData { args: vec![], is_binder: BitSet::new_empty(0) }.intern()
-    }
-}
-
-impl RefineArgsData {
-    pub fn intern(self) -> RefineArgs {
-        RefineArgs(Interned::new(self))
-    }
-}
-
-impl RefineArg {
     #[track_caller]
-    pub fn as_expr(&self) -> &Expr {
-        if let RefineArg::Expr(e) = self {
-            e
-        } else {
-            panic!("expected an `RefineArg::Expr`")
+    pub fn expect_leaf(&self) -> &T {
+        match self {
+            TupleTree::Leaf(value) => value,
+            _ => bug!("expected leaf"),
         }
     }
 }
 
+impl Index {
+    pub(crate) fn unit() -> Self {
+        Index { expr: Expr::unit(), is_binder: TupleTree::unit() }
+    }
+}
+
+impl From<Expr> for Index {
+    fn from(expr: Expr) -> Self {
+        let is_binder = TupleTree::Leaf(false);
+        Self { expr, is_binder }
+    }
+}
+
+impl From<(Expr, TupleTree<bool>)> for Index {
+    fn from((expr, is_binder): (Expr, TupleTree<bool>)) -> Self {
+        Self { expr, is_binder }
+    }
+}
+
 impl PolySig {
-    pub fn new(fn_sig: Binders<FnSig>, modes: impl Into<List<InferMode>>) -> PolySig {
-        let modes = modes.into();
-        debug_assert_eq!(fn_sig.params.len(), modes.len());
-        PolySig { fn_sig, modes }
+    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolySig {
+        let (sorts, modes) = params.into_iter().unzip();
+        let fn_sig = Binder::new(fn_sig, Sort::Tuple(List::from_vec(sorts)));
+        PolySig { fn_sig, modes: List::from_vec(modes) }
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> RefineArg) -> FnSig {
-        let args = iter::zip(&self.fn_sig.params, &self.modes)
+    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
+        let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
             .map(|(sort, kind)| f(sort, *kind))
             .collect_vec();
-        self.fn_sig.replace_bvars(&args)
+        self.fn_sig.replace_bvar(&Expr::tuple(exprs))
     }
 }
 
@@ -348,7 +428,7 @@ impl FnSig {
     pub fn new(
         requires: impl Into<List<Constraint>>,
         args: impl Into<List<Ty>>,
-        output: Binders<FnOutput>,
+        output: Binder<FnOutput>,
     ) -> Self {
         FnSig { requires: requires.into(), args: args.into(), output }
     }
@@ -361,7 +441,7 @@ impl FnSig {
         &self.args
     }
 
-    pub fn output(&self) -> &Binders<FnOutput> {
+    pub fn output(&self) -> &Binder<FnOutput> {
         &self.output
     }
 }
@@ -375,14 +455,14 @@ impl FnOutput {
 impl AdtDef {
     pub(crate) fn new(
         rustc_def: rustc_middle::ty::AdtDef,
-        sorts: Vec<Sort>,
+        sort: Sort,
         invariants: Vec<Invariant>,
         opaque: bool,
     ) -> Self {
         AdtDef(Interned::new(AdtDefData {
             def_id: rustc_def.did(),
             invariants,
-            sorts,
+            sort,
             flags: rustc_def.flags(),
             nvariants: rustc_def.variants().len(),
             opaque,
@@ -393,8 +473,8 @@ impl AdtDef {
         self.0.def_id
     }
 
-    pub fn sorts(&self) -> &[Sort] {
-        &self.0.sorts
+    pub fn sort(&self) -> &Sort {
+        &self.0.sort
     }
 
     pub fn flags(&self) -> &AdtFlags {
@@ -430,25 +510,56 @@ impl AdtDef {
     }
 }
 
-impl PolyVariant {
-    pub fn to_fn_sig(&self) -> PolySig {
-        let fn_sig = self.as_ref().map(|variant| {
-            let ret = variant.ret.to_ty().shift_in_bvars(1);
-            let output = Binders::new(FnOutput::new(ret, vec![]), vec![]);
-            FnSig::new(vec![], variant.fields.clone(), output)
-        });
-        let modes = fn_sig
-            .params
-            .iter()
-            .map(Sort::default_infer_mode)
-            .collect_vec();
-        PolySig::new(fn_sig, modes)
+impl<T> Opaqueness<T> {
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Opaqueness<S> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(f(value)),
+        }
+    }
+
+    pub fn as_ref(&self) -> Opaqueness<&T> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value),
+        }
+    }
+
+    pub fn as_deref(&self) -> Opaqueness<&T::Target>
+    where
+        T: std::ops::Deref,
+    {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value.deref()),
+        }
+    }
+
+    pub fn ok_or<E>(self, err: E) -> Result<T, E> {
+        match self {
+            Opaqueness::Opaque => Err(err),
+            Opaqueness::Transparent(value) => Ok(value),
+        }
     }
 }
 
-impl VariantRet {
-    pub fn to_ty(&self) -> Ty {
-        Ty::indexed(self.bty.clone(), RefineArgs::multi(self.args.to_vec()))
+impl PolyVariant {
+    pub fn to_fn_sig(&self) -> PolySig {
+        let fn_sig = self
+            .as_ref()
+            .map(|variant| {
+                let ret = variant.ret.shift_in_bvars(1);
+                let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
+                FnSig::new(vec![], variant.fields.clone(), output)
+            })
+            .skip_binders();
+        let params = self
+            .sort
+            .expect_tuple()
+            .iter()
+            .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
+            .collect_vec();
+        PolySig::new(params, fn_sig)
     }
 }
 
@@ -457,12 +568,74 @@ impl Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
+    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
+        TyKind::Constr(p.into(), ty).intern()
+    }
+
+    pub fn uninit() -> Ty {
+        TyKind::Uninit.intern()
+    }
+
+    pub fn indexed(bty: BaseTy, idx: impl Into<Index>) -> Ty {
+        TyKind::Indexed(bty, idx.into()).intern()
+    }
+
+    pub fn exists(ty: Binder<Ty>) -> Ty {
+        TyKind::Exists(ty).intern()
+    }
+
+    pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
+        let sort = bty.sort();
+        let ty = Ty::indexed(bty, Expr::nu());
+        Ty::exists(Binder::new(Ty::constr(pred, ty), sort))
+    }
+
+    pub fn param(param: ParamTy) -> Ty {
+        TyKind::Param(param).intern()
+    }
+
+    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
+        TyKind::Discr(adt_def, place).intern()
+    }
+
+    pub fn unit() -> Ty {
+        Ty::tuple(vec![])
+    }
+
+    pub fn bool() -> Ty {
+        BaseTy::Bool.into_ty()
+    }
+
+    pub fn int(int_ty: IntTy) -> Ty {
+        BaseTy::Int(int_ty).into_ty()
+    }
+
+    pub fn uint(uint_ty: UintTy) -> Ty {
+        BaseTy::Uint(uint_ty).into_ty()
+    }
+
+    pub fn usize() -> Ty {
+        Ty::uint(UintTy::Usize)
+    }
+
+    pub fn str() -> Ty {
+        BaseTy::Str.into_ty()
+    }
+
+    pub fn char() -> Ty {
+        BaseTy::Char.into_ty()
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        BaseTy::Float(float_ty).into_ty()
+    }
+
     pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
-        TyKind::Ref(mode, ty).intern()
+        BaseTy::Ref(mode, ty).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
-        TyKind::Tuple(tys.into()).intern()
+        BaseTy::Tuple(tys.into()).into_ty()
     }
 
     pub fn closure(def_id: DefId) -> Ty {
@@ -470,11 +643,11 @@ impl Ty {
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
-        TyKind::Array(ty, c).intern()
+        BaseTy::Array(ty, c).into_ty()
     }
 
-    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
-        TyKind::Constr(p.into(), ty).intern()
+    pub fn never() -> Ty {
+        BaseTy::Never.into_ty()
     }
 
     pub fn unconstr(&self) -> (Ty, Expr) {
@@ -489,84 +662,6 @@ impl Ty {
         let mut preds = vec![];
         (go(self, &mut preds), Expr::and(preds))
     }
-
-    pub fn uninit() -> Ty {
-        TyKind::Uninit.intern()
-    }
-
-    pub fn indexed(bty: BaseTy, args: RefineArgs) -> Ty {
-        TyKind::Indexed(bty, args).intern()
-    }
-
-    pub fn exists(ty: Binders<Ty>) -> Ty {
-        TyKind::Exists(ty).intern()
-    }
-
-    /// Makes a *fully applied* existential, i.e., an existential that has binders for all the
-    /// indices of the [`BaseTy`]. For example, if we have
-    ///
-    /// ```ignore
-    /// #[flux::refined_by(a: int, b: int)]
-    /// struct Pair {
-    ///     #[flux::field(i32[@a])]
-    ///     fst: i32,
-    ///     #[flux::field(i32[@b])]
-    ///     snd: i32,
-    /// }
-    /// ```
-    /// Then, a fully applied existential for `Pair` binds both indices: `{int,int. Pair[^0.0, ^0.1] | p}`.
-    ///
-    /// Note that the arguments `bty` and `pred` may have escaping vars, which will be closed by
-    /// wrapping them inside a [`Binders`].
-    pub fn full_exists(bty: BaseTy, pred: Expr) -> Ty {
-        let sorts = List::from(bty.sorts());
-        let ty = Ty::indexed(bty, RefineArgs::bound(sorts.len()));
-        Ty::exists(Binders::new(Ty::constr(pred, ty), sorts))
-    }
-
-    pub fn param(param: ParamTy) -> Ty {
-        TyKind::Param(param).intern()
-    }
-
-    pub fn unit() -> Ty {
-        Ty::tuple(vec![])
-    }
-
-    pub fn str() -> Ty {
-        Ty::indexed(BaseTy::Str, RefineArgs::empty())
-    }
-
-    pub fn char() -> Ty {
-        Ty::indexed(BaseTy::Char, RefineArgs::empty())
-    }
-
-    pub fn never() -> Ty {
-        TyKind::Never.intern()
-    }
-
-    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
-        TyKind::Discr(adt_def, place).intern()
-    }
-
-    pub fn bool() -> Ty {
-        Ty::full_exists(BaseTy::Bool, Expr::tt())
-    }
-
-    pub fn int(int_ty: IntTy) -> Ty {
-        Ty::full_exists(BaseTy::Int(int_ty), Expr::tt())
-    }
-
-    pub fn uint(uint_ty: UintTy) -> Ty {
-        Ty::full_exists(BaseTy::Uint(uint_ty), Expr::tt())
-    }
-
-    pub fn usize() -> Ty {
-        Ty::uint(UintTy::Usize)
-    }
-
-    pub fn float(float_ty: FloatTy) -> Ty {
-        Ty::indexed(BaseTy::Float(float_ty), RefineArgs::empty())
-    }
 }
 
 impl TyKind {
@@ -580,19 +675,21 @@ impl TyS {
         &self.kind
     }
 
+    #[track_caller]
     pub fn expect_discr(&self) -> (&AdtDef, &Place) {
         if let TyKind::Discr(adt_def, place) = self.kind() {
             (adt_def, place)
         } else {
-            panic!("expected discr")
+            bug!("expected discr")
         }
     }
 
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &RefineArgs) {
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Index) {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
             (adt_def, substs, idxs)
         } else {
-            panic!("expected adt")
+            bug!("expected adt")
         }
     }
 
@@ -614,7 +711,7 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
             TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
@@ -630,24 +727,6 @@ impl From<RefKind> for PtrKind {
             RefKind::Shr => PtrKind::Shr,
             RefKind::Mut => PtrKind::Mut,
         }
-    }
-}
-
-impl From<&RefineArg> for RefineArg {
-    fn from(arg: &RefineArg) -> Self {
-        arg.clone()
-    }
-}
-
-impl From<Expr> for RefineArg {
-    fn from(expr: Expr) -> Self {
-        RefineArg::Expr(expr)
-    }
-}
-
-impl From<&Expr> for RefineArg {
-    fn from(expr: &Expr) -> Self {
-        RefineArg::Expr(expr.clone())
     }
 }
 
@@ -678,10 +757,7 @@ impl BaseTy {
     pub fn invariants(&self) -> &[Invariant] {
         static GE0: LazyLock<Invariant> = LazyLock::new(|| {
             Invariant {
-                pred: Binders::new(
-                    Expr::binary_op(BinOp::Ge, BoundVar::NU, Expr::zero()),
-                    vec![Sort::Int],
-                ),
+                pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
             }
         });
 
@@ -694,21 +770,41 @@ impl BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
             | BaseTy::RawPtr(_, _)
-            | BaseTy::Char => &[],
+            | BaseTy::Char
+            | BaseTy::Ref(_, _)
+            | BaseTy::Tuple(_)
+            | BaseTy::Array(_, _)
+            | BaseTy::Never => &[],
         }
     }
 
-    pub fn sorts(&self) -> &[Sort] {
+    fn into_ty(self) -> Ty {
+        let sort = self.sort();
+        if sort.is_unit() {
+            Ty::indexed(self, Index::unit())
+        } else {
+            Ty::exists(Binder::new(Ty::indexed(self, Expr::nu()), sort))
+        }
+    }
+
+    pub fn sort(&self) -> Sort {
         match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => &[Sort::Int],
-            BaseTy::Bool => &[Sort::Bool],
-            BaseTy::Adt(adt_def, _) => adt_def.sorts(),
-            BaseTy::Float(_) | BaseTy::Str | BaseTy::Char | BaseTy::RawPtr(_, _) => &[],
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
+            BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::RawPtr(..)
+            | BaseTy::Ref(..)
+            | BaseTy::Tuple(_)
+            | BaseTy::Array(_, _)
+            | BaseTy::Never => Sort::unit(),
         }
     }
 }
 
-impl Binders<Expr> {
+impl Binder<Expr> {
     /// See [`Expr::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
@@ -720,20 +816,20 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
     if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &substs[..] {
         (boxed, alloc)
     } else {
-        panic!("invalid generic arguments for box");
+        bug!("invalid generic arguments for box");
     }
 }
 
 impl_internable!(
-    RefineArgsData,
     AdtDefData,
     TyS,
     [Ty],
     [GenericArg],
     [Field],
     [Constraint],
-    [RefineArg],
     [InferMode],
+    [TupleTree<bool>],
+    [Sort]
 );
 
 #[macro_export]
@@ -762,11 +858,19 @@ pub use crate::_Bool as Bool;
 
 #[macro_export]
 macro_rules! _Float {
-    ($float_ty:pat, $idxs:pat) => {
-        TyKind::Indexed(BaseTy::Float($float_ty), $idxs)
+    ($float_ty:pat) => {
+        TyKind::Indexed(BaseTy::Float($float_ty), _)
     };
 }
 pub use crate::_Float as Float;
+
+#[macro_export]
+macro_rules! _Ref {
+    ($rk:pat, $ty:pat) => {
+        TyKind::Indexed(BaseTy::Ref($rk, $ty), _)
+    };
+}
+pub use crate::_Ref as Ref;
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
@@ -774,71 +878,74 @@ mod pretty {
     use super::*;
     use crate::pretty::*;
 
-    impl<T> Pretty for Binders<T>
+    impl<T> Pretty for Binder<T>
     where
         T: Pretty,
     {
         default fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.params.is_empty() {
-                w!("for<{}> ",
-                    ^self.params.iter().format_with(", ", |sort, f| {
-                        f(&format_args_cx!("{:?}", ^sort))
-                    })
-                )?;
-            }
-            w!("{:?}", &self.value)
+            w!("for<{:?}> {:?}", &self.sort, &self.value)
         }
     }
 
     impl Pretty for Sort {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            std::fmt::Display::fmt(self, f)
-        }
-    }
-
-    impl Pretty for Binders<Expr> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("|{:?}| {:?}", join!(", ", &self.params), &self.value)
+            match self {
+                Sort::Bool => w!("bool"),
+                Sort::Int => w!("int"),
+                Sort::Real => w!("real"),
+                Sort::Loc => w!("loc"),
+                Sort::Func(sort) => w!("{:?}", sort),
+                Sort::Tuple(sorts) => {
+                    if let [sort] = &sorts[..] {
+                        w!("({:?},)", sort)
+                    } else {
+                        w!("({:?})", join!(", ", sorts))
+                    }
+                }
+                Sort::User(name) => w!("{}", ^name),
+            }
         }
     }
 
-    impl<T> std::fmt::Debug for Binders<T>
+    impl Pretty for FuncSort {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?} -> {:?}", self.input(), self.output())
+        }
+    }
+
+    impl Pretty for Binder<Expr> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("|{:?}| {:?}", &self.sort, &self.value)
+        }
+    }
+
+    impl<T> std::fmt::Debug for Binder<T>
     where
         T: std::fmt::Debug,
     {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            if !self.params.is_empty() {
-                write!(
-                    f,
-                    "for<{}> ",
-                    self.params
-                        .iter()
-                        .format_with(", ", |sort, f| { f(&format_args_cx!("{:?}", ^sort)) })
-                )?;
-            }
-            write!(f, "{:?}", self.value)
+            write!(f, "for<{:?}> {:?}", self.sort, self.value)
         }
     }
 
     impl Pretty for PolySig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            if !self.fn_sig.params.is_empty() {
+            let sorts = self.fn_sig.sort.expect_tuple();
+            if !sorts.is_empty() {
                 write!(
                     f,
                     "forall<{}> ",
-                    self.fn_sig
-                        .params
-                        .iter()
-                        .enumerate()
-                        .format_with(", ", |(i, sort), f| {
-                            match self.modes[i] {
-                                InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
-                                InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
-                            }
-                        })
+                    sorts.iter().enumerate().format_with(", ", |(i, sort), f| {
+                        match self.modes[i] {
+                            InferMode::KVar => f(&format_args_cx!("${:?}", ^sort)),
+                            InferMode::EVar => f(&format_args_cx!("?{:?}", ^sort)),
+                        }
+                    })
                 )?;
             }
             w!("{:?}", &self.fn_sig.value)
@@ -862,15 +969,15 @@ mod pretty {
         }
     }
 
-    impl Pretty for Binders<FnOutput> {
+    impl Pretty for Binder<FnOutput> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!(
-                "exists<{:?}> {:?}; [{:?}]",
-                join!(", ", self.params()),
-                &self.value.ret,
-                join!(", ", &self.value.ensures)
-            )
+            let sorts = self.sort.expect_tuple();
+            w!("exists<{:?}> {:?}", join!(", ", sorts), &self.value.ret)?;
+            if !self.value.ensures.is_empty() {
+                w!("; [{:?}]", join!(", ", &self.value.ensures))?;
+            }
+            Ok(())
         }
     }
 
@@ -888,28 +995,23 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self.kind() {
-                TyKind::Indexed(bty, idxs) => {
+                TyKind::Indexed(bty, idx) => {
                     w!("{:?}", bty)?;
-                    if !cx.hide_refinements && !idxs.args().is_empty() {
-                        w!("[{:?}]", idxs)?;
+                    if !cx.hide_refinements && !bty.sort().is_unit() {
+                        w!("[{:?}]", idx)?;
                     }
                     Ok(())
                 }
-                TyKind::Exists(Binders { params, value: ty }) => {
+                TyKind::Exists(Binder { sort, value: ty }) => {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        w!("{{[{:?}]. {:?}}}", join!(", ", params), ty)
+                        w!("∃{:?}. {:?}", sort, ty)
                     }
                 }
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
-                TyKind::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
-                TyKind::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
                 TyKind::Param(param) => w!("{}", ^param),
-                TyKind::Tuple(tys) => w!("({:?})", join!(", ", tys)),
-                TyKind::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
-                TyKind::Never => w!("!"),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => {
                     if cx.hide_refinements {
@@ -938,32 +1040,37 @@ mod pretty {
         }
     }
 
-    impl Pretty for RefineArgs {
+    impl Pretty for Index {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(
-                "{}",
-                ^self.args()
-                    .iter()
-                    .enumerate()
-                    .format_with(", ", |(i, arg), f| {
-                        if cx.show_is_binder && self.is_binder(i) {
-                            f(&format_args_cx!("@{:?}", arg))
-                        } else {
-                            f(&format_args_cx!("{:?}", arg))
+            fn go(
+                cx: &PPrintCx,
+                f: &mut fmt::Formatter<'_>,
+                is_binder: &TupleTree<bool>,
+                expr: &Expr,
+            ) -> fmt::Result {
+                define_scoped!(cx, f);
+                match (is_binder, expr.kind()) {
+                    (TupleTree::Tuple(is_binder), ExprKind::Tuple(es)) => {
+                        debug_assert_eq!(is_binder.len(), es.len());
+                        w!("(")?;
+                        for (is_binder, e) in iter::zip(is_binder, es) {
+                            go(cx, f, is_binder, e)?;
+                            w!(", ")?;
                         }
-                    })
-            )
-        }
-    }
-
-    impl Pretty for RefineArg {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            match self {
-                RefineArg::Expr(e) => w!("{:?}", e),
-                RefineArg::Abs(abs) => w!("{:?}", abs),
+                        w!(")")?;
+                    }
+                    (TupleTree::Leaf(is_binder), _) => {
+                        if *is_binder {
+                            w!("@{:?}", expr)?;
+                        } else {
+                            w!("{:?}", expr)?;
+                        }
+                    }
+                    _ => bug!("{is_binder:?} {expr:?}"),
+                }
+                Ok(())
             }
+            go(cx, f, &self.is_binder, &self.expr)
         }
     }
 
@@ -971,21 +1078,34 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                BaseTy::Int(int_ty) => w!("{}", ^int_ty.name_str())?,
-                BaseTy::Uint(uint_ty) => w!("{}", ^uint_ty.name_str())?,
-                BaseTy::Bool => w!("bool")?,
-                BaseTy::Str => w!("str")?,
-                BaseTy::Char => w!("char")?,
-                BaseTy::Adt(adt_def, _) => w!("{:?}", adt_def.def_id())?,
-                BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str())?,
-                BaseTy::Slice(ty) => w!("[{:?}]", ty)?,
-                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty)?,
-                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty)?,
+                BaseTy::Int(int_ty) => w!("{}", ^int_ty.name_str()),
+                BaseTy::Uint(uint_ty) => w!("{}", ^uint_ty.name_str()),
+                BaseTy::Bool => w!("bool"),
+                BaseTy::Str => w!("str"),
+                BaseTy::Char => w!("char"),
+                BaseTy::Adt(adt_def, substs) => {
+                    w!("{:?}", adt_def.def_id())?;
+                    if !substs.is_empty() {
+                        w!("<{:?}>", join!(", ", substs))?;
+                    }
+                    Ok(())
+                }
+                BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
+                BaseTy::Slice(ty) => w!("[{:?}]", ty),
+                BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
+                BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
+                BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
+                BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
+                BaseTy::Tuple(tys) => {
+                    if let [ty] = &tys[..] {
+                        w!("({:?},)", ty)
+                    } else {
+                        w!("({:?})", join!(", ", tys))
+                    }
+                }
+                BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
+                BaseTy::Never => w!("!"),
             }
-            if let BaseTy::Adt(_, args) = self && !args.is_empty() {
-                w!("<{:?}>", join!(", ", args))?;
-            }
-            Ok(())
         }
     }
 
@@ -1004,7 +1124,7 @@ mod pretty {
             define_scoped!(cx, f);
 
             match self {
-                Var::Bound(bvar) => w!("{:?}", bvar),
+                Var::Bound(bvar) => w!("{:?}", ^bvar),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
             }
@@ -1018,126 +1138,17 @@ mod pretty {
         }
     }
 
-    impl Pretty for VariantRet {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(f, "{:?}", self.to_ty())
-        }
-    }
-
     impl_debug_with_default_cx!(
         Constraint,
+        Sort,
         TyS => "ty",
         PolySig,
         BaseTy,
         FnSig,
         GenericArg,
-        RefineArg,
-        RefineArgs,
+        Index,
         VariantDef,
         PtrKind,
-        Binders<FnOutput>
+        Binder<FnOutput>,
     );
-}
-
-impl Defns {
-    pub fn new(defns: FxHashMap<Symbol, Defn>) -> Result<Self, Vec<Symbol>> {
-        let raw = Defns { defns };
-        raw.normalize()
-    }
-
-    fn defn_deps(&self, expr: &Binders<Expr>) -> HashSet<Symbol> {
-        struct Deps<'a>(&'a mut HashSet<Symbol>);
-        impl<'a> TypeFolder for Deps<'a> {
-            fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::App(func, _) = expr.kind()
-                   && let Func::Uif(sym) = func
-                {
-                    self.0.insert(*sym);
-                }
-                expr.super_fold_with(self)
-            }
-        }
-        let mut e_deps = HashSet::new();
-        expr.fold_with(&mut Deps(&mut e_deps));
-        e_deps
-    }
-
-    /// Returns
-    /// * either Ok(d1...dn) which are topologically sorted such that
-    ///   forall i < j, di does not depend on i.e. "call" dj
-    /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-    fn sorted_defns(&self) -> Result<Vec<Symbol>, Vec<Symbol>> {
-        // 1. Make the Symbol-Index
-        let mut i2s: Vec<Symbol> = Vec::new();
-        let mut s2i: FxHashMap<Symbol, usize> = FxHashMap::default();
-        for (i, s) in self.defns.keys().enumerate() {
-            i2s.push(*s);
-            s2i.insert(*s, i);
-        }
-
-        // 2. Make the dependency graph
-        let mut adj_list: Vec<Vec<usize>> = vec![];
-        for name in i2s.iter() {
-            let defn = self.defns.get(name).unwrap();
-            let deps = self.defn_deps(&defn.expr);
-            let ddeps: Vec<usize> = deps
-                .iter()
-                .filter_map(|s| s2i.get(s).copied())
-                .collect_vec();
-            adj_list.push(ddeps);
-        }
-        let mut g = IndexGraph::from_adjacency_list(&adj_list);
-        g.transpose();
-
-        // 3. Topologically sort the graph
-        match g.toposort_or_scc() {
-            Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
-            Err(mut scc) => {
-                let cycle = scc.pop().unwrap();
-                Err(cycle.iter().map(|i| i2s[*i]).collect())
-            }
-        }
-    }
-
-    // private function normalize (expand_defns) which does the SCC-expansion
-    fn normalize(mut self) -> Result<Self, Vec<Symbol>> {
-        // 1. Topologically sort the Defns
-        let ds = self.sorted_defns()?;
-
-        // 2. Expand each defn in the sorted order
-        let mut exp_defns = Defns { defns: FxHashMap::default() };
-        for d in ds {
-            if let Some(defn) = self.defns.remove(&d) {
-                let expr = defn.expr.normalize(&exp_defns);
-                let exp_defn = Defn { expr, ..defn };
-                exp_defns.defns.insert(d, exp_defn);
-            }
-        }
-        Ok(exp_defns)
-    }
-
-    fn func_defn(&self, f: &Symbol) -> Option<&Defn> {
-        if let Some(defn) = self.defns.get(f) {
-            return Some(defn);
-        }
-        None
-    }
-
-    fn expand_defn(defn: &Defn, args: List<Expr>) -> Expr {
-        let args = args
-            .iter()
-            .map(|e| RefineArg::Expr(e.clone()))
-            .collect_vec();
-        defn.expr.replace_bvars(&args)
-    }
-
-    // expand a particular app if there is a known defn for it
-    pub fn app(&self, func: &Symbol, args: List<Expr>) -> Expr {
-        if let Some(defn) = self.func_defn(func) {
-            Self::expand_defn(defn, args)
-        } else {
-            Expr::app(Func::Uif(*func), args)
-        }
-    }
 }

@@ -1,4 +1,5 @@
-use flux_common::{cache::QueryCache, config, dbg, iter::IterExt};
+use flux_common::{cache::QueryCache, dbg, iter::IterExt};
+use flux_config as config;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
 use flux_metadata::CStore;
@@ -53,7 +54,7 @@ impl Callbacks for FluxCallbacks {
             return Compilation::Stop;
         }
 
-        queries.global_ctxt().unwrap().peek_mut().enter(|tcx| {
+        queries.global_ctxt().unwrap().enter(|tcx| {
             if !is_tool_registered(tcx) {
                 return;
             }
@@ -88,12 +89,6 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         tracing::info!("Callbacks::check_wf");
 
         let mut genv = GlobalEnv::new(early_cx)?;
-        // Assert behavior from Crate config
-        // TODO(atgeller) rest of settings from crate config
-        if let Some(crate_config) = specs.crate_config {
-            let assert_behavior = crate_config.check_asserts;
-            genv.register_assert_behavior(assert_behavior);
-        }
 
         let mut ck = CrateChecker::new(&mut genv, specs.ignores);
 
@@ -169,7 +164,29 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         match self.genv.tcx.def_kind(def_id.to_def_id()) {
             DefKind::Fn | DefKind::AssocFn => self.check_fn(def_id),
-            DefKind::Enum | DefKind::Struct => self.check_adt_invariants(def_id),
+            DefKind::Enum => {
+                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let enum_def = self.genv.map().get_enum(def_id);
+                refineck::invariants::check_invariants(
+                    self.genv,
+                    &mut self.cache,
+                    &enum_def.invariants,
+                    &adt_def,
+                )
+            }
+            DefKind::Struct => {
+                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let struct_def = self.genv.map().get_struct(def_id);
+                if struct_def.is_opaque() {
+                    return Ok(());
+                }
+                refineck::invariants::check_invariants(
+                    self.genv,
+                    &mut self.cache,
+                    &struct_def.invariants,
+                    &adt_def,
+                )
+            }
             _ => Ok(()),
         }
     }
@@ -197,19 +214,19 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             )
             .unwrap();
         }
+        if config::dump_rty() {
+            let def_id = def_id.to_def_id();
+            let fn_sig = self
+                .genv
+                .lookup_fn_sig(def_id)
+                .unwrap_or_else(|_| panic!("no fn sig for {def_id:?}"));
+            dbg::dump_item_info(self.genv.tcx, def_id, "rty", &fn_sig).unwrap();
+        }
 
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
 
         refineck::check_fn(self.genv, &mut self.cache, def_id.to_def_id(), &body)
-    }
-
-    fn check_adt_invariants(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        let adt_def = self.genv.adt_def(def_id.to_def_id());
-        if adt_def.is_opaque() {
-            return Ok(());
-        }
-        refineck::invariants::check_invariants(self.genv, &mut self.cache, &adt_def)
     }
 }
 
@@ -263,14 +280,8 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(
-                early_cx,
-                def_id.to_def_id(),
-                refined_by,
-                &def.invariants,
-                def.opaque,
-            )?;
-            early_cx.map.insert_adt(*def_id, adt_def);
+            let adt_def = desugar::desugar_refined_by(early_cx, *def_id, refined_by)?;
+            early_cx.map.insert_refined_by(*def_id, adt_def);
             Ok(())
         })
         .err()
@@ -280,14 +291,22 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|(def_id, def)| {
             let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_adt_def(
-                early_cx,
-                def_id.to_def_id(),
-                refined_by,
-                &def.invariants,
-                false,
-            )?;
-            early_cx.map.insert_adt(*def_id, adt_def);
+            let adt_def = desugar::desugar_refined_by(early_cx, *def_id, refined_by)?;
+            early_cx.map.insert_refined_by(*def_id, adt_def);
+            Ok(())
+        })
+        .err()
+        .or(err);
+    err = specs
+        .aliases
+        .iter()
+        .try_for_each_exhaust(|(def_id, alias)| {
+            let adt_def = if let Some(alias) = alias {
+                desugar::desugar_refined_by(early_cx, *def_id, &alias.refined_by)?
+            } else {
+                fhir::lift::lift_refined_by(early_cx, *def_id)
+            };
+            early_cx.map.insert_refined_by(*def_id, adt_def);
             Ok(())
         })
         .err()
@@ -323,7 +342,22 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .err()
         .or(err);
 
-    // Variants
+    // Aliases
+    err = std::mem::take(&mut specs.aliases)
+        .into_iter()
+        .try_for_each_exhaust(|(def_id, alias)| {
+            let alias = if let Some(alias) = alias {
+                desugar::desugar_type_alias(early_cx, def_id, alias)?
+            } else {
+                fhir::lift::lift_type_alias(early_cx, def_id)?
+            };
+            early_cx.map.insert_type_alias(def_id, alias);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
+    // Structs
     err = std::mem::take(&mut specs.structs)
         .into_iter()
         .try_for_each_exhaust(|(def_id, struct_def)| {
@@ -335,6 +369,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .err()
         .or(err);
 
+    // Enums
     err = std::mem::take(&mut specs.enums)
         .into_iter()
         .try_for_each_exhaust(|(def_id, enum_def)| {
@@ -347,18 +382,21 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .or(err);
 
     // FnSigs
-    let aliases = std::mem::take(&mut specs.aliases);
     err = std::mem::take(&mut specs.fns)
         .into_iter()
         .try_for_each_exhaust(|(def_id, spec)| {
             if spec.trusted {
                 early_cx.map.add_trusted(def_id);
             }
-            if let Some(fn_sig) = spec.fn_sig {
-                let fn_sig = surface::expand::expand_sig(&aliases, fn_sig)?;
-                let fn_sig = desugar::desugar_fn_sig(early_cx, def_id, fn_sig)?;
-                early_cx.map.insert_fn_sig(def_id, fn_sig);
+            let fn_sig = if let Some(fn_sig) = spec.fn_sig {
+                desugar::desugar_fn_sig(early_cx, def_id, fn_sig)?
+            } else {
+                fhir::lift::lift_fn_sig(early_cx, def_id)?
+            };
+            if config::dump_fhir() {
+                dbg::dump_item_info(early_cx.tcx, def_id.to_def_id(), "fhir", &fn_sig).unwrap();
             }
+            early_cx.map.insert_fn_sig(def_id, fn_sig);
             if let Some(quals) = spec.qual_names {
                 early_cx.map.insert_fn_quals(def_id, quals.names);
             }
@@ -381,19 +419,16 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
         err = Wf::check_defn(early_cx, defn).err().or(err);
     }
 
-    for adt_def in early_cx.map.adts() {
-        err = Wf::check_adt_def(early_cx, adt_def).err().or(err);
-    }
-
     for qualifier in early_cx.map.qualifiers() {
         err = Wf::check_qualifier(early_cx, qualifier).err().or(err);
     }
 
+    for alias in early_cx.map.type_aliases() {
+        err = Wf::check_alias(early_cx, alias).err().or(err);
+    }
+
     for struct_def in early_cx.map.structs() {
-        let refined_by = &early_cx.map.adt(struct_def.def_id).refined_by;
-        err = Wf::check_struct_def(early_cx, refined_by, struct_def)
-            .err()
-            .or(err);
+        err = Wf::check_struct_def(early_cx, struct_def).err().or(err);
     }
 
     for enum_def in early_cx.map.enums() {

@@ -11,7 +11,7 @@ fn foo(x: i32, y: i32) -> i32 {
     x + y
 }
 
-#[flux::sig(fn(i32[foo(10,20,30)]))] //~ ERROR this function takes 2 refinement parameters
+#[flux::sig(fn(i32[foo(10,20,30)]))] //~ ERROR this function takes 2 refinement arguments
 fn bar(a: i32) {
     return;
 }

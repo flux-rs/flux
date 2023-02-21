@@ -7,6 +7,7 @@ version = "0.1.0"
 
 [dependencies]
 flux-common = { path = "../flux-common" }
+flux-config = { path = "../flux-config" }
 flux-desugar = { path = "../flux-desugar" }
 flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }

@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns, let_chains)]
+#![feature(rustc_private, box_patterns, let_chains, type_alias_impl_trait)]
 
 extern crate flux_errors;
 extern crate rustc_ast;
@@ -41,8 +41,8 @@ pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface:
     parse!(surface_grammar::RefinedByParser, tokens, span)
 }
 
-pub fn parse_type_alias(tokens: TokenStream, span: Span) -> ParseResult<surface::Alias> {
-    parse!(surface_grammar::AliasParser, tokens, span)
+pub fn parse_type_alias(tokens: TokenStream, span: Span) -> ParseResult<surface::TyAlias> {
+    parse!(surface_grammar::TyAliasParser, tokens, span)
 }
 
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
@@ -61,7 +61,7 @@ pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
     parse!(surface_grammar::TyParser, tokens, span)
 }
 
-pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantDef> {
+pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantData> {
     parse!(surface_grammar::VariantParser, tokens, span)
 }
 

@@ -6,7 +6,8 @@
     let_chains,
     type_alias_impl_trait,
     box_patterns,
-    drain_filter
+    drain_filter,
+    result_option_inspect
 )]
 ///! Refinement type checking
 extern crate rustc_data_structures;
@@ -32,12 +33,15 @@ mod sigs;
 
 use checker::Checker;
 use constraint_gen::{ConstrReason, Tag};
-use flux_common::{cache::QueryCache, config, dbg};
+use flux_common::{cache::QueryCache, dbg};
+use flux_config as config;
 use flux_errors::ResultExt;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
+
+use crate::refine_tree::RefineTree;
 
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
@@ -51,8 +55,9 @@ pub fn check_fn<'tcx>(
         tracing::info!("Checker::infer");
 
         let mut kvars = fixpoint::KVarStore::new();
-        let mut refine_tree =
-            Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
+        let mut refine_tree = RefineTree::new();
+        Checker::check(genv, body, def_id, refine_tree.as_subtree(), &mut kvars, bb_envs)
+            .emit(genv.sess)?;
 
         tracing::info!("Checker::check");
 
@@ -62,11 +67,11 @@ pub fn check_fn<'tcx>(
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
 
-        let mut fcx = fixpoint::FixpointCtxt::new(genv, kvars);
+        let mut fcx = fixpoint::FixpointCtxt::new(genv, def_id, kvars);
 
         let constraint = refine_tree.into_fixpoint(&mut fcx);
 
-        let result = match fcx.check(cache, def_id, constraint) {
+        let result = match fcx.check(cache, constraint) {
             Ok(_) => Ok(()),
             Err(tags) => report_errors(genv, tags),
         };

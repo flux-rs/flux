@@ -6,7 +6,7 @@
     fn bat(x: int) -> int  { 0 <= x } //~ ERROR mismatched sorts
 }]
 
-#[flux::sig(fn(x:i32{nat(x)}) -> i32{v:nat(v, v)})] //~ ERROR this function takes 1 refinement parameters but 2 were found
+#[flux::sig(fn(x:i32{nat(x)}) -> i32{v:nat(v, v)})] //~ ERROR this function takes 1 refinement argument but 2 were found
 pub fn test1(x: i32) -> i32 {
     x + 1
 }

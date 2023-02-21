@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
-    slice,
 };
 
 use bitflags::bitflags;
@@ -10,7 +9,7 @@ use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
-    fold::{TypeFoldable, TypeVisitor},
+    fold::{TypeFoldable, TypeFolder, TypeVisitor},
     BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
@@ -20,11 +19,32 @@ use crate::{
     fixpoint::{sort_to_fixpoint, FixpointCtxt, TagIdx},
 };
 
-/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables
-/// and predicates generated during type-checking. The tree can then be converted into
-/// a horn constraint which implies the safety of a program. Rather than constructing the
-/// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`].
-pub struct RefineTree {
+/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
+/// generated during type-checking. After type-checking, the tree can be converted into a fixpoint
+/// constraint which implies the safety of a function.
+///
+/// We try to hide the representation of the tree as much as possible and only a couple of operations
+/// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
+/// implicitly via a restricted api provided by [`RefineCtxt`]. Some methods operate on *nodes* of
+/// the tree which we try to keep abstract, but it is important to remember that there's an underlying
+/// tree.
+///
+/// The current implementation uses [`Rc`] and [`RefCell`] to represent the tree, but we ensure
+/// statically that the [`RefineTree`] is the single owner of the data and require a mutable reference
+/// to it for all mutations, i.e., we could in theory replace the [`RefCell`] with an [`UnsafeCell`]
+/// (or a [`GhostCell`]).
+///
+/// [`UnsafeCell`]: std::cell::UnsafeCell
+/// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
+pub(crate) struct RefineTree {
+    root: NodePtr,
+}
+
+/// A reference to a subtree rooted at a particular node in a [refinement tree].
+///
+/// [refinement tree]: RefineTree
+pub(crate) struct RefineSubtree<'a> {
+    tree: &'a mut RefineTree,
     root: NodePtr,
 }
 
@@ -41,22 +61,29 @@ pub struct RefineTree {
 ///
 /// At the beginning of the function, the refinement context will be `{a0: int, a1: int, a1 > a0}`,
 /// where `a1` is a freshly generated name for the existential variable in the refinement of `y`.
-pub struct RefineCtxt<'a> {
-    _tree: &'a mut RefineTree,
+///
+/// More specifically, a [`RefineCtxt`] represents a path from the root to some internal node in a
+/// [refinement tree].
+///
+/// [refinement tree]: RefineTree
+pub(crate) struct RefineCtxt<'a> {
+    tree: &'a mut RefineTree,
     ptr: NodePtr,
 }
 
-/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Snapshots
-/// may become invalid when a refinement context is [`cleared`].
+/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Alternatively, a
+/// snapshot correponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
+/// if the underlying node is [`cleared`].
 ///
-/// [`cleared`]: RefineTree::clear
-pub struct Snapshot {
+/// [`cleared`]: RefineSubtree::clear
+/// [refinement tree]: RefineTree
+pub(crate) struct Snapshot {
     ptr: WeakNodePtr,
 }
 
 /// A ist of refinement variables and their sorts.
 #[derive(PartialEq, Eq)]
-pub struct Scope {
+pub(crate) struct Scope {
     bindings: IndexVec<Name, Sort>,
 }
 
@@ -76,6 +103,7 @@ struct WeakNodePtr(Weak<RefCell<Node>>);
 
 enum NodeKind {
     Conj,
+    Comment(String),
     ForAll(Name, Sort),
     Guard(Expr),
     Head(Expr, Tag),
@@ -83,159 +111,185 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new() -> RefineTree {
+    pub(crate) fn new() -> RefineTree {
         let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
 
-    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), _tree: self }
+    pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
+        RefineSubtree { root: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 
-    pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, _tree: self })
-    }
-
-    #[allow(clippy::unused_self)]
-    pub fn clear(&mut self, snapshot: &Snapshot) {
-        if let Some(ptr) = snapshot.ptr.upgrade() {
-            ptr.borrow_mut().children.clear();
-        }
-    }
-
-    pub fn simplify(&mut self) {
+    pub(crate) fn simplify(&mut self) {
         self.root.borrow_mut().simplify();
     }
 
-    pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
+    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
         self.root
             .borrow()
             .to_fixpoint(cx)
             .unwrap_or(fixpoint::Constraint::TRUE)
     }
+
+    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
+    }
+}
+
+impl<'a> RefineSubtree<'a> {
+    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self.tree }
+    }
+
+    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
+    }
+
+    #[allow(clippy::unused_self)]
+    pub(crate) fn clear(&mut self, snapshot: &Snapshot) {
+        if let Some(ptr) = snapshot.ptr.upgrade() {
+            ptr.borrow_mut().children.clear();
+        }
+    }
 }
 
 impl RefineCtxt<'_> {
-    pub fn breadcrumb(&mut self) -> RefineCtxt {
-        RefineCtxt { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
+    #[allow(unused)]
+    pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
+        RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
     }
 
-    pub fn snapshot(&self) -> Snapshot {
+    pub(crate) fn snapshot(&self) -> Snapshot {
         Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }
 
-    pub fn scope(&self) -> Scope {
+    #[must_use]
+    pub(crate) fn branch(&mut self) -> RefineCtxt {
+        RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
+    }
+
+    pub(crate) fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
+    }
+
+    #[must_use]
+    pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {
+        let ptr = self.ptr.push_node(NodeKind::Comment(comment.to_string()));
+        RefineCtxt { tree: self.tree, ptr }
     }
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
     /// generated name for the variable.
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.ptr.push_foralls(slice::from_ref(sort)).pop().unwrap()
+    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+        let fresh = self.ptr.name_gen().fresh();
+        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        fresh
     }
 
-    pub fn define_vars(&mut self, sorts: &[Sort]) -> Vec<Name> {
-        self.ptr.push_foralls(sorts)
+    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
+        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
-    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.ptr.push_guard(pred);
     }
 
-    pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }
 
-    pub fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
             .push_node(NodeKind::Guard(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    fn unpack_bty(&mut self, bty: &BaseTy, inside_mut_ref: bool, flags: UnpackFlags) -> BaseTy {
-        match bty {
-            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let (boxed, alloc) = box_args(substs);
-                let boxed = if flags.contains(UnpackFlags::SHALLOW) {
-                    boxed.clone()
-                } else {
-                    self.unpack_inner(boxed, inside_mut_ref, flags)
-                };
-                BaseTy::adt(
-                    adt_def.clone(),
-                    vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
-                )
-            }
-            _ => bty.clone(),
+    pub(crate) fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
+        struct Unpacker<'a, 'rcx> {
+            rcx: &'a mut RefineCtxt<'rcx>,
+            in_mut_ref: bool,
+            flags: UnpackFlags,
         }
-    }
 
-    fn unpack_inner(&mut self, ty: &Ty, in_mut_ref: bool, flags: UnpackFlags) -> Ty {
-        match ty.kind() {
-            TyKind::Indexed(bty, idxs) => {
-                let bty = self.unpack_bty(bty, in_mut_ref, flags);
-                Ty::indexed(bty, idxs.clone())
-            }
-            TyKind::Exists(bound_ty) => {
-                // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-                // that makes the refered type too specific. We only have this as a workaround to
-                // infer parameters under mutable references and it should be removed once we implement
-                // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                if !in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                    let ty = bound_ty.replace_bvars_with_fresh_fvars(|sort| self.define_var(sort));
-                    self.unpack_inner(&ty, in_mut_ref, flags)
-                } else {
-                    ty.clone()
+        impl TypeFolder for Unpacker<'_, '_> {
+            fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                match ty.kind() {
+                    TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
+                    TyKind::Exists(bound_ty) => {
+                        // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+                        // that makes the refered type too specific. We only have this as a workaround to
+                        // infer parameters under mutable references and it should be removed once we implement
+                        // opening of mutable references. See also `ConstrGen::check_fn_call`.
+                        if !self.in_mut_ref || self.flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
+                            bound_ty
+                                .replace_bvar_with(|sort| self.rcx.define_vars(sort))
+                                .fold_with(self)
+                        } else {
+                            ty.clone()
+                        }
+                    }
+                    TyKind::Constr(pred, ty) => {
+                        self.rcx.assume_pred(pred);
+                        ty.fold_with(self)
+                    }
+                    _ => ty.clone(),
                 }
             }
-            TyKind::Constr(pred, ty) => {
-                self.assume_pred(pred);
-                self.unpack_inner(ty, in_mut_ref, flags)
+
+            fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+                if self.flags.contains(UnpackFlags::SHALLOW) {
+                    return bty.clone();
+                }
+                match bty {
+                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                        let (boxed, alloc) = box_args(substs);
+                        let boxed = boxed.fold_with(self);
+                        BaseTy::adt(
+                            adt_def.clone(),
+                            vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                        )
+                    }
+                    BaseTy::Ref(rk, ty) => {
+                        let in_mut_ref = self.in_mut_ref;
+                        self.in_mut_ref = matches!(rk, RefKind::Mut);
+                        let ty = ty.fold_with(self);
+                        self.in_mut_ref = in_mut_ref;
+                        BaseTy::Ref(*rk, ty)
+                    }
+                    BaseTy::Tuple(_) => bty.super_fold_with(self),
+                    _ => bty.clone(),
+                }
             }
-            TyKind::Ref(rk, ty) => {
-                let ty = if flags.contains(UnpackFlags::SHALLOW) {
-                    ty.clone()
-                } else {
-                    self.unpack_inner(ty, matches!(rk, RefKind::Mut), flags)
-                };
-                Ty::mk_ref(*rk, ty)
-            }
-            TyKind::Tuple(tys) => {
-                let tys = tys
-                    .iter()
-                    .map(|ty| self.unpack_inner(ty, in_mut_ref, flags))
-                    .collect_vec();
-                Ty::tuple(tys)
-            }
-            _ => ty.clone(),
         }
+        ty.fold_with(&mut Unpacker { rcx: self, in_mut_ref: false, flags })
     }
 
-    pub fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
-        self.unpack_inner(ty, false, flags)
+    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.unpack_with(ty, UnpackFlags::empty())
     }
 
-    pub fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.unpack_inner(ty, false, UnpackFlags::empty())
-    }
-
-    pub fn assume_invariants(&mut self, ty: &Ty) {
+    pub(crate) fn assume_invariants(&mut self, ty: &Ty) {
         struct Visitor<'a, 'rcx>(&'a mut RefineCtxt<'rcx>);
         impl TypeVisitor for Visitor<'_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) {
-                if let BaseTy::Adt(adt_def, substs) = bty && adt_def.is_box() {
-                    substs.visit_with(self);
+                match bty {
+                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                        substs.visit_with(self);
+                    }
+                    BaseTy::Ref(_, ty) => ty.visit_with(self),
+                    BaseTy::Tuple(tys) => tys.visit_with(self),
+                    _ => {}
                 }
             }
 
             fn visit_ty(&mut self, ty: &Ty) {
-                if let TyKind::Indexed(bty, idxs) = ty.kind() {
+                if let TyKind::Indexed(bty, idx) = ty.kind() {
                     for invariant in bty.invariants() {
-                        let invariant = invariant.pred.replace_bvars(idxs.args());
+                        let invariant = invariant.pred.replace_bvar(&idx.expr);
                         self.0.assume_pred(invariant);
                     }
                 }
@@ -247,7 +301,7 @@ impl RefineCtxt<'_> {
         ty.visit_with(&mut Visitor(self));
     }
 
-    pub fn replace_evars(&mut self, evars: &EVarSol) {
+    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
     }
 }
@@ -256,7 +310,7 @@ impl Snapshot {
     /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
     ///
     /// [`scope`]: Scope
-    pub fn scope(&self) -> Option<Scope> {
+    pub(crate) fn scope(&self) -> Option<Scope> {
         let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
@@ -276,23 +330,23 @@ impl Snapshot {
 }
 
 impl Scope {
-    pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
             .map(|(name, sort)| (name, sort.clone()))
     }
 
     /// A generator of fresh names in this scope.
-    pub fn name_gen(&self) -> IndexGen<Name> {
+    pub(crate) fn name_gen(&self) -> IndexGen<Name> {
         IndexGen::skipping(self.bindings.len())
     }
 
-    pub fn contains(&self, name: Name) -> bool {
+    pub(crate) fn contains(&self, name: Name) -> bool {
         name.index() < self.bindings.len()
     }
 
     /// Whether `t` has any free variables not in this scope
-    pub fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
+    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())
     }
 
@@ -311,17 +365,6 @@ impl NodePtr {
         if !pred.is_trivially_true() {
             *self = self.push_node(NodeKind::Guard(pred));
         }
-    }
-
-    fn push_foralls(&mut self, sorts: &[Sort]) -> Vec<Name> {
-        let name_gen = self.name_gen();
-        let mut names = vec![];
-        for sort in sorts {
-            let fresh = name_gen.fresh();
-            names.push(fresh);
-            *self = self.push_node(NodeKind::ForAll(fresh, sort.clone()));
-        }
-        names
     }
 
     fn name_gen(&self) -> IndexGen<Name> {
@@ -397,12 +440,13 @@ impl Node {
                         || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
                 });
             }
-            NodeKind::Conj | NodeKind::ForAll(..) => {
+            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) => {
                 self.children
                     .drain_filter(|child| matches!(&child.borrow().kind, NodeKind::True));
             }
         }
-        if !self.is_leaf() && self.children.is_empty() {
+        if !self.is_leaf() && self.children.is_empty() && !matches!(self.kind, NodeKind::Comment(_))
+        {
             self.kind = NodeKind::True;
         }
     }
@@ -420,13 +464,13 @@ impl Node {
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
-            NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
+            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
         match &self.kind {
-            NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::ForAll(name, sort) => {
@@ -591,11 +635,22 @@ mod pretty {
         }
     }
 
+    impl Pretty for RefineSubtree<'_> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?}", &self.root)
+        }
+    }
+
     impl Pretty for NodePtr {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
+                NodeKind::Comment(comment) => {
+                    w!("@ {}", ^comment)?;
+                    w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
+                }
                 NodeKind::Conj => {
                     let nodes = flatten_conjs(slice::from_ref(self));
                     w!("{:?}", join!("\n", nodes))
@@ -711,5 +766,10 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(RefineTree => "refine_tree", RefineCtxt<'_> => "refine_ctxt", Scope);
+    impl_debug_with_default_cx!(
+        RefineTree => "refine_tree",
+        RefineSubtree<'_> => "refine_subtree",
+        RefineCtxt<'_> => "refine_ctxt",
+        Scope,
+    );
 }
