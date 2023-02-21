@@ -460,9 +460,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy<Res>) -> Result<BtyOrTy, ErrorGuaranteed> {
-        let bty = match bty {
-            surface::BaseTy::Path(path) => self.desugar_path(path)?,
-            surface::BaseTy::Slice(ty) => {
+        let bty = match &bty.kind {
+            surface::BaseTyKind::Path(path) => self.desugar_path(path)?,
+            surface::BaseTyKind::Slice(ty) => {
                 let bty = fhir::BaseTy::Slice(Box::new(self.desugar_ty(None, ty)?));
                 BtyOrTy::Bty(bty)
             }
@@ -938,9 +938,11 @@ impl Binders {
         bty: &surface::BaseTy<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
-        match bty {
-            surface::BaseTy::Path(path) => self.gather_params_path(early_cx, path, pos),
-            surface::BaseTy::Slice(ty) => self.gather_params_ty(early_cx, None, ty, TypePos::Other),
+        match &bty.kind {
+            surface::BaseTyKind::Path(path) => self.gather_params_path(early_cx, path, pos),
+            surface::BaseTyKind::Slice(ty) => {
+                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
+            }
         }
     }
 
@@ -1091,16 +1093,18 @@ impl Binder {
     }
 
     fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
-        match bty {
-            surface::BaseTy::Path(path) => Binder::from_res(name_gen, path.res),
-            surface::BaseTy::Slice(_) => Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true),
+        match &bty.kind {
+            surface::BaseTyKind::Path(path) => Binder::from_res(name_gen, path.res),
+            surface::BaseTyKind::Slice(_) => {
+                Binder::Refined(name_gen.fresh(), fhir::Sort::Int, true)
+            }
         }
     }
 }
 
 fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [fhir::Sort] {
-    match bty {
-        surface::BaseTy::Path(path) => {
+    match &bty.kind {
+        surface::BaseTyKind::Path(path) => {
             match path.res {
                 Res::PrimTy(PrimTy::Bool) => &[fhir::Sort::Bool],
                 Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => &[fhir::Sort::Int],
@@ -1108,7 +1112,7 @@ fn index_sorts<'a>(early_cx: &'a EarlyCtxt, bty: &surface::BaseTy<Res>) -> &'a [
                 Res::PrimTy(PrimTy::Char | PrimTy::Str | PrimTy::Float(_)) | Res::Param(..) => &[],
             }
         }
-        surface::BaseTy::Slice(_) => &[fhir::Sort::Bool],
+        surface::BaseTyKind::Slice(_) => &[fhir::Sort::Bool],
     }
 }
 

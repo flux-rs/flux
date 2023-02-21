@@ -181,12 +181,6 @@ pub struct Ty<R = ()> {
 }
 
 #[derive(Debug)]
-pub enum BaseTy<R = ()> {
-    Path(Path<R>),
-    Slice(Box<Ty<R>>),
-}
-
-#[derive(Debug)]
 pub enum TyKind<R = ()> {
     /// ty
     Base(BaseTy<R>),
@@ -207,6 +201,18 @@ pub enum TyKind<R = ()> {
     Constr(Expr, Box<Ty<R>>),
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
+}
+
+#[derive(Debug)]
+pub struct BaseTy<R = ()> {
+    pub kind: BaseTyKind<R>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum BaseTyKind<R = ()> {
+    Path(Path<R>),
+    Slice(Box<Ty<R>>),
 }
 
 #[derive(Debug, Clone, Copy)]

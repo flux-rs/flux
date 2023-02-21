@@ -9,8 +9,8 @@ use flux_middle::rustc::{
     ty::{self as rustc_ty, Mutability},
 };
 use flux_syntax::surface::{
-    Arg, BaseTy, EnumDef, FnSig, Ident, Path, PrimTy, RefKind, Res, StructDef, Ty, TyKind,
-    VariantDef,
+    Arg, BaseTy, BaseTyKind, EnumDef, FnSig, Ident, Path, PrimTy, RefKind, Res, StructDef, Ty,
+    TyKind, VariantDef,
 };
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
@@ -230,9 +230,9 @@ impl<'sess, 'tcx> ZipChecker<'sess, 'tcx> {
         rust_ty: &rustc_ty::Ty,
         flux_ty_span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        match (bty, rust_ty.kind()) {
-            (BaseTy::Path(path), _) => self.zip_path(path, rust_ty),
-            (BaseTy::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
+        match (&bty.kind, rust_ty.kind()) {
+            (BaseTyKind::Path(path), _) => self.zip_path(path, rust_ty),
+            (BaseTyKind::Slice(ty), rustc_ty::TyKind::Slice(rust_ty)) => self.zip_ty(ty, rust_ty),
             _ => {
                 Err(self.sess.emit_err(errors::PathMismatch::new(
                     self.tcx,

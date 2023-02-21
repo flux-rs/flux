@@ -279,11 +279,11 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         bty: &surface::BaseTy<Res>,
         hir_ty: &hir::Ty,
     ) -> Result<(), ErrorGuaranteed> {
-        match (bty, &hir_ty.kind) {
-            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => {
+        match (&bty.kind, &hir_ty.kind) {
+            (surface::BaseTyKind::Path(path), hir::TyKind::Path(qpath)) => {
                 self.zip_path(ty.span, path, hir_ty, qpath)
             }
-            (surface::BaseTy::Slice(ty), hir::TyKind::Slice(hir_ty)) => self.zip_ty(ty, hir_ty),
+            (surface::BaseTyKind::Slice(ty), hir::TyKind::Slice(hir_ty)) => self.zip_ty(ty, hir_ty),
             _ => self.emit_err(errors::InvalidRefinement::from_hir_ty(ty.span, hir_ty)),
         }
     }
@@ -384,7 +384,8 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                 }
 
                 for (arg, param_ty2) in iter::zip(&path.generics, args) {
-                    if let surface::TyKind::Base(surface::BaseTy::Path(path )) = &arg.kind
+                    if let surface::TyKind::Base(bty) = &arg.kind
+                        && let surface::BaseTyKind::Path(path) = &bty.kind
                         && let Res::Param(param_def_id) = path.res
                         && param_def_id == param_ty2.0
                     {

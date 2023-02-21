@@ -1,6 +1,6 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Res, Ty};
 use hir::{ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -232,13 +232,14 @@ impl<'sess> Resolver<'sess> {
     }
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
-        match bty {
-            BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
-            BaseTy::Slice(ty) => {
+        let kind = match bty.kind {
+            BaseTyKind::Path(path) => BaseTyKind::Path(self.resolve_path(path)?),
+            BaseTyKind::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
-                Ok(BaseTy::Slice(Box::new(ty)))
+                BaseTyKind::Slice(Box::new(ty))
             }
-        }
+        };
+        Ok(BaseTy { kind, span: bty.span })
     }
 }
 

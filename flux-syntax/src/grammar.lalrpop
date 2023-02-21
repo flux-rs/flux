@@ -174,8 +174,16 @@ TyKind: surface::TyKind = {
 
 #[inline]
 BaseTy: surface::BaseTy = {
-    <path:Path> => surface::BaseTy::Path(path),
-    "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
+    <lo:@L> <kind:BaseTyKind> <hi:@L> => surface::BaseTy {
+        kind,
+        span: mk_span(lo, hi)
+    }
+}
+
+#[inline]
+BaseTyKind: surface::BaseTyKind = {
+    <path:Path> => surface::BaseTyKind::Path(path),
+    "[" <ty:Ty> "]" => surface::BaseTyKind::Slice(Box::new(ty)),
 }
 
 GenericArgs: Vec<surface::Ty> = {
