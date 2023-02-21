@@ -351,9 +351,6 @@ impl From<Ty> for BtyOrTy {
 }
 
 impl BaseTy {
-    /// Returns `true` if the base ty is [`Bool`].
-    ///
-    /// [`Bool`]: BaseTy::Bool
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Path(Path { res: Res::Bool, .. }))
     }

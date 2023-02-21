@@ -19,11 +19,32 @@ use crate::{
     fixpoint::{sort_to_fixpoint, FixpointCtxt, TagIdx},
 };
 
-/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables
-/// and predicates generated during type-checking. The tree can then be converted into
-/// a horn constraint which implies the safety of a program. Rather than constructing the
-/// tree explicitly, it is constructed implicitly via the manipulation of [`RefineCtxt`].
-pub struct RefineTree {
+/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
+/// generated during type-checking. After type-checking, the tree can be converted into a fixpoint
+/// constraint which implies the safety of a function.
+///
+/// We try to hide the representation of the tree as much as possible and only a couple of operations
+/// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
+/// implicitly via a restricted api provided by [`RefineCtxt`]. Some methods operate on *nodes* of
+/// the tree which we try to keep abstract, but it is important to remember that there's an underlying
+/// tree.
+///
+/// The current implementation uses [`Rc`] and [`RefCell`] to represent the tree, but we ensure
+/// statically that the [`RefineTree`] is the single owner of the data and require a mutable reference
+/// to it for all mutations, i.e., we could in theory replace the [`RefCell`] with an [`UnsafeCell`]
+/// (or a [`GhostCell`]).
+///
+/// [`UnsafeCell`]: std::cell::UnsafeCell
+/// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
+pub(crate) struct RefineTree {
+    root: NodePtr,
+}
+
+/// A reference to a subtree rooted at a particular node in a [refinement tree].
+///
+/// [refinement tree]: RefineTree
+pub(crate) struct RefineSubtree<'a> {
+    tree: &'a mut RefineTree,
     root: NodePtr,
 }
 
@@ -40,22 +61,29 @@ pub struct RefineTree {
 ///
 /// At the beginning of the function, the refinement context will be `{a0: int, a1: int, a1 > a0}`,
 /// where `a1` is a freshly generated name for the existential variable in the refinement of `y`.
-pub struct RefineCtxt<'a> {
-    _tree: &'a mut RefineTree,
+///
+/// More specifically, a [`RefineCtxt`] represents a path from the root to some internal node in a
+/// [refinement tree].
+///
+/// [refinement tree]: RefineTree
+pub(crate) struct RefineCtxt<'a> {
+    tree: &'a mut RefineTree,
     ptr: NodePtr,
 }
 
-/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Snapshots
-/// may become invalid when a refinement context is [`cleared`].
+/// A snapshot of a [`RefineCtxt`] at a particular point during type-checking. Alternatively, a
+/// snapshot correponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
+/// if the underlying node is [`cleared`].
 ///
-/// [`cleared`]: RefineTree::clear
-pub struct Snapshot {
+/// [`cleared`]: RefineSubtree::clear
+/// [refinement tree]: RefineTree
+pub(crate) struct Snapshot {
     ptr: WeakNodePtr,
 }
 
 /// A ist of refinement variables and their sorts.
 #[derive(PartialEq, Eq)]
-pub struct Scope {
+pub(crate) struct Scope {
     bindings: IndexVec<Name, Sort>,
 }
 
@@ -83,47 +111,62 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub fn new() -> RefineTree {
+    pub(crate) fn new() -> RefineTree {
         let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
 
-    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), _tree: self }
+    pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
+        RefineSubtree { root: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 
-    pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, _tree: self })
-    }
-
-    #[allow(clippy::unused_self)]
-    pub fn clear(&mut self, snapshot: &Snapshot) {
-        if let Some(ptr) = snapshot.ptr.upgrade() {
-            ptr.borrow_mut().children.clear();
-        }
-    }
-
-    pub fn simplify(&mut self) {
+    pub(crate) fn simplify(&mut self) {
         self.root.borrow_mut().simplify();
     }
 
-    pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
+    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
         self.root
             .borrow()
             .to_fixpoint(cx)
             .unwrap_or(fixpoint::Constraint::TRUE)
     }
+
+    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
+    }
+}
+
+impl<'a> RefineSubtree<'a> {
+    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self.tree }
+    }
+
+    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
+    }
+
+    #[allow(clippy::unused_self)]
+    pub(crate) fn clear(&mut self, snapshot: &Snapshot) {
+        if let Some(ptr) = snapshot.ptr.upgrade() {
+            ptr.borrow_mut().children.clear();
+        }
+    }
 }
 
 impl RefineCtxt<'_> {
-    #[must_use]
-    pub(crate) fn breadcrumb(&mut self) -> RefineCtxt {
-        RefineCtxt { _tree: self._tree, ptr: NodePtr::clone(&self.ptr) }
+    #[allow(unused)]
+    pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
+        RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {
         Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
+    }
+
+    #[must_use]
+    pub(crate) fn branch(&mut self) -> RefineCtxt {
+        RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
     pub(crate) fn scope(&self) -> Scope {
@@ -133,7 +176,7 @@ impl RefineCtxt<'_> {
     #[must_use]
     pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {
         let ptr = self.ptr.push_node(NodeKind::Comment(comment.to_string()));
-        RefineCtxt { _tree: self._tree, ptr }
+        RefineCtxt { tree: self.tree, ptr }
     }
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
@@ -165,7 +208,7 @@ impl RefineCtxt<'_> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
+    pub(crate) fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
         struct Unpacker<'a, 'rcx> {
             rcx: &'a mut RefineCtxt<'rcx>,
             in_mut_ref: bool,
@@ -225,11 +268,11 @@ impl RefineCtxt<'_> {
         ty.fold_with(&mut Unpacker { rcx: self, in_mut_ref: false, flags })
     }
 
-    pub fn unpack(&mut self, ty: &Ty) -> Ty {
+    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
         self.unpack_with(ty, UnpackFlags::empty())
     }
 
-    pub fn assume_invariants(&mut self, ty: &Ty) {
+    pub(crate) fn assume_invariants(&mut self, ty: &Ty) {
         struct Visitor<'a, 'rcx>(&'a mut RefineCtxt<'rcx>);
         impl TypeVisitor for Visitor<'_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) {
@@ -258,7 +301,7 @@ impl RefineCtxt<'_> {
         ty.visit_with(&mut Visitor(self));
     }
 
-    pub fn replace_evars(&mut self, evars: &EVarSol) {
+    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
     }
 }
@@ -267,7 +310,7 @@ impl Snapshot {
     /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
     ///
     /// [`scope`]: Scope
-    pub fn scope(&self) -> Option<Scope> {
+    pub(crate) fn scope(&self) -> Option<Scope> {
         let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
@@ -287,23 +330,23 @@ impl Snapshot {
 }
 
 impl Scope {
-    pub fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
             .map(|(name, sort)| (name, sort.clone()))
     }
 
     /// A generator of fresh names in this scope.
-    pub fn name_gen(&self) -> IndexGen<Name> {
+    pub(crate) fn name_gen(&self) -> IndexGen<Name> {
         IndexGen::skipping(self.bindings.len())
     }
 
-    pub fn contains(&self, name: Name) -> bool {
+    pub(crate) fn contains(&self, name: Name) -> bool {
         name.index() < self.bindings.len()
     }
 
     /// Whether `t` has any free variables not in this scope
-    pub fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
+    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())
     }
 
@@ -592,6 +635,13 @@ mod pretty {
         }
     }
 
+    impl Pretty for RefineSubtree<'_> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?}", &self.root)
+        }
+    }
+
     impl Pretty for NodePtr {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -716,5 +766,10 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(RefineTree => "refine_tree", RefineCtxt<'_> => "refine_ctxt", Scope, NodePtr);
+    impl_debug_with_default_cx!(
+        RefineTree => "refine_tree",
+        RefineSubtree<'_> => "refine_subtree",
+        RefineCtxt<'_> => "refine_ctxt",
+        Scope,
+    );
 }

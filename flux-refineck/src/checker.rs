@@ -38,12 +38,12 @@ use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason},
     fixpoint::{KVarEncoding, KVarStore},
-    refine_tree::{RefineCtxt, RefineTree, Snapshot},
+    refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
-pub struct Checker<'a, 'tcx, P> {
+pub(crate) struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -56,7 +56,7 @@ pub struct Checker<'a, 'tcx, P> {
     queue: WorkQueue<'a>,
 }
 
-pub trait Phase: Sized {
+pub(crate) trait Phase: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -127,11 +127,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
         def_id: DefId,
     ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, CheckerError> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
-            let mut refine_tree = RefineTree::new();
             let mut bb_envs = FxHashMap::default();
             Checker::run(
                 genv,
-                &mut refine_tree,
+                RefineTree::new().as_subtree(),
                 body,
                 def_id,
                 Inference { bb_envs: &mut bb_envs },
@@ -143,32 +142,28 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
-    pub fn check(
+    pub(crate) fn check(
         genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
+        refine_tree: RefineSubtree,
         kvars: &mut KVarStore,
         bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
-    ) -> Result<RefineTree, CheckerError> {
+    ) -> Result<(), CheckerError> {
         let bb_envs = bb_envs_infer
             .into_iter()
             .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(kvars)))
             .collect();
 
-        dbg::check_span!(genv.tcx, def_id, bb_envs).in_scope(|| {
-            let mut refine_tree = RefineTree::new();
-
-            Checker::run(genv, &mut refine_tree, body, def_id, Check { bb_envs, kvars })?;
-
-            Ok(refine_tree)
-        })
+        dbg::check_span!(genv.tcx, def_id, bb_envs)
+            .in_scope(|| Checker::run(genv, refine_tree, body, def_id, Check { bb_envs, kvars }))
     }
 }
 
 impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
-        refine_tree: &mut RefineTree,
+        mut refine_tree: RefineSubtree<'a>,
         body: &'a Body<'tcx>,
         def_id: DefId,
         phase: P,
@@ -535,7 +530,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         successors: Vec<(BasicBlock, Guard)>,
     ) -> Result<(), CheckerError> {
         for (target, guard) in successors {
-            let mut rcx = rcx.breadcrumb();
+            let mut rcx = rcx.branch();
             let mut env = env.clone();
             match guard {
                 Guard::None => {}

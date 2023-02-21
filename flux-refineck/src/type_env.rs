@@ -62,7 +62,7 @@ impl TypeEnv {
             .insert(local.into(), Ty::uninit(), LocKind::Local);
     }
 
-    pub fn into_infer(
+    pub(crate) fn into_infer(
         self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -71,7 +71,7 @@ impl TypeEnv {
         TypeEnvInfer::new(rcx, gen, scope, self)
     }
 
-    pub fn lookup_place(
+    pub(crate) fn lookup_place(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -84,7 +84,7 @@ impl TypeEnv {
             .ty())
     }
 
-    pub fn lookup_path(
+    pub(crate) fn lookup_path(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -101,7 +101,7 @@ impl TypeEnv {
         self.bindings.update(path, new_ty);
     }
 
-    pub fn borrow(
+    pub(crate) fn borrow(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -123,7 +123,7 @@ impl TypeEnv {
         Ok(ty)
     }
 
-    pub fn write_place(
+    pub(crate) fn write_place(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -149,7 +149,7 @@ impl TypeEnv {
         Ok(())
     }
 
-    pub fn move_place(
+    pub(crate) fn move_place(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -178,7 +178,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn unpack(&mut self, rcx: &mut RefineCtxt) {
+    pub(crate) fn unpack(&mut self, rcx: &mut RefineCtxt) {
         self.bindings.fmap_mut(|binding| {
             match binding {
                 Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty)),
@@ -187,7 +187,7 @@ impl TypeEnv {
         });
     }
 
-    pub fn block_with(
+    pub(crate) fn block_with(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -200,7 +200,7 @@ impl TypeEnv {
             .block_with(rcx, gen, updated)
     }
 
-    pub fn block(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, path: &Path) -> Ty {
+    pub(crate) fn block(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, path: &Path) -> Ty {
         self.bindings
             .lookup(gen.genv, rcx, path)
             .unwrap_or_else(|err| tracked_span_bug!("{:?}", err))
@@ -285,7 +285,7 @@ impl TypeEnv {
         }
     }
 
-    pub fn check_goto(
+    pub(crate) fn check_goto(
         mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -353,7 +353,7 @@ impl TypeEnv {
         Ok(())
     }
 
-    pub fn downcast(
+    pub(crate) fn downcast(
         &mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
@@ -464,7 +464,7 @@ impl TypeEnvInfer {
             .block(rcx, gen)
     }
 
-    pub fn block_with(
+    pub(crate) fn block_with(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
@@ -769,7 +769,7 @@ impl Generalizer {
 }
 
 impl BasicBlockEnv {
-    pub fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
+    pub(crate) fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
         let mut subst = FVarSubst::empty();
         for (name, sort) in &self.params {
             let fresh = rcx.define_var(sort);
@@ -782,7 +782,7 @@ impl BasicBlockEnv {
         TypeEnv { bindings }
     }
 
-    pub fn scope(&self) -> &Scope {
+    pub(crate) fn scope(&self) -> &Scope {
         &self.scope
     }
 }

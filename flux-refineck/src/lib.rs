@@ -41,6 +41,8 @@ use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 
+use crate::refine_tree::RefineTree;
+
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     cache: &mut QueryCache,
@@ -53,8 +55,9 @@ pub fn check_fn<'tcx>(
         tracing::info!("Checker::infer");
 
         let mut kvars = fixpoint::KVarStore::new();
-        let mut refine_tree =
-            Checker::check(genv, body, def_id, &mut kvars, bb_envs).emit(genv.sess)?;
+        let mut refine_tree = RefineTree::new();
+        Checker::check(genv, body, def_id, refine_tree.as_subtree(), &mut kvars, bb_envs)
+            .emit(genv.sess)?;
 
         tracing::info!("Checker::check");
 
