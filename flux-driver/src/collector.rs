@@ -160,7 +160,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Err(self.emit_err(errors::InvalidConstant { span }))
         };
 
-        let ty = self.tcx.type_of(def_id);
+        let ty = self.tcx.type_of(def_id).subst_identity();
         if let Some(val) = scalar_int_to_rty_constant(self.tcx, val, ty) {
             self.specs.consts.insert(def_id, ConstSig { _ty, val });
             Ok(())

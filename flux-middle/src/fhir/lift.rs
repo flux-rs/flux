@@ -80,15 +80,15 @@ pub fn lift_variant_def(
         .map(|field| cx.lift_ty(field.ty))
         .try_collect_exhaust()?;
 
+    let path = fhir::Path {
+        res: fhir::Res::Adt(enum_id.to_def_id()),
+        generics: cx.generic_params_into_args(generics)?,
+        refine: vec![],
+        // FIXME(nilehmann) the span should also include the generic arguments
+        span: ident.span,
+    };
     let ret = fhir::VariantRet {
-        bty: fhir::BaseTy::Path(
-            fhir::Path {
-                res: fhir::Res::Adt(enum_id.to_def_id()),
-                generics: cx.generic_params_into_args(generics)?,
-                span: ident.span,
-            },
-            vec![],
-        ),
+        bty: fhir::BaseTy::from(path),
         idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret })
@@ -127,27 +127,33 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
         match ret_ty {
-            hir::FnRetTy::DefaultReturn(_) => Ok(fhir::Ty::Tuple(vec![])),
+            hir::FnRetTy::DefaultReturn(_) => {
+                let kind = fhir::TyKind::Tuple(vec![]);
+                Ok(fhir::Ty { kind, span: ret_ty.span() })
+            }
             hir::FnRetTy::Return(ty) => self.lift_ty(ty),
         }
     }
 
     fn lift_ty(&self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let ty = match &ty.kind {
-            hir::TyKind::Slice(ty) => fhir::BaseTy::Slice(Box::new(self.lift_ty(ty)?)).into(),
+        let kind = match &ty.kind {
+            hir::TyKind::Slice(ty) => {
+                let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
+                return Ok(fhir::BaseTy { kind, span: ty.span }.into());
+            }
             hir::TyKind::Array(ty, len) => {
-                fhir::Ty::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
+                fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
             hir::TyKind::Ref(_, mut_ty) => {
-                fhir::Ty::Ref(lift_mutability(mut_ty.mutbl), Box::new(self.lift_ty(mut_ty.ty)?))
+                fhir::TyKind::Ref(lift_mutability(mut_ty.mutbl), Box::new(self.lift_ty(mut_ty.ty)?))
             }
-            hir::TyKind::Never => fhir::Ty::Never,
+            hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
-                fhir::Ty::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
+                fhir::TyKind::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
             }
-            hir::TyKind::Path(hir::QPath::Resolved(_, path)) => self.lift_path(path)?,
+            hir::TyKind::Path(hir::QPath::Resolved(_, path)) => return self.lift_path(path),
             hir::TyKind::Ptr(mut_ty) => {
-                fhir::Ty::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
+                fhir::TyKind::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
             }
             _ => {
                 return self.emit_unsupported(&format!(
@@ -156,7 +162,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
                 ));
             }
         };
-        Ok(ty)
+        Ok(fhir::Ty { kind, span: ty.span })
     }
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -178,9 +184,10 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         let path = fhir::Path {
             res,
             generics: self.lift_generic_args(path.segments.last().unwrap().args)?,
+            refine: vec![],
             span: path.span,
         };
-        Ok(fhir::BaseTy::Path(path, vec![]).into())
+        Ok(fhir::BaseTy::from(path).into())
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -237,8 +244,9 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
                     let res = fhir::Res::Param(param.def_id.to_def_id());
-                    let path = fhir::Path { res, generics: vec![], span: param.span };
-                    args.push(fhir::BaseTy::Path(path, vec![]).into());
+                    let path =
+                        fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
+                    args.push(fhir::BaseTy::from(path).into());
                 }
                 hir::GenericParamKind::Lifetime { .. } => {}
                 hir::GenericParamKind::Const { .. } => {

@@ -109,6 +109,7 @@ fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter
                     None,
                     false,
                     track_diagnostics,
+                    opts.unstable_opts.terminal_urls,
                 );
                 Box::new(emitter)
             }
@@ -124,6 +125,7 @@ fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter
                 None,
                 false,
                 track_diagnostics,
+                opts.unstable_opts.terminal_urls,
             ))
         }
     }
