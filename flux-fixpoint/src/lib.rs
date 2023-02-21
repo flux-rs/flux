@@ -200,7 +200,7 @@ impl fmt::Display for KVar {
 
 impl fmt::Display for UifDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {} {})", self.name, self.sort)
+        write!(f, "(constant uif_{} {})", self.name, self.sort)
     }
 }
 

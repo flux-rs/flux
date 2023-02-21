@@ -377,7 +377,7 @@ impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Func::Var(name) => write!(f, "{name:?}"),
-            Func::Uif(uif) => write!(f, "{uif}"),
+            Func::Uif(uif) => write!(f, "uif_{uif}"),
         }
     }
 }
