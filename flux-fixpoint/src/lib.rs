@@ -16,7 +16,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, ConstName, Pred, Proj,
+    BinOp, Const, ConstName, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj,
     Qualifier, Sign, Sort, UifDef, UnOp,
 };
 use flux_common::{cache::QueryCache, format::PadAdapter};
