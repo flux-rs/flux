@@ -86,6 +86,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
+    fn is_closure(arg: &GenericArg) -> bool {
+        if let GenericArg::Ty(ty) = arg {
+            if let TyKind::Closure(_) = ty.kind() {
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -114,13 +123,19 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
+            .filter(|arg| !Self::is_closure(arg))
             .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
+
+        println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
+        println!("TRACE: check_fn_call substs = {substs:?}");
 
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evar_or_kvar(sort, kind));
+
+        println!("TRACE: check_fn_call {fn_sig:?} with {actuals:?}");
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();

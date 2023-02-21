@@ -434,6 +434,7 @@ impl TypeEnvInfer {
             | TyKind::Uninit
             | TyKind::Ref(..)
             | TyKind::Param(_)
+            | TyKind::Closure(_)
             | TyKind::Constr(_, _) => ty.clone(),
         }
     }

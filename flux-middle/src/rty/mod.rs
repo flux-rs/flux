@@ -154,6 +154,7 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
+    Closure(DefId),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -462,6 +463,10 @@ impl Ty {
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
         TyKind::Tuple(tys.into()).intern()
+    }
+
+    pub fn closure(def_id: DefId) -> Ty {
+        TyKind::Closure(def_id).intern()
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
@@ -913,6 +918,7 @@ mod pretty {
                         w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
+                TyKind::Closure(did) => w!("Closure({did:?})"),
             }
         }
 

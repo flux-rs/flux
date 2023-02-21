@@ -322,6 +322,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         mk_pred: &mut impl FnMut(&[rty::Sort]) -> Binders<rty::Expr>,
     ) -> rty::Ty {
         let bty = match ty.kind() {
+            rustc::ty::TyKind::Closure(did, _substs) => return rty::Ty::closure(*did),
             rustc::ty::TyKind::Never => return rty::Ty::never(),
             rustc::ty::TyKind::Param(param_ty) => return rty::Ty::param(*param_ty),
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
@@ -357,7 +358,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
             rustc::ty::TyKind::RawPtr(ty, mu) => rty::BaseTy::RawPtr(self.refine_ty_true(ty), *mu),
             rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
-            rustc::ty::TyKind::Closure(_, _) => todo!("refine_ty: Closure"),
         };
         let pred = mk_pred(bty.sorts());
         if pred.params().is_empty() && pred.is_trivially_true() {

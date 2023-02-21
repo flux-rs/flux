@@ -39,6 +39,13 @@ pub struct UnsupportedType {
     pub reason: String,
 }
 
+// DUMMY DELETE ME TRACE
+pub fn foo(b: Option<bool>) -> Option<i32> {
+    b.map(|z| if z { 1 } else { 2 })
+}
+
+
+
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
@@ -182,10 +189,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_substs(self.tcx, substs)
-                            .map_err(|err| {
-                                panic!("TRACE: AAA {:?}", err.reason);
-                                errors::UnsupportedMir::from(terminator)
-                            })
+                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
                             .emit(self.sess)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
@@ -391,8 +395,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Closure(did, substs) => {
                 let lowered_substs = lower_substs(self.tcx, substs).map_err(|err| err.reason)?;
-                // panic!("unsupported closure `{did:?}` / `{substs:?}`")
-                // Err(format!("unsupported closure `{did:?}` / `{substs:?}`"))
                 Ok(AggregateKind::Closure(*did, lowered_substs))
             }
             rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
@@ -572,6 +574,8 @@ pub fn lower_variant_def(
 
 pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
     let fn_sig = tcx.fn_sig(def_id);
+    let preds = tcx.explicit_predicates_of(def_id);
+    println!("TRACE: lower_fn_sig {def_id:?} : {fn_sig:?} : {preds:?}");
     let span = tcx.def_span(def_id);
     let param_env = tcx.param_env(def_id);
     let result = tcx

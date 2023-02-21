@@ -468,8 +468,8 @@ impl fmt::Debug for Rvalue {
                     )
                 }
             }
-            Rvalue::Aggregate(AggregateKind::Closure(_, _), args) => {
-                write!(f, "closure({:?})", args.iter().format(", "))
+            Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
+                write!(f, "closure({def_id:?}, {substs:?}, {:?})", args.iter().format(", "))
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))
