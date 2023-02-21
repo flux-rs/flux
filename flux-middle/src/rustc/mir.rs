@@ -167,7 +167,7 @@ pub enum AggregateKind {
     Adt(DefId, VariantIdx, List<GenericArg>),
     Array(Ty),
     Tuple,
-    Closure(LocalDefId, List<GenericArg>),
+    Closure(DefId, List<GenericArg>),
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
