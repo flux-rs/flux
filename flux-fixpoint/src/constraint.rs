@@ -41,7 +41,7 @@ pub enum Pred {
 #[derive(Hash)]
 pub enum Expr {
     Var(Name),
-    ConstDefId(Name),
+    ConstVar(ConstName),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     App(Func, Vec<Expr>),
@@ -85,7 +85,7 @@ impl UifDef {
 }
 #[derive(Clone, Copy, Debug)]
 pub struct Const {
-    pub name: Name,
+    pub name: ConstName,
     pub val: i128,
 }
 
@@ -139,6 +139,11 @@ newtype_index! {
         const NAME1 = 1;
         const NAME2 = 2;
     }
+}
+
+newtype_index! {
+    #[debug_format = "c{}"]
+    pub struct ConstName {}
 }
 
 impl<Tag> Constraint<Tag> {
@@ -341,7 +346,7 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Var(x) => write!(f, "{x:?}"),
-            Expr::ConstDefId(x) => write!(f, "$c{x:?}"),
+            Expr::ConstVar(x) => write!(f, "{x:?}"),
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
@@ -674,5 +679,11 @@ impl From<i128> for Expr {
 impl From<Name> for Expr {
     fn from(n: Name) -> Self {
         Expr::Var(n)
+    }
+}
+
+impl From<ConstName> for Expr {
+    fn from(c_n: ConstName) -> Self {
+        Expr::ConstVar(c_n)
     }
 }

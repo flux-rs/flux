@@ -88,7 +88,7 @@ struct ExprCtxt<'a> {
 
 #[derive(Debug)]
 struct ConstInfo {
-    name: fixpoint::Name,
+    name: fixpoint::ConstName,
     val: Constant,
 }
 
@@ -98,7 +98,8 @@ where
 {
     pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: DefId, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
-        let const_map = fixpoint_const_map(genv, &name_gen);
+        let const_name_gen = IndexGen::new();
+        let const_map = fixpoint_const_map(genv, &const_name_gen);
         Self {
             comments: vec![],
             kvars,
@@ -388,13 +389,13 @@ impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
 
 fn fixpoint_const_map(
     genv: &GlobalEnv,
-    name_gen: &IndexGen<fixpoint::Name>,
+    const_name_gen: &IndexGen<fixpoint::ConstName>,
 ) -> FxIndexMap<DefId, ConstInfo> {
     genv.map()
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
-            let name = name_gen.fresh();
+            let name = const_name_gen.fresh();
             let cinfo = ConstInfo { name, val: const_info.val };
             (const_info.def_id, cinfo)
         })
@@ -538,7 +539,7 @@ impl<'a> ExprCtxt<'a> {
                     })
             }
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
-            rty::ExprKind::ConstDefId(did) => fixpoint::Expr::ConstDefId(self.const_map[did].name),
+            rty::ExprKind::ConstDefId(did) => fixpoint::Expr::ConstVar(self.const_map[did].name),
             rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func);
                 let args = self.exprs_to_fixpoint(arg.as_tuple());

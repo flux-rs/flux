@@ -16,8 +16,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj, Qualifier,
-    Sign, Sort, UifDef, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, ConstName, Pred, Proj,
+    Qualifier, Sign, Sort, UifDef, UnOp,
 };
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
@@ -28,7 +28,7 @@ use crate::constraint::DEFAULT_QUALIFIERS;
 
 pub struct Task<Tag> {
     pub comments: Vec<String>,
-    pub constants: Vec<(Name, Sort)>,
+    pub constants: Vec<(ConstName, Sort)>,
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
@@ -83,7 +83,7 @@ pub struct KVar {
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
     pub fn new(
         comments: Vec<String>,
-        constants: Vec<(Name, Sort)>,
+        constants: Vec<(ConstName, Sort)>,
         kvars: Vec<KVar>,
         constraint: Constraint<Tag>,
         qualifiers: Vec<Qualifier>,
@@ -167,7 +167,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for (name, sort) in &self.constants {
-            write!(f, "(constant $c{name:?} {sort:?})")?;
+            write!(f, "(constant {name:?} {sort:?})")?;
         }
         for uif_def in &self.uifs {
             writeln!(f, "{uif_def}")?;
