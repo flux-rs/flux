@@ -210,12 +210,18 @@ impl<'sess> Resolver<'sess> {
         };
         match res {
             &ResEntry::Res(res) => {
-                let args = path
-                    .args
+                let generics = path
+                    .generics
                     .into_iter()
                     .map(|ty| self.resolve_ty(ty))
                     .try_collect_exhaust()?;
-                Ok(Path { segments: path.segments, args, span: path.span, res })
+                Ok(Path {
+                    segments: path.segments,
+                    generics,
+                    refine: path.refine,
+                    span: path.span,
+                    res,
+                })
             }
             ResEntry::Unsupported { reason, span } => {
                 return Err(self
@@ -227,7 +233,7 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
         match bty {
-            BaseTy::Path(path, args) => Ok(BaseTy::Path(self.resolve_path(path)?, args)),
+            BaseTy::Path(path) => Ok(BaseTy::Path(self.resolve_path(path)?)),
             BaseTy::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 Ok(BaseTy::Slice(Box::new(ty)))

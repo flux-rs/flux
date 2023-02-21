@@ -182,7 +182,7 @@ pub struct Ty<R = ()> {
 
 #[derive(Debug)]
 pub enum BaseTy<R = ()> {
-    Path(Path<R>, Vec<RefineArg>),
+    Path(Path<R>),
     Slice(Box<Ty<R>>),
 }
 
@@ -238,7 +238,8 @@ pub enum BindKind {
 #[derive(Debug)]
 pub struct Path<R = ()> {
     pub segments: Vec<Ident>,
-    pub args: Vec<Ty<R>>,
+    pub generics: Vec<Ty<R>>,
+    pub refine: Vec<RefineArg>,
     pub span: Span,
     pub res: R,
 }

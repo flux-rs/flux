@@ -280,7 +280,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         hir_ty: &hir::Ty,
     ) -> Result<(), ErrorGuaranteed> {
         match (bty, &hir_ty.kind) {
-            (surface::BaseTy::Path(path, _), hir::TyKind::Path(qpath)) => {
+            (surface::BaseTy::Path(path), hir::TyKind::Path(qpath)) => {
                 self.zip_path(ty.span, path, hir_ty, qpath)
             }
             (surface::BaseTy::Slice(ty), hir::TyKind::Slice(hir_ty)) => self.zip_ty(ty, hir_ty),
@@ -328,7 +328,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         path: &surface::Path<Res>,
         hir_path: &SimplifiedHirPath,
     ) -> Result<(), ErrorGuaranteed> {
-        let found = path.args.len();
+        let found = path.generics.len();
         let expected = hir_path.args.len();
         if found != expected {
             return self.emit_err(errors::GenericArgCountMismatch::from_hir_path(
@@ -336,7 +336,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
             ));
         }
 
-        iter::zip(&path.args, &hir_path.args)
+        iter::zip(&path.generics, &hir_path.args)
             .try_for_each_exhaust(|(arg, hir_arg)| self.zip_ty(arg, hir_arg))
     }
 
@@ -373,7 +373,7 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                     return self.emit_err(errors::InvalidRefinement::from_self_ty(path.span, &self.self_ty));
                 };
 
-                if path.args.len() != args.len() {
+                if path.generics.len() != args.len() {
                     return self.emit_err(errors::GenericArgCountMismatch::new(
                         self.tcx,
                         *def_id,
@@ -383,8 +383,8 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
                     ));
                 }
 
-                for (arg, param_ty2) in iter::zip(&path.args, args) {
-                    if let surface::TyKind::Base(surface::BaseTy::Path(path, _)) = &arg.kind
+                for (arg, param_ty2) in iter::zip(&path.generics, args) {
+                    if let surface::TyKind::Base(surface::BaseTy::Path(path )) = &arg.kind
                         && let Res::Param(param_def_id) = path.res
                         && param_def_id == param_ty2.0
                     {
@@ -719,7 +719,7 @@ mod errors {
             hir_span: Span,
         ) -> Self {
             let def_kind = tcx.def_kind(def_id).descr(def_id);
-            let found = flux_path.args.len();
+            let found = flux_path.generics.len();
             let flux_span = flux_path.span;
             GenericArgCountMismatch { flux_span, expected, found, def_kind, hir_span }
         }
