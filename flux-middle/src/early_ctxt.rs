@@ -4,6 +4,7 @@ use std::borrow::Borrow;
 
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use rustc_errors::IntoDiagnostic;
+use rustc_hir::PrimTy;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{def_id::DefId, Symbol};
 
@@ -105,5 +106,22 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
 
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.tcx.hir()
+    }
+
+    pub fn sort_of_res(&self, res: fhir::Res) -> fhir::Sort {
+        match res {
+            fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
+            fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
+            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
+            fhir::Res::Param(def_id) => fhir::Sort::Param(def_id),
+            fhir::Res::Alias(def_id) | fhir::Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
+        }
+    }
+
+    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
+        match &bty.kind {
+            fhir::BaseTyKind::Path(fhir::Path { res, .. }) => self.sort_of_res(*res),
+            fhir::BaseTyKind::Slice(_) => fhir::Sort::Int,
+        }
     }
 }

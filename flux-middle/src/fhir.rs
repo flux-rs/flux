@@ -368,25 +368,6 @@ impl BaseTy {
             None
         }
     }
-
-    pub fn sort(&self) -> Sort {
-        match &self.kind {
-            BaseTyKind::Path(Path { res, .. }) => res.sort(),
-            BaseTyKind::Slice(_) => Sort::Int,
-        }
-    }
-}
-
-impl Res {
-    pub fn sort(&self) -> Sort {
-        match self {
-            Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Sort::Int,
-            Res::PrimTy(PrimTy::Bool) => Sort::Bool,
-            Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => Sort::Unit,
-            Res::Param(def_id) => Sort::Param(*def_id),
-            Res::Alias(def_id) | Res::Adt(def_id) => Sort::Aggregate(*def_id),
-        }
-    }
 }
 
 impl From<Path> for BaseTy {

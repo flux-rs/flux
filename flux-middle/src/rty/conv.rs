@@ -166,7 +166,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
         let fields = variant.fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
-        let args = rty::Index::from(cx.conv_refine_arg(&variant.ret.idx, &variant.ret.bty.sort()));
+        let sort = genv.early_cx().sort_of_bty(&variant.ret.bty);
+        let args = rty::Index::from(cx.conv_refine_arg(&variant.ret.idx, &sort));
         let ret = cx.conv_base_ty(&variant.ret.bty, args);
         let variant = rty::VariantDef::new(fields, ret);
 
@@ -226,7 +227,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => {
-                let sort = conv_sort(self.early_cx(), &bty.sort());
+                let sort = self.genv.early_cx().sort_of_bty(bty);
+                let sort = conv_sort(self.early_cx(), &sort);
 
                 if sort.is_unit() {
                     let idx = rty::Index::from(rty::Expr::unit());
@@ -240,11 +242,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
             }
             fhir::TyKind::Indexed(bty, idx) => {
-                let idxs = rty::Index::from(self.conv_refine_arg(idx, &bty.sort()));
+                let sort = self.genv.early_cx().sort_of_bty(bty);
+                let idxs = rty::Index::from(self.conv_refine_arg(idx, &sort));
                 self.conv_base_ty(bty, idxs)
             }
             fhir::TyKind::Exists(bty, bind, pred) => {
-                let layer = Layer::single(self.early_cx(), *bind, bty.sort());
+                let sort = self.genv.early_cx().sort_of_bty(bty);
+                let layer = Layer::single(self.early_cx(), *bind, sort);
 
                 self.env.push_layer(layer);
                 let idx = rty::Index::from(self.env.lookup(*bind).to_expr());

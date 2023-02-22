@@ -358,7 +358,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 self.binders.push_layer();
 
                 let name = self.binders.fresh();
-                let binder = Binder::Refined(name, bty.sort(), false);
+                let sort = self.early_cx.sort_of_bty(&bty);
+                let binder = Binder::Refined(name, sort, false);
                 self.binders.insert_binder(self.sess(), *ident, binder)?;
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
                 let bind = fhir::Ident::new(name, *ident);
@@ -786,11 +787,7 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_binder(
-                    early_cx.sess,
-                    *bind,
-                    Binder::from_res(&self.name_gen, path.res),
-                )?;
+                self.insert_binder(early_cx.sess, *bind, self.binder_from_res(early_cx, path.res))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(
@@ -820,13 +817,13 @@ impl Binders {
                     self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
                 if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
-                    let binder = Binder::from_bty(&self.name_gen, bty);
+                    let binder = self.binder_from_bty(early_cx, bty);
                     if !pos.is_binder_allowed(kind) {
                         return Err(early_cx.emit_err(errors::IllegalBinder::new(span, kind)));
                     }
                     self.insert_binder(early_cx.sess, ident, binder)?;
                 } else {
-                    let sort = index_sort(bty);
+                    let sort = index_sort(early_cx, bty);
                     let refined_by = as_tuple(early_cx, &sort);
                     let exp = refined_by.len();
                     let got = indices.indices.len();
@@ -856,7 +853,7 @@ impl Binders {
             }
             surface::TyKind::Base(bty) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::from_bty(&self.name_gen, bty))?;
+                    self.insert_binder(early_cx.sess, bind, self.binder_from_bty(early_cx, bty))?;
                 }
                 self.gather_params_bty(early_cx, bty, pos)
             }
@@ -928,6 +925,14 @@ impl Binders {
 
     fn pop_layer(&mut self) -> Layer {
         self.layers.pop().unwrap()
+    }
+
+    fn binder_from_res(&self, early_cx: &EarlyCtxt, res: fhir::Res) -> Binder {
+        Binder::Refined(self.fresh(), early_cx.sort_of_res(res), true)
+    }
+
+    fn binder_from_bty(&self, early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Binder {
+        Binder::Refined(self.name_gen.fresh(), index_sort(early_cx, bty), true)
     }
 }
 
@@ -1046,19 +1051,19 @@ impl Layer {
     }
 }
 
-impl Binder {
-    fn from_res(name_gen: &IndexGen<fhir::Name>, res: fhir::Res) -> Binder {
-        Binder::Refined(name_gen.fresh(), res.sort(), true)
-    }
+// impl Binder {
+//     fn from_res(name_gen: &IndexGen<fhir::Name>, res: fhir::Res) -> Binder {
+//         Binder::Refined(name_gen.fresh(), res.sort(), true)
+//     }
 
-    fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
-        Binder::Refined(name_gen.fresh(), index_sort(bty), true)
-    }
-}
+//     fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
+//         Binder::Refined(name_gen.fresh(), index_sort(bty), true)
+//     }
+// }
 
-fn index_sort(bty: &surface::BaseTy<Res>) -> fhir::Sort {
+fn index_sort(early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> fhir::Sort {
     match &bty.kind {
-        surface::BaseTyKind::Path(path) => path.res.sort(),
+        surface::BaseTyKind::Path(path) => early_cx.sort_of_res(path.res),
         surface::BaseTyKind::Slice(_) => fhir::Sort::Int,
     }
 }
