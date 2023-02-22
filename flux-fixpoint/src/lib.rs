@@ -202,7 +202,7 @@ impl fmt::Display for KVar {
 
 impl fmt::Display for ConstInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {0:?} {1:?})", self.name, self.sort)
+        write!(f, "(constant {:?} {:?}) // orig: {}", self.name, self.sort, self.orig)
     }
 }
 

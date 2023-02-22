@@ -14,7 +14,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, Binder, Constant, INNERMOST},
 };
-use itertools::{chain, Itertools};
+use itertools::{self, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -92,7 +92,7 @@ struct ExprCtxt<'a> {
     dbg_span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ConstInfo {
     name: fixpoint::ConstName,
     sym: rustc_span::Symbol,
@@ -106,8 +106,7 @@ where
 {
     pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: DefId, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
-        let const_name_gen = IndexGen::new();
-        let const_map = fixpoint_const_map(genv, &const_name_gen);
+        let const_map = fixpoint_const_map(genv);
         Self {
             comments: vec![],
             kvars,
@@ -184,12 +183,12 @@ where
 
         let constants = self
             .const_map
-            .values()
+            .into_values()
             .map(|const_info| {
                 fixpoint::ConstInfo {
                     name: const_info.name,
                     orig: const_info.sym,
-                    sort: const_info.sort.clone(),
+                    sort: const_info.sort,
                 }
             })
             .collect();
@@ -400,10 +399,8 @@ impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
     }
 }
 
-fn fixpoint_const_map(
-    genv: &GlobalEnv,
-    const_name_gen: &IndexGen<fixpoint::ConstName>,
-) -> FxIndexMap<Key, ConstInfo> {
+fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
+    let const_name_gen = IndexGen::new();
     let consts = genv
         .map()
         .consts()
@@ -418,14 +415,17 @@ fn fixpoint_const_map(
             };
             (Key::Const(const_info.def_id), cinfo)
         });
-    let uifs = genv.uifs().map(|uif_def| {
-        let name = const_name_gen.fresh();
-        let sort = func_sort_to_fixpoint(&uif_def.sort);
-        let cinfo =
-            ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
-        (Key::Uif(cinfo.sym), cinfo)
-    });
-    chain(consts, uifs).collect()
+    let uifs = genv
+        .uifs()
+        .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
+        .map(|uif_def| {
+            let name = const_name_gen.fresh();
+            let sort = func_sort_to_fixpoint(&uif_def.sort);
+            let cinfo =
+                ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
+            (Key::Uif(cinfo.sym), cinfo)
+        });
+    itertools::chain(consts, uifs).collect()
 }
 
 impl KVarDecl {
@@ -561,21 +561,15 @@ impl<'a> ExprCtxt<'a> {
             }
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
             rty::ExprKind::ConstDefId(did) => {
-                let const_info =
-                    self.const_map
-                        .get(&Key::Const(did.clone()))
-                        .unwrap_or_else(|| {
-                            span_bug!(
-                                self.dbg_span,
-                                "no entry found in const_map for def_id: `{did:?}`"
-                            )
-                        });
+                let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
+                    span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
+                });
                 fixpoint::Expr::ConstVar(const_info.name)
             }
-            rty::ExprKind::App(func, args) => {
+            rty::ExprKind::App(func, arg) => {
                 let func = self.func_to_fixpoint(func);
-                let args = self.exprs_to_fixpoint(args.as_tuple());
-                fixpoint::Expr::App(func, args)
+                let arg = self.exprs_to_fixpoint(arg.as_tuple());
+                fixpoint::Expr::App(func, arg)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([
@@ -628,12 +622,9 @@ impl<'a> ExprCtxt<'a> {
                 fixpoint::Func::Var(*name)
             }
             rty::ExprKind::Func(name) => {
-                let cinfo = self
-                    .const_map
-                    .get(&Key::Uif(name.clone()))
-                    .unwrap_or_else(|| {
-                        span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
-                    });
+                let cinfo = self.const_map.get(&Key::Uif(*name)).unwrap_or_else(|| {
+                    span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
+                });
                 fixpoint::Func::Uif(cinfo.name)
             }
             _ => {
