@@ -14,7 +14,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, Binder, Constant, INNERMOST},
 };
-use itertools::{Itertools, chain};
+use itertools::{chain, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -185,12 +185,13 @@ where
         let constants = self
             .const_map
             .values()
-            .map(|const_info|
-                 fixpoint::ConstInfo{
-                     name: const_info.name,
-                     orig: const_info.sym,
-                     sort: const_info.sort.clone()
-                 })
+            .map(|const_info| {
+                fixpoint::ConstInfo {
+                    name: const_info.name,
+                    orig: const_info.sym,
+                    sort: const_info.sort.clone(),
+                }
+            })
             .collect();
 
         let sorts = self
@@ -403,21 +404,27 @@ fn fixpoint_const_map(
     genv: &GlobalEnv,
     const_name_gen: &IndexGen<fixpoint::ConstName>,
 ) -> FxIndexMap<Key, ConstInfo> {
-    let consts = genv.map()
+    let consts = genv
+        .map()
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
             let name = const_name_gen.fresh();
-            let cinfo = ConstInfo { name, sym: const_info.sym, sort: fixpoint::Sort::Int, val: Some(const_info.val) };
+            let cinfo = ConstInfo {
+                name,
+                sym: const_info.sym,
+                sort: fixpoint::Sort::Int,
+                val: Some(const_info.val),
+            };
             (Key::Const(const_info.def_id), cinfo)
         });
-    let uifs = genv.uifs()
-        .map(|uif_def| {
-            let name = const_name_gen.fresh();
-            let sort = func_sort_to_fixpoint(&uif_def.sort);
-            let cinfo = ConstInfo {name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
-            (Key::Uif(cinfo.sym), cinfo)
-        });
+    let uifs = genv.uifs().map(|uif_def| {
+        let name = const_name_gen.fresh();
+        let sort = func_sort_to_fixpoint(&uif_def.sort);
+        let cinfo =
+            ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
+        (Key::Uif(cinfo.sym), cinfo)
+    });
     chain(consts, uifs).collect()
 }
 
@@ -554,9 +561,15 @@ impl<'a> ExprCtxt<'a> {
             }
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
             rty::ExprKind::ConstDefId(did) => {
-                let const_info = self.const_map.get(&Key::Const(did.clone())).unwrap_or_else(||{
-                    span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
-                });
+                let const_info =
+                    self.const_map
+                        .get(&Key::Const(did.clone()))
+                        .unwrap_or_else(|| {
+                            span_bug!(
+                                self.dbg_span,
+                                "no entry found in const_map for def_id: `{did:?}`"
+                            )
+                        });
                 fixpoint::Expr::ConstVar(const_info.name)
             }
             rty::ExprKind::App(func, args) => {
@@ -615,9 +628,12 @@ impl<'a> ExprCtxt<'a> {
                 fixpoint::Func::Var(*name)
             }
             rty::ExprKind::Func(name) => {
-                let cinfo = self.const_map.get(&Key::Uif(name.clone())).unwrap_or_else(|| {
-                    span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
-                });
+                let cinfo = self
+                    .const_map
+                    .get(&Key::Uif(name.clone()))
+                    .unwrap_or_else(|| {
+                        span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
+                    });
                 fixpoint::Func::Uif(cinfo.name)
             }
             _ => {
