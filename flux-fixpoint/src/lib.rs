@@ -3,6 +3,7 @@
 extern crate rustc_index;
 extern crate rustc_macros;
 extern crate rustc_serialize;
+extern crate rustc_span;
 
 mod constraint;
 
@@ -17,7 +18,7 @@ use std::{
 
 pub use constraint::{
     BinOp, Const, ConstName, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj,
-    Qualifier, Sign, Sort, UifDef, UnOp,
+    Qualifier, Sign, Sort, UnOp,
 };
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
@@ -26,13 +27,19 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
+#[derive(Clone, Debug, Hash)]
+pub struct ConstInfo {
+    pub name: ConstName,
+    pub orig: rustc_span::Symbol,
+    pub sort: Sort,
+}
+
 pub struct Task<Tag> {
     pub comments: Vec<String>,
-    pub constants: Vec<(ConstName, Sort)>,
+    pub constants: Vec<ConstInfo>,
     pub kvars: Vec<KVar>,
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
-    pub uifs: Vec<UifDef>,
     pub sorts: Vec<String>,
 }
 
@@ -42,7 +49,6 @@ impl<Tag> Hash for Task<Tag> {
         self.kvars.hash(state);
         self.constraint.hash(state);
         self.qualifiers.hash(state);
-        self.uifs.hash(state);
         self.sorts.hash(state);
     }
 }
@@ -83,14 +89,13 @@ pub struct KVar {
 impl<Tag: fmt::Display + FromStr> Task<Tag> {
     pub fn new(
         comments: Vec<String>,
-        constants: Vec<(ConstName, Sort)>,
+        constants: Vec<ConstInfo>,
         kvars: Vec<KVar>,
         constraint: Constraint<Tag>,
         qualifiers: Vec<Qualifier>,
-        uifs: Vec<UifDef>,
         sorts: Vec<String>,
     ) -> Self {
-        Task { comments, constants, kvars, constraint, qualifiers, uifs, sorts }
+        Task { comments, constants, kvars, constraint, qualifiers, sorts }
     }
 
     pub fn hash_with_default(&self) -> u64 {
@@ -166,11 +171,8 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
-        for (name, sort) in &self.constants {
-            write!(f, "(constant {name:?} {sort:?})")?;
-        }
-        for uif_def in &self.uifs {
-            writeln!(f, "{uif_def}")?;
+        for cinfo in &self.constants {
+            write!(f, "{cinfo}")?;
         }
 
         for kvar in &self.kvars {
@@ -198,9 +200,9 @@ impl fmt::Display for KVar {
     }
 }
 
-impl fmt::Display for UifDef {
+impl fmt::Display for ConstInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant uif_{} {})", self.name, self.sort)
+        write!(f, "(constant {0:?} {1:?})", self.name, self.sort)
     }
 }
 

@@ -55,7 +55,7 @@ pub enum Expr {
 #[derive(Hash)]
 pub enum Func {
     Var(Name),
-    Uif(String),
+    Uif(ConstName),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -72,17 +72,6 @@ pub struct Qualifier {
     pub global: bool,
 }
 
-#[derive(Hash)]
-pub struct UifDef {
-    pub name: String,
-    pub sort: FuncSort,
-}
-
-impl UifDef {
-    pub fn new(name: String, sort: FuncSort) -> Self {
-        UifDef { name, sort }
-    }
-}
 #[derive(Clone, Copy, Debug)]
 pub struct Const {
     pub name: ConstName,
@@ -377,7 +366,7 @@ impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Func::Var(name) => write!(f, "{name:?}"),
-            Func::Uif(uif) => write!(f, "uif_{uif}"),
+            Func::Uif(uif) => write!(f, "{uif:?}"),
         }
     }
 }
