@@ -250,12 +250,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.refine_ty(rustc_ty, rty::Expr::hole)
     }
 
-    pub fn refine_generic_arg_with_holes(
-        &self,
-        arg: &rustc::ty::GenericArg,
-        kind: rty::TyVarKind,
-    ) -> rty::GenericArg {
-        self.refine_generic_arg(arg, rty::Expr::hole, kind)
+    pub fn refine_generic_arg_with_holes(&self, arg: &rustc::ty::GenericArg) -> rty::GenericArg {
+        self.refine_generic_arg(arg, rty::Expr::hole, rty::TyVarKind::BaseTy)
     }
 
     pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
@@ -308,11 +304,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             };
             let substs = substs
                 .iter()
-                .map(|arg| self.refine_generic_arg(arg, rty::Expr::tt, rty::TyVarKind::BaseTy))
+                .map(|arg| self.refine_generic_arg(arg, rty::Expr::tt, rty::TyVarKind::Type))
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
             let ret = rty::Ty::indexed(bty, rty::Index::unit());
-            Binder::new(rty::VariantDef::new(fields, ret), rty::Sort::unit())
+            let value = rty::VariantDef::new(fields, ret);
+            println!("  {value:?}");
+            Binder::new(value, rty::Sort::unit())
         } else {
             FatalError.raise()
         }
@@ -377,11 +375,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => rty::BaseTy::Param(*param_ty),
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.adt_def(*def_id);
-                let kind =
-                    if adt_def.is_box() { rty::TyVarKind::Type } else { rty::TyVarKind::BaseTy };
                 let substs = substs
                     .iter()
-                    .map(|arg| self.refine_generic_arg(arg, mk_pred, kind))
+                    .map(|arg| self.refine_generic_arg(arg, mk_pred, rty::TyVarKind::Type))
                     .collect_vec();
                 rty::BaseTy::adt(adt_def, substs)
             }

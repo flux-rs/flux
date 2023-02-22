@@ -159,22 +159,31 @@ impl TypeFolder for GenericsSubstFolder<'_> {
     }
 
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        if let TyKind::Indexed(BaseTy::Param(param_ty), idx) = ty.kind() {
-            self.ty_for_param(*param_ty, idx)
-        } else {
-            ty.super_fold_with(self)
+        match ty.kind() {
+            TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
+            TyKind::Indexed(BaseTy::Param(param_ty), idx) => self.bty_for_param(*param_ty, idx),
+            _ => ty.super_fold_with(self),
         }
     }
 }
 
 impl GenericsSubstFolder<'_> {
-    fn ty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
+    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
+        match self.substs.get(param_ty.index as usize) {
+            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(arg) => {
+                bug!("expected type for generic parameter, found `{:?}`", arg)
+            }
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
         match self.substs.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
-            Some(GenericArg::Ty(arg)) => {
+            Some(arg) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }
-            Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
             None => bug!("type parameter out of range"),
         }
     }

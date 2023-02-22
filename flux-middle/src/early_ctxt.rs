@@ -108,20 +108,29 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         self.tcx.hir()
     }
 
-    pub fn sort_of_res(&self, res: fhir::Res) -> fhir::Sort {
-        match res {
+    pub fn sort_of_res(&self, res: fhir::Res) -> Option<fhir::Sort> {
+        let sort = match res {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
             fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
             fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
-            fhir::Res::Param(def_id) => fhir::Sort::Param(def_id),
+            fhir::Res::Param(def_id) => {
+                let local_id = def_id.expect_local();
+                let owner = self.hir().ty_param_owner(local_id);
+                let param = self.map.generics_of(owner).get_param(local_id);
+                match &param.kind {
+                    fhir::GenericParamKind::BaseTy => fhir::Sort::Param(def_id),
+                    fhir::GenericParamKind::Type | fhir::GenericParamKind::Lifetime => return None,
+                }
+            }
             fhir::Res::Alias(def_id) | fhir::Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
-        }
+        };
+        Some(sort)
     }
 
-    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
+    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::Path { res, .. }) => self.sort_of_res(*res),
-            fhir::BaseTyKind::Slice(_) => fhir::Sort::Int,
+            fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
         }
     }
 }

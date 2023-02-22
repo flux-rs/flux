@@ -166,6 +166,7 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
+    Param(ParamTy),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -618,10 +619,7 @@ impl Ty {
     }
 
     pub fn param(param_ty: ParamTy) -> Ty {
-        Ty::exists(Binder::new(
-            Ty::indexed(BaseTy::Param(param_ty), Expr::nu()),
-            Sort::Param(param_ty),
-        ))
+        TyKind::Param(param_ty).intern()
     }
 
     pub fn usize() -> Ty {
@@ -1037,6 +1035,7 @@ mod pretty {
                         w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
+                TyKind::Param(param_ty) => w!("{}#t", ^param_ty),
             }
         }
 
@@ -1106,7 +1105,7 @@ mod pretty {
                     }
                     Ok(())
                 }
-                BaseTy::Param(param) => w!("{}", ^param),
+                BaseTy::Param(param) => w!("{}#b", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),

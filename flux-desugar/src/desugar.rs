@@ -358,7 +358,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 self.binders.push_layer();
 
                 let name = self.binders.fresh();
-                let sort = self.early_cx.sort_of_bty(&bty);
+                let sort = self.early_cx.sort_of_bty(&bty).expect("todo");
                 let binder = Binder::Refined(name, sort, false);
                 self.binders.insert_binder(self.sess(), *ident, binder)?;
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
@@ -503,6 +503,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn sess(&self) -> &'a FluxSession {
         self.early_cx.sess
     }
+
+    // #[track_caller]
+    // fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
+    //     self.early_cx.emit_err(err)
+    // }
 }
 
 impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
@@ -928,7 +933,7 @@ impl Binders {
     }
 
     fn binder_from_res(&self, early_cx: &EarlyCtxt, res: fhir::Res) -> Binder {
-        Binder::Refined(self.fresh(), early_cx.sort_of_res(res), true)
+        Binder::Refined(self.fresh(), early_cx.sort_of_res(res).expect("todo"), true)
     }
 
     fn binder_from_bty(&self, early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Binder {
@@ -1051,19 +1056,9 @@ impl Layer {
     }
 }
 
-// impl Binder {
-//     fn from_res(name_gen: &IndexGen<fhir::Name>, res: fhir::Res) -> Binder {
-//         Binder::Refined(name_gen.fresh(), res.sort(), true)
-//     }
-
-//     fn from_bty(name_gen: &IndexGen<fhir::Name>, bty: &surface::BaseTy<Res>) -> Binder {
-//         Binder::Refined(name_gen.fresh(), index_sort(bty), true)
-//     }
-// }
-
 fn index_sort(early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> fhir::Sort {
     match &bty.kind {
-        surface::BaseTyKind::Path(path) => early_cx.sort_of_res(path.res),
+        surface::BaseTyKind::Path(path) => early_cx.sort_of_res(path.res).expect("todo"),
         surface::BaseTyKind::Slice(_) => fhir::Sort::Int,
     }
 }

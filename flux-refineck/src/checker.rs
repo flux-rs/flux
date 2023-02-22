@@ -15,7 +15,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, Index, Int,
-        IntTy, PolySig, RefKind, Sort, Ty, TyKind, TyVarKind, Uint, UintTy, VariantIdx,
+        IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -413,10 +413,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let substs = substs
             .iter()
-            .map(|arg| {
-                self.genv
-                    .refine_generic_arg_with_holes(arg, TyVarKind::BaseTy)
-            })
+            .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
             .collect_vec();
 
         let output = self

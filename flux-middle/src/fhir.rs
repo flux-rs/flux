@@ -368,6 +368,16 @@ impl BaseTy {
             None
         }
     }
+
+    pub(crate) fn expect_param(&self) -> DefId {
+        if let BaseTyKind::Path(path) = &self.kind
+           && let Res::Param(def_id) = path.res
+        {
+            def_id
+        } else {
+            panic!("expected param")
+        }
+    }
 }
 
 impl From<Path> for BaseTy {
@@ -428,6 +438,12 @@ pub struct Defn {
     pub args: Vec<(Ident, Sort)>,
     pub sort: Sort,
     pub expr: Expr,
+}
+
+impl Generics {
+    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParam {
+        self.params.iter().find(|p| p.def_id == def_id).unwrap()
+    }
 }
 
 impl RefinedBy {
@@ -512,6 +528,10 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
 impl Map {
     pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
         self.generics.insert(def_id, generics);
+    }
+
+    pub fn generics_of(&self, def_id: LocalDefId) -> &Generics {
+        &self.generics[&def_id]
     }
 
     // Qualifiers
@@ -716,7 +736,7 @@ impl fmt::Debug for Constraint {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            TyKind::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
+            TyKind::BaseTy(bty) => write!(f, "{bty:?}"),
             TyKind::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
             TyKind::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
             TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),

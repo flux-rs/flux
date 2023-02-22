@@ -166,7 +166,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
         let fields = variant.fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
-        let sort = genv.early_cx().sort_of_bty(&variant.ret.bty);
+        let sort = genv.early_cx().sort_of_bty(&variant.ret.bty).unwrap();
         let args = rty::Index::from(cx.conv_refine_arg(&variant.ret.idx, &sort));
         let ret = cx.conv_base_ty(&variant.ret.bty, args);
         let variant = rty::VariantDef::new(fields, ret);
@@ -227,27 +227,34 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => {
-                let sort = self.genv.early_cx().sort_of_bty(bty);
-                let sort = conv_sort(self.early_cx(), &sort);
+                match self.genv.early_cx().sort_of_bty(bty) {
+                    Some(sort) => {
+                        let sort = conv_sort(self.early_cx(), &sort);
 
-                if sort.is_unit() {
-                    let idx = rty::Index::from(rty::Expr::unit());
-                    self.conv_base_ty(bty, idx)
-                } else {
-                    self.env.push_layer(Layer::empty());
-                    let idx = rty::Index::from(rty::Expr::nu());
-                    let ty = self.conv_base_ty(bty, idx);
-                    self.env.pop_layer();
-                    rty::Ty::exists(Binder::new(ty, sort))
+                        if sort.is_unit() {
+                            let idx = rty::Index::from(rty::Expr::unit());
+                            self.conv_base_ty(bty, idx)
+                        } else {
+                            self.env.push_layer(Layer::empty());
+                            let idx = rty::Index::from(rty::Expr::nu());
+                            let ty = self.conv_base_ty(bty, idx);
+                            self.env.pop_layer();
+                            rty::Ty::exists(Binder::new(ty, sort))
+                        }
+                    }
+                    None => {
+                        let def_id = bty.expect_param();
+                        rty::Ty::param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
+                    }
                 }
             }
             fhir::TyKind::Indexed(bty, idx) => {
-                let sort = self.genv.early_cx().sort_of_bty(bty);
+                let sort = self.genv.early_cx().sort_of_bty(bty).unwrap();
                 let idxs = rty::Index::from(self.conv_refine_arg(idx, &sort));
                 self.conv_base_ty(bty, idxs)
             }
             fhir::TyKind::Exists(bty, bind, pred) => {
-                let sort = self.genv.early_cx().sort_of_bty(bty);
+                let sort = self.genv.early_cx().sort_of_bty(bty).unwrap();
                 let layer = Layer::single(self.early_cx(), *bind, sort);
 
                 self.env.push_layer(layer);
@@ -374,7 +381,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Adt(did) => {
                 let adt_def = self.genv.adt_def(*did);
-                let substs = self.conv_generic_args(*did, &path.generics, adt_def.is_box());
+                let substs = self.conv_generic_args(*did, &path.generics);
                 rty::BaseTy::adt(adt_def, substs)
             }
             fhir::Res::Param(def_id) => {
@@ -399,21 +406,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return self
                     .genv
                     .type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics, false))
+                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
                     .replace_bvar(&rty::Expr::tuple(args));
             }
         };
         rty::Ty::indexed(bty, idx)
     }
 
-    fn conv_generic_args(
-        &mut self,
-        def_id: DefId,
-        args: &[fhir::Ty],
-        is_box: bool,
-    ) -> Vec<rty::GenericArg> {
+    fn conv_generic_args(&mut self, def_id: DefId, args: &[fhir::Ty]) -> Vec<rty::GenericArg> {
         let mut i = 0;
-        let kind = if is_box { rty::TyVarKind::Type } else { rty::TyVarKind::BaseTy };
         self.genv
             .generics_of(def_id)
             .params
@@ -423,12 +424,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     GenericParamDefKind::Type { has_default } => {
                         if i < args.len() {
                             i += 1;
-                            self.conv_generic_arg(&args[i - 1], kind)
+                            rty::GenericArg::Ty(self.conv_ty(&args[i - 1]))
                         } else {
                             debug_assert!(has_default);
                             let arg =
                                 rustc::ty::GenericArg::Ty(self.genv.lower_type_of(generic.def_id));
-                            self.genv.refine_generic_arg(&arg, rty::Expr::tt, kind)
+                            self.genv
+                                .refine_generic_arg(&arg, rty::Expr::tt, rty::TyVarKind::Type)
                         }
                     }
                     GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
@@ -437,32 +439,33 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .collect()
     }
 
-    fn conv_generic_arg(&mut self, arg: &fhir::Ty, kind: rty::TyVarKind) -> rty::GenericArg {
-        let ty = self.conv_ty(arg);
-        if matches!(kind, rty::TyVarKind::Type) {
-            return rty::GenericArg::Ty(ty);
-        }
-        match ty.kind() {
-            rty::TyKind::Indexed(bty, idx) => {
-                let bty = bty.shift_in_bvars(1);
-                let sort = bty.sort();
-                let pred = rty::Expr::eq(rty::Expr::nu(), &idx.expr.shift_in_bvars(1));
-                let ty = if pred.is_trivially_true() {
-                    rty::Ty::indexed(bty, rty::Expr::nu())
-                } else {
-                    rty::Ty::constr(pred, rty::Ty::indexed(bty, rty::Expr::nu()))
-                };
-                rty::GenericArg::BaseTy(rty::Binder::new(ty, sort))
-            }
-            rty::TyKind::Exists(ty) => rty::GenericArg::BaseTy(ty.clone()),
-            rty::TyKind::Constr(..) => {
-                todo!()
-            }
-            rty::TyKind::Uninit | rty::TyKind::Ptr(_, _) | rty::TyKind::Discr(_, _) => {
-                bug!()
-            }
-        }
-    }
+    // fn conv_generic_arg(&mut self, arg: &fhir::Ty) -> rty::GenericArg {
+    //     let ty = self.conv_ty(arg);
+    //     if matches!(kind, rty::TyVarKind::Type) {
+    //         return rty::GenericArg::Ty(ty);
+    //     }
+    //     match ty.kind() {
+    //         rty::TyKind::Indexed(bty, idx) => {
+    //             let bty = bty.shift_in_bvars(1);
+    //             let sort = bty.sort();
+    //             let pred = rty::Expr::eq(rty::Expr::nu(), &idx.expr.shift_in_bvars(1));
+    //             let ty = if pred.is_trivially_true() {
+    //                 rty::Ty::indexed(bty, rty::Expr::nu())
+    //             } else {
+    //                 rty::Ty::constr(pred, rty::Ty::indexed(bty, rty::Expr::nu()))
+    //             };
+    //             rty::GenericArg::BaseTy(rty::Binder::new(ty, sort))
+    //         }
+    //         rty::TyKind::Exists(ty) => rty::GenericArg::BaseTy(ty.clone()),
+    //         rty::TyKind::Constr(..) => {
+    //             todo!()
+    //         }
+    //         rty::TyKind::Uninit | rty::TyKind::Ptr(_, _) | rty::TyKind::Discr(_, _) => {
+    //             bug!()
+    //         }
+    //         rty::TyKind::Param(_) => bug!(),
+    //     }
+    // }
 
     fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {
         self.genv.early_cx()
@@ -743,7 +746,7 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
         }
-        fhir::Sort::Infer => bug!("unexpected sort `Infer`"),
+        fhir::Sort::Infer => bug!("unexpected sort `{sort:?}`"),
     }
 }
 

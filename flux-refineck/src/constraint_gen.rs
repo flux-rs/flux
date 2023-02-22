@@ -381,6 +381,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
+            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
+                debug_assert_eq!(param_ty1, param_ty2);
+            }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
             }
@@ -464,20 +467,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     rustc_middle::ty::Variance::Bivariant => {}
                 }
             }
-            (GenericArg::BaseTy(ty1), GenericArg::BaseTy(ty2)) => {
-                debug_assert_eq!(ty1.sort(), ty2.sort());
-                let arg = rcx.define_vars(ty1.sort());
-                let ty1 = &ty1.replace_bvar(&arg);
-                let ty2 = &ty2.replace_bvar(&arg);
-                match variance {
-                    Variance::Covariant => self.subtyping(rcx, ty1, ty2),
-                    Variance::Invariant => {
-                        self.subtyping(rcx, ty1, ty2);
-                        self.subtyping(rcx, ty2, ty1);
-                    }
-                    Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
-                    Variance::Bivariant => {}
-                }
+            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
+                tracked_span_bug!("generic base type argument subtyping is not implemented");
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
