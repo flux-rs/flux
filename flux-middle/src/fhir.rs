@@ -170,11 +170,6 @@ pub enum TyKind {
     Never,
 }
 
-pub enum BtyOrTy {
-    Bty(BaseTy),
-    Ty(Ty),
-}
-
 pub struct ArrayLen {
     pub val: usize,
 }
@@ -338,27 +333,6 @@ pub struct Ident {
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
-}
-
-impl BtyOrTy {
-    pub fn to_ty(self) -> Ty {
-        match self {
-            Self::Bty(bty) => Ty::from(bty),
-            Self::Ty(ty) => ty,
-        }
-    }
-}
-
-impl From<BaseTy> for BtyOrTy {
-    fn from(v: BaseTy) -> Self {
-        Self::Bty(v)
-    }
-}
-
-impl From<Ty> for BtyOrTy {
-    fn from(v: Ty) -> Self {
-        Self::Ty(v)
-    }
 }
 
 impl BaseTy {
