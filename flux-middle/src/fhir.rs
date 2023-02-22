@@ -41,6 +41,24 @@ use crate::{
     rty::Constant,
 };
 
+#[derive(Debug)]
+pub struct Generics {
+    pub params: Vec<GenericParam>,
+}
+
+#[derive(Debug)]
+pub struct GenericParam {
+    pub def_id: LocalDefId,
+    pub kind: GenericParamKind,
+}
+
+#[derive(Debug)]
+pub enum GenericParamKind {
+    Type,
+    BaseTy,
+    Lifetime,
+}
+
 #[derive(Debug, Clone)]
 pub struct ConstInfo {
     pub def_id: DefId,
@@ -67,6 +85,7 @@ pub struct SortDecl {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
+    generics: FxHashMap<LocalDefId, Generics>,
     uifs: FxHashMap<Symbol, UifDef>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
@@ -510,6 +529,10 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
 }
 
 impl Map {
+    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
+        self.generics.insert(def_id, generics);
+    }
+
     // Qualifiers
 
     pub fn insert_qualifier(&mut self, qualifier: Qualifier) {

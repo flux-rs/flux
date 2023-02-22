@@ -15,6 +15,40 @@ struct LiftCtxt<'a, 'sess, 'tcx> {
     def_id: LocalDefId,
 }
 
+pub fn lift_generics(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+) -> Result<fhir::Generics, ErrorGuaranteed> {
+    let hir_generics = early_cx.hir().get_generics(def_id).unwrap();
+    let is_fn = early_cx.tcx.def_kind(def_id.to_def_id()).is_fn_like();
+
+    let params = hir_generics
+        .params
+        .iter()
+        .map(|param| {
+            let kind = match param.kind {
+                hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
+                hir::GenericParamKind::Type { .. } => {
+                    if is_fn {
+                        fhir::GenericParamKind::BaseTy
+                    } else {
+                        fhir::GenericParamKind::Type
+                    }
+                }
+                hir::GenericParamKind::Const { .. } => {
+                    return Err(early_cx.sess.emit_err(errors::UnsupportedHir::new(
+                        early_cx.tcx,
+                        param.def_id,
+                        "const generics are not supported",
+                    )))
+                }
+            };
+            Ok(fhir::GenericParam { def_id: param.def_id, kind })
+        })
+        .try_collect_exhaust()?;
+    Ok(fhir::Generics { params })
+}
+
 pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
     let item = early_cx.hir().expect_item(def_id);
     match item.kind {

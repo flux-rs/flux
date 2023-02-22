@@ -233,6 +233,16 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
+    // Register Generics
+    err = itertools::chain!(specs.fns.keys(), specs.structs.keys(), specs.enums.keys())
+        .try_for_each_exhaust(|def_id| {
+            let generics = fhir::lift::lift_generics(early_cx, *def_id)?;
+            early_cx.map.insert_generics(*def_id, generics);
+            Ok(())
+        })
+        .err()
+        .or(err);
+
     // Register Sorts
     for sort_decl in std::mem::take(&mut specs.sort_decls) {
         early_cx
