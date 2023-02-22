@@ -172,7 +172,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for cinfo in &self.constants {
-            write!(f, "{cinfo}")?;
+            writeln!(f, "{cinfo}")?;
         }
 
         for kvar in &self.kvars {
