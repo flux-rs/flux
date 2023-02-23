@@ -4,7 +4,7 @@ use std::borrow::Borrow;
 
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use rustc_errors::IntoDiagnostic;
-use rustc_hir::PrimTy;
+use rustc_hir::{def_id::LocalDefId, PrimTy};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{def_id::DefId, Symbol};
 
@@ -114,12 +114,12 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
             fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
             fhir::Res::Param(def_id) => {
-                let local_id = def_id.expect_local();
-                let owner = self.hir().ty_param_owner(local_id);
-                let param = self.map.generics_of(owner).get_param(local_id);
+                let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
                     fhir::GenericParamKind::BaseTy => fhir::Sort::Param(def_id),
-                    fhir::GenericParamKind::Type | fhir::GenericParamKind::Lifetime => return None,
+                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => {
+                        return None
+                    }
                 }
             }
             fhir::Res::Alias(def_id) | fhir::Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
@@ -132,5 +132,10 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::BaseTyKind::Path(fhir::Path { res, .. }) => self.sort_of_res(*res),
             fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
         }
+    }
+
+    pub(crate) fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
+        let owner = self.hir().ty_param_owner(def_id);
+        self.map.generics_of(owner).get_param(def_id)
     }
 }

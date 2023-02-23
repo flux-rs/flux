@@ -25,7 +25,7 @@ use crate::{
     global_env::GlobalEnv,
     intern::List,
     rty::{self, fold::TypeFoldable, DebruijnIndex},
-    rustc::{self, ty::GenericParamDefKind},
+    rustc,
 };
 
 pub struct ConvCtxt<'a, 'tcx> {
@@ -69,6 +69,41 @@ pub(crate) fn expand_type_alias(genv: &GlobalEnv, alias: &fhir::TyAlias) -> rty:
     let ty = cx.conv_ty(&alias.ty);
     let sort = cx.env.pop_layer().into_sort();
     rty::Binder::new(ty, sort)
+}
+
+pub(crate) fn conv_generics(
+    rust_generics: &rustc::ty::Generics,
+    generics: &fhir::Generics,
+) -> rty::Generics {
+    let mut fhir_params = generics.params.iter();
+    let params = rust_generics
+        .params
+        .iter()
+        .flat_map(|rust_param| {
+            fhir_params
+                .find(|param| rust_param.def_id == param.def_id.to_def_id())
+                .map(|param| {
+                    let kind = match &param.kind {
+                        fhir::GenericParamKind::Type { default } => {
+                            rty::GenericParamKind::Type { has_default: default.is_some() }
+                        }
+                        fhir::GenericParamKind::BaseTy => rty::GenericParamKind::BaseTy,
+                        fhir::GenericParamKind::Lifetime => rty::GenericParamKind::Lifetime,
+                    };
+                    rty::GenericParam {
+                        kind,
+                        def_id: rust_param.def_id,
+                        index: rust_param.index,
+                        name: rust_param.name,
+                    }
+                })
+        })
+        .collect();
+    rty::Generics {
+        params,
+        parent_count: rust_generics.orig.parent_count,
+        parent: rust_generics.orig.parent,
+    }
 }
 
 pub(crate) fn adt_def_for_struct(
@@ -126,6 +161,11 @@ pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySi
 
     let params = cx.env.pop_layer().into_fun_params();
     rty::PolySig::new(params, rty::FnSig::new(requires, args, output))
+}
+
+pub(crate) fn conv_ty(genv: &GlobalEnv, ty: &fhir::Ty) -> rty::Binder<rty::Ty> {
+    let ty = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), Layer::empty())).conv_ty(ty);
+    rty::Binder::new(ty, rty::Sort::unit())
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
@@ -192,13 +232,16 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .iter()
                 .map(|param| {
                     match param.kind {
-                        GenericParamDefKind::Type { .. } => {
+                        rty::GenericParamKind::Type { .. } => {
                             let param_ty = rty::ParamTy { index: param.index, name: param.name };
                             let bty = rty::BaseTy::Param(param_ty);
                             let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                             rty::GenericArg::BaseTy(Binder::new(ty, rty::Sort::Param(param_ty)))
                         }
-                        GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                        rty::GenericParamKind::BaseTy => {
+                            bug!("generic base type in struct definition not suported")
+                        }
+                        rty::GenericParamKind::Lifetime => rty::GenericArg::Lifetime,
                     }
                 })
                 .collect_vec();
@@ -419,21 +462,25 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .generics_of(def_id)
             .params
             .iter()
-            .map(|generic| {
-                match &generic.kind {
-                    GenericParamDefKind::Type { has_default } => {
+            .map(|param| {
+                match param.kind {
+                    rty::GenericParamKind::Type { has_default } => {
                         if i < args.len() {
                             i += 1;
                             rty::GenericArg::Ty(self.conv_ty(&args[i - 1]))
                         } else {
                             debug_assert!(has_default);
-                            let arg =
-                                rustc::ty::GenericArg::Ty(self.genv.lower_type_of(generic.def_id));
-                            self.genv
-                                .refine_generic_arg(&arg, rty::Expr::tt, rty::TyVarKind::Type)
+                            let ty = self
+                                .genv
+                                .type_of(param.def_id)
+                                .replace_bvar(&rty::Expr::unit());
+                            rty::GenericArg::Ty(ty)
                         }
                     }
-                    GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                    rty::GenericParamKind::BaseTy => {
+                        bug!("generic base type arguments not supported yet")
+                    }
+                    rty::GenericParamKind::Lifetime => rty::GenericArg::Lifetime,
                 }
             })
             .collect()

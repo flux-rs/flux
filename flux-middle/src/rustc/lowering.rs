@@ -725,7 +725,7 @@ pub fn lower_generics<'tcx>(
             .map(|generic| lower_generic_param_def(tcx, sess, generic))
             .try_collect()?,
     );
-    Ok(Generics { params, rustc: generics })
+    Ok(Generics { params, orig: generics })
 }
 
 fn lower_generic_param_def(

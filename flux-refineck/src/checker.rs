@@ -14,8 +14,8 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, Index, Int,
-        IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, Generics,
+        Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -45,6 +45,7 @@ use crate::{
 
 pub(crate) struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
+    generics: Generics,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
     phase: P,
@@ -102,13 +103,16 @@ enum Guard {
 impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         body: &'a Body<'tcx>,
         output: Binder<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
         phase: P,
     ) -> Self {
+        let generics = genv.generics_of(def_id);
         Checker {
             genv,
+            generics,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output,
@@ -180,7 +184,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(genv, body, fn_sig.output().clone(), &dominators, phase);
+        let mut ck = Checker::new(genv, def_id, body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -413,7 +417,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let substs = substs
             .iter()
-            .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
+            .map(|arg| self.genv.refine_generic_arg_with_holes(&self.generics, arg))
             .collect_vec();
 
         let output = self
@@ -605,10 +609,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .to_fn_sig();
                 self.check_call(rcx, env, stmt_span, sig, substs, args)
             }
-            Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
+            Rvalue::Aggregate(AggregateKind::Array(arr_ty), args) => {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;
+                let arr_ty = self.genv.refine_with_holes(&self.generics, arr_ty);
                 let mut gen = self.constr_gen(rcx, stmt_span);
-                gen.check_mk_array(rcx, env, &args, ty)
+                gen.check_mk_array(rcx, env, &args, arr_ty)
                     .map_err(|err| err.with_span(stmt_span))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
@@ -762,7 +767,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
-                self.genv.refine_with_true(to)
+                self.genv.refine_with_true(&self.generics, to)
             }
         }
     }

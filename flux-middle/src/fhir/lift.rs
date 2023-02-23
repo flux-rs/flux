@@ -12,6 +12,7 @@ use crate::{early_ctxt::EarlyCtxt, fhir};
 
 struct LiftCtxt<'a, 'sess, 'tcx> {
     early_cx: &'a EarlyCtxt<'sess, 'tcx>,
+    /// Used for error reporting.
     def_id: LocalDefId,
 }
 
@@ -22,17 +23,22 @@ pub fn lift_generics(
     let hir_generics = early_cx.hir().get_generics(def_id).unwrap();
     let is_fn = early_cx.tcx.def_kind(def_id.to_def_id()).is_fn_like();
 
+    let cx = LiftCtxt::new(early_cx, def_id);
+
     let params = hir_generics
         .params
         .iter()
         .map(|param| {
             let kind = match param.kind {
                 hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
-                hir::GenericParamKind::Type { .. } => {
+                hir::GenericParamKind::Type { default, .. } => {
                     if is_fn {
+                        debug_assert!(default.is_none());
                         fhir::GenericParamKind::BaseTy
                     } else {
-                        fhir::GenericParamKind::Type
+                        fhir::GenericParamKind::Type {
+                            default: default.map(|ty| cx.lift_ty(ty)).transpose()?,
+                        }
                     }
                 }
                 hir::GenericParamKind::Const { .. } => {

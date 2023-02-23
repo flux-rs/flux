@@ -31,9 +31,32 @@ pub use crate::{
     rustc::ty::Const,
 };
 use crate::{
+    global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
     rustc::mir::Place,
 };
+
+#[derive(Clone)]
+pub struct Generics {
+    pub params: List<GenericParam>,
+    pub parent: Option<DefId>,
+    pub parent_count: usize,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct GenericParam {
+    pub kind: GenericParamKind,
+    pub def_id: DefId,
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum GenericParamKind {
+    Type { has_default: bool },
+    BaseTy,
+    Lifetime,
+}
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
@@ -214,6 +237,17 @@ pub enum GenericArg {
 pub enum TyVarKind {
     Type,
     BaseTy,
+}
+
+impl Generics {
+    pub(crate) fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParam {
+        if let Some(index) = param_index.checked_sub(self.parent_count) {
+            self.params[index].clone()
+        } else {
+            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))
+                .param_at(param_index, genv)
+        }
+    }
 }
 
 impl Sort {
@@ -844,7 +878,8 @@ impl_internable!(
     [Constraint],
     [InferMode],
     [TupleTree<bool>],
-    [Sort]
+    [Sort],
+    [GenericParam],
 );
 
 #[macro_export]

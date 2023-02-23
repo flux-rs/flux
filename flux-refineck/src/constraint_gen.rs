@@ -9,10 +9,7 @@ use flux_middle::{
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
         InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
     },
-    rustc::{
-        self,
-        mir::{BasicBlock, Place},
-    },
+    rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -242,15 +239,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         args: &[Ty],
-        arr_ty: &rustc::ty::Ty,
+        arr_ty: Ty,
     ) -> Result<Ty, CheckerError> {
-        let genv = self.genv;
-
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = genv
-            .refine_with_holes(arr_ty)
-            .replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        let arr_ty = arr_ty.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
 
         let (arr_ty, pred) = arr_ty.unconstr();
         infcx.check_pred(rcx, pred);

@@ -54,7 +54,7 @@ pub struct GenericParam {
 
 #[derive(Debug)]
 pub enum GenericParamKind {
-    Type,
+    Type { default: Option<Ty> },
     BaseTy,
     Lifetime,
 }
@@ -532,6 +532,10 @@ impl Map {
 
     pub fn generics_of(&self, def_id: LocalDefId) -> &Generics {
         &self.generics[&def_id]
+    }
+
+    pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
+        self.generics.iter()
     }
 
     // Qualifiers
