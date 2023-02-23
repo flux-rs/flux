@@ -32,7 +32,7 @@ pub fn lift_generics(
                 hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
                 hir::GenericParamKind::Type { default, .. } => {
                     match def_kind {
-                        DefKind::AssocFn | DefKind::Fn => {
+                        DefKind::AssocFn | DefKind::Fn | DefKind::Impl { .. } => {
                             debug_assert!(default.is_none());
                             fhir::GenericParamKind::BaseTy
                         }
