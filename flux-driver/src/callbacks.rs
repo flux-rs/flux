@@ -214,14 +214,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             )
             .unwrap();
         }
-        if config::dump_rty() {
-            let def_id = def_id.to_def_id();
-            let fn_sig = self
-                .genv
-                .lookup_fn_sig(def_id)
-                .unwrap_or_else(|_| panic!("no fn sig for {def_id:?}"));
-            dbg::dump_item_info(self.genv.tcx, def_id, "rty", &fn_sig).unwrap();
-        }
 
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
@@ -376,9 +368,11 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
     err = std::mem::take(&mut specs.structs)
         .into_iter()
         .try_for_each_exhaust(|(def_id, struct_def)| {
-            early_cx
-                .map
-                .insert_struct(def_id, desugar::desugar_struct_def(early_cx, struct_def)?);
+            let struct_def = desugar::desugar_struct_def(early_cx, struct_def)?;
+            if config::dump_fhir() {
+                dbg::dump_item_info(early_cx.tcx, def_id, "fhir", &struct_def).unwrap();
+            }
+            early_cx.map.insert_struct(def_id, struct_def);
             Ok(())
         })
         .err()

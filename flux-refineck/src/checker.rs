@@ -7,7 +7,10 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::collections::{hash_map::Entry, BinaryHeap};
+use std::{
+    collections::{hash_map::Entry, BinaryHeap},
+    iter,
+};
 
 use flux_common::{bug, dbg, index::IndexVec, span_bug, tracked_span_bug};
 use flux_config as config;
@@ -362,8 +365,18 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .lookup_fn_sig(*func_id)
                     .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
 
-                let ret =
-                    self.check_call(rcx, env, terminator_span, fn_sig, &call_substs.lowered, args)?;
+                let fn_generics = self.genv.generics_of(*func_id);
+                let substs = call_substs
+                    .lowered
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, arg)| {
+                        let param = fn_generics.param_at(idx, self.genv);
+                        self.genv
+                            .instantiate_generic_arg(&self.generics, &param, arg)
+                    })
+                    .collect_vec();
+                let ret = self.check_call(rcx, env, terminator_span, fn_sig, &substs, args)?;
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);
@@ -410,19 +423,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         terminator_span: Span,
         fn_sig: PolySig,
-        substs: &[rustc::ty::GenericArg],
+        substs: &[rty::GenericArg],
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
 
-        let substs = substs
-            .iter()
-            .map(|arg| self.genv.refine_generic_arg_with_holes(&self.generics, arg))
-            .collect_vec();
-
         let output = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
+            .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?
             .replace_bvar_with(|sort| rcx.define_vars(sort));
 
@@ -580,6 +588,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         stmt_span: Span,
         rvalue: &Rvalue,
     ) -> Result<Ty, CheckerError> {
+        let genv = self.genv;
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(rcx, env, stmt_span, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
@@ -602,12 +611,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
-                let sig = self
-                    .genv
+                let sig = genv
                     .variant(*def_id, *variant_idx)
                     .map_err(|err| CheckerError::from(err).with_span(stmt_span))?
                     .to_fn_sig();
-                self.check_call(rcx, env, stmt_span, sig, substs, args)
+                let substs = iter::zip(&genv.generics_of(*def_id).params, substs)
+                    .map(|(param, arg)| genv.instantiate_generic_arg(&self.generics, param, arg))
+                    .collect_vec();
+                self.check_call(rcx, env, stmt_span, sig, &substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), args) => {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;

@@ -1,6 +1,7 @@
-use std::{cell::RefCell, collections::hash_map, string::ToString};
+use std::{cell::RefCell, collections::hash_map, iter, string::ToString};
 
-use flux_common::bug;
+use flux_common::{bug, dbg};
+use flux_config as config;
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use itertools::Itertools;
 use rustc_errors::FatalError;
@@ -113,6 +114,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let def_id = struct_def.def_id;
             let variants = rty::conv::ConvCtxt::conv_struct_def_variant(self, struct_def)
                 .map(|v| vec![v.normalize(&self.defns)]);
+            if config::dump_fhir() {
+                dbg::dump_item_info(self.tcx, def_id, "rty", &variants).unwrap();
+            }
 
             self.adt_variants
                 .get_mut()
@@ -138,6 +142,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let map = &self.early_cx.map;
         for (def_id, fn_sig) in map.fn_sigs() {
             let fn_sig = rty::conv::conv_fn_sig(self, fn_sig).normalize(&self.defns);
+            if config::dump_rty() {
+                dbg::dump_item_info(self.tcx, def_id, "rty", &fn_sig).unwrap();
+            }
             self.fn_sigs.get_mut().insert(def_id.to_def_id(), fn_sig);
         }
     }
@@ -278,12 +285,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.refine_ty(generics, rustc_ty, rty::Expr::hole)
     }
 
-    pub fn refine_generic_arg_with_holes(
+    pub fn instantiate_generic_arg(
         &self,
         generics: &rty::Generics,
+        param: &rty::GenericParam,
         arg: &rustc::ty::GenericArg,
     ) -> rty::GenericArg {
-        self.refine_generic_arg(generics, arg, rty::Expr::hole, rty::TyVarKind::BaseTy)
+        self.refine_generic_arg(generics, param, arg, rty::Expr::hole)
     }
 
     pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
@@ -340,11 +348,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let rustc::ty::TyKind::Adt(def_id, substs) = variant_def.ret.kind() else {
                 panic!();
             };
-            let substs = substs
-                .iter()
-                .map(|arg| {
-                    self.refine_generic_arg(&generics, arg, rty::Expr::tt, rty::TyVarKind::Type)
-                })
+            let substs = iter::zip(&generics.params, substs)
+                .map(|(param, arg)| self.refine_generic_arg(&generics, param, arg, rty::Expr::tt))
                 .collect_vec();
             let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
             let ret = rty::Ty::indexed(bty, rty::Index::unit());
@@ -385,25 +390,24 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub(crate) fn refine_generic_arg(
+    fn refine_generic_arg(
         &self,
         generics: &rty::Generics,
-        ty: &rustc::ty::GenericArg,
+        param: &rty::GenericParam,
+        arg: &rustc::ty::GenericArg,
         mk_pred: fn() -> rty::Expr,
-        kind: rty::TyVarKind,
     ) -> rty::GenericArg {
-        match ty {
-            rustc::ty::GenericArg::Ty(ty) => {
-                match kind {
-                    rty::TyVarKind::Type => {
-                        rty::GenericArg::Ty(self.refine_ty(generics, ty, mk_pred))
-                    }
-                    rty::TyVarKind::BaseTy => {
-                        rty::GenericArg::BaseTy(self.refine_ty_inner(generics, ty, mk_pred))
-                    }
-                }
+        match (&param.kind, arg) {
+            (rty::GenericParamKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) => {
+                rty::GenericArg::Ty(self.refine_ty(generics, ty, mk_pred))
             }
-            rustc::ty::GenericArg::Lifetime(_) => rty::GenericArg::Lifetime,
+            (rty::GenericParamKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
+                rty::GenericArg::BaseTy(self.refine_ty_inner(generics, ty, mk_pred))
+            }
+            (rty::GenericParamKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
+                rty::GenericArg::Lifetime
+            }
+            _ => bug!("mismatched generic arg `{arg:?}` `{param:?}`"),
         }
     }
 
@@ -443,11 +447,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.adt_def(*def_id);
-                let substs = substs
-                    .iter()
-                    .map(|arg| {
-                        self.refine_generic_arg(generics, arg, mk_pred, rty::TyVarKind::Type)
-                    })
+                let substs = iter::zip(&self.generics_of(*def_id).params, substs)
+                    .map(|(param, arg)| self.refine_generic_arg(generics, param, arg, mk_pred))
                     .collect_vec();
                 rty::BaseTy::adt(adt_def, substs)
             }

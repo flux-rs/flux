@@ -36,14 +36,14 @@ use crate::{
     rustc::mir::Place,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Generics {
     pub params: List<GenericParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParam {
     pub kind: GenericParamKind,
     pub def_id: DefId,
@@ -51,7 +51,7 @@ pub struct GenericParam {
     pub name: Symbol,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericParamKind {
     Type { has_default: bool },
     BaseTy,
@@ -90,7 +90,7 @@ pub struct AdtDefData {
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-#[derive(TyEncodable, TyDecodable)]
+#[derive(Debug, TyEncodable, TyDecodable)]
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
@@ -233,14 +233,8 @@ pub enum GenericArg {
     Lifetime,
 }
 
-#[derive(Copy, Clone)]
-pub enum TyVarKind {
-    Type,
-    BaseTy,
-}
-
 impl Generics {
-    pub(crate) fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParam {
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParam {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             self.params[index].clone()
         } else {

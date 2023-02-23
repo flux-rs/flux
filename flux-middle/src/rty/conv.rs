@@ -234,9 +234,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     match param.kind {
                         rty::GenericParamKind::Type { .. } => {
                             let param_ty = rty::ParamTy { index: param.index, name: param.name };
-                            let bty = rty::BaseTy::Param(param_ty);
-                            let ty = rty::Ty::indexed(bty, rty::Expr::nu());
-                            rty::GenericArg::BaseTy(Binder::new(ty, rty::Sort::Param(param_ty)))
+                            rty::GenericArg::Ty(rty::Ty::param(param_ty))
                         }
                         rty::GenericParamKind::BaseTy => {
                             bug!("generic base type in struct definition not suported")

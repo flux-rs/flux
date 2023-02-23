@@ -12,7 +12,6 @@ use crate::{early_ctxt::EarlyCtxt, fhir};
 
 struct LiftCtxt<'a, 'sess, 'tcx> {
     early_cx: &'a EarlyCtxt<'sess, 'tcx>,
-    /// Used for error reporting.
     def_id: LocalDefId,
 }
 

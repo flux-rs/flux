@@ -171,9 +171,7 @@ impl GenericsSubstFolder<'_> {
     fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
         match self.substs.get(param_ty.index as usize) {
             Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => {
-                bug!("expected type for generic parameter, found `{:?}`", arg)
-            }
+            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
             None => bug!("type parameter out of range"),
         }
     }
@@ -181,9 +179,7 @@ impl GenericsSubstFolder<'_> {
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
         match self.substs.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
-            Some(arg) => {
-                bug!("expected base type for generic parameter, found `{:?}`", arg)
-            }
+            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
             None => bug!("type parameter out of range"),
         }
     }
