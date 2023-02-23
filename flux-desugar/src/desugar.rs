@@ -624,15 +624,12 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
         match self.binders.get(loc) {
-            Some(&Binder::Refined(name, ..)) => Ok(fhir::Ident::new(name, loc)),
-            Some(binder @ Binder::Unrefined) => {
+            Some(Binder::Refined(name, ..)) => Ok(fhir::Ident::new(*name, loc)),
+            Some(Binder::Unrefined) => {
                 // This shouldn't happen because loc bindings in input position should
                 // already be inserted as Binder::Refined when gathering parameters and
-                // locs in ensure clauses are guaranteed to be locs during annot_check.
-                span_bug!(
-                    loc.span,
-                    "aggregate or unrefined binder used in loc position: `{binder:?}`"
-                )
+                // locs in ensure clauses are guaranteed to be locs during `annot_check`.
+                span_bug!(loc.span, "unrefined binder used in loc position")
             }
             None => Err(self.emit_err(errors::UnresolvedVar::new(loc))),
         }
@@ -842,9 +839,8 @@ impl Binders {
                     let exp = refined_by.len();
                     let got = indices.indices.len();
                     if exp != got {
-                        return Err(
-                            early_cx.emit_err(errors::ParamCountMismatch::new(ty.span, exp, got))
-                        );
+                        return Err(early_cx
+                            .emit_err(errors::RefineArgCountMismatch::new(ty.span, exp, got)));
                     }
 
                     for (idx, sort) in iter::zip(&indices.indices, refined_by) {
@@ -1194,8 +1190,8 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::param_count_mismatch, code = "FLUX")]
-    pub(super) struct ParamCountMismatch {
+    #[diag(desugar::refine_arg_count_mismatch, code = "FLUX")]
+    pub(super) struct RefineArgCountMismatch {
         #[primary_span]
         #[label]
         span: Span,
@@ -1203,7 +1199,7 @@ mod errors {
         found: usize,
     }
 
-    impl ParamCountMismatch {
+    impl RefineArgCountMismatch {
         pub(super) fn new(span: Span, exp: usize, found: usize) -> Self {
             let expected = if exp > 1 { format!("1 or {exp:?}") } else { exp.to_string() };
             Self { span, expected, found }

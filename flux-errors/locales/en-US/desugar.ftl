@@ -20,8 +20,8 @@ desugar_unexpected_literal =
 desugar_invalid_dot_var =
     unsupported field access in refinement
 
-desugar_param_count_mismatch =
-    this type takes {$expected} refinement parameters but {$found ->
+desugar_refine_arg_count_mismatch =
+    this type takes {$expected} refinement arguments but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
