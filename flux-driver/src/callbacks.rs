@@ -226,19 +226,14 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
     let mut err: Option<ErrorGuaranteed> = None;
 
     // Register Generics
-    err = itertools::chain!(
-        specs.fns.keys(),
-        specs.structs.keys(),
-        specs.enums.keys(),
-        specs.aliases.keys()
-    )
-    .try_for_each_exhaust(|def_id| {
-        let generics = fhir::lift::lift_generics(early_cx, *def_id)?;
-        early_cx.map.insert_generics(*def_id, generics);
-        Ok(())
-    })
-    .err()
-    .or(err);
+    err = defs_with_generics(early_cx.tcx)
+        .try_for_each_exhaust(|def_id| {
+            let generics = fhir::lift::lift_generics(early_cx, def_id)?;
+            early_cx.map.insert_generics(def_id, generics);
+            Ok(())
+        })
+        .err()
+        .or(err);
 
     // Register Sorts
     for sort_decl in std::mem::take(&mut specs.sort_decls) {
@@ -498,4 +493,20 @@ fn is_tool_registered(tcx: TyCtxt) -> bool {
         }
     }
     false
+}
+
+fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = LocalDefId> + '_ {
+    tcx.hir_crate_items(())
+        .definitions()
+        .flat_map(move |def_id| {
+            match tcx.def_kind(def_id) {
+                DefKind::Struct
+                | DefKind::Enum
+                | DefKind::Fn
+                | DefKind::Impl { .. }
+                | DefKind::TyAlias
+                | DefKind::AssocFn => Some(def_id),
+                _ => None,
+            }
+        })
 }

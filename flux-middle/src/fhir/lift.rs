@@ -20,7 +20,7 @@ pub fn lift_generics(
     def_id: LocalDefId,
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
     let hir_generics = early_cx.hir().get_generics(def_id).unwrap();
-    let is_fn = early_cx.tcx.def_kind(def_id.to_def_id()).is_fn_like();
+    let def_kind = early_cx.tcx.def_kind(def_id.to_def_id());
 
     let cx = LiftCtxt::new(early_cx, def_id);
 
@@ -31,12 +31,15 @@ pub fn lift_generics(
             let kind = match param.kind {
                 hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
                 hir::GenericParamKind::Type { default, .. } => {
-                    if is_fn {
-                        debug_assert!(default.is_none());
-                        fhir::GenericParamKind::BaseTy
-                    } else {
-                        fhir::GenericParamKind::Type {
-                            default: default.map(|ty| cx.lift_ty(ty)).transpose()?,
+                    match def_kind {
+                        DefKind::AssocFn | DefKind::Fn => {
+                            debug_assert!(default.is_none());
+                            fhir::GenericParamKind::BaseTy
+                        }
+                        _ => {
+                            fhir::GenericParamKind::Type {
+                                default: default.map(|ty| cx.lift_ty(ty)).transpose()?,
+                            }
                         }
                     }
                 }

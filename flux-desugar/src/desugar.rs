@@ -358,7 +358,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 self.binders.push_layer();
 
                 let name = self.binders.fresh();
-                let sort = self.early_cx.sort_of_bty(&bty).expect("todo");
+                let sort = self
+                    .early_cx
+                    .sort_of_bty(&bty)
+                    .unwrap_or_else(|| span_bug!(ty.span, "todo"));
                 let binder = Binder::Refined(name, sort, false);
                 self.binders.insert_binder(self.sess(), *ident, binder)?;
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
@@ -399,8 +402,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             let flds = self.desugar_refine_args(&idxs.indices)?;
             Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span))
         } else {
-            let arg = idxs.indices.first().unwrap();
-            self.desugar_refine_arg(arg)
+            self.desugar_refine_arg(&idxs.indices[0])
         }
     }
 
@@ -828,7 +830,8 @@ impl Binders {
                     }
                     self.insert_binder(early_cx.sess, ident, binder)?;
                 } else {
-                    let sort = index_sort(early_cx, bty);
+                    let sort =
+                        index_sort(early_cx, bty).unwrap_or_else(|| span_bug!(ty.span, "todo"));
                     let refined_by = as_tuple(early_cx, &sort);
                     let exp = refined_by.len();
                     let got = indices.indices.len();
@@ -933,11 +936,19 @@ impl Binders {
     }
 
     fn binder_from_res(&self, early_cx: &EarlyCtxt, res: fhir::Res) -> Binder {
-        Binder::Refined(self.fresh(), early_cx.sort_of_res(res).expect("todo"), true)
+        if let Some(sort) = early_cx.sort_of_res(res) {
+            Binder::Refined(self.fresh(), sort, true)
+        } else {
+            Binder::Unrefined
+        }
     }
 
     fn binder_from_bty(&self, early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Binder {
-        Binder::Refined(self.name_gen.fresh(), index_sort(early_cx, bty), true)
+        if let Some(sort) = index_sort(early_cx, bty) {
+            Binder::Refined(self.name_gen.fresh(), sort, true)
+        } else {
+            Binder::Unrefined
+        }
     }
 }
 
@@ -1056,10 +1067,10 @@ impl Layer {
     }
 }
 
-fn index_sort(early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> fhir::Sort {
+fn index_sort(early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Option<fhir::Sort> {
     match &bty.kind {
-        surface::BaseTyKind::Path(path) => early_cx.sort_of_res(path.res).expect("todo"),
-        surface::BaseTyKind::Slice(_) => fhir::Sort::Int,
+        surface::BaseTyKind::Path(path) => early_cx.sort_of_res(path.res),
+        surface::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
     }
 }
 
