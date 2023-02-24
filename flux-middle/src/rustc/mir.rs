@@ -157,10 +157,12 @@ pub enum PointerCast {
     MutToConstPointer,
 }
 
+#[derive(Debug)]
 pub enum AggregateKind {
     Adt(DefId, VariantIdx, List<GenericArg>),
     Array(Ty),
     Tuple,
+    Closure(DefId, List<GenericArg>),
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -463,6 +465,9 @@ impl fmt::Debug for Rvalue {
                         args.iter().format(", ")
                     )
                 }
+            }
+            Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
+                write!(f, "closure({def_id:?}, {substs:?}, {:?})", args.iter().format(", "))
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))

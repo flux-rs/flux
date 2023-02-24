@@ -233,6 +233,7 @@ impl Expr {
             | BaseTy::RawPtr(_, _)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
+            | BaseTy::Closure(_)
             | BaseTy::Never
             | BaseTy::Param(_) => bug!(),
         }

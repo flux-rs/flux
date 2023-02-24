@@ -191,7 +191,7 @@ impl GenericsSubstFolder<'_> {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }
             Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
-            None => bug!("type parameter out of range"),
+            None => bug!("type parameter out of range {param_ty:?}"),
         }
     }
 }

@@ -418,6 +418,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         mk_pred: fn() -> rty::Expr,
     ) -> Binder<rty::Ty> {
         let bty = match ty.kind() {
+            rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
                 rty::BaseTy::Ref(rty::RefKind::Mut, self.refine_ty(generics, ty, mk_pred))
@@ -460,6 +461,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 rty::BaseTy::Slice(self.refine_ty(generics, ty, mk_pred))
             }
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
+            rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.refine_with_true(generics, ty), *mu)
             }

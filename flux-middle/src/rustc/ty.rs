@@ -21,9 +21,10 @@ pub struct Generics<'tcx> {
     pub orig: &'tcx rustc_middle::ty::Generics,
 }
 
+#[derive(PartialEq, Eq, Debug, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
@@ -47,7 +48,7 @@ pub enum GenericParamDefKind {
     Lifetime,
 }
 
-#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
@@ -96,6 +97,8 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Uint(UintTy),
     Slice(Ty),
+    FnSig(PolyFnSig),
+    Closure(DefId, List<GenericArg>),
     RawPtr(Ty, Mutability),
 }
 
@@ -165,12 +168,20 @@ impl Ty {
         TyKind::Adt(def_id, substs.into()).intern()
     }
 
+    pub fn mk_closure(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
+        TyKind::Closure(def_id, substs.into()).intern()
+    }
+
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
         TyKind::Array(ty, c).intern()
     }
 
     pub fn mk_slice(ty: Ty) -> Ty {
         TyKind::Slice(ty).intern()
+    }
+
+    pub fn mk_fn_sig(fn_sig: PolyFnSig) -> Ty {
+        TyKind::FnSig(fn_sig).intern()
     }
 
     pub fn mk_raw_ptr(ty: Ty, mutbl: Mutability) -> Ty {
@@ -279,6 +290,14 @@ impl std::fmt::Debug for Ty {
             TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            TyKind::FnSig(fn_sig) => write!(f, "{fn_sig:?}"),
+            TyKind::Closure(did, substs) => {
+                write!(f, "Closure {did:?}")?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                Ok(())
+            }
         }
     }
 }

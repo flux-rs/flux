@@ -450,6 +450,7 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
+            BaseTy::Closure(did) => BaseTy::Closure(*did),
         }
     }
 
@@ -467,6 +468,7 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
+            | BaseTy::Closure(_)
             | BaseTy::Never
             | BaseTy::Param(_) => {}
         }
