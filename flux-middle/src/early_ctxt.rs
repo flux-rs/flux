@@ -126,6 +126,25 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         Some(sort)
     }
 
+    /// Whether values of this sort can be compared for equality.
+    pub fn has_equality(&self, sort: &fhir::Sort) -> bool {
+        match sort {
+            fhir::Sort::Int
+            | fhir::Sort::Bool
+            | fhir::Sort::Real
+            | fhir::Sort::Unit
+            | fhir::Sort::User(_) => true,
+            fhir::Sort::Aggregate(def_id) => {
+                self.index_sorts_of(*def_id)
+                    .iter()
+                    .all(|sort| self.has_equality(sort))
+            }
+            fhir::Sort::Loc | fhir::Sort::Func(_) | fhir::Sort::Param(_) | fhir::Sort::Infer => {
+                false
+            }
+        }
+    }
+
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::Path { res, .. }) => self.sort_of_res(*res),

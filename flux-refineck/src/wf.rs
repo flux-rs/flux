@@ -401,7 +401,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match &e.kind {
             fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
-            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
+                self.synth_binary_op(env, e.span, *op, e1, e2)
+            }
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
             fhir::ExprKind::Const(_, _) => Ok(fhir::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, e.span),
@@ -435,6 +437,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn synth_binary_op(
         &self,
         env: &Env,
+        span: Span,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
@@ -448,6 +451,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::BinOp::Eq | fhir::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, &s)?;
+                if !self.early_cx.has_equality(&s) {
+                    return self.emit_err(errors::NoEquality::new(span, &s));
+                }
                 Ok(fhir::Sort::Bool)
             }
             fhir::BinOp::Mod => {
@@ -843,6 +849,20 @@ mod errors {
     impl<'a> InvalidPrimitiveDotAccess<'a> {
         pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
             Self { sort, span: fld.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::no_equality, code = "FLUX")]
+    pub(super) struct NoEquality<'a> {
+        #[primary_span]
+        span: Span,
+        sort: &'a fhir::Sort,
+    }
+
+    impl<'a> NoEquality<'a> {
+        pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+            Self { span, sort }
         }
     }
 }

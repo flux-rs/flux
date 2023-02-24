@@ -908,7 +908,14 @@ impl fmt::Debug for Sort {
 
 impl fmt::Display for FuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}) -> {}", self.inputs().iter().join(","), self.output())
+        match self.inputs() {
+            [input] => {
+                write!(f, "{} -> {}", input, self.output())
+            }
+            inputs => {
+                write!(f, "{} -> {}", inputs.iter().join(","), self.output())
+            }
+        }
     }
 }
 
