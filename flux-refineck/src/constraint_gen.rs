@@ -2,7 +2,7 @@ use std::iter;
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::{GlobalEnv, OpaqueStructErr, Variance},
+    global_env::{GlobalEnv, OpaqueStructErr},
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
@@ -14,6 +14,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
 use crate::{
@@ -457,17 +458,17 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
                 match variance {
-                    rustc_middle::ty::Variance::Covariant => self.subtyping(rcx, ty1, ty2),
-                    rustc_middle::ty::Variance::Invariant => {
+                    Variance::Covariant => self.subtyping(rcx, ty1, ty2),
+                    Variance::Invariant => {
                         self.subtyping(rcx, ty1, ty2);
                         self.subtyping(rcx, ty2, ty1);
                     }
-                    rustc_middle::ty::Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
-                    rustc_middle::ty::Variance::Bivariant => {}
+                    Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
+                    Variance::Bivariant => {}
                 }
             }
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
-                tracked_span_bug!("generic base type argument subtyping is not implemented");
+                tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),

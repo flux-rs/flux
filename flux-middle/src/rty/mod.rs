@@ -38,21 +38,21 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Generics {
-    pub params: List<GenericParam>,
+    pub params: List<GenericParamDef>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct GenericParam {
-    pub kind: GenericParamKind,
+pub struct GenericParamDef {
+    pub kind: GenericParamDefKind,
     pub def_id: DefId,
     pub index: u32,
     pub name: Symbol,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GenericParamKind {
+pub enum GenericParamDefKind {
     Type { has_default: bool },
     BaseTy,
     Lifetime,
@@ -235,7 +235,7 @@ pub enum GenericArg {
 }
 
 impl Generics {
-    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParam {
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParamDef {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             self.params[index].clone()
         } else {
@@ -730,15 +730,6 @@ impl TyS {
         }
     }
 
-    #[track_caller]
-    pub fn expect_indexed(&self) -> (&BaseTy, &Index) {
-        if let TyKind::Indexed(bty, idx) = self.kind() {
-            (bty, idx)
-        } else {
-            bug!("expected indexed")
-        }
-    }
-
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
         self.as_bty_skipping_binders()
@@ -880,7 +871,7 @@ impl_internable!(
     [InferMode],
     [TupleTree<bool>],
     [Sort],
-    [GenericParam],
+    [GenericParamDef],
 );
 
 #[macro_export]

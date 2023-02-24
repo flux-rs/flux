@@ -116,10 +116,9 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::Param(def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
-                    fhir::GenericParamKind::BaseTy => fhir::Sort::Param(def_id),
-                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => {
-                        return None
-                    }
+                    fhir::GenericParamDefKind::BaseTy => fhir::Sort::Param(def_id),
+                    fhir::GenericParamDefKind::Type { .. }
+                    | fhir::GenericParamDefKind::Lifetime => return None,
                 }
             }
             fhir::Res::Alias(def_id) | fhir::Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
@@ -134,7 +133,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
+    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParamDef {
         let owner = self.hir().ty_param_owner(def_id);
         self.map.generics_of(owner).get_param(def_id)
     }

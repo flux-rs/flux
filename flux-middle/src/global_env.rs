@@ -7,8 +7,7 @@ use itertools::Itertools;
 use rustc_errors::FatalError;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def::DefKind, def_id::DefId, LangItem};
-use rustc_middle::ty::TyCtxt;
-pub use rustc_middle::ty::Variance;
+use rustc_middle::ty::{TyCtxt, Variance};
 pub use rustc_span::{symbol::Ident, Symbol};
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
@@ -288,7 +287,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn instantiate_generic_arg(
         &self,
         generics: &rty::Generics,
-        param: &rty::GenericParam,
+        param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,
     ) -> rty::GenericArg {
         self.refine_generic_arg(generics, param, arg, rty::Expr::hole)
@@ -303,7 +302,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 }
                 DefKind::TyParam => {
                     match &self.early_cx.get_generic_param(local_id).kind {
-                        fhir::GenericParamKind::Type { default: Some(ty) } => {
+                        fhir::GenericParamDefKind::Type { default: Some(ty) } => {
                             rty::conv::conv_ty(self, ty)
                         }
                         _ => bug!("non-type def"),
@@ -393,18 +392,18 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     fn refine_generic_arg(
         &self,
         generics: &rty::Generics,
-        param: &rty::GenericParam,
+        param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,
         mk_pred: fn() -> rty::Expr,
     ) -> rty::GenericArg {
         match (&param.kind, arg) {
-            (rty::GenericParamKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) => {
+            (rty::GenericParamDefKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) => {
                 rty::GenericArg::Ty(self.refine_ty(generics, ty, mk_pred))
             }
-            (rty::GenericParamKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
+            (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
                 rty::GenericArg::BaseTy(self.refine_ty_inner(generics, ty, mk_pred))
             }
-            (rty::GenericParamKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
+            (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
                 rty::GenericArg::Lifetime
             }
             _ => bug!("mismatched generic arg `{arg:?}` `{param:?}`"),
@@ -439,11 +438,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             rustc::ty::TyKind::Param(param_ty) => {
                 match generics.param_at(param_ty.index as usize, self).kind {
-                    rty::GenericParamKind::Type { .. } => {
+                    rty::GenericParamDefKind::Type { .. } => {
                         return Binder::new(rty::Ty::param(*param_ty), rty::Sort::unit());
                     }
-                    rty::GenericParamKind::BaseTy => rty::BaseTy::Param(*param_ty),
-                    rty::GenericParamKind::Lifetime => bug!(),
+                    rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
+                    rty::GenericParamDefKind::Lifetime => bug!(),
                 }
             }
             rustc::ty::TyKind::Adt(def_id, substs) => {
@@ -483,12 +482,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .iter()
             .map(|param| {
                 let kind = match param.kind {
-                    rustc::ty::GenericParamDefKind::Lifetime => rty::GenericParamKind::Lifetime,
+                    rustc::ty::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
                     rustc::ty::GenericParamDefKind::Type { has_default } => {
-                        rty::GenericParamKind::Type { has_default }
+                        rty::GenericParamDefKind::Type { has_default }
                     }
                 };
-                rty::GenericParam {
+                rty::GenericParamDef {
                     kind,
                     index: param.index,
                     name: param.name,

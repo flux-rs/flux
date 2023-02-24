@@ -84,13 +84,13 @@ pub(crate) fn conv_generics(
                 .find(|param| rust_param.def_id == param.def_id.to_def_id())
                 .map(|param| {
                     let kind = match &param.kind {
-                        fhir::GenericParamKind::Type { default } => {
-                            rty::GenericParamKind::Type { has_default: default.is_some() }
+                        fhir::GenericParamDefKind::Type { default } => {
+                            rty::GenericParamDefKind::Type { has_default: default.is_some() }
                         }
-                        fhir::GenericParamKind::BaseTy => rty::GenericParamKind::BaseTy,
-                        fhir::GenericParamKind::Lifetime => rty::GenericParamKind::Lifetime,
+                        fhir::GenericParamDefKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+                        fhir::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
                     };
-                    rty::GenericParam {
+                    rty::GenericParamDef {
                         kind,
                         def_id: rust_param.def_id,
                         index: rust_param.index,
@@ -232,14 +232,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .iter()
                 .map(|param| {
                     match param.kind {
-                        rty::GenericParamKind::Type { .. } => {
+                        rty::GenericParamDefKind::Type { .. } => {
                             let param_ty = rty::ParamTy { index: param.index, name: param.name };
                             rty::GenericArg::Ty(rty::Ty::param(param_ty))
                         }
-                        rty::GenericParamKind::BaseTy => {
+                        rty::GenericParamDefKind::BaseTy => {
                             bug!("generic base type in struct definition not suported")
                         }
-                        rty::GenericParamKind::Lifetime => rty::GenericArg::Lifetime,
+                        rty::GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
                     }
                 })
                 .collect_vec();
@@ -462,7 +462,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .iter()
             .map(|param| {
                 match param.kind {
-                    rty::GenericParamKind::Type { has_default } => {
+                    rty::GenericParamDefKind::Type { has_default } => {
                         if i < args.len() {
                             i += 1;
                             rty::GenericArg::Ty(self.conv_ty(&args[i - 1]))
@@ -475,10 +475,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             rty::GenericArg::Ty(ty)
                         }
                     }
-                    rty::GenericParamKind::BaseTy => {
+                    rty::GenericParamDefKind::BaseTy => {
                         bug!("generic base type arguments not supported yet")
                     }
-                    rty::GenericParamKind::Lifetime => rty::GenericArg::Lifetime,
+                    rty::GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
                 }
             })
             .collect()

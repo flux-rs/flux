@@ -29,15 +29,15 @@ pub fn lift_generics(
         .iter()
         .map(|param| {
             let kind = match param.kind {
-                hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
+                hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
                 hir::GenericParamKind::Type { default, .. } => {
                     match def_kind {
                         DefKind::AssocFn | DefKind::Fn | DefKind::Impl { .. } => {
                             debug_assert!(default.is_none());
-                            fhir::GenericParamKind::BaseTy
+                            fhir::GenericParamDefKind::BaseTy
                         }
                         _ => {
-                            fhir::GenericParamKind::Type {
+                            fhir::GenericParamDefKind::Type {
                                 default: default.map(|ty| cx.lift_ty(ty)).transpose()?,
                             }
                         }
@@ -51,7 +51,7 @@ pub fn lift_generics(
                     )))
                 }
             };
-            Ok(fhir::GenericParam { def_id: param.def_id, kind })
+            Ok(fhir::GenericParamDef { def_id: param.def_id, kind })
         })
         .try_collect_exhaust()?;
     Ok(fhir::Generics { params })

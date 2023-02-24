@@ -17,8 +17,8 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, Generics,
-        Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, GenericArg,
+        Generics, Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -424,7 +424,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         terminator_span: Span,
         fn_sig: PolySig,
-        substs: &[rty::GenericArg],
+        substs: &[GenericArg],
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
