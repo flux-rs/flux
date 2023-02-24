@@ -265,7 +265,7 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Var(Ident),
-    Dot(Box<Expr>, Ident),
+    Dot(Ident, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
