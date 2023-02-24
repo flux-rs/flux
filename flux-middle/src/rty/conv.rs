@@ -484,34 +484,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .collect()
     }
 
-    // fn conv_generic_arg(&mut self, arg: &fhir::Ty) -> rty::GenericArg {
-    //     let ty = self.conv_ty(arg);
-    //     if matches!(kind, rty::TyVarKind::Type) {
-    //         return rty::GenericArg::Ty(ty);
-    //     }
-    //     match ty.kind() {
-    //         rty::TyKind::Indexed(bty, idx) => {
-    //             let bty = bty.shift_in_bvars(1);
-    //             let sort = bty.sort();
-    //             let pred = rty::Expr::eq(rty::Expr::nu(), &idx.expr.shift_in_bvars(1));
-    //             let ty = if pred.is_trivially_true() {
-    //                 rty::Ty::indexed(bty, rty::Expr::nu())
-    //             } else {
-    //                 rty::Ty::constr(pred, rty::Ty::indexed(bty, rty::Expr::nu()))
-    //             };
-    //             rty::GenericArg::BaseTy(rty::Binder::new(ty, sort))
-    //         }
-    //         rty::TyKind::Exists(ty) => rty::GenericArg::BaseTy(ty.clone()),
-    //         rty::TyKind::Constr(..) => {
-    //             todo!()
-    //         }
-    //         rty::TyKind::Uninit | rty::TyKind::Ptr(_, _) | rty::TyKind::Discr(_, _) => {
-    //             bug!()
-    //         }
-    //         rty::TyKind::Param(_) => bug!(),
-    //     }
-    // }
-
     fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {
         self.genv.early_cx()
     }
