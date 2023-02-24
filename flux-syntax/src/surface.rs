@@ -1,7 +1,7 @@
 use std::fmt;
 
 pub use rustc_ast::token::{Lit, LitKind};
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::LocalDefId;
 pub use rustc_hir::PrimTy;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
@@ -248,14 +248,6 @@ pub struct Path<R = ()> {
     pub refine: Vec<RefineArg>,
     pub span: Span,
     pub res: R,
-}
-
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum Res {
-    PrimTy(PrimTy),
-    Alias(DefId),
-    Adt(DefId),
-    Param(DefId),
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]

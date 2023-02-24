@@ -18,7 +18,7 @@ use crate::intern::{impl_internable, Interned, List};
 
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
-    pub rustc: &'tcx rustc_middle::ty::Generics,
+    pub orig: &'tcx rustc_middle::ty::Generics,
 }
 
 #[derive(PartialEq, Eq, Debug, Hash)]

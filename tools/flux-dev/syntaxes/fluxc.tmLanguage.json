@@ -58,6 +58,11 @@
         {
           "name": "entity.name.type.sort.fluxc",
           "match": "\\b(int|bool|loc|real)\\b"
+        },
+        {
+          "name": "entity.name.type.sort.fluxc",
+          "begin": "sortof\\(",
+          "end": "\\)"
         }
       ]
     },

@@ -2,21 +2,19 @@ use std::iter;
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::{GlobalEnv, OpaqueStructErr, Variance},
+    global_env::{GlobalEnv, OpaqueStructErr},
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
         InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
     },
-    rustc::{
-        self,
-        mir::{BasicBlock, Place},
-    },
+    rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
 use crate::{
@@ -247,15 +245,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         args: &[Ty],
-        arr_ty: &rustc::ty::Ty,
+        arr_ty: Ty,
     ) -> Result<Ty, CheckerError> {
-        let genv = self.genv;
-
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = genv
-            .refine_with_holes(arr_ty)
-            .replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        let arr_ty = arr_ty.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+
+        let (arr_ty, pred) = arr_ty.unconstr();
+        infcx.check_pred(rcx, pred);
 
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
@@ -383,11 +380,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
+            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
+                debug_assert_eq!(param_ty1, param_ty2);
+            }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
-            }
-            (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2);
             }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2, self.tag);
@@ -437,6 +434,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(len1.val, len2.val);
                 self.subtyping(rcx, ty1, ty2);
             }
+            (BaseTy::Param(param1), BaseTy::Param(param2)) => {
+                debug_assert_eq!(param1, param2);
+            }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
@@ -466,6 +466,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
                     Variance::Bivariant => {}
                 }
+            }
+            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
+                tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),

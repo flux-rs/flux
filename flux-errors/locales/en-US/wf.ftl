@@ -75,6 +75,9 @@ wf_field_not_found =
 wf_invalid_primitive_dot_access =
     `{$sort}` is a primitive sort and therefore doesn't have fields
 
-wf_expected_numeric=
+wf_expected_numeric =
     mismatched sorts
     .label = expected numeric sort, found `{$found}`
+
+wf_no_equality =
+    values of sort `{$sort}` cannot be compared for equality

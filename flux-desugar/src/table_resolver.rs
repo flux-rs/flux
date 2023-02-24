@@ -1,6 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Res, Ty};
+use flux_middle::fhir::Res;
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Ty};
 use hir::{ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;

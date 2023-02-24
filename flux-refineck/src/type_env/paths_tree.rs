@@ -840,8 +840,8 @@ fn downcast_enum(
     let variant_def = genv
         .variant(def_id, variant_idx)
         .unwrap()
-        .replace_bvar_with(|sort| rcx.define_vars(sort))
-        .replace_generics(substs);
+        .replace_generics(substs)
+        .replace_bvar_with(|sort| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
     // FIXME(nilehmann) flatten indices

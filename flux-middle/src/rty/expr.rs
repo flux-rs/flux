@@ -234,7 +234,8 @@ impl Expr {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_)
-            | BaseTy::Never => bug!(),
+            | BaseTy::Never
+            | BaseTy::Param(_) => bug!(),
         }
     }
 
@@ -322,7 +323,7 @@ impl Expr {
         &self.kind
     }
 
-    /// An expression is an atom if it "self-delimiting", i.e., it has a clear boundary
+    /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
         !self.is_binary_op()
@@ -336,7 +337,7 @@ impl Expr {
             || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
     }
 
-    /// Whether the expression is literally the constant true.
+    /// Whether the expression is *literally* the constant true.
     pub fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
@@ -361,8 +362,9 @@ impl Expr {
         }
     }
 
-    /// Simplify expression applying some simple rules like removing double negation. This is
-    /// only used for pretty printing.
+    /// Simplify the expression by removing double negations, short-circuiting boolean connectives and
+    /// doing constant folding. Note that we also have [`TypeFoldable::normalize`] which applies beta
+    /// reductions for tuples and abstractions.
     pub fn simplify(&self) -> Expr {
         struct Simplify;
 

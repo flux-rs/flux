@@ -15,6 +15,48 @@ struct LiftCtxt<'a, 'sess, 'tcx> {
     def_id: LocalDefId,
 }
 
+pub fn lift_generics(
+    early_cx: &EarlyCtxt,
+    def_id: LocalDefId,
+) -> Result<fhir::Generics, ErrorGuaranteed> {
+    let hir_generics = early_cx.hir().get_generics(def_id).unwrap();
+    let def_kind = early_cx.tcx.def_kind(def_id.to_def_id());
+
+    let cx = LiftCtxt::new(early_cx, def_id);
+
+    let params = hir_generics
+        .params
+        .iter()
+        .map(|param| {
+            let kind = match param.kind {
+                hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
+                hir::GenericParamKind::Type { default, .. } => {
+                    match def_kind {
+                        DefKind::AssocFn | DefKind::Fn | DefKind::Impl { .. } => {
+                            debug_assert!(default.is_none());
+                            fhir::GenericParamDefKind::BaseTy
+                        }
+                        _ => {
+                            fhir::GenericParamDefKind::Type {
+                                default: default.map(|ty| cx.lift_ty(ty)).transpose()?,
+                            }
+                        }
+                    }
+                }
+                hir::GenericParamKind::Const { .. } => {
+                    return Err(early_cx.sess.emit_err(errors::UnsupportedHir::new(
+                        early_cx.tcx,
+                        param.def_id,
+                        "const generics are not supported",
+                    )))
+                }
+            };
+            Ok(fhir::GenericParamDef { def_id: param.def_id, kind })
+        })
+        .try_collect_exhaust()?;
+    Ok(fhir::Generics { params })
+}
+
 pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
     let item = early_cx.hir().expect_item(def_id);
     match item.kind {
@@ -83,6 +125,7 @@ pub fn lift_variant_def(
     let path = fhir::Path {
         res: fhir::Res::Adt(enum_id.to_def_id()),
         generics: cx.generic_params_into_args(generics)?,
+        refine: vec![],
         // FIXME(nilehmann) the span should also include the generic arguments
         span: ident.span,
     };
@@ -167,17 +210,9 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
         let res = match path.res {
             hir::def::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => fhir::Res::Adt(def_id),
-            hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id, vec![]),
-            hir::def::Res::PrimTy(hir::PrimTy::Bool) => fhir::Res::Bool,
-            hir::def::Res::PrimTy(hir::PrimTy::Int(int_ty)) => fhir::Res::Int(int_ty),
-            hir::def::Res::PrimTy(hir::PrimTy::Uint(uint_ty)) => fhir::Res::Uint(uint_ty),
-            hir::def::Res::PrimTy(hir::PrimTy::Char) => fhir::Res::Char,
-            hir::def::Res::PrimTy(hir::PrimTy::Str) => fhir::Res::Str,
-            hir::def::Res::PrimTy(hir::PrimTy::Float(float_ty)) => fhir::Res::Float(float_ty),
-            hir::def::Res::Def(DefKind::TyParam, def_id) => {
-                let kind = fhir::TyKind::Param(def_id);
-                return Ok(fhir::Ty { kind, span: path.span });
-            }
+            hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id),
+            hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
+            hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Res::Param(def_id),
             hir::def::Res::SelfTyAlias { alias_to, .. } => {
                 return self.lift_self_ty_alias(alias_to)
             }
@@ -191,6 +226,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         let path = fhir::Path {
             res,
             generics: self.lift_generic_args(path.segments.last().unwrap().args)?,
+            refine: vec![],
             span: path.span,
         };
         Ok(fhir::BaseTy::from(path).into())
@@ -249,8 +285,10 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         for param in generics.params.iter() {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
-                    let kind = fhir::TyKind::Param(param.def_id.to_def_id());
-                    args.push(fhir::Ty { kind, span: param.span });
+                    let res = fhir::Res::Param(param.def_id.to_def_id());
+                    let path =
+                        fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
+                    args.push(fhir::BaseTy::from(path).into());
                 }
                 hir::GenericParamKind::Lifetime { .. } => {}
                 hir::GenericParamKind::Const { .. } => {

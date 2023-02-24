@@ -513,10 +513,10 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
-        // There's no way to declare opaque sorts in the horn syntax in fixpoint so we encode
-        // them as integers. Well-formedness should ensure values of this sort are only used to
-        // test for equality.
-        rty::Sort::User(_) => fixpoint::Sort::Int,
+        // There's no way to declare sorts in the horn syntax in fixpoint so we encode
+        // user declared opaque sorts and type variable sorts as integers. Well-formedness
+        // should ensure values of these sorts are properly used.
+        rty::Sort::User(_) | rty::Sort::Param(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
     }

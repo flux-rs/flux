@@ -7,15 +7,18 @@ extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::collections::{hash_map::Entry, BinaryHeap};
+use std::{
+    collections::{hash_map::Entry, BinaryHeap},
+    iter,
+};
 
 use flux_common::{bug, dbg, index::IndexVec, span_bug, tracked_span_bug};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, Index, Int,
-        IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, GenericArg,
+        Generics, Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -45,6 +48,7 @@ use crate::{
 
 pub(crate) struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
+    generics: Generics,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
     phase: P,
@@ -102,13 +106,16 @@ enum Guard {
 impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         body: &'a Body<'tcx>,
         output: Binder<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
         phase: P,
     ) -> Self {
+        let generics = genv.generics_of(def_id);
         Checker {
             genv,
+            generics,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output,
@@ -180,7 +187,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(genv, body, fn_sig.output().clone(), &dominators, phase);
+        let mut ck = Checker::new(genv, def_id, body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -359,8 +366,18 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .lookup_fn_sig(*func_id)
                     .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
 
-                let ret =
-                    self.check_call(rcx, env, terminator_span, fn_sig, &call_substs.lowered, args)?;
+                let fn_generics = self.genv.generics_of(*func_id);
+                let substs = call_substs
+                    .lowered
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, arg)| {
+                        let param = fn_generics.param_at(idx, self.genv);
+                        self.genv
+                            .instantiate_generic_arg(&self.generics, &param, arg)
+                    })
+                    .collect_vec();
+                let ret = self.check_call(rcx, env, terminator_span, fn_sig, &substs, args)?;
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);
@@ -407,19 +424,14 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         env: &mut TypeEnv,
         terminator_span: Span,
         fn_sig: PolySig,
-        substs: &[rustc::ty::GenericArg],
+        substs: &[GenericArg],
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
 
-        let substs = substs
-            .iter()
-            .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
-            .collect_vec();
-
         let output = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
+            .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?
             .replace_bvar_with(|sort| rcx.define_vars(sort));
 
@@ -577,6 +589,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         stmt_span: Span,
         rvalue: &Rvalue,
     ) -> Result<Ty, CheckerError> {
+        let genv = self.genv;
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(rcx, env, stmt_span, operand),
             Rvalue::BinaryOp(bin_op, op1, op2) => {
@@ -599,17 +612,20 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
-                let sig = self
-                    .genv
+                let sig = genv
                     .variant(*def_id, *variant_idx)
                     .map_err(|err| CheckerError::from(err).with_span(stmt_span))?
                     .to_fn_sig();
-                self.check_call(rcx, env, stmt_span, sig, substs, args)
+                let substs = iter::zip(&genv.generics_of(*def_id).params, substs)
+                    .map(|(param, arg)| genv.instantiate_generic_arg(&self.generics, param, arg))
+                    .collect_vec();
+                self.check_call(rcx, env, stmt_span, sig, &substs, args)
             }
-            Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
+            Rvalue::Aggregate(AggregateKind::Array(arr_ty), args) => {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;
+                let arr_ty = self.genv.refine_with_holes(&self.generics, arr_ty);
                 let mut gen = self.constr_gen(rcx, stmt_span);
-                gen.check_mk_array(rcx, env, &args, ty)
+                gen.check_mk_array(rcx, env, &args, arr_ty)
                     .map_err(|err| err.with_span(stmt_span))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
@@ -772,7 +788,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
-                self.genv.refine_with_true(to)
+                self.genv.refine_with_true(&self.generics, to)
             }
         }
     }
