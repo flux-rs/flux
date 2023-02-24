@@ -3,7 +3,7 @@
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -196,7 +196,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let expected = self.early_cx.sort_of_bty(&variant.ret.bty).unwrap();
+        let expected = self.sort_of_bty(&variant.ret.bty);
         let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &expected);
         fields?;
         indices?;
@@ -249,12 +249,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.check_base_ty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
-                let expected = self.early_cx.sort_of_bty(bty).expect("wf indexed");
+                let expected = self.sort_of_bty(bty);
                 self.check_refine_arg(env, idx, &expected)?;
                 self.check_base_ty(env, bty)
             }
             fhir::TyKind::Exists(bty, bind, pred) => {
-                let sort = self.early_cx.sort_of_bty(bty).expect("wf exists");
+                let sort = self.sort_of_bty(bty);
                 self.check_base_ty(env, bty)?;
                 env.push_layer([(&bind.name, &sort)]);
                 self.check_pred(env, pred)
@@ -625,6 +625,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 Ok(())
             }
         }
+    }
+
+    fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
+        self.early_cx
+            .sort_of_bty(bty)
+            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
     }
 }
 

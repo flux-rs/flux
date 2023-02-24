@@ -38,3 +38,6 @@ desugar_illegal_binder =
 desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
     .label = the suffix must be one of the numeric sorts `int` or `real`
+
+desugar_refined_unrefinable_type =
+    type cannot be refined

@@ -358,14 +358,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Indexed(bty, idx)
             }
             surface::TyKind::Exists { bind: ident, bty, pred } => {
+                let Some(sort) = index_sort(self.early_cx, bty) else {
+                    return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
+                };
+
                 let bty = self.desugar_bty(bty)?;
                 self.binders.push_layer();
-
                 let name = self.binders.fresh();
-                let sort = self
-                    .early_cx
-                    .sort_of_bty(&bty)
-                    .unwrap_or_else(|| span_bug!(ty.span, "todo"));
                 let binder = Binder::Refined(name, sort, false);
                 self.binders.insert_binder(self.sess(), *ident, binder)?;
                 let pred = self.as_expr_ctxt().desugar_expr(pred)?;
@@ -833,8 +832,9 @@ impl Binders {
                     }
                     self.insert_binder(early_cx.sess, ident, binder)?;
                 } else {
-                    let sort =
-                        index_sort(early_cx, bty).unwrap_or_else(|| span_bug!(ty.span, "todo"));
+                    let Some(sort) = index_sort(early_cx, bty) else {
+                        return Err(early_cx.emit_err(errors::RefinedUnrefinableType::new(ty.span)));
+                    };
                     let refined_by = as_tuple(early_cx, &sort);
                     let exp = refined_by.len();
                     let got = indices.indices.len();
@@ -1248,6 +1248,19 @@ mod errors {
     impl InvalidNumericSuffix {
         pub(super) fn new(span: Span, suffix: Symbol) -> Self {
             Self { span, suffix }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar::refined_unrefinable_type, code = "FLUX")]
+    pub(super) struct RefinedUnrefinableType {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl RefinedUnrefinableType {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 }
