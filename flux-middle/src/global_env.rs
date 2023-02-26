@@ -14,7 +14,13 @@ pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, VariantIdx},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining, Binder},
+    rty::{
+        self,
+        fold::TypeFoldable,
+        normalize::Defns,
+        refining::{self, Refiner},
+        Binder,
+    },
     rustc,
 };
 
@@ -178,7 +184,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     fn_sig
                 } else {
                     let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
-                    refining::refine_fn_sig(self, &self.generics_of(def_id), &fn_sig, rty::Expr::tt)
+                    Refiner::default(self, &self.generics_of(def_id)).refine_fn_sig(&fn_sig)
                 };
                 Ok(entry.insert(fn_sig).clone())
             }
@@ -245,7 +251,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                                     variant_def,
                                 )
                                 .unwrap_or_else(|_| FatalError.raise());
-                                refining::refine_variant_def(self, def_id, &variant_def)
+                                Refiner::default(self, &self.generics_of(def_id))
+                                    .refine_variant_def(&variant_def)
                             })
                             .collect(),
                     )
@@ -281,21 +288,38 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.early_cx.early_bound_sorts_of(def_id)
     }
 
-    pub fn refine_with_true(&self, generics: &rty::Generics, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
-        refining::refine_ty(self, generics, rustc_ty, rty::Expr::tt)
+    pub fn refine_default(&self, generics: &rty::Generics, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
+        Refiner::default(self, generics).refine_ty(rustc_ty)
     }
 
     pub fn refine_with_holes(&self, generics: &rty::Generics, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
-        refining::refine_ty(self, generics, rustc_ty, rty::Expr::hole)
+        Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
 
-    pub fn instantiate_generic_arg(
+    pub fn instantiate_arg_for_fun(
         &self,
         generics: &rty::Generics,
         param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,
     ) -> rty::GenericArg {
-        refining::refine_generic_arg(self, generics, param, arg, rty::Expr::hole)
+        Refiner::new(self, generics, |bty| {
+            let sort = bty.sort();
+            let mut ty = rty::Ty::indexed(bty, rty::Expr::nu());
+            if !sort.is_unit() {
+                ty = rty::Ty::constr(rty::Expr::hole(), ty);
+            }
+            rty::Binder::new(ty, sort)
+        })
+        .refine_generic_arg(param, arg)
+    }
+
+    pub fn instantiate_arg_for_constructor(
+        &self,
+        generics: &rty::Generics,
+        param: &rty::GenericParamDef,
+        arg: &rustc::ty::GenericArg,
+    ) -> rty::GenericArg {
+        Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }
 
     pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
@@ -324,7 +348,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 .cloned()
                 .unwrap_or_else(|| {
                     let rustc_ty = self.lower_type_of(def_id);
-                    let ty = self.refine_with_true(&self.generics_of(def_id), &rustc_ty);
+                    let ty = self.refine_default(&self.generics_of(def_id), &rustc_ty);
                     Binder::new(ty, rty::Sort::unit())
                 })
         }
