@@ -39,6 +39,14 @@ pub(crate) struct Refiner<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> Refiner<'a, 'tcx> {
+    pub(crate) fn new(
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        generics: &'a rty::Generics,
+        refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
+    ) -> Self {
+        Self { genv, generics, refine }
+    }
+
     pub(crate) fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
         Self { genv, generics, refine: refine_default }
     }

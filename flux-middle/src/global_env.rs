@@ -296,7 +296,24 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
 
-    pub fn instantiate_generic_arg(
+    pub fn instantiate_arg_for_fun(
+        &self,
+        generics: &rty::Generics,
+        param: &rty::GenericParamDef,
+        arg: &rustc::ty::GenericArg,
+    ) -> rty::GenericArg {
+        Refiner::new(self, generics, |bty| {
+            let sort = bty.sort();
+            let mut ty = rty::Ty::indexed(bty, rty::Expr::nu());
+            if !sort.is_unit() {
+                ty = rty::Ty::constr(rty::Expr::hole(), ty);
+            }
+            rty::Binder::new(ty, sort)
+        })
+        .refine_generic_arg(param, arg)
+    }
+
+    pub fn instantiate_arg_for_constructor(
         &self,
         generics: &rty::Generics,
         param: &rty::GenericParamDef,

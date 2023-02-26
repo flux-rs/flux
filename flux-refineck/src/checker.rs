@@ -374,7 +374,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .map(|(idx, arg)| {
                         let param = fn_generics.param_at(idx, self.genv);
                         self.genv
-                            .instantiate_generic_arg(&self.generics, &param, arg)
+                            .instantiate_arg_for_fun(&self.generics, &param, arg)
                     })
                     .collect_vec();
                 let ret = self.check_call(rcx, env, terminator_span, fn_sig, &substs, args)?;
@@ -617,7 +617,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .map_err(|err| CheckerError::from(err).with_span(stmt_span))?
                     .to_fn_sig();
                 let substs = iter::zip(&genv.generics_of(*def_id).params, substs)
-                    .map(|(param, arg)| genv.instantiate_generic_arg(&self.generics, param, arg))
+                    .map(|(param, arg)| {
+                        genv.instantiate_arg_for_constructor(&self.generics, param, arg)
+                    })
                     .collect_vec();
                 self.check_call(rcx, env, stmt_span, sig, &substs, args)
             }
