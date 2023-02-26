@@ -788,7 +788,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
-                self.genv.refine_with_true(&self.generics, to)
+                self.genv.refine_default(&self.generics, to)
             }
         }
     }
