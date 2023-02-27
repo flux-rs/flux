@@ -101,7 +101,7 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                          requires E::ge(a - b, 0) => ConstrReason::Overflow)
                 )
             } else {
-                    (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]))
+                (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]))
             };
             [
                 // ARITH
