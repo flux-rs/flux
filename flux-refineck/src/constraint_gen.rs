@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, sync::Arc};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
@@ -20,6 +20,7 @@ use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::{Clause, PredicateKind, TraitPredicate, TraitRef};
 use rustc_span::Span;
 
 use crate::{
@@ -109,10 +110,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         return None;
     }
 
-    fn closure_obligs(did: Option<DefId>, inst_fn_sig: rty::FnSig) -> Vec<ClosureOblig> {
-        todo!()
-    }
-
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -155,8 +152,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         println!("TRACE: check_fn_call fn_sig (inst) = {fn_sig:?} with {actuals:?}");
 
-        for (fn_id, fn_sig) in Self::closure_obligs(did, inst_fn_sig) {
-            todo!("infcx.check_closure(rcx, fn_id, sig)")
+        for (fn_id, fn_sig) in infcx.closure_obligs(did, fn_sig, &substs) {
+            todo!("TODO:CLOSURE: infcx.check_closure(rcx, fn_id, sig)")
         }
 
         // Check requires predicates and collect type constraints
@@ -550,6 +547,87 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
+    }
+
+    // fn is_fn_trait(&mut self, trait_ref: &TraitRef) {
+    //     let fn_once_id = self.genv.tcx.lang_items().fn_once_trait().unwrap();
+    //     if fn_once_id == trait_ref.def_id {
+    //         let substs = trait_ref.substs.try_as_type_list().unwrap();
+    //         for ty in substs {
+    //             match ty.kind() {
+    //                 rustc_middle::ty::Param(p) => {
+    //                     println!("TRACE: is_fn_trait ty PARAM = {p:?}")
+    //                 }
+    //                 rustc_middle::ty::Tuple(t) => {
+    //                     println!("TRACE: is_fn_trait ty TUPLE = {t:?}")
+    //                 }
+    //                 _ => println!("TRACE: is_fn_trait OTHER {ty:?}"),
+    //             }
+    //         }
+    //     }
+    // }
+
+    fn closure_obligs(
+        &mut self,
+        did: Option<DefId>,
+        fn_sig: &PolySig,
+        substs: &Vec<GenericArg>,
+    ) -> Vec<ClosureOblig> {
+        if let Some(did) = did {
+            let preds = self.genv.tcx.predicates_of(did);
+            // 2. For each closure-param-ty find its INPUT
+            // 3. For each closure-param-ty find its OUTPUT
+
+            let fn_once_id = self.genv.tcx.lang_items().fn_once_trait().unwrap();
+
+            // 1. Find the closure-param-tys i.e. 'F' that implement FnOnce -- ie are supposed to be closures
+            let mut f_ins: FxHashMap<rustc_middle::ty::ParamTy, rustc_middle::ty::Ty> =
+                FxHashMap::default();
+            let mut f_out: FxHashMap<rustc_middle::ty::ParamTy, rustc_middle::ty::Ty> =
+                FxHashMap::default();
+
+            let clauses = preds
+                .predicates
+                .iter()
+                .map(|(p, _)| p.kind().skip_binder())
+                .filter_map(|p| {
+                    match p {
+                        PredicateKind::Clause(c) => Some(c),
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            for clause in clauses {
+                match clause {
+                    // found an fn-input type
+                    Clause::Trait(trait_pred) => {
+                        let trait_ref = trait_pred.trait_ref;
+                        if fn_once_id == trait_ref.def_id &&
+                           let Some(substs) = trait_ref.substs.try_as_type_list() &&
+                           let rustc_middle::ty::Param(p) = substs[0].kind() {
+                            f_ins.insert(p.clone(),substs[1].clone());
+                        }
+                    }
+                    Clause::Projection(proj_pred) => {
+                        // println!("TRACE: closure_obligs proj_pred = {proj_pred:?}");
+                        let proj_ty = proj_pred.projection_ty;
+                        // ASSUME: the only trait item of `FnOnce` is `Output`
+                        if self.genv.tcx.trait_of_item(proj_ty.def_id) == Some(fn_once_id) &&
+                           let Some(proj_substs) = proj_ty.substs.try_as_type_list() &&
+                           let rustc_middle::ty::Param(p) = proj_substs[0].kind() &&
+                           let Some(out_ty) = proj_pred.term.ty() {
+                           f_out.insert(p.clone(),out_ty);
+                           println!("TRACE: closure_obligs proj_substs = {proj_substs:?}");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            println!("TRACE: closure_obligs f_ins = {f_ins:?}, f_out = {f_out:?}"); // RJ: HEREHEREHEREHEREHEREHERE convert to signature
+            let rust_fn_sig = self.genv.tcx.fn_sig(did);
+        }
+        todo!("TODO:CLOSURE:closure_obligs")
     }
 }
 
