@@ -3,7 +3,9 @@ use std::iter;
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
+    intern::List,
     rty::{
+        self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
@@ -17,6 +19,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
 use crate::{
@@ -66,6 +69,8 @@ pub enum ConstrReason {
     Other,
 }
 
+type ClosureOblig = (DefId, flux_middle::rty::FnSig);
+
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, span: Span) -> Self
     where
@@ -95,10 +100,24 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
+    fn is_closure(arg: &GenericArg) -> Option<DefId> {
+        if let GenericArg::Ty(ty) = arg {
+            if let TyKind::Indexed(BaseTy::Closure(did), _) = ty.kind() {
+                return Some(*did);
+            }
+        }
+        return None;
+    }
+
+    fn closure_obligs(did: Option<DefId>, inst_fn_sig: rty::FnSig) -> Vec<ClosureOblig> {
+        todo!()
+    }
+
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        did: Option<DefId>,
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
@@ -126,19 +145,23 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
             .collect_vec();
 
-        // println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
-        // println!("TRACE: check_fn_call substs = {substs:?}");
+        println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
+        println!("TRACE: check_fn_call substs = {substs:?}");
 
         // Generate fresh evars and kvars for refinement parameters
-        let fn_sig = fn_sig
+        let inst_fn_sig = fn_sig
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
-        // println!("TRACE: check_fn_call {fn_sig:?} with {actuals:?}");
+        println!("TRACE: check_fn_call fn_sig (inst) = {fn_sig:?} with {actuals:?}");
+
+        for (fn_id, fn_sig) in Self::closure_obligs(did, inst_fn_sig) {
+            todo!("infcx.check_closure(rcx, fn_id, sig)")
+        }
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
-        for constr in fn_sig.requires() {
+        for constr in inst_fn_sig.requires() {
             match constr {
                 Constraint::Type(path, ty) => {
                     requires.insert(path.clone(), ty);
@@ -150,7 +173,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
+        for (actual, formal) in iter::zip(&actuals, inst_fn_sig.args()) {
             let rcx = &mut rcx.push_comment(format!("{actual:?} <: {formal:?}"));
 
             let (formal, pred) = formal.unconstr();
@@ -177,7 +200,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-        let output = fn_sig.output().replace_evars(&evars_sol);
+        let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
         Ok(output)
     }

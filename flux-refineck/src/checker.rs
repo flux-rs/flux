@@ -359,8 +359,15 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .lookup_fn_sig(*func_id)
                     .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
 
-                let ret =
-                    self.check_call(rcx, env, terminator_span, fn_sig, &call_substs.lowered, args)?;
+                let ret = self.check_call(
+                    rcx,
+                    env,
+                    terminator_span,
+                    Some(*func_id),
+                    fn_sig,
+                    &call_substs.lowered,
+                    args,
+                )?;
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret);
@@ -406,6 +413,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         terminator_span: Span,
+        did: Option<DefId>,
         fn_sig: PolySig,
         substs: &[rustc::ty::GenericArg],
         args: &[Operand],
@@ -419,7 +427,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let output = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, &fn_sig, &substs, &actuals)
+            .check_fn_call(rcx, env, did, &fn_sig, &substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?
             .replace_bvar_with(|sort| rcx.define_vars(sort));
 
@@ -604,7 +612,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                     .variant(*def_id, *variant_idx)
                     .map_err(|err| CheckerError::from(err).with_span(stmt_span))?
                     .to_fn_sig();
-                self.check_call(rcx, env, stmt_span, sig, substs, args)
+                self.check_call(rcx, env, stmt_span, None, sig, substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(ty), args) => {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;
