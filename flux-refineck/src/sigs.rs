@@ -81,8 +81,9 @@ macro_rules! s {
     };
 }
 
-/// This set of signatures just checks substraction does not underflow and works
-/// in tandem with the invariant for unsigned ints returned in [`BaseTy::invariants`].
+/// This set of signatures just checks subtraction does not underflow if
+/// flux_config::check_overflow() = true and works in tandem with the invariant
+/// for unsigned ints returned in [`BaseTy::invariants`].
 ///
 /// [`BaseTy::invariants`]: flux_middle::rty::BaseTy::invariants
 #[rustfmt::skip]
@@ -95,13 +96,18 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 let bool = BaseTy::Bool;
                 let Uint = BaseTy::Uint(uint_ty);
             }
+            let sub = if flux_config::check_overflow() {
+                (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
+                         requires E::ge(a - b, 0) => ConstrReason::Overflow)
+                )
+            } else {
+                    (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]))
+            };
             [
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b])),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b])),
-                (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
-                         requires E::ge(a - b, 0) => ConstrReason::Overflow)
-                ),
+                sub,
                 (Div, s!(fn(a: Uint, b: Uint) -> Uint[a / b]
                          requires E::ne(b, 0) => ConstrReason::Div),
                 ),
