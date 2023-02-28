@@ -632,6 +632,18 @@ impl Constant {
         let n2 = other.to_int()?;
         Some(Constant::Bool(n1 >= n2))
     }
+
+    pub fn int_min(bit_width: u128) -> Constant {
+        Constant::Int(Sign::Negative, 2^(bit_width - 1))
+    }
+
+    pub fn int_max(bit_width: u128) -> Constant {
+        (i128::MAX >> (128 - bit_width)).into()
+    }
+
+    pub fn uint_max(bit_width: u128) -> Constant {
+        (u128::MAX >> (128 - bit_width)).into()
+    }
 }
 
 impl From<usize> for Constant {
