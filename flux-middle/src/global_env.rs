@@ -311,7 +311,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig, mk_pred: fn() -> rty::Expr) -> rty::PolySig {
+    pub fn refine_fn_sig(
+        &self,
+        fn_sig: &rustc::ty::FnSig,
+        mk_pred: fn() -> rty::Expr,
+    ) -> rty::PolySig {
         let args = fn_sig
             .inputs()
             .iter()

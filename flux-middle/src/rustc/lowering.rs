@@ -579,7 +579,7 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
         .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
-fn lower_fn_sig<'tcx>(
+pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedType> {
