@@ -1,9 +1,8 @@
-use std::{iter, sync::Arc};
+use std::iter;
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr, Variance},
-    intern::List,
     rty::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
@@ -20,7 +19,7 @@ use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::{Clause, PredicateKind, TraitPredicate, TraitRef};
+use rustc_middle::ty::{Clause, PredicateKind};
 use rustc_span::Span;
 use rustc_target::spec::abi::Abi;
 
@@ -152,8 +151,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
-        for oblig in infcx.closure_obligs(did.unwrap(), &substs, &actuals) {
-            // println!("TRACE: infcx.check_closure on {oblig:?}")
+        // Check closure obligations
+        if let Some(did) = did {
+            for oblig in infcx.closure_obligs(did, &substs, &actuals) {
+                // println!("TRACE: infcx.check_closure on {oblig:?}")
+            }
         }
         // todo!("TODO:CLOSURE");
 
