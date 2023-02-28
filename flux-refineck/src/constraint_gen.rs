@@ -70,6 +70,7 @@ pub enum ConstrReason {
     Other,
 }
 
+// TODO(CLOSURE): MOVE TO `rty`
 #[derive(Debug)]
 struct ClosureOblig {
     oblig_def_id: DefId,
@@ -154,10 +155,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Check closure obligations
         if let Some(did) = did {
             for oblig in infcx.closure_obligs(did, &substs, &actuals) {
-                // println!("TRACE: infcx.check_closure on {oblig:?}")
+                println!("TRACE: infcx.check_closure on {oblig:?}")
             }
         }
-        // todo!("TODO:CLOSURE");
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();

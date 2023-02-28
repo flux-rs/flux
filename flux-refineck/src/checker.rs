@@ -43,6 +43,11 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
+/* TODO(CLOSURE)
+
+
+*/
+
 pub(crate) struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
@@ -431,6 +436,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .map_err(|err| err.with_span(terminator_span))?
             .replace_bvar_with(|sort| rcx.define_vars(sort));
 
+        // TODO(CLOSURE): collect "obligations" here
+        // for o in obligations { self.check_oblig(...o) }
+        //
+
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
@@ -441,6 +450,19 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             }
         }
         Ok(output.ret)
+    }
+
+    fn check_oblig(
+        &mut self,
+        _rcx: &mut RefineCtxt,
+        _env: &mut TypeEnv,
+        oblig: Obligation,
+    ) -> Self {
+        // implement by calling Checker::run
+        //  - on the oblig.def_id
+        //  - with oblig.signature get the appropriate SIGNATURE against which to check the def_id
+        //  - same RefineCtxt but using as_subtree (or something like that)
+        todo!()
     }
 
     fn check_assert(

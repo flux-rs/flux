@@ -51,10 +51,13 @@ pub fn check_fn<'tcx>(
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
     dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
+        // PHASE 1: invoke the checker in SHAPE-MODE, for this we don't generate KVars so no need for KVAR-store
+
         let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
 
         tracing::info!("Checker::infer");
 
+        // PHASE 2: invoke the checker in REFINE-MODE, for this we DO need KVars so no need for KVAR-store
         let mut kvars = fixpoint::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         Checker::check(genv, body, def_id, refine_tree.as_subtree(), &mut kvars, bb_envs)
