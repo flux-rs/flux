@@ -12,6 +12,11 @@ pub fn uint_sub(a: u32, b: u32) -> u32 {
     a - b //~ ERROR overflow
 }
 
+#[flux::sig(fn(a: u32, b: u32) -> u32{v: v == a + b})]
+pub fn uint_add(a: u32, b: u32) -> u32 {
+    a + b //~ ERROR overflow
+}
+
 #[flux::sig(fn(i32{v: v != 0}, i32) -> i32{v: v != 0})]
 pub fn bitwise_or(a: i32, b: i32) -> i32 {
     a | b //~ ERROR postcondition

@@ -718,11 +718,11 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
                 let (e1, e2) = (idx1.expr.clone(), idx2.expr.clone());
-                if let sigs::Pre::Some(reason, constr) = sig.pre {
+                if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
                         constr([e1.clone(), e2.clone()]),
-                        reason,
+                        *reason,
                     );
                 }
 

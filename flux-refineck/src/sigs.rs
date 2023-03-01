@@ -9,17 +9,17 @@ use rustc_hash::FxHashMap;
 
 use crate::constraint_gen::ConstrReason;
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Sig<const N: usize> {
     pub args: [BaseTy; N],
     pub pre: Pre<N>,
     pub out: Output<N>,
 }
 
-#[derive(Copy, Clone)]
+// #[derive(Clone)]
 pub enum Pre<const N: usize> {
     None,
-    Some(ConstrReason, fn([Expr; N]) -> Expr),
+    Some(ConstrReason, Box<dyn Fn([Expr; N]) -> Expr + Sync + Send>),
 }
 
 #[derive(Clone)]
@@ -77,7 +77,7 @@ macro_rules! s {
         Pre::None
     };
     (($($args:ident),+) requires $pre:expr => $tag:path) => {
-        Pre::Some($tag, |[$($args),+]| $pre)
+        Pre::Some($tag, Box::new(move |[$($args),+]| $pre))
     };
 }
 
@@ -133,15 +133,15 @@ fn mk_unsigned_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig
                 let Uint = BaseTy::Uint(uint_ty);
             }
             let bit_width: u128 = uint_ty.bit_width().unwrap_or(flux_config::pointer_width().bits()).into();
-            let uint_min = 0;
-            let uint_max = Expr::constant(flux_fixpoint::Constant::uint_max(bit_width));
+            // let uint_min = 0;
+            // let uint_max = Expr::constant(flux_fixpoint::Constant::uint_max(bit_width));
             [
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b]
-                         requires E::le(a + b, uint_max) => ConstrReason::Overflow)
+                         requires E::le(a + b, Expr::constant(flux_fixpoint::Constant::uint_max(bit_width))) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b]
-                         requires E::le(a * b, uint_max) => ConstrReason::Overflow)
+                         requires E::le(a * b, Expr::constant(flux_fixpoint::Constant::uint_max(bit_width))) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
                          requires E::ge(a - b, 0) => ConstrReason::Overflow)
@@ -248,7 +248,11 @@ static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| {
     let mut table = SigTable::new();
 
     table.extend(mk_signed_bin_ops());
-    table.extend(mk_unsigned_bin_ops());
+    if flux_config::check_overflow() {
+        table.extend(mk_unsigned_bin_ops_check_overflow());
+    } else {
+        table.extend(mk_unsigned_bin_ops());
+    }
     table.extend(mk_shift_ops());
     table.extend(mk_bool_bin_ops());
 

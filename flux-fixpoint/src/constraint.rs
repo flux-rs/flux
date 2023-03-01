@@ -677,6 +677,12 @@ impl From<i128> for Expr {
     }
 }
 
+impl From<u128> for Expr {
+    fn from(c: u128) -> Self {
+        Expr::Constant(c.into())
+    }
+}
+
 impl From<Name> for Expr {
     fn from(n: Name) -> Self {
         Expr::Var(n)
