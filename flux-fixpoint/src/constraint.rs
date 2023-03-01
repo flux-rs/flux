@@ -634,7 +634,7 @@ impl Constant {
     }
 
     pub fn int_min(bit_width: u128) -> Constant {
-        Constant::Int(Sign::Negative, 2^(bit_width - 1))
+        Constant::Int(Sign::Negative, 2 ^ (bit_width - 1))
     }
 
     pub fn int_max(bit_width: u128) -> Constant {

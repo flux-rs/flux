@@ -81,6 +81,18 @@ macro_rules! s {
     };
 }
 
+fn int_max(bit_width: u128) -> E {
+    E::constant(flux_fixpoint::Constant::int_max(bit_width))
+}
+
+fn int_min(bit_width: u128) -> E {
+    E::constant(flux_fixpoint::Constant::int_min(bit_width))
+}
+
+fn uint_max(bit_width: u128) -> E {
+    E::constant(flux_fixpoint::Constant::uint_max(bit_width))
+}
+
 /// This set of signatures does not check for overflow or underflow.
 #[rustfmt::skip]
 fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
@@ -138,10 +150,10 @@ fn mk_unsigned_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig
             [
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b]
-                         requires E::le(a + b, Expr::constant(flux_fixpoint::Constant::uint_max(bit_width))) => ConstrReason::Overflow)
+                         requires E::le(a + b, uint_max(bit_width)) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b]
-                         requires E::le(a * b, Expr::constant(flux_fixpoint::Constant::uint_max(bit_width))) => ConstrReason::Overflow)
+                         requires E::le(a * b, uint_max(bit_width)) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
                          requires E::ge(a - b, 0) => ConstrReason::Overflow)
@@ -181,6 +193,59 @@ fn mk_signed_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Add, s!(fn(a: Int, b: Int) -> Int[a + b])),
                 (Sub, s!(fn(a: Int, b: Int) -> Int[a - b])),
                 (Mul, s!(fn(a: Int, b: Int) -> Int[a * b])),
+                (Div, s!(fn(a: Int, b: Int) -> Int[a / b]
+                            requires E::ne(b, 0) => ConstrReason::Div),
+                ),
+                (Rem, s!(fn(a:Int , b: Int) -> Int{v: E::implies(
+                                                          E::and([E::ge(&a, 0), E::ge(&b, 0)]),
+                                                          E::eq(v, E::binary_op(BinOp::Mod, a, b))) }
+                            requires E::ne(b, 0) => ConstrReason::Rem),
+                ),
+                // BIT
+                (BitAnd, s!(fn(a: Int, b: Int) -> Int{v: E::tt()})),
+                (BitOr,  s!(fn(a: Int, b: Int) -> Int{v: E::tt()})),
+                // CMP
+                (Eq, s!(fn(a: Int, b: Int) -> bool[E::eq(a, b)])),
+                (Ne, s!(fn(a: Int, b: Int) -> bool[E::ne(a, b)])),
+                (Le, s!(fn(a: Int, b: Int) -> bool[E::le(a, b)])),
+                (Ge, s!(fn(a: Int, b: Int) -> bool[E::ge(a, b)])),
+                (Lt, s!(fn(a: Int, b: Int) -> bool[E::lt(a, b)])),
+                (Gt, s!(fn(a: Int, b: Int) -> bool[E::gt(a, b)])),
+            ]
+        })
+}
+
+#[rustfmt::skip]
+fn mk_signed_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
+    use mir::BinOp::*;
+    INT_TYS
+        .into_iter()
+        .flat_map(|int_ty| {
+            define_btys! {
+                let bool = BaseTy::Bool;
+                let Int = BaseTy::Int(int_ty);
+            }
+            let bit_width: u128 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits()).into();
+            [
+                // ARITH
+                (Add, s!(fn(a: Int, b: Int) -> Int[a + b]
+                            requires E::and(
+                                [E::le(&a + &b, int_max(bit_width)),
+                                E::ge(a + b, int_min(bit_width))]
+                            ) => ConstrReason::Overflow)
+                ),
+                (Sub, s!(fn(a: Int, b: Int) -> Int[a - b]
+                            requires E::and(
+                                [E::le(&a - &b, int_max(bit_width)),
+                                E::ge(a - b, int_min(bit_width))]
+                            ) => ConstrReason::Overflow)
+                ),
+                (Mul, s!(fn(a: Int, b: Int) -> Int[a * b]
+                            requires E::and(
+                                [E::le(&a - &b, int_max(bit_width)),
+                                E::ge(a - b, int_min(bit_width))]
+                            ) => ConstrReason::Overflow)
+                ),
                 (Div, s!(fn(a: Int, b: Int) -> Int[a / b]
                             requires E::ne(b, 0) => ConstrReason::Div),
                 ),
@@ -247,10 +312,11 @@ fn mk_shift_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)> {
 static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| {
     let mut table = SigTable::new();
 
-    table.extend(mk_signed_bin_ops());
     if flux_config::check_overflow() {
+        table.extend(mk_signed_bin_ops_check_overflow());
         table.extend(mk_unsigned_bin_ops_check_overflow());
     } else {
+        table.extend(mk_signed_bin_ops());
         table.extend(mk_unsigned_bin_ops());
     }
     table.extend(mk_shift_ops());

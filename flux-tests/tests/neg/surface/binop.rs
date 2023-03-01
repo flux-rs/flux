@@ -1,11 +1,8 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-// Bitwise BinOps
-//
-// We don't natively track any conditions on the bit-wise arithmetic operations,
-// so all that we know is the type of the resulting value (although we know that
-// it will unconditionally succeed).
+// Arithmetic BinOps
+// These check for over/underflow
 
 #[flux::sig(fn(a: u32, b: u32) -> u32{v: v == a - b})]
 pub fn uint_sub(a: u32, b: u32) -> u32 {
@@ -16,6 +13,22 @@ pub fn uint_sub(a: u32, b: u32) -> u32 {
 pub fn uint_add(a: u32, b: u32) -> u32 {
     a + b //~ ERROR overflow
 }
+
+#[flux::sig(fn(a: i32{a > 0}, b: i32{b > 0}) -> i32{v: v == a + b})]
+pub fn uint_add_pos(a: i32, b: i32) -> i32 {
+    a + b //~ ERROR overflow
+}
+
+#[flux::sig(fn(a: i32{a < 0}, b: i32{b < 0}) -> i32{v: v == a + b})]
+pub fn uint_add_neg(a: i32, b: i32) -> i32 {
+    a + b //~ ERROR overflow
+}
+
+// Bitwise BinOps
+//
+// We don't natively track any conditions on the bit-wise arithmetic operations,
+// so all that we know is the type of the resulting value (although we know that
+// it will unconditionally succeed).
 
 #[flux::sig(fn(i32{v: v != 0}, i32) -> i32{v: v != 0})]
 pub fn bitwise_or(a: i32, b: i32) -> i32 {
