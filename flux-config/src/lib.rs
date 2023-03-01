@@ -129,7 +129,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("check_def", "")?
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?
-            .set_default("check_overflow", true)?;
+            .set_default("check_overflow", false)?;
         // Config comes first, enviroment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.to_path_buf()));

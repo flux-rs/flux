@@ -93,7 +93,8 @@ fn uint_max(bit_width: u128) -> E {
     E::constant(flux_fixpoint::Constant::uint_max(bit_width))
 }
 
-/// This set of signatures does not check for overflow or underflow.
+/// This set of signatures does not check for overflow. They check for underflow
+/// in subtraction.
 #[rustfmt::skip]
 fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
     use mir::BinOp::*;
@@ -108,7 +109,9 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b])),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b])),
-                (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b])),
+                (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
+                         requires E::ge(a - b, 0) => ConstrReason::Overflow)
+                ),
                 (Div, s!(fn(a: Uint, b: Uint) -> Uint[a / b]
                          requires E::ne(b, 0) => ConstrReason::Div),
                 ),
