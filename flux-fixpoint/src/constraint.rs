@@ -633,15 +633,22 @@ impl Constant {
         Some(Constant::Bool(n1 >= n2))
     }
 
-    pub fn int_min(bit_width: u128) -> Constant {
-        Constant::Int(Sign::Negative, 2 ^ (bit_width - 1))
+    /// Given the bit width of an integer type, produces the maximum integer for
+    /// that type.
+    pub fn int_min(bit_width: u32) -> Constant {
+        let abs_max: u128 = 2_u128.pow(bit_width);
+        Constant::Int(Sign::Negative, abs_max)
     }
 
-    pub fn int_max(bit_width: u128) -> Constant {
+    /// Given the bit width of an integer type, produces the minimum integer for
+    /// that type.
+    pub fn int_max(bit_width: u32) -> Constant {
         (i128::MAX >> (128 - bit_width)).into()
     }
 
-    pub fn uint_max(bit_width: u128) -> Constant {
+    /// Given the bit width of an unsigned integer type, produces the maximum
+    /// unsigned integer for that type.
+    pub fn uint_max(bit_width: u32) -> Constant {
         (u128::MAX >> (128 - bit_width)).into()
     }
 }
@@ -674,12 +681,6 @@ impl From<bool> for Constant {
 impl From<i128> for Expr {
     fn from(c: i128) -> Self {
         Expr::Constant(Constant::from(c))
-    }
-}
-
-impl From<u128> for Expr {
-    fn from(c: u128) -> Self {
-        Expr::Constant(c.into())
     }
 }
 

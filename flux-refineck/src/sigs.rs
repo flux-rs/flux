@@ -9,14 +9,12 @@ use rustc_hash::FxHashMap;
 
 use crate::constraint_gen::ConstrReason;
 
-// #[derive(Clone)]
 pub struct Sig<const N: usize> {
     pub args: [BaseTy; N],
     pub pre: Pre<N>,
     pub out: Output<N>,
 }
 
-// #[derive(Clone)]
 pub enum Pre<const N: usize> {
     None,
     Some(ConstrReason, Box<dyn Fn([Expr; N]) -> Expr + Sync + Send>),
@@ -81,16 +79,16 @@ macro_rules! s {
     };
 }
 
-fn int_max(bit_width: u128) -> E {
-    E::constant(flux_fixpoint::Constant::int_max(bit_width))
+fn int_max(bit_width: u64) -> E {
+    E::constant(flux_fixpoint::Constant::int_max(bit_width.try_into().unwrap()))
 }
 
-fn int_min(bit_width: u128) -> E {
-    E::constant(flux_fixpoint::Constant::int_min(bit_width))
+fn int_min(bit_width: u64) -> E {
+    E::constant(flux_fixpoint::Constant::int_min(bit_width.try_into().unwrap()))
 }
 
-fn uint_max(bit_width: u128) -> E {
-    E::constant(flux_fixpoint::Constant::uint_max(bit_width))
+fn uint_max(bit_width: u64) -> E {
+    E::constant(flux_fixpoint::Constant::uint_max(bit_width.try_into().unwrap()))
 }
 
 /// This set of signatures does not check for overflow. They check for underflow
@@ -147,9 +145,7 @@ fn mk_unsigned_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig
                 let bool = BaseTy::Bool;
                 let Uint = BaseTy::Uint(uint_ty);
             }
-            let bit_width: u128 = uint_ty.bit_width().unwrap_or(flux_config::pointer_width().bits()).into();
-            // let uint_min = 0;
-            // let uint_max = Expr::constant(flux_fixpoint::Constant::uint_max(bit_width));
+            let bit_width: u64 = uint_ty.bit_width().unwrap_or(flux_config::pointer_width().bits());
             [
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b]
@@ -228,26 +224,26 @@ fn mk_signed_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig<2
                 let bool = BaseTy::Bool;
                 let Int = BaseTy::Int(int_ty);
             }
-            let bit_width: u128 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits()).into();
+            let bit_width: u64 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits()).into();
             [
                 // ARITH
                 (Add, s!(fn(a: Int, b: Int) -> Int[a + b]
-                            requires E::and(
-                                [E::le(&a + &b, int_max(bit_width)),
-                                E::ge(a + b, int_min(bit_width))]
-                            ) => ConstrReason::Overflow)
+                            requires E::and([
+                                         E::le(&a + &b, int_max(bit_width)),
+                                         E::ge(a + b, int_min(bit_width))
+                                     ]) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Int, b: Int) -> Int[a - b]
-                            requires E::and(
-                                [E::le(&a - &b, int_max(bit_width)),
-                                E::ge(a - b, int_min(bit_width))]
-                            ) => ConstrReason::Overflow)
+                            requires E::and([
+                                         E::le(&a - &b, int_max(bit_width)),
+                                         E::ge(a - b, int_min(bit_width))
+                                     ]) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Int, b: Int) -> Int[a * b]
-                            requires E::and(
-                                [E::le(&a - &b, int_max(bit_width)),
-                                E::ge(a - b, int_min(bit_width))]
-                            ) => ConstrReason::Overflow)
+                            requires E::and([
+                                         E::le(&a - &b, int_max(bit_width)),
+                                         E::ge(a - b, int_min(bit_width))
+                                     ]) => ConstrReason::Overflow)
                 ),
                 (Div, s!(fn(a: Int, b: Int) -> Int[a / b]
                             requires E::ne(b, 0) => ConstrReason::Div),
