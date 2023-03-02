@@ -19,7 +19,7 @@ use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
-    fixpoint::{KVarEncoding, KVarGen},
+    fixpoint::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
     type_env::TypeEnv,
 };
@@ -28,6 +28,10 @@ pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
     span: Span,
+}
+
+pub trait KVarGen {
+    fn fresh(&mut self, sort: Sort, kind: KVarEncoding) -> Binder<Expr>;
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -530,6 +534,27 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
+    }
+}
+
+impl<F> KVarGen for F
+where
+    F: FnMut(Sort, KVarEncoding) -> Binder<Expr>,
+{
+    fn fresh(&mut self, sort: Sort, kind: KVarEncoding) -> Binder<Expr> {
+        (self)(sort, kind)
+    }
+}
+
+impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
+    fn fresh(&mut self, sort: Sort, kind: KVarEncoding) -> Binder<Expr> {
+        (**self).fresh(sort, kind)
+    }
+}
+
+impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
+    fn fresh(&mut self, sort: Sort, kind: KVarEncoding) -> Binder<Expr> {
+        (**self).fresh(sort, kind)
     }
 }
 

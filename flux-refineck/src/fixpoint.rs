@@ -50,10 +50,6 @@ pub enum KVarEncoding {
     Conj,
 }
 
-pub trait KVarGen {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr>;
-}
-
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
 type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxIndexMap<Key, ConstInfo>;
@@ -375,27 +371,6 @@ where
 impl FixpointKVar {
     fn new(sorts: Vec<fixpoint::Sort>, orig: rty::KVid) -> Self {
         Self { sorts, orig }
-    }
-}
-
-impl<F> KVarGen for F
-where
-    F: FnMut(rty::Sort, KVarEncoding) -> Binder<rty::Expr>,
-{
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (self)(sort, kind)
-    }
-}
-
-impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (**self).fresh(sort, kind)
-    }
-}
-
-impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (**self).fresh(sort, kind)
     }
 }
 
