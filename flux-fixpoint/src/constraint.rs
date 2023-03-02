@@ -632,6 +632,25 @@ impl Constant {
         let n2 = other.to_int()?;
         Some(Constant::Bool(n1 >= n2))
     }
+
+    /// Given the bit width of an integer type, produces the maximum integer for
+    /// that type.
+    pub fn int_min(bit_width: u32) -> Constant {
+        let abs_max: u128 = 2_u128.pow(bit_width);
+        Constant::Int(Sign::Negative, abs_max)
+    }
+
+    /// Given the bit width of an integer type, produces the minimum integer for
+    /// that type.
+    pub fn int_max(bit_width: u32) -> Constant {
+        (i128::MAX >> (128 - bit_width)).into()
+    }
+
+    /// Given the bit width of an unsigned integer type, produces the maximum
+    /// unsigned integer for that type.
+    pub fn uint_max(bit_width: u32) -> Constant {
+        (u128::MAX >> (128 - bit_width)).into()
+    }
 }
 
 impl From<usize> for Constant {
