@@ -12,7 +12,7 @@ use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
-    rty::{self, Binder, Constant, INNERMOST},
+    rty::{self, Constant},
 };
 use itertools::{self, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -418,13 +418,9 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<S>(
-        &mut self,
-        sort: rty::Sort,
-        scope: S,
-        encoding: KVarEncoding,
-    ) -> Binder<rty::Expr>
+    pub fn fresh<A, S>(&mut self, args: A, scope: S, encoding: KVarEncoding) -> rty::Expr
     where
+        A: IntoIterator<Item = (rty::Var, rty::Sort)>,
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
         let mut scope_sorts = vec![];
@@ -437,18 +433,36 @@ impl KVarStore {
         }
         let mut arg_sorts = vec![];
         let mut arg_exprs = vec![];
-        sort.walk(|sort, proj| {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                arg_sorts.push(sort.clone());
-                arg_exprs.push(rty::Expr::tuple_projs(rty::Expr::bvar(INNERMOST), proj));
-            }
-        });
-        let kvid =
-            self.kvars
-                .push(KVarDecl { args: arg_sorts, scope: scope_sorts.clone(), encoding });
+        for (var, sort) in args {
+            let var = var.to_expr();
+            sort.walk(|sort, proj| {
+                if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
+                    arg_sorts.push(sort.clone());
+                    arg_exprs.push(rty::Expr::tuple_projs(&var, proj));
+                }
+            });
+        }
+        let kvid = self
+            .kvars
+            .push(KVarDecl { args: arg_sorts, scope: scope_sorts, encoding });
 
-        let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs.clone());
-        Binder::new(rty::Expr::kvar(kvar), sort)
+        let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs);
+        rty::Expr::kvar(kvar)
+    }
+
+    pub fn fresh_bound<S>(
+        &mut self,
+        bound: &[rty::Sort],
+        scope: S,
+        encoding: KVarEncoding,
+    ) -> rty::Expr
+    where
+        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
+    {
+        let args = bound.iter().rev().enumerate().map(|(level, sort)| {
+            (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+        });
+        self.fresh(args, scope, encoding)
     }
 }
 

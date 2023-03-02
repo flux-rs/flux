@@ -40,7 +40,7 @@ use rustc_span::Span;
 use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason},
-    fixpoint::{KVarEncoding, KVarStore},
+    fixpoint::KVarStore,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
@@ -77,8 +77,6 @@ pub(crate) trait Phase: Sized {
         terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
-
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr>;
 
     fn clear(&mut self, bb: BasicBlock);
 }
@@ -916,7 +914,7 @@ impl Phase for Inference<'_> {
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |sort, _| Binder::new(Expr::hole(), sort), span)
+        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), span)
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -934,8 +932,7 @@ impl Phase for Inference<'_> {
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
         dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
-        let mut gen =
-            ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
+        let mut gen = ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), terminator_span);
         let modified = match ck.phase.bb_envs.entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
@@ -946,10 +943,6 @@ impl Phase for Inference<'_> {
         dbg::infer_goto_exit!(target, ck.phase.bb_envs[&target]);
 
         Ok(modified)
-    }
-
-    fn fresh_kvar(&mut self, sort: Sort, _: KVarEncoding) -> Binder<Expr> {
-        Binder::new(Expr::hole(), sort)
     }
 
     fn clear(&mut self, bb: BasicBlock) {
@@ -965,7 +958,8 @@ impl Phase for Check<'_> {
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
-        let kvar_gen = move |sort, encoding| self.kvars.fresh(sort, scope.iter(), encoding);
+        let kvar_gen =
+            move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding);
         ConstrGen::new(genv, kvar_gen, span)
     }
 
@@ -985,16 +979,16 @@ impl Phase for Check<'_> {
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
-        let kvar_gen = |sort, encoding| ck.phase.kvars.fresh(sort, bb_env.scope().iter(), encoding);
+        let kvar_gen = |sorts: &[Sort], encoding| {
+            ck.phase
+                .kvars
+                .fresh_bound(sorts, bb_env.scope().iter(), encoding)
+        };
         let gen = &mut ConstrGen::new(ck.genv, kvar_gen, terminator_span);
         env.check_goto(&mut rcx, gen, bb_env, target)
             .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
 
         Ok(!ck.visited.contains(target))
-    }
-
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
-        self.kvars.fresh(sort, [], encoding)
     }
 
     fn clear(&mut self, _bb: BasicBlock) {
