@@ -18,5 +18,5 @@ fn test01(x: &mut A) {
     // &mut ∃a:int. S<i32[a]>[a]
     //   <: &mut ∃b:int. { S<∃c:int. { i32[c] | $k1 }>[b] | $k0 }
     // We are testing that $k1 should be able to mention both c and b.
-    foo(x);
+    test00(x);
 }
