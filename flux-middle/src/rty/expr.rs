@@ -61,7 +61,7 @@ pub enum ExprKind {
 pub struct KVar {
     pub kvid: KVid,
     pub(crate) nargs: usize,
-    pub(crate) exprs: List<Expr>,
+    pub(crate) args: List<Expr>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -509,20 +509,20 @@ impl Expr {
 }
 
 impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
-        KVar { kvid, nargs: args.len(), exprs: args.into_iter().chain(scope).collect() }
+    pub fn new(kvid: KVid, nargs: usize, args: Vec<Expr>) -> Self {
+        KVar { kvid, nargs, args: List::from_vec(args) }
     }
 
     pub fn all_args(&self) -> &[Expr] {
-        &self.exprs
+        &self.args
     }
 
-    fn args(&self) -> &[Expr] {
-        &self.exprs[..self.nargs]
+    fn self_args(&self) -> &[Expr] {
+        &self.args[..self.nargs]
     }
 
     fn scope(&self) -> &[Expr] {
-        &self.exprs[self.nargs..]
+        &self.args[self.nargs..]
     }
 }
 
@@ -837,9 +837,9 @@ mod pretty {
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", self.args()), join!(", ", self.scope()))?;
+                    w!("({:?})[{:?}]", join!(", ", self.self_args()), join!(", ", self.scope()))?;
                 }
-                KVarArgs::SelfOnly => w!("({:?})", join!(", ", self.args()))?,
+                KVarArgs::SelfOnly => w!("({:?})", join!(", ", self.self_args()))?,
                 KVarArgs::Hide => {}
             }
             Ok(())
