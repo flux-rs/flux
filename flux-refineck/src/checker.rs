@@ -189,7 +189,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
             Checker::run(
                 genv,
                 RefineTree::new().as_subtree(),
-                body,
                 def_id,
                 Inference { bb_envs: &mut bb_envs },
                 fn_sig,
@@ -218,7 +217,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
             Checker::run(
                 genv,
                 refine_tree,
-                body,
                 def_id,
                 Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
                 fn_sig,
@@ -231,22 +229,28 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
-        body: &'a Body<'tcx>,
         def_id: DefId,
         mut phase: P,
         fn_sig: PolySig,
     ) -> Result<(), CheckerError> {
+        let body = {
+            let local_def_id = def_id.as_local().unwrap();
+            let mir =
+                unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id).body };
+            rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir).unwrap()
+        };
+
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let fn_sig = fn_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
 
-        let env = Self::init(&mut rcx, body, &fn_sig);
+        let env = Self::init(&mut rcx, &body, &fn_sig);
 
         let dominators = body.dominators();
 
         phase.enter_def_id(def_id);
 
-        let mut ck = Checker::new(def_id, genv, body, fn_sig.output().clone(), &dominators, phase);
+        let mut ck = Checker::new(def_id, genv, &body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -510,7 +514,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         // Check each closure obligation
         for oblig in obligs {
-            self.check_oblig(rcx, env, oblig)?;
+            self.check_oblig(rcx, oblig)?;
         }
 
         Ok(output.ret)
@@ -519,7 +523,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     fn check_oblig(
         &mut self,
         rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
         oblig: rty::ClosureOblig,
     ) -> Result<(), CheckerError> {
         // TODO(CLOSURE)
@@ -529,7 +532,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         //  - same RefineCtxt but using as_subtree (or something like that)
         //  - figure out how to use PHASE to share the KVar-STORE
         //  - add a method to PHASE that
-        Checker::run(self.genv, todo!(), todo!(), oblig.oblig_def_id, self.phase, oblig.oblig_sig)
+        Checker::run(self.genv, todo!(), oblig.oblig_def_id, self.phase, oblig.oblig_sig)
     }
 
     fn check_assert(
