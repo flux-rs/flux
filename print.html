@@ -277,6 +277,9 @@ run <code>cargo build</code>.</p>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
 <li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
+<li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
+operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
+unsigned integer subtraction.</li>
 </ul>
 <h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
 <p>The config file is a <code>.toml</code> file that contains on each line the lowercase name
