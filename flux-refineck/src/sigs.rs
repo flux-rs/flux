@@ -224,7 +224,7 @@ fn mk_signed_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig<2
                 let bool = BaseTy::Bool;
                 let Int = BaseTy::Int(int_ty);
             }
-            let bit_width: u64 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits()).into();
+            let bit_width: u64 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits());
             [
                 // ARITH
                 (Add, s!(fn(a: Int, b: Int) -> Int[a + b]
