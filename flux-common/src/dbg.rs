@@ -42,11 +42,15 @@ pub use crate::_infer_span as infer_span;
 
 #[macro_export]
 macro_rules! _check_span {
-    ($tcx:expr, $def_id:expr, $bb_envs_infer:expr) => {{
+    ($tcx:expr, $def_id:expr) => {{
         let path = $tcx.def_path($def_id);
         let def_id = path.data.iter().join("::");
-        tracing::info_span!("check", def_id = def_id.as_str(), bb_envs_infer = ?$bb_envs_infer)
-    }};
+        tracing::info_span!("check", def_id = def_id.as_str())
+    }}; // ($tcx:expr, $def_id:expr, $bb_envs_infer:expr) => {{
+        //     let path = $tcx.def_path($def_id);
+        //     let def_id = path.data.iter().join("::");
+        //     tracing::info_span!("check", def_id = def_id.as_str(), bb_envs_infer = ?$bb_envs_infer)
+        // }};
 }
 pub use crate::_check_span as check_span;
 

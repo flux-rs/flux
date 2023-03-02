@@ -44,6 +44,7 @@ use crate::{
 };
 
 pub(crate) struct Checker<'a, 'tcx, P> {
+    pub def_id: DefId,
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -64,7 +65,10 @@ pub(crate) trait Phase: Sized {
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
-    fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
+    fn enter_def_id(&mut self, def_id: DefId);
+
+    fn enter_basic_block(&mut self, def_id: DefId, rcx: &mut RefineCtxt, bb: BasicBlock)
+        -> TypeEnv;
 
     fn check_goto_join_point(
         ck: &mut Checker<Self>,
@@ -76,7 +80,7 @@ pub(crate) trait Phase: Sized {
 
     fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr>;
 
-    fn clear(&mut self, bb: BasicBlock);
+    fn clear(&mut self, def_id: DefId, bb: BasicBlock);
 }
 
 pub struct Inference<'a> {
@@ -85,7 +89,8 @@ pub struct Inference<'a> {
 }
 
 pub struct Check<'a> {
-    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+    bb_envs_infer: InferResult,
+    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>, // TODO(CLOSURE): Index by DefId (c.f. InferResult)
     kvars: &'a mut KVarStore,
 }
 
@@ -102,6 +107,7 @@ enum Guard {
 
 impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
+        def_id: DefId,
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
         output: Binder<FnOutput>,
@@ -109,6 +115,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
         phase: P,
     ) -> Self {
         Checker {
+            def_id,
             genv,
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
@@ -122,13 +129,30 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
 }
 
 // type InferResult = FxHashMap<BasicBlock, TypeEnvInfer>;
-pub struct InferResult {
+
+/// Inferred TypeEnv (after the INFER phase) for a single function (DefId)
+pub struct InferResult1 {
     pub inner: FxHashMap<BasicBlock, TypeEnvInfer>,
+}
+
+/// Inferred TypeEnv (after the INFER phase) for each "top-level" function + invoked closures
+pub struct InferResult {
+    pub inner: FxHashMap<DefId, InferResult1>,
 }
 
 impl InferResult {
     fn new() -> Self {
-        InferResult { inner: FxHashMap::default() }
+        Self { inner: FxHashMap::default() }
+    }
+
+    fn init(&mut self, def_id: DefId) {
+        self.inner.entry(def_id).or_insert_with(InferResult1::new);
+    }
+}
+
+impl InferResult1 {
+    fn new() -> Self {
+        Self { inner: FxHashMap::default() }
     }
 
     fn index(&self, bb: &BasicBlock) -> &TypeEnvInfer {
@@ -142,12 +166,6 @@ impl InferResult {
     fn remove(&mut self, bb: &BasicBlock) {
         self.inner.remove(bb);
     }
-
-    // fn into_iter(
-    //     &mut self,
-    // ) -> std::collections::hash_map::IntoIter<rustc_middle::mir::BasicBlock, TypeEnvInfer> {
-    //     self.inner.into_iter()
-    // }
 
     fn entry(&mut self, bb: &BasicBlock) -> Entry<rustc_middle::mir::BasicBlock, TypeEnvInfer> {
         self.inner.entry(*bb)
@@ -186,14 +204,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         kvars: &mut KVarStore,
         bb_envs_infer: InferResult,
     ) -> Result<(), CheckerError> {
-        let bb_envs = bb_envs_infer
-            .inner
-            .into_iter()
-            .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(kvars)))
-            .collect();
-
-        dbg::check_span!(genv.tcx, def_id, bb_envs)
-            .in_scope(|| Checker::run(genv, refine_tree, body, def_id, Check { bb_envs, kvars }))
+        dbg::check_span!(genv.tcx, def_id /* , bb_envs */).in_scope(|| {
+            Checker::run(
+                genv,
+                refine_tree,
+                body,
+                def_id,
+                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
+            )
+        })
     }
 }
 
@@ -203,8 +222,10 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         mut refine_tree: RefineSubtree<'a>,
         body: &'a Body<'tcx>,
         def_id: DefId,
-        phase: P,
+        mut phase: P,
     ) -> Result<(), CheckerError> {
+        phase.enter_def_id(def_id);
+
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let fn_sig = genv
@@ -217,7 +238,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
-        let mut ck = Checker::new(genv, body, fn_sig.output().clone(), &dominators, phase);
+        let mut ck = Checker::new(def_id, genv, body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -229,7 +250,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
-            let mut env = ck.phase.enter_basic_block(&mut rcx, bb);
+            let mut env = ck.phase.enter_basic_block(def_id, &mut rcx, bb);
             env.unpack(&mut rcx);
             ck.check_basic_block(rcx, env, bb)?;
         }
@@ -272,7 +293,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.dominates(root, bb) {
-                self.phase.clear(bb);
+                self.phase.clear(self.def_id, bb);
                 self.visited.remove(bb);
             }
         }
@@ -969,8 +990,13 @@ impl Phase for Inference<'_> {
         ConstrGen::new(genv, |sort, _| Binder::new(Expr::hole(), sort), span)
     }
 
-    fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs.index(&bb).enter()
+    fn enter_basic_block(
+        &mut self,
+        def_id: DefId,
+        _rcx: &mut RefineCtxt,
+        bb: BasicBlock,
+    ) -> TypeEnv {
+        self.bb_envs.inner[&def_id].index(&bb).enter()
     }
 
     fn check_goto_join_point(
@@ -983,19 +1009,38 @@ impl Phase for Inference<'_> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
-        let target_bb_env = ck.phase.bb_envs.get(&target);
+        let target_bb_env = ck.phase.bb_envs.inner[&ck.def_id].get(&target);
         dbg::infer_goto_enter!(target, env, target_bb_env);
         let mut gen =
             ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
-        let modified = match ck.phase.bb_envs.entry(&target) {
+
+        // RJ(YUCK)
+        let mut modified = false;
+        ck.phase.bb_envs.inner.entry(ck.def_id).and_modify(|ir1| {
+            modified = match ir1.entry(&target) {
+                Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
+                Entry::Vacant(entry) => {
+                    entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
+                    true
+                }
+            }
+        });
+
+        //  .entry(&target) {
+        //     Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
+        //     Entry::Vacant(entry) => {
+        //         entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
+        //         true
+        //     }
+        // };
+        /* let modified = match ck.phase.bb_envs.inner[&ck.def_id].entry(&target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
                 true
             }
-        };
-        dbg::infer_goto_exit!(target, ck.phase.bb_envs.get(&target));
-
+        }; */
+        dbg::infer_goto_exit!(target, ck.phase.bb_envs.inner[&ck.def_id].get(&target));
         Ok(modified)
     }
 
@@ -1003,8 +1048,14 @@ impl Phase for Inference<'_> {
         Binder::new(Expr::hole(), sort)
     }
 
-    fn clear(&mut self, bb: BasicBlock) {
-        self.bb_envs.remove(&bb);
+    fn clear(&mut self, def_id: DefId, bb: BasicBlock) {
+        self.bb_envs.inner.entry(def_id).and_modify(|ir| {
+            ir.inner.remove(&bb);
+        });
+    }
+
+    fn enter_def_id(&mut self, def_id: DefId) {
+        self.bb_envs.init(def_id)
     }
 }
 
@@ -1020,7 +1071,21 @@ impl Phase for Check<'_> {
         ConstrGen::new(genv, kvar_gen, span)
     }
 
-    fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
+    fn enter_def_id(&mut self, def_id: DefId) {
+        let infer_result = self.bb_envs_infer.inner.remove(&def_id).unwrap();
+        self.bb_envs = infer_result
+            .inner
+            .into_iter()
+            .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(self.kvars)))
+            .collect();
+    }
+
+    fn enter_basic_block(
+        &mut self,
+        def_id: DefId,
+        rcx: &mut RefineCtxt,
+        bb: BasicBlock,
+    ) -> TypeEnv {
         self.bb_envs[&bb].enter(rcx)
     }
 
@@ -1048,7 +1113,7 @@ impl Phase for Check<'_> {
         self.kvars.fresh(sort, [], encoding)
     }
 
-    fn clear(&mut self, _bb: BasicBlock) {
+    fn clear(&mut self, _def_id: DefId, _bb: BasicBlock) {
         bug!();
     }
 }
