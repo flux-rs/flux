@@ -70,13 +70,6 @@ pub enum ConstrReason {
     Other,
 }
 
-// TODO(CLOSURE): MOVE TO `rty`
-#[derive(Debug)]
-struct ClosureOblig {
-    oblig_def_id: DefId,
-    oblig_sig: PolySig,
-}
-
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(genv: &'a GlobalEnv<'a, 'tcx>, kvar_gen: G, span: Span) -> Self
     where
@@ -123,7 +116,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<Binder<FnOutput>, CheckerError> {
+    ) -> Result<(Binder<FnOutput>, Vec<rty::ClosureOblig>), CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -153,11 +146,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
         // Check closure obligations
-        if let Some(did) = did {
-            for oblig in infcx.closure_obligs(did, &substs, &actuals) {
-                println!("TRACE: infcx.check_closure on {oblig:?}")
-            }
-        }
+        let closure_obligs =
+            if let Some(did) = did { infcx.closure_obligs(did, &substs, &actuals) } else { vec![] };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -202,7 +192,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&evars_sol);
         let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok(output)
+        Ok((output, closure_obligs))
     }
 
     pub(crate) fn check_ret(
@@ -557,7 +547,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         did: DefId,
         substs: &Vec<GenericArg>,
         actuals: &[Ty],
-    ) -> Vec<ClosureOblig> {
+    ) -> Vec<rty::ClosureOblig> {
         let preds = self.genv.tcx.predicates_of(did);
         let fn_once_id = self.genv.tcx.lang_items().fn_once_trait().unwrap();
 
@@ -650,7 +640,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
                 .replace_generics(&substs);
 
-            obligs.push(ClosureOblig { oblig_def_id, oblig_sig });
+            obligs.push(rty::ClosureOblig { oblig_def_id, oblig_sig });
         }
         obligs
     }

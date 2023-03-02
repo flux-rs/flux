@@ -144,6 +144,12 @@ pub struct UifDef {
     pub sort: FuncSort,
 }
 
+#[derive(Debug)]
+pub struct ClosureOblig {
+    pub oblig_def_id: DefId,
+    pub oblig_sig: PolySig,
+}
+
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

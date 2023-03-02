@@ -43,11 +43,6 @@ use crate::{
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
 };
 
-/* TODO(CLOSURE)
-
-
-*/
-
 pub(crate) struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
@@ -85,7 +80,8 @@ pub(crate) trait Phase: Sized {
 }
 
 pub struct Inference<'a> {
-    bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnvInfer>,
+    // bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnvInfer>,
+    bb_envs: &'a mut InferResult,
 }
 
 pub struct Check<'a> {
@@ -125,14 +121,49 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     }
 }
 
+// type InferResult = FxHashMap<BasicBlock, TypeEnvInfer>;
+pub struct InferResult {
+    pub inner: FxHashMap<BasicBlock, TypeEnvInfer>,
+}
+
+impl InferResult {
+    fn new() -> Self {
+        InferResult { inner: FxHashMap::default() }
+    }
+
+    fn index(&self, bb: &BasicBlock) -> &TypeEnvInfer {
+        &self.inner[bb]
+    }
+
+    fn get(&self, bb: &BasicBlock) -> Option<&TypeEnvInfer> {
+        self.inner.get(bb)
+    }
+
+    fn remove(&mut self, bb: &BasicBlock) {
+        self.inner.remove(bb);
+    }
+
+    // fn into_iter(
+    //     &mut self,
+    // ) -> std::collections::hash_map::IntoIter<rustc_middle::mir::BasicBlock, TypeEnvInfer> {
+    //     self.inner.into_iter()
+    // }
+
+    fn entry(&mut self, bb: &BasicBlock) -> Entry<rustc_middle::mir::BasicBlock, TypeEnvInfer> {
+        self.inner.entry(*bb)
+    }
+}
+
 impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     pub fn infer(
         genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-    ) -> Result<FxHashMap<BasicBlock, TypeEnvInfer>, CheckerError> {
+    ) -> Result<InferResult, CheckerError> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
-            let mut bb_envs = FxHashMap::default();
+            // let mut bb_envs = FxHashMap::default();
+            let mut bb_envs = InferResult::new();
+
             Checker::run(
                 genv,
                 RefineTree::new().as_subtree(),
@@ -153,9 +184,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         def_id: DefId,
         refine_tree: RefineSubtree,
         kvars: &mut KVarStore,
-        bb_envs_infer: FxHashMap<BasicBlock, TypeEnvInfer>,
+        bb_envs_infer: InferResult,
     ) -> Result<(), CheckerError> {
         let bb_envs = bb_envs_infer
+            .inner
             .into_iter()
             .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(kvars)))
             .collect();
@@ -430,15 +462,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
             .collect_vec();
 
-        let output = self
+        let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, did, &fn_sig, &substs, &actuals)
-            .map_err(|err| err.with_span(terminator_span))?
-            .replace_bvar_with(|sort| rcx.define_vars(sort));
+            .map_err(|err| err.with_span(terminator_span))?;
 
-        // TODO(CLOSURE): collect "obligations" here
-        // for o in obligations { self.check_oblig(...o) }
-        //
+        let output = output.replace_bvar_with(|sort| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {
@@ -449,19 +478,28 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
             }
         }
+
+        // Check each closure obligation
+        for oblig in obligs {
+            self.check_oblig(rcx, env, oblig)?;
+        }
+
         Ok(output.ret)
     }
 
     fn check_oblig(
         &mut self,
-        _rcx: &mut RefineCtxt,
-        _env: &mut TypeEnv,
-        oblig: Obligation,
-    ) -> Self {
-        // implement by calling Checker::run
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        oblig: rty::ClosureOblig,
+    ) -> Result<(), CheckerError> {
+        // TODO(CLOSURE)
+        // implement by calling Checker::run or see "toplevel_check_fn"
         //  - on the oblig.def_id
         //  - with oblig.signature get the appropriate SIGNATURE against which to check the def_id
         //  - same RefineCtxt but using as_subtree (or something like that)
+        //  - figure out how to use PHASE to share the KVar-STORE
+        //  - add a method to PHASE that
         todo!()
     }
 
@@ -932,7 +970,7 @@ impl Phase for Inference<'_> {
     }
 
     fn enter_basic_block(&mut self, _rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
-        self.bb_envs[&bb].enter()
+        self.bb_envs.index(&bb).enter()
     }
 
     fn check_goto_join_point(
@@ -945,17 +983,18 @@ impl Phase for Inference<'_> {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
-        dbg::infer_goto_enter!(target, env, ck.phase.bb_envs.get(&target));
+        let target_bb_env = ck.phase.bb_envs.get(&target);
+        dbg::infer_goto_enter!(target, env, target_bb_env);
         let mut gen =
             ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
-        let modified = match ck.phase.bb_envs.entry(target) {
+        let modified = match ck.phase.bb_envs.entry(&target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
             Entry::Vacant(entry) => {
                 entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
                 true
             }
         };
-        dbg::infer_goto_exit!(target, ck.phase.bb_envs[&target]);
+        dbg::infer_goto_exit!(target, ck.phase.bb_envs.get(&target));
 
         Ok(modified)
     }
