@@ -182,12 +182,17 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
             // let mut bb_envs = FxHashMap::default();
             let mut bb_envs = InferResult::new();
 
+            let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
+                span_bug!(body.span(), "checking function with unsupported signature")
+            });
+
             Checker::run(
                 genv,
                 RefineTree::new().as_subtree(),
                 body,
                 def_id,
                 Inference { bb_envs: &mut bb_envs },
+                fn_sig,
             )?;
 
             Ok(bb_envs)
@@ -204,6 +209,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         kvars: &mut KVarStore,
         bb_envs_infer: InferResult,
     ) -> Result<(), CheckerError> {
+        let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
+            span_bug!(body.span(), "checking function with unsupported signature")
+        });
+
+        // TODO(CLOSURE): I broke this check_span thing, help!
         dbg::check_span!(genv.tcx, def_id /* , bb_envs */).in_scope(|| {
             Checker::run(
                 genv,
@@ -211,6 +221,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
                 body,
                 def_id,
                 Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
+                fn_sig,
             )
         })
     }
@@ -223,21 +234,18 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         body: &'a Body<'tcx>,
         def_id: DefId,
         mut phase: P,
+        fn_sig: PolySig,
     ) -> Result<(), CheckerError> {
-        phase.enter_def_id(def_id);
-
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let fn_sig = genv
-            .lookup_fn_sig(def_id)
-            .unwrap_or_else(|_| {
-                span_bug!(body.span(), "checking function with unsupported signature")
-            })
-            .replace_bvars_with(|sort, _| rcx.define_vars(sort));
+        let fn_sig = fn_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
 
         let env = Self::init(&mut rcx, body, &fn_sig);
 
         let dominators = body.dominators();
+
+        phase.enter_def_id(def_id);
+
         let mut ck = Checker::new(def_id, genv, body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
@@ -521,7 +529,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         //  - same RefineCtxt but using as_subtree (or something like that)
         //  - figure out how to use PHASE to share the KVar-STORE
         //  - add a method to PHASE that
-        todo!()
+        Checker::run(self.genv, todo!(), todo!(), oblig.oblig_def_id, self.phase, oblig.oblig_sig)
     }
 
     fn check_assert(
