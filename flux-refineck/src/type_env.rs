@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, Ty, TyKind, INNERMOST,
+        ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, Ty, TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -688,23 +688,25 @@ impl TypeEnvInfer {
             .into_iter()
             .filter(|pred| !matches!(pred.kind(), ExprKind::Hole))
             .collect_vec();
-        let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
-        let kvar = kvar_store
-            .fresh(Sort::tuple(&sorts[..]), self.scope.iter(), KVarEncoding::Conj)
-            .replace_bvar(&Expr::tuple(exprs));
+        let params = iter::zip(names, sorts).collect_vec();
+        let kvar = kvar_store.fresh(
+            params
+                .iter()
+                .map(|(name, sort)| (Var::Free(*name), sort.clone())),
+            self.scope.iter().chain(params.iter().cloned()),
+            KVarEncoding::Conj,
+        );
         constrs.push(kvar);
 
-        let params = iter::zip(names, sorts).collect_vec();
-
         // Replace holes that weren't generalized by fresh kvars
-        let kvar_gen = &mut |sort| {
-            kvar_store.fresh(
-                sort,
+        let mut kvar_gen = |sorts: &[Sort]| {
+            kvar_store.fresh_bound(
+                sorts,
                 self.scope.iter().chain(params.iter().cloned()),
                 KVarEncoding::Conj,
             )
         };
-        bindings.fmap_mut(|binding| binding.replace_holes(kvar_gen));
+        bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
         BasicBlockEnv { params, constrs, bindings, scope: self.scope }
     }

@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, slice};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
@@ -19,7 +19,7 @@ use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
-    fixpoint::{KVarEncoding, KVarGen},
+    fixpoint::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
     type_env::TypeEnv,
 };
@@ -28,6 +28,10 @@ pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
     span: Span,
+}
+
+pub trait KVarGen {
+    fn fresh(&mut self, args: &[Sort], kind: KVarEncoding) -> Expr;
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -121,7 +125,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
@@ -220,7 +224,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -249,7 +253,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Ty, CheckerError> {
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = arr_ty.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        let arr_ty = arr_ty.replace_holes(|sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
 
         let (arr_ty, pred) = arr_ty.unconstr();
         infcx.check_pred(rcx, pred);
@@ -299,8 +303,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
-        self.kvar_gen.fresh(sort, encoding)
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Expr {
+        self.kvar_gen.fresh(sorts, encoding)
     }
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
@@ -312,7 +316,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                Expr::abs(self.fresh_kvar(fsort.input().clone(), KVarEncoding::Single))
+                let input = fsort.input();
+                Expr::abs(Binder::new(
+                    self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
+                    input.clone(),
+                ))
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
@@ -530,6 +538,27 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
+    }
+}
+
+impl<F> KVarGen for F
+where
+    F: FnMut(&[Sort], KVarEncoding) -> Expr,
+{
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (self)(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (**self).fresh(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (**self).fresh(sorts, kind)
     }
 }
 
