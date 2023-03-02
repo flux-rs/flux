@@ -125,7 +125,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
@@ -224,7 +224,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -253,7 +253,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Ty, CheckerError> {
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = arr_ty.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        let arr_ty = arr_ty.replace_holes(|sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
 
         let (arr_ty, pred) = arr_ty.unconstr();
         infcx.check_pred(rcx, pred);

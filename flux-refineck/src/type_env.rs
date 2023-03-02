@@ -699,14 +699,14 @@ impl TypeEnvInfer {
         constrs.push(kvar);
 
         // Replace holes that weren't generalized by fresh kvars
-        let kvar_gen = &mut |sorts: &[Sort]| {
+        let mut kvar_gen = |sorts: &[Sort]| {
             kvar_store.fresh_bound(
                 sorts,
                 self.scope.iter().chain(params.iter().cloned()),
                 KVarEncoding::Conj,
             )
         };
-        bindings.fmap_mut(|binding| binding.replace_holes(kvar_gen));
+        bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
         BasicBlockEnv { params, constrs, bindings, scope: self.scope }
     }

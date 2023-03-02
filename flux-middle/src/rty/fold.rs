@@ -100,10 +100,10 @@ pub trait TypeFoldable: Sized {
     /// closest to the hole.
     ///
     /// [`holes`]: ExprKind::Hole
-    fn replace_holes(&self, mk_pred: &mut impl FnMut(&[Sort]) -> Expr) -> Self {
-        struct ReplaceHoles<'a, F>(&'a mut F, Vec<Sort>);
+    fn replace_holes(&self, mk_pred: impl FnMut(&[Sort]) -> Expr) -> Self {
+        struct ReplaceHoles<F>(F, Vec<Sort>);
 
-        impl<'a, F> TypeFolder for ReplaceHoles<'a, F>
+        impl<F> TypeFolder for ReplaceHoles<F>
         where
             F: FnMut(&[Sort]) -> Expr,
         {

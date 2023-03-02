@@ -958,9 +958,11 @@ impl Phase for Check<'_> {
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
-        let kvar_gen =
-            move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding);
-        ConstrGen::new(genv, kvar_gen, span)
+        ConstrGen::new(
+            genv,
+            move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            span,
+        )
     }
 
     fn enter_basic_block(&mut self, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv {
@@ -979,12 +981,15 @@ impl Phase for Check<'_> {
 
         dbg::check_goto!(target, rcx, env, bb_env);
 
-        let kvar_gen = |sorts: &[Sort], encoding| {
-            ck.phase
-                .kvars
-                .fresh_bound(sorts, bb_env.scope().iter(), encoding)
-        };
-        let gen = &mut ConstrGen::new(ck.genv, kvar_gen, terminator_span);
+        let gen = &mut ConstrGen::new(
+            ck.genv,
+            |sorts: &[Sort], encoding| {
+                ck.phase
+                    .kvars
+                    .fresh_bound(sorts, bb_env.scope().iter(), encoding)
+            },
+            terminator_span,
+        );
         env.check_goto(&mut rcx, gen, bb_env, target)
             .map_err(|err| CheckerError::from(err).with_span(terminator_span))?;
 
