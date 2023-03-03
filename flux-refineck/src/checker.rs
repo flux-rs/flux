@@ -89,10 +89,10 @@ pub struct Inference {
     bb_envs: InferResult,
 }
 
-pub struct Check<'a> {
+pub struct Check {
     bb_envs_infer: InferResult,
-    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>, // TODO(CLOSURE): Index by DefId (c.f. InferResult)
-    kvars: &'a mut KVarStore,
+    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+    kvars: KVarStore,
 }
 
 /// A `Guard` describes extra "control" information that holds at the start
@@ -201,15 +201,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference> {
     }
 }
 
-impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
+impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
     pub(crate) fn check(
         genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
         refine_tree: RefineSubtree,
-        kvars: &mut KVarStore,
+        kvars: KVarStore,
         bb_envs_infer: InferResult,
-    ) -> Result<(), CheckerError> {
+    ) -> Result<KVarStore, CheckerError> {
         let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
             span_bug!(body.span(), "checking function with unsupported signature")
         });
@@ -217,7 +217,9 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
 
         // TODO(CLOSURE): I broke this check_span thing, help!
         dbg::check_span!(genv.tcx, def_id /* , bb_envs */)
-            .in_scope(|| Checker::run(genv, refine_tree, def_id, &mut phase, fn_sig))
+            .in_scope(|| Checker::run(genv, refine_tree, def_id, &mut phase, fn_sig))?;
+
+        Ok(phase.kvars)
     }
 }
 
@@ -232,7 +234,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         let body = {
             let local_def_id = def_id.as_local().unwrap();
             let mir =
-                unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id).body };
+                unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id) };
             rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir).unwrap()
         };
 
@@ -1068,7 +1070,7 @@ impl Phase for Inference {
     }
 }
 
-impl Phase for Check<'_> {
+impl Phase for Check {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -1085,7 +1087,7 @@ impl Phase for Check<'_> {
         self.bb_envs = infer_result
             .inner
             .into_iter()
-            .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(self.kvars)))
+            .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(&mut self.kvars)))
             .collect();
     }
 

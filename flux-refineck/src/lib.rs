@@ -55,13 +55,18 @@ pub fn check_fn<'tcx>(
         // PHASE 1: invoke the checker in SHAPE-MODE, for this we don't generate KVars so no need for KVAR-store
         let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
         tracing::info!("Checker::infer");
-        // TODO(CLOSURE): must ALSO return bb_envs for each closure called by `def_id`
 
         // PHASE 2: invoke the checker in REFINE-MODE, for this we DO need KVars so no need for KVAR-store
-        let mut kvars = fixpoint::KVarStore::new();
         let mut refine_tree = RefineTree::new();
-        Checker::check(genv, body, def_id, refine_tree.as_subtree(), &mut kvars, bb_envs)
-            .emit(genv.sess)?;
+        let kvars = Checker::check(
+            genv,
+            body,
+            def_id,
+            refine_tree.as_subtree(),
+            fixpoint::KVarStore::new(),
+            bb_envs,
+        )
+        .emit(genv.sess)?;
         tracing::info!("Checker::check");
 
         // PHASE 3: invoke fixpoint on the constraints
