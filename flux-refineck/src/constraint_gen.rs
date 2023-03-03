@@ -26,7 +26,7 @@ use rustc_target::spec::abi::Abi;
 use crate::{
     checker::errors::CheckerError,
     fixpoint::{KVarEncoding, KVarGen},
-    refine_tree::{RefineCtxt, Scope, UnpackFlags},
+    refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
     type_env::TypeEnv,
 };
 
@@ -116,7 +116,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<(Binder<FnOutput>, Vec<rty::ClosureOblig>), CheckerError> {
+    ) -> Result<(Binder<FnOutput>, Vec<rty::ClosureOblig>, Snapshot), CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -132,6 +132,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             })
             .collect_vec();
 
+        // MAKE SNAPSHOT OF rcx HERE, to then use to check closure-obligations
+        let snapshot = rcx.snapshot();
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
         // Replace holes in generic arguments with fresh kvars
@@ -148,6 +150,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Check closure obligations
         let closure_obligs =
             if let Some(did) = did { infcx.closure_obligs(did, &substs, &actuals) } else { vec![] };
+
+        // CHECK-CLOSURE-OBLIGATIONS (PLACE-1)
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -192,7 +196,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&evars_sol);
         let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok((output, closure_obligs))
+        Ok((output, closure_obligs, snapshot))
     }
 
     pub(crate) fn check_ret(

@@ -48,7 +48,7 @@ pub(crate) struct Checker<'a, 'tcx, P> {
     body: &'a Body<'tcx>,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
-    phase: P,
+    phase: &'a mut P,
     output: Binder<FnOutput>,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
@@ -83,9 +83,10 @@ pub(crate) trait Phase: Sized {
     fn clear(&mut self, def_id: DefId, bb: BasicBlock);
 }
 
-pub struct Inference<'a> {
+pub struct Inference {
     // bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnvInfer>,
-    bb_envs: &'a mut InferResult,
+    // bb_envs: &'a mut InferResult,
+    bb_envs: InferResult,
 }
 
 pub struct Check<'a> {
@@ -112,7 +113,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
         body: &'a Body<'tcx>,
         output: Binder<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
-        phase: P,
+        phase: &'a mut P,
     ) -> Self {
         Checker {
             def_id,
@@ -172,7 +173,7 @@ impl InferResult1 {
     }
 }
 
-impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
+impl<'a, 'tcx> Checker<'a, 'tcx, Inference> {
     pub fn infer(
         genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
@@ -180,7 +181,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
     ) -> Result<InferResult, CheckerError> {
         dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
             // let mut bb_envs = FxHashMap::default();
-            let mut bb_envs = InferResult::new();
+            // let mut bb_envs = InferResult::new();
+            let mut phase = Inference { bb_envs: InferResult::new() };
 
             let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
                 span_bug!(body.span(), "checking function with unsupported signature")
@@ -190,11 +192,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Inference<'_>> {
                 genv,
                 RefineTree::new().as_subtree(),
                 def_id,
-                Inference { bb_envs: &mut bb_envs },
+                &mut phase, // Inference { bb_envs: &mut bb_envs },
                 fn_sig,
             )?;
 
-            Ok(bb_envs)
+            Ok(phase.bb_envs)
         })
     }
 }
@@ -211,17 +213,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx, Check<'_>> {
         let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
             span_bug!(body.span(), "checking function with unsupported signature")
         });
+        let mut phase = Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars };
 
         // TODO(CLOSURE): I broke this check_span thing, help!
-        dbg::check_span!(genv.tcx, def_id /* , bb_envs */).in_scope(|| {
-            Checker::run(
-                genv,
-                refine_tree,
-                def_id,
-                Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars },
-                fn_sig,
-            )
-        })
+        dbg::check_span!(genv.tcx, def_id /* , bb_envs */)
+            .in_scope(|| Checker::run(genv, refine_tree, def_id, &mut phase, fn_sig))
     }
 }
 
@@ -230,7 +226,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
-        mut phase: P,
+        phase: &'a mut P,
         fn_sig: PolySig,
     ) -> Result<(), CheckerError> {
         let body = {
@@ -495,7 +491,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
             .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
             .collect_vec();
 
-        let (output, obligs) = self
+        let (output, obligs, snapshot) = self
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, did, &fn_sig, &substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?;
@@ -514,7 +510,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         // Check each closure obligation
         for oblig in obligs {
-            self.check_oblig(rcx, oblig)?;
+            self.check_oblig(rcx, oblig, &snapshot)?;
         }
 
         Ok(output.ret)
@@ -524,6 +520,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         &mut self,
         rcx: &mut RefineCtxt,
         oblig: rty::ClosureOblig,
+        snapshot: &Snapshot,
     ) -> Result<(), CheckerError> {
         // TODO(CLOSURE)
         // implement by calling Checker::run or see "toplevel_check_fn"
@@ -532,7 +529,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         //  - same RefineCtxt but using as_subtree (or something like that)
         //  - figure out how to use PHASE to share the KVar-STORE
         //  - add a method to PHASE that
-        Checker::run(self.genv, todo!(), oblig.oblig_def_id, self.phase, oblig.oblig_sig)
+        let refine_tree = rcx.subtree_at(snapshot).unwrap();
+        Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.phase, oblig.oblig_sig)
     }
 
     fn check_assert(
@@ -991,7 +989,7 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
     int_ty.bit_width().unwrap_or(config::pointer_width().bits())
 }
 
-impl Phase for Inference<'_> {
+impl Phase for Inference {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
