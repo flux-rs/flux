@@ -33,8 +33,8 @@ pub struct KVarStore {
 
 #[derive(Clone)]
 struct KVarDecl {
-    args: Vec<rty::Sort>,
-    scope: Vec<rty::Sort>,
+    self_args: usize,
+    sorts: Vec<rty::Sort>,
     encoding: KVarEncoding,
 }
 
@@ -274,7 +274,7 @@ where
 
         let decl = self.kvars.get(kvar.kvid);
 
-        let all_args = iter::zip(kvar.all_args(), decl.all_args())
+        let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.imm(arg, sort, bindings))
             .collect_vec();
 
@@ -306,7 +306,7 @@ where
         self.kvid_map.entry(kvid).or_insert_with(|| {
             let decl = self.kvars.get(kvid);
 
-            let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
+            let all_args = decl.sorts.iter().map(sort_to_fixpoint).collect_vec();
 
             if all_args.is_empty() {
                 let sorts = vec![fixpoint::Sort::Unit];
@@ -320,7 +320,7 @@ where
                     vec![kvid]
                 }
                 KVarEncoding::Conj => {
-                    let n = usize::max(decl.args.len(), 1);
+                    let n = usize::max(decl.self_args, 1);
                     (0..n)
                         .map(|i| {
                             let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
@@ -403,12 +403,6 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
     itertools::chain(consts, uifs).collect()
 }
 
-impl KVarDecl {
-    fn all_args(&self) -> impl Iterator<Item = &rty::Sort> {
-        self.args.iter().chain(&self.scope)
-    }
-}
-
 impl KVarStore {
     pub fn new() -> Self {
         Self { kvars: IndexVec::new() }
@@ -418,35 +412,31 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<A, S>(&mut self, args: A, scope: S, encoding: KVarEncoding) -> rty::Expr
+    pub fn fresh<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
     where
         A: IntoIterator<Item = (rty::Var, rty::Sort)>,
-        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        let mut scope_sorts = vec![];
-        let mut scope_exprs = vec![];
-        for (name, sort) in scope {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                scope_sorts.push(sort);
-                scope_exprs.push(rty::Expr::fvar(name));
-            }
-        }
-        let mut arg_sorts = vec![];
-        let mut arg_exprs = vec![];
-        for (var, sort) in args {
+        let mut sorts = vec![];
+        let mut exprs = vec![];
+
+        let mut flattened_self_args = 0;
+        for (i, (var, sort)) in args.into_iter().enumerate() {
+            let is_self_arg = i < self_args;
             let var = var.to_expr();
             sort.walk(|sort, proj| {
                 if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                    arg_sorts.push(sort.clone());
-                    arg_exprs.push(rty::Expr::tuple_projs(&var, proj));
+                    flattened_self_args += is_self_arg as usize;
+                    sorts.push(sort.clone());
+                    exprs.push(rty::Expr::tuple_projs(&var, proj));
                 }
             });
         }
+
         let kvid = self
             .kvars
-            .push(KVarDecl { args: arg_sorts, scope: scope_sorts, encoding });
+            .push(KVarDecl { self_args: flattened_self_args, sorts, encoding });
 
-        let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs);
+        let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
         rty::Expr::kvar(kvar)
     }
 
@@ -459,10 +449,18 @@ impl KVarStore {
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        let args = bound.iter().rev().enumerate().map(|(level, sort)| {
-            (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
-        });
-        self.fresh(args, scope, encoding)
+        if bound.is_empty() {
+            return self.fresh(0, [], encoding);
+        }
+        let args = itertools::chain(
+            bound.iter().rev().enumerate().map(|(level, sort)| {
+                (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+            }),
+            scope
+                .into_iter()
+                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+        );
+        self.fresh(1, args, encoding)
     }
 }
 

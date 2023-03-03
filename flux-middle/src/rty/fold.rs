@@ -507,14 +507,11 @@ impl TypeFoldable for GenericArg {
 
 impl TypeFoldable for KVar {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let KVar { kvid, args, scope } = self;
-        let args = args.iter().map(|e| e.fold_with(folder)).collect();
-        let scope = scope.iter().map(|e| e.fold_with(folder)).collect();
-        KVar::new(*kvid, args, scope)
+        KVar { kvid: self.kvid, self_args: self.self_args, args: self.args.fold_with(folder) }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.args.iter().for_each(|e| e.visit_with(visitor));
+        self.args.visit_with(visitor);
     }
 }
 

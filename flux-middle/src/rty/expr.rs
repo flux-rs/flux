@@ -56,12 +56,15 @@ pub enum ExprKind {
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
 /// fixpoint makes a diference between the first and the rest of the variables, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list.
+/// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct KVar {
     pub kvid: KVid,
+    /// The number of arguments consider to be *self arguments*.
+    pub self_args: usize,
+    /// The list of arguments *all* arguments with the self arguments at the beginning, i.e., the
+    /// list of self arguments followed by the scope.
     pub args: List<Expr>,
-    pub scope: List<Expr>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -509,12 +512,16 @@ impl Expr {
 }
 
 impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
-        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
+    pub fn new(kvid: KVid, self_args: usize, args: Vec<Expr>) -> Self {
+        KVar { kvid, self_args, args: List::from_vec(args) }
     }
 
-    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
-        self.args.iter().chain(&self.scope)
+    fn self_args(&self) -> &[Expr] {
+        &self.args[..self.self_args]
+    }
+
+    fn scope(&self) -> &[Expr] {
+        &self.args[self.self_args..]
     }
 }
 
@@ -829,9 +836,9 @@ mod pretty {
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    w!("({:?})[{:?}]", join!(", ", self.self_args()), join!(", ", self.scope()))?;
                 }
-                KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
+                KVarArgs::SelfOnly => w!("({:?})", join!(", ", self.self_args()))?,
                 KVarArgs::Hide => {}
             }
             Ok(())
