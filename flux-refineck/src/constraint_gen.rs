@@ -8,7 +8,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
+        InferMode, ParamTy, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty,
+        TyKind,
     },
     rustc::{
         self, lowering,
@@ -19,7 +20,7 @@ use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::{Clause, PredicateKind};
+use rustc_middle::ty::{BoundVariableKind, Clause, PredicateKind};
 use rustc_span::Span;
 use rustc_target::spec::abi::Abi;
 
@@ -537,25 +538,95 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.evar_gen.solve()
     }
 
+    fn mk_oblig(
+        &mut self,
+        bound_vars: &'tcx rustc_middle::ty::List<BoundVariableKind>,
+        substs: &[GenericArg],
+        oblig_def_id: DefId,
+        p_rust_fn_sig: rustc_middle::ty::FnSig<'tcx>,
+    ) -> rty::ClosureOblig {
+        // 2. binder shenanigans to make a rustc_middle::ty::PolyFnSig
+        let p_rust_poly_fn_sig =
+            rustc_middle::ty::Binder::bind_with_vars(p_rust_fn_sig, bound_vars);
+
+        // 3. expose and use lower_fn_sig to get a rty::PolyFnSig
+        let p_rty_poly_fn_sig = lowering::lower_fn_sig(self.genv.tcx, p_rust_poly_fn_sig)
+            .unwrap_or_else(|_| {
+                panic!("lower_fn_sig failed for {:?} with {:?}", p_rust_poly_fn_sig, bound_vars)
+            });
+
+        // 4. push the "closure-ty" in as the FIRST input
+        let clos_ty = rty::Ty::closure(oblig_def_id);
+
+        // 5. apply the substs to the rty::PolyFnSig
+        let oblig_fn_sig = self
+            .genv
+            .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
+            .replace_generics(substs)
+            .fn_sig
+            .skip_binders();
+
+        // 6. Stick the closure-param in as the first arg
+        let inputs = iter::once(clos_ty)
+            .chain(oblig_fn_sig.args().to_vec())
+            .collect_vec();
+        let oblig_fn_sig = rty::FnSig::new(
+            oblig_fn_sig.requires().to_vec(),
+            inputs,
+            oblig_fn_sig.output().clone(),
+        );
+
+        let oblig_sig = rty::PolySig::new(vec![], oblig_fn_sig);
+        rty::ClosureOblig { oblig_def_id, oblig_sig }
+    }
+
     fn closure_obligs(
         &mut self,
         did: DefId,
         substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Vec<rty::ClosureOblig> {
-        let preds = self.genv.tcx.predicates_of(did);
+        let rust_fn_sig = self.genv.tcx.fn_sig(did).skip_binder();
+
+        let (f_ins, f_out, f_did) = self.gather_f_trait_info(did, &rust_fn_sig, actuals);
+        let bound_vars = rust_fn_sig.bound_vars();
+
+        let obligs = f_ins
+            .into_iter()
+            .map(|(p, p_in_ty)| {
+                let oblig_def_id = *f_did.get(&p).unwrap();
+                let p_out_ty = f_out.get(&p).unwrap();
+                let p_rust_fn_sig = self.genv.tcx.mk_fn_sig(
+                    p_in_ty.tuple_fields(),
+                    *p_out_ty,
+                    false,
+                    rustc_hir::Unsafety::Normal,
+                    Abi::Rust,
+                );
+                self.mk_oblig(bound_vars, substs, oblig_def_id, p_rust_fn_sig)
+            })
+            .collect_vec();
+        obligs
+    }
+
+    fn gather_f_trait_info(
+        &mut self,
+        did: DefId,
+        rust_fn_sig: &rustc_middle::ty::PolyFnSig,
+        actuals: &[flux_middle::intern::Interned<rty::TyS>],
+    ) -> (
+        FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
+        FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
+        FxHashMap<ParamTy, DefId>,
+    ) {
         let fn_once_id = self.genv.tcx.lang_items().fn_once_trait().unwrap();
 
         // 1. Find the closure-param-tys i.e. 'F' that implement FnOnce -- ie are supposed to be closures
-        let mut f_ins: FxHashMap<rustc_middle::ty::ParamTy, rustc_middle::ty::Ty> =
-            FxHashMap::default();
-        let mut f_out: FxHashMap<rustc_middle::ty::ParamTy, rustc_middle::ty::Ty> =
-            FxHashMap::default();
-        let mut f_did: FxHashMap<rustc_middle::ty::ParamTy, DefId> = FxHashMap::default();
+        let mut f_ins = FxHashMap::default();
+        let mut f_out = FxHashMap::default();
+        let mut f_did = FxHashMap::default();
 
-        let rust_fn_sig = self.genv.tcx.fn_sig(did).skip_binder();
-
-        // LINK the param-ty and the closure-def
+        // 2. connect the param-ty and the closure-def
         let args = rust_fn_sig.skip_binder().inputs();
         iter::zip(actuals, args).for_each(|(actual, arg)| {
             if let rustc_middle::ty::Param(p) = arg.kind() &&
@@ -564,21 +635,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
         });
 
-        let bound_vars = rust_fn_sig.bound_vars();
-
-        let clauses = preds
-            .predicates
-            .iter()
-            .map(|(p, _)| p.kind().skip_binder())
-            .filter_map(|p| {
-                match p {
-                    PredicateKind::Clause(c) => Some(c),
-                    _ => None,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        for clause in clauses {
+        // 3. collect inputs-and-outputs for each closure-def
+        for clause in self.def_id_clauses(did) {
             match clause {
                 // found an fn-input type
                 Clause::Trait(trait_pred) => {
@@ -589,6 +647,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                             f_ins.insert(*p,substs[1]);
                         }
                 }
+                // found an fn-output type
                 Clause::Projection(proj_pred) => {
                     let proj_ty = proj_pred.projection_ty;
                     // ASSUME: the only trait item of `FnOnce` is `Output`
@@ -602,73 +661,26 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 _ => {}
             }
         }
+        // 4. Check that we have inputs-and-output for each 'f'
         assert!(f_ins.len() == f_out.len());
         assert!(f_ins.len() == f_did.len());
-        let mut obligs = Vec::new();
-        for (p, ty) in f_ins.iter() {
-            // 0. Get p_did and p_out_ty
-            let oblig_def_id = *f_did.get(p).unwrap();
-            let p_out_ty = f_out.get(p).unwrap();
+        (f_ins, f_out, f_did)
+    }
 
-            // 1. make a rustc_middle::ty::FnSig
-            let p_rust_fn_sig = self.genv.tcx.mk_fn_sig(
-                // inputs, //
-                ty.tuple_fields(),
-                *p_out_ty,
-                false,
-                rustc_hir::Unsafety::Normal,
-                Abi::Rust,
-            );
-
-            // 2. binder shenanigans to make a rustc_middle::ty::PolyFnSig
-            let p_rust_poly_fn_sig =
-                rustc_middle::ty::Binder::bind_with_vars(p_rust_fn_sig, bound_vars);
-
-            // 3. expose and use lower_fn_sig to get a rty::PolyFnSig
-            let p_rty_poly_fn_sig = lowering::lower_fn_sig(self.genv.tcx, p_rust_poly_fn_sig)
-                .unwrap_or_else(|_| {
-                    panic!("lower_fn_sig failed for {:?} with {:?}", p_rust_poly_fn_sig, bound_vars)
-                });
-
-            // 4. push the "closure-ty" in as the FIRST input
-            let clos_ty = rty::Ty::closure(oblig_def_id); // TyKind::Indexed(rty::BaseTy::Closure(oblig_def_id), vec![]).intern();
-                                                          // let p_rty_fn_sig = p_rty_poly_fn_sig.skip_binder();
-                                                          // let p_rty_fn_sig_inputs = p_rty_fn_sig.inputs();
-                                                          // let p_rty_fn_sig_output = p_rty_fn_sig.output();
-                                                          // let p_rty_fn_sig_inputs_with_closure =
-                                                          //     iter::once(&rustc::ty::Ty::mk_closure(oblig_def_id, vec![]))
-                                                          //         .chain(p_rty_fn_sig_inputs)
-                                                          //         .chain(iter::once(&p_rty_fn_sig_output))
-                                                          //         .collect();
-                                                          // let p_rty_fn_sig_with_closure =
-                                                          //     rustc::ty::FnSig { inputs_and_output: p_rty_fn_sig_inputs_with_closure.from_vec() };
-
-            // To get the signature of a closure, you should use the
-            // `sig` method on the `ClosureSubsts`:
-            //
-            //    substs.as_closure().sig(def_id, tcx)
-
-            // 5. apply the substs to the rty::PolyFnSig
-            let oblig_fn_sig = self
-                .genv
-                .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
-                .replace_generics(substs)
-                .fn_sig
-                .skip_binders();
-            let inputs = iter::once(clos_ty)
-                .chain(oblig_fn_sig.args().to_vec())
-                .collect_vec();
-
-            let oblig_fn_sig = rty::FnSig::new(
-                oblig_fn_sig.requires().to_vec(),
-                inputs,
-                oblig_fn_sig.output().clone(),
-            );
-
-            let oblig_sig = rty::PolySig::new(vec![], oblig_fn_sig);
-            obligs.push(rty::ClosureOblig { oblig_def_id, oblig_sig });
-        }
-        obligs
+    fn def_id_clauses(&mut self, did: DefId) -> Vec<rustc_middle::ty::Clause<'tcx>> {
+        let preds = self.genv.tcx.predicates_of(did);
+        let clauses = preds
+            .predicates
+            .iter()
+            .map(|(p, _)| p.kind().skip_binder())
+            .filter_map(|p| {
+                match p {
+                    PredicateKind::Clause(c) => Some(c),
+                    _ => None,
+                }
+            })
+            .collect_vec();
+        clauses
     }
 }
 
