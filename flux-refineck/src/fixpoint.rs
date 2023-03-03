@@ -412,35 +412,33 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<A, S>(&mut self, args: A, scope: S, encoding: KVarEncoding) -> rty::Expr
+    pub fn fresh<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
     where
         A: IntoIterator<Item = (rty::Var, rty::Sort)>,
-        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
         let mut sorts = vec![];
         let mut exprs = vec![];
 
-        let mut nargs = 0;
-        for (var, sort) in args {
+        let mut flattened_self_args = 0;
+        for (i, (var, sort)) in args.into_iter().enumerate() {
+            let is_self_arg = i < self_args;
             let var = var.to_expr();
             sort.walk(|sort, proj| {
                 if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                    nargs += 1;
+                    if is_self_arg {
+                        flattened_self_args += 1;
+                    }
                     sorts.push(sort.clone());
                     exprs.push(rty::Expr::tuple_projs(&var, proj));
                 }
             });
         }
 
-        for (name, sort) in scope {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                sorts.push(sort);
-                exprs.push(rty::Expr::fvar(name));
-            }
-        }
-        let kvid = self.kvars.push(KVarDecl { nargs, sorts, encoding });
+        let kvid = self
+            .kvars
+            .push(KVarDecl { nargs: flattened_self_args, sorts, encoding });
 
-        let kvar = rty::KVar::new(kvid, nargs, exprs);
+        let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
         rty::Expr::kvar(kvar)
     }
 
@@ -453,10 +451,18 @@ impl KVarStore {
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        let args = bound.iter().rev().enumerate().map(|(level, sort)| {
-            (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
-        });
-        self.fresh(args, scope, encoding)
+        if bound.is_empty() {
+            return self.fresh(0, [], encoding);
+        }
+        let args = itertools::chain(
+            bound.iter().rev().enumerate().map(|(level, sort)| {
+                (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+            }),
+            scope
+                .into_iter()
+                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+        );
+        self.fresh(1, args, encoding)
     }
 }
 

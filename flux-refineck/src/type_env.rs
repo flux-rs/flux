@@ -690,10 +690,12 @@ impl TypeEnvInfer {
             .collect_vec();
         let params = iter::zip(names, sorts).collect_vec();
         let kvar = kvar_store.fresh(
+            params.len(),
             params
                 .iter()
-                .map(|(name, sort)| (Var::Free(*name), sort.clone())),
-            self.scope.iter().chain(params.iter().cloned()),
+                .cloned()
+                .chain(self.scope.iter())
+                .map(|(name, sort)| (Var::Free(name), sort)),
             KVarEncoding::Conj,
         );
         constrs.push(kvar);
