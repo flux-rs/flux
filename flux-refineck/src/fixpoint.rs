@@ -274,7 +274,7 @@ where
 
         let decl = self.kvars.get(kvar.kvid);
 
-        let all_args = iter::zip(kvar.all_args(), &decl.sorts)
+        let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.imm(arg, sort, bindings))
             .collect_vec();
 

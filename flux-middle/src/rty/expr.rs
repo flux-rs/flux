@@ -56,12 +56,15 @@ pub enum ExprKind {
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
 /// fixpoint makes a diference between the first and the rest of the variables, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list.
+/// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct KVar {
     pub kvid: KVid,
-    pub(crate) nargs: usize,
-    pub(crate) args: List<Expr>,
+    /// The number of arguments consider to be *self arguments*.
+    pub self_args: usize,
+    /// The list of arguments *all* arguments with the self arguments at the beginning, i.e., the
+    /// list of self arguments followed by the scope.
+    pub args: List<Expr>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -509,20 +512,16 @@ impl Expr {
 }
 
 impl KVar {
-    pub fn new(kvid: KVid, nargs: usize, args: Vec<Expr>) -> Self {
-        KVar { kvid, nargs, args: List::from_vec(args) }
-    }
-
-    pub fn all_args(&self) -> &[Expr] {
-        &self.args
+    pub fn new(kvid: KVid, self_args: usize, args: Vec<Expr>) -> Self {
+        KVar { kvid, self_args, args: List::from_vec(args) }
     }
 
     fn self_args(&self) -> &[Expr] {
-        &self.args[..self.nargs]
+        &self.args[..self.self_args]
     }
 
     fn scope(&self) -> &[Expr] {
-        &self.args[self.nargs..]
+        &self.args[self.self_args..]
     }
 }
 
