@@ -33,7 +33,7 @@ pub struct KVarStore {
 
 #[derive(Clone)]
 struct KVarDecl {
-    nargs: usize,
+    self_args: usize,
     sorts: Vec<rty::Sort>,
     encoding: KVarEncoding,
 }
@@ -320,7 +320,7 @@ where
                     vec![kvid]
                 }
                 KVarEncoding::Conj => {
-                    let n = usize::max(decl.nargs, 1);
+                    let n = usize::max(decl.self_args, 1);
                     (0..n)
                         .map(|i| {
                             let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
@@ -425,9 +425,7 @@ impl KVarStore {
             let var = var.to_expr();
             sort.walk(|sort, proj| {
                 if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                    if is_self_arg {
-                        flattened_self_args += 1;
-                    }
+                    flattened_self_args += is_self_arg as usize;
                     sorts.push(sort.clone());
                     exprs.push(rty::Expr::tuple_projs(&var, proj));
                 }
@@ -436,7 +434,7 @@ impl KVarStore {
 
         let kvid = self
             .kvars
-            .push(KVarDecl { nargs: flattened_self_args, sorts, encoding });
+            .push(KVarDecl { self_args: flattened_self_args, sorts, encoding });
 
         let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
         rty::Expr::kvar(kvar)
