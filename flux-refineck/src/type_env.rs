@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, Ty, TyKind, INNERMOST,
+        ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, Ty, TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -440,19 +440,24 @@ impl TypeEnvInfer {
             BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, Self::pack_ty(scope, ty)),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
+            | BaseTy::Param(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
-            | BaseTy::Never => bty.clone(),
+            | BaseTy::Never
+            | BaseTy::Closure(_) => bty.clone(),
         }
     }
 
     fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
+            GenericArg::BaseTy(arg) => {
+                GenericArg::BaseTy(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
+            }
             GenericArg::Lifetime => GenericArg::Lifetime,
         }
     }
@@ -659,6 +664,9 @@ impl TypeEnvInfer {
     fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
+            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
+                tracked_span_bug!("generic argument join for base types ins not implemented")
+            }
             (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
             _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
         }
@@ -680,23 +688,27 @@ impl TypeEnvInfer {
             .into_iter()
             .filter(|pred| !matches!(pred.kind(), ExprKind::Hole))
             .collect_vec();
-        let exprs = names.iter().map(|name| Expr::fvar(*name)).collect_vec();
-        let kvar = kvar_store
-            .fresh(Sort::tuple(&sorts[..]), self.scope.iter(), KVarEncoding::Conj)
-            .replace_bvar(&Expr::tuple(exprs));
+        let params = iter::zip(names, sorts).collect_vec();
+        let kvar = kvar_store.fresh(
+            params.len(),
+            params
+                .iter()
+                .cloned()
+                .chain(self.scope.iter())
+                .map(|(name, sort)| (Var::Free(name), sort)),
+            KVarEncoding::Conj,
+        );
         constrs.push(kvar);
 
-        let params = iter::zip(names, sorts).collect_vec();
-
         // Replace holes that weren't generalized by fresh kvars
-        let kvar_gen = &mut |sort| {
-            kvar_store.fresh(
-                sort,
+        let mut kvar_gen = |sorts: &[Sort]| {
+            kvar_store.fresh_bound(
+                sorts,
                 self.scope.iter().chain(params.iter().cloned()),
                 KVarEncoding::Conj,
             )
         };
-        bindings.fmap_mut(|binding| binding.replace_holes(kvar_gen));
+        bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 
         BasicBlockEnv { params, constrs, bindings, scope: self.scope }
     }

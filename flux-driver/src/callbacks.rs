@@ -214,14 +214,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             )
             .unwrap();
         }
-        if config::dump_rty() {
-            let def_id = def_id.to_def_id();
-            let fn_sig = self
-                .genv
-                .lookup_fn_sig(def_id)
-                .unwrap_or_else(|_| panic!("no fn sig for {def_id:?}"));
-            dbg::dump_item_info(self.genv.tcx, def_id, "rty", &fn_sig).unwrap();
-        }
 
         let body =
             rustc::lowering::LoweringCtxt::lower_mir_body(self.genv.tcx, self.genv.sess, mir)?;
@@ -232,6 +224,16 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
 fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
+
+    // Register Generics
+    err = defs_with_generics(early_cx.tcx)
+        .try_for_each_exhaust(|def_id| {
+            let generics = fhir::lift::lift_generics(early_cx, def_id)?;
+            early_cx.map.insert_generics(def_id, generics);
+            Ok(())
+        })
+        .err()
+        .or(err);
 
     // Register Sorts
     for sort_decl in std::mem::take(&mut specs.sort_decls) {
@@ -361,9 +363,11 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
     err = std::mem::take(&mut specs.structs)
         .into_iter()
         .try_for_each_exhaust(|(def_id, struct_def)| {
-            early_cx
-                .map
-                .insert_struct(def_id, desugar::desugar_struct_def(early_cx, struct_def)?);
+            let struct_def = desugar::desugar_struct_def(early_cx, struct_def)?;
+            if config::dump_fhir() {
+                dbg::dump_item_info(early_cx.tcx, def_id, "fhir", &struct_def).unwrap();
+            }
+            early_cx.map.insert_struct(def_id, struct_def);
             Ok(())
         })
         .err()
@@ -489,4 +493,20 @@ fn is_tool_registered(tcx: TyCtxt) -> bool {
         }
     }
     false
+}
+
+fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = LocalDefId> + '_ {
+    tcx.hir_crate_items(())
+        .definitions()
+        .flat_map(move |def_id| {
+            match tcx.def_kind(def_id) {
+                DefKind::Struct
+                | DefKind::Enum
+                | DefKind::Fn
+                | DefKind::Impl { .. }
+                | DefKind::TyAlias
+                | DefKind::AssocFn => Some(def_id),
+                _ => None,
+            }
+        })
 }

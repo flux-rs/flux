@@ -183,7 +183,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_substs(self.tcx, substs)
-                            .map_err(|_| errors::UnsupportedMir::from(terminator))
+                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
                             .emit(self.sess)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
@@ -192,12 +192,14 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
 
                 let destination = self
                     .lower_place(destination)
-                    .map_err(|reason| errors::UnsupportedMir::new(span, "terminator", reason))
+                    .map_err(|reason| {
+                        errors::UnsupportedMir::new(span, "terminator destination", reason)
+                    })
                     .emit(self.sess)?;
 
                 let resolved_call = self
                     .resolve_call(func, substs.orig)
-                    .map_err(|err| errors::UnsupportedMir::new(span, "terminator", err.reason))
+                    .map_err(|err| errors::UnsupportedMir::new(span, "terminator call", err.reason))
                     .emit(self.sess)?;
 
                 TerminatorKind::Call {
@@ -209,7 +211,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         .iter()
                         .map(|arg| {
                             self.lower_operand(arg).map_err(|reason| {
-                                errors::UnsupportedMir::new(span, "terminator", reason)
+                                errors::UnsupportedMir::new(span, "terminator args", reason)
                             })
                         })
                         .try_collect()
@@ -391,9 +393,11 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty).map_err(|err| err.reason)?))
             }
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
-            rustc_mir::AggregateKind::Adt(..)
-            | rustc_mir::AggregateKind::Closure(_, _)
-            | rustc_mir::AggregateKind::Generator(_, _, _) => {
+            rustc_mir::AggregateKind::Closure(did, substs) => {
+                let lowered_substs = lower_substs(self.tcx, substs).map_err(|err| err.reason)?;
+                Ok(AggregateKind::Closure(*did, lowered_substs))
+            }
+            rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
                 Err(format!("unsupported aggregate kind `{aggregate_kind:?}`"))
             }
         }
@@ -563,6 +567,7 @@ pub fn lower_variant_def(
 
 pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
     let fn_sig = tcx.fn_sig(def_id);
+    // println!("TRACE: lower_fn_sig {def_id:?} : {fn_sig:?} : {:?}", tcx.explicit_predicates_of(def_id));
     let span = tcx.def_span(def_id);
     let param_env = tcx.param_env(def_id);
     let result = tcx
@@ -619,12 +624,7 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
         rustc_ty::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
         rustc_ty::Adt(adt_def, substs) => {
-            let substs = List::from_vec(
-                substs
-                    .iter()
-                    .map(|arg| lower_generic_arg(tcx, arg))
-                    .try_collect()?,
-            );
+            let substs = lower_substs(tcx, substs)?;
             Ok(Ty::mk_adt(adt_def.did(), substs))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
@@ -648,6 +648,14 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             let mutbl = t.mutbl;
             let ty = lower_ty(tcx, t.ty)?;
             Ok(Ty::mk_raw_ptr(ty, mutbl))
+        }
+        rustc_ty::FnPtr(fn_sig) => {
+            let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
+            Ok(Ty::mk_fn_sig(fn_sig))
+        }
+        rustc_ty::Closure(did, substs) => {
+            let substs = lower_substs(tcx, substs)?;
+            Ok(Ty::mk_closure(*did, substs))
         }
         _ => Err(UnsupportedType { reason: format!("unsupported type `{ty:?}`") }),
     }
@@ -725,7 +733,7 @@ pub fn lower_generics<'tcx>(
             .map(|generic| lower_generic_param_def(tcx, sess, generic))
             .try_collect()?,
     );
-    Ok(Generics { params, rustc: generics })
+    Ok(Generics { params, orig: generics })
 }
 
 fn lower_generic_param_def(

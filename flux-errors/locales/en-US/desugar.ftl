@@ -20,8 +20,8 @@ desugar_unexpected_literal =
 desugar_invalid_dot_var =
     unsupported field access in refinement
 
-desugar_param_count_mismatch =
-    this type takes {$expected} refinement parameters but {$found ->
+desugar_refine_arg_count_mismatch =
+    this type takes {$expected} refinement arguments but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
@@ -38,3 +38,6 @@ desugar_illegal_binder =
 desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
     .label = the suffix must be one of the numeric sorts `int` or `real`
+
+desugar_refined_unrefinable_type =
+    type cannot be refined

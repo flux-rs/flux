@@ -1,27 +1,25 @@
-use std::iter;
+use std::{iter, slice};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::{GlobalEnv, OpaqueStructErr, Variance},
+    global_env::{GlobalEnv, OpaqueStructErr},
     rty::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
         InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
     },
-    rustc::{
-        self,
-        mir::{BasicBlock, Place},
-    },
+    rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
-    fixpoint::{KVarEncoding, KVarGen},
+    fixpoint::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
     type_env::TypeEnv,
 };
@@ -30,6 +28,10 @@ pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
     span: Span,
+}
+
+pub trait KVarGen {
+    fn fresh(&mut self, args: &[Sort], kind: KVarEncoding) -> Expr;
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -123,13 +125,18 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
+
+        // println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
+        // println!("TRACE: check_fn_call substs = {substs:?}");
 
         // Generate fresh evars and kvars for refinement parameters
         let fn_sig = fn_sig
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
+
+        // println!("TRACE: check_fn_call {fn_sig:?} with {actuals:?}");
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -217,7 +224,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -242,15 +249,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         args: &[Ty],
-        arr_ty: &rustc::ty::Ty,
+        arr_ty: Ty,
     ) -> Result<Ty, CheckerError> {
-        let genv = self.genv;
-
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = genv
-            .refine_with_holes(arr_ty)
-            .replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        let arr_ty = arr_ty.replace_holes(|sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+
+        let (arr_ty, pred) = arr_ty.unconstr();
+        infcx.check_pred(rcx, pred);
 
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
@@ -297,8 +303,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
-        self.kvar_gen.fresh(sort, encoding)
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Expr {
+        self.kvar_gen.fresh(sorts, encoding)
     }
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
@@ -310,7 +316,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                Expr::abs(self.fresh_kvar(fsort.input().clone(), KVarEncoding::Single))
+                let input = fsort.input();
+                Expr::abs(Binder::new(
+                    self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
+                    input.clone(),
+                ))
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
@@ -378,11 +388,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
+            (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
+                debug_assert_eq!(param_ty1, param_ty2);
+            }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
-            }
-            (TyKind::Param(param1), TyKind::Param(param2)) => {
-                debug_assert_eq!(param1, param2);
             }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2, self.tag);
@@ -432,10 +442,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(len1.val, len2.val);
                 self.subtyping(rcx, ty1, ty2);
             }
+            (BaseTy::Param(param1), BaseTy::Param(param2)) => {
+                debug_assert_eq!(param1, param2);
+            }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
+            (BaseTy::Closure(did1), BaseTy::Closure(did2)) if did1 == did2 => {}
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
@@ -460,6 +474,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
                     Variance::Bivariant => {}
                 }
+            }
+            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
+                tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
             }
             (GenericArg::Lifetime, GenericArg::Lifetime) => {}
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
@@ -521,6 +538,27 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
+    }
+}
+
+impl<F> KVarGen for F
+where
+    F: FnMut(&[Sort], KVarEncoding) -> Expr,
+{
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (self)(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (**self).fresh(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (**self).fresh(sorts, kind)
     }
 }
 

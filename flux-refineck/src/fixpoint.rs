@@ -12,9 +12,9 @@ use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
-    rty::{self, Binder, Constant, INNERMOST},
+    rty::{self, Constant},
 };
-use itertools::Itertools;
+use itertools::{self, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -33,8 +33,8 @@ pub struct KVarStore {
 
 #[derive(Clone)]
 struct KVarDecl {
-    args: Vec<rty::Sort>,
-    scope: Vec<rty::Sort>,
+    self_args: usize,
+    sorts: Vec<rty::Sort>,
     encoding: KVarEncoding,
 }
 
@@ -50,13 +50,15 @@ pub enum KVarEncoding {
     Conj,
 }
 
-pub trait KVarGen {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr>;
-}
-
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
 type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
-type ConstMap = FxIndexMap<DefId, ConstInfo>;
+type ConstMap = FxIndexMap<Key, ConstInfo>;
+
+#[derive(Eq, Hash, PartialEq)]
+enum Key {
+    Uif(rustc_span::Symbol),
+    Const(DefId),
+}
 
 pub struct FixpointCtxt<'genv, 'tcx, T> {
     comments: Vec<String>,
@@ -88,8 +90,10 @@ struct ExprCtxt<'a> {
 
 #[derive(Debug)]
 struct ConstInfo {
-    name: fixpoint::Name,
-    val: Constant,
+    name: fixpoint::ConstName,
+    sym: rustc_span::Symbol,
+    sort: fixpoint::Sort,
+    val: Option<Constant>,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -98,7 +102,7 @@ where
 {
     pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: DefId, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
-        let const_map = fixpoint_const_map(genv, &name_gen);
+        let const_map = fixpoint_const_map(genv);
         Self {
             comments: vec![],
             kvars,
@@ -132,11 +136,11 @@ where
 
     fn assume_const_val(
         cstr: fixpoint::Constraint<TagIdx>,
-        const_info: &ConstInfo,
+        const_name: fixpoint::ConstName,
+        const_val: Constant,
     ) -> fixpoint::Constraint<TagIdx> {
-        let name = const_info.name;
-        let e1 = fixpoint::Expr::from(name);
-        let e2 = fixpoint::Expr::Constant(const_info.val);
+        let e1 = fixpoint::Expr::from(const_name);
+        let e2 = fixpoint::Expr::Constant(const_val);
         let pred = fixpoint::Pred::Expr(e1.eq(e2));
         fixpoint::Constraint::Guard(pred, Box::new(cstr))
     }
@@ -162,7 +166,9 @@ where
 
         let mut closed_constraint = constraint;
         for const_info in self.const_map.values() {
-            closed_constraint = Self::assume_const_val(closed_constraint, const_info);
+            if let Some(val) = const_info.val {
+                closed_constraint = Self::assume_const_val(closed_constraint, const_info.name, val);
+            }
         }
 
         let qualifiers = self
@@ -173,11 +179,15 @@ where
 
         let constants = self
             .const_map
-            .values()
-            .map(|const_info| (const_info.name, fixpoint::Sort::Int))
+            .into_values()
+            .map(|const_info| {
+                fixpoint::ConstInfo {
+                    name: const_info.name,
+                    orig: const_info.sym,
+                    sort: const_info.sort,
+                }
+            })
             .collect();
-
-        let uifs = self.genv.uifs().map(uif_def_to_fixpoint).collect_vec();
 
         let sorts = self
             .genv
@@ -192,7 +202,6 @@ where
             kvars,
             closed_constraint,
             qualifiers,
-            uifs,
             sorts,
         );
         if config::dump_constraint() {
@@ -265,7 +274,7 @@ where
 
         let decl = self.kvars.get(kvar.kvid);
 
-        let all_args = iter::zip(kvar.all_args(), decl.all_args())
+        let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.imm(arg, sort, bindings))
             .collect_vec();
 
@@ -297,7 +306,7 @@ where
         self.kvid_map.entry(kvid).or_insert_with(|| {
             let decl = self.kvars.get(kvid);
 
-            let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
+            let all_args = decl.sorts.iter().map(sort_to_fixpoint).collect_vec();
 
             if all_args.is_empty() {
                 let sorts = vec![fixpoint::Sort::Unit];
@@ -311,7 +320,7 @@ where
                     vec![kvid]
                 }
                 KVarEncoding::Conj => {
-                    let n = usize::max(decl.args.len(), 1);
+                    let n = usize::max(decl.self_args, 1);
                     (0..n)
                         .map(|i| {
                             let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
@@ -365,46 +374,33 @@ impl FixpointKVar {
     }
 }
 
-impl<F> KVarGen for F
-where
-    F: FnMut(rty::Sort, KVarEncoding) -> Binder<rty::Expr>,
-{
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (self)(sort, kind)
-    }
-}
-
-impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (**self).fresh(sort, kind)
-    }
-}
-
-impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (**self).fresh(sort, kind)
-    }
-}
-
-fn fixpoint_const_map(
-    genv: &GlobalEnv,
-    name_gen: &IndexGen<fixpoint::Name>,
-) -> FxIndexMap<DefId, ConstInfo> {
-    genv.map()
+fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
+    let const_name_gen = IndexGen::new();
+    let consts = genv
+        .map()
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
-            let name = name_gen.fresh();
-            let cinfo = ConstInfo { name, val: const_info.val };
-            (const_info.def_id, cinfo)
-        })
-        .collect()
-}
-
-impl KVarDecl {
-    fn all_args(&self) -> impl Iterator<Item = &rty::Sort> {
-        self.args.iter().chain(&self.scope)
-    }
+            let name = const_name_gen.fresh();
+            let cinfo = ConstInfo {
+                name,
+                sym: const_info.sym,
+                sort: fixpoint::Sort::Int,
+                val: Some(const_info.val),
+            };
+            (Key::Const(const_info.def_id), cinfo)
+        });
+    let uifs = genv
+        .uifs()
+        .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
+        .map(|uif_def| {
+            let name = const_name_gen.fresh();
+            let sort = func_sort_to_fixpoint(&uif_def.sort);
+            let cinfo =
+                ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
+            (Key::Uif(cinfo.sym), cinfo)
+        });
+    itertools::chain(consts, uifs).collect()
 }
 
 impl KVarStore {
@@ -416,37 +412,55 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<S>(
+    pub fn fresh<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
+    where
+        A: IntoIterator<Item = (rty::Var, rty::Sort)>,
+    {
+        let mut sorts = vec![];
+        let mut exprs = vec![];
+
+        let mut flattened_self_args = 0;
+        for (i, (var, sort)) in args.into_iter().enumerate() {
+            let is_self_arg = i < self_args;
+            let var = var.to_expr();
+            sort.walk(|sort, proj| {
+                if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
+                    flattened_self_args += is_self_arg as usize;
+                    sorts.push(sort.clone());
+                    exprs.push(rty::Expr::tuple_projs(&var, proj));
+                }
+            });
+        }
+
+        let kvid = self
+            .kvars
+            .push(KVarDecl { self_args: flattened_self_args, sorts, encoding });
+
+        let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
+        rty::Expr::kvar(kvar)
+    }
+
+    pub fn fresh_bound<S>(
         &mut self,
-        sort: rty::Sort,
+        bound: &[rty::Sort],
         scope: S,
         encoding: KVarEncoding,
-    ) -> Binder<rty::Expr>
+    ) -> rty::Expr
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        let mut scope_sorts = vec![];
-        let mut scope_exprs = vec![];
-        for (name, sort) in scope {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                scope_sorts.push(sort);
-                scope_exprs.push(rty::Expr::fvar(name));
-            }
+        if bound.is_empty() {
+            return self.fresh(0, [], encoding);
         }
-        let mut arg_sorts = vec![];
-        let mut arg_exprs = vec![];
-        sort.walk(|sort, proj| {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                arg_sorts.push(sort.clone());
-                arg_exprs.push(rty::Expr::tuple_projs(rty::Expr::bvar(INNERMOST), proj));
-            }
-        });
-        let kvid =
-            self.kvars
-                .push(KVarDecl { args: arg_sorts, scope: scope_sorts.clone(), encoding });
-
-        let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs.clone());
-        Binder::new(rty::Expr::kvar(kvar), sort)
+        let args = itertools::chain(
+            bound.iter().rev().enumerate().map(|(level, sort)| {
+                (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+            }),
+            scope
+                .into_iter()
+                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+        );
+        self.fresh(1, args, encoding)
     }
 }
 
@@ -486,10 +500,10 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
-        // There's no way to declare opaque sorts in the horn syntax in fixpoint so we encode
-        // them as integers. Well-formedness should ensure values of this sort are only used to
-        // test for equality.
-        rty::Sort::User(_) => fixpoint::Sort::Int,
+        // There's no way to declare sorts in the horn syntax in fixpoint so we encode
+        // user declared opaque sorts and type variable sorts as integers. Well-formedness
+        // should ensure values of these sorts are properly used.
+        rty::Sort::User(_) | rty::Sort::Param(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
     }
@@ -502,11 +516,6 @@ fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
     )
 }
 
-fn uif_def_to_fixpoint(uif_def: &rty::UifDef) -> fixpoint::UifDef {
-    let sort = func_sort_to_fixpoint(&uif_def.sort);
-    fixpoint::UifDef::new(uif_def.name.to_string(), sort)
-}
-
 impl<'a> ExprCtxt<'a> {
     fn new(name_map: &'a NameMap, const_map: &'a ConstMap, dbg_span: Span) -> Self {
         Self { name_map, const_map, dbg_span }
@@ -516,7 +525,7 @@ impl<'a> ExprCtxt<'a> {
         match expr.kind() {
             rty::ExprKind::FreeVar(name) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
-                    span_bug!(self.dbg_span, "no entry found for key: `{name:?}`")
+                    span_bug!(self.dbg_span, "no entry found in name_map for name: `{name:?}`")
                 });
                 fixpoint::Expr::Var(*name)
             }
@@ -538,11 +547,16 @@ impl<'a> ExprCtxt<'a> {
                     })
             }
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
-            rty::ExprKind::ConstDefId(did) => fixpoint::Expr::Var(self.const_map[did].name),
+            rty::ExprKind::ConstDefId(did) => {
+                let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
+                    span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
+                });
+                fixpoint::Expr::ConstVar(const_info.name)
+            }
             rty::ExprKind::App(func, arg) => {
                 let func = self.func_to_fixpoint(func);
-                let args = self.exprs_to_fixpoint(arg.as_tuple());
-                fixpoint::Expr::App(func, args)
+                let arg = self.exprs_to_fixpoint(arg.as_tuple());
+                fixpoint::Expr::App(func, arg)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([
@@ -590,11 +604,16 @@ impl<'a> ExprCtxt<'a> {
         match func.kind() {
             rty::ExprKind::FreeVar(name) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
-                    span_bug!(self.dbg_span, "no entry found for key: `{name:?}`")
+                    span_bug!(self.dbg_span, "no name found for key: `{name:?}`")
                 });
                 fixpoint::Func::Var(*name)
             }
-            rty::ExprKind::Func(name) => fixpoint::Func::Uif(name.to_string()),
+            rty::ExprKind::Func(name) => {
+                let cinfo = self.const_map.get(&Key::Uif(*name)).unwrap_or_else(|| {
+                    span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
+                });
+                fixpoint::Func::Uif(cinfo.name)
+            }
             _ => {
                 span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")
             }

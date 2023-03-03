@@ -21,7 +21,7 @@ use rustc_span::{BytePos, Span, SyntaxContext};
 lalrpop_mod!(
     #[allow(warnings)]
     #[allow(clippy::all)]
-    surface_grammar
+    grammar
 );
 
 macro_rules! parse {
@@ -38,35 +38,35 @@ macro_rules! parse {
 }
 
 pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::RefinedBy> {
-    parse!(surface_grammar::RefinedByParser, tokens, span)
+    parse!(grammar::RefinedByParser, tokens, span)
 }
 
 pub fn parse_type_alias(tokens: TokenStream, span: Span) -> ParseResult<surface::TyAlias> {
-    parse!(surface_grammar::TyAliasParser, tokens, span)
+    parse!(grammar::TyAliasParser, tokens, span)
 }
 
 pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
-    parse!(surface_grammar::FnSigParser, tokens, span)
+    parse!(grammar::FnSigParser, tokens, span)
 }
 
 pub fn parse_qual_names(tokens: TokenStream, span: Span) -> ParseResult<surface::QualNames> {
-    parse!(surface_grammar::QualNamesParser, tokens, span)
+    parse!(grammar::QualNamesParser, tokens, span)
 }
 
 pub fn parse_flux_item(tokens: TokenStream, span: Span) -> ParseResult<Vec<surface::Item>> {
-    parse!(surface_grammar::ItemsParser, tokens, span)
+    parse!(grammar::ItemsParser, tokens, span)
 }
 
 pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
-    parse!(surface_grammar::TyParser, tokens, span)
+    parse!(grammar::TyParser, tokens, span)
 }
 
 pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantData> {
-    parse!(surface_grammar::VariantParser, tokens, span)
+    parse!(grammar::VariantParser, tokens, span)
 }
 
 pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr> {
-    parse!(surface_grammar::ExprParser, tokens, span)
+    parse!(grammar::ExprParser, tokens, span)
 }
 
 pub enum UserParseError {

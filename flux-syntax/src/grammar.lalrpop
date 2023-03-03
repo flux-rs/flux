@@ -9,9 +9,10 @@ use lalrpop_util::ParseError;
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
 pub TyAlias: surface::TyAlias = {
-  <lo:@L>
+    <lo:@L>
     "type"
-    <path:Path>
+    <ident:Ident>
+    <generics:GenericArgs?>
     <refined_by_lo:@L>
     <early_bound_params:("(" <Comma<RefineParam>> ")")?>
     <index_params:("[" <Comma<RefineParam>> "]")?>
@@ -24,7 +25,13 @@ pub TyAlias: surface::TyAlias = {
             index_params: index_params.unwrap_or_default(),
             span: mk_span(refined_by_lo, refined_by_hi)
         };
-        surface::TyAlias { path, refined_by, ty, span: mk_span(lo, hi) }
+        surface::TyAlias {
+            ident,
+            generics: generics.unwrap_or_default(),
+            refined_by,
+            ty,
+            span: mk_span(lo, hi)
+        }
     }
 }
 
@@ -167,8 +174,16 @@ TyKind: surface::TyKind = {
 
 #[inline]
 BaseTy: surface::BaseTy = {
-    <path:Path> <args:("(" <Comma<RefineArg>> ")")?> => surface::BaseTy::Path(path, args.unwrap_or_default()),
-    "[" <ty:Ty> "]" => surface::BaseTy::Slice(Box::new(ty)),
+    <lo:@L> <kind:BaseTyKind> <hi:@L> => surface::BaseTy {
+        kind,
+        span: mk_span(lo, hi)
+    }
+}
+
+#[inline]
+BaseTyKind: surface::BaseTyKind = {
+    <path:Path> => surface::BaseTyKind::Path(path),
+    "[" <ty:Ty> "]" => surface::BaseTyKind::Slice(Box::new(ty)),
 }
 
 GenericArgs: Vec<surface::Ty> = {
@@ -176,9 +191,19 @@ GenericArgs: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">(?=>)",
 }
 
+RefineArgs: Vec<surface::RefineArg> = {
+   "(" <Comma<RefineArg>> ")"
+}
+
 Path: surface::Path = {
-    <lo:@L> <segments:Sep1<"::", Ident>> <args:GenericArgs?> <hi:@R> => {
-        surface::Path { segments, args: args.unwrap_or_default(), span: mk_span(lo, hi), res: () }
+    <lo:@L> <segments:Sep1<"::", Ident>> <generics:GenericArgs?> <refine:RefineArgs?> <hi:@R> => {
+        surface::Path {
+            segments,
+            generics: generics.unwrap_or_default(),
+            refine: refine.unwrap_or_default(),
+            span: mk_span(lo, hi),
+            res: (),
+        }
     }
 }
 
@@ -248,7 +273,7 @@ Level10: surface::Expr = {
     <lo:@L> <var:Ident> "." <fld:Ident> <hi:@R> => {
         let expr = surface::Expr { kind: surface::ExprKind::Var(var), span: var.span};
         surface::Expr {
-            kind: surface::ExprKind::Dot(Box::new(expr), fld),
+            kind: surface::ExprKind::Dot(var, fld),
             span: mk_span(lo, hi),
         }
     },

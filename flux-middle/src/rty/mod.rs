@@ -9,6 +9,7 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
+pub(crate) mod refining;
 pub mod subst;
 
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
@@ -19,7 +20,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
 pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
@@ -31,22 +32,46 @@ pub use crate::{
     rustc::ty::Const,
 };
 use crate::{
+    global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
     rustc::mir::Place,
 };
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Debug, Clone)]
+pub struct Generics {
+    pub params: List<GenericParamDef>,
+    pub parent: Option<DefId>,
+    pub parent_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GenericParamDef {
+    pub kind: GenericParamDefKind,
+    pub def_id: DefId,
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GenericParamDefKind {
+    Type { has_default: bool },
+    BaseTy,
+    Lifetime,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
     Real,
     Loc,
+    Param(ParamTy),
     Tuple(List<Sort>),
     Func(FuncSort),
     User(Symbol),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     input_and_output: List<Sort>,
 }
@@ -66,7 +91,7 @@ pub struct AdtDefData {
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-#[derive(TyEncodable, TyDecodable)]
+#[derive(Debug, TyEncodable, TyDecodable)]
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
@@ -158,7 +183,6 @@ pub enum TyKind {
     Constr(Expr, Ty),
     Uninit,
     Ptr(PtrKind, Path),
-    Param(ParamTy),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
     /// when checking [`TerminatorKind::SwitchInt`].
@@ -166,6 +190,7 @@ pub enum TyKind {
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
+    Param(ParamTy),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -196,6 +221,8 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
+    Closure(DefId),
+    Param(ParamTy),
 }
 
 pub type Substs = List<GenericArg>;
@@ -203,8 +230,20 @@ pub type Substs = List<GenericArg>;
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
+    BaseTy(Binder<Ty>),
     /// We treat lifetime opaquely
     Lifetime,
+}
+
+impl Generics {
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParamDef {
+        if let Some(index) = param_index.checked_sub(self.parent_count) {
+            self.params[index].clone()
+        } else {
+            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))
+                .param_at(param_index, genv)
+        }
+    }
 }
 
 impl Sort {
@@ -589,10 +628,6 @@ impl Ty {
         Ty::exists(Binder::new(Ty::constr(pred, ty), sort))
     }
 
-    pub fn param(param: ParamTy) -> Ty {
-        TyKind::Param(param).intern()
-    }
-
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
         TyKind::Discr(adt_def, place).intern()
     }
@@ -611,6 +646,10 @@ impl Ty {
 
     pub fn uint(uint_ty: UintTy) -> Ty {
         BaseTy::Uint(uint_ty).into_ty()
+    }
+
+    pub fn param(param_ty: ParamTy) -> Ty {
+        TyKind::Param(param_ty).intern()
     }
 
     pub fn usize() -> Ty {
@@ -639,6 +678,10 @@ impl Ty {
 
     pub fn array(ty: Ty, c: Const) -> Ty {
         BaseTy::Array(ty, c).into_ty()
+    }
+
+    pub fn closure(did: DefId) -> Ty {
+        BaseTy::Closure(did).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -681,8 +724,8 @@ impl TyS {
 
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Index) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idxs) = self.kind() {
-            (adt_def, substs, idxs)
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) = self.kind() {
+            (adt_def, substs, idx)
         } else {
             bug!("expected adt")
         }
@@ -769,7 +812,9 @@ impl BaseTy {
             | BaseTy::Ref(_, _)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Never => &[],
+            | BaseTy::Closure(_)
+            | BaseTy::Never
+            | BaseTy::Param(_) => &[],
         }
     }
 
@@ -787,6 +832,7 @@ impl BaseTy {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
+            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
             BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
@@ -794,6 +840,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
+            | BaseTy::Closure(_)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -824,7 +871,8 @@ impl_internable!(
     [Constraint],
     [InferMode],
     [TupleTree<bool>],
-    [Sort]
+    [Sort],
+    [GenericParamDef],
 );
 
 #[macro_export]
@@ -899,6 +947,7 @@ mod pretty {
                         w!("({:?})", join!(", ", sorts))
                     }
                 }
+                Sort::Param(param_ty) => w!("sortof({})", ^param_ty),
                 Sort::User(name) => w!("{}", ^name),
             }
         }
@@ -1006,7 +1055,6 @@ mod pretty {
                 }
                 TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
-                TyKind::Param(param) => w!("{}", ^param),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => {
                     if cx.hide_refinements {
@@ -1015,6 +1063,7 @@ mod pretty {
                         w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
+                TyKind::Param(param_ty) => w!("{}#t", ^param_ty),
             }
         }
 
@@ -1084,6 +1133,7 @@ mod pretty {
                     }
                     Ok(())
                 }
+                BaseTy::Param(param) => w!("{}#b", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
@@ -1099,6 +1149,7 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
+                BaseTy::Closure(did) => w!("closure({:?})", did),
             }
         }
     }
@@ -1107,7 +1158,10 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                GenericArg::Ty(ty) => w!("{:?}", ty),
+                GenericArg::Ty(arg) => w!("{:?}", arg),
+                GenericArg::BaseTy(arg) => {
+                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
+                }
                 GenericArg::Lifetime => w!("'_"),
             }
         }

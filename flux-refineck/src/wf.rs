@@ -3,7 +3,7 @@
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -196,7 +196,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .fields
             .iter()
             .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
-        let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &variant.ret.bty.sort());
+        let expected = self.sort_of_bty(&variant.ret.bty);
+        let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &expected);
         fields?;
         indices?;
         Ok(())
@@ -245,61 +246,56 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
-        match ty {
-            fhir::Ty::BaseTy(bty) => self.check_base_ty(env, bty),
-            fhir::Ty::Indexed(bty, idx) => {
-                self.check_refine_arg(env, idx, &bty.sort())?;
+        match &ty.kind {
+            fhir::TyKind::BaseTy(bty) => self.check_base_ty(env, bty),
+            fhir::TyKind::Indexed(bty, idx) => {
+                let expected = self.sort_of_bty(bty);
+                self.check_refine_arg(env, idx, &expected)?;
                 self.check_base_ty(env, bty)
             }
-            fhir::Ty::Exists(bty, bind, pred) => {
-                let sort = bty.sort();
+            fhir::TyKind::Exists(bty, bind, pred) => {
+                let sort = self.sort_of_bty(bty);
                 self.check_base_ty(env, bty)?;
                 env.push_layer([(&bind.name, &sort)]);
                 self.check_pred(env, pred)
             }
-            fhir::Ty::Ptr(loc) => self.check_loc(env, *loc),
-            fhir::Ty::Tuple(tys) => {
+            fhir::TyKind::Ptr(loc) => self.check_loc(env, *loc),
+            fhir::TyKind::Tuple(tys) => {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
             }
-            fhir::Ty::Ref(_, ty) | fhir::Ty::Array(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Constr(pred, ty) => {
+            fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(env, ty),
+            fhir::TyKind::Constr(pred, ty) => {
                 self.check_pred(env, pred)?;
                 self.check_type(env, ty)
             }
-            fhir::Ty::RawPtr(ty, _) => self.check_type(env, ty),
-            fhir::Ty::Never | fhir::Ty::Param(_) => Ok(()),
+            fhir::TyKind::RawPtr(ty, _) => self.check_type(env, ty),
+            fhir::TyKind::Never => Ok(()),
         }
     }
 
     fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
-        match bty {
-            fhir::BaseTy::Path(path) => self.check_path(env, path),
-            fhir::BaseTy::Slice(ty) => self.check_type(env, ty),
+        match &bty.kind {
+            fhir::BaseTyKind::Path(path) => self.check_path(env, path),
+            fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
         }
     }
 
     fn check_path(&self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
         match &path.res {
-            fhir::Res::Alias(def_id, args) => {
+            fhir::Res::Alias(def_id) => {
                 let sorts = self.early_cx.early_bound_sorts_of(*def_id);
-                if args.len() != sorts.len() {
+                if path.refine.len() != sorts.len() {
                     return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
                         path.span,
                         sorts.len(),
-                        args.len(),
+                        path.refine.len(),
                     ));
                 }
-                iter::zip(args, sorts)
+                iter::zip(&path.refine, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
             }
-            fhir::Res::Adt(_)
-            | fhir::Res::Int(_)
-            | fhir::Res::Uint(_)
-            | fhir::Res::Bool
-            | fhir::Res::Float(_)
-            | fhir::Res::Str
-            | fhir::Res::Char => {}
+            fhir::Res::Adt(_) | fhir::Res::PrimTy(..) | fhir::Res::Param(_) => {}
         }
         path.generics
             .iter()
@@ -405,7 +401,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match &e.kind {
             fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
-            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(env, *op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
+                self.synth_binary_op(env, e.span, *op, e1, e2)
+            }
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
             fhir::ExprKind::Const(_, _) => Ok(fhir::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, e.span),
@@ -439,6 +437,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn synth_binary_op(
         &self,
         env: &Env,
+        span: Span,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
@@ -452,6 +451,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::BinOp::Eq | fhir::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, &s)?;
+                if !self.early_cx.has_equality(&s) {
+                    return self.emit_err(errors::NoEquality::new(span, &s));
+                }
                 Ok(fhir::Sort::Bool)
             }
             fhir::BinOp::Mod => {
@@ -629,6 +631,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 Ok(())
             }
         }
+    }
+
+    fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
+        self.early_cx
+            .sort_of_bty(bty)
+            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
     }
 }
 
@@ -841,6 +849,20 @@ mod errors {
     impl<'a> InvalidPrimitiveDotAccess<'a> {
         pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
             Self { sort, span: fld.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(wf::no_equality, code = "FLUX")]
+    pub(super) struct NoEquality<'a> {
+        #[primary_span]
+        span: Span,
+        sort: &'a fhir::Sort,
+    }
+
+    impl<'a> NoEquality<'a> {
+        pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+            Self { span, sort }
         }
     }
 }

@@ -5,7 +5,7 @@
 pub mod nat;
 use nat::Nat;
 
-#[flux::sig(fn (Option<Nat>) -> Nat)]
+#[flux::sig(fn(Option<Nat>) -> Nat)]
 pub fn test(x: Option<Nat>) -> Nat {
     match x {
         Some(n) => n,

@@ -41,6 +41,7 @@ pub enum Pred {
 #[derive(Hash)]
 pub enum Expr {
     Var(Name),
+    ConstVar(ConstName),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     App(Func, Vec<Expr>),
@@ -54,7 +55,7 @@ pub enum Expr {
 #[derive(Hash)]
 pub enum Func {
     Var(Name),
-    Uif(String),
+    Uif(ConstName),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -71,20 +72,9 @@ pub struct Qualifier {
     pub global: bool,
 }
 
-#[derive(Hash)]
-pub struct UifDef {
-    pub name: String,
-    pub sort: FuncSort,
-}
-
-impl UifDef {
-    pub fn new(name: String, sort: FuncSort) -> Self {
-        UifDef { name, sort }
-    }
-}
 #[derive(Clone, Copy, Debug)]
 pub struct Const {
-    pub name: Name,
+    pub name: ConstName,
     pub val: i128,
 }
 
@@ -138,6 +128,11 @@ newtype_index! {
         const NAME1 = 1;
         const NAME2 = 2;
     }
+}
+
+newtype_index! {
+    #[debug_format = "c{}"]
+    pub struct ConstName {}
 }
 
 impl<Tag> Constraint<Tag> {
@@ -340,6 +335,7 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Var(x) => write!(f, "{x:?}"),
+            Expr::ConstVar(x) => write!(f, "{x:?}"),
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
@@ -370,7 +366,7 @@ impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Func::Var(name) => write!(f, "{name:?}"),
-            Func::Uif(uif) => write!(f, "{uif}"),
+            Func::Uif(uif) => write!(f, "{uif:?}"),
         }
     }
 }
@@ -636,6 +632,25 @@ impl Constant {
         let n2 = other.to_int()?;
         Some(Constant::Bool(n1 >= n2))
     }
+
+    /// Given the bit width of an integer type, produces the maximum integer for
+    /// that type.
+    pub fn int_min(bit_width: u32) -> Constant {
+        let abs_max: u128 = 2_u128.pow(bit_width);
+        Constant::Int(Sign::Negative, abs_max)
+    }
+
+    /// Given the bit width of an integer type, produces the minimum integer for
+    /// that type.
+    pub fn int_max(bit_width: u32) -> Constant {
+        (i128::MAX >> (128 - bit_width)).into()
+    }
+
+    /// Given the bit width of an unsigned integer type, produces the maximum
+    /// unsigned integer for that type.
+    pub fn uint_max(bit_width: u32) -> Constant {
+        (u128::MAX >> (128 - bit_width)).into()
+    }
 }
 
 impl From<usize> for Constant {
@@ -672,5 +687,11 @@ impl From<i128> for Expr {
 impl From<Name> for Expr {
     fn from(n: Name) -> Self {
         Expr::Var(n)
+    }
+}
+
+impl From<ConstName> for Expr {
+    fn from(c_n: ConstName) -> Self {
+        Expr::ConstVar(c_n)
     }
 }
