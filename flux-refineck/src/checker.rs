@@ -164,10 +164,6 @@ impl InferResult1 {
         self.inner.get(bb)
     }
 
-    fn remove(&mut self, bb: &BasicBlock) {
-        self.inner.remove(bb);
-    }
-
     fn entry(&mut self, bb: &BasicBlock) -> Entry<rustc_middle::mir::BasicBlock, TypeEnvInfer> {
         self.inner.entry(*bb)
     }
@@ -237,6 +233,16 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id) };
             rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir).unwrap()
         };
+        // let rust_sig = genv.tcx.fn_sig(def_id);
+        // println!("TRACE: Checker::run (1) for {def_id:?} with RUST-SIG = {rust_sig:?}, POLY-SIG {fn_sig:?} and body:\n{body:?}");
+
+        // rustc_middle::mir::pretty::write_mir_fn(
+        //     genv.tcx,
+        //     bomir,
+        //     &mut |_, _| Ok(()),
+        //     &mut dbg::writer_for_item(self.genv.tcx, def_id.to_def_id(), "mir").unwrap(),
+        // )
+        // .unwrap();
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -476,6 +482,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -1093,7 +1100,7 @@ impl Phase for Check {
 
     fn enter_basic_block(
         &mut self,
-        def_id: DefId,
+        _def_id: DefId,
         rcx: &mut RefineCtxt,
         bb: BasicBlock,
     ) -> TypeEnv {

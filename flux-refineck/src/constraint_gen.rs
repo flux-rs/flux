@@ -99,15 +99,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
-    fn is_closure(arg: &GenericArg) -> Option<DefId> {
-        if let GenericArg::Ty(ty) = arg {
-            if let TyKind::Indexed(BaseTy::Closure(did), _) = ty.kind() {
-                return Some(*did);
-            }
-        }
-        return None;
-    }
-
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -549,7 +540,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn closure_obligs(
         &mut self,
         did: DefId,
-        substs: &Vec<GenericArg>,
+        substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Vec<rty::ClosureOblig> {
         let preds = self.genv.tcx.predicates_of(did);
@@ -568,9 +559,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let args = rust_fn_sig.skip_binder().inputs();
         iter::zip(actuals, args).for_each(|(actual, arg)| {
             if let rustc_middle::ty::Param(p) = arg.kind() &&
-                          let rty::TyKind::Indexed(rty::BaseTy::Closure(did),_) = actual.kind() {
-                          f_did.insert(*p, *did);
-                        }
+                let rty::TyKind::Indexed(rty::BaseTy::Closure(did),_) = actual.kind() {
+                f_did.insert(*p, *did);
+            }
         });
 
         let bound_vars = rust_fn_sig.bound_vars();
@@ -595,7 +586,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     if fn_once_id == trait_ref.def_id &&
                            let Some(substs) = trait_ref.substs.try_as_type_list() &&
                            let rustc_middle::ty::Param(p) = substs[0].kind() {
-                            f_ins.insert(p.clone(),substs[1].clone());
+                            f_ins.insert(*p,substs[1]);
                         }
                 }
                 Clause::Projection(proj_pred) => {
@@ -605,7 +596,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                            let Some(proj_substs) = proj_ty.substs.try_as_type_list() &&
                            let rustc_middle::ty::Param(p) = proj_substs[0].kind() &&
                            let Some(out_ty) = proj_pred.term.ty() {
-                           f_out.insert(p.clone(),out_ty);
+                           f_out.insert(*p,out_ty);
                         }
                 }
                 _ => {}
@@ -617,12 +608,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         for (p, ty) in f_ins.iter() {
             // 0. Get p_did and p_out_ty
             let oblig_def_id = *f_did.get(p).unwrap();
-            let p_out_ty = f_out.get(p).unwrap().clone();
+            let p_out_ty = f_out.get(p).unwrap();
 
             // 1. make a rustc_middle::ty::FnSig
             let p_rust_fn_sig = self.genv.tcx.mk_fn_sig(
+                // inputs, //
                 ty.tuple_fields(),
-                p_out_ty,
+                *p_out_ty,
                 false,
                 rustc_hir::Unsafety::Normal,
                 Abi::Rust,
@@ -638,12 +630,42 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     panic!("lower_fn_sig failed for {:?} with {:?}", p_rust_poly_fn_sig, bound_vars)
                 });
 
-            // 4. apply the substs to the rty::PolyFnSig
-            let oblig_sig = self
+            // 4. push the "closure-ty" in as the FIRST input
+            let clos_ty = rty::Ty::closure(oblig_def_id); // TyKind::Indexed(rty::BaseTy::Closure(oblig_def_id), vec![]).intern();
+                                                          // let p_rty_fn_sig = p_rty_poly_fn_sig.skip_binder();
+                                                          // let p_rty_fn_sig_inputs = p_rty_fn_sig.inputs();
+                                                          // let p_rty_fn_sig_output = p_rty_fn_sig.output();
+                                                          // let p_rty_fn_sig_inputs_with_closure =
+                                                          //     iter::once(&rustc::ty::Ty::mk_closure(oblig_def_id, vec![]))
+                                                          //         .chain(p_rty_fn_sig_inputs)
+                                                          //         .chain(iter::once(&p_rty_fn_sig_output))
+                                                          //         .collect();
+                                                          // let p_rty_fn_sig_with_closure =
+                                                          //     rustc::ty::FnSig { inputs_and_output: p_rty_fn_sig_inputs_with_closure.from_vec() };
+
+            // To get the signature of a closure, you should use the
+            // `sig` method on the `ClosureSubsts`:
+            //
+            //    substs.as_closure().sig(def_id, tcx)
+
+            // 5. apply the substs to the rty::PolyFnSig
+            let oblig_fn_sig = self
                 .genv
                 .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
-                .replace_generics(&substs);
+                .replace_generics(substs)
+                .fn_sig
+                .skip_binders();
+            let inputs = iter::once(clos_ty)
+                .chain(oblig_fn_sig.args().to_vec())
+                .collect_vec();
 
+            let oblig_fn_sig = rty::FnSig::new(
+                oblig_fn_sig.requires().to_vec(),
+                inputs,
+                oblig_fn_sig.output().clone(),
+            );
+
+            let oblig_sig = rty::PolySig::new(vec![], oblig_fn_sig);
             obligs.push(rty::ClosureOblig { oblig_def_id, oblig_sig });
         }
         obligs

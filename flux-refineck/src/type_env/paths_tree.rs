@@ -223,7 +223,13 @@ impl PathsTree {
             let loc = path.loc.clone();
             let mut path_proj = vec![];
 
-            let mut ptr = NodePtr::clone(&self.map[&loc].ptr);
+            let mut ptr = NodePtr::clone(
+                &self
+                    .map
+                    .get(&loc)
+                    .unwrap_or_else(|| tracked_span_bug!("PANIC: {loc:?}"))
+                    .ptr,
+            );
 
             for field in path.projection() {
                 ptr = ptr.proj(genv, rcx, *field)?;
