@@ -40,7 +40,7 @@ use rustc_span::Span;
 use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason},
-    fixpoint::KVarStore,
+    fixpoint::{KVarEncoding, KVarStore},
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
@@ -112,7 +112,6 @@ enum Guard {
 
 impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     fn new(
-        def_id: DefId,
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
         body: &'a Body<'tcx>,
@@ -261,7 +260,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         phase.enter_def_id(def_id);
 
-        let mut ck = Checker::new(def_id, genv, &body, fn_sig.output().clone(), &dominators, phase);
+        let mut ck = Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, phase);
         // OLD let mut ck = Checker::new(genv, def_id, body, fn_sig.output().clone(), &dominators, phase);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
@@ -1060,6 +1059,7 @@ impl Phase for Inference {
 
         let target_bb_env = ck.phase.bb_envs.inner[&ck.def_id].get(&target);
         dbg::infer_goto_enter!(target, env, target_bb_env);
+        // TODO(CLOSURE-NICO)
         let mut gen =
             ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
 
@@ -1154,6 +1154,7 @@ impl Phase for Check {
         Ok(!ck.visited.contains(target))
     }
 
+    // TODO(CLOSURE-NICO)
     fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
         self.kvars.fresh(sort, [], encoding)
     }
