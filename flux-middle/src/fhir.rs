@@ -25,12 +25,13 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::{FloatTy, IntTy, Mutability, UintTy};
+use rustc_ast::Mutability;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
+pub use rustc_hir::PrimTy;
 use rustc_index::newtype_index;
-use rustc_macros::{Decodable, Encodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -39,6 +40,24 @@ use crate::{
     pretty,
     rty::Constant,
 };
+
+#[derive(Debug)]
+pub struct Generics {
+    pub params: Vec<GenericParamDef>,
+}
+
+#[derive(Debug)]
+pub struct GenericParamDef {
+    pub def_id: LocalDefId,
+    pub kind: GenericParamDefKind,
+}
+
+#[derive(Debug)]
+pub enum GenericParamDefKind {
+    Type { default: Option<Ty> },
+    BaseTy,
+    Lifetime,
+}
 
 #[derive(Debug, Clone)]
 pub struct ConstInfo {
@@ -66,6 +85,7 @@ pub struct SortDecl {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
+    generics: FxHashMap<LocalDefId, Generics>,
     uifs: FxHashMap<Symbol, UifDef>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
@@ -147,7 +167,12 @@ pub enum Constraint {
     Pred(Expr),
 }
 
-pub enum Ty {
+pub struct Ty {
+    pub kind: TyKind,
+    pub span: Span,
+}
+
+pub enum TyKind {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
@@ -158,16 +183,10 @@ pub enum Ty {
     Constr(Expr, Box<Ty>),
     Ptr(Ident),
     Ref(RefKind, Box<Ty>),
-    Param(DefId),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
     Never,
-}
-
-pub enum BtyOrTy {
-    Bty(BaseTy),
-    Ty(Ty),
 }
 
 pub struct ArrayLen {
@@ -189,7 +208,8 @@ pub enum WeakKind {
 
 impl From<BaseTy> for Ty {
     fn from(bty: BaseTy) -> Ty {
-        Ty::BaseTy(bty)
+        let span = bty.span;
+        Ty { kind: TyKind::BaseTy(bty), span }
     }
 }
 
@@ -213,8 +233,13 @@ pub enum RefineArg {
     Aggregate(DefId, Vec<RefineArg>, Span),
 }
 
+pub struct BaseTy {
+    pub kind: BaseTyKind,
+    pub span: Span,
+}
+
 /// These are types of things that may be refined with indices or existentials
-pub enum BaseTy {
+pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
 }
@@ -222,18 +247,16 @@ pub enum BaseTy {
 pub struct Path {
     pub res: Res,
     pub generics: Vec<Ty>,
+    pub refine: Vec<RefineArg>,
     pub span: Span,
 }
 
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Res {
-    Int(IntTy),
-    Uint(UintTy),
-    Bool,
-    Float(FloatTy),
-    Str,
-    Char,
-    Alias(DefId, Vec<RefineArg>),
+    PrimTy(PrimTy),
+    Alias(DefId),
     Adt(DefId),
+    Param(DefId),
 }
 
 #[derive(Debug)]
@@ -256,7 +279,7 @@ pub enum InferMode {
     KVar,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -269,12 +292,14 @@ pub enum Sort {
     Aggregate(DefId),
     /// User defined sort
     User(Symbol),
+    /// The sort associated to a type variable
+    Param(DefId),
     /// A sort to be inferred, this is only partially implemented now and is only used for arguments
     /// to abstract refinement predicates.
     Infer,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
@@ -329,51 +354,36 @@ newtype_index! {
     pub struct Name {}
 }
 
-impl BtyOrTy {
-    pub fn to_ty(self) -> Ty {
-        match self {
-            Self::Bty(bty) => Ty::BaseTy(bty),
-            Self::Ty(ty) => ty,
-        }
-    }
-}
-
-impl From<BaseTy> for BtyOrTy {
-    fn from(v: BaseTy) -> Self {
-        Self::Bty(v)
-    }
-}
-
-impl From<Ty> for BtyOrTy {
-    fn from(v: Ty) -> Self {
-        Self::Ty(v)
-    }
-}
-
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Path(Path { res: Res::Bool, .. }))
+        matches!(self.kind, BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }))
     }
 
     pub fn is_aggregate(&self) -> Option<DefId> {
-        if let BaseTy::Path(Path { res: Res::Adt(def_id) | Res::Alias(def_id, _), .. }) = self {
-            Some(*def_id)
+        if let BaseTyKind::Path(path) = &self.kind
+           && let Res::Adt(def_id) | Res::Alias(def_id) = path.res
+        {
+            Some(def_id)
         } else {
             None
         }
     }
 
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Path(Path { res: Res::Int(_) | Res::Uint(_), .. }) | BaseTy::Slice(_) => {
-                Sort::Int
-            }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => Sort::Bool,
-            BaseTy::Path(Path { res: Res::Alias(def_id, _) | Res::Adt(def_id), .. }) => {
-                Sort::Aggregate(*def_id)
-            }
-            BaseTy::Path(Path { res: Res::Float(..) | Res::Str | Res::Char, .. }) => Sort::Unit,
+    pub(crate) fn expect_param(&self) -> DefId {
+        if let BaseTyKind::Path(path) = &self.kind
+           && let Res::Param(def_id) = path.res
+        {
+            def_id
+        } else {
+            panic!("expected param")
         }
+    }
+}
+
+impl From<Path> for BaseTy {
+    fn from(path: Path) -> Self {
+        let span = path.span;
+        Self { kind: BaseTyKind::Path(path), span }
     }
 }
 
@@ -404,7 +414,7 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-#[derive(Clone, Debug, Encodable, Decodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
@@ -428,6 +438,12 @@ pub struct Defn {
     pub args: Vec<(Ident, Sort)>,
     pub sort: Sort,
     pub expr: Expr,
+}
+
+impl Generics {
+    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParamDef {
+        self.params.iter().find(|p| p.def_id == def_id).unwrap()
+    }
 }
 
 impl RefinedBy {
@@ -510,6 +526,18 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
 }
 
 impl Map {
+    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
+        self.generics.insert(def_id, generics);
+    }
+
+    pub fn generics_of(&self, def_id: LocalDefId) -> &Generics {
+        &self.generics[&def_id]
+    }
+
+    pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
+        self.generics.iter()
+    }
+
     // Qualifiers
 
     pub fn insert_qualifier(&mut self, qualifier: Qualifier) {
@@ -711,20 +739,19 @@ impl fmt::Debug for Constraint {
 
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Ty::BaseTy(bty) => write!(f, "{bty:?}{{}}"),
-            Ty::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
-            Ty::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
-            Ty::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            Ty::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
-            Ty::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
-            Ty::Param(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
-            Ty::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
-            Ty::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
-            Ty::Never => write!(f, "!"),
-            Ty::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
-            Ty::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
-            Ty::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
+        match &self.kind {
+            TyKind::BaseTy(bty) => write!(f, "{bty:?}"),
+            TyKind::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
+            TyKind::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
+            TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
+            TyKind::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
+            TyKind::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
+            TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
+            TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
+            TyKind::Never => write!(f, "!"),
+            TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
+            TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
+            TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
         }
     }
 }
@@ -737,35 +764,40 @@ impl fmt::Debug for ArrayLen {
 
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BaseTy::Path(Path { res: Res::Int(int_ty), .. }) => write!(f, "{}", int_ty.name_str()),
-            BaseTy::Path(Path { res: Res::Uint(uint_ty), .. }) => {
+        match &self.kind {
+            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Int(int_ty)), .. }) => {
+                write!(f, "{}", int_ty.name_str())
+            }
+            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Uint(uint_ty)), .. }) => {
                 write!(f, "{}", uint_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Bool, .. }) => write!(f, "bool"),
-            BaseTy::Path(Path { res: Res::Alias(def_id, args), generics, .. }) => {
+            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }) => write!(f, "bool"),
+            BaseTyKind::Path(Path { res: Res::Alias(def_id), generics, refine, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*def_id))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
-                if !args.is_empty() {
-                    write!(f, "({:?})", args.iter().format(", "))?;
+                if !refine.is_empty() {
+                    write!(f, "({:?})", refine.iter().format(", "))?;
                 }
                 Ok(())
             }
-            BaseTy::Path(Path { res: Res::Float(float_ty), .. }) => {
+            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Float(float_ty)), .. }) => {
                 write!(f, "{}", float_ty.name_str())
             }
-            BaseTy::Path(Path { res: Res::Str, .. }) => write!(f, "str"),
-            BaseTy::Path(Path { res: Res::Char, .. }) => write!(f, "char"),
-            BaseTy::Path(Path { res: Res::Adt(did), generics, .. }) => {
+            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Str), .. }) => write!(f, "str"),
+            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Char), .. }) => write!(f, "char"),
+            BaseTyKind::Path(Path { res: Res::Adt(did), generics, .. }) => {
                 write!(f, "{}", pretty::def_id_to_string(*did))?;
                 if !generics.is_empty() {
                     write!(f, "<{:?}>", generics.iter().format(", "))?;
                 }
                 Ok(())
             }
-            BaseTy::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::Path(Path { res: Res::Param(def_id), .. }) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))
+            }
+            BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }
     }
 }
@@ -861,8 +893,9 @@ impl fmt::Display for Sort {
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
-            Sort::Infer => write!(f, "_"),
             Sort::User(name) => write!(f, "{name}"),
+            Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            Sort::Infer => write!(f, "_"),
         }
     }
 }
@@ -875,7 +908,14 @@ impl fmt::Debug for Sort {
 
 impl fmt::Display for FuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}) -> {}", self.inputs().iter().join(","), self.output())
+        match self.inputs() {
+            [input] => {
+                write!(f, "{} -> {}", input, self.output())
+            }
+            inputs => {
+                write!(f, "{} -> {}", inputs.iter().join(","), self.output())
+            }
+        }
     }
 }
 

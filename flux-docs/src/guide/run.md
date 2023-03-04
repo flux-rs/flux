@@ -139,6 +139,9 @@ You can set various `env` variables to customize the behavior of `flux`.
 * `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
 * `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
 * `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`
+* `FLUX_CHECK_OVERFLOW=1` checks for over and underflow on arithmetic integer
+  operations, default `0`. When set to `0`, it still checks for underflow on
+  unsigned integer subtraction.
 
 ### Config file
 

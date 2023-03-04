@@ -44,3 +44,8 @@ pub fn use_chair(c: Chair) -> i32 {
 fn ira(f: f32) -> i32 {
     0
 }
+
+#[flux::sig(fn(x: T) -> i32[x])] //~ ERROR mismatched sorts
+fn generic<T>(x: T) -> i32 {
+    0
+}

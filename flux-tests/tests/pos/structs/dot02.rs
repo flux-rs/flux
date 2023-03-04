@@ -18,7 +18,7 @@ pub struct Pair {
     pub y: i32,
 }
 
-#[flux::sig(fn (a: i32) -> RVec<Pair{v : v.x + v.y <= a + 10 }>)]
+#[flux::sig(fn(a: i32) -> RVec<Pair{v : v.x + v.y <= a + 10 }>)]
 pub fn mk_pairs_with_bound(a: i32) -> RVec<Pair> {
     let mut i = 0;
     let mut res = RVec::new();

@@ -1,6 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_syntax::surface::{self, BaseTy, Ident, Path, Res, Ty};
+use flux_middle::fhir::Res;
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Ty};
 use hir::{ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -54,7 +55,8 @@ impl<'sess> Resolver<'sess> {
         let ty = self.resolve_ty(alias_def.ty)?;
 
         Ok(surface::TyAlias {
-            path: alias_def.path,
+            ident: alias_def.ident,
+            generics: alias_def.generics,
             refined_by: alias_def.refined_by,
             ty,
             span: alias_def.span,
@@ -209,12 +211,18 @@ impl<'sess> Resolver<'sess> {
         };
         match res {
             &ResEntry::Res(res) => {
-                let args = path
-                    .args
+                let generics = path
+                    .generics
                     .into_iter()
                     .map(|ty| self.resolve_ty(ty))
                     .try_collect_exhaust()?;
-                Ok(Path { segments: path.segments, args, span: path.span, res })
+                Ok(Path {
+                    segments: path.segments,
+                    generics,
+                    refine: path.refine,
+                    span: path.span,
+                    res,
+                })
             }
             ResEntry::Unsupported { reason, span } => {
                 return Err(self
@@ -225,13 +233,14 @@ impl<'sess> Resolver<'sess> {
     }
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
-        match bty {
-            BaseTy::Path(path, args) => Ok(BaseTy::Path(self.resolve_path(path)?, args)),
-            BaseTy::Slice(ty) => {
+        let kind = match bty.kind {
+            BaseTyKind::Path(path) => BaseTyKind::Path(self.resolve_path(path)?),
+            BaseTyKind::Slice(ty) => {
                 let ty = self.resolve_ty(*ty)?;
-                Ok(BaseTy::Slice(Box::new(ty)))
+                BaseTyKind::Slice(Box::new(ty))
             }
-        }
+        };
+        Ok(BaseTy { kind, span: bty.span })
     }
 }
 

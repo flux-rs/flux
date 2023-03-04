@@ -4,6 +4,7 @@ use std::borrow::Borrow;
 
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use rustc_errors::IntoDiagnostic;
+use rustc_hir::{def_id::LocalDefId, PrimTy};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{def_id::DefId, Symbol};
 
@@ -105,5 +106,54 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
 
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.tcx.hir()
+    }
+
+    pub fn sort_of_res(&self, res: fhir::Res) -> Option<fhir::Sort> {
+        let sort = match res {
+            fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
+            fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
+            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
+            fhir::Res::Param(def_id) => {
+                let param = self.get_generic_param(def_id.expect_local());
+                match &param.kind {
+                    fhir::GenericParamDefKind::BaseTy => fhir::Sort::Param(def_id),
+                    fhir::GenericParamDefKind::Type { .. }
+                    | fhir::GenericParamDefKind::Lifetime => return None,
+                }
+            }
+            fhir::Res::Alias(def_id) | fhir::Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
+        };
+        Some(sort)
+    }
+
+    /// Whether values of this sort can be compared for equality.
+    pub fn has_equality(&self, sort: &fhir::Sort) -> bool {
+        match sort {
+            fhir::Sort::Int
+            | fhir::Sort::Bool
+            | fhir::Sort::Real
+            | fhir::Sort::Unit
+            | fhir::Sort::User(_) => true,
+            fhir::Sort::Aggregate(def_id) => {
+                self.index_sorts_of(*def_id)
+                    .iter()
+                    .all(|sort| self.has_equality(sort))
+            }
+            fhir::Sort::Loc | fhir::Sort::Func(_) | fhir::Sort::Param(_) | fhir::Sort::Infer => {
+                false
+            }
+        }
+    }
+
+    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
+        match &bty.kind {
+            fhir::BaseTyKind::Path(fhir::Path { res, .. }) => self.sort_of_res(*res),
+            fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
+        }
+    }
+
+    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParamDef {
+        let owner = self.hir().ty_param_owner(def_id);
+        self.map.generics_of(owner).get_param(def_id)
     }
 }

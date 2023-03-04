@@ -1,7 +1,7 @@
 use std::fmt;
 
 pub use rustc_ast::token::{Lit, LitKind};
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::LocalDefId;
 pub use rustc_hir::PrimTy;
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
@@ -60,7 +60,8 @@ pub struct UifDef {
 
 #[derive(Debug)]
 pub struct TyAlias<R = ()> {
-    pub path: Path,
+    pub ident: Ident,
+    pub generics: Vec<Ty>,
     pub refined_by: RefinedBy,
     pub ty: Ty<R>,
     pub span: Span,
@@ -180,12 +181,6 @@ pub struct Ty<R = ()> {
 }
 
 #[derive(Debug)]
-pub enum BaseTy<R = ()> {
-    Path(Path<R>, Vec<RefineArg>),
-    Slice(Box<Ty<R>>),
-}
-
-#[derive(Debug)]
 pub enum TyKind<R = ()> {
     /// ty
     Base(BaseTy<R>),
@@ -206,6 +201,18 @@ pub enum TyKind<R = ()> {
     Constr(Expr, Box<Ty<R>>),
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
+}
+
+#[derive(Debug)]
+pub struct BaseTy<R = ()> {
+    pub kind: BaseTyKind<R>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum BaseTyKind<R = ()> {
+    Path(Path<R>),
+    Slice(Box<Ty<R>>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -237,17 +244,10 @@ pub enum BindKind {
 #[derive(Debug)]
 pub struct Path<R = ()> {
     pub segments: Vec<Ident>,
-    pub args: Vec<Ty<R>>,
+    pub generics: Vec<Ty<R>>,
+    pub refine: Vec<RefineArg>,
     pub span: Span,
     pub res: R,
-}
-
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum Res {
-    PrimTy(PrimTy),
-    Alias(DefId),
-    Adt(DefId),
-    Param(DefId),
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
@@ -265,7 +265,7 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Var(Ident),
-    Dot(Box<Expr>, Ident),
+    Dot(Ident, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),

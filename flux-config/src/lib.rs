@@ -57,6 +57,10 @@ pub fn driver_path() -> Option<&'static PathBuf> {
     CONFIG.driver_path.as_ref()
 }
 
+pub fn check_overflow() -> bool {
+    CONFIG.check_overflow
+}
+
 #[derive(Debug)]
 pub struct CrateConfig {
     pub log_dir: PathBuf,
@@ -78,6 +82,7 @@ struct Config {
     check_def: String,
     cache: bool,
     cache_file: String,
+    check_overflow: bool,
 }
 
 #[derive(Copy, Clone, Deserialize)]
@@ -123,7 +128,8 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("pointer_width", "64")?
             .set_default("check_def", "")?
             .set_default("cache", false)?
-            .set_default("cache_file", "cache.json")?;
+            .set_default("cache_file", "cache.json")?
+            .set_default("check_overflow", false)?;
         // Config comes first, enviroment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.to_path_buf()));

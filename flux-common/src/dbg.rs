@@ -22,11 +22,11 @@ pub fn writer_for_item(
 
 pub fn dump_item_info<T: fmt::Debug>(
     tcx: TyCtxt,
-    def_id: DefId,
+    def_id: impl Into<DefId>,
     ext: impl AsRef<str>,
     val: &T,
 ) -> io::Result<()> {
-    let mut writer = writer_for_item(tcx, def_id, ext)?;
+    let mut writer = writer_for_item(tcx, def_id.into(), ext)?;
     write!(writer, "{val:?}")
 }
 
