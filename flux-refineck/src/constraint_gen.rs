@@ -594,8 +594,8 @@ fn mk_oblig<'tcx>(
     rty::ClosureOblig { oblig_def_id, oblig_sig }
 }
 
-fn closure_obligs<'tcx>(
-    genv: &GlobalEnv<'_, 'tcx>,
+fn closure_obligs(
+    genv: &GlobalEnv<'_, '_>,
     did: DefId,
     substs: &[GenericArg],
     actuals: &[Ty],
