@@ -120,7 +120,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let variants = rty::conv::ConvCtxt::conv_struct_def_variant(self, struct_def)
                 .map(|v| vec![v.normalize(&self.defns)]);
             if config::dump_fhir() {
-                dbg::dump_item_info(self.tcx, def_id.to_def_id(), "rty", &variants).unwrap();
+                dbg::dump_item_info(self.tcx, def_id, "rty", &variants).unwrap();
             }
 
             self.adt_variants
