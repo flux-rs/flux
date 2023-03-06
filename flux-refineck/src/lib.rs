@@ -42,8 +42,6 @@ use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 
-use crate::refine_tree::RefineTree;
-
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     cache: &mut QueryCache,
@@ -51,22 +49,14 @@ pub fn check_fn<'tcx>(
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
     dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
-        // PHASE 1: invoke the checker in SHAPE-MODE, for this we don't generate KVars so no need for KVAR-store
-        let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
-        tracing::info!("Checker::infer");
+        // PHASE 1: infer shape of basic blocks
+        let shape_result = Checker::run_in_shape_mode(genv, body, def_id).emit(genv.sess)?;
+        tracing::info!("Checker::shape");
 
-        // PHASE 2: invoke the checker in REFINE-MODE, for this we DO need KVars so no need for KVAR-store
-        let mut refine_tree = RefineTree::new();
-        let kvars = Checker::check(
-            genv,
-            body,
-            def_id,
-            refine_tree.as_subtree(),
-            fixpoint::KVarStore::new(),
-            bb_envs,
-        )
-        .emit(genv.sess)?;
-        tracing::info!("Checker::check");
+        // PHASE 2: generate refinement tree constraint
+        let (mut refine_tree, kvars) =
+            Checker::run_in_refine_mode(genv, body, def_id, shape_result).emit(genv.sess)?;
+        tracing::info!("Checker::refine");
 
         // PHASE 3: invoke fixpoint on the constraints
         refine_tree.simplify();
@@ -79,7 +69,7 @@ pub fn check_fn<'tcx>(
             Ok(_) => Ok(()),
             Err(tags) => report_errors(genv, tags),
         };
-        tracing::info!("FixpointCtx::check");
+        tracing::info!("Fixpoint::check");
 
         result
     })

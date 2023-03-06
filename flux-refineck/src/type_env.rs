@@ -32,7 +32,7 @@ pub struct TypeEnv {
     bindings: PathsTree,
 }
 
-pub struct TypeEnvInfer {
+pub struct BasicBlockEnvShape {
     scope: Scope,
     bindings: PathsTree,
 }
@@ -67,8 +67,8 @@ impl TypeEnv {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         scope: Scope,
-    ) -> TypeEnvInfer {
-        TypeEnvInfer::new(rcx, gen, scope, self)
+    ) -> BasicBlockEnvShape {
+        BasicBlockEnvShape::new(rcx, gen, scope, self)
     }
 
     pub(crate) fn lookup_place(
@@ -376,7 +376,7 @@ impl TypeEnv {
     }
 }
 
-impl TypeEnvInfer {
+impl BasicBlockEnvShape {
     pub fn enter(&self) -> TypeEnv {
         TypeEnv { bindings: self.bindings.clone() }
     }
@@ -386,22 +386,22 @@ impl TypeEnvInfer {
         gen: &mut ConstrGen,
         scope: Scope,
         mut env: TypeEnv,
-    ) -> TypeEnvInfer {
+    ) -> BasicBlockEnvShape {
         env.bindings.close_boxes(rcx, gen, &scope);
         let mut bindings = env.bindings;
         bindings.fmap_mut(|binding| {
             match binding {
-                Binding::Owned(ty) => Binding::Owned(TypeEnvInfer::pack_ty(&scope, ty)),
-                Binding::Blocked(ty) => Binding::Blocked(TypeEnvInfer::pack_ty(&scope, ty)),
+                Binding::Owned(ty) => Binding::Owned(BasicBlockEnvShape::pack_ty(&scope, ty)),
+                Binding::Blocked(ty) => Binding::Blocked(BasicBlockEnvShape::pack_ty(&scope, ty)),
             }
         });
-        TypeEnvInfer { scope, bindings }
+        BasicBlockEnvShape { scope, bindings }
     }
 
     fn pack_ty(scope: &Scope, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => {
-                let bty = TypeEnvInfer::pack_bty(scope, bty);
+                let bty = BasicBlockEnvShape::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
                     Ty::exists_with_constr(bty, Expr::hole())
                 } else {
@@ -432,7 +432,7 @@ impl TypeEnvInfer {
             BaseTy::Tuple(tys) => {
                 let tys = tys
                     .iter()
-                    .map(|ty| TypeEnvInfer::pack_ty(scope, ty))
+                    .map(|ty| BasicBlockEnvShape::pack_ty(scope, ty))
                     .collect();
                 BaseTy::Tuple(tys)
             }
@@ -818,7 +818,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for TypeEnvInfer {
+    impl Pretty for BasicBlockEnvShape {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?} {:?}", &self.scope, &self.bindings)
@@ -858,5 +858,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv => "type_env", TypeEnvInfer => "type_env_infer", BasicBlockEnv => "basic_block_env");
+    impl_debug_with_default_cx!(TypeEnv => "type_env", BasicBlockEnvShape => "type_env_infer", BasicBlockEnv => "basic_block_env");
 }
