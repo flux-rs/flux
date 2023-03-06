@@ -40,7 +40,7 @@ use rustc_span::Span;
 use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason},
-    fixpoint::{KVarEncoding, KVarStore},
+    fixpoint::KVarStore,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
@@ -82,7 +82,7 @@ pub(crate) trait Phase: Sized {
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr>;
+    // TODO(CLOSURE-NICO) fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr>;
 
     fn clear(&mut self, def_id: DefId, bb: BasicBlock);
 }
@@ -1059,9 +1059,11 @@ impl Phase for Inference {
 
         let target_bb_env = ck.phase.bb_envs.inner[&ck.def_id].get(&target);
         dbg::infer_goto_enter!(target, env, target_bb_env);
+
         // TODO(CLOSURE-NICO)
-        let mut gen =
-            ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
+        // TODO(CLOSURE-NICO) let mut gen = ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
+
+        let mut gen = ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), terminator_span);
 
         // RJ(YUCK)
         let mut modified = false;
@@ -1079,9 +1081,9 @@ impl Phase for Inference {
         Ok(modified)
     }
 
-    fn fresh_kvar(&mut self, sort: Sort, _: KVarEncoding) -> Binder<Expr> {
-        Binder::new(Expr::hole(), sort)
-    }
+    // TODO(CLOSURE-NICO) fn fresh_kvar(&mut self, sort: Sort, _: KVarEncoding) -> Binder<Expr> {
+    // TODO(CLOSURE-NICO)     Binder::new(Expr::hole(), sort)
+    // TODO(CLOSURE-NICO) }
 
     fn clear(&mut self, def_id: DefId, bb: BasicBlock) {
         self.bb_envs.inner.entry(def_id).and_modify(|ir| {
@@ -1155,9 +1157,9 @@ impl Phase for Check {
     }
 
     // TODO(CLOSURE-NICO)
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
-        self.kvars.fresh(sort, [], encoding)
-    }
+    // TODO(CLOSURE-NICO) fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
+    // TODO(CLOSURE-NICO)     self.kvars.fresh(sort, [], encoding)
+    // TODO(CLOSURE-NICO) }
 
     fn clear(&mut self, _def_id: DefId, _bb: BasicBlock) {
         bug!();

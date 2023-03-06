@@ -12,7 +12,7 @@ use flux_middle::{
         TyKind,
     },
     rustc::{
-        self, lowering,
+        lowering,
         mir::{BasicBlock, Place},
     },
 };
@@ -26,7 +26,7 @@ use rustc_target::spec::abi::Abi;
 
 use crate::{
     checker::errors::CheckerError,
-    fixpoint::{KVarEncoding, KVarGen},
+    fixpoint::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
     type_env::TypeEnv,
 };
@@ -557,6 +557,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         bound_vars: &'tcx rustc_middle::ty::List<BoundVariableKind>,
         substs: &[GenericArg],
         oblig_def_id: DefId,
+        generics: &rty::Generics,
         p_rust_fn_sig: rustc_middle::ty::FnSig<'tcx>,
     ) -> rty::ClosureOblig {
         // 2. binder shenanigans to make a rustc_middle::ty::PolyFnSig
@@ -573,12 +574,20 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let clos_ty = rty::Ty::closure(oblig_def_id);
 
         // 5. apply the substs to the rty::PolyFnSig
-        let oblig_fn_sig = self
-            .genv
-            .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
+        // let oblig_fn_sig = self
+        //     .genv
+        //     .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
+        //     .replace_generics(substs)
+        //     .fn_sig
+        //     .skip_binders();
+        let oblig_fn_sig = rty::refining::Refiner::default(self.genv, generics)
+            .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder())
             .replace_generics(substs)
             .fn_sig
             .skip_binders();
+
+        // let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
+        // Refiner::default(self, &self.generics_of(def_id)).refine_fn_sig(&fn_sig)
 
         // 6. Stick the closure-param in as the first arg
         let inputs = iter::once(clos_ty)
@@ -601,7 +610,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         actuals: &[Ty],
     ) -> Vec<rty::ClosureOblig> {
         let rust_fn_sig = self.genv.tcx.fn_sig(did).skip_binder();
-
+        let generics = self.genv.generics_of(did);
         let (f_ins, f_out, f_did) = self.gather_f_trait_info(did, &rust_fn_sig, actuals);
         let bound_vars = rust_fn_sig.bound_vars();
 
@@ -617,7 +626,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     rustc_hir::Unsafety::Normal,
                     Abi::Rust,
                 );
-                self.mk_oblig(bound_vars, substs, oblig_def_id, p_rust_fn_sig)
+                self.mk_oblig(bound_vars, substs, oblig_def_id, &generics, p_rust_fn_sig)
             })
             .collect_vec();
         obligs

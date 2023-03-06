@@ -9,7 +9,7 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
-pub(crate) mod refining;
+pub mod refining;
 pub mod subst;
 
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
