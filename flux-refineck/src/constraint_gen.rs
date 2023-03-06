@@ -574,20 +574,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let clos_ty = rty::Ty::closure(oblig_def_id);
 
         // 5. apply the substs to the rty::PolyFnSig
-        // let oblig_fn_sig = self
-        //     .genv
-        //     .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder(), rty::Expr::tt)
-        //     .replace_generics(substs)
-        //     .fn_sig
-        //     .skip_binders();
         let oblig_fn_sig = rty::refining::Refiner::default(self.genv, generics)
             .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder())
             .replace_generics(substs)
             .fn_sig
             .skip_binders();
-
-        // let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
-        // Refiner::default(self, &self.generics_of(def_id)).refine_fn_sig(&fn_sig)
 
         // 6. Stick the closure-param in as the first arg
         let inputs = iter::once(clos_ty)
