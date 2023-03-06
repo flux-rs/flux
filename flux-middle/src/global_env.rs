@@ -148,7 +148,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         for (def_id, fn_sig) in map.fn_sigs() {
             let fn_sig = rty::conv::conv_fn_sig(self, fn_sig).normalize(&self.defns);
             if config::dump_rty() {
-                dbg::dump_item_info(self.tcx, def_id.to_def_id(), "rty", &fn_sig).unwrap();
+                dbg::dump_item_info(self.tcx, def_id, "rty", &fn_sig).unwrap();
             }
             self.fn_sigs.get_mut().insert(def_id.to_def_id(), fn_sig);
         }
