@@ -138,7 +138,7 @@ pub struct InferResult1 {
     inner: FxHashMap<BasicBlock, TypeEnvInfer>,
 }
 
-/// Inferred TypeEnv (after the INFER phase) for each "top-level" function + invoked closures
+/// Inferred [`TypeEnv`] (after the INFER phase) for each "top-level" function + invoked closures
 pub struct InferResult {
     inner: FxHashMap<DefId, InferResult1>,
 }
