@@ -140,7 +140,7 @@ pub struct InferResult1 {
 
 /// Inferred TypeEnv (after the INFER phase) for each "top-level" function + invoked closures
 pub struct InferResult {
-    pub inner: FxHashMap<DefId, InferResult1>,
+    inner: FxHashMap<DefId, InferResult1>,
 }
 
 impl InferResult {
