@@ -160,6 +160,10 @@ impl RefineCtxt<'_> {
         RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
     }
 
+    pub fn subtree_at(&mut self, snapshot: &Snapshot) -> Option<RefineSubtree> {
+        Some(RefineSubtree { root: snapshot.ptr.upgrade()?, tree: self.tree })
+    }
+
     pub(crate) fn snapshot(&self) -> Snapshot {
         Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }

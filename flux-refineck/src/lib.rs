@@ -19,6 +19,7 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
+extern crate rustc_target;
 
 mod checker;
 mod constraint_gen;
@@ -50,32 +51,34 @@ pub fn check_fn<'tcx>(
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
     dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
+        // PHASE 1: invoke the checker in SHAPE-MODE, for this we don't generate KVars so no need for KVAR-store
         let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
-
         tracing::info!("Checker::infer");
 
-        let mut kvars = fixpoint::KVarStore::new();
+        // PHASE 2: invoke the checker in REFINE-MODE, for this we DO need KVars so no need for KVAR-store
         let mut refine_tree = RefineTree::new();
-        Checker::check(genv, body, def_id, refine_tree.as_subtree(), &mut kvars, bb_envs)
-            .emit(genv.sess)?;
-
+        let kvars = Checker::check(
+            genv,
+            body,
+            def_id,
+            refine_tree.as_subtree(),
+            fixpoint::KVarStore::new(),
+            bb_envs,
+        )
+        .emit(genv.sess)?;
         tracing::info!("Checker::check");
 
+        // PHASE 3: invoke fixpoint on the constraints
         refine_tree.simplify();
-
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
-
         let mut fcx = fixpoint::FixpointCtxt::new(genv, def_id, kvars);
-
         let constraint = refine_tree.into_fixpoint(&mut fcx);
-
         let result = match fcx.check(cache, constraint) {
             Ok(_) => Ok(()),
             Err(tags) => report_errors(genv, tags),
         };
-
         tracing::info!("FixpointCtx::check");
 
         result
