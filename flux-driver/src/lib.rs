@@ -14,7 +14,6 @@ extern crate rustc_span;
 
 mod callbacks;
 mod collector;
-// mod mir_storage;
 
 use callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
