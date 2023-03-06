@@ -626,7 +626,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         &mut self,
         did: DefId,
         rust_fn_sig: &rustc_middle::ty::PolyFnSig,
-        actuals: &[flux_middle::intern::Interned<rty::TyS>],
+        actuals: &[rty::Ty],
     ) -> (
         FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
         FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
