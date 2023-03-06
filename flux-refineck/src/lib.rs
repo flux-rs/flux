@@ -44,7 +44,6 @@ use rustc_hir::def_id::DefId;
 
 use crate::refine_tree::RefineTree;
 
-// TODO(CLOSURE):toplevel_check_fn
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     cache: &mut QueryCache,

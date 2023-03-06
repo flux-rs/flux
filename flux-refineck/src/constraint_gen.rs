@@ -614,7 +614,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let (f_ins, f_out, f_did) = self.gather_f_trait_info(did, &rust_fn_sig, actuals);
         let bound_vars = rust_fn_sig.bound_vars();
 
-        let obligs = f_ins
+        f_ins
             .into_iter()
             .map(|(p, p_in_ty)| {
                 let oblig_def_id = *f_did.get(&p).unwrap();
@@ -628,8 +628,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 );
                 self.mk_oblig(bound_vars, substs, oblig_def_id, &generics, p_rust_fn_sig)
             })
-            .collect_vec();
-        obligs
+            .collect_vec()
     }
 
     fn gather_f_trait_info(

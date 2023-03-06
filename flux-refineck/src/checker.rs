@@ -82,8 +82,6 @@ pub(crate) trait Phase: Sized {
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
-    // TODO(CLOSURE-NICO) fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr>;
-
     fn clear(&mut self, def_id: DefId, bb: BasicBlock);
 }
 
@@ -513,20 +511,9 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
 
-        // let substs = substs
-        //     .iter()
-        //     .map(|arg| self.genv.refine_generic_arg_with_holes(arg))
-        //     .collect_vec();
-
-        // let (output, obligs, snapshot) = self
-        //     .constr_gen(rcx, terminator_span)
-        //     .check_fn_call(rcx, env, did, &fn_sig, &substs, &actuals)
-        //     .map_err(|err| err.with_span(terminator_span))?;
-
         let (output, obligs, snapshot) = self
             .constr_gen(rcx, terminator_span)
-            // .check_fn_call(rcx, env, &fn_sig, substs, &actuals)
-            .check_fn_call(rcx, env, did, &fn_sig, &substs, &actuals)
+            .check_fn_call(rcx, env, did, &fn_sig, substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?;
 
         let output = output.replace_bvar_with(|sort| rcx.define_vars(sort));
@@ -534,8 +521,8 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
-                    let updated_ty = rcx.unpack(&updated_ty);
-                    env.update_path(&path, updated_ty);
+                    let updated_ty = rcx.unpack(updated_ty);
+                    env.update_path(path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
             }
@@ -555,13 +542,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         oblig: rty::ClosureOblig,
         snapshot: &Snapshot,
     ) -> Result<(), CheckerError> {
-        // TODO(CLOSURE)
-        // implement by calling Checker::run or see "toplevel_check_fn"
-        //  - on the oblig.def_id
-        //  - with oblig.signature get the appropriate SIGNATURE against which to check the def_id
-        //  - same RefineCtxt but using as_subtree (or something like that)
-        //  - figure out how to use PHASE to share the KVar-STORE
-        //  - add a method to PHASE that
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.phase, oblig.oblig_sig)
     }
@@ -1060,9 +1040,6 @@ impl Phase for Inference {
         let target_bb_env = ck.phase.bb_envs.inner[&ck.def_id].get(&target);
         dbg::infer_goto_enter!(target, env, target_bb_env);
 
-        // TODO(CLOSURE-NICO)
-        // TODO(CLOSURE-NICO) let mut gen = ConstrGen::new(ck.genv, |sort, _| Binder::new(Expr::hole(), sort), terminator_span);
-
         let mut gen = ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), terminator_span);
 
         // RJ(YUCK)
@@ -1080,10 +1057,6 @@ impl Phase for Inference {
         dbg::infer_goto_exit!(target, ck.phase.bb_envs.inner[&ck.def_id].get(&target));
         Ok(modified)
     }
-
-    // TODO(CLOSURE-NICO) fn fresh_kvar(&mut self, sort: Sort, _: KVarEncoding) -> Binder<Expr> {
-    // TODO(CLOSURE-NICO)     Binder::new(Expr::hole(), sort)
-    // TODO(CLOSURE-NICO) }
 
     fn clear(&mut self, def_id: DefId, bb: BasicBlock) {
         self.bb_envs.inner.entry(def_id).and_modify(|ir| {
@@ -1155,11 +1128,6 @@ impl Phase for Check {
 
         Ok(!ck.visited.contains(target))
     }
-
-    // TODO(CLOSURE-NICO)
-    // TODO(CLOSURE-NICO) fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
-    // TODO(CLOSURE-NICO)     self.kvars.fresh(sort, [], encoding)
-    // TODO(CLOSURE-NICO) }
 
     fn clear(&mut self, _def_id: DefId, _bb: BasicBlock) {
         bug!();
