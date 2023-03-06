@@ -86,8 +86,6 @@ pub(crate) trait Phase: Sized {
 }
 
 pub struct Inference {
-    // bb_envs: &'a mut FxHashMap<BasicBlock, TypeEnvInfer>,
-    // bb_envs: &'a mut InferResult,
     bb_envs: InferResult,
 }
 
