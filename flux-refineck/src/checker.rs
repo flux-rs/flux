@@ -40,19 +40,19 @@ use rustc_span::Span;
 use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason},
-    fixpoint::KVarStore,
+    fixpoint::{self, KVarStore},
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
-    type_env::{BasicBlockEnv, TypeEnv, TypeEnvInfer},
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
 };
 
-pub(crate) struct Checker<'a, 'tcx, P> {
-    pub def_id: DefId,
+pub(crate) struct Checker<'a, 'tcx, M> {
+    def_id: DefId,
     body: &'a Body<'tcx>,
     generics: Generics,
     visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
-    phase: &'a mut P,
+    mode: &'a mut M,
     output: Binder<FnOutput>,
     /// A snapshot of the pure context at the end of the basic block after applying the effects
     /// of the terminator.
@@ -61,7 +61,7 @@ pub(crate) struct Checker<'a, 'tcx, P> {
     queue: WorkQueue<'a>,
 }
 
-pub(crate) trait Phase: Sized {
+pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -69,10 +69,7 @@ pub(crate) trait Phase: Sized {
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
-    fn enter_def_id(&mut self, def_id: DefId);
-
-    fn enter_basic_block(&mut self, def_id: DefId, rcx: &mut RefineCtxt, bb: BasicBlock)
-        -> TypeEnv;
+    fn enter_basic_block(ck: &mut Checker<Self>, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
 
     fn check_goto_join_point(
         ck: &mut Checker<Self>,
@@ -82,38 +79,39 @@ pub(crate) trait Phase: Sized {
         target: BasicBlock,
     ) -> Result<bool, CheckerError>;
 
-    fn clear(&mut self, def_id: DefId, bb: BasicBlock);
+    fn clear(ck: &mut Checker<Self>, bb: BasicBlock);
 }
 
-pub struct Inference {
-    bb_envs: InferResult,
+pub(crate) struct ShapeMode {
+    bb_envs: FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>,
 }
 
-pub struct Check {
-    bb_envs_infer: InferResult,
-    bb_envs: FxHashMap<BasicBlock, BasicBlockEnv>,
+pub(crate) struct RefineMode {
+    bb_envs: FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnv>>,
     kvars: KVarStore,
 }
 
-/// A `Guard` describes extra "control" information that holds at the start
-/// of the successor basic block
+/// The result of running the shape phase.
+pub(crate) struct ShapeResult(FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>);
+
+/// A `Guard` describes extra "control" information that holds at the start of a successor basic block
 enum Guard {
     /// No extra information holds, e.g., for a plain goto.
     None,
-    /// A predicate that can be assumed, e.g., an if-then-else or while-do boolean condition.
+    /// A predicate that can be assumed, e.g., in the branches of an if-then-else.
     Pred(Expr),
-    // The corresponding place was found to be of a particular variant.
+    /// The corresponding place was found to be of a particular variant.
     Match(Place, VariantIdx),
 }
 
-impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
+impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
         body: &'a Body<'tcx>,
         output: Binder<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
-        phase: &'a mut P,
+        mode: &'a mut M,
     ) -> Self {
         let generics = genv.generics_of(def_id);
         Checker {
@@ -123,7 +121,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
             body,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output,
-            phase,
+            mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators,
             queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
@@ -131,102 +129,55 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
     }
 }
 
-// type InferResult = FxHashMap<BasicBlock, TypeEnvInfer>;
-
-/// Inferred TypeEnv (after the INFER phase) for a single function (DefId)
-pub struct InferResult1 {
-    inner: FxHashMap<BasicBlock, TypeEnvInfer>,
-}
-
-/// Inferred [`TypeEnv`] (after the INFER phase) for each "top-level" function + invoked closures
-pub struct InferResult {
-    inner: FxHashMap<DefId, InferResult1>,
-}
-
-impl InferResult {
-    fn new() -> Self {
-        Self { inner: FxHashMap::default() }
-    }
-
-    fn init(&mut self, def_id: DefId) {
-        self.inner.entry(def_id).or_insert_with(InferResult1::new);
-    }
-}
-
-impl InferResult1 {
-    fn new() -> Self {
-        Self { inner: FxHashMap::default() }
-    }
-
-    fn index(&self, bb: &BasicBlock) -> &TypeEnvInfer {
-        &self.inner[bb]
-    }
-
-    fn get(&self, bb: &BasicBlock) -> Option<&TypeEnvInfer> {
-        self.inner.get(bb)
-    }
-
-    fn entry(&mut self, bb: &BasicBlock) -> Entry<rustc_middle::mir::BasicBlock, TypeEnvInfer> {
-        self.inner.entry(*bb)
-    }
-}
-
-impl<'a, 'tcx> Checker<'a, 'tcx, Inference> {
-    pub fn infer(
+impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
+    pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-    ) -> Result<InferResult, CheckerError> {
-        dbg::infer_span!(genv.tcx, def_id).in_scope(|| {
-            // let mut bb_envs = FxHashMap::default();
-            // let mut bb_envs = InferResult::new();
-            let mut phase = Inference { bb_envs: InferResult::new() };
+    ) -> Result<ShapeResult, CheckerError> {
+        dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
+            let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
             let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
                 span_bug!(body.span(), "checking function with unsupported signature")
             });
 
-            Checker::run(
-                genv,
-                RefineTree::new().as_subtree(),
-                def_id,
-                &mut phase, // Inference { bb_envs: &mut bb_envs },
-                fn_sig,
-            )?;
+            Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig)?;
 
-            Ok(phase.bb_envs)
+            Ok(ShapeResult(mode.bb_envs))
         })
     }
 }
 
-impl<'a, 'tcx> Checker<'a, 'tcx, Check> {
-    pub(crate) fn check(
+impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
+    pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         body: &Body<'tcx>,
         def_id: DefId,
-        refine_tree: RefineSubtree,
-        kvars: KVarStore,
-        bb_envs_infer: InferResult,
-    ) -> Result<KVarStore, CheckerError> {
+        bb_env_shapes: ShapeResult,
+    ) -> Result<(RefineTree, KVarStore), CheckerError> {
         let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
             span_bug!(body.span(), "checking function with unsupported signature")
         });
-        let mut phase = Check { bb_envs_infer, bb_envs: FxHashMap::default(), kvars };
+        let mut kvars = fixpoint::KVarStore::new();
+        let mut refine_tree = RefineTree::new();
+        let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
-        // TODO(CLOSURE): I broke this check_span thing, help!
-        dbg::check_span!(genv.tcx, def_id /* , bb_envs */)
-            .in_scope(|| Checker::run(genv, refine_tree, def_id, &mut phase, fn_sig))?;
+        dbg::refine_mode_span!(genv.tcx, def_id, bb_envs).in_scope(|| {
+            let mut mode = RefineMode { bb_envs, kvars };
+            Checker::run(genv, refine_tree.as_subtree(), def_id, &mut mode, fn_sig)?;
 
-        Ok(phase.kvars)
+            Ok((refine_tree, mode.kvars))
+        })
     }
 }
 
-impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
+impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
-        phase: &'a mut P,
+        mode: &'a mut M,
         fn_sig: PolySig,
     ) -> Result<(), CheckerError> {
         let body = {
@@ -235,16 +186,6 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
                 unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id) };
             rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir).unwrap()
         };
-        // let rust_sig = genv.tcx.fn_sig(def_id);
-        // println!("TRACE: Checker::run (1) for {def_id:?} with RUST-SIG = {rust_sig:?}, POLY-SIG {fn_sig:?} and body:\n{body:?}");
-
-        // rustc_middle::mir::pretty::write_mir_fn(
-        //     genv.tcx,
-        //     bomir,
-        //     &mut |_, _| Ok(()),
-        //     &mut dbg::writer_for_item(self.genv.tcx, def_id.to_def_id(), "mir").unwrap(),
-        // )
-        // .unwrap();
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -254,10 +195,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
         let dominators = body.dominators();
 
-        phase.enter_def_id(def_id);
-
-        let mut ck = Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, phase);
-        // OLD let mut ck = Checker::new(genv, def_id, body, fn_sig.output().clone(), &dominators, phase);
+        let mut ck = Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, mode);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -269,7 +207,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
 
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
-            let mut env = ck.phase.enter_basic_block(def_id, &mut rcx, bb);
+            let mut env = M::enter_basic_block(&mut ck, &mut rcx, bb);
             env.unpack(&mut rcx);
             ck.check_basic_block(rcx, env, bb)?;
         }
@@ -312,7 +250,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         self.visited.remove(root);
         for bb in self.body.basic_blocks.indices() {
             if bb != root && self.dominators.dominates(root, bb) {
-                self.phase.clear(self.def_id, bb);
+                M::clear(self, bb);
                 self.visited.remove(bb);
             }
         }
@@ -412,7 +350,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
-                self.phase
+                self.mode
                     .constr_gen(self.genv, rcx, span)
                     .check_ret(rcx, env, &self.output)
                     .map_err(|err| err.with_span(span))?;
@@ -541,7 +479,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         snapshot: &Snapshot,
     ) -> Result<(), CheckerError> {
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
-        Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.phase, oblig.oblig_sig)
+        Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.mode, oblig.oblig_sig)
     }
 
     fn check_assert(
@@ -665,12 +603,12 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
-            self.phase
+            self.mode
                 .constr_gen(self.genv, &rcx, source_span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .map_err(|err| err.with_span(source_span))
         } else if self.body.is_join_point(target) {
-            if P::check_goto_join_point(self, rcx, env, source_span, target)? {
+            if M::check_goto_join_point(self, rcx, env, source_span, target)? {
                 self.queue.insert(target);
             }
             Ok(())
@@ -952,7 +890,7 @@ impl<'a, 'tcx, P: Phase> Checker<'a, 'tcx, P> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.phase.constr_gen(self.genv, rcx, span)
+        self.mode.constr_gen(self.genv, rcx, span)
     }
 
     #[track_caller]
@@ -1006,7 +944,25 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
     int_ty.bit_width().unwrap_or(config::pointer_width().bits())
 }
 
-impl Phase for Inference {
+impl ShapeResult {
+    fn into_bb_envs(
+        self,
+        kvar_store: &mut KVarStore,
+    ) -> FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
+        self.0
+            .into_iter()
+            .map(|(def_id, shapes)| {
+                let bb_envs = shapes
+                    .into_iter()
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_store)))
+                    .collect();
+                (def_id, bb_envs)
+            })
+            .collect()
+    }
+}
+
+impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -1017,16 +973,15 @@ impl Phase for Inference {
     }
 
     fn enter_basic_block(
-        &mut self,
-        def_id: DefId,
+        ck: &mut Checker<ShapeMode>,
         _rcx: &mut RefineCtxt,
         bb: BasicBlock,
     ) -> TypeEnv {
-        self.bb_envs.inner[&def_id].index(&bb).enter()
+        ck.mode.bb_envs[&ck.def_id][&bb].enter()
     }
 
     fn check_goto_join_point(
-        ck: &mut Checker<Inference>,
+        ck: &mut Checker<ShapeMode>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
         terminator_span: Span,
@@ -1035,39 +990,29 @@ impl Phase for Inference {
         // TODO(nilehmann) we should only ask for the scope in the vacant branch
         let scope = ck.snapshot_at_dominator(target).scope().unwrap();
 
-        let target_bb_env = ck.phase.bb_envs.inner[&ck.def_id].get(&target);
-        dbg::infer_goto_enter!(target, env, target_bb_env);
+        let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
+        dbg::shape_goto_enter!(target, env, target_bb_env);
 
         let mut gen = ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), terminator_span);
 
-        // RJ(YUCK)
-        let mut modified = false;
-        ck.phase.bb_envs.inner.entry(ck.def_id).and_modify(|ir1| {
-            modified = match ir1.entry(&target) {
-                Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
-                Entry::Vacant(entry) => {
-                    entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
-                    true
-                }
+        let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
+            Entry::Occupied(mut entry) => entry.get_mut().join(&mut rcx, &mut gen, env),
+            Entry::Vacant(entry) => {
+                entry.insert(env.into_infer(&mut rcx, &mut gen, scope));
+                true
             }
-        });
+        };
 
-        dbg::infer_goto_exit!(target, ck.phase.bb_envs.inner[&ck.def_id].get(&target));
+        dbg::shape_goto_exit!(target, ck.mode.bb_envs[&ck.def_id].get(&target));
         Ok(modified)
     }
 
-    fn clear(&mut self, def_id: DefId, bb: BasicBlock) {
-        self.bb_envs.inner.entry(def_id).and_modify(|ir| {
-            ir.inner.remove(&bb);
-        });
-    }
-
-    fn enter_def_id(&mut self, def_id: DefId) {
-        self.bb_envs.init(def_id)
+    fn clear(ck: &mut Checker<ShapeMode>, bb: BasicBlock) {
+        ck.mode.bb_envs.entry(ck.def_id).or_default().remove(&bb);
     }
 }
 
-impl Phase for Check {
+impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -1082,40 +1027,30 @@ impl Phase for Check {
         )
     }
 
-    fn enter_def_id(&mut self, def_id: DefId) {
-        let infer_result = self.bb_envs_infer.inner.remove(&def_id).unwrap();
-        self.bb_envs = infer_result
-            .inner
-            .into_iter()
-            .map(|(bb, bb_env_infer)| (bb, bb_env_infer.into_bb_env(&mut self.kvars)))
-            .collect();
-    }
-
     fn enter_basic_block(
-        &mut self,
-        _def_id: DefId,
+        ck: &mut Checker<RefineMode>,
         rcx: &mut RefineCtxt,
         bb: BasicBlock,
     ) -> TypeEnv {
-        self.bb_envs[&bb].enter(rcx)
+        ck.mode.bb_envs[&ck.def_id][&bb].enter(rcx)
     }
 
     fn check_goto_join_point(
-        ck: &mut Checker<Check>,
+        ck: &mut Checker<RefineMode>,
         mut rcx: RefineCtxt,
         env: TypeEnv,
         terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
-        let bb_env = &ck.phase.bb_envs[&target];
+        let bb_env = &ck.mode.bb_envs[&ck.def_id][&target];
         debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
 
-        dbg::check_goto!(target, rcx, env, bb_env);
+        dbg::refine_goto!(target, rcx, env, bb_env);
 
         let gen = &mut ConstrGen::new(
             ck.genv,
             |sorts: &[Sort], encoding| {
-                ck.phase
+                ck.mode
                     .kvars
                     .fresh_bound(sorts, bb_env.scope().iter(), encoding)
             },
@@ -1127,7 +1062,7 @@ impl Phase for Check {
         Ok(!ck.visited.contains(target))
     }
 
-    fn clear(&mut self, _def_id: DefId, _bb: BasicBlock) {
+    fn clear(_ck: &mut Checker<RefineMode>, _bb: BasicBlock) {
         bug!();
     }
 }
