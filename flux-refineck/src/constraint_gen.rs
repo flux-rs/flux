@@ -626,13 +626,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         &mut self,
         did: DefId,
         rust_fn_sig: &rustc_middle::ty::PolyFnSig,
-        actuals: &[flux_middle::intern::Interned<rty::TyS>],
+        actuals: &[rty::Ty],
     ) -> (
         FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
         FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
         FxHashMap<ParamTy, DefId>,
     ) {
         let fn_once_id = self.genv.tcx.lang_items().fn_once_trait().unwrap();
+        let fn_once_output_id = self.genv.tcx.lang_items().fn_once_output().unwrap();
 
         // 1. Find the closure-param-tys i.e. 'F' that implement FnOnce -- ie are supposed to be closures
         let mut f_ins = FxHashMap::default();
@@ -663,13 +664,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 // found an fn-output type
                 Clause::Projection(proj_pred) => {
                     let proj_ty = proj_pred.projection_ty;
-                    // ASSUME: the only trait item of `FnOnce` is `Output`
-                    if self.genv.tcx.trait_of_item(proj_ty.def_id) == Some(fn_once_id) &&
-                           let Some(proj_substs) = proj_ty.substs.try_as_type_list() &&
-                           let rustc_middle::ty::Param(p) = proj_substs[0].kind() &&
-                           let Some(out_ty) = proj_pred.term.ty() {
-                           f_out.insert(*p,out_ty);
-                        }
+                    if proj_ty.def_id == fn_once_output_id &&
+                       let Some(proj_substs) = proj_ty.substs.try_as_type_list() &&
+                       let rustc_middle::ty::Param(p) = proj_substs[0].kind() &&
+                       let Some(out_ty) = proj_pred.term.ty() {
+                         f_out.insert(*p,out_ty);
+                    }
                 }
                 _ => {}
             }
