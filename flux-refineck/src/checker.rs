@@ -1113,6 +1113,7 @@ impl PartialOrd for Item<'_> {
         self.dominators.rank_partial_cmp(other.bb, self.bb)
     }
 }
+
 impl Eq for Item<'_> {}
 
 impl Ord for Item<'_> {
