@@ -135,7 +135,7 @@ impl<'a, 'tcx, P> Checker<'a, 'tcx, P> {
 
 /// Inferred TypeEnv (after the INFER phase) for a single function (DefId)
 pub struct InferResult1 {
-    pub inner: FxHashMap<BasicBlock, TypeEnvInfer>,
+    inner: FxHashMap<BasicBlock, TypeEnvInfer>,
 }
 
 /// Inferred TypeEnv (after the INFER phase) for each "top-level" function + invoked closures
