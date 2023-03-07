@@ -37,6 +37,12 @@ pub struct ConstrGen<'a, 'tcx> {
     span: Span,
 }
 
+pub(crate) struct ClosureObligs {
+    pub(crate) obligations: Vec<rty::ClosureOblig>,
+    /// Snapshot of the refinement subtree where the obligations should be checked
+    pub(crate) snapshot: Snapshot,
+}
+
 pub trait KVarGen {
     fn fresh(&mut self, args: &[Sort], kind: KVarEncoding) -> Expr;
 }
@@ -112,7 +118,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<(Binder<FnOutput>, Vec<rty::ClosureOblig>, Snapshot), CheckerError> {
+    ) -> Result<(Binder<FnOutput>, ClosureObligs), CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -196,7 +202,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&evars_sol);
         let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok((output, closure_obligs, snapshot))
+        Ok((output, ClosureObligs::new(closure_obligs, snapshot)))
     }
 
     pub(crate) fn check_ret(
@@ -553,6 +559,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
+    }
+}
+
+impl ClosureObligs {
+    pub(crate) fn new(obligations: Vec<rty::ClosureOblig>, snapshot: Snapshot) -> Self {
+        Self { obligations, snapshot }
     }
 }
 

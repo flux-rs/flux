@@ -39,7 +39,7 @@ use rustc_span::Span;
 
 use self::errors::CheckerError;
 use crate::{
-    constraint_gen::{ConstrGen, ConstrReason},
+    constraint_gen::{ClosureObligs, ConstrGen, ConstrReason},
     fixpoint::{self, KVarStore},
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
@@ -47,17 +47,19 @@ use crate::{
 };
 
 pub(crate) struct Checker<'a, 'tcx, M> {
-    def_id: DefId,
-    body: &'a Body<'tcx>,
-    generics: Generics,
-    visited: BitSet<BasicBlock>,
     genv: &'a GlobalEnv<'a, 'tcx>,
+    /// [`DefId`] of the function being checked, either a closure or a regular function.
+    def_id: DefId,
+    /// [`Generics`] of the function being checked.
+    generics: Generics,
+    body: &'a Body<'tcx>,
     mode: &'a mut M,
     output: Binder<FnOutput>,
-    /// A snapshot of the pure context at the end of the basic block after applying the effects
+    /// A snapshot of the refinement context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
     dominators: &'a Dominators<BasicBlock>,
+    visited: BitSet<BasicBlock>,
     queue: WorkQueue<'a>,
 }
 
@@ -447,7 +449,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
 
-        let (output, obligs, snapshot) = self
+        let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, did, &fn_sig, substs, &actuals)
             .map_err(|err| err.with_span(terminator_span))?;
@@ -464,22 +466,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
 
-        // Check each closure obligation
-        for oblig in obligs {
-            self.check_oblig(rcx, oblig, &snapshot)?;
-        }
+        self.check_obligs(rcx, obligs)?;
 
         Ok(output.ret)
     }
 
-    fn check_oblig(
+    fn check_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
-        oblig: rty::ClosureOblig,
-        snapshot: &Snapshot,
+        obligs: ClosureObligs,
     ) -> Result<(), CheckerError> {
-        let refine_tree = rcx.subtree_at(snapshot).unwrap();
-        Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.mode, oblig.oblig_sig)
+        for oblig in obligs.obligations {
+            let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
+            Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.mode, oblig.oblig_sig)?;
+        }
+        Ok(())
     }
 
     fn check_assert(
