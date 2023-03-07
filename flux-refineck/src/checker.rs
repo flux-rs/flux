@@ -203,8 +203,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
                 let snapshot = ck.snapshot_at_dominator(bb);
-                refine_tree.clear(snapshot);
-                ck.clear(bb);
+                refine_tree.clear_children(snapshot);
+                M::clear(&mut ck, bb);
             }
 
             let snapshot = ck.snapshot_at_dominator(bb);
@@ -245,17 +245,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         env.alloc(RETURN_PLACE);
         env
-    }
-
-    fn clear(&mut self, root: BasicBlock) {
-        // TODO(nilehmann) there should be a better way to iterate over all dominated blocks.
-        self.visited.remove(root);
-        for bb in self.body.basic_blocks.indices() {
-            if bb != root && self.dominators.dominates(root, bb) {
-                M::clear(self, bb);
-                self.visited.remove(bb);
-            }
-        }
     }
 
     fn check_basic_block(
@@ -1008,8 +997,14 @@ impl Mode for ShapeMode {
         Ok(modified)
     }
 
-    fn clear(ck: &mut Checker<ShapeMode>, bb: BasicBlock) {
-        ck.mode.bb_envs.entry(ck.def_id).or_default().remove(&bb);
+    fn clear(ck: &mut Checker<ShapeMode>, root: BasicBlock) {
+        ck.visited.remove(root);
+        for bb in ck.body.basic_blocks.indices() {
+            if bb != root && ck.dominators.dominates(root, bb) {
+                ck.mode.bb_envs.entry(ck.def_id).or_default().remove(&bb);
+                ck.visited.remove(bb);
+            }
+        }
     }
 }
 

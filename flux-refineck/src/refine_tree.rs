@@ -147,7 +147,7 @@ impl<'a> RefineSubtree<'a> {
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn clear(&mut self, snapshot: &Snapshot) {
+    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
         }
