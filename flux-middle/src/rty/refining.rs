@@ -64,6 +64,31 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
+    pub(crate) fn refine_generic_predicates(
+        &self,
+        generics: &rustc::ty::GenericPredicates,
+    ) -> rty::GenericPredicates {
+        let predicates = generics
+            .predicates
+            .iter()
+            .map(|pred| {
+                match pred.kind.as_ref().skip_binder() {
+                    rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
+                        let pred = rty::FnTraitPredicate {
+                            bounded_ty: self.refine_ty(bounded_ty),
+                            tupled_args: self.refine_ty(tupled_args),
+                            output: self.refine_ty(output),
+                            kind: *kind,
+                        };
+                        rty::Predicate::FnTrait(pred)
+                    }
+                }
+            })
+            .collect();
+
+        rty::GenericPredicates { parent: generics.parent, predicates }
+    }
+
     pub(crate) fn refine_variant_def(
         &self,
         variant_def: &rustc::ty::VariantDef,

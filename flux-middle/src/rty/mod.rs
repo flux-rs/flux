@@ -22,7 +22,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
-pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+pub use rustc_middle::ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
@@ -57,6 +57,25 @@ pub enum GenericParamDefKind {
     Type { has_default: bool },
     BaseTy,
     Lifetime,
+}
+
+#[derive(Debug)]
+pub struct GenericPredicates {
+    pub parent: Option<DefId>,
+    pub predicates: List<Predicate>,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum Predicate {
+    FnTrait(FnTraitPredicate),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct FnTraitPredicate {
+    pub bounded_ty: Ty,
+    pub tupled_args: Ty,
+    pub output: Ty,
+    pub kind: ClosureKind,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -239,6 +258,27 @@ pub enum GenericArg {
     BaseTy(Binder<Ty>),
     /// We treat lifetime opaquely
     Lifetime,
+}
+
+impl FnTraitPredicate {
+    pub fn to_poly_sig(&self, closure_id: DefId) -> PolySig {
+        let closure_ty = Ty::closure(closure_id);
+        let env_ty = match self.kind {
+            ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
+            ClosureKind::FnMut => Ty::mk_ref(RefKind::Mut, closure_ty),
+            ClosureKind::FnOnce => closure_ty,
+        };
+        let inputs = std::iter::once(env_ty)
+            .chain(self.tupled_args.expect_tuple().iter().cloned())
+            .collect_vec();
+
+        let fn_sig = FnSig::new(
+            vec![],
+            inputs,
+            Binder::new(FnOutput::new(self.output.clone(), vec![]), Sort::unit()),
+        );
+        PolySig::new(vec![], fn_sig)
+    }
 }
 
 impl Generics {
@@ -737,6 +777,14 @@ impl TyS {
         }
     }
 
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            bug!("expected adt")
+        }
+    }
+
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
         self.as_bty_skipping_binders()
@@ -755,7 +803,7 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
             TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
@@ -879,6 +927,7 @@ impl_internable!(
     [TupleTree<bool>],
     [Sort],
     [GenericParamDef],
+    [Predicate]
 );
 
 #[macro_export]
@@ -1155,7 +1204,7 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
-                BaseTy::Closure(did) => w!("closure({:?})", did),
+                BaseTy::Closure(did) => w!("{:?}", did),
             }
         }
     }

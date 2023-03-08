@@ -263,6 +263,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         .clone())
     }
 
+    pub fn predicates_of(&self, def_id: DefId) -> rty::GenericPredicates {
+        let predicates = self.tcx.predicates_of(def_id);
+        let predicates = rustc::lowering::lower_generic_predicates(self.tcx, self.sess, predicates)
+            .unwrap_or_else(|_| FatalError.raise());
+
+        Refiner::default(self, &self.generics_of(def_id)).refine_generic_predicates(&predicates)
+    }
+
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> rty::Generics {
         let def_id = def_id.into();
         self.generics

@@ -15,3 +15,7 @@ lowering_unsupported_fn_sig =
 
 lowering_unsupported_generic_param =
     unsupported generic param
+
+lowering_unsupported_generic_bound =
+    unsupported generic bound
+    .note = {$reason}

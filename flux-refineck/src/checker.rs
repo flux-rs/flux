@@ -39,7 +39,7 @@ use rustc_span::Span;
 
 use self::errors::CheckerError;
 use crate::{
-    constraint_gen::{ClosureObligs, ConstrGen, ConstrReason},
+    constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint::{self, KVarStore},
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
@@ -223,9 +223,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in fn_sig.requires() {
             match constr {
                 rty::Constraint::Type(path, ty) => {
-                    assert!(path.projection().is_empty());
+                    let loc = path.to_loc().unwrap();
                     let ty = rcx.unpack(ty);
-                    env.alloc_universal_loc(path.loc.clone(), ty);
+                    env.alloc_universal_loc(loc, ty);
                 }
                 rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -463,11 +463,27 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
-        obligs: ClosureObligs,
+        obligs: Obligations,
     ) -> Result<(), CheckerError> {
-        for oblig in obligs.obligations {
-            let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
-            Checker::run(self.genv, refine_tree, oblig.oblig_def_id, self.mode, oblig.oblig_sig)?;
+        for predicate in obligs.predicates {
+            match predicate {
+                rty::Predicate::FnTrait(fn_pred) => {
+                    if let Some(BaseTy::Closure(def_id)) =
+                        fn_pred.bounded_ty.as_bty_skipping_binders()
+                    {
+                        let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
+                        Checker::run(
+                            self.genv,
+                            refine_tree,
+                            *def_id,
+                            self.mode,
+                            fn_pred.to_poly_sig(*def_id),
+                        )?;
+                    } else {
+                        todo!("report error")
+                    }
+                }
+            }
         }
         Ok(())
     }
