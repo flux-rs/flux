@@ -5,6 +5,7 @@ use std::iter;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{Decodable, Encodable};
+use rustc_middle::ty::ClosureKind;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -31,6 +32,7 @@ pub enum BoundVariableKind {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum BoundRegionKind {
+    BrAnon(u32),
     BrNamed(DefId, Symbol),
 }
 
@@ -46,6 +48,22 @@ pub struct GenericParamDef {
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
+}
+
+#[derive(Debug)]
+pub struct GenericPredicates {
+    pub parent: Option<DefId>,
+    pub predicates: List<Predicate>,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct Predicate {
+    pub kind: Binder<PredicateKind>,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum PredicateKind {
+    FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
 }
 
 #[derive(Hash, PartialEq, Eq, Debug)]
@@ -125,6 +143,12 @@ pub enum Region {
 pub struct BoundRegion {
     pub var: BoundVar,
     pub kind: BoundRegionKind,
+}
+
+impl Predicate {
+    pub(crate) fn new(kind: Binder<PredicateKind>) -> Predicate {
+        Predicate { kind }
+    }
 }
 
 impl<T> Binder<T> {
@@ -237,7 +261,7 @@ impl Ty {
     }
 }
 
-impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef], [BoundVariableKind]);
+impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef], [BoundVariableKind], [Predicate]);
 
 impl std::fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -285,7 +309,11 @@ impl std::fmt::Debug for Ty {
             TyKind::Ref(ty, Mutability::Not) => write!(f, "&{ty:?}"),
             TyKind::Array(ty, c) => write!(f, "[{ty:?}; {c:?}]"),
             TyKind::Tuple(tys) => {
-                write!(f, "({:?})", tys.iter().format(", "))
+                if let [ty] = &tys[..] {
+                    write!(f, "({ty:?},)")
+                } else {
+                    write!(f, "({:?})", tys.iter().format(", "))
+                }
             }
             TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),

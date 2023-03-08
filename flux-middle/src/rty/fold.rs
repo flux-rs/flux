@@ -9,8 +9,9 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FuncSort,
-    GenericArg, Index, Invariant, KVar, Name, PolySig, Qualifier, Sort, Ty, TyKind, INNERMOST,
+    BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
+    FuncSort, GenericArg, Index, Invariant, KVar, Name, PolySig, Predicate, Qualifier, Sort, Ty,
+    TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, List},
@@ -243,6 +244,37 @@ pub trait TypeFoldable: Sized {
         let mut visitor = HasEscapingVars { outer_index: INNERMOST, found: false };
         self.visit_with(&mut visitor);
         visitor.found
+    }
+}
+
+impl TypeFoldable for Predicate {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        match self {
+            Predicate::FnTrait(pred) => Predicate::FnTrait(pred.fold_with(folder)),
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            Predicate::FnTrait(pred) => pred.visit_with(visitor),
+        }
+    }
+}
+
+impl TypeFoldable for FnTraitPredicate {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        FnTraitPredicate {
+            bounded_ty: self.bounded_ty.fold_with(folder),
+            tupled_args: self.tupled_args.fold_with(folder),
+            output: self.output.fold_with(folder),
+            kind: self.kind,
+        }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.bounded_ty.visit_with(visitor);
+        self.tupled_args.visit_with(visitor);
+        self.output.visit_with(visitor);
     }
 }
 
