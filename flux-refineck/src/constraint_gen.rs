@@ -553,7 +553,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 }
 
 impl Obligations {
-    pub(crate) fn new(obligations: Vec<rty::Predicate>, snapshot: Snapshot) -> Self {
+    fn new(obligations: Vec<rty::Predicate>, snapshot: Snapshot) -> Self {
         Self { predicates: obligations, snapshot }
     }
 }
