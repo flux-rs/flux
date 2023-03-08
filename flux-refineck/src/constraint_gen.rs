@@ -4,23 +4,30 @@ use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::{GlobalEnv, OpaqueStructErr},
     rty::{
+        self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
+        InferMode, ParamTy, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty,
+        TyKind,
     },
-    rustc::mir::{BasicBlock, Place},
+    rustc::{
+        lowering,
+        mir::{BasicBlock, Place},
+    },
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
-use rustc_middle::ty::Variance;
+use rustc_hir::def_id::DefId;
+use rustc_middle::ty::{BoundVariableKind, Clause, PredicateKind, Variance};
 use rustc_span::Span;
+use rustc_target::spec::abi::Abi;
 
 use crate::{
     checker::errors::CheckerError,
     fixpoint::KVarEncoding,
-    refine_tree::{RefineCtxt, Scope, UnpackFlags},
+    refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
     type_env::TypeEnv,
 };
 
@@ -28,6 +35,12 @@ pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
     span: Span,
+}
+
+pub(crate) struct ClosureObligs {
+    pub(crate) obligations: Vec<rty::ClosureOblig>,
+    /// Snapshot of the refinement subtree where the obligations should be checked
+    pub(crate) snapshot: Snapshot,
 }
 
 pub trait KVarGen {
@@ -101,10 +114,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        did: Option<DefId>,
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<Binder<FnOutput>, CheckerError> {
+    ) -> Result<(Binder<FnOutput>, ClosureObligs), CheckerError> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -120,6 +134,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             })
             .collect_vec();
 
+        // MAKE SNAPSHOT OF rcx HERE, to then use to check closure-obligations
+        let snapshot = rcx.snapshot();
+
+        let genv = self.genv;
+
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
         // Replace holes in generic arguments with fresh kvars
@@ -132,15 +151,17 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // println!("TRACE: check_fn_call substs = {substs:?}");
 
         // Generate fresh evars and kvars for refinement parameters
-        let fn_sig = fn_sig
+        let inst_fn_sig = fn_sig
             .replace_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
-        // println!("TRACE: check_fn_call {fn_sig:?} with {actuals:?}");
+        // Check closure obligations
+        let closure_obligs =
+            if let Some(did) = did { closure_obligs(genv, did, &substs, &actuals) } else { vec![] };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
-        for constr in fn_sig.requires() {
+        for constr in inst_fn_sig.requires() {
             match constr {
                 Constraint::Type(path, ty) => {
                     requires.insert(path.clone(), ty);
@@ -152,7 +173,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
+        for (actual, formal) in iter::zip(&actuals, inst_fn_sig.args()) {
             let rcx = &mut rcx.push_comment(format!("{actual:?} <: {formal:?}"));
 
             let (formal, pred) = formal.unconstr();
@@ -179,9 +200,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-        let output = fn_sig.output().replace_evars(&evars_sol);
+        let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok(output)
+        Ok((output, ClosureObligs::new(closure_obligs, snapshot)))
     }
 
     pub(crate) fn check_ret(
@@ -539,6 +560,155 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
     }
+}
+
+impl ClosureObligs {
+    pub(crate) fn new(obligations: Vec<rty::ClosureOblig>, snapshot: Snapshot) -> Self {
+        Self { obligations, snapshot }
+    }
+}
+
+fn mk_oblig<'tcx>(
+    genv: &GlobalEnv<'_, 'tcx>,
+    bound_vars: &'tcx rustc_middle::ty::List<BoundVariableKind>,
+    substs: &[GenericArg],
+    oblig_def_id: DefId,
+    generics: &rty::Generics,
+    p_rust_fn_sig: rustc_middle::ty::FnSig<'tcx>,
+) -> rty::ClosureOblig {
+    // 2. binder shenanigans to make a rustc_middle::ty::PolyFnSig
+    let p_rust_poly_fn_sig = rustc_middle::ty::Binder::bind_with_vars(p_rust_fn_sig, bound_vars);
+
+    // 3. expose and use lower_fn_sig to get a rty::PolyFnSig
+    let p_rty_poly_fn_sig =
+        lowering::lower_fn_sig(genv.tcx, p_rust_poly_fn_sig).unwrap_or_else(|_| {
+            panic!("lower_fn_sig failed for {:?} with {:?}", p_rust_poly_fn_sig, bound_vars)
+        });
+
+    // 4. push the "closure-ty" in as the FIRST input
+    let clos_ty = rty::Ty::closure(oblig_def_id);
+
+    // 5. apply the substs to the rty::PolyFnSig
+    let oblig_fn_sig = rty::refining::Refiner::default(genv, generics)
+        .refine_fn_sig(&p_rty_poly_fn_sig.skip_binder())
+        .replace_generics(substs)
+        .fn_sig
+        .skip_binders();
+
+    // 6. Stick the closure-param in as the first arg
+    let inputs = iter::once(clos_ty)
+        .chain(oblig_fn_sig.args().to_vec())
+        .collect_vec();
+    let oblig_fn_sig =
+        rty::FnSig::new(oblig_fn_sig.requires().to_vec(), inputs, oblig_fn_sig.output().clone());
+
+    let oblig_sig = rty::PolySig::new(vec![], oblig_fn_sig);
+    rty::ClosureOblig { oblig_def_id, oblig_sig }
+}
+
+fn closure_obligs(
+    genv: &GlobalEnv<'_, '_>,
+    did: DefId,
+    substs: &[GenericArg],
+    actuals: &[Ty],
+) -> Vec<rty::ClosureOblig> {
+    let rust_fn_sig = genv.tcx.fn_sig(did).skip_binder();
+    let generics = genv.generics_of(did);
+    let (f_ins, f_out, f_did) = gather_f_trait_info(genv, did, &rust_fn_sig, actuals);
+    let bound_vars = rust_fn_sig.bound_vars();
+
+    f_ins
+        .into_iter()
+        .map(|(p, p_in_ty)| {
+            let oblig_def_id = *f_did.get(&p).unwrap();
+            let p_out_ty = f_out.get(&p).unwrap();
+            let p_rust_fn_sig = genv.tcx.mk_fn_sig(
+                p_in_ty.tuple_fields(),
+                *p_out_ty,
+                false,
+                rustc_hir::Unsafety::Normal,
+                Abi::Rust,
+            );
+            mk_oblig(genv, bound_vars, substs, oblig_def_id, &generics, p_rust_fn_sig)
+        })
+        .collect_vec()
+}
+
+fn gather_f_trait_info<'tcx>(
+    genv: &GlobalEnv<'_, 'tcx>,
+    did: DefId,
+    rust_fn_sig: &rustc_middle::ty::PolyFnSig,
+    actuals: &[rty::Ty],
+) -> (
+    FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
+    FxHashMap<ParamTy, rustc_middle::ty::Ty<'tcx>>,
+    FxHashMap<ParamTy, DefId>,
+) {
+    let fn_once_id = genv.tcx.lang_items().fn_once_trait().unwrap();
+    let fn_once_output_id = genv.tcx.lang_items().fn_once_output().unwrap();
+
+    // 1. Find the closure-param-tys i.e. 'F' that implement FnOnce -- ie are supposed to be closures
+    let mut f_ins = FxHashMap::default();
+    let mut f_out = FxHashMap::default();
+    let mut f_did = FxHashMap::default();
+
+    // 2. connect the param-ty and the closure-def
+    let args = rust_fn_sig.skip_binder().inputs();
+    iter::zip(actuals, args).for_each(|(actual, arg)| {
+        if let rustc_middle::ty::Param(p) = arg.kind() &&
+                let rty::TyKind::Indexed(rty::BaseTy::Closure(did),_) = actual.kind() {
+                f_did.insert(*p, *did);
+            }
+    });
+
+    // 3. collect inputs-and-outputs for each closure-def
+    for clause in def_id_clauses(genv, did) {
+        match clause {
+            // found an fn-input type
+            Clause::Trait(trait_pred) => {
+                let trait_ref = trait_pred.trait_ref;
+                if fn_once_id == trait_ref.def_id &&
+                           let Some(substs) = trait_ref.substs.try_as_type_list() &&
+                           let rustc_middle::ty::Param(p) = substs[0].kind() {
+                            f_ins.insert(*p,substs[1]);
+                        }
+            }
+            // found an fn-output type
+            Clause::Projection(proj_pred) => {
+                let proj_ty = proj_pred.projection_ty;
+                if proj_ty.def_id == fn_once_output_id &&
+                       let Some(proj_substs) = proj_ty.substs.try_as_type_list() &&
+                       let rustc_middle::ty::Param(p) = proj_substs[0].kind() &&
+                       let Some(out_ty) = proj_pred.term.ty() {
+                         f_out.insert(*p,out_ty);
+                    }
+            }
+            _ => {}
+        }
+    }
+    // 4. Check that we have inputs-and-output for each 'f'
+    assert!(f_ins.len() == f_out.len());
+    assert!(f_ins.len() == f_did.len());
+    (f_ins, f_out, f_did)
+}
+
+fn def_id_clauses<'tcx>(
+    genv: &GlobalEnv<'_, 'tcx>,
+    did: DefId,
+) -> Vec<rustc_middle::ty::Clause<'tcx>> {
+    let preds = genv.tcx.predicates_of(did);
+    let clauses = preds
+        .predicates
+        .iter()
+        .map(|(p, _)| p.kind().skip_binder())
+        .filter_map(|p| {
+            match p {
+                PredicateKind::Clause(c) => Some(c),
+                _ => None,
+            }
+        })
+        .collect_vec();
+    clauses
 }
 
 impl<F> KVarGen for F

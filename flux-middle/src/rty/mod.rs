@@ -9,7 +9,7 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
-pub(crate) mod refining;
+pub mod refining;
 pub mod subst;
 
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
@@ -167,6 +167,12 @@ pub struct Defn {
 pub struct UifDef {
     pub name: Symbol,
     pub sort: FuncSort,
+}
+
+#[derive(Debug)]
+pub struct ClosureOblig {
+    pub oblig_def_id: DefId,
+    pub oblig_sig: PolySig,
 }
 
 pub type Ty = Interned<TyS>;

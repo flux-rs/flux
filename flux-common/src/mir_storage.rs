@@ -14,7 +14,7 @@ use std::{cell::RefCell, collections::HashMap, thread_local};
 
 use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{mir::Body, ty::TyCtxt};
 
 thread_local! {
     pub static SHARED_STATE:
@@ -42,14 +42,10 @@ pub unsafe fn store_mir_body<'tcx>(
 ///
 /// See the module level comment.
 #[allow(clippy::needless_lifetimes)] // We want to be very explicit about lifetimes here.
-pub(super) unsafe fn retrieve_mir_body<'tcx>(
-    _tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-) -> BodyWithBorrowckFacts<'tcx> {
-    let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
-        let mut map = state.borrow_mut();
-        match map.remove(&def_id) {
-            Some(r) => r,
+pub unsafe fn retrieve_mir_body<'tcx>(_tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> Body<'tcx> {
+    let body_with_facts: Body<'static> = SHARED_STATE.with(|state| {
+        match state.borrow().get(&def_id) {
+            Some(r) => r.body.clone(),
             None => panic!("retrieve_mir_body: panic on {def_id:?}"),
         }
     });

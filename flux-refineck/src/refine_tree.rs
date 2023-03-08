@@ -147,7 +147,7 @@ impl<'a> RefineSubtree<'a> {
     }
 
     #[allow(clippy::unused_self)]
-    pub(crate) fn clear(&mut self, snapshot: &Snapshot) {
+    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
         }
@@ -158,6 +158,10 @@ impl RefineCtxt<'_> {
     #[allow(unused)]
     pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
         RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
+    }
+
+    pub fn subtree_at(&mut self, snapshot: &Snapshot) -> Option<RefineSubtree> {
+        Some(RefineSubtree { root: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {

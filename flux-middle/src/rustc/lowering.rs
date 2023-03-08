@@ -36,7 +36,7 @@ pub struct LoweringCtxt<'a, 'tcx> {
 }
 
 pub struct UnsupportedType {
-    pub reason: String,
+    reason: String,
 }
 
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
@@ -496,6 +496,12 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
     }
 }
 
+impl UnsupportedType {
+    fn new(reason: impl ToString) -> Self {
+        UnsupportedType { reason: reason.to_string() }
+    }
+}
+
 /// [NOTE:Fake Predecessors] The `FalseEdge/imaginary_target` edges mess up
 /// the `is_join_point` computation which creates spurious join points that
 /// lose information e.g. in match arms, the k+1-th arm has the k-th arm as
@@ -579,7 +585,7 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
         .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
-fn lower_fn_sig<'tcx>(
+pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedType> {
@@ -635,13 +641,11 @@ pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, U
             Ok(Ty::mk_tuple(tys))
         }
         rustc_ty::Array(ty, len) => {
-            // TODO(RJ) https://github.com/liquid-rust/flux/pull/255#discussion_r1052554570
-            let param_env = ParamEnv::empty().with_reveal_all_normalized(tcx);
-            let val = len
-                .try_eval_target_usize(tcx, param_env)
-                .unwrap_or_else(|| panic!("failed to evaluate array length: {len:?} in {ty:?}"))
-                as usize;
-            Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val }))
+            let len = len
+                .to_valtree()
+                .try_to_target_usize(tcx)
+                .ok_or_else(|| UnsupportedType::new(format!("unsupported array len {len:?}")))?;
+            Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val: len as usize }))
         }
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
         rustc_ty::RawPtr(t) => {

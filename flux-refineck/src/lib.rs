@@ -19,6 +19,7 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
+extern crate rustc_target;
 
 mod checker;
 mod constraint_gen;
@@ -41,8 +42,6 @@ use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 
-use crate::refine_tree::RefineTree;
-
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     cache: &mut QueryCache,
@@ -50,33 +49,27 @@ pub fn check_fn<'tcx>(
     body: &Body<'tcx>,
 ) -> Result<(), ErrorGuaranteed> {
     dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
-        let bb_envs = Checker::infer(genv, body, def_id).emit(genv.sess)?;
+        // PHASE 1: infer shape of basic blocks
+        let shape_result = Checker::run_in_shape_mode(genv, body, def_id).emit(genv.sess)?;
+        tracing::info!("Checker::shape");
 
-        tracing::info!("Checker::infer");
+        // PHASE 2: generate refinement tree constraint
+        let (mut refine_tree, kvars) =
+            Checker::run_in_refine_mode(genv, body, def_id, shape_result).emit(genv.sess)?;
+        tracing::info!("Checker::refine");
 
-        let mut kvars = fixpoint::KVarStore::new();
-        let mut refine_tree = RefineTree::new();
-        Checker::check(genv, body, def_id, refine_tree.as_subtree(), &mut kvars, bb_envs)
-            .emit(genv.sess)?;
-
-        tracing::info!("Checker::check");
-
+        // PHASE 3: invoke fixpoint on the constraints
         refine_tree.simplify();
-
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
-
         let mut fcx = fixpoint::FixpointCtxt::new(genv, def_id, kvars);
-
         let constraint = refine_tree.into_fixpoint(&mut fcx);
-
         let result = match fcx.check(cache, constraint) {
             Ok(_) => Ok(()),
             Err(tags) => report_errors(genv, tags),
         };
-
-        tracing::info!("FixpointCtx::check");
+        tracing::info!("Fixpoint::check");
 
         result
     })

@@ -23,27 +23,38 @@ class ansi:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file', help='Path to the log file', type=Path, default=Path('./log/checker'))
-    parser.add_argument('--mode', help='Either `check` or `infer`', type=str, default='check')
-    parser.add_argument('--name', help='Name of the function', type=str, default=None)
-    parser.add_argument('--filter', help='Events to filter', type=str, action='append')
+    parser.add_argument('--file',
+                        help='Path to the log file',
+                        type=Path,
+                        default=Path('./log/checker'))
+    parser.add_argument('--mode',
+                        help='Either `refine` or `shape`',
+                        type=str,
+                        default='refine')
+    parser.add_argument('--name',
+                        help='Name of the function',
+                        type=str,
+                        default=None)
+    parser.add_argument('--filter',
+                        help='Events to filter',
+                        type=str,
+                        action='append')
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
 
-    events_by_def_id_and_mode: DefaultDict[str,
-                                           DefaultDict[str,
-                                                       List[Any]]] = defaultdict(lambda: defaultdict(list))
-    bb_envs_infer: Dict[str, Any] = {}
+    events_by_def_id_and_mode: DefaultDict[str, DefaultDict[
+        str, List[Any]]] = defaultdict(lambda: defaultdict(list))
+    bb_envs: Dict[str, Any] = {}
     for line in open(args.file):
         event = json.loads(line)
         def_id = event['span']['def_id']
         mode = event['span']['name']
         events_by_def_id_and_mode[def_id][mode].append(event)
-        if bb_envs_infer.get(def_id) is None:
-            bb_envs_infer[def_id] = event['span'].get('bb_envs_infer')
+        if bb_envs.get(def_id) is None:
+            bb_envs[def_id] = event['span'].get('bb_envs')
 
     buf = Buff()
 
@@ -55,8 +66,8 @@ def main() -> None:
             if args.mode != mode:
                 continue
             buf.print(bold(f'{mode.upper()} {def_id}'))
-            if args.mode == "check" and bb_envs_infer[def_id] is not None:
-                buf.print(bb_envs_infer[def_id])
+            if args.mode == "refine" and bb_envs[def_id] is not None:
+                buf.print(bb_envs[def_id])
             buf.print_rule('═')
             buf.print()
             buf.print_mode(events, args.filter)
@@ -77,7 +88,9 @@ class Buff:
         self.buffer = []
 
     def flush(self) -> None:
-        max_len = max((len(line) for line in self.buffer if isinstance(line, str)), default=0)
+        max_len = max(
+            (len(line) for line in self.buffer if isinstance(line, str)),
+            default=0)
         try:
             rule_len = min(max_len, os.get_terminal_size().columns)
         except OSError:
@@ -95,7 +108,8 @@ class Buff:
             line = ''
         self.buffer.append(line)
 
-    def print_mode(self, events: List[dict], filters: Optional[List[str]]) -> None:
+    def print_mode(self, events: List[dict],
+                   filters: Optional[List[str]]) -> None:
         for event in events:
             fields = event['fields']
 
@@ -120,19 +134,19 @@ class Buff:
             elif fields['event'] == 'terminator_end':
                 self.print_context(fields['rcx'], fields['env'])
                 self.print_rule()
-            elif fields['event'] == 'check_goto':
+            elif fields['event'] == 'refine_goto':
                 self.print(f'goto {fields["target"]}')
                 self.print_context(fields['rcx'], fields['env'])
                 self.print('==>')
                 self.print(fields['bb_env'])
                 self.print_rule()
-            elif fields['event'] == 'infer_goto_enter':
+            elif fields['event'] == 'shape_goto_enter':
                 self.print(f'goto {fields["target"]}')
                 # self.print(fields['scope'])
                 self.print(fields['bb_env'])
                 self.print("⊓")
                 self.print(fields['env'])
-            elif fields['event'] == 'infer_goto_exit':
+            elif fields['event'] == 'shape_goto_exit':
                 self.print("=")
                 self.print(fields['bb_env'])
                 self.print_rule()
