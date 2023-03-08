@@ -59,7 +59,7 @@ pub enum GenericParamDefKind {
     Lifetime,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Predicate>,

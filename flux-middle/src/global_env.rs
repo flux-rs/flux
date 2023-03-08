@@ -34,6 +34,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'sess FluxSession,
     generics: RefCell<FxHashMap<DefId, rty::Generics>>,
+    predicates: RefCell<FxHashMap<DefId, rty::GenericPredicates>>,
     qualifiers: Vec<rty::Qualifier>,
     uifs: FxHashMap<Symbol, rty::UifDef>,
     fn_sigs: RefCell<FxHashMap<DefId, rty::PolySig>>,
@@ -80,6 +81,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
         let mut genv = GlobalEnv {
             generics: RefCell::new(FxHashMap::default()),
+            predicates: RefCell::new(FxHashMap::default()),
             fn_sigs: RefCell::new(FnSigMap::default()),
             adt_defs: RefCell::new(adt_defs),
             adt_variants: RefCell::new(VariantMap::default()),
@@ -264,11 +266,19 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn predicates_of(&self, def_id: DefId) -> rty::GenericPredicates {
-        let predicates = self.tcx.predicates_of(def_id);
-        let predicates = rustc::lowering::lower_generic_predicates(self.tcx, self.sess, predicates)
-            .unwrap_or_else(|_| FatalError.raise());
+        self.predicates
+            .borrow_mut()
+            .entry(def_id)
+            .or_insert_with(|| {
+                let predicates = self.tcx.predicates_of(def_id);
+                let predicates =
+                    rustc::lowering::lower_generic_predicates(self.tcx, self.sess, predicates)
+                        .unwrap_or_else(|_| FatalError.raise());
 
-        Refiner::default(self, &self.generics_of(def_id)).refine_generic_predicates(&predicates)
+                Refiner::default(self, &self.generics_of(def_id))
+                    .refine_generic_predicates(&predicates)
+            })
+            .clone()
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> rty::Generics {
