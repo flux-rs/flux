@@ -32,7 +32,7 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     rty::Generics { params, parent_count: generics.orig.parent_count, parent: generics.orig.parent }
 }
 
-pub struct Refiner<'a, 'tcx> {
+pub(crate) struct Refiner<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     generics: &'a rty::Generics,
     refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
@@ -47,7 +47,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Self { genv, generics, refine }
     }
 
-    pub fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
+    pub(crate) fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
         Self { genv, generics, refine: refine_default }
     }
 
@@ -62,6 +62,31 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 rty::Binder::new(constr, sort)
             },
         }
+    }
+
+    pub(crate) fn refine_generic_predicates(
+        &self,
+        generics: &rustc::ty::GenericPredicates,
+    ) -> rty::GenericPredicates {
+        let predicates = generics
+            .predicates
+            .iter()
+            .map(|pred| {
+                match pred.kind.as_ref().skip_binder() {
+                    rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
+                        let pred = rty::FnTraitPredicate {
+                            bounded_ty: self.refine_ty(bounded_ty),
+                            tupled_args: self.refine_ty(tupled_args),
+                            output: self.refine_ty(output),
+                            kind: *kind,
+                        };
+                        rty::Predicate::FnTrait(pred)
+                    }
+                }
+            })
+            .collect();
+
+        rty::GenericPredicates { parent: generics.parent, predicates }
     }
 
     pub(crate) fn refine_variant_def(
@@ -85,7 +110,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         rty::Binder::new(value, rty::Sort::unit())
     }
 
-    pub fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> rty::PolySig {
+    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> rty::PolySig {
         let args = fn_sig
             .inputs()
             .iter()

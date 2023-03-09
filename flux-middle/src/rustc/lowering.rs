@@ -1,9 +1,12 @@
+use std::collections::hash_map;
+
 pub use errors::UnsupportedFnSig;
 use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::ErrorGuaranteed;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
@@ -24,7 +27,8 @@ use super::{
     },
     ty::{
         AdtDef, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
-        GenericParamDef, GenericParamDefKind, Generics, PolyFnSig, Ty, VariantDef,
+        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, Predicate,
+        PredicateKind, Ty, VariantDef,
     },
 };
 use crate::{const_eval::scalar_int_to_constant, intern::List, rustc::ty::Region};
@@ -605,11 +609,18 @@ fn lower_binder<S, T>(
     binder: rustc_ty::Binder<S>,
     mut f: impl FnMut(S) -> Result<T, UnsupportedType>,
 ) -> Result<Binder<T>, UnsupportedType> {
+    let vars = lower_binder_vars(binder.bound_vars())?;
+    Ok(Binder::bind_with_vars(f(binder.skip_binder())?, vars))
+}
+
+fn lower_binder_vars(
+    bound_vars: &[rustc_ty::BoundVariableKind],
+) -> Result<List<BoundVariableKind>, UnsupportedType> {
     let mut vars = vec![];
-    for var in binder.bound_vars() {
+    for var in bound_vars {
         match var {
             rustc_ty::BoundVariableKind::Region(kind) => {
-                vars.push(BoundVariableKind::Region(lower_bound_region_kind(kind)?));
+                vars.push(BoundVariableKind::Region(lower_bound_region_kind(*kind)?));
             }
             _ => {
                 return Err(UnsupportedType {
@@ -618,7 +629,7 @@ fn lower_binder<S, T>(
             }
         }
     }
-    Ok(Binder::bind_with_vars(f(binder.skip_binder())?, vars))
+    Ok(List::from_vec(vars))
 }
 
 pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, UnsupportedType> {
@@ -721,7 +732,8 @@ fn lower_bound_region_kind(
         rustc_ty::BoundRegionKind::BrNamed(def_id, sym) => {
             Ok(BoundRegionKind::BrNamed(def_id, sym))
         }
-        _ => Err(UnsupportedType { reason: format!("unsupported boudn region kind `{kind:?}`") }),
+        rustc_ty::BoundRegionKind::BrAnon(u, _) => Ok(BoundRegionKind::BrAnon(u)),
+        _ => Err(UnsupportedType { reason: format!("unsupported bound region kind `{kind:?}`") }),
     }
 }
 
@@ -756,6 +768,77 @@ fn lower_generic_param_def(
         }
     };
     Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
+}
+
+#[allow(clippy::mutable_key_type)] // False positive `List` is not mutable
+pub(crate) fn lower_generic_predicates<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    sess: &FluxSession,
+    generics: rustc_ty::GenericPredicates<'tcx>,
+) -> Result<GenericPredicates, ErrorGuaranteed> {
+    let mut fn_trait_refs = FxHashMap::default();
+    let mut fn_output_proj = FxHashMap::default();
+
+    for (predicate, span) in generics.predicates {
+        let bound_vars = predicate.kind().bound_vars();
+        let kind = predicate.kind().skip_binder();
+        let rustc_ty::PredicateKind::Clause(clause) = kind else {
+            continue;
+        };
+
+        match clause {
+            rustc_ty::Clause::Trait(trait_pred) => {
+                let trait_ref = trait_pred.trait_ref;
+                if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
+                    let substs = rustc_ty::Binder::bind_with_vars(trait_ref.substs, bound_vars);
+                    match fn_trait_refs.entry(substs) {
+                        hash_map::Entry::Occupied(_) => todo!(),
+                        hash_map::Entry::Vacant(entry) => {
+                            entry.insert((closure_kind, *span));
+                        }
+                    }
+                }
+            }
+            rustc_ty::Clause::Projection(proj_pred) => {
+                let proj_ty = proj_pred.projection_ty;
+                if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
+                    let substs = rustc_ty::Binder::bind_with_vars(proj_ty.substs, bound_vars);
+                    match fn_output_proj.entry(substs) {
+                        hash_map::Entry::Occupied(_) => todo!(),
+                        hash_map::Entry::Vacant(entry) => {
+                            entry.insert(proj_pred.term.ty().unwrap());
+                        }
+                    };
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut predicates = vec![];
+    for (substs, (kind, span)) in fn_trait_refs {
+        let output = fn_output_proj.get(&substs).unwrap();
+
+        let vars = substs.bound_vars();
+        let substs = substs.skip_binder().try_as_type_list().unwrap();
+        let bounded_ty = lower_ty(tcx, substs[0])
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.reason))
+            .emit(sess)?;
+        let tupled_args = lower_ty(tcx, substs[1])
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.reason))
+            .emit(sess)?;
+        let output = lower_ty(tcx, *output)
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.reason))
+            .emit(sess)?;
+
+        let vars = lower_binder_vars(vars)
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.reason))
+            .emit(sess)?;
+
+        let kind = PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind };
+        predicates.push(Predicate::new(Binder::bind_with_vars(kind, vars)));
+    }
+    Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
 }
 
 mod errors {
@@ -831,18 +914,17 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(lowering::unsupported_type_of, code = "FLUX")]
+    #[note]
     pub struct UnsupportedTypeOf<'tcx> {
         #[primary_span]
         span: Span,
-        #[note]
-        note: (),
         reason: String,
         ty: rustc_middle::ty::Ty<'tcx>,
     }
 
     impl<'tcx> UnsupportedTypeOf<'tcx> {
         pub fn new(span: Span, ty: rustc_middle::ty::Ty<'tcx>, err: UnsupportedType) -> Self {
-            Self { span, note: (), reason: err.reason, ty }
+            Self { span, reason: err.reason, ty }
         }
     }
 
@@ -852,5 +934,20 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub reason: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(lowering::unsupported_generic_bound, code = "FLUX")]
+    #[note]
+    pub struct UnsupportedGenericBound {
+        #[primary_span]
+        span: Span,
+        reason: String,
+    }
+
+    impl UnsupportedGenericBound {
+        pub fn new(span: Span, reason: impl ToString) -> Self {
+            Self { span, reason: reason.to_string() }
+        }
     }
 }
