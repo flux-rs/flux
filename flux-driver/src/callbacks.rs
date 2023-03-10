@@ -1,3 +1,4 @@
+use desugar::annot_check;
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
@@ -436,7 +437,10 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
         err = Wf::check_enum_def(early_cx, enum_def).err().or(err);
     }
 
-    for (_, fn_sig) in early_cx.map.fn_sigs() {
+    for (def_id, fn_sig) in early_cx.map.fn_sigs() {
+        err = annot_check::check_fn_sig(early_cx, def_id, fn_sig)
+            .err()
+            .or(err);
         err = Wf::check_fn_sig(early_cx, fn_sig).err().or(err);
     }
 

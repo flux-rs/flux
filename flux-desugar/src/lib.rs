@@ -13,6 +13,7 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
+pub mod annot_check;
 mod desugar;
 mod hir_annot_check;
 mod rustc_middle_ty_annot_check;
@@ -61,14 +62,8 @@ pub fn desugar_fn_sig(
     def_id: LocalDefId,
     fn_sig: surface::FnSig,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
-    // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
     let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
-
-    // Check
-    hir_annot_check::check_fn_sig(early_cx.tcx, early_cx.sess, def_id, &fn_sig)?;
-
-    // Desugar
     desugar::desugar_fn_sig(early_cx, &fn_sig)
 }
 
