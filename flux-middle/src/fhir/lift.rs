@@ -95,7 +95,7 @@ pub fn lift_field_def(
     LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)
 }
 
-pub fn lift_variant_def(
+pub fn lift_enum_variant_def(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
@@ -123,7 +123,7 @@ pub fn lift_variant_def(
         .try_collect_exhaust()?;
 
     let path = fhir::Path {
-        res: fhir::Res::Adt(enum_id.to_def_id()),
+        res: fhir::Res::Enum(enum_id.to_def_id()),
         generics: cx.generic_params_into_args(generics)?,
         refine: vec![],
         // FIXME(nilehmann) the span should also include the generic arguments
@@ -210,7 +210,8 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
         let res = match path.res {
-            hir::def::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => fhir::Res::Adt(def_id),
+            hir::def::Res::Def(DefKind::Struct, def_id) => fhir::Res::Struct(def_id),
+            hir::def::Res::Def(DefKind::Enum, def_id) => fhir::Res::Enum(def_id),
             hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
             hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Res::Param(def_id),

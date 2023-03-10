@@ -251,25 +251,25 @@ impl<'sess, 'tcx> ZipChecker<'sess, 'tcx> {
         use rustc_middle::ty::{float_ty, int_ty, uint_ty};
 
         match (&path.res, rust_ty.kind()) {
-            (Res::Adt(def_id1), rustc_ty::TyKind::Adt(def_id2, substs)) if def_id1 == def_id2 => {
-                let generics = self.tcx.generics_of(def_id1);
-                let max_args = generics.own_counts().types;
-                let default_args = generics.own_defaults().types;
-                let min_args = max_args - default_args;
+            // (Res::Adt(def_id1), rustc_ty::TyKind::Adt(def_id2, substs)) if def_id1 == def_id2 => {
+            //     let generics = self.tcx.generics_of(def_id1);
+            //     let max_args = generics.own_counts().types;
+            //     let default_args = generics.own_defaults().types;
+            //     let min_args = max_args - default_args;
 
-                let found = path.generics.len();
-                if found < min_args {
-                    return Err(self.sess.emit_err(errors::TooFewArgs::new(
-                        self.tcx, path.span, found, min_args, *def_id1,
-                    )));
-                } else if found > max_args {
-                    return Err(self.sess.emit_err(errors::TooManyArgs::new(
-                        self.tcx, path.span, found, max_args, *def_id1,
-                    )));
-                } else {
-                    return self.zip_generic_args(&path.generics, substs);
-                }
-            }
+            //     let found = path.generics.len();
+            //     if found < min_args {
+            //         return Err(self.sess.emit_err(errors::TooFewArgs::new(
+            //             self.tcx, path.span, found, min_args, *def_id1,
+            //         )));
+            //     } else if found > max_args {
+            //         return Err(self.sess.emit_err(errors::TooManyArgs::new(
+            //             self.tcx, path.span, found, max_args, *def_id1,
+            //         )));
+            //     } else {
+            //         return self.zip_generic_args(&path.generics, substs);
+            //     }
+            // }
             (Res::PrimTy(PrimTy::Uint(uint_ty1)), rustc_ty::TyKind::Uint(uint_ty2))
                 if uint_ty(*uint_ty1) == *uint_ty2 =>
             {

@@ -305,11 +305,11 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
 
         match (path.res, hir_path.res) {
             (_, HirRes::SelfTyAlias { .. }) => self.zip_with_self_ty(ty_span, path),
-            (Res::Adt(def_id1), HirRes::Def(DefKind::Struct | DefKind::Enum, def_id2))
-                if def_id1 == def_id2 =>
-            {
-                self.zip_generic_args(def_id1, path, hir_path)
-            }
+            // (Res::Adt(def_id1), HirRes::Def(DefKind::Struct | DefKind::Enum, def_id2))
+            //     if def_id1 == def_id2 =>
+            // {
+            //     self.zip_generic_args(def_id1, path, hir_path)
+            // }
             (Res::Alias(def_id1), HirRes::Def(DefKind::TyAlias, def_id2)) if def_id1 == def_id2 => {
                 self.zip_generic_args(def_id1, path, hir_path)
             }
@@ -372,9 +372,9 @@ impl<'sess, 'tcx> Zipper<'sess, 'tcx> {
         match &self.self_ty {
             SelfTy::Impl(ty, qpath) => self.zip_path(ty_span, path, ty, qpath),
             SelfTy::Adt { def_id, args, span, .. } => {
-                if let Res::Adt(adt_def_id) = path.res && adt_def_id == *def_id {} else {
-                    return self.emit_err(errors::InvalidRefinement::from_self_ty(path.span, &self.self_ty));
-                };
+                // if let Res::Adt(adt_def_id) = path.res && adt_def_id == *def_id {} else {
+                //     return self.emit_err(errors::InvalidRefinement::from_self_ty(path.span, &self.self_ty));
+                // };
 
                 if path.generics.len() != args.len() {
                     return self.emit_err(errors::GenericArgCountMismatch::new(

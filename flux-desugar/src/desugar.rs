@@ -164,7 +164,7 @@ pub fn desugar_enum_def(
     let variants = enum_def
         .variants
         .iter()
-        .map(|variant| desugar_variant_def(early_cx, variant))
+        .map(|variant| desugar_enum_variant_def(early_cx, variant))
         .try_collect_exhaust()?;
 
     let mut binders = Binders::from_params(early_cx, enum_def.refined_by.iter().flatten())?;
@@ -177,7 +177,7 @@ pub fn desugar_enum_def(
     Ok(fhir::EnumDef { def_id, params: binders.pop_layer().into_params(), variants, invariants })
 }
 
-fn desugar_variant_def(
+fn desugar_enum_variant_def(
     early_cx: &EarlyCtxt,
     variant_def: &surface::VariantDef<Res>,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
@@ -201,7 +201,7 @@ fn desugar_variant_def(
             ret,
         })
     } else {
-        fhir::lift::lift_variant_def(early_cx, variant_def.def_id)
+        fhir::lift::lift_enum_variant_def(early_cx, variant_def.def_id)
     }
 }
 
@@ -962,7 +962,7 @@ fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
 }
 
 fn is_box(early_cx: &EarlyCtxt, res: fhir::Res) -> bool {
-    if let Res::Adt(def_id) = res {
+    if let Res::Struct(def_id) = res {
         early_cx.tcx.adt_def(def_id).is_box()
     } else {
         false

@@ -257,14 +257,14 @@ impl<'sess> NameResTable<'sess> {
                 table.collect_from_ty(ty)?;
             }
             ItemKind::Struct(data, _) => {
-                table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
+                table.insert(ResKey::from_ident(item.ident), Res::Struct(def_id.to_def_id()));
 
                 for field in data.fields() {
                     table.collect_from_ty(field.ty)?;
                 }
             }
             ItemKind::Enum(data, _) => {
-                table.insert(ResKey::from_ident(item.ident), Res::Adt(def_id.to_def_id()));
+                table.insert(ResKey::from_ident(item.ident), Res::Enum(def_id.to_def_id()));
 
                 for variant in data.variants {
                     for field in variant.data.fields() {
@@ -336,9 +336,8 @@ impl<'sess> NameResTable<'sess> {
     fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
         match res {
             hir::def::Res::Def(hir::def::DefKind::TyParam, did) => ResEntry::Res(Res::Param(did)),
-            hir::def::Res::Def(hir::def::DefKind::Struct | hir::def::DefKind::Enum, did) => {
-                ResEntry::Res(Res::Adt(did))
-            }
+            hir::def::Res::Def(hir::def::DefKind::Struct, did) => ResEntry::Res(Res::Struct(did)),
+            hir::def::Res::Def(hir::def::DefKind::Enum, did) => ResEntry::Res(Res::Enum(did)),
             hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
                 ResEntry::Res(Res::Alias(def_id))

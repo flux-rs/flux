@@ -420,7 +420,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
-            fhir::Res::Adt(did) => {
+            fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
                 let adt_def = self.genv.adt_def(*did);
                 let substs = self.conv_generic_args(*did, &path.generics);
                 rty::BaseTy::adt(adt_def, substs)

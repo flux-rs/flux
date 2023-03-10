@@ -121,7 +121,9 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     | fhir::GenericParamDefKind::Lifetime => return None,
                 }
             }
-            fhir::Res::Alias(def_id) | fhir::Res::Adt(def_id) => fhir::Sort::Aggregate(def_id),
+            fhir::Res::Alias(def_id) | fhir::Res::Enum(def_id) | fhir::Res::Struct(def_id) => {
+                fhir::Sort::Aggregate(def_id)
+            }
         };
         Some(sort)
     }

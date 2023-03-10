@@ -31,14 +31,8 @@ pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
     struct_def: surface::StructDef,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, struct_def.def_id)?;
-
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-
-    // Check
-    hir_annot_check::check_struct_def(early_cx.tcx, early_cx.sess, &struct_def)?;
-
     desugar::desugar_struct_def(early_cx, struct_def)
 }
 
@@ -46,14 +40,8 @@ pub fn desugar_enum_def(
     early_cx: &EarlyCtxt,
     enum_def: surface::EnumDef,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, enum_def.def_id)?;
     let enum_def = resolver.resolve_enum_def(enum_def)?;
-
-    // Check
-    hir_annot_check::check_enum_def(early_cx.tcx, early_cx.sess, &enum_def)?;
-
-    // Desugar
     desugar::desugar_enum_def(early_cx, &enum_def)
 }
 

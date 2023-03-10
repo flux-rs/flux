@@ -257,7 +257,8 @@ pub struct Path {
 pub enum Res {
     PrimTy(PrimTy),
     Alias(DefId),
-    Adt(DefId),
+    Struct(DefId),
+    Enum(DefId),
     Param(DefId),
 }
 
@@ -363,7 +364,7 @@ impl BaseTy {
 
     pub fn is_aggregate(&self) -> Option<DefId> {
         if let BaseTyKind::Path(path) = &self.kind
-           && let Res::Adt(def_id) | Res::Alias(def_id) = path.res
+           && let Res::Struct(def_id) | Res::Enum(def_id) | Res::Alias(def_id) = path.res
         {
             Some(def_id)
         } else {
@@ -387,7 +388,8 @@ impl Res {
         match self {
             Res::PrimTy(_) => "builtin type",
             Res::Alias(_) => "type alias",
-            Res::Adt(_) => "adt",
+            Res::Struct(_) => "struct",
+            Res::Enum(_) => "enum",
             Res::Param(_) => "type parameter",
         }
     }
@@ -784,40 +786,38 @@ impl fmt::Debug for ArrayLen {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Int(int_ty)), .. }) => {
-                write!(f, "{}", int_ty.name_str())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Uint(uint_ty)), .. }) => {
-                write!(f, "{}", uint_ty.name_str())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }) => write!(f, "bool"),
-            BaseTyKind::Path(Path { res: Res::Alias(def_id), generics, refine, .. }) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
-                if !generics.is_empty() {
-                    write!(f, "<{:?}>", generics.iter().format(", "))?;
-                }
-                if !refine.is_empty() {
-                    write!(f, "({:?})", refine.iter().format(", "))?;
-                }
-                Ok(())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Float(float_ty)), .. }) => {
-                write!(f, "{}", float_ty.name_str())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Str), .. }) => write!(f, "str"),
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Char), .. }) => write!(f, "char"),
-            BaseTyKind::Path(Path { res: Res::Adt(did), generics, .. }) => {
-                write!(f, "{}", pretty::def_id_to_string(*did))?;
-                if !generics.is_empty() {
-                    write!(f, "<{:?}>", generics.iter().format(", "))?;
-                }
-                Ok(())
-            }
-            BaseTyKind::Path(Path { res: Res::Param(def_id), .. }) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))
-            }
+            BaseTyKind::Path(path) => write!(f, "{path:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }
+    }
+}
+
+impl fmt::Debug for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.res {
+            Res::PrimTy(PrimTy::Int(int_ty)) => {
+                write!(f, "{}", int_ty.name_str())?;
+            }
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => {
+                write!(f, "{}", uint_ty.name_str())?;
+            }
+            Res::PrimTy(PrimTy::Float(float_ty)) => {
+                write!(f, "{}", float_ty.name_str())?;
+            }
+            Res::PrimTy(PrimTy::Bool) => write!(f, "bool")?,
+            Res::PrimTy(PrimTy::Str) => write!(f, "str")?,
+            Res::PrimTy(PrimTy::Char) => write!(f, "char")?,
+            Res::Alias(def_id) | Res::Struct(def_id) | Res::Enum(def_id) | Res::Param(def_id) => {
+                write!(f, "{}", pretty::def_id_to_string(def_id))?;
+            }
+        }
+        if !self.generics.is_empty() {
+            write!(f, "<{:?}>", self.generics.iter().format(", "))?;
+        }
+        if !self.refine.is_empty() {
+            write!(f, "({:?})", self.refine.iter().format(", "))?;
+        }
+        Ok(())
     }
 }
 
