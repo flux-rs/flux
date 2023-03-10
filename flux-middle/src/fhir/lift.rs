@@ -85,14 +85,15 @@ pub fn lift_type_alias(
 pub fn lift_field_def(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
-) -> Result<fhir::Ty, ErrorGuaranteed> {
+) -> Result<fhir::FieldDef, ErrorGuaranteed> {
     let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
     let node = early_cx.hir().get(hir_id);
     let hir::Node::Field(field_def) = node else {
         bug!("expected a field")
     };
     let parent_id = early_cx.hir().get_parent_item(hir_id);
-    LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)
+    let ty = LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)?;
+    Ok(fhir::FieldDef { def_id, ty })
 }
 
 pub fn lift_enum_variant_def(

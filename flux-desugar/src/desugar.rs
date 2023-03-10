@@ -145,7 +145,7 @@ pub fn desugar_struct_def(
             .iter()
             .map(|field| {
                 if let Some(ty) = &field.ty {
-                    cx.desugar_ty(None, ty)
+                    Ok(fhir::FieldDef { ty: cx.desugar_ty(None, ty)?, def_id: field.def_id })
                 } else {
                     fhir::lift::lift_field_def(early_cx, field.def_id)
                 }
@@ -499,6 +499,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         };
         Ok(fhir::Ty { kind, span })
     }
+
     fn desugar_variant_ret(
         &mut self,
         ret: &surface::VariantRet<Res>,

@@ -224,7 +224,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         let def_id = struct_def.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            let fields = fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
+            let fields = fields
+                .iter()
+                .map(|field_def| cx.conv_ty(&field_def.ty))
+                .collect_vec();
 
             let substs = genv
                 .generics_of(def_id)

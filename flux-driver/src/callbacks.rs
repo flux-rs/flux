@@ -433,7 +433,10 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for struct_def in early_cx.map.structs() {
-        err = Wf::check_struct_def(early_cx, struct_def).err().or(err);
+        err = annot_check::check_struct_def(early_cx, struct_def)
+            .and_then(|_| Wf::check_struct_def(early_cx, struct_def))
+            .err()
+            .or(err);
     }
 
     for enum_def in early_cx.map.enums() {

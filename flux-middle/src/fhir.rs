@@ -118,8 +118,14 @@ pub struct StructDef {
 
 #[derive(Debug)]
 pub enum StructKind {
-    Transparent { fields: Vec<Ty> },
+    Transparent { fields: Vec<FieldDef> },
     Opaque,
+}
+
+#[derive(Debug)]
+pub struct FieldDef {
+    pub def_id: LocalDefId,
+    pub ty: Ty,
 }
 
 #[derive(Debug)]
@@ -836,7 +842,7 @@ impl fmt::Debug for RefineArg {
             RefineArg::Aggregate(def_id, flds, _) => {
                 write!(
                     f,
-                    "[{}{{ {:?} }}]",
+                    "{} {{ {:?} }}",
                     pretty::def_id_to_string(*def_id),
                     flds.iter().format(", ")
                 )

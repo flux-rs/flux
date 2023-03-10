@@ -22,6 +22,21 @@ pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), Er
         .zip_ty(&alias.ty, &fhir::lift::lift_type_alias(early_cx, alias.def_id)?.ty)
 }
 
+pub fn check_struct_def(
+    early_cx: &EarlyCtxt,
+    struct_def: &fhir::StructDef,
+) -> Result<(), ErrorGuaranteed> {
+    match &struct_def.kind {
+        fhir::StructKind::Transparent { fields } => {
+            fields.iter().try_for_each_exhaust(|field| {
+                Zipper::new(early_cx.tcx, early_cx.sess, struct_def.def_id)
+                    .zip_ty(&field.ty, &fhir::lift::lift_field_def(early_cx, field.def_id)?.ty)
+            })
+        }
+        _ => Ok(()),
+    }
+}
+
 struct Zipper<'zip, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'zip FluxSession,

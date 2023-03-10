@@ -119,7 +119,7 @@ impl Wf<'_, '_> {
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             fields
                 .iter()
-                .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty))?;
+                .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
         }
         Ok(())
     }
