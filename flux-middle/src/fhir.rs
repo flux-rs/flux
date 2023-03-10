@@ -152,6 +152,7 @@ pub struct FnSig {
     /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
     pub output: FnOutput,
+    pub span: Span,
 }
 
 pub struct FnOutput {
@@ -521,6 +522,12 @@ impl FuncSort {
 }
 
 impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for &Ty {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }

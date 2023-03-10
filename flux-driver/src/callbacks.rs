@@ -439,9 +439,9 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
 
     for (def_id, fn_sig) in early_cx.map.fn_sigs() {
         err = annot_check::check_fn_sig(early_cx, def_id, fn_sig)
+            .and_then(|_| Wf::check_fn_sig(early_cx, fn_sig))
             .err()
             .or(err);
-        err = Wf::check_fn_sig(early_cx, fn_sig).err().or(err);
     }
 
     let qualifiers = early_cx.map.qualifiers().map(|q| q.name.clone()).collect();

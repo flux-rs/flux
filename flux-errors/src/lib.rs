@@ -27,8 +27,9 @@ use rustc_span::source_map::SourceMap;
 fluent_messages! {
     parse => "../locales/en-US/parse.ftl",
     resolver => "../locales/en-US/resolver.ftl",
-    annot_check => "../locales/en-US/annot_check.ftl",
+    rustc_middle_ty_annot_check => "../locales/en-US/rustc_middle_ty_annot_check.ftl",
     hir_annot_check => "../locales/en-US/hir_annot_check.ftl",
+    annot_check => "../locales/en-US/annot_check.ftl",
     desugar => "../locales/en-US/desugar.ftl",
     wf => "../locales/en-US/wf.ftl",
     invariants => "../locales/en-US/invariants.ftl",

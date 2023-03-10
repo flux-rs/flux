@@ -349,7 +349,7 @@ mod errors {
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::array_len_mismatch, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::array_len_mismatch, code = "FLUX")]
     pub struct ArrayLenMismatch {
         #[primary_span]
         #[label]
@@ -364,13 +364,13 @@ mod errors {
         }
     }
     #[derive(Diagnostic)]
-    #[diag(annot_check::field_count_mismatch, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::field_count_mismatch, code = "FLUX")]
     pub struct FieldCountMismatch {
         #[primary_span]
         #[label]
         flux_span: Span,
         flux_fields: usize,
-        #[label(annot_check::rust_label)]
+        #[label(rustc_middle_ty_annot_check::rust_label)]
         rust_span: Span,
         rust_fields: usize,
     }
@@ -387,13 +387,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::arg_count_mismatch, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::arg_count_mismatch, code = "FLUX")]
     pub struct ArgCountMismatch {
         #[primary_span]
         #[label]
         flux_span: Span,
         flux_args: usize,
-        #[label(annot_check::rust_label)]
+        #[label(rustc_middle_ty_annot_check::rust_label)]
         rust_span: Span,
         rust_args: usize,
     }
@@ -405,7 +405,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::path_mismatch, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::path_mismatch, code = "FLUX")]
     pub struct PathMismatch {
         #[primary_span]
         #[label]
@@ -430,7 +430,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::invalid_refinement, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::invalid_refinement, code = "FLUX")]
     pub struct InvalidRefinement {
         #[primary_span]
         #[label]
@@ -449,7 +449,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::mutability_mismatch, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::mutability_mismatch, code = "FLUX")]
     pub struct MutabilityMismatch {
         #[primary_span]
         #[label]
@@ -466,7 +466,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::default_return_mismatch, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::default_return_mismatch, code = "FLUX")]
     pub struct DefaultReturnMismatch {
         #[primary_span]
         #[label]
@@ -485,7 +485,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::unresolved_location, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::unresolved_location, code = "FLUX")]
     pub struct UnresolvedLocation {
         #[primary_span]
         #[label]
@@ -500,7 +500,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::too_few_arguments, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::too_few_arguments, code = "FLUX")]
     pub struct TooFewArgs {
         #[primary_span]
         #[label]
@@ -519,7 +519,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(annot_check::too_many_arguments, code = "FLUX")]
+    #[diag(rustc_middle_ty_annot_check::too_many_arguments, code = "FLUX")]
     pub struct TooManyArgs {
         #[primary_span]
         #[label]
@@ -538,7 +538,7 @@ mod errors {
     }
 
     #[derive(Subdiagnostic)]
-    #[label(annot_check::invalid_refinement_for_def)]
+    #[label(rustc_middle_ty_annot_check::invalid_refinement_for_def)]
     struct InvalidRefinementForDef {
         #[primary_span]
         span: Span,
@@ -556,7 +556,7 @@ mod errors {
     }
 
     #[derive(Subdiagnostic)]
-    #[note(annot_check::definition_span_note)]
+    #[note(rustc_middle_ty_annot_check::definition_span_note)]
     struct DefinitionSpanNote {
         #[primary_span]
         span: Span,

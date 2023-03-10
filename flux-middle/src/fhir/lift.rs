@@ -142,12 +142,13 @@ pub fn lift_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let cx = LiftCtxt::new(early_cx, def_id);
     let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
-    let fn_decl = early_cx
+    let fn_sig = early_cx
         .hir()
-        .fn_decl_by_hir_id(hir_id)
+        .fn_sig_by_hir_id(hir_id)
         .expect("item is does not have a `FnDecl`");
 
-    let args = fn_decl
+    let args = fn_sig
+        .decl
         .inputs
         .iter()
         .map(|ty| cx.lift_ty(ty))
@@ -156,10 +157,10 @@ pub fn lift_fn_sig(
     let output = fhir::FnOutput {
         params: vec![],
         ensures: vec![],
-        ret: cx.lift_fn_ret_ty(&fn_decl.output)?,
+        ret: cx.lift_fn_ret_ty(&fn_sig.decl.output)?,
     };
 
-    Ok(fhir::FnSig { params: vec![], requires: vec![], args, output })
+    Ok(fhir::FnSig { params: vec![], requires: vec![], args, output, span: fn_sig.span })
 }
 
 impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
