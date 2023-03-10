@@ -391,7 +391,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(None, ty)?;
-                fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val })
+                fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
         };
         Ok(fhir::Ty { kind, span })

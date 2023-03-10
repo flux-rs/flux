@@ -272,7 +272,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(array_len, _) = lit.node
         {
-            Ok(fhir::ArrayLen {val: array_len as usize })
+            Ok(fhir::ArrayLen { val: array_len as usize, span: lit.span })
         } else {
             self.emit_unsupported("only interger literals are supported for array lengths")
         }

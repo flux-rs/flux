@@ -127,8 +127,8 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
                 self.zip_tys(tys, expected_tys)
             }
             (fhir::TyKind::Array(ty, len), fhir::TyKind::Array(expected_ty, expected_len)) => {
-                if len != expected_len {
-                    todo!()
+                if len.val != expected_len.val {
+                    return Err(self.emit_err(errors::ArrayLenMismatch::new(len, expected_len)));
                 }
                 self.zip_ty(ty, expected_ty)
             }
@@ -190,8 +190,6 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
 mod errors {
     use flux_macros::Diagnostic;
     use flux_middle::fhir;
-    use rustc_hir::def_id::DefId;
-    use rustc_middle::ty::TyCtxt;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -268,6 +266,29 @@ mod errors {
                 expected: expected_path.generics.len(),
                 def_descr: path.res.descr(),
                 expected_span: expected_path.span,
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(annot_check::array_len_mismatch, code = "FLUX")]
+    pub(super) struct ArrayLenMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        len: usize,
+        #[label(annot_check::expected_label)]
+        expected_span: Span,
+        expected_len: usize,
+    }
+
+    impl ArrayLenMismatch {
+        pub(super) fn new(len: &fhir::ArrayLen, expected_len: &fhir::ArrayLen) -> Self {
+            Self {
+                span: len.span,
+                len: len.val,
+                expected_span: expected_len.span,
+                expected_len: expected_len.val,
             }
         }
     }

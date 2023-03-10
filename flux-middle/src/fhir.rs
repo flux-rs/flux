@@ -190,9 +190,9 @@ pub enum TyKind {
     Never,
 }
 
-#[derive(Eq, PartialEq)]
 pub struct ArrayLen {
     pub val: usize,
+    pub span: Span,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encodable, Decodable)]

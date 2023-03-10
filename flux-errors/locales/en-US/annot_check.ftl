@@ -31,3 +31,8 @@ annot_check_generic_argument_count_mismatch =
         [one] argument
         *[other] arguments
     }
+
+annot_check_array_len_mismatch =
+    array length mismatch
+    .label = expected {$expected_len}, found {$len}
+    .expected_label = expected length
