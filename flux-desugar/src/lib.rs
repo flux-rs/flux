@@ -76,13 +76,7 @@ pub fn desugar_type_alias(
     def_id: LocalDefId,
     alias: surface::TyAlias,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
-    // Resolve
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
     let alias = resolver.resolve_type_alias(alias)?;
-
-    // Check
-    hir_annot_check::check_alias(early_cx.tcx, early_cx.sess, def_id, &alias)?;
-
-    // Desugar
     desugar::desugar_type_alias(early_cx, def_id, alias)
 }

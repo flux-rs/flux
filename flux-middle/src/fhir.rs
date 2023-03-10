@@ -382,6 +382,17 @@ impl BaseTy {
     }
 }
 
+impl Res {
+    pub fn descr(&self) -> &'static str {
+        match self {
+            Res::PrimTy(_) => "builtin type",
+            Res::Alias(_) => "type alias",
+            Res::Adt(_) => "adt",
+            Res::Param(_) => "type parameter",
+        }
+    }
+}
+
 impl From<Path> for BaseTy {
     fn from(path: Path) -> Self {
         let span = path.span;

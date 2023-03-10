@@ -426,7 +426,10 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for alias in early_cx.map.type_aliases() {
-        err = Wf::check_alias(early_cx, alias).err().or(err);
+        err = annot_check::check_alias(early_cx, alias)
+            .and_then(|_| Wf::check_alias(early_cx, alias))
+            .err()
+            .or(err);
     }
 
     for struct_def in early_cx.map.structs() {

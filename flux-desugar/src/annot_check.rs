@@ -17,6 +17,11 @@ pub fn check_fn_sig(
         .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx, def_id)?)
 }
 
+pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
+    Zipper::new(early_cx.tcx, early_cx.sess, alias.def_id)
+        .zip_ty(&alias.ty, &fhir::lift::lift_type_alias(early_cx, alias.def_id)?.ty)
+}
+
 struct Zipper<'zip, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'zip FluxSession,
@@ -169,13 +174,8 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
         if path.res != expected_path.res {
             return Err(self.emit_err(errors::InvalidRefinement::from_tys(ty, expected_ty)));
         }
-        let len = path.generics.len();
-        let expected_len = expected_path.generics.len();
-        if len != expected_len {
-            todo!()
-            // return self.emit_err(errors::GenericArgCountMismatch::from_hir_path(
-            //     self.tcx, def_id, path, hir_path,
-            // ));
+        if path.generics.len() != expected_path.generics.len() {
+            return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
         }
 
         iter::zip(&path.generics, &expected_path.generics)
@@ -190,6 +190,8 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
 mod errors {
     use flux_macros::Diagnostic;
     use flux_middle::fhir;
+    use rustc_hir::def_id::DefId;
+    use rustc_middle::ty::TyCtxt;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -241,6 +243,31 @@ mod errors {
                 args: fn_sig.args.len(),
                 expected_span: expected_fn_sig.span,
                 expected_args: expected_fn_sig.args.len(),
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(annot_check::generic_argument_count_mismatch, code = "FLUX")]
+    pub(super) struct GenericArgCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        expected: usize,
+        def_descr: &'static str,
+        #[label(annot_check::expected_label)]
+        expected_span: Span,
+    }
+
+    impl GenericArgCountMismatch {
+        pub(super) fn new(path: &fhir::Path, expected_path: &fhir::Path) -> Self {
+            GenericArgCountMismatch {
+                span: path.span,
+                found: path.generics.len(),
+                expected: expected_path.generics.len(),
+                def_descr: path.res.descr(),
+                expected_span: expected_path.span,
             }
         }
     }

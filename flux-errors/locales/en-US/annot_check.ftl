@@ -14,3 +14,20 @@ annot_check_fun_arg_count_mismatch =
         [one] argument
         *[other] arguments
     }
+
+annot_check_generic_argument_count_mismatch =
+    this {$def_descr} must take {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+    .expected_label = {$def_descr} used here with {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
