@@ -15,8 +15,6 @@ extern crate rustc_span;
 
 pub mod annot_check;
 mod desugar;
-mod hir_annot_check;
-mod rustc_middle_ty_annot_check;
 mod table_resolver;
 
 pub use desugar::{
