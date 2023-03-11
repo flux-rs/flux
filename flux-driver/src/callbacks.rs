@@ -440,7 +440,10 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for enum_def in early_cx.map.enums() {
-        err = Wf::check_enum_def(early_cx, enum_def).err().or(err);
+        err = annot_check::check_enum_def(early_cx, enum_def)
+            .and_then(|_| Wf::check_enum_def(early_cx, enum_def))
+            .err()
+            .or(err);
     }
 
     for (def_id, fn_sig) in early_cx.map.fn_sigs() {

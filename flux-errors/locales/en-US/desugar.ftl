@@ -22,6 +22,7 @@ desugar_invalid_dot_var =
 
 desugar_refine_arg_count_mismatch =
     this type takes {$expected ->
+        [0] 0 refinement arguments
         [one] 1 refinement argument
         *[other] 1 or {$expected} refinement arguments
     } but {$found ->
@@ -29,6 +30,7 @@ desugar_refine_arg_count_mismatch =
         *[other] {$found} were found
     }
     .label = expected {$expected ->
+        [0] 0 refinement arguments
         [one] {$expected} argument
         *[other] 1 or {$expected} arguments
     }, found {$found}

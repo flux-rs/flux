@@ -142,6 +142,7 @@ pub struct VariantDef {
     pub params: Vec<FunRefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -547,6 +548,12 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
 }
 
 impl rustc_errors::IntoDiagnosticArg for &Ty {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for &Path {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }

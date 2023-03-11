@@ -37,6 +37,18 @@ pub fn check_struct_def(
     }
 }
 
+pub fn check_enum_def(
+    early_cx: &EarlyCtxt,
+    enum_def: &fhir::EnumDef,
+) -> Result<(), ErrorGuaranteed> {
+    enum_def.variants.iter().try_for_each_exhaust(|variant| {
+        Zipper::new(early_cx.tcx, early_cx.sess, variant.def_id).zip_enum_variant(
+            variant,
+            &fhir::lift::lift_enum_variant_def(early_cx, variant.def_id)?,
+        )
+    })
+}
+
 struct Zipper<'zip, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'zip FluxSession,
@@ -51,6 +63,22 @@ type LocsMap<'a> = FxHashMap<fhir::Name, &'a fhir::Ty>;
 impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'zip FluxSession, def_id: LocalDefId) -> Self {
         Self { tcx, sess, def_id, locs: LocsMap::default() }
+    }
+
+    fn zip_enum_variant(
+        &mut self,
+        variant: &fhir::VariantDef,
+        expected_variant: &'zip fhir::VariantDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        if variant.fields.len() != expected_variant.fields.len() {
+            return Err(
+                self.emit_err(errors::FieldCountMismatch::from_variants(variant, expected_variant))
+            );
+        }
+        iter::zip(&variant.fields, &expected_variant.fields)
+            .try_for_each_exhaust(|(ty, expected_ty)| self.zip_ty(ty, expected_ty))?;
+
+        self.zip_bty(&variant.ret.bty, &expected_variant.ret.bty)
     }
 
     fn zip_fn_sig(
@@ -113,23 +141,21 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
                 | fhir::TyKind::Indexed(bty, _)
                 | fhir::TyKind::Exists(bty, ..),
                 fhir::TyKind::BaseTy(expected_bty),
-            ) => self.zip_bty(ty, bty, expected_ty, expected_bty),
+            ) => self.zip_bty(bty, expected_bty),
             (fhir::TyKind::Ptr(loc), fhir::TyKind::Ref(expected_rk, expected_ref_ty)) => {
                 if let fhir::RefKind::Mut = expected_rk {
                     self.locs.insert(loc.name, expected_ref_ty);
                     Ok(())
                 } else {
-                    Err(self.emit_err(
-                        errors::InvalidRefinement::from_tys(ty, expected_ty).with_note(
-                            "only mutable reference can be refined with a strong reference",
-                        ),
-                    ))
+                    Err(self.emit_err(errors::InvalidRefinement::new(ty, expected_ty).with_note(
+                        "only mutable reference can be refined with a strong reference",
+                    )))
                 }
             }
             (fhir::TyKind::Ref(rk, ref_ty), fhir::TyKind::Ref(expected_rk, expected_ref_ty)) => {
                 if rk != expected_rk {
                     return Err(self.emit_err(
-                        errors::InvalidRefinement::from_tys(ty, expected_ty)
+                        errors::InvalidRefinement::new(ty, expected_ty)
                             .with_note("types differ in mutability"),
                     ));
                 }
@@ -157,20 +183,18 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
                 self.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
-            _ => Err(self.emit_err(errors::InvalidRefinement::from_tys(ty, expected_ty))),
+            _ => Err(self.emit_err(errors::InvalidRefinement::new(ty, expected_ty))),
         }
     }
 
     fn zip_bty(
         &mut self,
-        ty: &fhir::Ty,
         bty: &fhir::BaseTy,
-        expected_ty: &fhir::Ty,
         expected_bty: &'zip fhir::BaseTy,
     ) -> Result<(), ErrorGuaranteed> {
         match (&bty.kind, &expected_bty.kind) {
             (fhir::BaseTyKind::Path(path), fhir::BaseTyKind::Path(expected_path)) => {
-                self.zip_path(ty, path, expected_ty, expected_path)
+                self.zip_path(path, expected_path)
             }
             (fhir::BaseTyKind::Slice(ty), fhir::BaseTyKind::Slice(expected_ty)) => {
                 self.zip_ty(ty, expected_ty)
@@ -181,13 +205,11 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
 
     fn zip_path(
         &mut self,
-        ty: &fhir::Ty,
         path: &fhir::Path,
-        expected_ty: &fhir::Ty,
         expected_path: &'zip fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         if path.res != expected_path.res {
-            return Err(self.emit_err(errors::InvalidRefinement::from_tys(ty, expected_ty)));
+            return Err(self.emit_err(errors::InvalidRefinementPath::new(path, expected_path)));
         }
         if path.generics.len() != expected_path.generics.len() {
             return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
@@ -222,11 +244,41 @@ mod errors {
     }
 
     impl<'a> InvalidRefinement<'a> {
-        pub(super) fn from_tys(ty: &fhir::Ty, expected_ty: &'a fhir::Ty) -> Self {
+        pub(super) fn new(ty: &fhir::Ty, expected_ty: &'a fhir::Ty) -> Self {
             Self {
                 span: ty.span,
                 expected_span: expected_ty.span,
                 expected_ty,
+                has_note: None,
+                note: String::new(),
+            }
+        }
+
+        pub(super) fn with_note(self, note: impl ToString) -> Self {
+            Self { has_note: Some(()), note: note.to_string(), ..self }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(annot_check::invalid_refinement_path, code = "FLUX")]
+    pub(super) struct InvalidRefinementPath<'a> {
+        #[primary_span]
+        #[label]
+        span: Span,
+        #[label(annot_check::expected_label)]
+        expected_span: Span,
+        expected_path: &'a fhir::Path,
+        #[note]
+        has_note: Option<()>,
+        note: String,
+    }
+
+    impl<'a> InvalidRefinementPath<'a> {
+        pub(super) fn new(path: &fhir::Path, expected_path: &'a fhir::Path) -> Self {
+            Self {
+                span: path.span,
+                expected_span: expected_path.span,
+                expected_path,
                 has_note: None,
                 note: String::new(),
             }
@@ -304,6 +356,32 @@ mod errors {
                 len: len.val,
                 expected_span: expected_len.span,
                 expected_len: expected_len.val,
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(annot_check::field_count_mismatch, code = "FLUX")]
+    pub(super) struct FieldCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        fields: usize,
+        #[label(annot_check::expected_label)]
+        expected_span: Span,
+        expected_fields: usize,
+    }
+
+    impl FieldCountMismatch {
+        pub(super) fn from_variants(
+            variant: &fhir::VariantDef,
+            expected_variant: &fhir::VariantDef,
+        ) -> Self {
+            Self {
+                span: variant.span,
+                fields: variant.fields.len(),
+                expected_span: expected_variant.span,
+                expected_fields: expected_variant.fields.len(),
             }
         }
     }

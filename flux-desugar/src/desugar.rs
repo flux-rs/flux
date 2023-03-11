@@ -199,6 +199,7 @@ fn desugar_enum_variant_def(
             params: cx.binders.pop_layer().into_fun_params(),
             fields,
             ret,
+            span: data.span,
         })
     } else {
         fhir::lift::lift_enum_variant_def(early_cx, variant_def.def_id)
