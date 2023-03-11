@@ -147,15 +147,17 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
                     self.locs.insert(loc.name, expected_ref_ty);
                     Ok(())
                 } else {
-                    Err(self.emit_err(errors::InvalidRefinement::new(ty, expected_ty).with_note(
-                        "only mutable reference can be refined with a strong reference",
-                    )))
+                    Err(self.emit_err(
+                        errors::InvalidRefinement::from_tys(ty, expected_ty).with_note(
+                            "only mutable reference can be refined with a strong reference",
+                        ),
+                    ))
                 }
             }
             (fhir::TyKind::Ref(rk, ref_ty), fhir::TyKind::Ref(expected_rk, expected_ref_ty)) => {
                 if rk != expected_rk {
                     return Err(self.emit_err(
-                        errors::InvalidRefinement::new(ty, expected_ty)
+                        errors::InvalidRefinement::from_tys(ty, expected_ty)
                             .with_note("types differ in mutability"),
                     ));
                 }
@@ -163,7 +165,10 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
             }
             (fhir::TyKind::Tuple(tys), fhir::TyKind::Tuple(expected_tys)) => {
                 if tys.len() != expected_tys.len() {
-                    todo!()
+                    return Err(self.emit_err(
+                        errors::InvalidRefinement::from_tys(ty, expected_ty)
+                            .with_note("tuples have different length"),
+                    ));
                 }
                 self.zip_tys(tys, expected_tys)
             }
@@ -178,12 +183,15 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
                 fhir::TyKind::RawPtr(expected_ty, expected_mutbl),
             ) => {
                 if mutbl != expected_mutbl {
-                    todo!()
+                    return Err(self.emit_err(
+                        errors::InvalidRefinement::from_tys(ty, expected_ty)
+                            .with_note("types differ in mutability"),
+                    ));
                 }
                 self.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
-            _ => Err(self.emit_err(errors::InvalidRefinement::new(ty, expected_ty))),
+            _ => Err(self.emit_err(errors::InvalidRefinement::from_tys(ty, expected_ty))),
         }
     }
 
@@ -199,7 +207,7 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
             (fhir::BaseTyKind::Slice(ty), fhir::BaseTyKind::Slice(expected_ty)) => {
                 self.zip_ty(ty, expected_ty)
             }
-            _ => todo!(),
+            _ => Err(self.emit_err(errors::InvalidRefinement::from_btys(bty, expected_bty))),
         }
     }
 
@@ -209,7 +217,7 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
         expected_path: &'zip fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         if path.res != expected_path.res {
-            return Err(self.emit_err(errors::InvalidRefinementPath::new(path, expected_path)));
+            return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
         if path.generics.len() != expected_path.generics.len() {
             return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
@@ -231,54 +239,44 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(annot_check::invalid_refinement, code = "FLUX")]
-    pub(super) struct InvalidRefinement<'a> {
+    pub(super) struct InvalidRefinement {
         #[primary_span]
         #[label]
         span: Span,
         #[label(annot_check::expected_label)]
         expected_span: Span,
-        expected_ty: &'a fhir::Ty,
+        expected_ty: String,
         #[note]
         has_note: Option<()>,
         note: String,
     }
 
-    impl<'a> InvalidRefinement<'a> {
-        pub(super) fn new(ty: &fhir::Ty, expected_ty: &'a fhir::Ty) -> Self {
+    impl InvalidRefinement {
+        pub(super) fn from_tys(ty: &fhir::Ty, expected_ty: &fhir::Ty) -> Self {
             Self {
                 span: ty.span,
                 expected_span: expected_ty.span,
-                expected_ty,
+                expected_ty: format!("{expected_ty:?}"),
                 has_note: None,
                 note: String::new(),
             }
         }
 
-        pub(super) fn with_note(self, note: impl ToString) -> Self {
-            Self { has_note: Some(()), note: note.to_string(), ..self }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(annot_check::invalid_refinement_path, code = "FLUX")]
-    pub(super) struct InvalidRefinementPath<'a> {
-        #[primary_span]
-        #[label]
-        span: Span,
-        #[label(annot_check::expected_label)]
-        expected_span: Span,
-        expected_path: &'a fhir::Path,
-        #[note]
-        has_note: Option<()>,
-        note: String,
-    }
-
-    impl<'a> InvalidRefinementPath<'a> {
-        pub(super) fn new(path: &fhir::Path, expected_path: &'a fhir::Path) -> Self {
+        pub(super) fn from_paths(path: &fhir::Path, expected_path: &fhir::Path) -> Self {
             Self {
                 span: path.span,
                 expected_span: expected_path.span,
-                expected_path,
+                expected_ty: format!("{expected_path:?}"),
+                has_note: None,
+                note: String::new(),
+            }
+        }
+
+        pub(super) fn from_btys(bty: &fhir::BaseTy, expected_bty: &fhir::BaseTy) -> Self {
+            Self {
+                span: bty.span,
+                expected_span: expected_bty.span,
+                expected_ty: format!("{expected_bty:?}"),
                 has_note: None,
                 note: String::new(),
             }
