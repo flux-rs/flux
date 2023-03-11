@@ -79,7 +79,7 @@ pub fn lift_type_alias(
     };
     let cx = LiftCtxt::new(early_cx, def_id);
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::TyAlias { def_id, params: vec![], ty, span: item.span })
+    Ok(fhir::TyAlias { def_id, params: vec![], ty, span: item.span, lifted: true })
 }
 
 pub fn lift_field_def(
@@ -93,7 +93,7 @@ pub fn lift_field_def(
     };
     let parent_id = early_cx.hir().get_parent_item(hir_id);
     let ty = LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)?;
-    Ok(fhir::FieldDef { def_id, ty })
+    Ok(fhir::FieldDef { def_id, ty, lifted: true })
 }
 
 pub fn lift_enum_variant_def(
@@ -134,7 +134,7 @@ pub fn lift_enum_variant_def(
         bty: fhir::BaseTy::from(path),
         idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
     };
-    Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span })
+    Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
 }
 
 pub fn lift_fn_sig(
@@ -161,7 +161,14 @@ pub fn lift_fn_sig(
         ret: cx.lift_fn_ret_ty(&fn_sig.decl.output)?,
     };
 
-    Ok(fhir::FnSig { params: vec![], requires: vec![], args, output, span: fn_sig.span })
+    Ok(fhir::FnSig {
+        params: vec![],
+        requires: vec![],
+        args,
+        output,
+        lifted: true,
+        span: fn_sig.span,
+    })
 }
 
 impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {

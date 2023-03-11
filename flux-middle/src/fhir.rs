@@ -106,6 +106,10 @@ pub struct TyAlias {
     pub params: Vec<(Ident, Sort)>,
     pub ty: Ty,
     pub span: Span,
+    /// Whether this alias was [lifted] from a `hir` alias
+    ///
+    /// [lifted]: lift::lift_type_alias
+    pub lifted: bool,
 }
 
 #[derive(Debug)]
@@ -126,6 +130,10 @@ pub enum StructKind {
 pub struct FieldDef {
     pub def_id: LocalDefId,
     pub ty: Ty,
+    /// Whether this field was [lifted] from a `hir` field
+    ///
+    /// [lifted]: lift::lift_field_def
+    pub lifted: bool,
 }
 
 #[derive(Debug)]
@@ -143,6 +151,10 @@ pub struct VariantDef {
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
     pub span: Span,
+    /// Whether this variant was [lifted] from a hir variant
+    ///
+    /// [lifted]: lift::lift_enum_variant_def
+    pub lifted: bool,
 }
 
 #[derive(Debug)]
@@ -159,6 +171,10 @@ pub struct FnSig {
     /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
     pub output: FnOutput,
+    /// Whether the sig was [lifted] from a hir signature
+    ///
+    /// [lifted]: lift::lift_fn_sig
+    pub lifted: bool,
     pub span: Span,
 }
 

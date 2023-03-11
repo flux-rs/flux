@@ -119,7 +119,13 @@ pub fn desugar_type_alias(
     let mut cx = DesugarCtxt::new(early_cx, binders);
     let ty = cx.desugar_ty(None, &alias.ty)?;
 
-    Ok(fhir::TyAlias { def_id, params: cx.binders.pop_layer().into_params(), ty, span: alias.span })
+    Ok(fhir::TyAlias {
+        def_id,
+        params: cx.binders.pop_layer().into_params(),
+        ty,
+        span: alias.span,
+        lifted: false,
+    })
 }
 
 pub fn desugar_struct_def(
@@ -145,7 +151,11 @@ pub fn desugar_struct_def(
             .iter()
             .map(|field| {
                 if let Some(ty) = &field.ty {
-                    Ok(fhir::FieldDef { ty: cx.desugar_ty(None, ty)?, def_id: field.def_id })
+                    Ok(fhir::FieldDef {
+                        ty: cx.desugar_ty(None, ty)?,
+                        def_id: field.def_id,
+                        lifted: false,
+                    })
                 } else {
                     fhir::lift::lift_field_def(early_cx, field.def_id)
                 }
@@ -200,6 +210,7 @@ fn desugar_enum_variant_def(
             fields,
             ret,
             span: data.span,
+            lifted: false,
         })
     } else {
         fhir::lift::lift_enum_variant_def(early_cx, variant_def.def_id)
@@ -260,6 +271,7 @@ pub fn desugar_fn_sig(
         args,
         output,
         span: fn_sig.span,
+        lifted: false,
     })
 }
 
