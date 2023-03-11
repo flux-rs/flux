@@ -21,11 +21,17 @@ desugar_invalid_dot_var =
     unsupported field access in refinement
 
 desugar_refine_arg_count_mismatch =
-    this type takes {$expected} refinement arguments but {$found ->
+    this type takes {$expected ->
+        [one] 1 refinement argument
+        *[other] 1 or {$expected} refinement arguments
+    } but {$found ->
         [one] {$found} was found
         *[other] {$found} were found
     }
-    .label = expected {$expected} arguments, found {$found}
+    .label = expected {$expected ->
+        [one] {$expected} argument
+        *[other] 1 or {$expected} arguments
+    }, found {$found}
 
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter

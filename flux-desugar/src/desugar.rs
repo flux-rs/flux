@@ -402,11 +402,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         bty: &fhir::BaseTy,
         idxs: &surface::Indices,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
-        if let Some(def_id) = bty.is_aggregate() && idxs.indices.len() != 1 {
+        if let [idx] = &idxs.indices[..] {
+            self.desugar_refine_arg(idx)
+        } else if let Some(def_id) = bty.is_aggregate() {
             let flds = self.desugar_refine_args(&idxs.indices)?;
             Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span))
         } else {
-            self.desugar_refine_arg(&idxs.indices[0])
+            span_bug!(bty.span, "invalid index on non-aggregate type")
         }
     }
 
@@ -741,8 +743,9 @@ impl Binders {
         for ty in &data.fields {
             self.gather_params_ty(early_cx, None, ty, TypePos::Input)?;
         }
-        // Traverse return type to find illegal binders.
-        self.gather_params_path(early_cx, &data.ret.path, TypePos::Other)?;
+        // Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
+        self.gather_params_variant_ret(early_cx, &data.ret)?;
+
         // Check binders in `VariantRet`
         data.ret.indices.indices.iter().try_for_each_exhaust(|idx| {
             if let surface::RefineArg::Bind(_, kind, span) = idx {
@@ -751,6 +754,18 @@ impl Binders {
                 Ok(())
             }
         })
+    }
+
+    fn gather_params_variant_ret(
+        &mut self,
+        early_cx: &EarlyCtxt,
+        ret: &surface::VariantRet<Res>,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.gather_params_path(early_cx, &ret.path, TypePos::Other)?;
+        let Some(sort) = early_cx.sort_of_res(ret.path.res) else {
+            return Err(early_cx.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
+        };
+        self.gather_params_indices(early_cx, sort, &ret.indices, TypePos::Other)
     }
 
     fn gather_input_params_fn_sig(
@@ -822,40 +837,10 @@ impl Binders {
                 if let Some(bind) = bind {
                     self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
-                if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
-                    let binder = self.binder_from_bty(early_cx, bty);
-                    if !pos.is_binder_allowed(kind) {
-                        return Err(early_cx.emit_err(errors::IllegalBinder::new(span, kind)));
-                    }
-                    self.insert_binder(early_cx.sess, ident, binder)?;
-                } else {
-                    let Some(sort) = index_sort(early_cx, bty) else {
-                        return Err(early_cx.emit_err(errors::RefinedUnrefinableType::new(ty.span)));
-                    };
-                    let refined_by = as_tuple(early_cx, &sort);
-                    let exp = refined_by.len();
-                    let got = indices.indices.len();
-                    if exp != got {
-                        return Err(early_cx
-                            .emit_err(errors::RefineArgCountMismatch::new(ty.span, exp, got)));
-                    }
-
-                    for (idx, sort) in iter::zip(&indices.indices, refined_by) {
-                        if let surface::RefineArg::Bind(ident, kind, span) = idx {
-                            if !pos.is_binder_allowed(*kind) {
-                                return Err(
-                                    early_cx.emit_err(errors::IllegalBinder::new(*span, *kind))
-                                );
-                            }
-                            let name = self.name_gen.fresh();
-                            self.insert_binder(
-                                early_cx.sess,
-                                *ident,
-                                Binder::Refined(name, sort.clone(), true),
-                            )?;
-                        }
-                    }
-                }
+                let Some(sort) = index_sort(early_cx, bty) else {
+                    return Err(early_cx.emit_err(errors::RefinedUnrefinableType::new(ty.span)));
+                };
+                self.gather_params_indices(early_cx, sort, indices, pos)?;
                 self.gather_params_bty(early_cx, bty, pos)
             }
             surface::TyKind::Base(bty) => {
@@ -893,6 +878,40 @@ impl Binders {
                 self.gather_params_bty(early_cx, bty, pos)
             }
         }
+    }
+
+    fn gather_params_indices(
+        &mut self,
+        early_cx: &EarlyCtxt,
+        sort: fhir::Sort,
+        indices: &surface::Indices,
+        pos: TypePos,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
+            if !pos.is_binder_allowed(kind) {
+                return Err(early_cx.emit_err(errors::IllegalBinder::new(span, kind)));
+            }
+            self.insert_binder(early_cx.sess, ident, self.binder_from_sort(sort))?;
+        } else {
+            let sorts = as_tuple(early_cx, &sort);
+            if sorts.len() != indices.indices.len() {
+                return Err(early_cx.emit_err(errors::RefineArgCountMismatch::new(
+                    indices.span,
+                    sorts.len(),
+                    indices.indices.len(),
+                )));
+            }
+
+            for (idx, sort) in iter::zip(&indices.indices, sorts) {
+                if let surface::RefineArg::Bind(ident, kind, span) = idx {
+                    if !pos.is_binder_allowed(*kind) {
+                        return Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)));
+                    }
+                    self.insert_binder(early_cx.sess, *ident, self.binder_from_sort(sort.clone()))?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn gather_params_path(
@@ -937,9 +956,13 @@ impl Binders {
         self.layers.pop().unwrap()
     }
 
+    fn binder_from_sort(&self, sort: fhir::Sort) -> Binder {
+        Binder::Refined(self.fresh(), sort, true)
+    }
+
     fn binder_from_res(&self, early_cx: &EarlyCtxt, res: fhir::Res) -> Binder {
         if let Some(sort) = early_cx.sort_of_res(res) {
-            Binder::Refined(self.fresh(), sort, true)
+            self.binder_from_sort(sort)
         } else {
             Binder::Unrefined
         }
@@ -947,7 +970,7 @@ impl Binders {
 
     fn binder_from_bty(&self, early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Binder {
         if let Some(sort) = index_sort(early_cx, bty) {
-            Binder::Refined(self.name_gen.fresh(), sort, true)
+            self.binder_from_sort(sort)
         } else {
             Binder::Unrefined
         }
@@ -1192,13 +1215,12 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        expected: String,
+        expected: usize,
         found: usize,
     }
 
     impl RefineArgCountMismatch {
-        pub(super) fn new(span: Span, exp: usize, found: usize) -> Self {
-            let expected = if exp > 1 { format!("1 or {exp:?}") } else { exp.to_string() };
+        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
             Self { span, expected, found }
         }
     }
