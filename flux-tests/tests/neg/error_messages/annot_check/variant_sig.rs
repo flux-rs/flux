@@ -15,8 +15,8 @@ enum E1<T> {
 }
 
 enum E2<T> {
-    #[flux::variant((i32, T) -> i32)] //~ ERROR invalid refinement annotation
-    A(i32, T),
+    #[flux::variant((E1<T>, T) -> E1<T>)] //~ ERROR invalid refinement annotation
+    A(E1<T>, T),
 }
 
 enum E3<T> {

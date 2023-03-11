@@ -1,77 +1,49 @@
-annot_check_unresolved_location =
-    cannot resolve `{$loc}`: only `&strg` variables can appear in ensures clauses
-    .label = maybe annotate as `&strg`
+annot_check_invalid_refinement =
+    invalid refinement annotation
+    .label = expected a refinement of `{$expected_ty}`
+    .expected_label = must be a valid refinement of this type
+    .note = {$note}
+
+annot_check_fun_arg_count_mismatch =
+    argument count mismatch
+    .label = refined signature has {$args} {$args ->
+        [one] argument
+        *[other] arguments
+     }
+    .expected_label = rust signature has {$expected_args} {$expected_args ->
+        [one] argument
+        *[other] arguments
+    }
+
+annot_check_generic_argument_count_mismatch =
+    this {$def_descr} must take {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+    .expected_label = {$def_descr} used here with {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
 
 annot_check_array_len_mismatch =
     array length mismatch
-    .label = refined signature has length {$len}, but rust signature says {$rust_len}
-
-annot_check_arg_count_mismatch =
-    argument count mismatch
-    .label = refined signature has {$flux_args} {$flux_args ->
-        [one] argument
-        *[other] arguments
-     }
-    .rust_label = rust signature has {$rust_args} {$rust_args ->
-        [one] argument
-        *[other] arguments
-    }
+    .label = expected {$expected_len}, found {$len}
+    .expected_label = expected length
 
 annot_check_field_count_mismatch =
     field count mismatch
-    .label = refined variant has {$flux_fields} {$flux_fields ->
+    .label = refined variant has {$fields} {$fields ->
         [one] field
         *[other] fields
      }
-    .rust_label = rust variant has {$rust_fields} {$rust_fields ->
+    .expected_label = rust variant has {$expected_fields} {$expected_fields ->
         [one] field
         *[other] fields
     }
-
-annot_check_path_mismatch =
-    invalid refinement annotation
-    .label =  expected `{$rust_type}`, found `{$flux_type}`
-
-annot_check_invalid_refinement =
-    invalid refinement annotation
-    .label = not a valid refinement of `{$rust_type}`
-
-annot_check_mutability_mismatch =
-    mismatched types
-    .label = types differ in mutability
-
-annot_check_default_return_mismatch =
-    return type mismatch
-    .label = expected `{$rust_type}`, found `()`
-
-annot_check_too_few_arguments =
-    this {$def_kind} takes at least {$min} generic {$min ->
-        [one] argument
-        *[other] arguments
-    } but {$found} generic {$found ->
-        [one] argument was
-        *[other] arguments were
-    } supplied
-    .label = expected at least {$min} generic {$min ->
-        [one] argument
-        *[other] arguments
-    }
-
-annot_check_too_many_arguments =
-    this {$def_kind} takes at most {$max} generic {$max ->
-        [one] argument
-        *[other] arguments
-    } but {$found} generic {$found ->
-        [one] argument was
-        *[other] arguments were
-    } supplied
-    .label = expected at most {$max} generic {$max ->
-        [one] argument
-        *[other] arguments
-    }
-
-annot_check_invalid_refinement_for_def =
-    refinement annotation for this {$def_kind} is invalid
-
-annot_check_definition_span_note =
-    {$def_kind} defined here

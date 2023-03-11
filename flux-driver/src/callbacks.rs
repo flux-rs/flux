@@ -1,3 +1,4 @@
+use desugar::annot_check;
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
@@ -425,19 +426,31 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for alias in early_cx.map.type_aliases() {
-        err = Wf::check_alias(early_cx, alias).err().or(err);
+        err = Wf::check_alias(early_cx, alias)
+            .and_then(|_| annot_check::check_alias(early_cx, alias))
+            .err()
+            .or(err);
     }
 
     for struct_def in early_cx.map.structs() {
-        err = Wf::check_struct_def(early_cx, struct_def).err().or(err);
+        err = Wf::check_struct_def(early_cx, struct_def)
+            .and_then(|_| annot_check::check_struct_def(early_cx, struct_def))
+            .err()
+            .or(err);
     }
 
     for enum_def in early_cx.map.enums() {
-        err = Wf::check_enum_def(early_cx, enum_def).err().or(err);
+        err = Wf::check_enum_def(early_cx, enum_def)
+            .and_then(|_| annot_check::check_enum_def(early_cx, enum_def))
+            .err()
+            .or(err);
     }
 
-    for (_, fn_sig) in early_cx.map.fn_sigs() {
-        err = Wf::check_fn_sig(early_cx, fn_sig).err().or(err);
+    for (def_id, fn_sig) in early_cx.map.fn_sigs() {
+        err = Wf::check_fn_sig(early_cx, fn_sig)
+            .and_then(|_| annot_check::check_fn_sig(early_cx, def_id, fn_sig))
+            .err()
+            .or(err);
     }
 
     let qualifiers = early_cx.map.qualifiers().map(|q| q.name.clone()).collect();

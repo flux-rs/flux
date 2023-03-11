@@ -79,23 +79,24 @@ pub fn lift_type_alias(
     };
     let cx = LiftCtxt::new(early_cx, def_id);
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::TyAlias { def_id, params: vec![], ty, span: item.span })
+    Ok(fhir::TyAlias { def_id, params: vec![], ty, span: item.span, lifted: true })
 }
 
 pub fn lift_field_def(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
-) -> Result<fhir::Ty, ErrorGuaranteed> {
+) -> Result<fhir::FieldDef, ErrorGuaranteed> {
     let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
     let node = early_cx.hir().get(hir_id);
     let hir::Node::Field(field_def) = node else {
         bug!("expected a field")
     };
     let parent_id = early_cx.hir().get_parent_item(hir_id);
-    LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)
+    let ty = LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)?;
+    Ok(fhir::FieldDef { def_id, ty, lifted: true })
 }
 
-pub fn lift_variant_def(
+pub fn lift_enum_variant_def(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
@@ -123,7 +124,7 @@ pub fn lift_variant_def(
         .try_collect_exhaust()?;
 
     let path = fhir::Path {
-        res: fhir::Res::Adt(enum_id.to_def_id()),
+        res: fhir::Res::Enum(enum_id.to_def_id()),
         generics: cx.generic_params_into_args(generics)?,
         refine: vec![],
         // FIXME(nilehmann) the span should also include the generic arguments
@@ -133,7 +134,7 @@ pub fn lift_variant_def(
         bty: fhir::BaseTy::from(path),
         idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span),
     };
-    Ok(fhir::VariantDef { def_id, params: vec![], fields, ret })
+    Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
 }
 
 pub fn lift_fn_sig(
@@ -142,12 +143,13 @@ pub fn lift_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let cx = LiftCtxt::new(early_cx, def_id);
     let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
-    let fn_decl = early_cx
+    let fn_sig = early_cx
         .hir()
-        .fn_decl_by_hir_id(hir_id)
+        .fn_sig_by_hir_id(hir_id)
         .expect("item is does not have a `FnDecl`");
 
-    let args = fn_decl
+    let args = fn_sig
+        .decl
         .inputs
         .iter()
         .map(|ty| cx.lift_ty(ty))
@@ -156,10 +158,17 @@ pub fn lift_fn_sig(
     let output = fhir::FnOutput {
         params: vec![],
         ensures: vec![],
-        ret: cx.lift_fn_ret_ty(&fn_decl.output)?,
+        ret: cx.lift_fn_ret_ty(&fn_sig.decl.output)?,
     };
 
-    Ok(fhir::FnSig { params: vec![], requires: vec![], args, output })
+    Ok(fhir::FnSig {
+        params: vec![],
+        requires: vec![],
+        args,
+        output,
+        lifted: true,
+        span: fn_sig.span,
+    })
 }
 
 impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
@@ -209,7 +218,8 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
         let res = match path.res {
-            hir::def::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => fhir::Res::Adt(def_id),
+            hir::def::Res::Def(DefKind::Struct, def_id) => fhir::Res::Struct(def_id),
+            hir::def::Res::Def(DefKind::Enum, def_id) => fhir::Res::Enum(def_id),
             hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
             hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Res::Param(def_id),
@@ -271,7 +281,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
         if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(array_len, _) = lit.node
         {
-            Ok(fhir::ArrayLen {val: array_len as usize })
+            Ok(fhir::ArrayLen { val: array_len as usize, span: lit.span })
         } else {
             self.emit_unsupported("only interger literals are supported for array lengths")
         }

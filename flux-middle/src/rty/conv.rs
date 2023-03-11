@@ -224,7 +224,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         let def_id = struct_def.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            let fields = fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
+            let fields = fields
+                .iter()
+                .map(|field_def| cx.conv_ty(&field_def.ty))
+                .collect_vec();
 
             let substs = genv
                 .generics_of(def_id)
@@ -420,7 +423,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
-            fhir::Res::Adt(did) => {
+            fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
                 let adt_def = self.genv.adt_def(*did);
                 let substs = self.conv_generic_args(*did, &path.generics);
                 rty::BaseTy::adt(adt_def, substs)
