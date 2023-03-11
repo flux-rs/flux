@@ -1,3 +1,9 @@
+//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
+//!
+//! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
+//! "zip" them together.
+//!
+//! [`lift`]: flux_middle::fhir::lift
 use std::iter;
 
 use flux_common::iter::IterExt;
