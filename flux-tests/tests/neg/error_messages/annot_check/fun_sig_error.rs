@@ -48,7 +48,7 @@ fn test08(f: &mut f32) {}
 fn test09(f: f32) {}
 
 // strong reference for a non &mut T
-#[flux::sig(fn(x: &strg i32))] //~ ERROR invalid refinement annotation
+#[flux::sig(fn(x: &strg i32) ensures x: i32)] //~ ERROR invalid refinement annotation
 fn test10(x: &i32) {}
 
 // constrained type for a non path

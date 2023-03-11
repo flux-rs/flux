@@ -426,29 +426,29 @@ fn check_wf(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     }
 
     for alias in early_cx.map.type_aliases() {
-        err = annot_check::check_alias(early_cx, alias)
-            .and_then(|_| Wf::check_alias(early_cx, alias))
+        err = Wf::check_alias(early_cx, alias)
+            .and_then(|_| annot_check::check_alias(early_cx, alias))
             .err()
             .or(err);
     }
 
     for struct_def in early_cx.map.structs() {
-        err = annot_check::check_struct_def(early_cx, struct_def)
-            .and_then(|_| Wf::check_struct_def(early_cx, struct_def))
+        err = Wf::check_struct_def(early_cx, struct_def)
+            .and_then(|_| annot_check::check_struct_def(early_cx, struct_def))
             .err()
             .or(err);
     }
 
     for enum_def in early_cx.map.enums() {
-        err = annot_check::check_enum_def(early_cx, enum_def)
-            .and_then(|_| Wf::check_enum_def(early_cx, enum_def))
+        err = Wf::check_enum_def(early_cx, enum_def)
+            .and_then(|_| annot_check::check_enum_def(early_cx, enum_def))
             .err()
             .or(err);
     }
 
     for (def_id, fn_sig) in early_cx.map.fn_sigs() {
-        err = annot_check::check_fn_sig(early_cx, def_id, fn_sig)
-            .and_then(|_| Wf::check_fn_sig(early_cx, fn_sig))
+        err = Wf::check_fn_sig(early_cx, fn_sig)
+            .and_then(|_| annot_check::check_fn_sig(early_cx, def_id, fn_sig))
             .err()
             .or(err);
     }

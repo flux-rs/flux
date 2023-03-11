@@ -90,30 +90,16 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
             return Err(self.emit_err(errors::FunArgCountMismatch::new(fn_sig, expected_fn_sig)));
         }
         self.zip_tys(&fn_sig.args, &expected_fn_sig.args)?;
-        fn_sig.requires.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, ty) = constr {
-                self.zip_ty(ty, self.locs[&loc.name])
-            } else {
-                Ok(())
-            }
-        })?;
+        self.zip_constraints(&fn_sig.requires)?;
 
-        self.zip_fn_output(&fn_sig.output, &expected_fn_sig.output)
+        self.zip_ty(&fn_sig.output.ret, &expected_fn_sig.output.ret)?;
+        self.zip_constraints(&fn_sig.output.ensures)
     }
 
-    fn zip_fn_output(
-        &mut self,
-        output: &fhir::FnOutput,
-        expected_output: &'zip fhir::FnOutput,
-    ) -> Result<(), ErrorGuaranteed> {
-        self.zip_ty(&output.ret, &expected_output.ret)?;
-        output.ensures.iter().try_for_each_exhaust(|constr| {
+    fn zip_constraints(&mut self, constrs: &[fhir::Constraint]) -> Result<(), ErrorGuaranteed> {
+        constrs.iter().try_for_each_exhaust(|constr| {
             if let fhir::Constraint::Type(loc, ty) = constr {
-                if let Some(expected_ty) = self.locs.get(&loc.name) {
-                    self.zip_ty(ty, expected_ty)
-                } else {
-                    todo!()
-                }
+                self.zip_ty(ty, self.locs[&loc.name])
             } else {
                 Ok(())
             }
