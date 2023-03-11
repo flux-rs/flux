@@ -6,19 +6,17 @@ use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::ty::TyCtxt;
 
 pub fn check_fn_sig(
     early_cx: &EarlyCtxt,
     def_id: LocalDefId,
     fn_sig: &fhir::FnSig,
 ) -> Result<(), ErrorGuaranteed> {
-    Zipper::new(early_cx.tcx, early_cx.sess, def_id)
-        .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx, def_id)?)
+    Zipper::new(early_cx.sess).zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx, def_id)?)
 }
 
 pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
-    Zipper::new(early_cx.tcx, early_cx.sess, alias.def_id)
+    Zipper::new(early_cx.sess)
         .zip_ty(&alias.ty, &fhir::lift::lift_type_alias(early_cx, alias.def_id)?.ty)
 }
 
@@ -29,7 +27,7 @@ pub fn check_struct_def(
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
             fields.iter().try_for_each_exhaust(|field| {
-                Zipper::new(early_cx.tcx, early_cx.sess, struct_def.def_id)
+                Zipper::new(early_cx.sess)
                     .zip_ty(&field.ty, &fhir::lift::lift_field_def(early_cx, field.def_id)?.ty)
             })
         }
@@ -42,27 +40,23 @@ pub fn check_enum_def(
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
-        Zipper::new(early_cx.tcx, early_cx.sess, variant.def_id).zip_enum_variant(
+        Zipper::new(early_cx.sess).zip_enum_variant(
             variant,
             &fhir::lift::lift_enum_variant_def(early_cx, variant.def_id)?,
         )
     })
 }
 
-struct Zipper<'zip, 'tcx> {
-    tcx: TyCtxt<'tcx>,
+struct Zipper<'zip> {
     sess: &'zip FluxSession,
     locs: LocsMap<'zip>,
-    /// [`LocalDefId`] of the definition being zipped, this could either be a field on a struct,
-    /// a variant on a enum, or a function.
-    def_id: LocalDefId,
 }
 
 type LocsMap<'a> = FxHashMap<fhir::Name, &'a fhir::Ty>;
 
-impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, sess: &'zip FluxSession, def_id: LocalDefId) -> Self {
-        Self { tcx, sess, def_id, locs: LocsMap::default() }
+impl<'zip> Zipper<'zip> {
+    fn new(sess: &'zip FluxSession) -> Self {
+        Self { sess, locs: LocsMap::default() }
     }
 
     fn zip_enum_variant(
