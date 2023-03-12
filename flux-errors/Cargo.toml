@@ -5,9 +5,5 @@ version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-flux-macros = { path = "../flux-macros" }
-
-
 [package.metadata.rust-analyzer]
 rustc_private = true

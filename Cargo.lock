@@ -469,7 +469,6 @@ dependencies = [
 name = "flux"
 version = "0.1.0"
 dependencies = [
- "flux-common",
  "flux-config",
  "flux-driver",
  "tracing",
@@ -509,7 +508,6 @@ version = "0.1.0"
 dependencies = [
  "flux-common",
  "flux-errors",
- "flux-fixpoint",
  "flux-macros",
  "flux-middle",
  "flux-syntax",
@@ -525,7 +523,6 @@ dependencies = [
  "flux-desugar",
  "flux-errors",
  "flux-fhir-analysis",
- "flux-fixpoint",
  "flux-macros",
  "flux-metadata",
  "flux-middle",
@@ -538,9 +535,6 @@ dependencies = [
 [[package]]
 name = "flux-errors"
 version = "0.1.0"
-dependencies = [
- "flux-macros",
-]
 
 [[package]]
 name = "flux-fhir-analysis"
@@ -623,7 +617,6 @@ name = "flux-syntax"
 version = "0.1.0"
 dependencies = [
  "flux-errors",
- "flux-macros",
  "lalrpop",
  "lalrpop-util",
 ]

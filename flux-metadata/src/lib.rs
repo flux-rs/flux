@@ -1,3 +1,4 @@
+#![warn(unused_extern_crates)]
 #![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 

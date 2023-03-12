@@ -1,16 +1,14 @@
+#![warn(unused_extern_crates)]
 #![feature(rustc_private)]
 #![feature(min_specialization)]
 #![feature(box_patterns, once_cell)]
 #![feature(let_chains)]
 
-extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
-extern crate rustc_hir_pretty;
 extern crate rustc_middle;
-extern crate rustc_session;
 extern crate rustc_span;
 
 use flux_macros::fluent_messages;
