@@ -541,6 +541,7 @@ name = "flux-fhir-analysis"
 version = "0.1.0"
 dependencies = [
  "flux-common",
+ "flux-config",
  "flux-errors",
  "flux-macros",
  "flux-middle",

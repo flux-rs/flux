@@ -105,7 +105,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .map(|(param, arg)| self.refine_generic_arg(param, arg))
             .collect_vec();
         let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
-        let ret = rty::Ty::indexed(bty, rty::Index::unit());
+        let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
         rty::Binder::new(value, rty::Sort::unit())
     }

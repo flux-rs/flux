@@ -87,11 +87,10 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         let mut early_cx = EarlyCtxt::new(tcx, sess, Box::new(cstore), fhir::Map::default());
         build_fhir_map(&mut early_cx, &mut specs)?;
-        flux_fhir_analysis::check_crate(&early_cx)?;
+
+        let mut genv = flux_fhir_analysis::build_genv(early_cx)?;
 
         tracing::info!("Callbacks::check_wf");
-
-        let mut genv = GlobalEnv::new(early_cx)?;
 
         let mut ck = CrateChecker::new(&mut genv, specs.ignores);
 

@@ -1,25 +1,16 @@
-//! Conversion from types in [`crate::fhir`] to types in [`crate::rty`]
+//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
 //! 1. Names are bound correctly.
 //! 2. Refinement parameters appear in allowed positions. This is particularly important for
-//!    refinement predicates, aka abstract refinements, since the syntax in [`crate::rty`] has
+//!    refinement predicates, aka abstract refinements, since the syntax in [`rty`] has
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, span_bug};
-use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
-use rustc_hir::{
-    def_id::{DefId, LocalDefId},
-    PrimTy,
-};
-use rustc_middle::ty::TyCtxt;
-
-use super::{Binder, PolyVariant};
-use crate::{
+use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir::{self, SurfaceIdent},
     global_env::GlobalEnv,
@@ -27,6 +18,13 @@ use crate::{
     rty::{self, fold::TypeFoldable, DebruijnIndex},
     rustc,
 };
+use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexMap;
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    PrimTy,
+};
+use rustc_middle::ty::TyCtxt;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -132,14 +130,14 @@ pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
     let mut env = Env::with_layer(early_cx, Layer::from_params(early_cx, &defn.args));
     let expr = env.conv_expr(&defn.expr);
-    let expr = Binder::new(expr, env.pop_layer().into_sort());
+    let expr = rty::Binder::new(expr, env.pop_layer().into_sort());
     rty::Defn { name: defn.name, expr }
 }
 
 pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
     let mut env = Env::with_layer(early_cx, Layer::from_params(early_cx, &qualifier.args));
     let body = env.conv_expr(&qualifier.expr);
-    let body = Binder::new(body, env.pop_layer().into_sort());
+    let body = rty::Binder::new(body, env.pop_layer().into_sort());
     rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
 }
 
@@ -173,7 +171,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Self { genv, env }
     }
 
-    fn conv_fn_output(&mut self, output: &fhir::FnOutput) -> Binder<rty::FnOutput> {
+    fn conv_fn_output(&mut self, output: &fhir::FnOutput) -> rty::Binder<rty::FnOutput> {
         self.env
             .push_layer(Layer::from_fun_params(self.early_cx(), &output.params));
 
@@ -187,13 +185,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         let sort = self.env.pop_layer().into_sort();
 
-        Binder::new(output, sort)
+        rty::Binder::new(output, sort)
     }
 
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
-    ) -> Vec<PolyVariant> {
+    ) -> Vec<rty::PolyVariant> {
         enum_def
             .variants
             .iter()
@@ -201,7 +199,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .collect()
     }
 
-    fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> PolyVariant {
+    fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> rty::PolyVariant {
         let layer = Layer::from_fun_params(genv.early_cx(), &variant.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
@@ -212,7 +210,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let variant = rty::VariantDef::new(fields, ret);
 
         let sort = cx.env.pop_layer().to_sort();
-        Binder::new(variant, sort)
+        rty::Binder::new(variant, sort)
     }
 
     pub(crate) fn conv_struct_def_variant(
@@ -253,7 +251,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
-            rty::Opaqueness::Transparent(Binder::new(variant, sort))
+            rty::Opaqueness::Transparent(rty::Binder::new(variant, sort))
         } else {
             rty::Opaqueness::Opaque
         }
@@ -283,7 +281,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             let idx = rty::Index::from(rty::Expr::nu());
                             let ty = self.conv_base_ty(bty, idx);
                             self.env.pop_layer();
-                            rty::Ty::exists(Binder::new(ty, sort))
+                            rty::Ty::exists(rty::Binder::new(ty, sort))
                         }
                     }
                     None => {
@@ -311,7 +309,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 if sort.is_unit() {
                     constr.shift_out_bvars(1)
                 } else {
-                    rty::Ty::exists(Binder::new(constr, sort))
+                    rty::Ty::exists(rty::Binder::new(constr, sort))
                 }
             }
             fhir::TyKind::Ptr(loc) => {
@@ -335,7 +333,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::TyKind::RawPtr(ty, mutability) => {
                 rty::Ty::indexed(
                     rty::BaseTy::RawPtr(self.conv_ty(ty), *mutability),
-                    rty::Index::unit(),
+                    rty::Expr::unit(),
                 )
             }
         }
@@ -562,7 +560,7 @@ impl Env<'_, '_> {
     }
 
     fn conv_invariant(&self, sort: &rty::Sort, invariant: &fhir::Expr) -> rty::Invariant {
-        rty::Invariant { pred: Binder::new(self.conv_expr(invariant), sort.clone()) }
+        rty::Invariant { pred: rty::Binder::new(self.conv_expr(invariant), sort.clone()) }
     }
 }
 

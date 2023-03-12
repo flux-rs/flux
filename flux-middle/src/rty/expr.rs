@@ -469,7 +469,7 @@ impl Expr {
         Binder::new(Expr::app(self, Expr::nu()), sort.clone())
     }
 
-    pub(crate) fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
+    pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
         fn go(sort: &Sort, projs: &mut Vec<u32>, f: &impl Fn(&[u32]) -> Expr) -> Expr {
             if let Sort::Tuple(sorts) = sort {
                 Expr::tuple(

@@ -44,7 +44,7 @@ impl FluxSession {
 
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
-        err.into_diagnostic(&self.parse_sess.span_diagnostic).emit()
+        self.parse_sess.emit_err(err)
     }
 
     #[track_caller]

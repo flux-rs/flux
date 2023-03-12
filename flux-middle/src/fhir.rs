@@ -395,7 +395,7 @@ impl BaseTy {
         }
     }
 
-    pub(crate) fn expect_param(&self) -> DefId {
+    pub fn expect_param(&self) -> DefId {
         if let BaseTyKind::Path(path) = &self.kind
            && let Res::Param(def_id) = path.res
         {
