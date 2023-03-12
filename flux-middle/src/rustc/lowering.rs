@@ -26,7 +26,7 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
+        Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
         GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, Predicate,
         PredicateKind, Ty, VariantDef,
     },
@@ -535,19 +535,6 @@ pub fn lower_type_of(
     lower_ty(tcx, ty)
         .map_err(|err| errors::UnsupportedTypeOf::new(span, ty, err))
         .emit(sess)
-}
-
-pub fn lower_adt_def<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    sess: &FluxSession,
-    adt_def: rustc_ty::AdtDef<'tcx>,
-) -> Result<AdtDef, ErrorGuaranteed> {
-    let adt_def_id = adt_def.did();
-    let mut variants = vec![];
-    for variant_def in adt_def.variants() {
-        variants.push(lower_variant_def(tcx, sess, adt_def_id, variant_def)?);
-    }
-    Ok(AdtDef { variants })
 }
 
 pub fn lower_variant_def(
