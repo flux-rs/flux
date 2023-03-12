@@ -1,4 +1,5 @@
-#![allow(warnings)]
+#![deny(unused_must_use)]
+#![allow(clippy::all, clippy::pedantic)]
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote};
@@ -14,8 +15,8 @@ use crate::diagnostics::{
     },
     utils::{
         build_field_mapping, is_doc_comment, report_error_if_not_applied_to_span,
-        report_type_error, should_generate_set_arg, type_is_unit, type_matches_path, FieldInfo,
-        FieldInnerTy, FieldMap, HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
+        report_type_error, should_generate_set_arg, type_is_bool, type_is_unit, type_matches_path,
+        FieldInfo, FieldInnerTy, FieldMap, HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
     },
 };
 
@@ -103,7 +104,7 @@ impl DiagnosticDeriveBuilder {
                 _ => variant.ast().ident.span().unwrap(),
             };
             let builder = DiagnosticDeriveVariantBuilder {
-                parent: &self,
+                parent: self,
                 span,
                 field_map: build_field_mapping(variant),
                 formatting_init: TokenStream::new(),
@@ -227,7 +228,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 }
                 Some(NestedMeta::Meta(Meta::NameValue { .. })) => {}
                 Some(nested_attr) => {
-                    throw_invalid_nested_attr!(attr, &nested_attr, |diag| {
+                    throw_invalid_nested_attr!(attr, nested_attr, |diag| {
                         diag.help("a diagnostic slug is required as the first argument")
                     })
                 }
@@ -248,13 +249,13 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                         ..
                     })) => (value, path),
                     NestedMeta::Meta(Meta::Path(_)) => {
-                        invalid_nested_attr(attr, &nested_attr)
+                        invalid_nested_attr(attr, nested_attr)
                             .help("diagnostic slug must be the first argument")
                             .emit();
                         continue;
                     }
                     _ => {
-                        invalid_nested_attr(attr, &nested_attr).emit();
+                        invalid_nested_attr(attr, nested_attr).emit();
                         continue;
                     }
                 };
@@ -273,9 +274,9 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                         });
                     }
                     _ => {
-                        invalid_nested_attr(attr, &nested_attr)
+                        invalid_nested_attr(attr, nested_attr)
                             .help("only `code` is a valid nested attributes following the slug")
-                            .emit();
+                            .emit()
                     }
                 }
             }
@@ -346,11 +347,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 let generated_code = self
                     .generate_inner_field_code(
                         attr,
-                        FieldInfo {
-                            binding: binding_info,
-                            ty: inner_ty.inner_type().unwrap_or(&field.ty),
-                            span: &field.span(),
-                        },
+                        FieldInfo { binding: binding_info, ty: inner_ty, span: &field.span() },
                         binding,
                     )
                     .unwrap_or_else(|v| v.to_compile_error());
@@ -396,51 +393,35 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 }
             }
             (Meta::Path(_), "subdiagnostic") => {
-                return Ok(quote! { #diag.subdiagnostic(#binding); });
-            }
-            (Meta::NameValue(_), "subdiagnostic") => {
-                throw_invalid_attr!(attr, &meta, |diag| {
-                    diag.help("`eager` is the only supported nested attribute for `subdiagnostic`")
-                })
+                if FieldInnerTy::from_type(&info.binding.ast().ty).will_iterate() {
+                    let DiagnosticDeriveKind::Diagnostic { handler } = &self.parent.kind else {
+                        // No eager translation for lints.
+                        return Ok(quote! { #diag.subdiagnostic(#binding); });
+                    };
+                    return Ok(quote! { #diag.eager_subdiagnostic(#handler, #binding); });
+                } else {
+                    return Ok(quote! { #diag.subdiagnostic(#binding); });
+                }
             }
             (Meta::List(MetaList { ref nested, .. }), "subdiagnostic") => {
-                if nested.len() != 1 {
+                if nested.len() == 1
+                    && let Some(NestedMeta::Meta(Meta::Path(path))) = nested.first()
+                    && path.is_ident("eager") {
+                        let handler = match &self.parent.kind {
+                            DiagnosticDeriveKind::Diagnostic { handler } => handler,
+                            DiagnosticDeriveKind::LintDiagnostic => {
+                                throw_invalid_attr!(attr, &meta, |diag| {
+                                    diag.help("eager subdiagnostics are not supported on lints")
+                                })
+                            }
+                        };
+                        return Ok(quote! { #diag.eager_subdiagnostic(#handler, #binding); });
+                } else {
                     throw_invalid_attr!(attr, &meta, |diag| {
                         diag.help(
                             "`eager` is the only supported nested attribute for `subdiagnostic`",
                         )
                     })
-                }
-
-                let handler = match &self.parent.kind {
-                    DiagnosticDeriveKind::Diagnostic { handler } => handler,
-                    DiagnosticDeriveKind::LintDiagnostic => {
-                        throw_invalid_attr!(attr, &meta, |diag| {
-                            diag.help("eager subdiagnostics are not supported on lints")
-                        })
-                    }
-                };
-
-                let nested_attr = nested.first().expect("pop failed for single element list");
-                match nested_attr {
-                    NestedMeta::Meta(meta @ Meta::Path(_))
-                        if meta
-                            .path()
-                            .segments
-                            .last()
-                            .unwrap()
-                            .ident
-                            .to_string()
-                            .as_str()
-                            == "eager" =>
-                    {
-                        return Ok(quote! { #diag.eager_subdiagnostic(#handler, #binding); });
-                    }
-                    _ => {
-                        throw_invalid_nested_attr!(attr, nested_attr, |diag| {
-                            diag.help("`eager` is the only supported nested attribute for `subdiagnostic`")
-                        })
-                    }
                 }
             }
             _ => (),
@@ -458,12 +439,15 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 Ok(self.add_spanned_subdiagnostic(binding, &fn_ident, slug))
             }
             SubdiagnosticKind::Note | SubdiagnosticKind::Help | SubdiagnosticKind::Warn => {
-                if type_matches_path(&info.ty, &["rustc_span", "Span"]) {
+                let inner = info.ty.inner_type();
+                if type_matches_path(inner, &["rustc_span", "Span"]) {
                     Ok(self.add_spanned_subdiagnostic(binding, &fn_ident, slug))
-                } else if type_is_unit(&info.ty) {
+                } else if type_is_unit(inner)
+                    || (matches!(info.ty, FieldInnerTy::Plain(_)) && type_is_bool(inner))
+                {
                     Ok(self.add_subdiagnostic(&fn_ident, slug))
                 } else {
-                    report_type_error(attr, "`Span` or `()`")?
+                    report_type_error(attr, "`Span`, `bool` or `()`")?
                 }
             }
             SubdiagnosticKind::Suggestion {
@@ -472,6 +456,15 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 code_field,
                 code_init,
             } => {
+                if let FieldInnerTy::Vec(_) = info.ty {
+                    throw_invalid_attr!(attr, &meta, |diag| {
+                        diag
+                        .note("`#[suggestion(...)]` applied to `Vec` field is ambiguous")
+                        .help("to show a suggestion consisting of multiple parts, use a `Subdiagnostic` annotated with `#[multipart_suggestion(...)]`")
+                        .help("to show a variable set of suggestions, use a `Vec` of `Subdiagnostic`s annotated with `#[suggestion(...)]`")
+                    });
+                }
+
                 let (span_field, mut applicability) = self.span_and_applicability_of_ty(info)?;
 
                 if let Some((static_applicability, span)) = static_applicability {
@@ -487,7 +480,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
                 Ok(quote! {
                     #diag.span_suggestions_with_style(
                         #span_field,
-                        flux_errors::fluent::#slug,
+                        crate::fluent_generated::#slug,
                         #code_field,
                         #applicability,
                         #style
@@ -511,7 +504,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
         quote! {
             #diag.#fn_name(
                 #field_binding,
-                flux_errors::fluent::#fluent_attr_identifier
+                crate::fluent_generated::#fluent_attr_identifier
             );
         }
     }
@@ -521,7 +514,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
     fn add_subdiagnostic(&self, kind: &Ident, fluent_attr_identifier: Path) -> TokenStream {
         let diag = &self.parent.diag;
         quote! {
-            #diag.#kind(flux_errors::fluent::#fluent_attr_identifier);
+            #diag.#kind(crate::fluent_generated::#fluent_attr_identifier);
         }
     }
 
@@ -529,7 +522,7 @@ impl<'a> DiagnosticDeriveVariantBuilder<'a> {
         &self,
         info: FieldInfo<'_>,
     ) -> Result<(TokenStream, SpannedOption<TokenStream>), DiagnosticDeriveError> {
-        match &info.ty {
+        match &info.ty.inner_type() {
             // If `ty` is `Span` w/out applicability, then use `Applicability::Unspecified`.
             ty @ Type::Path(..) if type_matches_path(ty, &["rustc_span", "Span"]) => {
                 let binding = &info.binding.binding;

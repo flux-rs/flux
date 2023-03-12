@@ -16,7 +16,19 @@ mod callbacks;
 mod collector;
 
 use callbacks::FluxCallbacks;
+use flux_macros::fluent_messages;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
+use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
+
+fluent_messages! { "../locales/en-US.ftl" }
+
+pub static DEFAULT_LOCALE_RESOURCES: &[&str] = &[
+    DEFAULT_LOCALE_RESOURCE,
+    flux_desugar::DEFAULT_LOCALE_RESOURCE,
+    flux_metadata::DEFAULT_LOCALE_RESOURCE,
+    flux_middle::DEFAULT_LOCALE_RESOURCE,
+    flux_refineck::DEFAULT_LOCALE_RESOURCE,
+];
 
 /// Get the path to the sysroot of the current rustup toolchain. Return `None` if the rustup
 /// environment variables are not set.

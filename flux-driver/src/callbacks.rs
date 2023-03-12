@@ -22,7 +22,10 @@ use rustc_middle::ty::{
 };
 use rustc_session::config::OutputType;
 
-use crate::collector::{IgnoreKey, Ignores, SpecCollector, Specs};
+use crate::{
+    collector::{IgnoreKey, Ignores, SpecCollector, Specs},
+    DEFAULT_LOCALE_RESOURCES,
+};
 
 pub(crate) struct FluxCallbacks {
     full_compilation: bool,
@@ -56,7 +59,11 @@ impl Callbacks for FluxCallbacks {
             if !is_tool_registered(tcx) {
                 return;
             }
-            let sess = FluxSession::new(&tcx.sess.opts, tcx.sess.parse_sess.clone_source_map());
+            let sess = FluxSession::new(
+                &tcx.sess.opts,
+                tcx.sess.parse_sess.clone_source_map(),
+                rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
+            );
             let _ = check_crate(tcx, &sess);
             sess.finish_diagnostics();
         });

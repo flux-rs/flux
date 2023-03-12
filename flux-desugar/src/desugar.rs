@@ -1154,7 +1154,7 @@ mod errors {
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(desugar::unresolved_var, code = "FLUX")]
+    #[diag(desugar_unresolved_var, code = "FLUX")]
     pub(super) struct UnresolvedVar {
         #[primary_span]
         #[label]
@@ -1169,13 +1169,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::duplicate_param, code = "FLUX")]
+    #[diag(desugar_duplicate_param, code = "FLUX")]
     pub(super) struct DuplicateParam {
         #[primary_span]
         #[label]
         span: Span,
         name: Symbol,
-        #[label(desugar::first_use)]
+        #[label(desugar_first_use)]
         first_use: Span,
     }
 
@@ -1187,7 +1187,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::unresolved_sort, code = "FLUX")]
+    #[diag(desugar_unresolved_sort, code = "FLUX")]
     pub(super) struct UnresolvedSort {
         #[primary_span]
         #[label]
@@ -1202,28 +1202,28 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::int_too_large, code = "FLUX")]
+    #[diag(desugar_int_too_large, code = "FLUX")]
     pub(super) struct IntTooLarge {
         #[primary_span]
         pub(super) span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::unexpected_literal, code = "FLUX")]
+    #[diag(desugar_unexpected_literal, code = "FLUX")]
     pub(super) struct UnexpectedLiteral {
         #[primary_span]
         pub(super) span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::invalid_dot_var, code = "FLUX")]
+    #[diag(desugar_invalid_dot_var, code = "FLUX")]
     pub(super) struct InvalidDotVar {
         #[primary_span]
         pub(super) span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::refine_arg_count_mismatch, code = "FLUX")]
+    #[diag(desugar_refine_arg_count_mismatch, code = "FLUX")]
     pub(super) struct RefineArgCountMismatch {
         #[primary_span]
         #[label]
@@ -1239,7 +1239,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::invalid_unrefined_param, code = "FLUX")]
+    #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
     pub(super) struct InvalidUnrefinedParam {
         #[primary_span]
         #[label]
@@ -1254,7 +1254,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::illegal_binder, code = "FLUX")]
+    #[diag(desugar_illegal_binder, code = "FLUX")]
     pub(super) struct IllegalBinder {
         #[primary_span]
         #[label]
@@ -1269,7 +1269,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::invalid_numeric_suffix, code = "FLUX")]
+    #[diag(desugar_invalid_numeric_suffix, code = "FLUX")]
     pub(super) struct InvalidNumericSuffix {
         #[primary_span]
         #[label]
@@ -1284,7 +1284,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar::refined_unrefinable_type, code = "FLUX")]
+    #[diag(desugar_refined_unrefinable_type, code = "FLUX")]
     pub(super) struct RefinedUnrefinableType {
         #[primary_span]
         span: Span,

@@ -406,7 +406,7 @@ mod errors {
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(wf::definition_cycle, code = "FLUX")]
+    #[diag(middle_definition_cycle, code = "FLUX")]
     pub struct DefinitionCycle {
         #[primary_span]
         #[label]

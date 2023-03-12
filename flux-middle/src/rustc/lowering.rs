@@ -136,6 +136,13 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         .emit(self.sess)?,
                 )))
             }
+            rustc_mir::StatementKind::PlaceMention(place) => {
+                StatementKind::PlaceMention(
+                    self.lower_place(place)
+                        .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
+                        .emit(self.sess)?,
+                )
+            }
             rustc_mir::StatementKind::Nop
             | rustc_mir::StatementKind::StorageLive(_)
             | rustc_mir::StatementKind::StorageDead(_) => StatementKind::Nop,
@@ -238,20 +245,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 TerminatorKind::Drop {
                     place: self
                         .lower_place(place)
-                        .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
-                        .emit(self.sess)?,
-                    target: *target,
-                    unwind: *unwind,
-                }
-            }
-            rustc_mir::TerminatorKind::DropAndReplace { place, value, target, unwind } => {
-                TerminatorKind::DropAndReplace {
-                    place: self
-                        .lower_place(place)
-                        .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
-                        .emit(self.sess)?,
-                    value: self
-                        .lower_operand(value)
                         .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
                         .emit(self.sess)?,
                     target: *target,
@@ -849,7 +842,7 @@ mod errors {
     use super::UnsupportedType;
 
     #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_local_decl, code = "FLUX")]
+    #[diag(middle_unsupported_local_decl, code = "FLUX")]
     pub struct UnsupportedLocalDecl<'tcx> {
         #[primary_span]
         #[label]
@@ -864,7 +857,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_mir, code = "FLUX")]
+    #[diag(middle_unsupported_mir, code = "FLUX")]
     #[note]
     pub struct UnsupportedMir {
         #[primary_span]
@@ -900,7 +893,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_generic_param, code = "FLUX")]
+    #[diag(middle_unsupported_generic_param, code = "FLUX")]
     pub struct UnsupportedGenericParam {
         #[primary_span]
         span: Span,
@@ -913,7 +906,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_type_of, code = "FLUX")]
+    #[diag(middle_unsupported_type_of, code = "FLUX")]
     #[note]
     pub struct UnsupportedTypeOf<'tcx> {
         #[primary_span]
@@ -929,7 +922,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_fn_sig, code = "FLUX")]
+    #[diag(middle_unsupported_fn_sig, code = "FLUX")]
     pub struct UnsupportedFnSig {
         #[primary_span]
         pub span: Span,
@@ -937,7 +930,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(lowering::unsupported_generic_bound, code = "FLUX")]
+    #[diag(middle_unsupported_generic_bound, code = "FLUX")]
     #[note]
     pub struct UnsupportedGenericBound {
         #[primary_span]

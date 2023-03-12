@@ -63,7 +63,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(invariants::invalid, code = "FLUX")]
+    #[diag(refineck_invalid_invariant, code = "FLUX")]
     pub struct Invalid {
         #[primary_span]
         pub span: Span,
