@@ -657,7 +657,7 @@ mod errors {
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(refineck_sort_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_sort_mismatch, code = "FLUX")]
     pub(super) struct SortMismatch<'a> {
         #[primary_span]
         #[label]
@@ -673,7 +673,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_arg_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_arg_count_mismatch, code = "FLUX")]
     pub(super) struct ArgCountMismatch {
         #[primary_span]
         #[label]
@@ -695,7 +695,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_early_bound_arg_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_early_bound_arg_count_mismatch, code = "FLUX")]
     pub(super) struct EarlyBoundArgCountMismatch {
         #[primary_span]
         #[label]
@@ -711,7 +711,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_duplicated_ensures, code = "FLUX")]
+    #[diag(fhir_analysis_duplicated_ensures, code = "FLUX")]
     pub(super) struct DuplicatedEnsures {
         #[primary_span]
         span: Span,
@@ -725,7 +725,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_unknown_qualifier, code = "FLUX")]
+    #[diag(fhir_analysis_unknown_qualifier, code = "FLUX")]
     pub(super) struct UnknownQualifier {
         #[primary_span]
         span: Span,
@@ -738,7 +738,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_missing_ensures, code = "FLUX")]
+    #[diag(fhir_analysis_missing_ensures, code = "FLUX")]
     pub(super) struct MissingEnsures {
         #[primary_span]
         span: Span,
@@ -751,7 +751,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_expected_fun, code = "FLUX")]
+    #[diag(fhir_analysis_expected_fun, code = "FLUX")]
     pub(super) struct ExpectedFun<'a> {
         #[primary_span]
         span: Span,
@@ -765,7 +765,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_invalid_param_in_func_pos, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_param_in_func_pos, code = "FLUX")]
     pub(super) struct InvalidParamPos<'a> {
         #[primary_span]
         #[label]
@@ -781,7 +781,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_unexpected_fun, code = "FLUX")]
+    #[diag(fhir_analysis_unexpected_fun, code = "FLUX")]
     pub(super) struct UnexpectedFun<'a> {
         #[primary_span]
         #[label]
@@ -796,7 +796,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_expected_numeric, code = "FLUX")]
+    #[diag(fhir_analysis_expected_numeric, code = "FLUX")]
     pub(super) struct ExpectedNumeric<'a> {
         #[primary_span]
         #[label]
@@ -811,7 +811,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_param_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_param_count_mismatch, code = "FLUX")]
     pub(super) struct ParamCountMismatch {
         #[primary_span]
         #[label]
@@ -827,7 +827,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_field_not_found, code = "FLUX")]
+    #[diag(fhir_analysis_field_not_found, code = "FLUX")]
     pub(super) struct FieldNotFound<'a> {
         #[primary_span]
         span: Span,
@@ -842,7 +842,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_invalid_primitive_dot_access, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_primitive_dot_access, code = "FLUX")]
     pub(super) struct InvalidPrimitiveDotAccess<'a> {
         #[primary_span]
         span: Span,
@@ -856,7 +856,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_no_equality, code = "FLUX")]
+    #[diag(fhir_analysis_no_equality, code = "FLUX")]
     pub(super) struct NoEquality<'a> {
         #[primary_span]
         span: Span,

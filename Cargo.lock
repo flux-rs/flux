@@ -524,6 +524,7 @@ dependencies = [
  "flux-config",
  "flux-desugar",
  "flux-errors",
+ "flux-fhir-analysis",
  "flux-fixpoint",
  "flux-macros",
  "flux-metadata",
@@ -539,6 +540,17 @@ name = "flux-errors"
 version = "0.1.0"
 dependencies = [
  "flux-macros",
+]
+
+[[package]]
+name = "flux-fhir-analysis"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-errors",
+ "flux-macros",
+ "flux-middle",
+ "itertools",
 ]
 
 [[package]]

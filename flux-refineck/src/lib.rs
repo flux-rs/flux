@@ -27,7 +27,6 @@ pub mod invariants;
 mod param_infer;
 mod refine_tree;
 mod type_env;
-pub mod wf;
 
 mod fixpoint;
 mod sigs;

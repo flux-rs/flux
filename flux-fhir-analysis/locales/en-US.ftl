@@ -1,8 +1,10 @@
-wf_sort_mismatch =
+# Well-formed errors
+
+fhir_analysis_sort_mismatch =
     mismatched sorts
     .label = expected `{$expected}`, found `{$found}`
 
-wf_arg_count_mismatch =
+fhir_analysis_arg_count_mismatch =
     this {$thing} takes {$expected ->
         [one] {$expected} refinement argument
         *[other] {$expected} refinement arguments
@@ -15,7 +17,7 @@ wf_arg_count_mismatch =
         *[other] {$expected} arguments
     }, found {$found}
 
-wf_early_bound_arg_count_mismatch =
+fhir_analysis_early_bound_arg_count_mismatch =
     this type alias takes {$expected ->
         [one] {$expected} early bound argument
         *[other] {$expected} early bound arguments
@@ -28,34 +30,34 @@ wf_early_bound_arg_count_mismatch =
         *[other] {$expected} early bound arguments
     }, found {$found}
 
-wf_illegal_binder =
+fhir_analysis_illegal_binder =
     illegal binder
     .label = binder not allowed in this position
 
-wf_duplicated_ensures =
+fhir_analysis_duplicated_ensures =
     an ensures clause already exists for `{$loc}`
 
-wf_unknown_qualifier =
+fhir_analysis_unknown_qualifier =
     unknown qualifier
 
-wf_missing_ensures =
+fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
 
-wf_expected_fun =
+fhir_analysis_expected_fun =
     expected function, found `{$found}`
 
-wf_invalid_param_in_func_pos =
+fhir_analysis_invalid_param_in_func_pos =
     illegal use of refinement parameter
     .label = {$is_pred ->
         [true] abstract refinements are only allowed in a top-level conjunction
         *[false] parameters of sort `{$sort}` are not supported in this position
      }
 
-wf_unexpected_fun =
+fhir_analysis_unexpected_fun =
     mismatched sorts
     .label = expected `{$sort}`, found function
 
-wf_param_count_mismatch =
+fhir_analysis_param_count_mismatch =
     parameter count mismatch
     .label = this function has {$found ->
         [one] {$found} parameter
@@ -65,15 +67,15 @@ wf_param_count_mismatch =
         *[other] {$expected} parameters
     } was expected
 
-wf_field_not_found =
+fhir_analysis_field_not_found =
     no field `{$fld}` on sort `{$sort}`
 
-wf_invalid_primitive_dot_access =
+fhir_analysis_invalid_primitive_dot_access =
     `{$sort}` is a primitive sort and therefore doesn't have fields
 
-wf_expected_numeric =
+fhir_analysis_expected_numeric =
     mismatched sorts
     .label = expected numeric sort, found `{$found}`
 
-wf_no_equality =
+fhir_analysis_no_equality =
     values of sort `{$sort}` cannot be compared for equality

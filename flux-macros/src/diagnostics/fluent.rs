@@ -77,7 +77,8 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
         // If `CARGO_PKG_NAME` is missing, then we're probably running in a test, so use
         // `no_crate`.
         .unwrap_or_else(|_| "no_crate".to_string())
-        .replace("flux-", "");
+        .replace("-", "_")
+        .replace("flux_", "");
 
     // Cannot iterate over individual messages in a bundle, so do that using the
     // `FluentResource` instead. Construct a bundle anyway to find out if there are conflicting

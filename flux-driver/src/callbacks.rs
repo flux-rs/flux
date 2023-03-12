@@ -3,6 +3,7 @@ use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
 use flux_errors::FluxSession;
+use flux_fhir_analysis::wf::Wf;
 use flux_metadata::CStore;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -10,7 +11,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rustc,
 };
-use flux_refineck::{self as refineck, wf::Wf};
+use flux_refineck::{self as refineck};
 use flux_syntax::surface;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
