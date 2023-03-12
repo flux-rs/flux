@@ -136,6 +136,13 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         .emit(self.sess)?,
                 )))
             }
+            rustc_mir::StatementKind::PlaceMention(place) => {
+                StatementKind::PlaceMention(
+                    self.lower_place(place)
+                        .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
+                        .emit(self.sess)?,
+                )
+            }
             rustc_mir::StatementKind::Nop
             | rustc_mir::StatementKind::StorageLive(_)
             | rustc_mir::StatementKind::StorageDead(_) => StatementKind::Nop,
@@ -151,7 +158,6 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 )
             }
             rustc_mir::StatementKind::Retag(_, _)
-            | rustc_mir::StatementKind::PlaceMention(_)
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)

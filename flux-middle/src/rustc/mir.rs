@@ -122,6 +122,7 @@ pub enum StatementKind {
     SetDiscriminant(Place, VariantIdx),
     FakeRead(Box<(FakeReadCause, Place)>),
     AscribeUserType(Place, Variance),
+    PlaceMention(Place),
     Nop,
 }
 
@@ -319,6 +320,9 @@ impl fmt::Debug for Statement {
         match &self.kind {
             StatementKind::Assign(place, rvalue) => write!(f, "{place:?} = {rvalue:?}"),
             StatementKind::Nop => write!(f, "nop"),
+            StatementKind::PlaceMention(place) => {
+                write!(f, "PlaceMention({place:?})")
+            }
             StatementKind::SetDiscriminant(place, variant_idx) => {
                 write!(f, "discriminant({place:?}) = {variant_idx:?}")
             }

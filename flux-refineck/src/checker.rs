@@ -311,6 +311,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 // User ascriptions affect nll, but no refinement type checking.
                 // Maybe we can use this to associate refinement type to locals.
             }
+            StatementKind::PlaceMention(_) => {
+                // Place mentions are a no-op used to detect uses of unsafe that would
+                // otherwise optimized away.
+            }
             StatementKind::Nop => {}
         }
         Ok(())
