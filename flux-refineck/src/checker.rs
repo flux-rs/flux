@@ -409,14 +409,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let _ = env.move_place(rcx, &mut gen, place);
                 Ok(vec![(*target, Guard::None)])
             }
-            TerminatorKind::DropAndReplace { place, value, target, .. } => {
-                let ty = self.check_operand(rcx, env, terminator_span, value)?;
-                let ty = rcx.unpack(&ty);
-                let mut gen = self.constr_gen(rcx, terminator_span);
-                env.write_place(rcx, &mut gen, place, ty)
-                    .map_err(|err| CheckerError::from(err).with_span_opt(last_stmt_span))?;
-                Ok(vec![(*target, Guard::None)])
-            }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 Ok(vec![(*real_target, Guard::None)])
@@ -1150,7 +1142,7 @@ pub(crate) mod errors {
     use crate::param_infer::InferenceError;
 
     #[derive(Diagnostic)]
-    #[diag(refineck::opaque_struct_error, code = "FLUX")]
+    #[diag(refineck_opaque_struct_error, code = "FLUX")]
     pub struct OpaqueStructError {
         #[primary_span]
         pub span: Option<Span>,
@@ -1173,13 +1165,6 @@ pub(crate) mod errors {
             self
         }
 
-        pub(crate) fn with_span_opt(mut self, span: Option<Span>) -> Self {
-            if let Some(span) = span {
-                self.span = Some(span);
-            }
-            self
-        }
-
         pub(crate) fn with_src_info(mut self, src_info: SourceInfo) -> Self {
             self.span = Some(src_info.span);
             self
@@ -1191,11 +1176,11 @@ pub(crate) mod errors {
             self,
             handler: &'a rustc_errors::Handler,
         ) -> rustc_errors::DiagnosticBuilder<'a, ErrorGuaranteed> {
-            use flux_errors::fluent::refineck;
+            use crate::fluent_generated as fluent;
             let fluent = match &self.kind {
-                CheckerErrKind::Inference => refineck::param_inference_error,
-                CheckerErrKind::OpaqueStruct(_) => refineck::opaque_struct_error,
-                CheckerErrKind::UnsupportedCall { .. } => refineck::unsupported_call,
+                CheckerErrKind::Inference => fluent::refineck_param_inference_error,
+                CheckerErrKind::OpaqueStruct(_) => fluent::refineck_opaque_struct_error,
+                CheckerErrKind::UnsupportedCall { .. } => fluent::refineck_unsupported_call,
             };
             let mut builder = handler.struct_err_with_code(fluent, flux_errors::diagnostic_id());
             if let Some(span) = self.span {
@@ -1208,7 +1193,7 @@ pub(crate) mod errors {
                     builder.set_arg("struct", pretty::def_id_to_string(def_id));
                 }
                 CheckerErrKind::UnsupportedCall { def_span, reason } => {
-                    builder.span_note(def_span, refineck::function_definition);
+                    builder.span_note(def_span, fluent::refineck_function_definition);
                     builder.note(reason);
                 }
             }

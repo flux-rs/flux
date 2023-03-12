@@ -657,7 +657,7 @@ mod errors {
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(wf::sort_mismatch, code = "FLUX")]
+    #[diag(refineck_sort_mismatch, code = "FLUX")]
     pub(super) struct SortMismatch<'a> {
         #[primary_span]
         #[label]
@@ -673,7 +673,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::arg_count_mismatch, code = "FLUX")]
+    #[diag(refineck_arg_count_mismatch, code = "FLUX")]
     pub(super) struct ArgCountMismatch {
         #[primary_span]
         #[label]
@@ -695,7 +695,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::early_bound_arg_count_mismatch, code = "FLUX")]
+    #[diag(refineck_early_bound_arg_count_mismatch, code = "FLUX")]
     pub(super) struct EarlyBoundArgCountMismatch {
         #[primary_span]
         #[label]
@@ -711,7 +711,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::duplicated_ensures, code = "FLUX")]
+    #[diag(refineck_duplicated_ensures, code = "FLUX")]
     pub(super) struct DuplicatedEnsures {
         #[primary_span]
         span: Span,
@@ -725,7 +725,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::unknown_qualifier, code = "FLUX")]
+    #[diag(refineck_unknown_qualifier, code = "FLUX")]
     pub(super) struct UnknownQualifier {
         #[primary_span]
         span: Span,
@@ -738,7 +738,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::missing_ensures, code = "FLUX")]
+    #[diag(refineck_missing_ensures, code = "FLUX")]
     pub(super) struct MissingEnsures {
         #[primary_span]
         span: Span,
@@ -751,7 +751,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::expected_fun, code = "FLUX")]
+    #[diag(refineck_expected_fun, code = "FLUX")]
     pub(super) struct ExpectedFun<'a> {
         #[primary_span]
         span: Span,
@@ -765,7 +765,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::invalid_param_in_func_pos, code = "FLUX")]
+    #[diag(refineck_invalid_param_in_func_pos, code = "FLUX")]
     pub(super) struct InvalidParamPos<'a> {
         #[primary_span]
         #[label]
@@ -781,7 +781,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::unexpected_fun, code = "FLUX")]
+    #[diag(refineck_unexpected_fun, code = "FLUX")]
     pub(super) struct UnexpectedFun<'a> {
         #[primary_span]
         #[label]
@@ -796,7 +796,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::expected_numeric, code = "FLUX")]
+    #[diag(refineck_expected_numeric, code = "FLUX")]
     pub(super) struct ExpectedNumeric<'a> {
         #[primary_span]
         #[label]
@@ -811,7 +811,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::param_count_mismatch, code = "FLUX")]
+    #[diag(refineck_param_count_mismatch, code = "FLUX")]
     pub(super) struct ParamCountMismatch {
         #[primary_span]
         #[label]
@@ -827,7 +827,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::field_not_found, code = "FLUX")]
+    #[diag(refineck_field_not_found, code = "FLUX")]
     pub(super) struct FieldNotFound<'a> {
         #[primary_span]
         span: Span,
@@ -842,7 +842,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::invalid_primitive_dot_access, code = "FLUX")]
+    #[diag(refineck_invalid_primitive_dot_access, code = "FLUX")]
     pub(super) struct InvalidPrimitiveDotAccess<'a> {
         #[primary_span]
         span: Span,
@@ -856,7 +856,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(wf::no_equality, code = "FLUX")]
+    #[diag(refineck_no_equality, code = "FLUX")]
     pub(super) struct NoEquality<'a> {
         #[primary_span]
         span: Span,

@@ -37,10 +37,13 @@ use constraint_gen::{ConstrReason, Tag};
 use flux_common::{cache::QueryCache, dbg};
 use flux_config as config;
 use flux_errors::ResultExt;
+use flux_macros::fluent_messages;
 use flux_middle::{global_env::GlobalEnv, rty, rustc::mir::Body};
 use itertools::Itertools;
-use rustc_errors::ErrorGuaranteed;
+use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hir::def_id::DefId;
+
+fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn check_fn<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
@@ -105,49 +108,49 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(refineck::goto_error, code = "FLUX")]
+    #[diag(refineck_goto_error, code = "FLUX")]
     pub struct GotoError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::call_error, code = "FLUX")]
+    #[diag(refineck_call_error, code = "FLUX")]
     pub struct CallError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::assign_error, code = "FLUX")]
+    #[diag(refineck_assign_error, code = "FLUX")]
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::ret_error, code = "FLUX")]
+    #[diag(refineck_ret_error, code = "FLUX")]
     pub struct RetError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::div_error, code = "FLUX")]
+    #[diag(refineck_div_error, code = "FLUX")]
     pub struct DivError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::rem_error, code = "FLUX")]
+    #[diag(refineck_rem_error, code = "FLUX")]
     pub struct RemError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::assert_error, code = "FLUX")]
+    #[diag(refineck_assert_error, code = "FLUX")]
     pub struct AssertError {
         #[primary_span]
         pub span: Span,
@@ -155,21 +158,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::fold_error, code = "FLUX")]
+    #[diag(refineck_fold_error, code = "FLUX")]
     pub struct FoldError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::overflow_error, code = "FLUX")]
+    #[diag(refineck_overflow_error, code = "FLUX")]
     pub struct OverflowError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck::unknown_error, code = "FLUX")]
+    #[diag(refineck_unknown_error, code = "FLUX")]
     pub struct UnknownError {
         #[primary_span]
         pub span: Span,

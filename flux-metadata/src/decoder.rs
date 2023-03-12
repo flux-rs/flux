@@ -119,7 +119,7 @@ mod errors {
     use flux_macros::Diagnostic;
 
     #[derive(Diagnostic)]
-    #[diag(metadata::decode_file_error, code = "FLUX")]
+    #[diag(metadata_decode_file_error, code = "FLUX")]
     pub(super) struct DecodeFileError<'a> {
         path: &'a Path,
         err: io::Error,

@@ -332,7 +332,7 @@ pub mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(lift::unsupported_hir, code = "FLUX")]
+    #[diag(middle_unsupported_hir, code = "FLUX")]
     #[note]
     pub struct UnsupportedHir<'a> {
         #[primary_span]

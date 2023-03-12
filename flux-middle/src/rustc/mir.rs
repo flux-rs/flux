@@ -82,12 +82,6 @@ pub enum TerminatorKind<'tcx> {
         target: BasicBlock,
         unwind: Option<BasicBlock>,
     },
-    DropAndReplace {
-        place: Place,
-        value: Operand,
-        target: BasicBlock,
-        unwind: Option<BasicBlock>,
-    },
     Assert {
         cond: Operand,
         expected: bool,
@@ -374,13 +368,6 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
             }
             TerminatorKind::Goto { target } => {
                 write!(f, "goto -> {target:?}")
-            }
-            TerminatorKind::DropAndReplace { place, value, target, unwind } => {
-                write!(
-                    f,
-                    "replace({place:?} <- {value:?}) -> [return: {target:?}], unwind: {unwind}",
-                    unwind = opt_bb_to_str(*unwind)
-                )
             }
             TerminatorKind::Drop { place, target, unwind } => {
                 write!(

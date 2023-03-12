@@ -700,7 +700,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(parse::duplicated_attr, code = "FLUX")]
+    #[diag(driver_duplicated_attr, code = "FLUX")]
     pub struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
@@ -708,21 +708,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(parse::invalid_attr, code = "FLUX")]
+    #[diag(driver_invalid_attr, code = "FLUX")]
     pub struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(parse::invalid_constant, code = "FLUX")]
+    #[diag(driver_invalid_constant, code = "FLUX")]
     pub struct InvalidConstant {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(parse::cfg_error, code = "FLUX")]
+    #[diag(driver_cfg_error, code = "FLUX")]
     pub struct CFGError {
         #[primary_span]
         pub span: Span,
@@ -730,7 +730,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(parse::syntax_err, code = "FLUX")]
+    #[diag(driver_syntax_err, code = "FLUX")]
     pub struct SyntaxErr {
         #[primary_span]
         pub span: Span,
@@ -738,7 +738,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(parse::attr_on_opaque, code = "FLUX")]
+    #[diag(driver_attr_on_opaque, code = "FLUX")]
     pub(super) struct AttrOnOpaque {
         #[primary_span]
         span: Span,
@@ -754,7 +754,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(parse::missing_variant, code = "FLUX")]
+    #[diag(driver_missing_variant, code = "FLUX")]
     #[note]
     pub(super) struct MissingVariant {
         #[primary_span]

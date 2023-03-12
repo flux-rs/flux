@@ -382,7 +382,7 @@ impl<'sess> NameResTable<'sess> {
             | hir::TyKind::TraitObject(..)
             | hir::TyKind::Typeof(_)
             | hir::TyKind::Infer
-            | hir::TyKind::Err => Ok(()),
+            | hir::TyKind::Err(_) => Ok(()),
         }
     }
 
@@ -439,7 +439,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(resolver::unsupported_signature, code = "FLUX")]
+    #[diag(desugar_unsupported_signature, code = "FLUX")]
     #[note]
     pub(super) struct UnsupportedSignature<'a> {
         #[primary_span]
@@ -454,7 +454,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(resolver::unresolved_path, code = "FLUX")]
+    #[diag(desugar_unresolved_path, code = "FLUX")]
     #[help]
     pub struct UnresolvedPath {
         #[primary_span]

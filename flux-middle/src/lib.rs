@@ -28,3 +28,8 @@ pub mod intern;
 pub mod pretty;
 pub mod rty;
 pub mod rustc;
+
+use flux_macros::fluent_messages;
+use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
+
+fluent_messages! { "../locales/en-US.ftl" }

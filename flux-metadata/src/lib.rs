@@ -20,8 +20,10 @@ use std::path::PathBuf;
 
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
+use flux_macros::fluent_messages;
 use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, rty};
 use itertools::Itertools;
+use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -30,6 +32,8 @@ use rustc_session::{config::OutputType, utils::CanonicalizedPath};
 use rustc_span::def_id::{CrateNum, DefId, DefIndex};
 
 pub use crate::encoder::encode_metadata;
+
+fluent_messages! { "../locales/en-US.ftl" }
 
 const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];

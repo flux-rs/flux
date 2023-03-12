@@ -8,7 +8,6 @@ extern crate rustc_span;
 
 use std::rc::Rc;
 
-use flux_macros::fluent_messages;
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
@@ -16,28 +15,13 @@ use rustc_errors::{
     emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticId, DiagnosticMessage, IntoDiagnostic, SubdiagnosticMessage,
+    DiagnosticId, IntoDiagnostic, LazyFallbackBundle,
 };
 use rustc_session::{
     config::{self, ErrorOutputType},
     parse::ParseSess,
 };
 use rustc_span::source_map::SourceMap;
-
-fluent_messages! {
-    parse => "../locales/en-US/parse.ftl",
-    resolver => "../locales/en-US/resolver.ftl",
-    annot_check => "../locales/en-US/annot_check.ftl",
-    desugar => "../locales/en-US/desugar.ftl",
-    wf => "../locales/en-US/wf.ftl",
-    invariants => "../locales/en-US/invariants.ftl",
-    refineck => "../locales/en-US/refineck.ftl",
-    lowering => "../locales/en-US/lowering.ftl",
-    metadata => "../locales/en-US/metadata.ftl",
-    lift => "../locales/en-US/lift.ftl"
-}
-
-pub use fluent_generated::{self as fluent, DEFAULT_LOCALE_RESOURCES};
 
 pub struct FluxSession {
     pub parse_sess: ParseSess,
@@ -48,8 +32,12 @@ pub fn diagnostic_id() -> DiagnosticId {
 }
 
 impl FluxSession {
-    pub fn new(opts: &config::Options, source_map: Rc<SourceMap>) -> Self {
-        let emitter = emitter(opts, source_map.clone());
+    pub fn new(
+        opts: &config::Options,
+        source_map: Rc<SourceMap>,
+        fallback_bundle: LazyFallbackBundle,
+    ) -> Self {
+        let emitter = emitter(opts, source_map.clone(), fallback_bundle);
         let handler = rustc_errors::Handler::with_emitter(true, None, emitter);
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
@@ -80,8 +68,11 @@ impl FluxSession {
     }
 }
 
-fn emitter(opts: &config::Options, source_map: Rc<SourceMap>) -> Box<dyn Emitter + sync::Send> {
-    let fallback_bundle = rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES, false);
+fn emitter(
+    opts: &config::Options,
+    source_map: Rc<SourceMap>,
+    fallback_bundle: LazyFallbackBundle,
+) -> Box<dyn Emitter + sync::Send> {
     let bundle = None;
     let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
