@@ -15,4 +15,5 @@ use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
 fluent_messages! { "../locales/en-US.ftl" }
 
+pub mod annot_check;
 pub mod wf;

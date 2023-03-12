@@ -18,7 +18,6 @@ use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-pub mod annot_check;
 mod desugar;
 mod table_resolver;
 
