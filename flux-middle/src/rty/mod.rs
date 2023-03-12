@@ -619,10 +619,18 @@ impl<T> Opaqueness<T> {
         }
     }
 
-    pub fn ok_or<E>(self, err: E) -> Result<T, E> {
+    pub fn ok_or_else<E>(self, err: impl FnOnce() -> E) -> Result<T, E> {
         match self {
-            Opaqueness::Opaque => Err(err),
-            Opaqueness::Transparent(value) => Ok(value),
+            Opaqueness::Transparent(v) => Ok(v),
+            Opaqueness::Opaque => Err(err()),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect(self, msg: &str) -> T {
+        match self {
+            Opaqueness::Transparent(val) => val,
+            Opaqueness::Opaque => bug!("{}", msg),
         }
     }
 }

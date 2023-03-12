@@ -5,7 +5,7 @@ use std::iter;
 use flux_common::{index::IndexGen, tracked_span_bug};
 use flux_middle::{
     fhir::WeakKind,
-    global_env::{GlobalEnv, OpaqueStructErr},
+    global_env::GlobalEnv,
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
@@ -14,6 +14,7 @@ use flux_middle::{
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
 use itertools::{izip, Itertools};
+pub use paths_tree::OpaqueStructErr;
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 

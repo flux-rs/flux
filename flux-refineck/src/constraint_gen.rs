@@ -2,7 +2,7 @@ use std::{iter, slice};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::{GlobalEnv, OpaqueStructErr},
+    global_env::GlobalEnv,
     rty::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
@@ -23,7 +23,7 @@ use crate::{
     checker::errors::CheckerError,
     fixpoint_encoding::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
-    type_env::TypeEnv,
+    type_env::{OpaqueStructErr, TypeEnv},
 };
 
 pub struct ConstrGen<'a, 'tcx> {

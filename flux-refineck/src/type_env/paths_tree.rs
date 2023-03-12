@@ -3,7 +3,7 @@ use std::{cell::RefCell, iter, rc::Rc};
 use flux_common::tracked_span_bug;
 use flux_middle::{
     fhir::WeakKind,
-    global_env::{GlobalEnv, OpaqueStructErr},
+    global_env::GlobalEnv,
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
@@ -33,6 +33,9 @@ struct Root {
     kind: LocKind,
     ptr: NodePtr,
 }
+
+#[derive(Debug)]
+pub struct OpaqueStructErr(pub DefId);
 
 #[derive(Clone, Eq, PartialEq)]
 pub(super) enum LocKind {
@@ -658,7 +661,7 @@ impl Node {
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx).unwrap();
+                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx).expect("unexpected opaque struct");
                 let fields = children
                     .iter_mut()
                     .map(|node| {
@@ -820,7 +823,8 @@ fn downcast_struct(
     idx: &Index,
 ) -> Result<Vec<Ty>, OpaqueStructErr> {
     Ok(genv
-        .variant(def_id, variant_idx)?
+        .variant(def_id, variant_idx)
+        .ok_or_else(|| OpaqueStructErr(def_id))?
         .replace_bvar(&idx.expr)
         .replace_generics(substs)
         .fields
@@ -845,7 +849,7 @@ fn downcast_enum(
 ) -> Vec<Ty> {
     let variant_def = genv
         .variant(def_id, variant_idx)
-        .unwrap()
+        .expect("enums cannot be opaque")
         .replace_generics(substs)
         .replace_bvar_with(|sort| rcx.define_vars(sort));
 

@@ -28,7 +28,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_middle::mir as rustc_mir;
 use rustc_span::Span;
 
-use self::errors::CheckerError;
+use self::errors::{CheckerErrKind, CheckerError};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
@@ -642,7 +642,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = genv
                     .variant(*def_id, *variant_idx)
-                    .map_err(|err| CheckerError::from(err).with_span(stmt_span))?
+                    .ok_or_else(|| {
+                        CheckerError::new(CheckerErrKind::OpaqueStruct(*def_id), stmt_span)
+                    })?
                     .to_fn_sig();
                 let substs = iter::zip(&genv.generics_of(*def_id).params, substs)
                     .map(|(param, arg)| {
@@ -1123,25 +1125,13 @@ impl Ord for Item<'_> {
 
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
-    use flux_macros::Diagnostic;
-    use flux_middle::{
-        global_env::{OpaqueStructErr, UnsupportedFnSig},
-        pretty,
-        rty::evars::UnsolvedEvar,
-    };
+    use flux_middle::{global_env::UnsupportedFnSig, pretty, rty::evars::UnsolvedEvar};
     use rustc_errors::IntoDiagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
 
-    use crate::param_infer::InferenceError;
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_opaque_struct_error, code = "FLUX")]
-    pub struct OpaqueStructError {
-        #[primary_span]
-        pub span: Option<Span>,
-    }
+    use crate::{param_infer::InferenceError, type_env::OpaqueStructErr};
 
     pub struct CheckerError {
         kind: CheckerErrKind,
@@ -1155,6 +1145,10 @@ pub(crate) mod errors {
     }
 
     impl CheckerError {
+        pub(crate) fn new(kind: CheckerErrKind, span: Span) -> Self {
+            Self { kind, span: Some(span) }
+        }
+
         pub(crate) fn with_span(mut self, span: Span) -> Self {
             self.span = Some(span);
             self

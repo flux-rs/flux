@@ -23,9 +23,6 @@ use crate::{
     rustc,
 };
 
-#[derive(Debug)]
-pub struct OpaqueStructErr(pub DefId);
-
 type VariantMap = FxHashMap<DefId, rty::Opaqueness<Vec<rty::PolyVariant>>>;
 type FnSigMap = FxHashMap<DefId, rty::PolySig>;
 
@@ -178,9 +175,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         def_id: DefId,
         variant_idx: VariantIdx,
-    ) -> Result<rty::PolyVariant, OpaqueStructErr> {
-        Ok(self
-            .adt_variants
+    ) -> rty::Opaqueness<rty::PolyVariant> {
+        self.adt_variants
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
@@ -208,8 +204,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 }
             })
             .as_ref()
-            .ok_or(OpaqueStructErr(def_id))?[variant_idx.as_usize()]
-        .clone())
+            .map(|variants| variants[variant_idx.as_usize()].clone())
     }
 
     pub fn predicates_of(&self, def_id: DefId) -> rty::GenericPredicates {
