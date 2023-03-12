@@ -31,7 +31,7 @@ use rustc_span::Span;
 use self::errors::CheckerError;
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
-    fixpoint::{self, KVarStore},
+    fixpoint_encoding::{self, KVarStore},
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
@@ -152,7 +152,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
             span_bug!(body.span(), "checking function with unsupported signature")
         });
-        let mut kvars = fixpoint::KVarStore::new();
+        let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 

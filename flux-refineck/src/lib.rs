@@ -22,7 +22,7 @@ extern crate rustc_span;
 
 mod checker;
 mod constraint_gen;
-mod fixpoint;
+mod fixpoint_encoding;
 pub mod invariants;
 mod param_infer;
 mod refine_tree;
@@ -63,7 +63,7 @@ pub fn check_fn<'tcx>(
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
-        let mut fcx = fixpoint::FixpointCtxt::new(genv, def_id, kvars);
+        let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
         let constraint = refine_tree.into_fixpoint(&mut fcx);
         let result = match fcx.check(cache, constraint) {
             Ok(_) => Ok(()),

@@ -21,7 +21,7 @@ use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason},
-    fixpoint::{KVarEncoding, KVarStore},
+    fixpoint_encoding::{KVarEncoding, KVarStore},
     param_infer,
     refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,

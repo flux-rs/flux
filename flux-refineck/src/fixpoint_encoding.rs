@@ -1,3 +1,4 @@
+///! Encoding of the refinement tree into a fixpoint constraint.
 use std::iter;
 
 use fixpoint::FixpointResult;

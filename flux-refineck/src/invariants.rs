@@ -5,7 +5,7 @@ use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
     constraint_gen::{ConstrReason, Tag},
-    fixpoint::{FixpointCtxt, KVarStore},
+    fixpoint_encoding::{FixpointCtxt, KVarStore},
     refine_tree::RefineTree,
 };
 

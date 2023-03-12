@@ -21,7 +21,7 @@ use rustc_span::Span;
 
 use crate::{
     checker::errors::CheckerError,
-    fixpoint::KVarEncoding,
+    fixpoint_encoding::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
     type_env::TypeEnv,
 };
