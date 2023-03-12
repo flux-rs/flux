@@ -39,8 +39,8 @@ pub struct LoweringCtxt<'a, 'tcx> {
     rustc_mir: rustc_mir::Body<'tcx>,
 }
 
-pub struct UnsupportedType {
-    reason: String,
+pub(crate) struct UnsupportedType {
+    pub(crate) reason: String,
 }
 
 impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
@@ -525,37 +525,33 @@ fn mk_fake_predecessors(
     res
 }
 
-pub fn lower_type_of(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    def_id: DefId,
-) -> Result<Ty, ErrorGuaranteed> {
-    let span = tcx.def_span(def_id);
+pub(crate) fn lower_type_of(tcx: TyCtxt, def_id: DefId) -> Result<Ty, UnsupportedType> {
     let ty = tcx.type_of(def_id).subst_identity();
     lower_ty(tcx, ty)
-        .map_err(|err| errors::UnsupportedTypeOf::new(span, ty, err))
-        .emit(sess)
 }
 
-pub fn lower_variant_def(
+pub(crate) fn lower_variant_def(
     tcx: TyCtxt,
     sess: &FluxSession,
     adt_def_id: DefId,
     variant_def: &rustc_ty::VariantDef,
-) -> Result<VariantDef, ErrorGuaranteed> {
+) -> Result<VariantDef, UnsupportedType> {
     let field_tys = List::from_vec(
         variant_def
             .fields
             .iter()
-            .map(|field| lower_type_of(tcx, sess, field.did))
+            .map(|field| lower_type_of(tcx, field.did))
             .try_collect()?,
     );
     let fields = variant_def.fields.iter().map(|fld| fld.did).collect_vec();
-    let ret = lower_type_of(tcx, sess, adt_def_id)?;
+    let ret = lower_type_of(tcx, adt_def_id)?;
     Ok(VariantDef { field_tys, fields, ret, def_id: variant_def.def_id })
 }
 
-pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
+pub(crate) fn lower_fn_sig_of(
+    tcx: TyCtxt,
+    def_id: DefId,
+) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
     let fn_sig = tcx.fn_sig(def_id);
     // println!("TRACE: lower_fn_sig {def_id:?} : {fn_sig:?} : {:?}", tcx.explicit_predicates_of(def_id));
     let span = tcx.def_span(def_id);
@@ -569,7 +565,7 @@ pub fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, errors::
         .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
-pub fn lower_fn_sig<'tcx>(
+pub(crate) fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedType> {
@@ -612,7 +608,10 @@ fn lower_binder_vars(
     Ok(List::from_vec(vars))
 }
 
-pub fn lower_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: rustc_ty::Ty<'tcx>) -> Result<Ty, UnsupportedType> {
+pub(crate) fn lower_ty<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    ty: rustc_ty::Ty<'tcx>,
+) -> Result<Ty, UnsupportedType> {
     match ty.kind() {
         rustc_ty::Ref(_region, ty, mutability) => Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability)),
         rustc_ty::Bool => Ok(Ty::mk_bool()),
@@ -830,7 +829,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(middle_unsupported_local_decl, code = "FLUX")]
-    pub struct UnsupportedLocalDecl<'tcx> {
+    pub(super) struct UnsupportedLocalDecl<'tcx> {
         #[primary_span]
         #[label]
         span: Span,
@@ -838,7 +837,7 @@ mod errors {
     }
 
     impl<'tcx> UnsupportedLocalDecl<'tcx> {
-        pub fn new(local_decl: &rustc_mir::LocalDecl<'tcx>, _err: UnsupportedType) -> Self {
+        pub(super) fn new(local_decl: &rustc_mir::LocalDecl<'tcx>, _err: UnsupportedType) -> Self {
             Self { span: local_decl.source_info.span, ty: local_decl.ty }
         }
     }
@@ -846,23 +845,23 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(middle_unsupported_mir, code = "FLUX")]
     #[note]
-    pub struct UnsupportedMir {
+    pub(super) struct UnsupportedMir {
         #[primary_span]
-        pub span: Span,
-        pub kind: &'static str,
-        pub reason: String,
+        span: Span,
+        kind: &'static str,
+        reason: String,
     }
 
     impl UnsupportedMir {
-        pub fn new(span: Span, kind: &'static str, reason: String) -> Self {
+        pub(super) fn new(span: Span, kind: &'static str, reason: String) -> Self {
             Self { span, kind, reason }
         }
 
-        pub fn terminator(span: Span, reason: String) -> Self {
+        pub(super) fn terminator(span: Span, reason: String) -> Self {
             Self { span, kind: "terminator", reason }
         }
 
-        pub fn statement(span: Span, reason: String) -> Self {
+        pub(super) fn statement(span: Span, reason: String) -> Self {
             Self { span, kind: "statement", reason }
         }
     }
@@ -881,13 +880,13 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(middle_unsupported_generic_param, code = "FLUX")]
-    pub struct UnsupportedGenericParam {
+    pub(super) struct UnsupportedGenericParam {
         #[primary_span]
         span: Span,
     }
 
     impl UnsupportedGenericParam {
-        pub fn new(span: Span) -> Self {
+        pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
     }
@@ -895,7 +894,7 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(middle_unsupported_type_of, code = "FLUX")]
     #[note]
-    pub struct UnsupportedTypeOf<'tcx> {
+    pub(super) struct UnsupportedTypeOf<'tcx> {
         #[primary_span]
         span: Span,
         reason: String,
@@ -903,7 +902,11 @@ mod errors {
     }
 
     impl<'tcx> UnsupportedTypeOf<'tcx> {
-        pub fn new(span: Span, ty: rustc_middle::ty::Ty<'tcx>, err: UnsupportedType) -> Self {
+        pub(super) fn new(
+            span: Span,
+            ty: rustc_middle::ty::Ty<'tcx>,
+            err: UnsupportedType,
+        ) -> Self {
             Self { span, reason: err.reason, ty }
         }
     }

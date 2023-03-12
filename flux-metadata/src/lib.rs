@@ -144,7 +144,7 @@ impl CrateMetadata {
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 DefKind::TyAlias => {
-                    type_of.insert(def_id.index, genv.type_of(def_id));
+                    type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 _ => {}

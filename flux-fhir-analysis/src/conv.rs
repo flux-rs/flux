@@ -13,7 +13,7 @@ use flux_common::{bug, span_bug};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir::{self, SurfaceIdent},
-    global_env::GlobalEnv,
+    global_env::{GlobalEnv, QueryResult},
     intern::List,
     rty::{self, fold::TypeFoldable, DebruijnIndex},
     rustc,
@@ -61,12 +61,15 @@ enum LookupResultKind<'a> {
     Single(&'a fhir::Sort, &'a rty::Sort),
 }
 
-pub(crate) fn expand_type_alias(genv: &GlobalEnv, alias: &fhir::TyAlias) -> rty::Binder<rty::Ty> {
+pub(crate) fn expand_type_alias(
+    genv: &GlobalEnv,
+    alias: &fhir::TyAlias,
+) -> QueryResult<rty::Binder<rty::Ty>> {
     let layer = Layer::from_params(genv.early_cx(), &alias.params);
     let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
-    let ty = cx.conv_ty(&alias.ty);
+    let ty = cx.conv_ty(&alias.ty)?;
     let sort = cx.env.pop_layer().into_sort();
-    rty::Binder::new(ty, sort)
+    Ok(rty::Binder::new(ty, sort))
 }
 
 pub(crate) fn conv_generics(
@@ -141,29 +144,29 @@ pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty:
     rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
 }
 
-pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> rty::PolySig {
+pub(crate) fn conv_fn_sig(genv: &GlobalEnv, fn_sig: &fhir::FnSig) -> QueryResult<rty::PolySig> {
     let layer = Layer::from_fun_params(genv.early_cx(), &fn_sig.params);
     let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
-        requires.push(cx.conv_constr(constr));
+        requires.push(cx.conv_constr(constr)?);
     }
 
     let mut args = vec![];
     for ty in &fn_sig.args {
-        args.push(cx.conv_ty(ty));
+        args.push(cx.conv_ty(ty)?);
     }
 
-    let output = cx.conv_fn_output(&fn_sig.output);
+    let output = cx.conv_fn_output(&fn_sig.output)?;
 
     let params = cx.env.pop_layer().into_fun_params();
-    rty::PolySig::new(params, rty::FnSig::new(requires, args, output))
+    Ok(rty::PolySig::new(params, rty::FnSig::new(requires, args, output)))
 }
 
-pub(crate) fn conv_ty(genv: &GlobalEnv, ty: &fhir::Ty) -> rty::Binder<rty::Ty> {
-    let ty = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), Layer::empty())).conv_ty(ty);
-    rty::Binder::new(ty, rty::Sort::unit())
+pub(crate) fn conv_ty(genv: &GlobalEnv, ty: &fhir::Ty) -> QueryResult<rty::Binder<rty::Ty>> {
+    let ty = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), Layer::empty())).conv_ty(ty)?;
+    Ok(rty::Binder::new(ty, rty::Sort::unit()))
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
@@ -171,52 +174,59 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Self { genv, env }
     }
 
-    fn conv_fn_output(&mut self, output: &fhir::FnOutput) -> rty::Binder<rty::FnOutput> {
+    fn conv_fn_output(
+        &mut self,
+        output: &fhir::FnOutput,
+    ) -> QueryResult<rty::Binder<rty::FnOutput>> {
         self.env
             .push_layer(Layer::from_fun_params(self.early_cx(), &output.params));
 
-        let ret = self.conv_ty(&output.ret);
-        let ensures = output
+        let ret = self.conv_ty(&output.ret)?;
+        let ensures: List<rty::Constraint> = output
             .ensures
             .iter()
             .map(|constr| self.conv_constr(constr))
-            .collect_vec();
+            .try_collect()?;
         let output = rty::FnOutput::new(ret, ensures);
 
         let sort = self.env.pop_layer().into_sort();
 
-        rty::Binder::new(output, sort)
+        Ok(rty::Binder::new(output, sort))
     }
 
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
-    ) -> Vec<rty::PolyVariant> {
+    ) -> QueryResult<Vec<rty::PolyVariant>> {
         enum_def
             .variants
             .iter()
             .map(|variant_def| ConvCtxt::conv_variant(genv, variant_def))
-            .collect()
+            .try_collect()
     }
 
-    fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> rty::PolyVariant {
+    fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> QueryResult<rty::PolyVariant> {
         let layer = Layer::from_fun_params(genv.early_cx(), &variant.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
-        let fields = variant.fields.iter().map(|ty| cx.conv_ty(ty)).collect_vec();
+        let fields = variant
+            .fields
+            .iter()
+            .map(|ty| cx.conv_ty(ty))
+            .try_collect()?;
         let sort = genv.early_cx().sort_of_bty(&variant.ret.bty).unwrap();
         let args = rty::Index::from(cx.conv_refine_arg(&variant.ret.idx, &sort));
-        let ret = cx.conv_base_ty(&variant.ret.bty, args);
+        let ret = cx.conv_base_ty(&variant.ret.bty, args)?;
         let variant = rty::VariantDef::new(fields, ret);
 
         let sort = cx.env.pop_layer().to_sort();
-        rty::Binder::new(variant, sort)
+        Ok(rty::Binder::new(variant, sort))
     }
 
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
         struct_def: &fhir::StructDef,
-    ) -> rty::Opaqueness<rty::PolyVariant> {
+    ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let layer = Layer::from_params(genv.early_cx(), &struct_def.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
@@ -225,7 +235,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             let fields = fields
                 .iter()
                 .map(|field_def| cx.conv_ty(&field_def.ty))
-                .collect_vec();
+                .try_collect()?;
 
             let substs = genv
                 .generics_of(def_id)
@@ -251,22 +261,22 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
-            rty::Opaqueness::Transparent(rty::Binder::new(variant, sort))
+            Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, sort)))
         } else {
-            rty::Opaqueness::Opaque
+            Ok(rty::Opaqueness::Opaque)
         }
     }
 
-    fn conv_constr(&mut self, constr: &fhir::Constraint) -> rty::Constraint {
+    fn conv_constr(&mut self, constr: &fhir::Constraint) -> QueryResult<rty::Constraint> {
         match constr {
             fhir::Constraint::Type(loc, ty) => {
-                rty::Constraint::Type(self.env.lookup(*loc).to_path(), self.conv_ty(ty))
+                Ok(rty::Constraint::Type(self.env.lookup(*loc).to_path(), self.conv_ty(ty)?))
             }
-            fhir::Constraint::Pred(pred) => rty::Constraint::Pred(self.env.conv_expr(pred)),
+            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.env.conv_expr(pred))),
         }
     }
 
-    fn conv_ty(&mut self, ty: &fhir::Ty) -> rty::Ty {
+    fn conv_ty(&mut self, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => {
                 match self.genv.early_cx().sort_of_bty(bty) {
@@ -279,14 +289,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         } else {
                             self.env.push_layer(Layer::empty());
                             let idx = rty::Index::from(rty::Expr::nu());
-                            let ty = self.conv_base_ty(bty, idx);
+                            let ty = self.conv_base_ty(bty, idx)?;
                             self.env.pop_layer();
-                            rty::Ty::exists(rty::Binder::new(ty, sort))
+                            Ok(rty::Ty::exists(rty::Binder::new(ty, sort)))
                         }
                     }
                     None => {
                         let def_id = bty.expect_param();
-                        rty::Ty::param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
+                        Ok(rty::Ty::param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local())))
                     }
                 }
             }
@@ -301,40 +311,40 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
                 self.env.push_layer(layer);
                 let idx = rty::Index::from(self.env.lookup(*bind).to_expr());
-                let ty = self.conv_base_ty(bty, idx);
+                let ty = self.conv_base_ty(bty, idx)?;
                 let pred = self.env.conv_expr(pred);
                 let constr = rty::Ty::constr(pred, ty);
                 let sort = self.env.pop_layer().into_sort();
 
                 if sort.is_unit() {
-                    constr.shift_out_bvars(1)
+                    Ok(constr.shift_out_bvars(1))
                 } else {
-                    rty::Ty::exists(rty::Binder::new(constr, sort))
+                    Ok(rty::Ty::exists(rty::Binder::new(constr, sort)))
                 }
             }
             fhir::TyKind::Ptr(loc) => {
-                rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path())
+                Ok(rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path()))
             }
             fhir::TyKind::Ref(rk, ty) => {
-                rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty))
+                Ok(rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)?))
             }
             fhir::TyKind::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| self.conv_ty(ty)).collect_vec();
-                rty::Ty::tuple(tys)
+                let tys: List<rty::Ty> = tys.iter().map(|ty| self.conv_ty(ty)).try_collect()?;
+                Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                rty::Ty::array(self.conv_ty(ty), rty::Const { val: len.val })
+                Ok(rty::Ty::array(self.conv_ty(ty)?, rty::Const { val: len.val }))
             }
-            fhir::TyKind::Never => rty::Ty::never(),
+            fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
                 let pred = self.env.conv_expr(pred);
-                rty::Ty::constr(pred, self.conv_ty(ty))
+                Ok(rty::Ty::constr(pred, self.conv_ty(ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
-                rty::Ty::indexed(
-                    rty::BaseTy::RawPtr(self.conv_ty(ty), *mutability),
+                Ok(rty::Ty::indexed(
+                    rty::BaseTy::RawPtr(self.conv_ty(ty)?, *mutability),
                     rty::Expr::unit(),
-                )
+                ))
             }
         }
     }
@@ -397,17 +407,17 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_base_ty(&mut self, bty: &fhir::BaseTy, idx: rty::Index) -> rty::Ty {
+    fn conv_base_ty(&mut self, bty: &fhir::BaseTy, idx: rty::Index) -> QueryResult<rty::Ty> {
         match &bty.kind {
             fhir::BaseTyKind::Path(path) => self.conv_path(path, idx),
             fhir::BaseTyKind::Slice(ty) => {
-                let slice = rty::BaseTy::slice(self.conv_ty(ty));
-                rty::Ty::indexed(slice, idx)
+                let slice = rty::BaseTy::slice(self.conv_ty(ty)?);
+                Ok(rty::Ty::indexed(slice, idx))
             }
         }
     }
 
-    fn conv_path(&mut self, path: &fhir::Path, idx: rty::Index) -> rty::Ty {
+    fn conv_path(&mut self, path: &fhir::Path, idx: rty::Index) -> QueryResult<rty::Ty> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -423,7 +433,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
                 let adt_def = self.genv.adt_def(*did);
-                let substs = self.conv_generic_args(*did, &path.generics);
+                let substs = self.conv_generic_args(*did, &path.generics)?;
                 rty::BaseTy::adt(adt_def, substs)
             }
             fhir::Res::Param(def_id) => {
@@ -445,17 +455,21 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         .cloned(),
                 );
 
-                return self
+                return Ok(self
                     .genv
-                    .type_of(*def_id)
-                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics))
-                    .replace_bvar(&rty::Expr::tuple(args));
+                    .type_of(*def_id)?
+                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics)?)
+                    .replace_bvar(&rty::Expr::tuple(args)));
             }
         };
-        rty::Ty::indexed(bty, idx)
+        Ok(rty::Ty::indexed(bty, idx))
     }
 
-    fn conv_generic_args(&mut self, def_id: DefId, args: &[fhir::Ty]) -> Vec<rty::GenericArg> {
+    fn conv_generic_args(
+        &mut self,
+        def_id: DefId,
+        args: &[fhir::Ty],
+    ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut i = 0;
         self.genv
             .generics_of(def_id)
@@ -466,23 +480,23 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::GenericParamDefKind::Type { has_default } => {
                         if i < args.len() {
                             i += 1;
-                            rty::GenericArg::Ty(self.conv_ty(&args[i - 1]))
+                            Ok(rty::GenericArg::Ty(self.conv_ty(&args[i - 1])?))
                         } else {
                             debug_assert!(has_default);
                             let ty = self
                                 .genv
-                                .type_of(param.def_id)
+                                .type_of(param.def_id)?
                                 .replace_bvar(&rty::Expr::unit());
-                            rty::GenericArg::Ty(ty)
+                            Ok(rty::GenericArg::Ty(ty))
                         }
                     }
                     rty::GenericParamDefKind::BaseTy => {
                         bug!("generic base type arguments not supported yet")
                     }
-                    rty::GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                    rty::GenericParamDefKind::Lifetime => Ok(rty::GenericArg::Lifetime),
                 }
             })
-            .collect()
+            .try_collect()
     }
 
     fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {

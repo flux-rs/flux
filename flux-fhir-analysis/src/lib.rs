@@ -18,7 +18,7 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir,
-    global_env::{GlobalEnv, Queries},
+    global_env::{GlobalEnv, Queries, QueryResult},
     rty::{self, fold::TypeFoldable},
     rustc,
 };
@@ -60,7 +60,7 @@ pub fn build_genv<'sess, 'tcx>(
     Ok(genv)
 }
 
-pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> rty::Binder<rty::Ty> {
+pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty::Ty>> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
@@ -181,6 +181,7 @@ fn register_struct_def_variants(genv: &mut GlobalEnv) {
         .map(|struct_def| {
             let def_id = struct_def.def_id;
             let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)
+                .unwrap_or_else(|_| FatalError.raise())
                 .map(|variant| vec![variant.normalize(genv.defns())]);
             if config::dump_fhir() {
                 dbg::dump_item_info(genv.tcx, def_id, "rty", &variants).unwrap();
@@ -198,6 +199,7 @@ fn register_enum_def_variants(genv: &mut GlobalEnv) {
         .map(|enum_def| {
             let def_id = enum_def.def_id;
             let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)
+                .unwrap_or_else(|_| FatalError.raise())
                 .into_iter()
                 .map(|variant| variant.normalize(genv.defns()))
                 .collect_vec();
@@ -212,7 +214,9 @@ fn register_fn_sigs(genv: &mut GlobalEnv) {
         .map()
         .fn_sigs()
         .map(|(def_id, fn_sig)| {
-            let fn_sig = conv::conv_fn_sig(genv, fn_sig).normalize(genv.defns());
+            let fn_sig = conv::conv_fn_sig(genv, fn_sig)
+                .unwrap_or_else(|_| FatalError.raise())
+                .normalize(genv.defns());
             if config::dump_rty() {
                 dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
             }

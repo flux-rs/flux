@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::hash_map, string::ToString};
 
-use flux_errors::FluxSession;
-use rustc_errors::FatalError;
+use flux_errors::{ErrorGuaranteed, FluxSession};
+use rustc_errors::{FatalError, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
@@ -18,7 +18,6 @@ use crate::{
         self,
         normalize::Defns,
         refining::{self, Refiner},
-        Binder,
     },
     rustc,
 };
@@ -27,7 +26,14 @@ type VariantMap = FxHashMap<DefId, rty::Opaqueness<Vec<rty::PolyVariant>>>;
 type FnSigMap = FxHashMap<DefId, rty::PolySig>;
 
 pub struct Queries {
-    pub type_of: fn(&GlobalEnv, LocalDefId) -> rty::Binder<rty::Ty>,
+    pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
+}
+
+pub type QueryResult<T> = Result<T, QueryErr>;
+
+#[derive(Debug)]
+pub enum QueryErr {
+    Unsupported { def_id: DefId, reason: String },
 }
 
 pub struct GlobalEnv<'sess, 'tcx> {
@@ -282,25 +288,17 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }
 
-    pub fn type_of(&self, def_id: DefId) -> Binder<rty::Ty> {
+    pub fn type_of(&self, def_id: DefId) -> QueryResult<rty::Binder<rty::Ty>> {
         if let Some(local_id) = def_id.as_local() {
             (self.queries.type_of)(self, local_id)
+        } else if let Some(ty) = self.early_cx.cstore.type_of(def_id) {
+            Ok(ty.clone())
         } else {
-            self.early_cx
-                .cstore
-                .type_of(def_id)
-                .cloned()
-                .unwrap_or_else(|| {
-                    let rustc_ty = self.lower_type_of(def_id);
-                    let ty = self.refine_default(&self.generics_of(def_id), &rustc_ty);
-                    Binder::new(ty, rty::Sort::unit())
-                })
+            let rustc_ty = rustc::lowering::lower_type_of(self.tcx, def_id)
+                .map_err(|err| QueryErr::Unsupported { def_id, reason: err.reason })?;
+            let ty = self.refine_default(&self.generics_of(def_id), &rustc_ty);
+            Ok(rty::Binder::new(ty, rty::Sort::unit()))
         }
-    }
-
-    pub(crate) fn lower_type_of(&self, def_id: DefId) -> rustc::ty::Ty {
-        rustc::lowering::lower_type_of(self.tcx, self.sess, def_id)
-            .unwrap_or_else(|_| FatalError.raise())
     }
 
     pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
