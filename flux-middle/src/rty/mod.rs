@@ -4,7 +4,6 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
-pub mod conv;
 pub mod evars;
 mod expr;
 pub mod fold;
@@ -19,6 +18,7 @@ pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, 
 use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
+pub use normalize::Defns;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
@@ -297,7 +297,7 @@ impl Sort {
         Sort::Tuple(sorts.into())
     }
 
-    pub(crate) fn unit() -> Self {
+    pub fn unit() -> Self {
         Self::tuple(vec![])
     }
 
@@ -335,7 +335,7 @@ impl Sort {
         }
     }
 
-    pub(crate) fn is_unit(&self) -> bool {
+    pub fn is_unit(&self) -> bool {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
 
@@ -375,7 +375,7 @@ impl Sort {
 }
 
 impl FuncSort {
-    pub(crate) fn new(input: Sort, output: Sort) -> Self {
+    pub fn new(input: Sort, output: Sort) -> Self {
         FuncSort { input_and_output: List::from_vec(vec![input, output]) }
     }
 
@@ -537,7 +537,7 @@ impl FnOutput {
 }
 
 impl AdtDef {
-    pub(crate) fn new(
+    pub fn new(
         rustc_def: rustc_middle::ty::AdtDef,
         sort: Sort,
         invariants: Vec<Invariant>,

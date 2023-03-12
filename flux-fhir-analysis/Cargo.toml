@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 flux-common = { path = "../flux-common" }
+flux-config = { path = "../flux-config" }
 flux-errors = { path = "../flux-errors" }
 flux-macros = { path = "../flux-macros" }
 flux-middle = { path = "../flux-middle" }

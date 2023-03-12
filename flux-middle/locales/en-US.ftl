@@ -28,9 +28,3 @@ middle_unsupported_generic_param =
 middle_unsupported_generic_bound =
     unsupported generic bound
     .note = {$reason}
-
-# Definition cycle
-
-middle_definition_cycle =
-    cycle in definitions
-    .label = {$msg}

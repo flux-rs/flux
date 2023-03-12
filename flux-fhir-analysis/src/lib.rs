@@ -1,22 +1,110 @@
 #![warn(unused_extern_crates)]
 #![feature(rustc_private, let_chains, box_patterns)]
 
+extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_middle;
 extern crate rustc_span;
 
+mod annot_check;
+mod conv;
+mod wf;
+
+use flux_common::{bug, dbg};
+use flux_config as config;
 use flux_macros::fluent_messages;
-use flux_middle::early_ctxt::EarlyCtxt;
-use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
+use flux_middle::{
+    early_ctxt::EarlyCtxt,
+    fhir,
+    global_env::{GlobalEnv, Queries},
+    rty::{self, fold::TypeFoldable},
+    rustc,
+};
+use itertools::Itertools;
+use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, FatalError, SubdiagnosticMessage};
+use rustc_hash::FxHashMap;
+use rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 use wf::Wf;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-mod annot_check;
-mod wf;
+pub fn build_genv<'sess, 'tcx>(
+    early_cx: EarlyCtxt<'sess, 'tcx>,
+) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
+    check_crate(&early_cx)?;
 
-pub fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
+    let adt_defs = conv_adt_defs(&early_cx);
+    let defns = conv_defns(&early_cx)?;
+    let qualifiers = early_cx
+        .map
+        .qualifiers()
+        .map(|qualifier| conv::conv_qualifier(&early_cx, qualifier).normalize(&defns))
+        .collect();
+    let uifs = early_cx
+        .map
+        .uifs()
+        .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
+        .collect();
+
+    let mut genv = GlobalEnv::new(early_cx, adt_defs, defns, qualifiers, uifs, Queries { type_of });
+    register_generics(&mut genv);
+    register_struct_def_variants(&mut genv);
+    register_enum_def_variants(&mut genv);
+    register_fn_sigs(&mut genv);
+
+    Ok(genv)
+}
+
+pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> rty::Binder<rty::Ty> {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::TyAlias => {
+            let alias = genv.map().get_type_alias(def_id);
+            conv::expand_type_alias(genv, alias)
+        }
+        DefKind::TyParam => {
+            match &genv.early_cx().get_generic_param(def_id).kind {
+                fhir::GenericParamDefKind::Type { default: Some(ty) } => conv::conv_ty(genv, ty),
+                _ => bug!("non-type def"),
+            }
+        }
+        kind => {
+            bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))
+        }
+    }
+}
+
+fn conv_adt_defs(early_cx: &EarlyCtxt) -> FxHashMap<DefId, rty::AdtDef> {
+    let mut map = FxHashMap::default();
+    for struct_def in early_cx.map.structs() {
+        map.insert(struct_def.def_id.to_def_id(), conv::adt_def_for_struct(early_cx, struct_def));
+    }
+    for enum_def in early_cx.map.enums() {
+        map.insert(enum_def.def_id.to_def_id(), conv::adt_def_for_enum(early_cx, enum_def));
+    }
+
+    map
+}
+
+fn conv_defns(early_cx: &EarlyCtxt) -> Result<rty::Defns, ErrorGuaranteed> {
+    let defns = early_cx
+        .map
+        .defns()
+        .map(|defn| (defn.name, conv::conv_defn(early_cx, defn)))
+        .collect();
+    rty::Defns::new(defns).map_err(|cycle| {
+        let span = early_cx.map.defn(cycle[0]).unwrap().expr.span;
+        early_cx
+            .sess
+            .emit_err(errors::DefinitionCycle::new(span, cycle))
+    })
+}
+
+fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
     for defn in early_cx.map.defns() {
@@ -66,5 +154,93 @@ pub fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
         Err(err)
     } else {
         Ok(())
+    }
+}
+
+fn register_generics(genv: &mut GlobalEnv) {
+    let generics = genv
+        .map()
+        .generics()
+        .map(|(def_id, generics)| {
+            let rustc_generics = rustc::lowering::lower_generics(
+                genv.tcx,
+                genv.sess,
+                genv.tcx.generics_of(def_id.to_def_id()),
+            )
+            .unwrap_or_else(|_| FatalError.raise());
+            (def_id.to_def_id(), conv::conv_generics(&rustc_generics, generics))
+        })
+        .collect_vec();
+    genv.register_generics(generics);
+}
+
+fn register_struct_def_variants(genv: &mut GlobalEnv) {
+    let variants = genv
+        .map()
+        .structs()
+        .map(|struct_def| {
+            let def_id = struct_def.def_id;
+            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)
+                .map(|variant| vec![variant.normalize(genv.defns())]);
+            if config::dump_fhir() {
+                dbg::dump_item_info(genv.tcx, def_id, "rty", &variants).unwrap();
+            }
+            (def_id.to_def_id(), variants)
+        })
+        .collect_vec();
+    genv.register_variants(variants);
+}
+
+fn register_enum_def_variants(genv: &mut GlobalEnv) {
+    let variants = genv
+        .map()
+        .enums()
+        .map(|enum_def| {
+            let def_id = enum_def.def_id;
+            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)
+                .into_iter()
+                .map(|variant| variant.normalize(genv.defns()))
+                .collect_vec();
+            (def_id.to_def_id(), rty::Opaqueness::Transparent(variants))
+        })
+        .collect_vec();
+    genv.register_variants(variants);
+}
+
+fn register_fn_sigs(genv: &mut GlobalEnv) {
+    let fn_sigs = genv
+        .map()
+        .fn_sigs()
+        .map(|(def_id, fn_sig)| {
+            let fn_sig = conv::conv_fn_sig(genv, fn_sig).normalize(genv.defns());
+            if config::dump_rty() {
+                dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
+            }
+            (def_id.to_def_id(), fn_sig)
+        })
+        .collect_vec();
+    genv.register_fn_sigs(fn_sigs);
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use rustc_span::{Span, Symbol};
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_definition_cycle, code = "FLUX")]
+    pub struct DefinitionCycle {
+        #[primary_span]
+        #[label]
+        span: Span,
+        msg: String,
+    }
+
+    impl DefinitionCycle {
+        pub(super) fn new(span: Span, cycle: Vec<Symbol>) -> Self {
+            let root = format!("`{}`", cycle[0]);
+            let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
+            let msg = format!("{} -> {}", names.join(" -> "), root);
+            Self { span, msg }
+        }
     }
 }

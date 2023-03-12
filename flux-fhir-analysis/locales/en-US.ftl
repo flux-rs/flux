@@ -131,3 +131,9 @@ fhir_analysis_field_count_mismatch =
         [one] field
         *[other] fields
     }
+
+# Definition cycle
+
+fhir_analysis_definition_cycle =
+    cycle in definitions
+    .label = {$msg}
