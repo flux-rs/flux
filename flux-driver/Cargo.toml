@@ -10,6 +10,7 @@ flux-common = { path = "../flux-common" }
 flux-config = { path = "../flux-config" }
 flux-desugar = { path = "../flux-desugar" }
 flux-errors = { path = "../flux-errors" }
+flux-fhir-analysis = { path = "../flux-fhir-analysis" }
 flux-fixpoint = { path = "../flux-fixpoint" }
 flux-macros = { path = "../flux-macros" }
 flux-metadata = { path = "../flux-metadata" }

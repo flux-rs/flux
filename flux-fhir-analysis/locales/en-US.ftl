@@ -1,0 +1,133 @@
+# Well-formed errors
+
+fhir_analysis_sort_mismatch =
+    mismatched sorts
+    .label = expected `{$expected}`, found `{$found}`
+
+fhir_analysis_arg_count_mismatch =
+    this {$thing} takes {$expected ->
+        [one] {$expected} refinement argument
+        *[other] {$expected} refinement arguments
+    } but {$found ->
+        [one] {$found} was found
+        *[other] {$found} were found
+    }
+    .label = expected {$expected ->
+        [one] {$expected} argument
+        *[other] {$expected} arguments
+    }, found {$found}
+
+fhir_analysis_early_bound_arg_count_mismatch =
+    this type alias takes {$expected ->
+        [one] {$expected} early bound argument
+        *[other] {$expected} early bound arguments
+    } but {$found ->
+        [one] {$found} was found
+        *[other] {$found} were found
+    }
+    .label = expected {$expected ->
+        [one] {$expected} early bound argument
+        *[other] {$expected} early bound arguments
+    }, found {$found}
+
+fhir_analysis_illegal_binder =
+    illegal binder
+    .label = binder not allowed in this position
+
+fhir_analysis_duplicated_ensures =
+    an ensures clause already exists for `{$loc}`
+
+fhir_analysis_unknown_qualifier =
+    unknown qualifier
+
+fhir_analysis_missing_ensures =
+    missing ensures clause for `&strg` reference
+
+fhir_analysis_expected_fun =
+    expected function, found `{$found}`
+
+fhir_analysis_invalid_param_in_func_pos =
+    illegal use of refinement parameter
+    .label = {$is_pred ->
+        [true] abstract refinements are only allowed in a top-level conjunction
+        *[false] parameters of sort `{$sort}` are not supported in this position
+     }
+
+fhir_analysis_unexpected_fun =
+    mismatched sorts
+    .label = expected `{$sort}`, found function
+
+fhir_analysis_param_count_mismatch =
+    parameter count mismatch
+    .label = this function has {$found ->
+        [one] {$found} parameter
+        *[other] {$found} parameters
+    }, but a function with {$expected ->
+        [one] {$expected} parameter
+        *[other] {$expected} parameters
+    } was expected
+
+fhir_analysis_field_not_found =
+    no field `{$fld}` on sort `{$sort}`
+
+fhir_analysis_invalid_primitive_dot_access =
+    `{$sort}` is a primitive sort and therefore doesn't have fields
+
+fhir_analysis_expected_numeric =
+    mismatched sorts
+    .label = expected numeric sort, found `{$found}`
+
+fhir_analysis_no_equality =
+    values of sort `{$sort}` cannot be compared for equality
+
+# Annot check
+
+fhir_analysis_invalid_refinement =
+    invalid refinement annotation
+    .label = expected a refinement of `{$expected_ty}`
+    .expected_label = must be a valid refinement of this type
+    .note = {$note}
+
+fhir_analysis_fun_arg_count_mismatch =
+    argument count mismatch
+    .label = refined signature has {$args} {$args ->
+        [one] argument
+        *[other] arguments
+     }
+    .expected_label = rust signature has {$expected_args} {$expected_args ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_generic_argument_count_mismatch =
+    this {$def_descr} must take {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+    .expected_label = {$def_descr} used here with {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_array_len_mismatch =
+    array length mismatch
+    .label = expected {$expected_len}, found {$len}
+    .expected_label = expected length
+
+fhir_analysis_field_count_mismatch =
+    field count mismatch
+    .label = refined variant has {$fields} {$fields ->
+        [one] field
+        *[other] fields
+     }
+    .expected_label = rust variant has {$expected_fields} {$expected_fields ->
+        [one] field
+        *[other] fields
+    }

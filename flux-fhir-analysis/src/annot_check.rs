@@ -236,12 +236,12 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(desugar_invalid_refinement, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_refinement, code = "FLUX")]
     pub(super) struct InvalidRefinement {
         #[primary_span]
         #[label]
         span: Span,
-        #[label(desugar_expected_label)]
+        #[label(fhir_analysis_expected_label)]
         expected_span: Span,
         expected_ty: String,
         #[note]
@@ -286,13 +286,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_fun_arg_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_fun_arg_count_mismatch, code = "FLUX")]
     pub(super) struct FunArgCountMismatch {
         #[primary_span]
         #[label]
         span: Span,
         args: usize,
-        #[label(desugar_expected_label)]
+        #[label(fhir_analysis_expected_label)]
         expected_span: Span,
         expected_args: usize,
     }
@@ -309,7 +309,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_generic_argument_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_generic_argument_count_mismatch, code = "FLUX")]
     pub(super) struct GenericArgCountMismatch {
         #[primary_span]
         #[label]
@@ -317,7 +317,7 @@ mod errors {
         found: usize,
         expected: usize,
         def_descr: &'static str,
-        #[label(desugar_expected_label)]
+        #[label(fhir_analysis_expected_label)]
         expected_span: Span,
     }
 
@@ -334,13 +334,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_array_len_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_array_len_mismatch, code = "FLUX")]
     pub(super) struct ArrayLenMismatch {
         #[primary_span]
         #[label]
         span: Span,
         len: usize,
-        #[label(desugar_expected_label)]
+        #[label(fhir_analysis_expected_label)]
         expected_span: Span,
         expected_len: usize,
     }
@@ -357,13 +357,13 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_field_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_field_count_mismatch, code = "FLUX")]
     pub(super) struct FieldCountMismatch {
         #[primary_span]
         #[label]
         span: Span,
         fields: usize,
-        #[label(desugar_expected_label)]
+        #[label(fhir_analysis_expected_label)]
         expected_span: Span,
         expected_fields: usize,
     }
