@@ -477,6 +477,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-attrs"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "flux-attrs-proc-macros"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs",
+ "proc-macro2",
+]
+
+[[package]]
 name = "flux-bin"
 version = "0.1.0"
 dependencies = [

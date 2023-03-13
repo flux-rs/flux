@@ -14,7 +14,10 @@ use rustc_ast::{
 };
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::LocalDefId, EnumDef, ImplItemKind, Item, ItemKind, VariantData};
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    EnumDef, ImplItemKind, Item, ItemKind, VariantData,
+};
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_span::{Span, Symbol};
 
@@ -48,6 +51,7 @@ pub(crate) struct Specs {
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
+    pub extern_fns: FxHashMap<DefId, LocalDefId>,
 }
 
 pub(crate) struct FnSpec {
@@ -272,9 +276,20 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-fun attrs
 
-        let trusted = attrs.trusted();
+        let mut trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
         let qual_names = attrs.qual_names();
+        if attrs.extern_spec() {
+            if fn_sig.is_none() {
+                return Err(self.emit_err(errors::MissingFnSigForExternSpec {
+                    span: self.tcx.def_span(def_id),
+                }));
+            }
+            let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(def_id)?;
+            self.specs.extern_fns.insert(extern_def_id, def_id);
+            // We should never check an extern spec (it will infinitely recurse)
+            trusted = true;
+        }
         self.specs
             .fns
             .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
@@ -358,9 +373,33 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted,
+            ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
         Ok(FluxAttr { kind, span: attr_item.span() })
+    }
+
+    // In Prusti they suggested looking into doing this instead of using a Visitor...
+    // it seems more brittle but I guess conversely their version is a little permissive.
+    fn extract_extern_def_id_from_extern_spec_fn(
+        &mut self,
+        def_id: LocalDefId,
+    ) -> Result<DefId, ErrorGuaranteed> {
+        use rustc_hir::{def, ExprKind, Node};
+        if let Node::Item(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
+            && let ItemKind::Fn(_, _, body_id) = &i.kind
+            && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
+            && let ExprKind::Block(b, _) = e.kind
+            && let Some(e) = b.expr
+            && let ExprKind::Call(callee, _) = e.kind
+            && let ExprKind::Path(ref qself) = callee.kind {
+                let typeck_result = self.tcx.typeck(def_id);
+                if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
+                {
+                    return Ok(def_id);
+                }
+        }
+        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
     fn parse<T>(
@@ -419,6 +458,7 @@ impl Specs {
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
             crate_config: None,
+            extern_fns: FxHashMap::default(),
         }
     }
     fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
@@ -459,6 +499,7 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore,
+    ExternSpec,
 }
 
 macro_rules! read_flag {
@@ -555,6 +596,10 @@ impl FluxAttrs {
         read_attrs!(self, Invariant)
     }
 
+    fn extern_spec(&mut self) -> bool {
+        read_flag!(self, ExternSpec)
+    }
+
     fn contains(&self, attr: &str) -> Option<Span> {
         self.map.get(attr).and_then(|attrs| {
             match &attrs[..] {
@@ -581,6 +626,7 @@ impl FluxAttrKind {
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
             FluxAttrKind::Ignore => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
+            FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
         }
     }
 }
@@ -735,6 +781,20 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_malformed_extern_spec, code = "FLUX")]
+    pub struct MalformedExternSpec {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_missing_fn_sig_for_extern_spec, code = "FLUX")]
+    pub struct MissingFnSigForExternSpec {
+        #[primary_span]
+        pub span: Span,
     }
 
     #[derive(Diagnostic)]

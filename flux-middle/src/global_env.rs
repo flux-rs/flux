@@ -25,6 +25,8 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     queries: Queries<'tcx>,
+    queries: Queries,
+    extern_fns: FxHashMap<DefId, DefId>,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
@@ -38,6 +40,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let names = names.iter().map(|ident| ident.name.to_string()).collect();
             fn_quals.insert(def_id.to_def_id(), names);
         }
+        let extern_fns = early_cx
+            .map
+            .extern_fns()
+            .iter()
+            .map(|(extern_def_id, local_def_id)| (*extern_def_id, local_def_id.to_def_id()))
+            .collect();
         GlobalEnv {
             tcx: early_cx.tcx,
             sess: early_cx.sess,
@@ -45,6 +53,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             uifs,
             fn_quals,
             queries: Queries::new(providers),
+            extern_fns,
         }
     }
 
@@ -193,5 +202,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.tcx.hir()
+    }
+
+    pub fn extern_fns(&self) -> &FxHashMap<DefId, DefId> {
+        &self.extern_fns
     }
 }
