@@ -197,7 +197,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                             .map(|variant_def| {
                                 let variant_def = rustc::lowering::lower_variant_def(
                                     self.tcx,
-                                    self.sess,
                                     def_id,
                                     variant_def,
                                 )

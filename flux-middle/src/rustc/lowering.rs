@@ -532,7 +532,6 @@ pub(crate) fn lower_type_of(tcx: TyCtxt, def_id: DefId) -> Result<Ty, Unsupporte
 
 pub(crate) fn lower_variant_def(
     tcx: TyCtxt,
-    sess: &FluxSession,
     adt_def_id: DefId,
     variant_def: &rustc_ty::VariantDef,
 ) -> Result<VariantDef, UnsupportedType> {
