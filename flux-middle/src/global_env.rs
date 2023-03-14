@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::hash_map, string::ToString};
 
 use flux_errors::{ErrorGuaranteed, FluxSession};
+use itertools::Itertools;
 use rustc_errors::{FatalError, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
@@ -8,6 +9,7 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_middle::ty::{TyCtxt, Variance};
+use rustc_span::Span;
 pub use rustc_span::{symbol::Ident, Symbol};
 
 pub use crate::rustc::lowering::UnsupportedFnSig;
@@ -19,21 +21,25 @@ use crate::{
         normalize::Defns,
         refining::{self, Refiner},
     },
-    rustc,
+    rustc::{
+        self,
+        lowering::{self, UnsupportedType},
+    },
 };
 
-type VariantMap = FxHashMap<DefId, rty::Opaqueness<Vec<rty::PolyVariant>>>;
+type VariantMap = FxHashMap<DefId, rty::PolyVariants>;
 type FnSigMap = FxHashMap<DefId, rty::PolySig>;
 
 pub struct Queries {
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
+    pub variants: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
 }
 
 pub type QueryResult<T> = Result<T, QueryErr>;
 
 #[derive(Debug)]
 pub enum QueryErr {
-    Unsupported { def_id: DefId, reason: String },
+    UnsupportedType { def_id: DefId, def_span: Span, reason: String },
 }
 
 pub struct GlobalEnv<'sess, 'tcx> {
@@ -91,13 +97,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.generics.get_mut().extend(generics);
     }
 
-    pub fn register_variants(
-        &mut self,
-        variants: impl IntoIterator<Item = (DefId, rty::Opaqueness<Vec<rty::PolyVariant>>)>,
-    ) {
-        self.adt_variants.get_mut().extend(variants);
-    }
-
     pub fn register_fn_sigs(&mut self, fn_sigs: impl IntoIterator<Item = (DefId, rty::PolySig)>) {
         self.fn_sigs.get_mut().extend(fn_sigs);
     }
@@ -135,7 +134,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 let fn_sig = if let Some(fn_sig) = self.early_cx.cstore.fn_sig(def_id) {
                     fn_sig
                 } else {
-                    let fn_sig = rustc::lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
+                    let fn_sig = lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
                     Refiner::default(self, &self.generics_of(def_id)).refine_fn_sig(&fn_sig)
                 };
                 Ok(entry.insert(fn_sig).clone())
@@ -177,39 +176,43 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         rty::Ty::indexed(bty, rty::Index::unit())
     }
 
+    pub fn variants(&self, def_id: DefId) -> QueryResult<rty::PolyVariants> {
+        match self.adt_variants.borrow_mut().entry(def_id) {
+            hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
+            hash_map::Entry::Vacant(entry) => {
+                let variants = if let Some(local_id) = def_id.as_local() {
+                    (self.queries.variants)(self, local_id)?
+                } else if let Some(variants) = self.early_cx.cstore.variants(def_id) {
+                    variants.map(<[_]>::to_vec)
+                } else {
+                    let variants = self
+                        .tcx
+                        .adt_def(def_id)
+                        .variants()
+                        .iter()
+                        .map(|variant_def| {
+                            let variant_def =
+                                lowering::lower_variant_def(self.tcx, def_id, variant_def)
+                                    .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?;
+                            Ok(Refiner::default(self, &self.generics_of(def_id))
+                                .refine_variant_def(&variant_def))
+                        })
+                        .try_collect()?;
+                    rty::Opaqueness::Transparent(variants)
+                };
+                Ok(entry.insert(variants).clone())
+            }
+        }
+    }
+
     pub fn variant(
         &self,
         def_id: DefId,
         variant_idx: VariantIdx,
-    ) -> rty::Opaqueness<rty::PolyVariant> {
-        self.adt_variants
-            .borrow_mut()
-            .entry(def_id)
-            .or_insert_with(|| {
-                if let Some(variants) = self.early_cx.cstore.variants(def_id) {
-                    variants.map(<[_]>::to_vec)
-                } else {
-                    rty::Opaqueness::Transparent(
-                        self.tcx
-                            .adt_def(def_id)
-                            .variants()
-                            .iter()
-                            .map(|variant_def| {
-                                let variant_def = rustc::lowering::lower_variant_def(
-                                    self.tcx,
-                                    def_id,
-                                    variant_def,
-                                )
-                                .unwrap_or_else(|_| FatalError.raise());
-                                Refiner::default(self, &self.generics_of(def_id))
-                                    .refine_variant_def(&variant_def)
-                            })
-                            .collect(),
-                    )
-                }
-            })
-            .as_ref()
-            .map(|variants| variants[variant_idx.as_usize()].clone())
+    ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
+        Ok(self
+            .variants(def_id)?
+            .map(|variants| variants[variant_idx.as_usize()].clone()))
     }
 
     pub fn predicates_of(&self, def_id: DefId) -> rty::GenericPredicates {
@@ -219,7 +222,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .or_insert_with(|| {
                 let predicates = self.tcx.predicates_of(def_id);
                 let predicates =
-                    rustc::lowering::lower_generic_predicates(self.tcx, self.sess, predicates)
+                    lowering::lower_generic_predicates(self.tcx, self.sess, predicates)
                         .unwrap_or_else(|_| FatalError.raise());
 
                 Refiner::default(self, &self.generics_of(def_id))
@@ -234,12 +237,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .borrow_mut()
             .entry(def_id)
             .or_insert_with(|| {
-                let generics = rustc::lowering::lower_generics(
-                    self.tcx,
-                    self.sess,
-                    self.tcx.generics_of(def_id),
-                )
-                .unwrap_or_else(|_| FatalError.raise());
+                let generics =
+                    lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
+                        .unwrap_or_else(|_| FatalError.raise());
                 refining::refine_generics(&generics)
             })
             .clone()
@@ -293,8 +293,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         } else if let Some(ty) = self.early_cx.cstore.type_of(def_id) {
             Ok(ty.clone())
         } else {
-            let rustc_ty = rustc::lowering::lower_type_of(self.tcx, def_id)
-                .map_err(|err| QueryErr::Unsupported { def_id, reason: err.reason })?;
+            let rustc_ty = lowering::lower_type_of(self.tcx, def_id)
+                .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?;
             let ty = self.refine_default(&self.generics_of(def_id), &rustc_ty);
             Ok(rty::Binder::new(ty, rty::Sort::unit()))
         }
@@ -306,5 +306,29 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.tcx.hir()
+    }
+}
+
+impl<'a> IntoDiagnostic<'a> for QueryErr {
+    fn into_diagnostic(
+        self,
+        handler: &'a rustc_errors::Handler,
+    ) -> rustc_errors::DiagnosticBuilder<'a, ErrorGuaranteed> {
+        use crate::fluent_generated as fluent;
+        match self {
+            QueryErr::UnsupportedType { reason, .. } => {
+                let mut builder = handler.struct_err_with_code(
+                    fluent::middle_query_unsupported_type,
+                    flux_errors::diagnostic_id(),
+                );
+                builder.note(reason);
+                builder
+            }
+        }
+    }
+}
+impl QueryErr {
+    fn unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedType) -> Self {
+        QueryErr::UnsupportedType { def_id, def_span: tcx.def_span(def_id), reason: err.reason }
     }
 }

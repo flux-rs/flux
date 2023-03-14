@@ -891,26 +891,6 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(middle_unsupported_type_of, code = "FLUX")]
-    #[note]
-    pub(super) struct UnsupportedTypeOf<'tcx> {
-        #[primary_span]
-        span: Span,
-        reason: String,
-        ty: rustc_middle::ty::Ty<'tcx>,
-    }
-
-    impl<'tcx> UnsupportedTypeOf<'tcx> {
-        pub(super) fn new(
-            span: Span,
-            ty: rustc_middle::ty::Ty<'tcx>,
-            err: UnsupportedType,
-        ) -> Self {
-            Self { span, reason: err.reason, ty }
-        }
-    }
-
-    #[derive(Diagnostic)]
     #[diag(middle_unsupported_fn_sig, code = "FLUX")]
     pub struct UnsupportedFnSig {
         #[primary_span]

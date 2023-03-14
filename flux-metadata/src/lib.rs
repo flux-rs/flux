@@ -23,7 +23,6 @@ use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, rty};
-use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
@@ -125,19 +124,7 @@ impl CrateMetadata {
                 }
                 DefKind::Enum | DefKind::Struct => {
                     let adt_def = genv.adt_def(def_id);
-                    let variants = if adt_def.is_opaque() {
-                        rty::Opaqueness::Opaque
-                    } else {
-                        rty::Opaqueness::Transparent(
-                            adt_def
-                                .variants()
-                                .map(|variant_idx| {
-                                    genv.variant(def_id, variant_idx)
-                                        .expect("adt must be transparent")
-                                })
-                                .collect_vec(),
-                        )
-                    };
+                    let variants = genv.variants(def_id).expect("error when getting variants");
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
 

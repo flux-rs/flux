@@ -110,7 +110,7 @@ pub struct AdtDefData {
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-#[derive(Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
@@ -121,6 +121,7 @@ pub struct Invariant {
     pub pred: Binder<Expr>,
 }
 
+pub type PolyVariants = Opaqueness<Vec<Binder<VariantDef>>>;
 pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]

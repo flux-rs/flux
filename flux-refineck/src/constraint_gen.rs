@@ -20,10 +20,10 @@ use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
 use crate::{
-    checker::errors::CheckerError,
+    checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
-    type_env::{OpaqueStructErr, TypeEnv},
+    type_env::TypeEnv,
 };
 
 pub struct ConstrGen<'a, 'tcx> {
@@ -113,7 +113,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         fn_sig: &PolySig,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<(Binder<FnOutput>, Obligations), CheckerError> {
+    ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
@@ -175,11 +175,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
+                    let ty =
+                        env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path)?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
@@ -200,10 +201,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         output: &Binder<FnOutput>,
-    ) -> Result<(), CheckerError> {
-        let ret_place_ty = env
-            .lookup_place(rcx, self, Place::RETURN)
-            .map_err(CheckerError::from)?;
+    ) -> Result<(), CheckerErrKind> {
+        let ret_place_ty = env.lookup_place(rcx, self, Place::RETURN)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -261,7 +260,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         args: &[Ty],
         arr_ty: Ty,
-    ) -> Result<Ty, CheckerError> {
+    ) -> Result<Ty, CheckerErrKind> {
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
         let arr_ty = arr_ty.replace_holes(|sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
@@ -273,11 +272,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
+                    let ty =
+                        env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path)?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),
@@ -351,7 +351,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         env: &mut TypeEnv,
         path: &Path,
         ty: &Ty,
-    ) -> Result<(), OpaqueStructErr> {
+    ) -> Result<(), CheckerErrKind> {
         let actual_ty = env.lookup_path(rcx, &mut self.as_constr_gen(), path)?;
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
@@ -362,7 +362,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
-    ) -> Result<(), OpaqueStructErr> {
+    ) -> Result<(), CheckerErrKind> {
         let rcx = &mut rcx.branch();
         match constraint {
             Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty),

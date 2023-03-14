@@ -51,16 +51,15 @@ pub fn build_genv<'sess, 'tcx>(
         .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
         .collect();
 
-    let mut genv = GlobalEnv::new(early_cx, adt_defs, defns, qualifiers, uifs, Queries { type_of });
+    let mut genv =
+        GlobalEnv::new(early_cx, adt_defs, defns, qualifiers, uifs, Queries { type_of, variants });
     register_generics(&mut genv);
-    register_struct_def_variants(&mut genv);
-    register_enum_def_variants(&mut genv);
     register_fn_sigs(&mut genv);
 
     Ok(genv)
 }
 
-pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty::Ty>> {
+fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty::Ty>> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
@@ -74,6 +73,28 @@ pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<
         }
         kind => {
             bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))
+        }
+    }
+}
+
+fn variants(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::Enum => {
+            let enum_def = genv.map().get_enum(def_id);
+            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)?
+                .into_iter()
+                .map(|variant| variant.normalize(genv.defns()))
+                .collect();
+            Ok(rty::Opaqueness::Transparent(variants))
+        }
+        DefKind::Struct => {
+            let struct_def = genv.map().get_struct(def_id);
+            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)?
+                .map(|variant| vec![variant.normalize(genv.defns())]);
+            Ok(variants)
+        }
+        kind => {
+            bug!("expected struct or enum found `{kind:?}`")
         }
     }
 }
@@ -172,41 +193,6 @@ fn register_generics(genv: &mut GlobalEnv) {
         })
         .collect_vec();
     genv.register_generics(generics);
-}
-
-fn register_struct_def_variants(genv: &mut GlobalEnv) {
-    let variants = genv
-        .map()
-        .structs()
-        .map(|struct_def| {
-            let def_id = struct_def.def_id;
-            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)
-                .unwrap_or_else(|_| FatalError.raise())
-                .map(|variant| vec![variant.normalize(genv.defns())]);
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, def_id, "rty", &variants).unwrap();
-            }
-            (def_id.to_def_id(), variants)
-        })
-        .collect_vec();
-    genv.register_variants(variants);
-}
-
-fn register_enum_def_variants(genv: &mut GlobalEnv) {
-    let variants = genv
-        .map()
-        .enums()
-        .map(|enum_def| {
-            let def_id = enum_def.def_id;
-            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)
-                .unwrap_or_else(|_| FatalError.raise())
-                .into_iter()
-                .map(|variant| variant.normalize(genv.defns()))
-                .collect_vec();
-            (def_id.to_def_id(), rty::Opaqueness::Transparent(variants))
-        })
-        .collect_vec();
-    genv.register_variants(variants);
 }
 
 fn register_fn_sigs(genv: &mut GlobalEnv) {

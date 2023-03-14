@@ -1,5 +1,5 @@
 use flux_common::{cache::QueryCache, iter::IterExt};
-use flux_errors::ErrorGuaranteed;
+use flux_errors::{ErrorGuaranteed, ResultExt};
 use flux_middle::{fhir, global_env::GlobalEnv, rty};
 use rustc_span::{Span, DUMMY_SP};
 
@@ -39,6 +39,7 @@ fn check_invariant(
 
         let variant = genv
             .variant(adt_def.def_id(), variant_idx)
+            .emit(genv.sess)?
             .expect("cannot check opaque structs")
             .replace_bvar_with(|sort| rcx.define_vars(sort));
 

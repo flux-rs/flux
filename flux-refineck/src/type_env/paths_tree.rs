@@ -17,6 +17,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::{
+    checker::errors::CheckerErrKind,
     constraint_gen::ConstrGen,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
 };
@@ -33,9 +34,6 @@ struct Root {
     kind: LocKind,
     ptr: NodePtr,
 }
-
-#[derive(Debug)]
-pub struct OpaqueStructErr(pub DefId);
 
 #[derive(Clone, Eq, PartialEq)]
 pub(super) enum LocKind {
@@ -206,11 +204,12 @@ impl PathsTree {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         other: &mut PathsTree,
-    ) {
+    ) -> Result<(), CheckerErrKind> {
         for (loc, root1) in &self.map {
             let node2 = &mut *other.map[loc].ptr.borrow_mut();
-            root1.ptr.borrow_mut().join_with(gen, rcx, node2);
+            root1.ptr.borrow_mut().join_with(gen, rcx, node2)?;
         }
+        Ok(())
     }
 
     pub(super) fn lookup<'a>(
@@ -218,7 +217,7 @@ impl PathsTree {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
-    ) -> Result<LookupResult<'a>, OpaqueStructErr> {
+    ) -> Result<LookupResult<'a>, CheckerErrKind> {
         let mut path = Path::from(key.loc());
         let place_proj = &mut key.proj();
 
@@ -324,7 +323,7 @@ impl PathsTree {
         mut rk: WeakKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
-    ) -> Result<(WeakKind, Ty), OpaqueStructErr> {
+    ) -> Result<(WeakKind, Ty), CheckerErrKind> {
         use PlaceElem::*;
         let mut ty = ty.clone();
         for elem in proj.by_ref() {
@@ -358,7 +357,12 @@ impl PathsTree {
         Ok((rk, ty))
     }
 
-    pub fn close_boxes(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, scope: &Scope) {
+    pub fn close_boxes(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        scope: &Scope,
+    ) -> Result<(), CheckerErrKind> {
         let mut paths = self.paths();
         paths.sort();
         for path in paths.into_iter().rev() {
@@ -370,9 +374,10 @@ impl PathsTree {
                 && !scope.contains(name)
             {
                 debug_assert!(proj.is_empty());
-                node.fold(&mut self.map, rcx, gen, false, true);
+                node.fold(&mut self.map, rcx, gen, false, true)?;
             }
         }
+        Ok(())
     }
 
     #[must_use]
@@ -417,21 +422,33 @@ impl LookupResult<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         close_boxes: bool,
-    ) -> FoldResult {
+    ) -> Result<FoldResult, CheckerErrKind> {
         match self.kind {
             LookupKind::Strg(path, ptr) => {
-                FoldResult::Strg(path, ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes))
+                Ok(FoldResult::Strg(
+                    path,
+                    ptr.fold(&mut self.tree.map, rcx, gen, true, close_boxes)?,
+                ))
             }
-            LookupKind::Weak(rk, ty) => FoldResult::Weak(rk, ty),
-            LookupKind::Raw(ty) => FoldResult::Raw(ty),
+            LookupKind::Weak(rk, ty) => Ok(FoldResult::Weak(rk, ty)),
+            LookupKind::Raw(ty) => Ok(FoldResult::Raw(ty)),
         }
     }
 
-    pub(super) fn block(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> Ty {
+    pub(super) fn block(
+        self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+    ) -> Result<Ty, CheckerErrKind> {
         self.block_with_fn(rcx, gen, Clone::clone)
     }
 
-    pub(super) fn block_with(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen, updated: Ty) -> Ty {
+    pub(super) fn block_with(
+        self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        updated: Ty,
+    ) -> Result<Ty, CheckerErrKind> {
         self.block_with_fn(rcx, gen, |_| updated)
     }
 
@@ -440,12 +457,12 @@ impl LookupResult<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         update: impl FnOnce(&Ty) -> Ty,
-    ) -> Ty {
+    ) -> Result<Ty, CheckerErrKind> {
         match self.kind {
             LookupKind::Strg(_, ptr) => {
-                let ty = ptr.fold(&mut self.tree.map, rcx, gen, true, true);
+                let ty = ptr.fold(&mut self.tree.map, rcx, gen, true, true)?;
                 *ptr.borrow_mut() = Node::Leaf(Binding::Blocked(update(&ty)));
-                ty
+                Ok(ty)
             }
             LookupKind::Weak(..) => tracked_span_bug!("blocking weak result"),
             LookupKind::Raw(..) => tracked_span_bug!("blocking raw result"),
@@ -495,19 +512,24 @@ impl Node {
         }
     }
 
-    fn join_with(&mut self, gen: &mut ConstrGen, rcx: &mut RefineCtxt, other: &mut Node) {
+    fn join_with(
+        &mut self,
+        gen: &mut ConstrGen,
+        rcx: &mut RefineCtxt,
+        other: &mut Node,
+    ) -> Result<(), CheckerErrKind> {
         let map = &mut FxHashMap::default();
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self);
+                other.join_with(gen, rcx, self)?;
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
-                other.fold(map, rcx, gen, false, false);
+                other.fold(map, rcx, gen, false, false)?;
             }
             (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx).unwrap();
-                self.join_with(gen, rcx, other);
+                self.split(gen.genv, rcx)?;
+                self.join_with(gen, rcx, other)?;
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -516,11 +538,11 @@ impl Node {
                 if variant1 == variant2 {
                     for (ptr1, ptr2) in iter::zip(children1, children2) {
                         ptr1.borrow_mut()
-                            .join_with(gen, rcx, &mut ptr2.borrow_mut());
+                            .join_with(gen, rcx, &mut ptr2.borrow_mut())?;
                     }
                 } else {
-                    self.fold(map, rcx, gen, false, false);
-                    other.fold(map, rcx, gen, false, false);
+                    self.fold(map, rcx, gen, false, false)?;
+                    other.fold(map, rcx, gen, false, false)?;
                 }
             }
             (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
@@ -534,10 +556,11 @@ impl Node {
 
                 for (ptr1, ptr2) in iter::zip(children1, children2) {
                     ptr1.borrow_mut()
-                        .join_with(gen, rcx, &mut ptr2.borrow_mut());
+                        .join_with(gen, rcx, &mut ptr2.borrow_mut())?;
                 }
             }
         };
+        Ok(())
     }
 
     fn proj(
@@ -545,7 +568,7 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
-    ) -> Result<&NodePtr, OpaqueStructErr> {
+    ) -> Result<&NodePtr, CheckerErrKind> {
         if let Node::Leaf(_) = self {
             self.split(genv, rcx)?;
         }
@@ -566,7 +589,7 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         variant_idx: VariantIdx,
-    ) -> Result<(), OpaqueStructErr> {
+    ) -> Result<(), CheckerErrKind> {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
                 match ty.kind() {
@@ -597,7 +620,7 @@ impl Node {
         Ok(())
     }
 
-    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), OpaqueStructErr> {
+    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), CheckerErrKind> {
         let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(tys), _) => {
@@ -624,8 +647,8 @@ impl Node {
         gen: &mut ConstrGen,
         unblock: bool,
         close_boxes: bool,
-    ) -> Ty {
-        match self {
+    ) -> Result<Ty, CheckerErrKind> {
+        let ty = match self {
             Node::Leaf(Binding::Owned(ty)) => {
                 if let TyKind::Ptr(PtrKind::Box, path) = ty.kind() && close_boxes {
                     let loc = path.to_loc().unwrap();
@@ -633,7 +656,7 @@ impl Node {
                     let LocKind::Box(alloc) = root.kind else {
                         tracked_span_bug!("box pointer to non-box loc");
                     };
-                    let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes);
+                    let boxed_ty = root.ptr.borrow_mut().fold(map, rcx, gen, unblock, close_boxes)?;
                     let ty = gen.genv.mk_box(boxed_ty, alloc);
                     *self = Node::owned(ty.clone());
                     ty
@@ -651,24 +674,24 @@ impl Node {
                 }
             }
             Node::Internal(NodeKind::Tuple, children) => {
-                let tys = children
+                let tys: Vec<Ty> = children
                     .iter_mut()
                     .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
-                    .collect_vec();
+                    .try_collect()?;
                 let partially_moved = tys.iter().any(|ty| ty.is_uninit());
                 let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(tys) };
                 *self = Node::owned(ty.clone());
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx).expect("unexpected opaque struct");
-                let fields = children
+                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx)?.expect("unexpected opaque struct");
+                let fields: Vec<Ty> = children
                     .iter_mut()
                     .map(|node| {
-                        let ty = node.fold(map, rcx, gen, unblock, close_boxes);
-                        rcx.unpack(&ty)
+                        let ty = node.fold(map, rcx, gen, unblock, close_boxes)?;
+                        Ok::<_, CheckerErrKind>(rcx.unpack(&ty))
                     })
-                    .collect_vec();
+                    .try_collect()?;
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
                 let ty = if partially_moved {
@@ -684,7 +707,8 @@ impl Node {
                 *self = Node::owned(Ty::uninit());
                 Ty::uninit()
             }
-        }
+        };
+        Ok(ty)
     }
 
     fn fmap_mut(&mut self, f: &mut impl FnMut(&Binding) -> Binding) {
@@ -719,7 +743,7 @@ impl NodePtr {
         gen: &mut ConstrGen,
         unblock: bool,
         close_boxes: bool,
-    ) -> Ty {
+    ) -> Result<Ty, CheckerErrKind> {
         self.borrow_mut().fold(map, rcx, gen, unblock, close_boxes)
     }
 
@@ -728,7 +752,7 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: Field,
-    ) -> Result<NodePtr, OpaqueStructErr> {
+    ) -> Result<NodePtr, CheckerErrKind> {
         Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field)?))
     }
 
@@ -737,7 +761,7 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         variant_idx: VariantIdx,
-    ) -> Result<(), OpaqueStructErr> {
+    ) -> Result<(), CheckerErrKind> {
         self.borrow_mut().downcast(genv, rcx, variant_idx)
     }
 }
@@ -797,11 +821,11 @@ fn downcast(
     variant_idx: VariantIdx,
     substs: &[GenericArg],
     idx: &Index,
-) -> Result<Vec<Ty>, OpaqueStructErr> {
+) -> Result<Vec<Ty>, CheckerErrKind> {
     if genv.tcx.adt_def(def_id).is_struct() {
         downcast_struct(genv, def_id, variant_idx, substs, idx)
     } else if genv.tcx.adt_def(def_id).is_enum() {
-        Ok(downcast_enum(genv, rcx, def_id, variant_idx, substs, idx))
+        downcast_enum(genv, rcx, def_id, variant_idx, substs, idx)
     } else {
         tracked_span_bug!("Downcast without struct or enum!")
     }
@@ -821,10 +845,10 @@ fn downcast_struct(
     variant_idx: VariantIdx,
     substs: &[GenericArg],
     idx: &Index,
-) -> Result<Vec<Ty>, OpaqueStructErr> {
+) -> Result<Vec<Ty>, CheckerErrKind> {
     Ok(genv
-        .variant(def_id, variant_idx)
-        .ok_or_else(|| OpaqueStructErr(def_id))?
+        .variant(def_id, variant_idx)?
+        .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
         .replace_bvar(&idx.expr)
         .replace_generics(substs)
         .fields
@@ -846,9 +870,9 @@ fn downcast_enum(
     variant_idx: VariantIdx,
     substs: &[GenericArg],
     idx1: &Index,
-) -> Vec<Ty> {
+) -> Result<Vec<Ty>, CheckerErrKind> {
     let variant_def = genv
-        .variant(def_id, variant_idx)
+        .variant(def_id, variant_idx)?
         .expect("enums cannot be opaque")
         .replace_generics(substs)
         .replace_bvar_with(|sort| rcx.define_vars(sort));
@@ -866,7 +890,7 @@ fn downcast_enum(
         }));
     rcx.assume_pred(constr);
 
-    variant_def.fields.to_vec()
+    Ok(variant_def.fields.to_vec())
 }
 
 mod pretty {

@@ -201,11 +201,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         enum_def
             .variants
             .iter()
-            .map(|variant_def| ConvCtxt::conv_variant(genv, variant_def))
+            .map(|variant_def| ConvCtxt::conv_enum_variant(genv, variant_def))
             .try_collect()
     }
 
-    fn conv_variant(genv: &GlobalEnv, variant: &fhir::VariantDef) -> QueryResult<rty::PolyVariant> {
+    fn conv_enum_variant(
+        genv: &GlobalEnv,
+        variant: &fhir::VariantDef,
+    ) -> QueryResult<rty::PolyVariant> {
         let layer = Layer::from_fun_params(genv.early_cx(), &variant.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer));
 
