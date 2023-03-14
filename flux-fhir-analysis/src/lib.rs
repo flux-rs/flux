@@ -154,31 +154,31 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
     Ok(fn_sig)
 }
 
-fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult {
+fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfResults> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
-            Wf::check_alias(genv.early_cx(), alias)?;
+            let wf = Wf::check_alias(genv.early_cx(), alias)?;
             annot_check::check_alias(genv.early_cx(), alias)?;
-            Ok(())
+            Ok(wf)
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
-            Wf::check_struct_def(genv.early_cx(), struct_def)?;
+            let wf = Wf::check_struct_def(genv.early_cx(), struct_def)?;
             annot_check::check_struct_def(genv.early_cx(), struct_def)?;
-            Ok(())
+            Ok(wf)
         }
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
-            Wf::check_enum_def(genv.early_cx(), enum_def)?;
+            let wf = Wf::check_enum_def(genv.early_cx(), enum_def)?;
             annot_check::check_enum_def(genv.early_cx(), enum_def)?;
-            Ok(())
+            Ok(wf)
         }
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(def_id);
-            Wf::check_fn_sig(genv.early_cx(), fn_sig)?;
+            let wf = Wf::check_fn_sig(genv.early_cx(), fn_sig)?;
             annot_check::check_fn_sig(genv.early_cx(), def_id, fn_sig)?;
-            Ok(())
+            Ok(wf)
         }
         kind => bug!("unexpected def kind `{kind:?}`"),
     }

@@ -231,6 +231,10 @@ pub enum WeakKind {
     Arr,
 }
 
+pub struct WfResults {
+    sorts: FxHashMap<Name, Sort>,
+}
+
 impl From<BaseTy> for Ty {
     fn from(bty: BaseTy) -> Ty {
         let span = bty.span;
@@ -739,6 +743,12 @@ impl Map {
 impl StructDef {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
+    }
+}
+
+impl WfResults {
+    pub fn new(sorts: FxHashMap<Name, Sort>) -> Self {
+        Self { sorts }
     }
 }
 

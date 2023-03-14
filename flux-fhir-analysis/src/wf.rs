@@ -7,7 +7,7 @@ use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, SurfaceIdent},
+    fhir::{self, SurfaceIdent, WfResults},
 };
 use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
@@ -98,16 +98,20 @@ impl Wf<'_, '_> {
         Ok(())
     }
 
-    pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
+    pub fn check_alias(
+        early_cx: &EarlyCtxt,
+        alias: &fhir::TyAlias,
+    ) -> Result<WfResults, ErrorGuaranteed> {
         let wf = Wf::new(early_cx);
         let mut env = Env::from(&alias.params[..]);
-        wf.check_type(&mut env, &alias.ty)
+        wf.check_type(&mut env, &alias.ty)?;
+        Ok(WfResults::new(env.sorts))
     }
 
     pub fn check_struct_def(
         early_cx: &EarlyCtxt,
         struct_def: &fhir::StructDef,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result<WfResults, ErrorGuaranteed> {
         let wf = Wf::new(early_cx);
         let mut env = Env::from(&struct_def.params[..]);
 
@@ -121,13 +125,13 @@ impl Wf<'_, '_> {
                 .iter()
                 .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
         }
-        Ok(())
+        Ok(WfResults::new(env.sorts))
     }
 
     pub fn check_enum_def(
         early_cx: &EarlyCtxt,
         enum_def: &fhir::EnumDef,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result<WfResults, ErrorGuaranteed> {
         let wf = Wf::new(early_cx);
 
         let env = Env::from(&enum_def.params[..]);
@@ -139,10 +143,15 @@ impl Wf<'_, '_> {
         enum_def
             .variants
             .iter()
-            .try_for_each_exhaust(|variant| wf.check_variant(variant))
+            .try_for_each_exhaust(|variant| wf.check_variant(variant))?;
+
+        Ok(WfResults::new(env.sorts))
     }
 
-    pub fn check_fn_sig(early_cx: &EarlyCtxt, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
+    pub fn check_fn_sig(
+        early_cx: &EarlyCtxt,
+        fn_sig: &fhir::FnSig,
+    ) -> Result<WfResults, ErrorGuaranteed> {
         let mut wf = Wf::new(early_cx);
         for param in &fn_sig.params {
             wf.modes.insert(param.name.name, param.mode);
@@ -181,7 +190,7 @@ impl Wf<'_, '_> {
         requires?;
         constrs?;
 
-        Ok(())
+        Ok(WfResults::new(env.sorts))
     }
 }
 
