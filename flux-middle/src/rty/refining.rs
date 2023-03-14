@@ -3,7 +3,7 @@
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
 use std::iter;
 
-use flux_common::bug;
+use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
@@ -101,9 +101,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let rustc::ty::TyKind::Adt(def_id, substs) = variant_def.ret.kind() else {
             bug!();
         };
-        let substs: Vec<_> = iter::zip(&self.generics.params, substs)
+        let substs = iter::zip(&self.generics.params, substs)
             .map(|(param, arg)| self.refine_generic_arg(param, arg))
-            .try_collect()?;
+            .try_collect_vec()?;
         let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
@@ -111,11 +111,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 
     pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolySig> {
-        let args: Vec<_> = fn_sig
+        let args = fn_sig
             .inputs()
             .iter()
             .map(|ty| self.refine_ty(ty))
-            .try_collect()?;
+            .try_collect_vec()?;
         let ret = self.refine_ty(&fn_sig.output())?;
         let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
         Ok(rty::PolySig::new([], rty::FnSig::new(vec![], args, output)))
@@ -178,9 +178,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.genv.adt_def(*def_id);
-                let substs: Vec<_> = iter::zip(&self.generics_of(*def_id)?.params, substs)
+                let substs = iter::zip(&self.generics_of(*def_id)?.params, substs)
                     .map(|(param, arg)| self.refine_generic_arg(param, arg))
-                    .try_collect()?;
+                    .try_collect_vec()?;
                 rty::BaseTy::adt(adt_def, substs)
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
