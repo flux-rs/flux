@@ -64,8 +64,8 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
         .map()
         .defns()
         .map(|defn| -> QueryResult<_> {
-            Wf::check_defn(genv.early_cx(), defn)?;
-            Ok((defn.name, conv::conv_defn(genv.early_cx(), defn)))
+            let defn = conv::conv_defn(genv.early_cx(), defn);
+            Ok((defn.name, defn))
         })
         .try_collect()?;
     let defns = rty::Defns::new(defns).map_err(|cycle| {
@@ -80,10 +80,7 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
 fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
-        .map(|qualifier| {
-            Wf::check_qualifier(genv.early_cx(), qualifier)?;
-            normalize(genv, conv::conv_qualifier(genv.early_cx(), qualifier))
-        })
+        .map(|qualifier| normalize(genv, conv::conv_qualifier(genv.early_cx(), qualifier)))
         .try_collect()
 }
 
@@ -149,7 +146,6 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
 }
 
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
-    genv.check_wf(def_id)?;
     let fn_sig = genv.map().get_fn_sig(def_id);
     let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns()?);
     if config::dump_rty() {

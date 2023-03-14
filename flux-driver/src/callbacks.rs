@@ -1,7 +1,7 @@
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
-use flux_errors::{FluxSession, ResultExt};
+use flux_errors::FluxSession;
 use flux_metadata::CStore;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
