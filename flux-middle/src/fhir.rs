@@ -616,6 +616,10 @@ impl Map {
         self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
     }
 
+    pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
+        &self.fns[&def_id]
+    }
+
     pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
         self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
     }

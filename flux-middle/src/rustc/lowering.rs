@@ -547,13 +547,8 @@ pub(crate) fn lower_variant_def(
     Ok(VariantDef { field_tys, fields, ret, def_id: variant_def.def_id })
 }
 
-pub(crate) fn lower_fn_sig_of(
-    tcx: TyCtxt,
-    def_id: DefId,
-) -> Result<PolyFnSig, errors::UnsupportedFnSig> {
+pub(crate) fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, UnsupportedType> {
     let fn_sig = tcx.fn_sig(def_id);
-    // println!("TRACE: lower_fn_sig {def_id:?} : {fn_sig:?} : {:?}", tcx.explicit_predicates_of(def_id));
-    let span = tcx.def_span(def_id);
     let param_env = tcx.param_env(def_id);
     let result = tcx
         .infer_ctxt()
@@ -561,10 +556,9 @@ pub(crate) fn lower_fn_sig_of(
         .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
         .normalize(fn_sig.subst_identity());
     lower_fn_sig(tcx, result.value)
-        .map_err(|err| errors::UnsupportedFnSig { span, reason: err.reason })
 }
 
-pub(crate) fn lower_fn_sig<'tcx>(
+fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedType> {

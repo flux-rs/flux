@@ -51,10 +51,15 @@ pub fn build_genv<'sess, 'tcx>(
         .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
         .collect();
 
-    let mut genv =
-        GlobalEnv::new(early_cx, adt_defs, defns, qualifiers, uifs, Queries { type_of, variants });
+    let mut genv = GlobalEnv::new(
+        early_cx,
+        adt_defs,
+        defns,
+        qualifiers,
+        uifs,
+        Queries { type_of, variants, fn_sig },
+    );
     register_generics(&mut genv);
-    register_fn_sigs(&mut genv);
 
     Ok(genv)
 }
@@ -97,6 +102,15 @@ fn variants(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVarian
             bug!("expected struct or enum found `{kind:?}`")
         }
     }
+}
+
+fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
+    let fn_sig = genv.map().get_fn_sig(def_id);
+    let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns());
+    if config::dump_rty() {
+        dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
+    }
+    Ok(fn_sig)
 }
 
 fn conv_adt_defs(early_cx: &EarlyCtxt) -> FxHashMap<DefId, rty::AdtDef> {
@@ -193,23 +207,6 @@ fn register_generics(genv: &mut GlobalEnv) {
         })
         .collect_vec();
     genv.register_generics(generics);
-}
-
-fn register_fn_sigs(genv: &mut GlobalEnv) {
-    let fn_sigs = genv
-        .map()
-        .fn_sigs()
-        .map(|(def_id, fn_sig)| {
-            let fn_sig = conv::conv_fn_sig(genv, fn_sig)
-                .unwrap_or_else(|_| FatalError.raise())
-                .normalize(genv.defns());
-            if config::dump_rty() {
-                dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
-            }
-            (def_id.to_def_id(), fn_sig)
-        })
-        .collect_vec();
-    genv.register_fn_sigs(fn_sigs);
 }
 
 mod errors {

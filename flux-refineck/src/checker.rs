@@ -131,7 +131,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
+            let fn_sig = genv.fn_sig(def_id).unwrap_or_else(|_| {
                 span_bug!(body.span(), "checking function with unsupported signature")
             });
 
@@ -149,7 +149,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         def_id: DefId,
         bb_env_shapes: ShapeResult,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        let fn_sig = genv.lookup_fn_sig(def_id).unwrap_or_else(|_| {
+        let fn_sig = genv.fn_sig(def_id).unwrap_or_else(|_| {
             span_bug!(body.span(), "checking function with unsupported signature")
         });
         let mut kvars = fixpoint_encoding::KVarStore::new();
@@ -357,8 +357,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
                 let fn_sig = self
                     .genv
-                    .lookup_fn_sig(*func_id)
-                    .map_err(|err| CheckerError::from(err).with_src_info(terminator.source_info))?;
+                    .fn_sig(*func_id)
+                    .map_err(CheckerErrKind::from)
+                    .with_src_info(terminator.source_info)?;
 
                 let fn_generics = self.genv.generics_of(*func_id);
                 let substs = call_substs
@@ -1148,13 +1149,6 @@ pub(crate) mod errors {
         OpaqueStruct(DefId),
         Query(QueryErr),
         UnsupportedCall { def_span: Span, reason: String },
-    }
-
-    impl CheckerError {
-        pub(crate) fn with_src_info(mut self, src_info: SourceInfo) -> Self {
-            self.span = Some(src_info.span);
-            self
-        }
     }
 
     impl<'a> IntoDiagnostic<'a> for CheckerError {

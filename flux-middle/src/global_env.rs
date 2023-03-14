@@ -33,6 +33,7 @@ type FnSigMap = FxHashMap<DefId, rty::PolySig>;
 pub struct Queries {
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
     pub variants: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
+    pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolySig>,
 }
 
 pub type QueryResult<T> = Result<T, QueryErr>;
@@ -97,10 +98,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.generics.get_mut().extend(generics);
     }
 
-    pub fn register_fn_sigs(&mut self, fn_sigs: impl IntoIterator<Item = (DefId, rty::PolySig)>) {
-        self.fn_sigs.get_mut().extend(fn_sigs);
-    }
-
     pub fn map(&self) -> &fhir::Map {
         &self.early_cx.map
     }
@@ -127,14 +124,18 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.uifs.values()
     }
 
-    pub fn lookup_fn_sig(&self, def_id: DefId) -> Result<rty::PolySig, UnsupportedFnSig> {
+    pub fn fn_sig(&self, def_id: DefId) -> QueryResult<rty::PolySig> {
         match self.fn_sigs.borrow_mut().entry(def_id) {
             hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
             hash_map::Entry::Vacant(entry) => {
-                let fn_sig = if let Some(fn_sig) = self.early_cx.cstore.fn_sig(def_id) {
+                let fn_sig = if let Some(local_id) = def_id.as_local() {
+                    (self.queries.fn_sig)(self, local_id)?
+                } else if let Some(fn_sig) = self.early_cx.cstore.fn_sig(def_id) {
                     fn_sig
                 } else {
-                    let fn_sig = lowering::lower_fn_sig_of(self.tcx, def_id)?.skip_binder();
+                    let fn_sig = lowering::lower_fn_sig_of(self.tcx, def_id)
+                        .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?
+                        .skip_binder();
                     Refiner::default(self, &self.generics_of(def_id)).refine_fn_sig(&fn_sig)
                 };
                 Ok(entry.insert(fn_sig).clone())

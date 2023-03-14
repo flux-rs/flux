@@ -116,15 +116,11 @@ impl CrateMetadata {
 
             match def_kind {
                 DefKind::Fn | DefKind::AssocFn => {
-                    fn_sigs.insert(
-                        def_id.index,
-                        genv.lookup_fn_sig(def_id)
-                            .unwrap_or_else(|err| genv.sess.emit_fatal(err)),
-                    );
+                    fn_sigs.insert(def_id.index, genv.fn_sig(def_id).unwrap());
                 }
                 DefKind::Enum | DefKind::Struct => {
                     let adt_def = genv.adt_def(def_id);
-                    let variants = genv.variants(def_id).expect("error when getting variants");
+                    let variants = genv.variants(def_id).unwrap();
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
 
