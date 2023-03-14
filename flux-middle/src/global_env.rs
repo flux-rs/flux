@@ -2,7 +2,10 @@ use std::string::ToString;
 
 use flux_errors::FluxSession;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::{def_id::DefId, LangItem};
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    LangItem,
+};
 use rustc_middle::ty::{TyCtxt, Variance};
 pub use rustc_span::{symbol::Ident, Symbol};
 
@@ -98,6 +101,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn adt_def(&self, def_id: impl Into<DefId>) -> rty::AdtDef {
         self.queries.adt_def(self, def_id.into())
+    }
+
+    pub fn check_wf(&self, def_id: LocalDefId) -> QueryResult {
+        self.queries.check_wf(self, def_id)
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {

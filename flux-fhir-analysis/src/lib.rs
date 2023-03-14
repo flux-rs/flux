@@ -51,7 +51,7 @@ pub fn build_genv<'sess, 'tcx>(
         defns,
         qualifiers,
         uifs,
-        Providers { adt_def, type_of, variants_of, fn_sig, generics_of },
+        Providers { check_wf, adt_def, type_of, variants_of, fn_sig, generics_of },
     ))
 }
 
@@ -116,6 +116,7 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
 }
 
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
+    genv.check_wf(def_id)?;
     let fn_sig = genv.map().get_fn_sig(def_id);
     let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns());
     if config::dump_rty() {
@@ -138,6 +139,36 @@ fn conv_defns(early_cx: &EarlyCtxt) -> Result<rty::Defns, ErrorGuaranteed> {
     })
 }
 
+fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::TyAlias => {
+            let alias = genv.map().get_type_alias(def_id);
+            Wf::check_alias(genv.early_cx(), alias)?;
+            annot_check::check_alias(genv.early_cx(), alias)?;
+            Ok(())
+        }
+        DefKind::Struct => {
+            let struct_def = genv.map().get_struct(def_id);
+            Wf::check_struct_def(genv.early_cx(), struct_def)?;
+            annot_check::check_struct_def(genv.early_cx(), struct_def)?;
+            Ok(())
+        }
+        DefKind::Enum => {
+            let enum_def = genv.map().get_enum(def_id);
+            Wf::check_enum_def(genv.early_cx(), enum_def)?;
+            annot_check::check_enum_def(genv.early_cx(), enum_def)?;
+            Ok(())
+        }
+        DefKind::Fn | DefKind::AssocFn => {
+            let fn_sig = genv.map().get_fn_sig(def_id);
+            Wf::check_fn_sig(genv.early_cx(), fn_sig)?;
+            annot_check::check_fn_sig(genv.early_cx(), def_id, fn_sig)?;
+            Ok(())
+        }
+        kind => bug!("unexpected def kind `{kind:?}`"),
+    }
+}
+
 fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
@@ -147,34 +178,6 @@ fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
 
     for qualifier in early_cx.map.qualifiers() {
         err = Wf::check_qualifier(early_cx, qualifier).err().or(err);
-    }
-
-    for alias in early_cx.map.type_aliases() {
-        err = Wf::check_alias(early_cx, alias)
-            .and_then(|_| annot_check::check_alias(early_cx, alias))
-            .err()
-            .or(err);
-    }
-
-    for struct_def in early_cx.map.structs() {
-        err = Wf::check_struct_def(early_cx, struct_def)
-            .and_then(|_| annot_check::check_struct_def(early_cx, struct_def))
-            .err()
-            .or(err);
-    }
-
-    for enum_def in early_cx.map.enums() {
-        err = Wf::check_enum_def(early_cx, enum_def)
-            .and_then(|_| annot_check::check_enum_def(early_cx, enum_def))
-            .err()
-            .or(err);
-    }
-
-    for (def_id, fn_sig) in early_cx.map.fn_sigs() {
-        err = Wf::check_fn_sig(early_cx, fn_sig)
-            .and_then(|_| annot_check::check_fn_sig(early_cx, def_id, fn_sig))
-            .err()
-            .or(err);
     }
 
     let qualifiers = early_cx.map.qualifiers().map(|q| q.name.clone()).collect();

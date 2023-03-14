@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::hash_map::Entry};
+use std::cell::RefCell;
 
 use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
@@ -19,14 +19,16 @@ use crate::{
 
 type Cache<K, V> = RefCell<FxHashMap<K, V>>;
 
-pub type QueryResult<T> = Result<T, QueryErr>;
+pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum QueryErr {
     UnsupportedType { def_id: DefId, def_span: Span, reason: String },
+    Emitted(ErrorGuaranteed),
 }
 
 pub struct Providers {
+    pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
@@ -36,18 +38,20 @@ pub struct Providers {
 
 pub struct Queries {
     providers: Providers,
+    check_wf: Cache<LocalDefId, QueryResult>,
     adt_def: Cache<DefId, rty::AdtDef>,
-    generics_of: Cache<DefId, rty::Generics>,
-    predicates_of: Cache<DefId, rty::GenericPredicates>,
-    type_of: Cache<DefId, rty::Binder<rty::Ty>>,
-    variants_of: Cache<DefId, rty::PolyVariants>,
-    fn_sig: Cache<DefId, rty::PolySig>,
+    generics_of: Cache<DefId, QueryResult<rty::Generics>>,
+    predicates_of: Cache<DefId, QueryResult<rty::GenericPredicates>>,
+    type_of: Cache<DefId, QueryResult<rty::Binder<rty::Ty>>>,
+    variants_of: Cache<DefId, QueryResult<rty::PolyVariants>>,
+    fn_sig: Cache<DefId, QueryResult<rty::PolySig>>,
 }
 
 impl Queries {
     pub(crate) fn new(providers: Providers) -> Self {
         Self {
             providers,
+            check_wf: Cache::default(),
             adt_def: Cache::default(),
             generics_of: Cache::default(),
             predicates_of: Cache::default(),
@@ -57,17 +61,20 @@ impl Queries {
         }
     }
 
+    pub(crate) fn check_wf(&self, genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult {
+        run_with_cache(&self.check_wf, def_id, || (self.providers.check_wf)(genv, def_id))
+    }
+
     pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> rty::AdtDef {
         run_with_cache(&self.adt_def, def_id, || {
             if let Some(local_id) = def_id.as_local() {
-                Ok((self.providers.adt_def)(genv, local_id))
+                (self.providers.adt_def)(genv, local_id)
             } else if let Some(adt_def) = genv.early_cx().cstore.adt_def(def_id) {
-                Ok(adt_def.clone())
+                adt_def.clone()
             } else {
-                Ok(rty::AdtDef::new(genv.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false))
+                rty::AdtDef::new(genv.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false)
             }
         })
-        .unwrap()
     }
 
     pub(crate) fn generics_of(
@@ -166,19 +173,12 @@ impl Queries {
     }
 }
 
-fn run_with_cache<K, V>(
-    cache: &Cache<K, V>,
-    key: K,
-    f: impl FnOnce() -> QueryResult<V>,
-) -> QueryResult<V>
+fn run_with_cache<K, V>(cache: &Cache<K, V>, key: K, f: impl FnOnce() -> V) -> V
 where
     K: std::hash::Hash + Eq,
     V: Clone,
 {
-    match cache.borrow_mut().entry(key) {
-        Entry::Occupied(entry) => Ok(entry.get().clone()),
-        Entry::Vacant(entry) => Ok(entry.insert(f()?).clone()),
-    }
+    cache.borrow_mut().entry(key).or_insert_with(f).clone()
 }
 
 impl QueryErr {
@@ -202,6 +202,17 @@ impl<'a> IntoDiagnostic<'a> for QueryErr {
                 builder.note(reason);
                 builder
             }
+            QueryErr::Emitted(_) => {
+                let mut builder = handler.struct_err("QueryErr::Emitted should be emitted");
+                builder.downgrade_to_delayed_bug();
+                builder
+            }
         }
+    }
+}
+
+impl From<ErrorGuaranteed> for QueryErr {
+    fn from(err: ErrorGuaranteed) -> Self {
+        Self::Emitted(err)
     }
 }
