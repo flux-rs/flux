@@ -71,7 +71,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let predicates = generics
             .predicates
             .iter()
-            .map(|pred| {
+            .map(|pred| -> QueryResult<rty::Predicate> {
                 match pred.kind.as_ref().skip_binder() {
                     rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {

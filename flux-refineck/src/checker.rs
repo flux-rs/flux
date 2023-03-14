@@ -127,15 +127,12 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
 impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
-        body: &Body<'tcx>,
         def_id: DefId,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let fn_sig = genv.fn_sig(def_id).unwrap_or_else(|_| {
-                span_bug!(body.span(), "checking function with unsupported signature")
-            });
+            let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
 
             Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig)?;
 
@@ -147,13 +144,11 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
 impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
-        body: &Body<'tcx>,
         def_id: DefId,
         bb_env_shapes: ShapeResult,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        let fn_sig = genv.fn_sig(def_id).unwrap_or_else(|_| {
-            span_bug!(body.span(), "checking function with unsupported signature")
-        });
+        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
@@ -175,12 +170,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mode: &'a mut M,
         fn_sig: PolySig,
     ) -> Result<(), CheckerError> {
-        let body = {
-            let local_def_id = def_id.as_local().unwrap();
-            let mir =
-                unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id) };
-            rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir).unwrap()
-        };
+        let body = genv
+            .mir(def_id.expect_local())
+            .with_span(genv.tcx.def_span(def_id))?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 

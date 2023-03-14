@@ -55,8 +55,12 @@ fn check_invariant(
     }
     let mut fcx = FixpointCtxt::new(genv, adt_def.def_id(), KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(cache, constraint)
-        .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
+    let errors = fcx.check(cache, constraint).emit(genv.sess)?;
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(genv.sess.emit_err(errors::Invalid { span }))
+    }
 }
 
 mod errors {

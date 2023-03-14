@@ -14,15 +14,18 @@ mod wf;
 
 use flux_common::{bug, dbg};
 use flux_config as config;
+use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir,
     global_env::GlobalEnv,
+    intern::List,
     queries::{Providers, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable},
     rustc::lowering,
 };
+use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use wf::Wf;
@@ -32,27 +35,53 @@ fluent_messages! { "../locales/en-US.ftl" }
 pub fn build_genv<'sess, 'tcx>(
     early_cx: EarlyCtxt<'sess, 'tcx>,
 ) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
-    check_crate(&early_cx)?;
-
-    let defns = conv_defns(&early_cx)?;
-    let qualifiers = early_cx
-        .map
-        .qualifiers()
-        .map(|qualifier| conv::conv_qualifier(&early_cx, qualifier).normalize(&defns))
-        .collect();
     let uifs = early_cx
         .map
         .uifs()
         .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
         .collect();
 
-    Ok(GlobalEnv::new(
+    let genv = GlobalEnv::new(
         early_cx,
-        defns,
-        qualifiers,
         uifs,
-        Providers { adt_def, type_of, variants_of, fn_sig, generics_of },
-    ))
+        Providers {
+            defns,
+            qualifiers,
+            check_wf,
+            adt_def,
+            type_of,
+            variants_of,
+            fn_sig,
+            generics_of,
+        },
+    );
+    check_crate_wf(&genv)?;
+    Ok(genv)
+}
+
+fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
+    let defns = genv
+        .map()
+        .defns()
+        .map(|defn| -> QueryResult<_> {
+            let defn = conv::conv_defn(genv.early_cx(), defn);
+            Ok((defn.name, defn))
+        })
+        .try_collect()?;
+    let defns = rty::Defns::new(defns).map_err(|cycle| {
+        let span = genv.map().defn(cycle[0]).unwrap().expr.span;
+        genv.sess
+            .emit_err(errors::DefinitionCycle::new(span, cycle))
+    })?;
+
+    Ok(defns)
+}
+
+fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
+    genv.map()
+        .qualifiers()
+        .map(|qualifier| normalize(genv, conv::conv_qualifier(genv.early_cx(), qualifier)))
+        .try_collect()
 }
 
 fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> rty::AdtDef {
@@ -99,14 +128,15 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
             let enum_def = genv.map().get_enum(def_id);
             let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)?
                 .into_iter()
-                .map(|variant| variant.normalize(genv.defns()))
-                .collect();
+                .map(|variant| normalize(genv, variant))
+                .try_collect()?;
             Ok(rty::Opaqueness::Transparent(variants))
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
             let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)?
-                .map(|variant| vec![variant.normalize(genv.defns())]);
+                .normalize(genv.defns()?)
+                .map(|variant| List::from(vec![variant]));
             Ok(variants)
         }
         kind => {
@@ -117,69 +147,68 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
 
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
     let fn_sig = genv.map().get_fn_sig(def_id);
-    let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns());
+    let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns()?);
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
     Ok(fn_sig)
 }
 
-fn conv_defns(early_cx: &EarlyCtxt) -> Result<rty::Defns, ErrorGuaranteed> {
-    let defns = early_cx
-        .map
-        .defns()
-        .map(|defn| (defn.name, conv::conv_defn(early_cx, defn)))
-        .collect();
-    rty::Defns::new(defns).map_err(|cycle| {
-        let span = early_cx.map.defn(cycle[0]).unwrap().expr.span;
-        early_cx
-            .sess
-            .emit_err(errors::DefinitionCycle::new(span, cycle))
-    })
+fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::TyAlias => {
+            let alias = genv.map().get_type_alias(def_id);
+            Wf::check_alias(genv.early_cx(), alias)?;
+            annot_check::check_alias(genv.early_cx(), alias)?;
+            Ok(())
+        }
+        DefKind::Struct => {
+            let struct_def = genv.map().get_struct(def_id);
+            Wf::check_struct_def(genv.early_cx(), struct_def)?;
+            annot_check::check_struct_def(genv.early_cx(), struct_def)?;
+            Ok(())
+        }
+        DefKind::Enum => {
+            let enum_def = genv.map().get_enum(def_id);
+            Wf::check_enum_def(genv.early_cx(), enum_def)?;
+            annot_check::check_enum_def(genv.early_cx(), enum_def)?;
+            Ok(())
+        }
+        DefKind::Fn | DefKind::AssocFn => {
+            let fn_sig = genv.map().get_fn_sig(def_id);
+            Wf::check_fn_sig(genv.early_cx(), fn_sig)?;
+            annot_check::check_fn_sig(genv.early_cx(), def_id, fn_sig)?;
+            Ok(())
+        }
+        kind => bug!("unexpected def kind `{kind:?}`"),
+    }
 }
 
-fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
+fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
-    for defn in early_cx.map.defns() {
-        err = Wf::check_defn(early_cx, defn).err().or(err);
+    for def_id in genv.tcx.hir_crate_items(()).definitions() {
+        match genv.tcx.def_kind(def_id) {
+            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::Fn | DefKind::AssocFn => {
+                err = genv.check_wf(def_id).emit(genv.sess).err().or(err);
+            }
+            _ => {}
+        }
     }
 
-    for qualifier in early_cx.map.qualifiers() {
-        err = Wf::check_qualifier(early_cx, qualifier).err().or(err);
+    for defn in genv.map().defns() {
+        err = Wf::check_defn(genv.early_cx(), defn).err().or(err);
     }
 
-    for alias in early_cx.map.type_aliases() {
-        err = Wf::check_alias(early_cx, alias)
-            .and_then(|_| annot_check::check_alias(early_cx, alias))
+    for qualifier in genv.map().qualifiers() {
+        err = Wf::check_qualifier(genv.early_cx(), qualifier)
             .err()
             .or(err);
     }
 
-    for struct_def in early_cx.map.structs() {
-        err = Wf::check_struct_def(early_cx, struct_def)
-            .and_then(|_| annot_check::check_struct_def(early_cx, struct_def))
-            .err()
-            .or(err);
-    }
-
-    for enum_def in early_cx.map.enums() {
-        err = Wf::check_enum_def(early_cx, enum_def)
-            .and_then(|_| annot_check::check_enum_def(early_cx, enum_def))
-            .err()
-            .or(err);
-    }
-
-    for (def_id, fn_sig) in early_cx.map.fn_sigs() {
-        err = Wf::check_fn_sig(early_cx, fn_sig)
-            .and_then(|_| annot_check::check_fn_sig(early_cx, def_id, fn_sig))
-            .err()
-            .or(err);
-    }
-
-    let qualifiers = early_cx.map.qualifiers().map(|q| q.name.clone()).collect();
-    for (_, fn_quals) in early_cx.map.fn_quals() {
-        err = Wf::check_fn_quals(early_cx.sess, &qualifiers, fn_quals)
+    let qualifiers = genv.map().qualifiers().map(|q| q.name.clone()).collect();
+    for (_, fn_quals) in genv.map().fn_quals() {
+        err = Wf::check_fn_quals(genv.sess, &qualifiers, fn_quals)
             .err()
             .or(err);
     }
@@ -189,6 +218,10 @@ fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     } else {
         Ok(())
     }
+}
+
+fn normalize<T: TypeFoldable>(genv: &GlobalEnv, t: T) -> QueryResult<T> {
+    Ok(t.normalize(genv.defns()?))
 }
 
 mod errors {
