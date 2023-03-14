@@ -3,7 +3,7 @@ use std::{
     iter,
 };
 
-use flux_common::{bug, dbg, index::IndexVec, span_bug, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -106,7 +106,9 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         dominators: &'a Dominators<BasicBlock>,
         mode: &'a mut M,
     ) -> Self {
-        let generics = genv.generics_of(def_id);
+        let generics = genv.generics_of(def_id).unwrap_or_else(|_| {
+            span_bug!(body.span(), "checking function with unsupported signature")
+        });
         Checker {
             def_id,
             genv,
@@ -361,17 +363,23 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .map_err(CheckerErrKind::from)
                     .with_src_info(terminator.source_info)?;
 
-                let fn_generics = self.genv.generics_of(*func_id);
+                let fn_generics = self
+                    .genv
+                    .generics_of(*func_id)
+                    .map_err(CheckerErrKind::from)
+                    .with_src_info(terminator.source_info)?;
                 let substs = call_substs
                     .lowered
                     .iter()
                     .enumerate()
                     .map(|(idx, arg)| {
-                        let param = fn_generics.param_at(idx, self.genv);
+                        let param = fn_generics.param_at(idx, self.genv)?;
                         self.genv
                             .instantiate_arg_for_fun(&self.generics, &param, arg)
                     })
-                    .collect_vec();
+                    .try_collect_vec()
+                    .map_err(CheckerErrKind::from)
+                    .with_src_info(terminator.source_info)?;
                 let ret = self.check_call(
                     rcx,
                     env,
@@ -648,16 +656,26 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .ok_or_else(|| CheckerErrKind::OpaqueStruct(*def_id))
                     .with_span(stmt_span)?
                     .to_fn_sig();
-                let substs = iter::zip(&genv.generics_of(*def_id).params, substs)
+                let adt_generics = &genv
+                    .generics_of(*def_id)
+                    .map_err(CheckerErrKind::from)
+                    .with_span(stmt_span)?;
+                let substs = iter::zip(&adt_generics.params, substs)
                     .map(|(param, arg)| {
                         genv.instantiate_arg_for_constructor(&self.generics, param, arg)
                     })
-                    .collect_vec();
+                    .try_collect_vec()
+                    .map_err(CheckerErrKind::from)
+                    .with_span(stmt_span)?;
                 self.check_call(rcx, env, stmt_span, None, sig, &substs, args)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), args) => {
                 let args = self.check_operands(rcx, env, stmt_span, args)?;
-                let arr_ty = self.genv.refine_with_holes(&self.generics, arr_ty);
+                let arr_ty = self
+                    .genv
+                    .refine_with_holes(&self.generics, arr_ty)
+                    .map_err(CheckerErrKind::from)
+                    .with_span(stmt_span)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, arr_ty)
                     .with_span(stmt_span)
@@ -684,7 +702,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
-                Ok(self.check_cast(*kind, &from, to))
+                self.check_cast(*kind, &from, to)
             }
         }
     }
@@ -793,9 +811,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(ty)
     }
 
-    fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Ty {
+    fn check_cast(
+        &self,
+        kind: CastKind,
+        from: &Ty,
+        to: &rustc::ty::Ty,
+    ) -> Result<Ty, CheckerError> {
         use rustc::ty::TyKind as RustTy;
-        match kind {
+        let ty = match kind {
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
                     (Bool!(idx), RustTy::Int(int_ty)) => bool_int_cast(&idx.expr, *int_ty),
@@ -818,9 +841,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
-                self.genv.refine_default(&self.generics, to)
+                self.genv
+                    .refine_default(&self.generics, to)
+                    .map_err(CheckerErrKind::from)
+                    .with_span(self.body.span())?
             }
-        }
+        };
+        Ok(ty)
     }
 
     fn check_operands(
@@ -1129,11 +1156,7 @@ impl Ord for Item<'_> {
 
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
-    use flux_middle::{
-        global_env::{QueryErr, UnsupportedFnSig},
-        pretty,
-        rty::evars::UnsolvedEvar,
-    };
+    use flux_middle::{global_env::QueryErr, pretty, rty::evars::UnsolvedEvar};
     use rustc_errors::IntoDiagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
@@ -1148,7 +1171,6 @@ pub(crate) mod errors {
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
-        UnsupportedCall { def_span: Span, reason: String },
     }
 
     impl<'a> IntoDiagnostic<'a> for CheckerError {
@@ -1172,15 +1194,6 @@ pub(crate) mod errors {
                     builder.set_arg("struct", pretty::def_id_to_string(def_id));
                     builder
                 }
-                CheckerErrKind::UnsupportedCall { def_span, reason } => {
-                    let mut builder = handler.struct_err_with_code(
-                        fluent::refineck_unsupported_call,
-                        flux_errors::diagnostic_id(),
-                    );
-                    builder.span_note(def_span, fluent::refineck_function_definition);
-                    builder.note(reason);
-                    builder
-                }
                 CheckerErrKind::Query(err) => err.into_diagnostic(handler),
             };
             if let Some(span) = self.span {
@@ -1200,15 +1213,6 @@ pub(crate) mod errors {
     impl From<UnsolvedEvar> for CheckerErrKind {
         fn from(_: UnsolvedEvar) -> Self {
             CheckerErrKind::Inference
-        }
-    }
-
-    impl From<UnsupportedFnSig> for CheckerError {
-        fn from(err: UnsupportedFnSig) -> Self {
-            CheckerError {
-                kind: CheckerErrKind::UnsupportedCall { def_span: err.span, reason: err.reason },
-                span: None,
-            }
         }
     }
 

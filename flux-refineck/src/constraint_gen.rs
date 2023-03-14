@@ -147,7 +147,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check closure obligations
         let closure_obligs =
-            if let Some(did) = did { mk_obligations(genv, did, &substs) } else { vec![] };
+            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { vec![] };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -562,12 +562,13 @@ fn mk_obligations(
     genv: &GlobalEnv<'_, '_>,
     did: DefId,
     substs: &[GenericArg],
-) -> Vec<rty::Predicate> {
-    genv.predicates_of(did)
+) -> Result<Vec<rty::Predicate>, CheckerErrKind> {
+    Ok(genv
+        .predicates_of(did)?
         .predicates
         .iter()
         .map(|predicate| predicate.replace_generics(substs))
-        .collect()
+        .collect())
 }
 
 impl<F> KVarGen for F

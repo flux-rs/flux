@@ -580,8 +580,8 @@ impl Map {
         self.generics.insert(def_id, generics);
     }
 
-    pub fn generics_of(&self, def_id: LocalDefId) -> &Generics {
-        &self.generics[&def_id]
+    pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
+        self.generics.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {

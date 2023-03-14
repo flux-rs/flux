@@ -12,7 +12,6 @@ use rustc_middle::ty::{TyCtxt, Variance};
 use rustc_span::Span;
 pub use rustc_span::{symbol::Ident, Symbol};
 
-pub use crate::rustc::lowering::UnsupportedFnSig;
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, VariantIdx},
@@ -23,7 +22,7 @@ use crate::{
     },
     rustc::{
         self,
-        lowering::{self, UnsupportedType},
+        lowering::{self, UnsupportedDef},
     },
 };
 
@@ -34,6 +33,7 @@ pub struct Queries {
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
     pub variants: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolySig>,
+    pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
 }
 
 pub type QueryResult<T> = Result<T, QueryErr>;
@@ -91,13 +91,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn register_generics(
-        &mut self,
-        generics: impl IntoIterator<Item = (DefId, rty::Generics)>,
-    ) {
-        self.generics.get_mut().extend(generics);
-    }
-
     pub fn map(&self) -> &fhir::Map {
         &self.early_cx.map
     }
@@ -136,7 +129,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     let fn_sig = lowering::lower_fn_sig_of(self.tcx, def_id)
                         .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?
                         .skip_binder();
-                    Refiner::default(self, &self.generics_of(def_id)).refine_fn_sig(&fn_sig)
+                    Refiner::default(self, &self.generics_of(def_id)?).refine_fn_sig(&fn_sig)?
                 };
                 Ok(entry.insert(fn_sig).clone())
             }
@@ -169,7 +162,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         // this is harcoding that `Box` has two type parameters and
         // it is indexed by unit. We leave this as a reminder in case
         // that ever changes.
-        debug_assert_eq!(self.generics_of(def_id).params.len(), 2);
+        debug_assert_eq!(self.generics_of(def_id).unwrap().params.len(), 2);
         debug_assert!(adt_def.sort().is_unit());
 
         let bty =
@@ -195,8 +188,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                             let variant_def =
                                 lowering::lower_variant_def(self.tcx, def_id, variant_def)
                                     .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?;
-                            Ok(Refiner::default(self, &self.generics_of(def_id))
-                                .refine_variant_def(&variant_def))
+                            Refiner::default(self, &self.generics_of(def_id)?)
+                                .refine_variant_def(&variant_def)
                         })
                         .try_collect()?;
                     rty::Opaqueness::Transparent(variants)
@@ -216,34 +209,39 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .map(|variants| variants[variant_idx.as_usize()].clone()))
     }
 
-    pub fn predicates_of(&self, def_id: DefId) -> rty::GenericPredicates {
-        self.predicates
-            .borrow_mut()
-            .entry(def_id)
-            .or_insert_with(|| {
+    pub fn predicates_of(&self, def_id: DefId) -> QueryResult<rty::GenericPredicates> {
+        match self.predicates.borrow_mut().entry(def_id) {
+            hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
+            hash_map::Entry::Vacant(entry) => {
                 let predicates = self.tcx.predicates_of(def_id);
                 let predicates =
                     lowering::lower_generic_predicates(self.tcx, self.sess, predicates)
                         .unwrap_or_else(|_| FatalError.raise());
 
-                Refiner::default(self, &self.generics_of(def_id))
-                    .refine_generic_predicates(&predicates)
-            })
-            .clone()
+                let predicates = Refiner::default(self, &self.generics_of(def_id)?)
+                    .refine_generic_predicates(&predicates)?;
+
+                Ok(entry.insert(predicates).clone())
+            }
+        }
     }
 
-    pub fn generics_of(&self, def_id: impl Into<DefId>) -> rty::Generics {
+    pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
         let def_id = def_id.into();
-        self.generics
-            .borrow_mut()
-            .entry(def_id)
-            .or_insert_with(|| {
-                let generics =
-                    lowering::lower_generics(self.tcx, self.sess, self.tcx.generics_of(def_id))
-                        .unwrap_or_else(|_| FatalError.raise());
-                refining::refine_generics(&generics)
-            })
-            .clone()
+
+        match self.generics.borrow_mut().entry(def_id) {
+            hash_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
+            hash_map::Entry::Vacant(entry) => {
+                let generics = if let Some(local_id) = def_id.as_local() {
+                    (self.queries.generics_of)(self, local_id)?
+                } else {
+                    let generics = lowering::lower_generics(self.tcx.generics_of(def_id))
+                        .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?;
+                    refining::refine_generics(&generics)
+                };
+                Ok(entry.insert(generics).clone())
+            }
+        }
     }
 
     pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
@@ -254,11 +252,19 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.early_cx.early_bound_sorts_of(def_id)
     }
 
-    pub fn refine_default(&self, generics: &rty::Generics, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
+    pub fn refine_default(
+        &self,
+        generics: &rty::Generics,
+        rustc_ty: &rustc::ty::Ty,
+    ) -> QueryResult<rty::Ty> {
         Refiner::default(self, generics).refine_ty(rustc_ty)
     }
 
-    pub fn refine_with_holes(&self, generics: &rty::Generics, rustc_ty: &rustc::ty::Ty) -> rty::Ty {
+    pub fn refine_with_holes(
+        &self,
+        generics: &rty::Generics,
+        rustc_ty: &rustc::ty::Ty,
+    ) -> QueryResult<rty::Ty> {
         Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
 
@@ -267,7 +273,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         generics: &rty::Generics,
         param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,
-    ) -> rty::GenericArg {
+    ) -> QueryResult<rty::GenericArg> {
         Refiner::new(self, generics, |bty| {
             let sort = bty.sort();
             let mut ty = rty::Ty::indexed(bty, rty::Expr::nu());
@@ -284,7 +290,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         generics: &rty::Generics,
         param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,
-    ) -> rty::GenericArg {
+    ) -> QueryResult<rty::GenericArg> {
         Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }
 
@@ -296,7 +302,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         } else {
             let rustc_ty = lowering::lower_type_of(self.tcx, def_id)
                 .map_err(|err| QueryErr::unsupported(self.tcx, def_id, err))?;
-            let ty = self.refine_default(&self.generics_of(def_id), &rustc_ty);
+            let ty = self.refine_default(&self.generics_of(def_id)?, &rustc_ty)?;
             Ok(rty::Binder::new(ty, rty::Sort::unit()))
         }
     }
@@ -329,7 +335,7 @@ impl<'a> IntoDiagnostic<'a> for QueryErr {
     }
 }
 impl QueryErr {
-    fn unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedType) -> Self {
+    pub fn unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedDef) -> Self {
         QueryErr::UnsupportedType { def_id, def_span: tcx.def_span(def_id), reason: err.reason }
     }
 }

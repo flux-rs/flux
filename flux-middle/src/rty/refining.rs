@@ -8,7 +8,10 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
-use crate::{global_env::GlobalEnv, rty, rustc};
+use crate::{
+    global_env::{GlobalEnv, QueryResult},
+    rty, rustc,
+};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -67,7 +70,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     pub(crate) fn refine_generic_predicates(
         &self,
         generics: &rustc::ty::GenericPredicates,
-    ) -> rty::GenericPredicates {
+    ) -> QueryResult<rty::GenericPredicates> {
         let predicates = generics
             .predicates
             .iter()
@@ -75,102 +78,102 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 match pred.kind.as_ref().skip_binder() {
                     rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
-                            bounded_ty: self.refine_ty(bounded_ty),
-                            tupled_args: self.refine_ty(tupled_args),
-                            output: self.refine_ty(output),
+                            bounded_ty: self.refine_ty(bounded_ty)?,
+                            tupled_args: self.refine_ty(tupled_args)?,
+                            output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        rty::Predicate::FnTrait(pred)
+                        Ok(rty::Predicate::FnTrait(pred))
                     }
                 }
             })
-            .collect();
+            .try_collect()?;
 
-        rty::GenericPredicates { parent: generics.parent, predicates }
+        Ok(rty::GenericPredicates { parent: generics.parent, predicates })
     }
 
     pub(crate) fn refine_variant_def(
         &self,
         variant_def: &rustc::ty::VariantDef,
-    ) -> rty::PolyVariant {
+    ) -> QueryResult<rty::PolyVariant> {
         let fields = variant_def
             .field_tys
             .iter()
             .map(|ty| self.refine_ty(ty))
-            .collect_vec();
+            .try_collect()?;
         let rustc::ty::TyKind::Adt(def_id, substs) = variant_def.ret.kind() else {
             bug!();
         };
-        let substs = iter::zip(&self.generics.params, substs)
+        let substs: Vec<_> = iter::zip(&self.generics.params, substs)
             .map(|(param, arg)| self.refine_generic_arg(param, arg))
-            .collect_vec();
+            .try_collect()?;
         let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
-        rty::Binder::new(value, rty::Sort::unit())
+        Ok(rty::Binder::new(value, rty::Sort::unit()))
     }
 
-    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> rty::PolySig {
-        let args = fn_sig
+    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolySig> {
+        let args: Vec<_> = fn_sig
             .inputs()
             .iter()
             .map(|ty| self.refine_ty(ty))
-            .collect_vec();
-        let ret = self.refine_ty(&fn_sig.output());
+            .try_collect()?;
+        let ret = self.refine_ty(&fn_sig.output())?;
         let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
-        rty::PolySig::new([], rty::FnSig::new(vec![], args, output))
+        Ok(rty::PolySig::new([], rty::FnSig::new(vec![], args, output)))
     }
 
     pub(crate) fn refine_generic_arg(
         &self,
         param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,
-    ) -> rty::GenericArg {
+    ) -> QueryResult<rty::GenericArg> {
         match (&param.kind, arg) {
             (rty::GenericParamDefKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) => {
-                rty::GenericArg::Ty(self.refine_ty(ty))
+                Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
-                rty::GenericArg::BaseTy(self.refine_bound_ty(ty))
+                Ok(rty::GenericArg::BaseTy(self.refine_bound_ty(ty)?))
             }
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
-                rty::GenericArg::Lifetime
+                Ok(rty::GenericArg::Lifetime)
             }
             _ => bug!("mismatched generic arg `{arg:?}` `{param:?}`"),
         }
     }
 
-    pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> rty::Ty {
-        let ty = self.refine_bound_ty(ty);
+    pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
+        let ty = self.refine_bound_ty(ty)?;
         if ty.sort().is_unit() {
-            ty.replace_bvar(&rty::Expr::unit())
+            Ok(ty.replace_bvar(&rty::Expr::unit()))
         } else {
-            rty::Ty::exists(ty)
+            Ok(rty::Ty::exists(ty))
         }
     }
 
-    fn refine_bound_ty(&self, ty: &rustc::ty::Ty) -> rty::Binder<rty::Ty> {
+    fn refine_bound_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Binder<rty::Ty>> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
-                rty::BaseTy::Ref(rty::RefKind::Mut, self.refine_ty(ty))
+                rty::BaseTy::Ref(rty::RefKind::Mut, self.refine_ty(ty)?)
             }
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Not) => {
-                rty::BaseTy::Ref(rty::RefKind::Shr, self.refine_ty(ty))
+                rty::BaseTy::Ref(rty::RefKind::Shr, self.refine_ty(ty)?)
             }
             rustc::ty::TyKind::Float(float_ty) => rty::BaseTy::Float(*float_ty),
             rustc::ty::TyKind::Tuple(tys) => {
-                let tys = tys.iter().map(|ty| self.refine_ty(ty)).collect();
+                let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
                 rty::BaseTy::Tuple(tys)
             }
             rustc::ty::TyKind::Array(ty, len) => {
-                rty::BaseTy::Array(self.refine_ty(ty), len.clone())
+                rty::BaseTy::Array(self.refine_ty(ty)?, len.clone())
             }
             rustc::ty::TyKind::Param(param_ty) => {
-                match self.param(*param_ty).kind {
+                match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return rty::Binder::new(rty::Ty::param(*param_ty), rty::Sort::unit());
+                        return Ok(rty::Binder::new(rty::Ty::param(*param_ty), rty::Sort::unit()));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime => bug!(),
@@ -178,23 +181,23 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rustc::ty::TyKind::Adt(def_id, substs) => {
                 let adt_def = self.genv.adt_def(*def_id);
-                let substs = iter::zip(&self.generics_of(*def_id).params, substs)
+                let substs: Vec<_> = iter::zip(&self.generics_of(*def_id)?.params, substs)
                     .map(|(param, arg)| self.refine_generic_arg(param, arg))
-                    .collect_vec();
+                    .try_collect()?;
                 rty::BaseTy::adt(adt_def, substs)
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
-            rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)),
+            rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)?),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
             rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
-                rty::BaseTy::RawPtr(self.as_default().refine_ty(ty), *mu)
+                rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
         };
-        (self.refine)(bty)
+        Ok((self.refine)(bty))
     }
 
     fn as_default(&self) -> Self {
@@ -205,11 +208,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         self.genv.adt_def(def_id)
     }
 
-    fn generics_of(&self, def_id: DefId) -> rty::Generics {
+    fn generics_of(&self, def_id: DefId) -> QueryResult<rty::Generics> {
         self.genv.generics_of(def_id)
     }
 
-    fn param(&self, param_ty: ParamTy) -> rty::GenericParamDef {
+    fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {
         self.generics.param_at(param_ty.index as usize, self.genv)
     }
 }

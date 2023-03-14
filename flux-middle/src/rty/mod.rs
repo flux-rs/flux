@@ -32,7 +32,7 @@ pub use crate::{
     rustc::ty::Const,
 };
 use crate::{
-    global_env::GlobalEnv,
+    global_env::{GlobalEnv, QueryResult},
     intern::{impl_internable, Internable, Interned, List},
     rustc::mir::Place,
 };
@@ -283,11 +283,11 @@ impl FnTraitPredicate {
 }
 
 impl Generics {
-    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParamDef {
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
-            self.params[index].clone()
+            Ok(self.params[index].clone())
         } else {
-            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))
+            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
                 .param_at(param_index, genv)
         }
     }

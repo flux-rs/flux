@@ -18,12 +18,11 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir,
-    global_env::{GlobalEnv, Queries, QueryResult},
+    global_env::{GlobalEnv, Queries, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable},
-    rustc,
+    rustc::lowering,
 };
-use itertools::Itertools;
-use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, FatalError, SubdiagnosticMessage};
+use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
@@ -51,17 +50,26 @@ pub fn build_genv<'sess, 'tcx>(
         .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
         .collect();
 
-    let mut genv = GlobalEnv::new(
+    Ok(GlobalEnv::new(
         early_cx,
         adt_defs,
         defns,
         qualifiers,
         uifs,
-        Queries { type_of, variants, fn_sig },
-    );
-    register_generics(&mut genv);
+        Queries { type_of, variants, fn_sig, generics_of },
+    ))
+}
 
-    Ok(genv)
+fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
+    let def_id = local_id.to_def_id();
+    let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
+        .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+    let generics = genv.map().get_generics(local_id).unwrap_or_else(|| {
+        genv.map()
+            .get_generics(genv.tcx.local_parent(local_id))
+            .unwrap()
+    });
+    Ok(conv::conv_generics(&rustc_generics, generics))
 }
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty::Ty>> {
@@ -190,23 +198,6 @@ fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     } else {
         Ok(())
     }
-}
-
-fn register_generics(genv: &mut GlobalEnv) {
-    let generics = genv
-        .map()
-        .generics()
-        .map(|(def_id, generics)| {
-            let rustc_generics = rustc::lowering::lower_generics(
-                genv.tcx,
-                genv.sess,
-                genv.tcx.generics_of(def_id.to_def_id()),
-            )
-            .unwrap_or_else(|_| FatalError.raise());
-            (def_id.to_def_id(), conv::conv_generics(&rustc_generics, generics))
-        })
-        .collect_vec();
-    genv.register_generics(generics);
 }
 
 mod errors {

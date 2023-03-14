@@ -241,7 +241,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .try_collect()?;
 
             let substs = genv
-                .generics_of(def_id)
+                .generics_of(def_id)?
                 .params
                 .iter()
                 .map(|param| {
@@ -475,7 +475,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut i = 0;
         self.genv
-            .generics_of(def_id)
+            .generics_of(def_id)?
             .params
             .iter()
             .map(|param| {

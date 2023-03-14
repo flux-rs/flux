@@ -15,12 +15,6 @@ middle_unsupported_local_decl =
     unsupported local declaration
     .label = this declaration has type `{$ty}` which is not currently supported
 
-middle_unsupported_fn_sig =
-    unsupported signature
-
-middle_unsupported_generic_param =
-    unsupported generic param
-
 middle_unsupported_generic_bound =
     unsupported generic bound
     .note = {$reason}
