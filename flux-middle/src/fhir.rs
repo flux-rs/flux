@@ -750,6 +750,10 @@ impl WfResults {
     pub fn new(sorts: FxHashMap<Name, Sort>) -> Self {
         Self { sorts }
     }
+
+    pub fn sort_of(&self, name: Name) -> Sort {
+        self.sorts[&name].clone()
+    }
 }
 
 impl_internable!([Sort]);

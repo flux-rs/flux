@@ -108,11 +108,15 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty:
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
-            conv::expand_type_alias(genv, alias)
+            let wfresults = genv.check_wf(def_id)?;
+            conv::expand_type_alias(genv, alias, &wfresults)
         }
         DefKind::TyParam => {
             match &genv.early_cx().get_generic_param(def_id).kind {
-                fhir::GenericParamDefKind::Type { default: Some(ty) } => conv::conv_ty(genv, ty),
+                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
+                    let wfresults = todo!();
+                    conv::conv_ty(genv, ty, &wfresults)
+                }
                 _ => bug!("non-type def"),
             }
         }
@@ -126,7 +130,8 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
     match genv.tcx.def_kind(def_id) {
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
-            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)?
+            let wfresults = genv.check_wf(def_id)?;
+            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def, &wfresults)?
                 .into_iter()
                 .map(|variant| normalize(genv, variant))
                 .try_collect()?;
@@ -134,7 +139,8 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
-            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)?
+            let wfresults = genv.check_wf(def_id)?;
+            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfresults)?
                 .normalize(genv.defns()?)
                 .map(|variant| List::from(vec![variant]));
             Ok(variants)
@@ -147,7 +153,8 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
 
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
     let fn_sig = genv.map().get_fn_sig(def_id);
-    let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns()?);
+    let wfresults = genv.check_wf(def_id)?;
+    let fn_sig = conv::conv_fn_sig(genv, fn_sig, &wfresults)?.normalize(genv.defns()?);
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
