@@ -1,4 +1,4 @@
-use std::string::ToString;
+use std::{rc::Rc, string::ToString};
 
 use flux_errors::FluxSession;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -24,7 +24,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
-    queries: Queries,
+    queries: Queries<'tcx>,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
@@ -93,6 +93,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
         rty::Ty::indexed(bty, rty::Index::unit())
+    }
+
+    pub fn mir(&self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
+        self.queries.mir(self, def_id)
     }
 
     pub fn adt_def(&self, def_id: impl Into<DefId>) -> rty::AdtDef {

@@ -1,4 +1,7 @@
-use std::cell::{OnceCell, RefCell};
+use std::{
+    cell::{OnceCell, RefCell},
+    rc::Rc,
+};
 
 use flux_errors::ErrorGuaranteed;
 use itertools::Itertools;
@@ -15,7 +18,10 @@ use crate::{
         self,
         refining::{self, Refiner},
     },
-    rustc::lowering::{self, UnsupportedDef},
+    rustc::{
+        self,
+        lowering::{self, UnsupportedDef},
+    },
 };
 
 type Cache<K, V> = RefCell<FxHashMap<K, V>>;
@@ -39,8 +45,9 @@ pub struct Providers {
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
 }
 
-pub struct Queries {
+pub struct Queries<'tcx> {
     providers: Providers,
+    mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<LocalDefId, QueryResult>,
@@ -52,10 +59,11 @@ pub struct Queries {
     fn_sig: Cache<DefId, QueryResult<rty::PolySig>>,
 }
 
-impl Queries {
+impl<'tcx> Queries<'tcx> {
     pub(crate) fn new(providers: Providers) -> Self {
         Self {
             providers,
+            mir: Cache::default(),
             defns: OnceCell::new(),
             qualifiers: OnceCell::new(),
             check_wf: Cache::default(),
@@ -66,6 +74,18 @@ impl Queries {
             variants_of: Cache::default(),
             fn_sig: Cache::default(),
         }
+    }
+
+    pub(crate) fn mir(
+        &self,
+        genv: &GlobalEnv<'_, 'tcx>,
+        def_id: LocalDefId,
+    ) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
+        run_with_cache(&self.mir, def_id, || {
+            let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, def_id) };
+            let mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir)?;
+            Ok(Rc::new(mir))
+        })
     }
 
     pub(crate) fn defns(&self, genv: &GlobalEnv) -> QueryResult<&rty::Defns> {

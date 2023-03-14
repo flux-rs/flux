@@ -170,12 +170,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mode: &'a mut M,
         fn_sig: PolySig,
     ) -> Result<(), CheckerError> {
-        let body = {
-            let local_def_id = def_id.as_local().unwrap();
-            let mir =
-                unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, local_def_id) };
-            rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir).unwrap()
-        };
+        let body = genv
+            .mir(def_id.expect_local())
+            .with_span(genv.tcx.def_span(def_id))?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
