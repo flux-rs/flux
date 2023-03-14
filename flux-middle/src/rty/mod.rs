@@ -34,6 +34,7 @@ pub use crate::{
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
+    queries::QueryResult,
     rustc::mir::Place,
 };
 
@@ -110,7 +111,7 @@ pub struct AdtDefData {
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-#[derive(Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
@@ -121,6 +122,7 @@ pub struct Invariant {
     pub pred: Binder<Expr>,
 }
 
+pub type PolyVariants = Opaqueness<Vec<Binder<VariantDef>>>;
 pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -282,11 +284,11 @@ impl FnTraitPredicate {
 }
 
 impl Generics {
-    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParamDef {
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
-            self.params[index].clone()
+            Ok(self.params[index].clone())
         } else {
-            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))
+            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
                 .param_at(param_index, genv)
         }
     }

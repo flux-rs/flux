@@ -23,7 +23,6 @@ use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, rty};
-use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
@@ -117,34 +116,18 @@ impl CrateMetadata {
 
             match def_kind {
                 DefKind::Fn | DefKind::AssocFn => {
-                    fn_sigs.insert(
-                        def_id.index,
-                        genv.lookup_fn_sig(def_id)
-                            .unwrap_or_else(|err| genv.sess.emit_fatal(err)),
-                    );
+                    fn_sigs.insert(def_id.index, genv.fn_sig(def_id).unwrap());
                 }
                 DefKind::Enum | DefKind::Struct => {
                     let adt_def = genv.adt_def(def_id);
-                    let variants = if adt_def.is_opaque() {
-                        rty::Opaqueness::Opaque
-                    } else {
-                        rty::Opaqueness::Transparent(
-                            adt_def
-                                .variants()
-                                .map(|variant_idx| {
-                                    genv.variant(def_id, variant_idx)
-                                        .expect("adt must be transparent")
-                                })
-                                .collect_vec(),
-                        )
-                    };
+                    let variants = genv.variants_of(def_id).unwrap();
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
 
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 DefKind::TyAlias => {
-                    type_of.insert(def_id.index, genv.type_of(def_id));
+                    type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 _ => {}

@@ -580,8 +580,8 @@ impl Map {
         self.generics.insert(def_id, generics);
     }
 
-    pub fn generics_of(&self, def_id: LocalDefId) -> &Generics {
-        &self.generics[&def_id]
+    pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
+        self.generics.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -614,6 +614,10 @@ impl Map {
 
     pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
         self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
+    }
+
+    pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
+        &self.fns[&def_id]
     }
 
     pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {

@@ -18,17 +18,13 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir,
-    global_env::{GlobalEnv, Queries},
+    global_env::GlobalEnv,
+    queries::{Providers, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable},
-    rustc,
+    rustc::lowering,
 };
-use itertools::Itertools;
-use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, FatalError, SubdiagnosticMessage};
-use rustc_hash::FxHashMap;
-use rustc_hir::{
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
-};
+use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use wf::Wf;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -38,7 +34,6 @@ pub fn build_genv<'sess, 'tcx>(
 ) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
     check_crate(&early_cx)?;
 
-    let adt_defs = conv_adt_defs(&early_cx);
     let defns = conv_defns(&early_cx)?;
     let qualifiers = early_cx
         .map
@@ -51,16 +46,36 @@ pub fn build_genv<'sess, 'tcx>(
         .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
         .collect();
 
-    let mut genv = GlobalEnv::new(early_cx, adt_defs, defns, qualifiers, uifs, Queries { type_of });
-    register_generics(&mut genv);
-    register_struct_def_variants(&mut genv);
-    register_enum_def_variants(&mut genv);
-    register_fn_sigs(&mut genv);
-
-    Ok(genv)
+    Ok(GlobalEnv::new(
+        early_cx,
+        defns,
+        qualifiers,
+        uifs,
+        Providers { adt_def, type_of, variants_of, fn_sig, generics_of },
+    ))
 }
 
-pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> rty::Binder<rty::Ty> {
+fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> rty::AdtDef {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::Enum => conv::adt_def_for_enum(genv.early_cx(), genv.map().get_enum(def_id)),
+        DefKind::Struct => conv::adt_def_for_struct(genv.early_cx(), genv.map().get_struct(def_id)),
+        kind => bug!("expected struct or enum found `{kind:?}`"),
+    }
+}
+
+fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
+    let def_id = local_id.to_def_id();
+    let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
+        .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+    let generics = genv.map().get_generics(local_id).unwrap_or_else(|| {
+        genv.map()
+            .get_generics(genv.tcx.local_parent(local_id))
+            .unwrap()
+    });
+    Ok(conv::conv_generics(&rustc_generics, generics))
+}
+
+fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty::Ty>> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
@@ -78,16 +93,35 @@ pub fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> rty::Binder<rty::Ty> {
     }
 }
 
-fn conv_adt_defs(early_cx: &EarlyCtxt) -> FxHashMap<DefId, rty::AdtDef> {
-    let mut map = FxHashMap::default();
-    for struct_def in early_cx.map.structs() {
-        map.insert(struct_def.def_id.to_def_id(), conv::adt_def_for_struct(early_cx, struct_def));
+fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::Enum => {
+            let enum_def = genv.map().get_enum(def_id);
+            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)?
+                .into_iter()
+                .map(|variant| variant.normalize(genv.defns()))
+                .collect();
+            Ok(rty::Opaqueness::Transparent(variants))
+        }
+        DefKind::Struct => {
+            let struct_def = genv.map().get_struct(def_id);
+            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)?
+                .map(|variant| vec![variant.normalize(genv.defns())]);
+            Ok(variants)
+        }
+        kind => {
+            bug!("expected struct or enum found `{kind:?}`")
+        }
     }
-    for enum_def in early_cx.map.enums() {
-        map.insert(enum_def.def_id.to_def_id(), conv::adt_def_for_enum(early_cx, enum_def));
-    }
+}
 
-    map
+fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
+    let fn_sig = genv.map().get_fn_sig(def_id);
+    let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns());
+    if config::dump_rty() {
+        dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
+    }
+    Ok(fn_sig)
 }
 
 fn conv_defns(early_cx: &EarlyCtxt) -> Result<rty::Defns, ErrorGuaranteed> {
@@ -155,71 +189,6 @@ fn check_crate(early_cx: &EarlyCtxt) -> Result<(), ErrorGuaranteed> {
     } else {
         Ok(())
     }
-}
-
-fn register_generics(genv: &mut GlobalEnv) {
-    let generics = genv
-        .map()
-        .generics()
-        .map(|(def_id, generics)| {
-            let rustc_generics = rustc::lowering::lower_generics(
-                genv.tcx,
-                genv.sess,
-                genv.tcx.generics_of(def_id.to_def_id()),
-            )
-            .unwrap_or_else(|_| FatalError.raise());
-            (def_id.to_def_id(), conv::conv_generics(&rustc_generics, generics))
-        })
-        .collect_vec();
-    genv.register_generics(generics);
-}
-
-fn register_struct_def_variants(genv: &mut GlobalEnv) {
-    let variants = genv
-        .map()
-        .structs()
-        .map(|struct_def| {
-            let def_id = struct_def.def_id;
-            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)
-                .map(|variant| vec![variant.normalize(genv.defns())]);
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, def_id, "rty", &variants).unwrap();
-            }
-            (def_id.to_def_id(), variants)
-        })
-        .collect_vec();
-    genv.register_variants(variants);
-}
-
-fn register_enum_def_variants(genv: &mut GlobalEnv) {
-    let variants = genv
-        .map()
-        .enums()
-        .map(|enum_def| {
-            let def_id = enum_def.def_id;
-            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)
-                .into_iter()
-                .map(|variant| variant.normalize(genv.defns()))
-                .collect_vec();
-            (def_id.to_def_id(), rty::Opaqueness::Transparent(variants))
-        })
-        .collect_vec();
-    genv.register_variants(variants);
-}
-
-fn register_fn_sigs(genv: &mut GlobalEnv) {
-    let fn_sigs = genv
-        .map()
-        .fn_sigs()
-        .map(|(def_id, fn_sig)| {
-            let fn_sig = conv::conv_fn_sig(genv, fn_sig).normalize(genv.defns());
-            if config::dump_rty() {
-                dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
-            }
-            (def_id.to_def_id(), fn_sig)
-        })
-        .collect_vec();
-    genv.register_fn_sigs(fn_sigs);
 }
 
 mod errors {

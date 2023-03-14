@@ -156,6 +156,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
 
     pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParamDef {
         let owner = self.hir().ty_param_owner(def_id);
-        self.map.generics_of(owner).get_param(def_id)
+        self.map.get_generics(owner).unwrap().get_param(def_id)
     }
 }
