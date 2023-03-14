@@ -28,7 +28,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_middle::mir as rustc_mir;
 use rustc_span::Span;
 
-use self::errors::{CheckerErrKind, CheckerError, ResultExt};
+use self::errors::{CheckerError, ResultExt};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
@@ -360,14 +360,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let fn_sig = self
                     .genv
                     .fn_sig(*func_id)
-                    .map_err(CheckerErrKind::from)
                     .with_src_info(terminator.source_info)?;
 
                 let fn_generics = self
                     .genv
                     .generics_of(*func_id)
-                    .map_err(CheckerErrKind::from)
                     .with_src_info(terminator.source_info)?;
+
                 let substs = call_substs
                     .lowered
                     .iter()
@@ -378,8 +377,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                             .instantiate_arg_for_fun(&self.generics, &param, arg)
                     })
                     .try_collect_vec()
-                    .map_err(CheckerErrKind::from)
                     .with_src_info(terminator.source_info)?;
+
                 let ret = self.check_call(
                     rcx,
                     env,
@@ -651,21 +650,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = genv
                     .variant(*def_id, *variant_idx)
-                    .map_err(CheckerErrKind::from)
                     .with_span(stmt_span)?
-                    .ok_or_else(|| CheckerErrKind::OpaqueStruct(*def_id))
-                    .with_span(stmt_span)?
+                    .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
                     .to_fn_sig();
-                let adt_generics = &genv
-                    .generics_of(*def_id)
-                    .map_err(CheckerErrKind::from)
-                    .with_span(stmt_span)?;
+                let adt_generics = &genv.generics_of(*def_id).with_span(stmt_span)?;
                 let substs = iter::zip(&adt_generics.params, substs)
                     .map(|(param, arg)| {
                         genv.instantiate_arg_for_constructor(&self.generics, param, arg)
                     })
                     .try_collect_vec()
-                    .map_err(CheckerErrKind::from)
                     .with_span(stmt_span)?;
                 self.check_call(rcx, env, stmt_span, None, sig, &substs, args)
             }
@@ -674,7 +667,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let arr_ty = self
                     .genv
                     .refine_with_holes(&self.generics, arr_ty)
-                    .map_err(CheckerErrKind::from)
                     .with_span(stmt_span)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, arr_ty)
@@ -843,7 +835,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
                 self.genv
                     .refine_default(&self.generics, to)
-                    .map_err(CheckerErrKind::from)
                     .with_span(self.body.span())?
             }
         };
@@ -1164,13 +1155,19 @@ pub(crate) mod errors {
 
     pub struct CheckerError {
         kind: CheckerErrKind,
-        span: Option<Span>,
+        span: Span,
     }
 
     pub enum CheckerErrKind {
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
+    }
+
+    impl CheckerError {
+        pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
+            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+        }
     }
 
     impl<'a> IntoDiagnostic<'a> for CheckerError {
@@ -1196,9 +1193,7 @@ pub(crate) mod errors {
                 }
                 CheckerErrKind::Query(err) => err.into_diagnostic(handler),
             };
-            if let Some(span) = self.span {
-                builder.set_span(span);
-            }
+            builder.set_span(self.span);
 
             builder
         }
@@ -1216,18 +1211,24 @@ pub(crate) mod errors {
         }
     }
 
-    pub trait ResultExt<T> {
-        fn with_span(self, span: Span) -> Result<T, CheckerError>;
-        fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError>;
+    pub trait ResultExt {
+        type Ok;
+        fn with_span(self, span: Span) -> Result<Self::Ok, CheckerError>;
+        fn with_src_info(self, src_info: SourceInfo) -> Result<Self::Ok, CheckerError>;
     }
 
-    impl<T> ResultExt<T> for Result<T, CheckerErrKind> {
+    impl<T, E> ResultExt for Result<T, E>
+    where
+        E: Into<CheckerErrKind>,
+    {
+        type Ok = T;
+
         fn with_span(self, span: Span) -> Result<T, CheckerError> {
-            self.map_err(|kind| CheckerError { kind, span: Some(span) })
+            self.map_err(|kind| CheckerError { kind: kind.into(), span })
         }
 
         fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError> {
-            self.map_err(|kind| CheckerError { kind, span: Some(src_info.span) })
+            self.map_err(|kind| CheckerError { kind: kind.into(), span: src_info.span })
         }
     }
 }
