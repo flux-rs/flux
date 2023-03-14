@@ -120,7 +120,7 @@ impl CrateMetadata {
                 }
                 DefKind::Enum | DefKind::Struct => {
                     let adt_def = genv.adt_def(def_id);
-                    let variants = genv.variants(def_id).unwrap();
+                    let variants = genv.variants_of(def_id).unwrap();
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
 

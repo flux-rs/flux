@@ -27,6 +27,7 @@ pub mod fhir;
 pub mod global_env;
 pub mod intern;
 pub mod pretty;
+pub mod queries;
 pub mod rty;
 pub mod rustc;
 

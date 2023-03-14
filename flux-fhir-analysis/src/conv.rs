@@ -13,8 +13,9 @@ use flux_common::{bug, span_bug};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir::{self, SurfaceIdent},
-    global_env::{GlobalEnv, QueryResult},
+    global_env::GlobalEnv,
     intern::List,
+    queries::QueryResult,
     rty::{self, fold::TypeFoldable, DebruijnIndex},
     rustc,
 };

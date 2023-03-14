@@ -32,8 +32,9 @@ pub use crate::{
     rustc::ty::Const,
 };
 use crate::{
-    global_env::{GlobalEnv, QueryResult},
+    global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
+    queries::QueryResult,
     rustc::mir::Place,
 };
 

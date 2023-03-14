@@ -18,7 +18,8 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir,
-    global_env::{GlobalEnv, Queries, QueryErr, QueryResult},
+    global_env::GlobalEnv,
+    queries::{Providers, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable},
     rustc::lowering,
 };
@@ -56,7 +57,7 @@ pub fn build_genv<'sess, 'tcx>(
         defns,
         qualifiers,
         uifs,
-        Queries { type_of, variants, fn_sig, generics_of },
+        Providers { type_of, variants_of, fn_sig, generics_of },
     ))
 }
 
@@ -90,7 +91,7 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty:
     }
 }
 
-fn variants(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
+fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
     match genv.tcx.def_kind(def_id) {
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);

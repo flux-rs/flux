@@ -1147,7 +1147,7 @@ impl Ord for Item<'_> {
 
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
-    use flux_middle::{global_env::QueryErr, pretty, rty::evars::UnsolvedEvar};
+    use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
     use rustc_errors::IntoDiagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;

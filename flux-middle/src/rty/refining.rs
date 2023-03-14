@@ -8,10 +8,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
-use crate::{
-    global_env::{GlobalEnv, QueryResult},
-    rty, rustc,
-};
+use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
