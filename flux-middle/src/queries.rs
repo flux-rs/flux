@@ -219,7 +219,12 @@ where
     K: std::hash::Hash + Eq,
     V: Clone,
 {
-    cache.borrow_mut().entry(key).or_insert_with(f).clone()
+    if let Some(v) = cache.borrow().get(&key) {
+        return v.clone();
+    }
+    let v = f();
+    cache.borrow_mut().insert(key, v.clone());
+    v
 }
 
 impl QueryErr {
