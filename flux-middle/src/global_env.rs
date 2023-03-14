@@ -25,7 +25,6 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     queries: Queries<'tcx>,
-    queries: Queries,
     extern_fns: FxHashMap<DefId, DefId>,
 }
 
