@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
-use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, rty};
+use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, intern::List, rty};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
@@ -54,7 +54,7 @@ pub struct CrateMetadata {
 #[derive(TyEncodable, TyDecodable)]
 struct AdtMetadata {
     adt_def: rty::AdtDef,
-    variants: rty::Opaqueness<Vec<rty::PolyVariant>>,
+    variants: rty::Opaqueness<List<rty::PolyVariant>>,
 }
 
 impl CStore {

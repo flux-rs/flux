@@ -122,7 +122,7 @@ pub struct Invariant {
     pub pred: Binder<Expr>,
 }
 
-pub type PolyVariants = Opaqueness<Vec<Binder<VariantDef>>>;
+pub type PolyVariants = Opaqueness<List<Binder<VariantDef>>>;
 pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -637,6 +637,16 @@ impl<T> Opaqueness<T> {
     }
 }
 
+impl<T, E> Opaqueness<Result<T, E>> {
+    pub fn transpose(self) -> Result<Opaqueness<T>, E> {
+        match self {
+            Opaqueness::Transparent(Ok(x)) => Ok(Opaqueness::Transparent(x)),
+            Opaqueness::Transparent(Err(e)) => Err(e),
+            Opaqueness::Opaque => Ok(Opaqueness::Opaque),
+        }
+    }
+}
+
 impl PolyVariant {
     pub fn to_fn_sig(&self) -> PolySig {
         let fn_sig = self
@@ -937,7 +947,8 @@ impl_internable!(
     [TupleTree<bool>],
     [Sort],
     [GenericParamDef],
-    [Predicate]
+    [Predicate],
+    [PolyVariant],
 );
 
 #[macro_export]

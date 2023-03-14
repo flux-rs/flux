@@ -132,9 +132,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let fn_sig = genv.fn_sig(def_id).unwrap_or_else(|_| {
-                span_bug!(genv.tcx.def_span(def_id), "checking function with unsupported signature")
-            });
+            let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
 
             Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig)?;
 
@@ -149,9 +147,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         def_id: DefId,
         bb_env_shapes: ShapeResult,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        let fn_sig = genv.fn_sig(def_id).unwrap_or_else(|_| {
-            span_bug!(genv.tcx.def_span(def_id), "checking function with unsupported signature")
-        });
+        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);

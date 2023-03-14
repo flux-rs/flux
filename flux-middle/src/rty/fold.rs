@@ -10,8 +10,8 @@ use super::{
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
-    FuncSort, GenericArg, Index, Invariant, KVar, Name, PolySig, Predicate, Qualifier, Sort, Ty,
-    TyKind, INNERMOST,
+    FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolySig, Predicate, Qualifier,
+    Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, List},
@@ -349,6 +349,18 @@ impl TypeFoldable for VariantDef {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.fields.iter().for_each(|ty| ty.visit_with(visitor));
         self.ret.visit_with(visitor);
+    }
+}
+
+impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        self.as_ref().map(|t| t.fold_with(folder))
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        if let Opaqueness::Transparent(t) = self {
+            t.visit_with(visitor);
+        }
     }
 }
 

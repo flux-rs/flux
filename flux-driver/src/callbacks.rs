@@ -163,9 +163,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
             DefKind::Fn | DefKind::AssocFn => {
                 refineck::check_fn(self.genv, &mut self.cache, def_id)
             }
-            DefKind::TyAlias => self.genv.check_wf(def_id).emit(self.genv.sess),
             DefKind::Enum => {
-                self.genv.check_wf(def_id).emit(self.genv.sess)?;
                 let adt_def = self.genv.adt_def(def_id.to_def_id());
                 let enum_def = self.genv.map().get_enum(def_id);
                 refineck::invariants::check_invariants(
@@ -176,7 +174,6 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                self.genv.check_wf(def_id).emit(self.genv.sess)?;
                 let adt_def = self.genv.adt_def(def_id.to_def_id());
                 let struct_def = self.genv.map().get_struct(def_id);
                 if struct_def.is_opaque() {

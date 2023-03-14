@@ -20,20 +20,16 @@ use crate::{
 pub struct GlobalEnv<'sess, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'sess FluxSession,
-    qualifiers: Vec<rty::Qualifier>,
     uifs: FxHashMap<Symbol, rty::UifDef>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
-    defns: Defns,
     queries: Queries,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn new(
         early_cx: EarlyCtxt<'sess, 'tcx>,
-        defns: Defns,
-        qualifiers: Vec<rty::Qualifier>,
         uifs: FxHashMap<Symbol, rty::UifDef>,
         providers: Providers,
     ) -> Self {
@@ -43,13 +39,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fn_quals.insert(def_id.to_def_id(), names);
         }
         GlobalEnv {
-            qualifiers,
             tcx: early_cx.tcx,
             sess: early_cx.sess,
             early_cx,
             uifs,
             fn_quals,
-            defns,
             queries: Queries::new(providers),
         }
     }
@@ -58,8 +52,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self.early_cx.map
     }
 
-    pub fn defns(&self) -> &Defns {
-        &self.defns
+    pub fn defns(&self) -> QueryResult<&Defns> {
+        self.queries.defns(self)
     }
 
     fn fn_quals(&self, did: DefId) -> Vec<String> {
@@ -69,11 +63,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn qualifiers(&self, did: DefId) -> impl Iterator<Item = &rty::Qualifier> {
+    pub fn qualifiers(&self, did: DefId) -> QueryResult<impl Iterator<Item = &rty::Qualifier>> {
         let names = self.fn_quals(did);
-        self.qualifiers
+        Ok(self
+            .queries
+            .qualifiers(self)?
             .iter()
-            .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name))
+            .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
 
     pub fn uifs(&self) -> impl Iterator<Item = &rty::UifDef> {

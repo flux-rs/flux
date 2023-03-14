@@ -49,8 +49,6 @@ pub fn check_fn(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = local_id.to_def_id();
     dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
-        genv.check_wf(local_id).emit(genv.sess)?;
-
         if genv.map().is_trusted(local_id) {
             return Ok(());
         }
@@ -77,13 +75,14 @@ pub fn check_fn(
         }
         let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
         let constraint = refine_tree.into_fixpoint(&mut fcx);
-        let result = match fcx.check(cache, constraint) {
-            Ok(_) => Ok(()),
-            Err(tags) => report_errors(genv, tags),
-        };
-        tracing::info!("check_fn::fixpoint");
+        let errors = fcx.check(cache, constraint).emit(genv.sess)?;
 
-        result
+        tracing::info!("check_fn::fixpoint");
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            report_errors(genv, errors)
+        }
     })
 }
 

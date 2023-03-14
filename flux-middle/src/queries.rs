@@ -1,7 +1,7 @@
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 
-use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
+use itertools::Itertools;
 use rustc_errors::{FatalError, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -10,6 +10,7 @@ use rustc_span::Span;
 
 use crate::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self,
         refining::{self, Refiner},
@@ -28,6 +29,8 @@ pub enum QueryErr {
 }
 
 pub struct Providers {
+    pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
+    pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
@@ -38,6 +41,8 @@ pub struct Providers {
 
 pub struct Queries {
     providers: Providers,
+    defns: OnceCell<QueryResult<rty::Defns>>,
+    qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<LocalDefId, QueryResult>,
     adt_def: Cache<DefId, rty::AdtDef>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
@@ -51,6 +56,8 @@ impl Queries {
     pub(crate) fn new(providers: Providers) -> Self {
         Self {
             providers,
+            defns: OnceCell::new(),
+            qualifiers: OnceCell::new(),
             check_wf: Cache::default(),
             adt_def: Cache::default(),
             generics_of: Cache::default(),
@@ -59,6 +66,20 @@ impl Queries {
             variants_of: Cache::default(),
             fn_sig: Cache::default(),
         }
+    }
+
+    pub(crate) fn defns(&self, genv: &GlobalEnv) -> QueryResult<&rty::Defns> {
+        self.defns
+            .get_or_init(|| (self.providers.defns)(genv))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
+    pub(crate) fn qualifiers(&self, genv: &GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
+        self.qualifiers
+            .get_or_init(|| (self.providers.qualifiers)(genv))
+            .as_deref()
+            .map_err(Clone::clone)
     }
 
     pub(crate) fn check_wf(&self, genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult {
@@ -137,7 +158,7 @@ impl Queries {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.variants_of)(genv, local_id)
             } else if let Some(variants) = genv.early_cx().cstore.variants(def_id) {
-                Ok(variants.map(<[_]>::to_vec))
+                Ok(variants.map(List::from))
             } else {
                 let variants = genv
                     .tcx
@@ -151,7 +172,7 @@ impl Queries {
                         Refiner::default(genv, &genv.generics_of(def_id)?)
                             .refine_variant_def(&variant_def)
                     })
-                    .try_collect_vec()?;
+                    .try_collect()?;
                 Ok(rty::Opaqueness::Transparent(variants))
             }
         })

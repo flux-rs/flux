@@ -13,6 +13,7 @@ use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, Constant},
 };
 use itertools::{self, Itertools};
@@ -150,10 +151,10 @@ where
         self,
         cache: &mut QueryCache,
         constraint: fixpoint::Constraint<TagIdx>,
-    ) -> Result<(), Vec<Tag>> {
+    ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
-            return Ok(());
+            return Ok(vec![]);
         }
         let span = self.def_span();
 
@@ -174,7 +175,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(self.def_id)
+            .qualifiers(self.def_id)?
             .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
             .collect();
 
@@ -212,9 +213,9 @@ where
         let task_key = self.genv.tcx.def_path_str(self.def_id);
 
         match task.check_with_cache(task_key, cache) {
-            Ok(FixpointResult::Safe(_)) => Ok(()),
+            Ok(FixpointResult::Safe(_)) => Ok(vec![]),
             Ok(FixpointResult::Unsafe(_, errors)) => {
-                Err(errors
+                Ok(errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
