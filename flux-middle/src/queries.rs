@@ -27,6 +27,7 @@ pub enum QueryErr {
 }
 
 pub struct Providers {
+    pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolySig>,
@@ -35,6 +36,7 @@ pub struct Providers {
 
 pub struct Queries {
     providers: Providers,
+    adt_def: Cache<DefId, rty::AdtDef>,
     generics_of: Cache<DefId, rty::Generics>,
     predicates_of: Cache<DefId, rty::GenericPredicates>,
     type_of: Cache<DefId, rty::Binder<rty::Ty>>,
@@ -46,12 +48,26 @@ impl Queries {
     pub(crate) fn new(providers: Providers) -> Self {
         Self {
             providers,
+            adt_def: Cache::default(),
             generics_of: Cache::default(),
             predicates_of: Cache::default(),
             type_of: Cache::default(),
             variants_of: Cache::default(),
             fn_sig: Cache::default(),
         }
+    }
+
+    pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> rty::AdtDef {
+        run_with_cache(&self.adt_def, def_id, || {
+            if let Some(local_id) = def_id.as_local() {
+                Ok((self.providers.adt_def)(genv, local_id))
+            } else if let Some(adt_def) = genv.early_cx().cstore.adt_def(def_id) {
+                Ok(adt_def.clone())
+            } else {
+                Ok(rty::AdtDef::new(genv.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false))
+            }
+        })
+        .unwrap()
     }
 
     pub(crate) fn generics_of(

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, string::ToString};
+use std::string::ToString;
 
 use flux_errors::FluxSession;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -22,7 +22,6 @@ pub struct GlobalEnv<'sess, 'tcx> {
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
-    adt_defs: RefCell<FxHashMap<DefId, rty::AdtDef>>,
     defns: Defns,
     queries: Queries,
 }
@@ -30,7 +29,6 @@ pub struct GlobalEnv<'sess, 'tcx> {
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn new(
         early_cx: EarlyCtxt<'sess, 'tcx>,
-        adt_defs: FxHashMap<DefId, rty::AdtDef>,
         defns: Defns,
         qualifiers: Vec<rty::Qualifier>,
         uifs: FxHashMap<Symbol, rty::UifDef>,
@@ -42,7 +40,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fn_quals.insert(def_id.to_def_id(), names);
         }
         GlobalEnv {
-            adt_defs: RefCell::new(adt_defs),
             qualifiers,
             tcx: early_cx.tcx,
             sess: early_cx.sess,
@@ -84,21 +81,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.variances_of(did)
     }
 
-    pub fn adt_def(&self, def_id: impl Into<DefId>) -> rty::AdtDef {
-        let def_id = def_id.into();
-        self.adt_defs
-            .borrow_mut()
-            .entry(def_id)
-            .or_insert_with(|| {
-                if let Some(adt_def) = self.early_cx.cstore.adt_def(def_id) {
-                    adt_def.clone()
-                } else {
-                    rty::AdtDef::new(self.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false)
-                }
-            })
-            .clone()
-    }
-
     pub fn mk_box(&self, ty: rty::Ty, alloc: rty::Ty) -> rty::Ty {
         let def_id = self.tcx.require_lang_item(LangItem::OwnedBox, None);
         let adt_def = self.adt_def(def_id);
@@ -112,6 +94,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
         rty::Ty::indexed(bty, rty::Index::unit())
+    }
+
+    pub fn adt_def(&self, def_id: impl Into<DefId>) -> rty::AdtDef {
+        self.queries.adt_def(self, def_id.into())
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {

@@ -24,11 +24,7 @@ use flux_middle::{
     rustc::lowering,
 };
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
-use rustc_hash::FxHashMap;
-use rustc_hir::{
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
-};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use wf::Wf;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -38,7 +34,6 @@ pub fn build_genv<'sess, 'tcx>(
 ) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
     check_crate(&early_cx)?;
 
-    let adt_defs = conv_adt_defs(&early_cx);
     let defns = conv_defns(&early_cx)?;
     let qualifiers = early_cx
         .map
@@ -53,12 +48,19 @@ pub fn build_genv<'sess, 'tcx>(
 
     Ok(GlobalEnv::new(
         early_cx,
-        adt_defs,
         defns,
         qualifiers,
         uifs,
-        Providers { type_of, variants_of, fn_sig, generics_of },
+        Providers { adt_def, type_of, variants_of, fn_sig, generics_of },
     ))
+}
+
+fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> rty::AdtDef {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::Enum => conv::adt_def_for_enum(genv.early_cx(), genv.map().get_enum(def_id)),
+        DefKind::Struct => conv::adt_def_for_struct(genv.early_cx(), genv.map().get_struct(def_id)),
+        kind => bug!("expected struct or enum found `{kind:?}`"),
+    }
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
@@ -120,18 +122,6 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
     Ok(fn_sig)
-}
-
-fn conv_adt_defs(early_cx: &EarlyCtxt) -> FxHashMap<DefId, rty::AdtDef> {
-    let mut map = FxHashMap::default();
-    for struct_def in early_cx.map.structs() {
-        map.insert(struct_def.def_id.to_def_id(), conv::adt_def_for_struct(early_cx, struct_def));
-    }
-    for enum_def in early_cx.map.enums() {
-        map.insert(enum_def.def_id.to_def_id(), conv::adt_def_for_enum(early_cx, enum_def));
-    }
-
-    map
 }
 
 fn conv_defns(early_cx: &EarlyCtxt) -> Result<rty::Defns, ErrorGuaranteed> {
