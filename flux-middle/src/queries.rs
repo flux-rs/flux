@@ -208,6 +208,9 @@ impl<'tcx> Queries<'tcx> {
 
     pub(crate) fn fn_sig(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::PolySig> {
         run_with_cache(&self.fn_sig, def_id, || {
+            // If it's an extern_fn, resolve it to its local fn_sig's def_id,
+            // otherwise don't change it.
+            let def_id = *genv.lookup_extern_fn(&def_id).unwrap_or(&def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
             } else if let Some(fn_sig) = genv.early_cx().cstore.fn_sig(def_id) {
