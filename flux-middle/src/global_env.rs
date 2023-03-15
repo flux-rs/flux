@@ -115,11 +115,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.predicates_of(self, def_id)
     }
 
-    pub fn type_of(&self, def_id: DefId) -> QueryResult<rty::Binder<rty::Ty>> {
+    pub fn type_of(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
         self.queries.type_of(self, def_id)
     }
 
-    pub fn fn_sig(&self, def_id: DefId) -> QueryResult<rty::PolySig> {
+    pub fn fn_sig(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolySig>> {
         self.queries.fn_sig(self, def_id)
     }
 

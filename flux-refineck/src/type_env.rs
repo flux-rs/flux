@@ -581,8 +581,8 @@ impl BasicBlockEnvShape {
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
-            (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binders(), ty2),
-            (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binders()),
+            (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binder(), ty2),
+            (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binder()),
             (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
             (_, TyKind::Constr(_, ty2)) => self.join_ty(ty1, ty2),
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
@@ -628,7 +628,7 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::tuple_proj(Expr::bvar(INNERMOST), (bound_sorts.len() - 1) as u32)
+                    Expr::tuple_proj(Expr::early_bvar(INNERMOST), (bound_sorts.len() - 1) as u32)
                 }
             }
         }

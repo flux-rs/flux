@@ -111,7 +111,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::BoundVar(debruijn) = e.kind() && *debruijn == self.current_index {
+        if let ExprKind::LateBoundVar(debruijn) = e.kind() && *debruijn == self.current_index {
             self.expr.shift_in_bvars(self.current_index.as_u32())
         } else {
             e.super_fold_with(self)

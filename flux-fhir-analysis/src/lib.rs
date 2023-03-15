@@ -103,18 +103,18 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
     Ok(conv::conv_generics(&rustc_generics, generics))
 }
 
-fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty::Ty>> {
-    match genv.tcx.def_kind(def_id) {
+fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
+    let ty = match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
             let wfckresults = genv.check_wf(def_id)?;
-            conv::expand_type_alias(genv, alias, &wfckresults)
+            conv::expand_type_alias(genv, alias, &wfckresults)?
         }
         DefKind::TyParam => {
             match &genv.early_cx().get_generic_param(def_id).kind {
                 fhir::GenericParamDefKind::Type { default: Some(ty) } => {
                     let wfckresults = genv.check_wf(def_id)?;
-                    conv::conv_ty(genv, ty, &wfckresults)
+                    conv::conv_ty(genv, ty, &wfckresults)?
                 }
                 _ => bug!("non-type def"),
             }
@@ -122,7 +122,8 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty:
         kind => {
             bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))
         }
-    }
+    };
+    Ok(rty::EarlyBinder(ty))
 }
 
 fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
@@ -153,14 +154,14 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
     Ok(variants)
 }
 
-fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
+fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolySig>> {
     let fn_sig = genv.map().get_fn_sig(def_id);
     let wfckresults = genv.check_wf(def_id)?;
     let fn_sig = conv::conv_fn_sig(genv, fn_sig, &wfckresults)?.normalize(genv.defns()?);
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
-    Ok(fn_sig)
+    Ok(rty::EarlyBinder(fn_sig))
 }
 
 fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {

@@ -40,9 +40,9 @@ pub struct Providers {
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult<fhir::WfckResults>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
-    pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
+    pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
-    pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolySig>,
+    pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolySig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
 }
 
@@ -55,9 +55,9 @@ pub struct Queries<'tcx> {
     adt_def: Cache<DefId, rty::AdtDef>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::GenericPredicates>>,
-    type_of: Cache<DefId, QueryResult<rty::Binder<rty::Ty>>>,
+    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::PolyVariants>>,
-    fn_sig: Cache<DefId, QueryResult<rty::PolySig>>,
+    fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolySig>>>,
 }
 
 impl<'tcx> Queries<'tcx> {
@@ -162,7 +162,7 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::Binder<rty::Ty>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
         run_with_cache(&self.type_of, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.type_of)(genv, local_id)
@@ -172,7 +172,7 @@ impl<'tcx> Queries<'tcx> {
                 let rustc_ty = lowering::lower_type_of(genv.tcx, def_id)
                     .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
                 let ty = genv.refine_default(&genv.generics_of(def_id)?, &rustc_ty)?;
-                Ok(rty::Binder::new(ty, rty::Sort::unit()))
+                Ok(rty::EarlyBinder(rty::Binder::new(ty, rty::Sort::unit())))
             }
         })
     }
@@ -206,7 +206,11 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-    pub(crate) fn fn_sig(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::PolySig> {
+    pub(crate) fn fn_sig(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::EarlyBinder<rty::PolySig>> {
         run_with_cache(&self.fn_sig, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
@@ -216,7 +220,9 @@ impl<'tcx> Queries<'tcx> {
                 let fn_sig = lowering::lower_fn_sig_of(genv.tcx, def_id)
                     .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?
                     .skip_binder();
-                Refiner::default(genv, &genv.generics_of(def_id)?).refine_fn_sig(&fn_sig)
+                let fn_sig =
+                    Refiner::default(genv, &genv.generics_of(def_id)?).refine_fn_sig(&fn_sig)?;
+                Ok(rty::EarlyBinder(fn_sig))
             }
         })
     }

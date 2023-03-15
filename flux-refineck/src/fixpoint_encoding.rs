@@ -346,7 +346,7 @@ where
                     span_bug!(self.def_span(), "no entry found for key: `{name:?}`")
                 })
             }
-            rty::ExprKind::BoundVar(_) => {
+            rty::ExprKind::LateBoundVar(_) => {
                 span_bug!(self.def_span(), "unexpected escaping variable")
             }
             _ => {
@@ -571,7 +571,8 @@ impl<'a> ExprCtxt<'a> {
             | rty::ExprKind::Hole
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
-            | rty::ExprKind::BoundVar(_)
+            | rty::ExprKind::LateBoundVar(_)
+            | rty::ExprKind::EarlyBoundVar(..)
             | rty::ExprKind::Abs(_)
             | rty::ExprKind::Func(_)
             | rty::ExprKind::PathProj(..) => {

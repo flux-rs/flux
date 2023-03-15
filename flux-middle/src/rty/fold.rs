@@ -186,10 +186,10 @@ pub trait TypeFoldable: Sized {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::BoundVar(debruijn) = expr.kind()
+                if let ExprKind::LateBoundVar(debruijn) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_in(self.amount))
+                    Expr::early_bvar(debruijn.shifted_in(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -205,8 +205,8 @@ pub trait TypeFoldable: Sized {
 
         impl TypeFolder for Shifter {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::BoundVar(debruijn) = expr.kind() {
-                    Expr::bvar(debruijn.shifted_out(self.amount))
+                if let ExprKind::LateBoundVar(debruijn) = expr.kind() {
+                    Expr::early_bvar(debruijn.shifted_out(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -232,7 +232,7 @@ pub trait TypeFoldable: Sized {
             // TODO(nilehmann) keep track of the outermost binder to optimize this, i.e.,
             // what rustc calls outer_exclusive_binder.
             fn visit_expr(&mut self, expr: &Expr) {
-                if let ExprKind::BoundVar(debruijn) = expr.kind() {
+                if let ExprKind::LateBoundVar(debruijn) = expr.kind() {
                     if *debruijn >= self.outer_index {
                         self.found = true;
                     }
@@ -563,7 +563,8 @@ impl TypeFoldable for Expr {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(name.fold_with(folder)),
-            ExprKind::BoundVar(bvar) => Expr::bvar(*bvar),
+            ExprKind::LateBoundVar(bvar) => Expr::early_bvar(*bvar),
+            ExprKind::EarlyBoundVar(idx, sym) => Expr::late_bvar(*idx, *sym),
             ExprKind::EVar(evar) => Expr::evar(*evar),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
@@ -616,7 +617,8 @@ impl TypeFoldable for Expr {
             ExprKind::Abs(body) => body.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole
-            | ExprKind::BoundVar(_)
+            | ExprKind::LateBoundVar(_)
+            | ExprKind::EarlyBoundVar(..)
             | ExprKind::EVar(_)
             | ExprKind::Local(_)
             | ExprKind::Func(_)

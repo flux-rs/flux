@@ -473,7 +473,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
-                    .replace_generics(&self.conv_generic_args(*def_id, &path.generics)?)
+                    .subst(&self.conv_generic_args(*def_id, &path.generics)?)
                     .replace_bvar(&rty::Expr::tuple(args)));
             }
         };
@@ -501,6 +501,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             let ty = self
                                 .genv
                                 .type_of(param.def_id)?
+                                .subst(&[])
                                 .replace_bvar(&rty::Expr::unit());
                             Ok(rty::GenericArg::Ty(ty))
                         }
@@ -726,12 +727,12 @@ impl LookupResultKind<'_> {
     fn to_expr(&self, level: u32) -> rty::Expr {
         match self {
             Self::List(ListEntry::Sort { idx, conv, .. }) => {
-                rty::Expr::tuple_proj(rty::Expr::bvar(DebruijnIndex::new(level)), *idx)
+                rty::Expr::tuple_proj(rty::Expr::early_bvar(DebruijnIndex::new(level)), *idx)
                     .eta_expand_tuple(conv)
             }
             Self::List(ListEntry::Unit) => rty::Expr::unit(),
             Self::Single(_, conv) => {
-                rty::Expr::bvar(DebruijnIndex::new(level)).eta_expand_tuple(conv)
+                rty::Expr::early_bvar(DebruijnIndex::new(level)).eta_expand_tuple(conv)
             }
         }
     }

@@ -7,8 +7,9 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
+        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
+        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree,
+        Ty, TyKind,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -110,7 +111,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         did: Option<DefId>,
-        fn_sig: &PolySig,
+        fn_sig: EarlyBinder<PolySig>,
         substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
@@ -118,16 +119,25 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
         // mutable references.
-        let actuals = iter::zip(actuals, fn_sig.fn_sig.as_ref().skip_binders().args())
-            .map(|(actual, formal)| {
-                if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+        let actuals = iter::zip(
+            actuals,
+            fn_sig
+                .as_ref()
+                .skip_binder()
+                .fn_sig
+                .as_ref()
+                .skip_binder()
+                .args(),
+        )
+        .map(|(actual, formal)| {
+            if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
                     actual.clone()
                 }
-            })
-            .collect_vec();
+        })
+        .collect_vec();
 
         let genv = self.genv;
 
@@ -142,7 +152,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let inst_fn_sig = fn_sig
-            .replace_generics(&substs)
+            .subst(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
         // Check closure obligations

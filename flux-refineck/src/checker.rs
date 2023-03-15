@@ -8,8 +8,9 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Constraint, Expr, Float, FnOutput, FnSig, GenericArg,
-        Generics, Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
+        GenericArg, Generics, Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy,
+        VariantIdx,
     },
     rustc::{
         self,
@@ -132,7 +133,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+            let fn_sig = genv
+                .fn_sig(def_id)
+                .with_span(genv.tcx.def_span(def_id))?
+                .subst_identity();
 
             Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig)?;
 
@@ -147,7 +151,10 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         def_id: DefId,
         bb_env_shapes: ShapeResult,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+        let fn_sig = genv
+            .fn_sig(def_id)
+            .with_span(genv.tcx.def_span(def_id))?
+            .subst_identity();
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
@@ -419,7 +426,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         terminator_span: Span,
         did: Option<DefId>,
-        fn_sig: PolySig,
+        fn_sig: EarlyBinder<PolySig>,
         substs: &[GenericArg],
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
@@ -427,7 +434,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, &fn_sig, substs, &actuals)
+            .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bvar_with(|sort| rcx.define_vars(sort));

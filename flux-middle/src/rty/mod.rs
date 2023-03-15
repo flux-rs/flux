@@ -137,6 +137,9 @@ pub struct Binder<T> {
     value: T,
 }
 
+#[derive(Clone, TyEncodable, TyDecodable)]
+pub struct EarlyBinder<T>(pub T);
+
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TupleTree<T>
 where
@@ -196,6 +199,7 @@ pub struct ClosureOblig {
     pub oblig_sig: PolySig,
 }
 
+pub type PolyTy = Binder<Ty>;
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -417,7 +421,7 @@ impl<T> Binder<T> {
         Binder { sort: self.sort.clone(), value: &self.value }
     }
 
-    pub fn skip_binders(self) -> T {
+    pub fn skip_binder(self) -> T {
         self.value
     }
 
@@ -426,13 +430,13 @@ impl<T> Binder<T> {
     }
 }
 
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
+impl<T> EarlyBinder<T> {
+    pub fn as_ref(&self) -> EarlyBinder<&T> {
+        EarlyBinder(&self.0)
     }
 
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
+    pub fn skip_binder(self) -> T {
+        self.0
     }
 }
 
@@ -449,6 +453,27 @@ where
     pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
         let expr = f(&self.sort);
         self.replace_bvar(&expr)
+    }
+}
+
+impl<T: TypeFoldable> EarlyBinder<T> {
+    pub fn subst(self, generics: &[GenericArg]) -> T {
+        self.0
+            .fold_with(&mut subst::GenericsSubstFolder { substs: generics })
+    }
+
+    pub fn subst_identity(self) -> T {
+        self.0
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
     }
 }
 
@@ -655,7 +680,7 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl PolyVariant {
-    pub fn to_fn_sig(&self) -> PolySig {
+    pub fn to_fn_sig(&self) -> EarlyBinder<PolySig> {
         let fn_sig = self
             .as_ref()
             .map(|variant| {
@@ -663,14 +688,14 @@ impl PolyVariant {
                 let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
-            .skip_binders();
+            .skip_binder();
         let params = self
             .sort
             .expect_tuple()
             .iter()
             .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
             .collect_vec();
-        PolySig::new(params, fn_sig)
+        EarlyBinder(PolySig::new(params, fn_sig))
     }
 }
 
@@ -833,7 +858,7 @@ impl TyS {
     pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_binders()?),
             TyKind::Constr(_, ty) => ty.as_bty_skipping_binders(),
             _ => None,
         }
@@ -1236,7 +1261,7 @@ mod pretty {
             match self {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
                 GenericArg::BaseTy(arg) => {
-                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
+                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binder())
                 }
                 GenericArg::Lifetime => w!("'_"),
             }
