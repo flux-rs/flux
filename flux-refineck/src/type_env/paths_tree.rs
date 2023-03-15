@@ -849,7 +849,7 @@ fn downcast_struct(
     Ok(genv
         .variant(def_id, variant_idx)?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
-        .subst(substs)
+        .subst_generics(substs)
         .replace_bvar(&idx.expr)
         .fields
         .to_vec())
@@ -874,7 +874,7 @@ fn downcast_enum(
     let variant_def = genv
         .variant(def_id, variant_idx)?
         .expect("enums cannot be opaque")
-        .subst(substs)
+        .subst_generics(substs)
         .replace_bvar_with(|sort| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();

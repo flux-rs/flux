@@ -79,8 +79,8 @@ pub(crate) fn expand_type_alias(
     alias: &fhir::TyAlias,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let mut env = Env::new(genv.early_cx(), []);
-    env.push_layer(Layer::from_params(genv.early_cx(), &alias.params));
+    let mut env = Env::new(genv.early_cx(), &alias.early_bound_params);
+    env.push_layer(Layer::from_params(genv.early_cx(), &alias.index_params));
     let mut cx = ConvCtxt::new(genv, env, wfckresults);
     let ty = cx.conv_ty(&alias.ty)?;
     let sort = cx.env.pop_layer().into_sort();
@@ -474,25 +474,19 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
             fhir::Res::Alias(def_id) => {
-                let mut args = vec![];
-                for arg in &path.refine {
-                    let (expr, _) = self.conv_refine_arg(arg);
-                    args.push(expr);
-                }
+                let generics = self.conv_generic_args(*def_id, &path.generics)?;
+                let refine = path
+                    .refine
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(arg).0)
+                    .collect_vec();
                 let index_sorts = conv_sorts(self.early_cx(), self.genv.index_sorts_of(*def_id));
-                args.extend(
-                    idx.expr
-                        .eta_expand_tuple(&rty::Sort::tuple(index_sorts))
-                        .expect_tuple()
-                        .iter()
-                        .cloned(),
-                );
-
+                let idx = idx.expr.eta_expand_tuple(&rty::Sort::tuple(index_sorts));
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
-                    .subst(&self.conv_generic_args(*def_id, &path.generics)?)
-                    .replace_bvar(&rty::Expr::tuple(args)));
+                    .subst(&generics, &refine)
+                    .replace_bvar(&idx));
             }
         };
         Ok(rty::Ty::indexed(bty, idx))
@@ -519,7 +513,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             let ty = self
                                 .genv
                                 .type_of(param.def_id)?
-                                .subst(&[])
+                                .subst_generics(&[])
                                 .replace_bvar(&rty::Expr::unit());
                             Ok(rty::GenericArg::Ty(ty))
                         }
@@ -549,15 +543,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> Env<'a, 'tcx> {
-    fn new(
+    fn new<'b>(
         early_cx: &'a EarlyCtxt<'a, 'tcx>,
-        early_bound: impl IntoIterator<Item = (fhir::Name, fhir::Sort)>,
+        early_bound: impl IntoIterator<Item = &'b (fhir::Ident, fhir::Sort)>,
     ) -> Self {
         let early_bound = early_bound
             .into_iter()
             .map(|(name, sort)| {
-                let conv = conv_sort(early_cx, &sort);
-                (name, (sort, conv))
+                let conv = conv_sort(early_cx, sort);
+                (name.name, (sort.clone(), conv))
             })
             .collect();
         Self { early_cx, layers: vec![], early_bound }

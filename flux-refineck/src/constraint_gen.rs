@@ -153,7 +153,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let inst_fn_sig = fn_sig
-            .subst(&substs)
+            .subst_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
         // Check closure obligations
@@ -253,7 +253,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
-            .subst(&substs)
+            .subst_generics(&substs)
             .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
@@ -577,7 +577,7 @@ fn mk_obligations(
     did: DefId,
     substs: &[GenericArg],
 ) -> Result<List<rty::Predicate>, CheckerErrKind> {
-    Ok(genv.predicates_of(did)?.predicates().subst(substs))
+    Ok(genv.predicates_of(did)?.predicates().subst_generics(substs))
 }
 
 impl<F> KVarGen for F
