@@ -15,12 +15,13 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
-pub struct Wf<'a, 'tcx> {
+struct Wf<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
     wfckresults: fhir::WfckResults,
 }
 
+#[derive(Default)]
 struct Env {
     sorts: FxHashMap<fhir::Name, fhir::Sort>,
 }
@@ -68,131 +69,139 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
     }
 }
 
-impl Wf<'_, '_> {
-    pub fn check_qualifier(
-        early_cx: &EarlyCtxt,
-        qualifier: &fhir::Qualifier,
-    ) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let env = Env::from(&qualifier.args[..]);
+pub(crate) fn check_type(
+    early_cx: &EarlyCtxt,
+    ty: &fhir::Ty,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut wf = Wf::new(early_cx);
+    let mut env = Env::default();
+    wf.check_type(&mut env, ty)?;
+    Ok(wf.into_results())
+}
 
-        wf.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
-    }
+pub(crate) fn check_qualifier(
+    early_cx: &EarlyCtxt,
+    qualifier: &fhir::Qualifier,
+) -> Result<(), ErrorGuaranteed> {
+    let wf = Wf::new(early_cx);
+    let env = Env::from(&qualifier.args[..]);
 
-    pub fn check_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
-        let env = Env::from(&defn.args[..]);
-        wf.check_expr(&env, &defn.expr, &defn.sort)
-    }
+    wf.check_expr(&env, &qualifier.expr, &fhir::Sort::Bool)
+}
 
-    pub fn check_fn_quals(
-        sess: &FluxSession,
-        qualifiers: &FxHashSet<String>,
-        fn_quals: &Vec<SurfaceIdent>,
-    ) -> Result<(), ErrorGuaranteed> {
-        for qual in fn_quals {
-            if !qualifiers.contains(&qual.name.to_string()) {
-                let span = qual.span;
-                return Err(sess.emit_err(errors::UnknownQualifier::new(span)));
-            }
+pub(crate) fn check_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
+    let wf = Wf::new(early_cx);
+    let env = Env::from(&defn.args[..]);
+    wf.check_expr(&env, &defn.expr, &defn.sort)
+}
+
+pub(crate) fn check_fn_quals(
+    sess: &FluxSession,
+    qualifiers: &FxHashSet<String>,
+    fn_quals: &Vec<SurfaceIdent>,
+) -> Result<(), ErrorGuaranteed> {
+    for qual in fn_quals {
+        if !qualifiers.contains(&qual.name.to_string()) {
+            let span = qual.span;
+            return Err(sess.emit_err(errors::UnknownQualifier::new(span)));
         }
-        Ok(())
     }
+    Ok(())
+}
 
-    pub fn check_alias(
-        early_cx: &EarlyCtxt,
-        alias: &fhir::TyAlias,
-    ) -> Result<WfckResults, ErrorGuaranteed> {
-        let mut wf = Wf::new(early_cx);
-        let mut env = Env::from(&alias.params[..]);
-        wf.check_type(&mut env, &alias.ty)?;
-        Ok(wf.into_results())
+pub(crate) fn check_alias(
+    early_cx: &EarlyCtxt,
+    alias: &fhir::TyAlias,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut wf = Wf::new(early_cx);
+    let mut env = Env::from(&alias.params[..]);
+    wf.check_type(&mut env, &alias.ty)?;
+    Ok(wf.into_results())
+}
+
+pub(crate) fn check_struct_def(
+    early_cx: &EarlyCtxt,
+    struct_def: &fhir::StructDef,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut wf = Wf::new(early_cx);
+    let mut env = Env::from(&struct_def.params[..]);
+
+    struct_def
+        .invariants
+        .iter()
+        .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+
+    if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
+        fields
+            .iter()
+            .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
     }
+    Ok(wf.into_results())
+}
 
-    pub fn check_struct_def(
-        early_cx: &EarlyCtxt,
-        struct_def: &fhir::StructDef,
-    ) -> Result<WfckResults, ErrorGuaranteed> {
-        let mut wf = Wf::new(early_cx);
-        let mut env = Env::from(&struct_def.params[..]);
+pub(crate) fn check_enum_def(
+    early_cx: &EarlyCtxt,
+    enum_def: &fhir::EnumDef,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut wf = Wf::new(early_cx);
 
-        struct_def
-            .invariants
-            .iter()
-            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+    let env = Env::from(&enum_def.params[..]);
+    enum_def
+        .invariants
+        .iter()
+        .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
 
-        if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            fields
-                .iter()
-                .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
-        }
-        Ok(wf.into_results())
+    enum_def
+        .variants
+        .iter()
+        .try_for_each_exhaust(|variant| wf.check_variant(variant))?;
+
+    Ok(wf.into_results())
+}
+
+pub(crate) fn check_fn_sig(
+    early_cx: &EarlyCtxt,
+    fn_sig: &fhir::FnSig,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut wf = Wf::new(early_cx);
+    for param in &fn_sig.params {
+        wf.modes.insert(param.name.name, param.mode);
     }
+    let mut env = Env::from(&fn_sig.params[..]);
 
-    pub fn check_enum_def(
-        early_cx: &EarlyCtxt,
-        enum_def: &fhir::EnumDef,
-    ) -> Result<WfckResults, ErrorGuaranteed> {
-        let mut wf = Wf::new(early_cx);
+    let args = fn_sig
+        .args
+        .iter()
+        .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty));
 
-        let env = Env::from(&enum_def.params[..]);
-        enum_def
-            .invariants
-            .iter()
-            .try_for_each_exhaust(|invariant| wf.check_expr(&env, invariant, &fhir::Sort::Bool))?;
+    let requires = fn_sig
+        .requires
+        .iter()
+        .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
 
-        enum_def
-            .variants
-            .iter()
-            .try_for_each_exhaust(|variant| wf.check_variant(variant))?;
-
-        Ok(wf.into_results())
-    }
-
-    pub fn check_fn_sig(
-        early_cx: &EarlyCtxt,
-        fn_sig: &fhir::FnSig,
-    ) -> Result<WfckResults, ErrorGuaranteed> {
-        let mut wf = Wf::new(early_cx);
-        for param in &fn_sig.params {
-            wf.modes.insert(param.name.name, param.mode);
-        }
-        let mut env = Env::from(&fn_sig.params[..]);
-
-        let args = fn_sig
-            .args
-            .iter()
-            .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty));
-
-        let requires = fn_sig
-            .requires
-            .iter()
-            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
-
-        env.push_layer(
-            fn_sig
-                .output
-                .params
-                .iter()
-                .map(|param| (&param.name.name, &param.sort)),
-        );
-        let ret = wf.check_type(&mut env, &fn_sig.output.ret);
-        let ensures = fn_sig
+    env.push_layer(
+        fn_sig
             .output
-            .ensures
+            .params
             .iter()
-            .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
+            .map(|param| (&param.name.name, &param.sort)),
+    );
+    let ret = wf.check_type(&mut env, &fn_sig.output.ret);
+    let ensures = fn_sig
+        .output
+        .ensures
+        .iter()
+        .try_for_each_exhaust(|constr| wf.check_constr(&mut env, constr));
 
-        let constrs = wf.check_output_locs(fn_sig);
+    let constrs = wf.check_output_locs(fn_sig);
 
-        args?;
-        ret?;
-        ensures?;
-        requires?;
-        constrs?;
+    args?;
+    ret?;
+    ensures?;
+    requires?;
+    constrs?;
 
-        Ok(wf.into_results())
-    }
+    Ok(wf.into_results())
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {

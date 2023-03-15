@@ -253,6 +253,12 @@ impl From<RefKind> for WeakKind {
 }
 
 newtype_index! {
+    /// A unique identifier for a node in the AST. They are suppose to be unique per definition
+    /// (i.e. a function, struct, etc.) but not across them. We don't generate ids for all nodes,
+    /// but only for those we need to remember information elaborated during well-formedness
+    /// checking to later be used during conversion into [`rty`].
+    ///
+    /// [`rty`]: crate::rty
     #[debug_format = "NodeId({})"]
     pub struct NodeId { }
 }
