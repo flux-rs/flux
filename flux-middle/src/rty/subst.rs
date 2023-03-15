@@ -172,7 +172,7 @@ impl TypeFolder for GenericsSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        if let ExprKind::EarlyBoundVar(idx, _) = expr.kind() {
+        if let ExprKind::EarlyBoundVar(idx) = expr.kind() {
             self.expr_for_param(*idx)
         } else {
             expr.super_fold_with(self)

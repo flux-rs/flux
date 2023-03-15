@@ -20,7 +20,7 @@ use flux_middle::{
     rustc,
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
     PrimTy,
@@ -36,7 +36,7 @@ pub struct ConvCtxt<'a, 'tcx> {
 struct Env<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     layers: Vec<Layer>,
-    early_bound: FxIndexSet<fhir::Name>,
+    early_bound: FxIndexMap<fhir::Name, (fhir::Sort, rty::Sort)>,
 }
 
 #[derive(Debug)]
@@ -47,21 +47,31 @@ enum Layer {
 
 #[derive(Debug)]
 enum ListEntry {
-    Sort { sort: fhir::Sort, infer_mode: rty::InferMode, conv: rty::Sort, idx: u32 },
+    Sort {
+        sort: fhir::Sort,
+        infer_mode: rty::InferMode,
+        conv: rty::Sort,
+        /// The index of the entry in the layer skipping all [`unit`] entries.
+        ///
+        /// [`unit`]: ListEntry::Unit
+        idx: u32,
+    },
+    /// We track parameters of sort unit separately because we avoid creating bound variables
+    /// for them in [`rty`].
     Unit,
 }
 
 #[derive(Debug)]
 struct LookupResult<'a> {
     name: fhir::Ident,
-    level: u32,
     kind: LookupResultKind<'a>,
 }
 
 #[derive(Debug)]
 enum LookupResultKind<'a> {
-    List(&'a ListEntry),
-    Single(&'a fhir::Sort, &'a rty::Sort),
+    LateBoundList { level: u32, entry: &'a ListEntry },
+    LateBoundSingle { level: u32, sort: &'a fhir::Sort, conv: &'a rty::Sort },
+    EarlyBound { idx: u32, sort: &'a fhir::Sort, conv: &'a rty::Sort },
 }
 
 pub(crate) fn expand_type_alias(
@@ -541,9 +551,16 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 impl<'a, 'tcx> Env<'a, 'tcx> {
     fn new(
         early_cx: &'a EarlyCtxt<'a, 'tcx>,
-        early_bound: impl IntoIterator<Item = fhir::Name>,
+        early_bound: impl IntoIterator<Item = (fhir::Name, fhir::Sort)>,
     ) -> Self {
-        Self { early_cx, layers: vec![], early_bound: early_bound.into_iter().collect() }
+        let early_bound = early_bound
+            .into_iter()
+            .map(|(name, sort)| {
+                let conv = conv_sort(early_cx, &sort);
+                (name, (sort, conv))
+            })
+            .collect();
+        Self { early_cx, layers: vec![], early_bound }
     }
 
     fn push_layer(&mut self, layer: Layer) {
@@ -560,11 +577,18 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
 
     fn lookup(&self, name: fhir::Ident) -> LookupResult {
         for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(kind) = layer.get(name.name) {
-                return LookupResult { name, level: level as u32, kind };
+            if let Some(kind) = layer.get(name.name, level as u32) {
+                return LookupResult { name, kind };
             }
         }
-        span_bug!(name.span(), "no entry found for key: `{:?}`", name);
+        if let Some((idx, _, (sort, conv))) = self.early_bound.get_full(&name.name) {
+            LookupResult {
+                name,
+                kind: LookupResultKind::EarlyBound { idx: idx as u32, sort, conv },
+            }
+        } else {
+            span_bug!(name.span(), "no entry found for key: `{:?}`", name);
+        }
     }
 }
 
@@ -650,12 +674,14 @@ impl Layer {
         Self::List(FxIndexMap::default())
     }
 
-    fn get(&self, name: impl Borrow<fhir::Name>) -> Option<LookupResultKind> {
+    fn get(&self, name: impl Borrow<fhir::Name>, level: u32) -> Option<LookupResultKind> {
         match self {
-            Layer::List(map) => Some(LookupResultKind::List(map.get(name.borrow())?)),
+            Layer::List(map) => {
+                Some(LookupResultKind::LateBoundList { level, entry: map.get(name.borrow())? })
+            }
             Layer::Single(bname, sort, conv) => {
                 if bname == name.borrow() {
-                    Some(LookupResultKind::Single(sort, conv))
+                    Some(LookupResultKind::LateBoundSingle { level, sort, conv })
                 } else {
                     None
                 }
@@ -734,34 +760,37 @@ impl ListEntry {
     }
 }
 
-impl LookupResultKind<'_> {
-    fn to_expr(&self, level: u32) -> rty::Expr {
-        match self {
-            Self::List(ListEntry::Sort { idx, conv, .. }) => {
-                rty::Expr::tuple_proj(rty::Expr::early_bvar(DebruijnIndex::new(level)), *idx)
+impl LookupResult<'_> {
+    fn to_expr(&self) -> rty::Expr {
+        match &self.kind {
+            LookupResultKind::LateBoundList { level, entry: ListEntry::Sort { idx, conv, .. } } => {
+                rty::Expr::tuple_proj(rty::Expr::late_bvar(DebruijnIndex::new(*level)), *idx)
                     .eta_expand_tuple(conv)
             }
-            Self::List(ListEntry::Unit) => rty::Expr::unit(),
-            Self::Single(_, conv) => {
-                rty::Expr::early_bvar(DebruijnIndex::new(level)).eta_expand_tuple(conv)
+            LookupResultKind::LateBoundList { entry: ListEntry::Unit, .. } => rty::Expr::unit(),
+            LookupResultKind::LateBoundSingle { level, conv, .. } => {
+                rty::Expr::late_bvar(DebruijnIndex::new(*level)).eta_expand_tuple(conv)
+            }
+            LookupResultKind::EarlyBound { idx, conv, .. } => {
+                rty::Expr::early_bvar(*idx).eta_expand_tuple(conv)
             }
         }
     }
 
     fn is_aggregate(&self) -> Option<DefId> {
-        match self {
-            Self::Single(fhir::Sort::Aggregate(def_id), _) => Some(*def_id),
-            Self::List(ListEntry::Sort { sort: fhir::Sort::Aggregate(def_id), .. }) => {
+        match &self.kind {
+            LookupResultKind::LateBoundSingle { sort: fhir::Sort::Aggregate(def_id), .. } => {
+                Some(*def_id)
+            }
+            LookupResultKind::LateBoundList {
+                entry: ListEntry::Sort { sort: fhir::Sort::Aggregate(def_id), .. },
+                ..
+            } => Some(*def_id),
+            LookupResultKind::EarlyBound { sort: fhir::Sort::Aggregate(def_id), .. } => {
                 Some(*def_id)
             }
             _ => None,
         }
-    }
-}
-
-impl LookupResult<'_> {
-    fn to_expr(&self) -> rty::Expr {
-        self.kind.to_expr(self.level)
     }
 
     fn to_path(&self) -> rty::Path {
@@ -771,7 +800,7 @@ impl LookupResult<'_> {
     }
 
     fn get_field(&self, early_cx: &EarlyCtxt, fld: SurfaceIdent) -> rty::Expr {
-        if let Some(def_id) = self.kind.is_aggregate() {
+        if let Some(def_id) = self.is_aggregate() {
             let i = early_cx
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));

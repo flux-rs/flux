@@ -628,7 +628,7 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::tuple_proj(Expr::early_bvar(INNERMOST), (bound_sorts.len() - 1) as u32)
+                    Expr::tuple_proj(Expr::late_bvar(INNERMOST), (bound_sorts.len() - 1) as u32)
                 }
             }
         }

@@ -185,7 +185,7 @@ pub trait TypeFoldable: Sized {
                 if let ExprKind::LateBoundVar(debruijn) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::early_bvar(debruijn.shifted_in(self.amount))
+                    Expr::late_bvar(debruijn.shifted_in(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -202,7 +202,7 @@ pub trait TypeFoldable: Sized {
         impl TypeFolder for Shifter {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::LateBoundVar(debruijn) = expr.kind() {
-                    Expr::early_bvar(debruijn.shifted_out(self.amount))
+                    Expr::late_bvar(debruijn.shifted_out(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -559,8 +559,8 @@ impl TypeFoldable for Expr {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self.kind() {
             ExprKind::FreeVar(name) => Expr::fvar(name.fold_with(folder)),
-            ExprKind::LateBoundVar(bvar) => Expr::early_bvar(*bvar),
-            ExprKind::EarlyBoundVar(idx, sym) => Expr::late_bvar(*idx, *sym),
+            ExprKind::LateBoundVar(bvar) => Expr::late_bvar(*bvar),
+            ExprKind::EarlyBoundVar(idx) => Expr::early_bvar(*idx),
             ExprKind::EVar(evar) => Expr::evar(*evar),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),

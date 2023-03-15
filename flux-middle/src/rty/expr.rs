@@ -29,7 +29,7 @@ pub enum ExprKind {
     FreeVar(Name),
     EVar(EVar),
     LateBoundVar(DebruijnIndex),
-    EarlyBoundVar(u32, Symbol),
+    EarlyBoundVar(u32),
     Local(Local),
     Constant(Constant),
     ConstDefId(DefId),
@@ -160,7 +160,7 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::early_bvar(INNERMOST)
+        Expr::late_bvar(INNERMOST)
     }
 
     pub fn as_tuple(&self) -> &[Expr] {
@@ -199,12 +199,12 @@ impl Expr {
         ExprKind::EVar(evar).intern()
     }
 
-    pub fn early_bvar(bvar: DebruijnIndex) -> Expr {
+    pub fn late_bvar(bvar: DebruijnIndex) -> Expr {
         ExprKind::LateBoundVar(bvar).intern()
     }
 
-    pub fn late_bvar(idx: u32, sym: Symbol) -> Expr {
-        ExprKind::EarlyBoundVar(idx, sym).intern()
+    pub fn early_bvar(idx: u32) -> Expr {
+        ExprKind::EarlyBoundVar(idx).intern()
     }
 
     pub fn local(local: Local) -> Expr {
@@ -533,7 +533,7 @@ impl KVar {
 impl Var {
     pub fn to_expr(&self) -> Expr {
         match self {
-            Var::Bound(bvar) => Expr::early_bvar(*bvar),
+            Var::Bound(bvar) => Expr::late_bvar(*bvar),
             Var::Free(name) => Expr::fvar(*name),
             Var::EVar(evar) => Expr::evar(*evar),
         }
@@ -690,7 +690,7 @@ impl From<Name> for Expr {
 
 impl From<DebruijnIndex> for Expr {
     fn from(bvar: DebruijnIndex) -> Self {
-        Expr::early_bvar(bvar)
+        Expr::late_bvar(bvar)
     }
 }
 
@@ -764,7 +764,7 @@ mod pretty {
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
                 ExprKind::LateBoundVar(bvar) => w!("{:?}", ^bvar),
-                ExprKind::EarlyBoundVar(_, symb) => w!("{}", ^symb),
+                ExprKind::EarlyBoundVar(idx) => w!("#{}", ^idx),
                 ExprKind::FreeVar(name) => w!("{:?}", ^name),
                 ExprKind::EVar(evar) => w!("{:?}", evar),
                 ExprKind::Local(local) => w!("{:?}", ^local),
