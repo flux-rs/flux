@@ -90,6 +90,7 @@ fn create_dummy_fn(
                         }
     })
 }
+
 // Cribbed from Prusti's extern_spec_rewriter
 fn transform_generic_params_to_call_args(
     generic_params: Punctuated<GenericParam, Token!(,)>,

@@ -392,7 +392,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let ExprKind::Block(b, _) = e.kind
             && let Some(e) = b.expr
             && let ExprKind::Call(callee, _) = e.kind
-            && let ExprKind::Path(ref qself) = callee.kind {
+            && let ExprKind::Path(ref qself) = callee.kind
+        {
                 let typeck_result = self.tcx.typeck(def_id);
                 if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
                 {

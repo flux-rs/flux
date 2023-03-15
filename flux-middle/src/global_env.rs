@@ -203,7 +203,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.hir()
     }
 
-    pub fn extern_fns(&self) -> &FxHashMap<DefId, DefId> {
-        &self.extern_fns
+    pub fn lookup_extern_fn(&self, def_id: &DefId) -> Option<&DefId> {
+        self.extern_fns.get(def_id)
     }
 }
