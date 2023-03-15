@@ -150,7 +150,7 @@ where
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
-pub struct PolySig {
+pub struct PolyFnSig {
     pub fn_sig: Binder<FnSig>,
     pub modes: List<InferMode>,
 }
@@ -196,7 +196,7 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct ClosureOblig {
     pub oblig_def_id: DefId,
-    pub oblig_sig: PolySig,
+    pub oblig_sig: PolyFnSig,
 }
 
 pub type PolyTy = Binder<Ty>;
@@ -267,7 +267,7 @@ pub enum GenericArg {
 }
 
 impl FnTraitPredicate {
-    pub fn to_poly_sig(&self, closure_id: DefId) -> PolySig {
+    pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match self.kind {
             ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
@@ -283,7 +283,7 @@ impl FnTraitPredicate {
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), Sort::unit()),
         );
-        PolySig::new(vec![], fn_sig)
+        PolyFnSig::new(vec![], fn_sig)
     }
 }
 
@@ -537,11 +537,11 @@ impl From<(Expr, TupleTree<bool>)> for Index {
     }
 }
 
-impl PolySig {
-    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolySig {
+impl PolyFnSig {
+    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolyFnSig {
         let (sorts, modes) = params.into_iter().unzip();
         let fn_sig = Binder::new(fn_sig, Sort::Tuple(List::from_vec(sorts)));
-        PolySig { fn_sig, modes: List::from_vec(modes) }
+        PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
@@ -690,7 +690,7 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl EarlyBinder<PolyVariant> {
-    pub fn to_fn_sig(&self) -> EarlyBinder<PolySig> {
+    pub fn to_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
         let fn_sig = self
             .0
             .as_ref()
@@ -707,7 +707,7 @@ impl EarlyBinder<PolyVariant> {
             .iter()
             .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
             .collect_vec();
-        EarlyBinder(PolySig::new(params, fn_sig))
+        EarlyBinder(PolyFnSig::new(params, fn_sig))
     }
 }
 
@@ -1096,7 +1096,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for PolySig {
+    impl Pretty for PolyFnSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let sorts = self.fn_sig.sort.expect_tuple();
@@ -1291,7 +1291,7 @@ mod pretty {
         Constraint,
         Sort,
         TyS => "ty",
-        PolySig,
+        PolyFnSig,
         BaseTy,
         FnSig,
         GenericArg,

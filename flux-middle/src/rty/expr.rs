@@ -60,7 +60,7 @@ pub struct KVar {
     pub kvid: KVid,
     /// The number of arguments consider to be *self arguments*.
     pub self_args: usize,
-    /// The list of arguments *all* arguments with the self arguments at the beginning, i.e., the
+    /// The list of *all* arguments with the self arguments at the beginning, i.e., the
     /// list of self arguments followed by the scope.
     pub args: List<Expr>,
 }
@@ -82,7 +82,7 @@ pub struct Path {
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
-    Var(Var, List<u32>),
+    TupleProj(Var, List<u32>),
 }
 
 newtype_index! {
@@ -105,13 +105,6 @@ newtype_index! {
 impl ExprKind {
     fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
-    }
-
-    pub fn to_var(&self) -> Option<Var> {
-        match self {
-            ExprKind::Var(var) => Some(*var),
-            _ => None,
-        }
     }
 }
 
@@ -419,15 +412,12 @@ impl Expr {
     }
 
     pub fn to_var(&self) -> Option<Var> {
-        self.kind().to_var()
+        if let ExprKind::Var(var) = self.kind() {
+            Some(*var)
+        } else {
+            None
+        }
     }
-
-    // pub fn to_fvar(&self) -> Option<Name> {
-    //     match self.kind() {
-    //         ExprKind::Var(Var::Free(name)) => Some(*name),
-    //         _ => None,
-    //     }
-    // }
 
     pub fn to_loc(&self) -> Option<Loc> {
         if let ExprKind::Local(local) = self.kind() {
@@ -444,7 +434,7 @@ impl Expr {
         let proj = List::from(proj);
 
         if let ExprKind::Var(var) = expr.kind() {
-            Some(Loc::Var(*var, proj))
+            Some(Loc::TupleProj(*var, proj))
         } else {
             None
         }
@@ -576,7 +566,7 @@ impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
             Loc::Local(local) => Expr::local(*local),
-            Loc::Var(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
+            Loc::TupleProj(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
         }
     }
 }
@@ -697,7 +687,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Var(Var::Free(name), List::from(vec![]))
+        Loc::TupleProj(Var::Free(name), List::from(vec![]))
     }
 }
 
@@ -871,7 +861,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Var(var, proj) => {
+                Loc::TupleProj(var, proj) => {
                     w!("{:?}", var)?;
                     for field in proj.iter() {
                         w!(".{}", ^field)?;

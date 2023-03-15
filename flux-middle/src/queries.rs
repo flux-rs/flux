@@ -42,7 +42,7 @@ pub struct Providers {
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
-    pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolySig>>,
+    pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
 }
 
@@ -57,7 +57,7 @@ pub struct Queries<'tcx> {
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::PolyVariants>>,
-    fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolySig>>>,
+    fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
 }
 
 impl<'tcx> Queries<'tcx> {
@@ -211,7 +211,7 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::EarlyBinder<rty::PolySig>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)

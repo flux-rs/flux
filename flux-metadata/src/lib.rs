@@ -44,7 +44,7 @@ pub struct CStore {
 
 #[derive(TyEncodable, TyDecodable)]
 pub struct CrateMetadata {
-    fn_sigs: FxHashMap<DefIndex, rty::EarlyBinder<rty::PolySig>>,
+    fn_sigs: FxHashMap<DefIndex, rty::EarlyBinder<rty::PolyFnSig>>,
     refined_bys: FxHashMap<DefIndex, fhir::RefinedBy>,
     adts: FxHashMap<DefIndex, AdtMetadata>,
     /// For now it only store type of aliases
@@ -77,7 +77,7 @@ impl CStore {
 }
 
 impl CrateStore for CStore {
-    fn fn_sig(&self, def_id: DefId) -> Option<rty::EarlyBinder<rty::PolySig>> {
+    fn fn_sig(&self, def_id: DefId) -> Option<rty::EarlyBinder<rty::PolyFnSig>> {
         self.meta
             .get(&def_id.krate)?
             .fn_sigs

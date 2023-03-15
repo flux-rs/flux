@@ -51,13 +51,10 @@ enum ListEntry {
         sort: fhir::Sort,
         infer_mode: rty::InferMode,
         conv: rty::Sort,
-        /// The index of the entry in the layer skipping all [`unit`] entries.
-        ///
-        /// [`unit`]: ListEntry::Unit
+        /// The index of the entry in the layer skipping all [`ListEntry::Unit`].
         idx: u32,
     },
-    /// We track parameters of sort unit separately because we avoid creating bound variables
-    /// for them in [`rty`].
+    /// We track parameters of unit sort separately because we avoid creating bound variables for them.
     Unit,
 }
 
@@ -167,7 +164,7 @@ pub(crate) fn conv_fn_sig(
     genv: &GlobalEnv,
     fn_sig: &fhir::FnSig,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::PolySig> {
+) -> QueryResult<rty::PolyFnSig> {
     let mut env = Env::new(genv.early_cx(), []);
     env.push_layer(Layer::from_fun_params(genv.early_cx(), &fn_sig.params));
     let mut cx = ConvCtxt::new(genv, env, wfckresults);
@@ -185,7 +182,7 @@ pub(crate) fn conv_fn_sig(
     let output = cx.conv_fn_output(&fn_sig.output)?;
 
     let params = cx.env.pop_layer().into_fun_params();
-    Ok(rty::PolySig::new(params, rty::FnSig::new(requires, args, output)))
+    Ok(rty::PolyFnSig::new(params, rty::FnSig::new(requires, args, output)))
 }
 
 pub(crate) fn conv_ty(

@@ -9,8 +9,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree,
-        Ty, TyKind, Var,
+        GenericArg, InferMode, Path, PolyFnSig, PolyVariant, PtrKind, Ref, RefKind, Sort,
+        TupleTree, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -112,7 +112,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         did: Option<DefId>,
-        fn_sig: EarlyBinder<PolySig>,
+        fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {

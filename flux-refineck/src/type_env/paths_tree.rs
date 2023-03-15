@@ -370,7 +370,7 @@ impl PathsTree {
             let mut node = ptr.borrow_mut();
             if let Node::Leaf(Binding::Owned(ty)) = &mut *node
                 && let TyKind::Ptr(_, path) = ty.kind()
-                && let Some(Loc::Var(Var::Free(name), proj)) = path.to_loc()
+                && let Some(Loc::TupleProj(Var::Free(name), proj)) = path.to_loc()
                 && !scope.contains(name)
             {
                 debug_assert!(proj.is_empty());

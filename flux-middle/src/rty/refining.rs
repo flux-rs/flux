@@ -110,7 +110,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Ok(rty::Binder::new(value, rty::Sort::unit()))
     }
 
-    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolySig> {
+    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolyFnSig> {
         let args = fn_sig
             .inputs()
             .iter()
@@ -118,7 +118,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .try_collect_vec()?;
         let ret = self.refine_ty(&fn_sig.output())?;
         let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
-        Ok(rty::PolySig::new([], rty::FnSig::new(vec![], args, output)))
+        Ok(rty::PolyFnSig::new([], rty::FnSig::new(vec![], args, output)))
     }
 
     pub(crate) fn refine_generic_arg(

@@ -10,8 +10,8 @@ use super::{
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
-    FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolySig, Predicate, Qualifier,
-    Sort, Ty, TyKind, INNERMOST,
+    FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate,
+    Qualifier, Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, List},
@@ -319,9 +319,9 @@ where
     }
 }
 
-impl TypeFoldable for PolySig {
+impl TypeFoldable for PolyFnSig {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        PolySig { fn_sig: self.fn_sig.fold_with(folder), modes: self.modes.clone() }
+        PolyFnSig { fn_sig: self.fn_sig.fold_with(folder), modes: self.modes.clone() }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {

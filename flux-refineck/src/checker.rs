@@ -9,8 +9,8 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, PolySig, RefKind, Sort, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        GenericArg, Generics, Index, Int, IntTy, PolyFnSig, RefKind, Sort, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -175,7 +175,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
         mode: &'a mut M,
-        fn_sig: PolySig,
+        fn_sig: PolyFnSig,
     ) -> Result<(), CheckerError> {
         let body = genv
             .mir(def_id.expect_local())
@@ -426,7 +426,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         terminator_span: Span,
         did: Option<DefId>,
-        fn_sig: EarlyBinder<PolySig>,
+        fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
