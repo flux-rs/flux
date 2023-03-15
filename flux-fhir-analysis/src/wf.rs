@@ -7,7 +7,7 @@ use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, SurfaceIdent, WfResults},
+    fhir::{self, SurfaceIdent, WfckResults},
 };
 use itertools::izip;
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
@@ -18,6 +18,7 @@ use rustc_span::Span;
 pub struct Wf<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
+    wfckresults: fhir::WfckResults,
 }
 
 struct Env {
@@ -101,18 +102,18 @@ impl Wf<'_, '_> {
     pub fn check_alias(
         early_cx: &EarlyCtxt,
         alias: &fhir::TyAlias,
-    ) -> Result<WfResults, ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
+    ) -> Result<WfckResults, ErrorGuaranteed> {
+        let mut wf = Wf::new(early_cx);
         let mut env = Env::from(&alias.params[..]);
         wf.check_type(&mut env, &alias.ty)?;
-        Ok(WfResults::new(env.sorts))
+        Ok(wf.into_results())
     }
 
     pub fn check_struct_def(
         early_cx: &EarlyCtxt,
         struct_def: &fhir::StructDef,
-    ) -> Result<WfResults, ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
+    ) -> Result<WfckResults, ErrorGuaranteed> {
+        let mut wf = Wf::new(early_cx);
         let mut env = Env::from(&struct_def.params[..]);
 
         struct_def
@@ -125,14 +126,14 @@ impl Wf<'_, '_> {
                 .iter()
                 .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
         }
-        Ok(WfResults::new(env.sorts))
+        Ok(wf.into_results())
     }
 
     pub fn check_enum_def(
         early_cx: &EarlyCtxt,
         enum_def: &fhir::EnumDef,
-    ) -> Result<WfResults, ErrorGuaranteed> {
-        let wf = Wf::new(early_cx);
+    ) -> Result<WfckResults, ErrorGuaranteed> {
+        let mut wf = Wf::new(early_cx);
 
         let env = Env::from(&enum_def.params[..]);
         enum_def
@@ -145,13 +146,13 @@ impl Wf<'_, '_> {
             .iter()
             .try_for_each_exhaust(|variant| wf.check_variant(variant))?;
 
-        Ok(WfResults::new(env.sorts))
+        Ok(wf.into_results())
     }
 
     pub fn check_fn_sig(
         early_cx: &EarlyCtxt,
         fn_sig: &fhir::FnSig,
-    ) -> Result<WfResults, ErrorGuaranteed> {
+    ) -> Result<WfckResults, ErrorGuaranteed> {
         let mut wf = Wf::new(early_cx);
         for param in &fn_sig.params {
             wf.modes.insert(param.name.name, param.mode);
@@ -190,16 +191,20 @@ impl Wf<'_, '_> {
         requires?;
         constrs?;
 
-        Ok(WfResults::new(env.sorts))
+        Ok(wf.into_results())
     }
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
-        Wf { early_cx, modes: FxHashMap::default() }
+        Wf { early_cx, modes: FxHashMap::default(), wfckresults: fhir::WfckResults::new() }
     }
 
-    fn check_variant(&self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
+    fn into_results(self) -> fhir::WfckResults {
+        self.wfckresults
+    }
+
+    fn check_variant(&mut self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
         let mut env = Env::from(&variant.params[..]);
         let fields = variant
             .fields
@@ -240,7 +245,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn check_constr(
-        &self,
+        &mut self,
         env: &mut Env,
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
@@ -254,7 +259,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn check_type(&self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
+    fn check_type(&mut self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.check_base_ty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
@@ -283,14 +288,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn check_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
+    fn check_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
         match &bty.kind {
             fhir::BaseTyKind::Path(path) => self.check_path(env, path),
             fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
         }
     }
 
-    fn check_path(&self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
+    fn check_path(&mut self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
         match &path.res {
             fhir::Res::Alias(def_id) => {
                 let sorts = self.early_cx.early_bound_sorts_of(*def_id);
@@ -315,7 +320,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn check_aggregate(
-        &self,
+        &mut self,
         env: &mut Env,
         def_id: DefId,
         args: &[fhir::RefineArg],
@@ -336,11 +341,15 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn check_refine_arg(
-        &self,
+        &mut self,
         env: &mut Env,
         arg: &fhir::RefineArg,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
+        self.wfckresults
+            .node_sorts_mut()
+            .insert(arg.node_id(), expected.clone());
+
         match arg {
             fhir::RefineArg::Expr { expr, .. } => {
                 let found = self.synth_expr(env, expr)?;
@@ -352,7 +361,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 }
                 Ok(())
             }
-            fhir::RefineArg::Abs(params, body, span) => {
+            fhir::RefineArg::Abs(params, body, span, _) => {
                 if let Some(fsort) = self.is_coercible_to_func(expected) {
                     if params.len() != fsort.inputs().len() {
                         return self.emit_err(errors::ParamCountMismatch::new(
@@ -370,7 +379,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))
                 }
             }
-            fhir::RefineArg::Aggregate(def_id, flds, span) => {
+            fhir::RefineArg::Aggregate(def_id, flds, span, _) => {
                 self.check_aggregate(env, *def_id, flds, *span)?;
                 let found = fhir::Sort::Aggregate(*def_id);
                 if &found != expected {

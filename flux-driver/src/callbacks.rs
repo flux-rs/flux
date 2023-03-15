@@ -346,9 +346,11 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
     err = std::mem::take(&mut specs.enums)
         .into_iter()
         .try_for_each_exhaust(|(def_id, enum_def)| {
-            early_cx
-                .map
-                .insert_enum(def_id, desugar::desugar_enum_def(early_cx, enum_def)?);
+            let enum_def = desugar::desugar_enum_def(early_cx, enum_def)?;
+            if config::dump_fhir() {
+                dbg::dump_item_info(early_cx.tcx, def_id.to_def_id(), "fhir", &enum_def).unwrap();
+            }
+            early_cx.map.insert_enum(def_id, enum_def);
             Ok(())
         })
         .err()

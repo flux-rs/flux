@@ -164,7 +164,7 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
     Ok(fn_sig)
 }
 
-fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfResults> {
+fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);

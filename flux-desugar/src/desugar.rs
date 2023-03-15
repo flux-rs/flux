@@ -279,6 +279,7 @@ pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     binders: Binders,
     requires: Vec<fhir::Constraint>,
+    node_id_gen: IndexGen<fhir::NodeId>,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -323,11 +324,15 @@ enum FuncRes<'a> {
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, binders: Binders) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { early_cx, binders, requires: vec![] }
+        DesugarCtxt { early_cx, binders, requires: vec![], node_id_gen: IndexGen::new() }
     }
 
     fn as_expr_ctxt(&self) -> ExprCtxt<'_, 'tcx> {
         ExprCtxt::new(self.early_cx, &self.binders)
+    }
+
+    fn next_node_id(&self) -> fhir::NodeId {
+        self.node_id_gen.fresh()
     }
 
     fn desugar_fun_arg(&mut self, arg: &surface::Arg<Res>) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -419,7 +424,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.desugar_refine_arg(idx)
         } else if let Some(def_id) = bty.is_aggregate() {
             let flds = self.desugar_refine_args(&idxs.indices)?;
-            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span))
+            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span, self.next_node_id()))
         } else {
             span_bug!(bty.span, "invalid index on non-aggregate type")
         }
@@ -442,7 +447,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Some(Binder::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
                 let expr = fhir::Expr { kind, span: ident.span };
-                Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
+                Ok(Some(fhir::RefineArg::Expr {
+                    expr,
+                    is_binder: true,
+                    node_id: self.next_node_id(),
+                }))
             }
             Some(Binder::Unrefined) => Ok(None),
             None => Err(self.emit_err(errors::UnresolvedVar::new(ident))),
@@ -462,6 +471,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(expr)?,
                     is_binder: false,
+                    node_id: self.next_node_id(),
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
@@ -469,7 +479,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 self.binders.insert_params(self.early_cx, params)?;
                 let body = self.as_expr_ctxt().desugar_expr(body)?;
                 let params = self.binders.pop_layer().into_params();
-                Ok(fhir::RefineArg::Abs(params, body, *span))
+                Ok(fhir::RefineArg::Abs(params, body, *span, self.next_node_id()))
             }
         }
     }

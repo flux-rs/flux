@@ -7,7 +7,7 @@
 //!    refinement predicates, aka abstract refinements, since the syntax in [`rty`] has
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
-use std::borrow::Borrow;
+use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, span_bug};
 use flux_middle::{
@@ -30,7 +30,7 @@ use rustc_middle::ty::TyCtxt;
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     env: Env<'a, 'tcx>,
-    wfresults: &'a fhir::WfResults,
+    wfckresults: &'a fhir::WfckResults,
 }
 
 struct Env<'a, 'tcx> {
@@ -66,7 +66,7 @@ enum LookupResultKind<'a> {
 pub(crate) fn expand_type_alias(
     genv: &GlobalEnv,
     alias: &fhir::TyAlias,
-    wfresults: &fhir::WfResults,
+    wfresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let layer = Layer::from_params(genv.early_cx(), &alias.params);
     let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
@@ -150,7 +150,7 @@ pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty:
 pub(crate) fn conv_fn_sig(
     genv: &GlobalEnv,
     fn_sig: &fhir::FnSig,
-    wfresults: &fhir::WfResults,
+    wfresults: &fhir::WfckResults,
 ) -> QueryResult<rty::PolySig> {
     let layer = Layer::from_fun_params(genv.early_cx(), &fn_sig.params);
     let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
@@ -174,7 +174,7 @@ pub(crate) fn conv_fn_sig(
 pub(crate) fn conv_ty(
     genv: &GlobalEnv,
     ty: &fhir::Ty,
-    wfresults: &fhir::WfResults,
+    wfresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let ty = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), Layer::empty()), wfresults)
         .conv_ty(ty)?;
@@ -185,9 +185,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         env: Env<'a, 'tcx>,
-        wfresults: &'a fhir::WfResults,
+        wfresults: &'a fhir::WfckResults,
     ) -> Self {
-        Self { genv, env, wfresults }
+        Self { genv, env, wfckresults: wfresults }
     }
 
     fn conv_fn_output(
@@ -213,7 +213,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
-        wfresults: &fhir::WfResults,
+        wfresults: &fhir::WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
         enum_def
             .variants
@@ -225,7 +225,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn conv_enum_variant(
         genv: &GlobalEnv,
         variant: &fhir::VariantDef,
-        wfresults: &fhir::WfResults,
+        wfresults: &fhir::WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
         let layer = Layer::from_fun_params(genv.early_cx(), &variant.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
@@ -246,7 +246,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
         struct_def: &fhir::StructDef,
-        wfresults: &fhir::WfResults,
+        wfresults: &fhir::WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let layer = Layer::from_params(genv.early_cx(), &struct_def.params);
         let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
@@ -374,14 +374,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::RefineArg::Expr {
                 expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
                 is_binder,
+                ..
             } => (self.env.lookup(*var).to_expr(), rty::TupleTree::Leaf(*is_binder)),
-            fhir::RefineArg::Expr { expr, is_binder } => {
+            fhir::RefineArg::Expr { expr, is_binder, .. } => {
                 (self.env.conv_expr(expr), rty::TupleTree::Leaf(*is_binder))
             }
-            fhir::RefineArg::Abs(params, body, _) => {
-                let params = params
-                    .iter()
-                    .map(|(name, _)| (*name, self.wfresults.sort_of(name.name)))
+            fhir::RefineArg::Abs(params, body, _, node_id) => {
+                let fsort = self.expect_func(*node_id);
+                let params = iter::zip(params, fsort.inputs())
+                    .map(|((name, _), sort)| (*name, sort.clone()))
                     .collect_vec();
                 let layer = Layer::from_params(self.early_cx(), &params);
 
@@ -392,7 +393,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let body = rty::Binder::new(pred, sort);
                 (rty::Expr::abs(body), rty::TupleTree::Leaf(false))
             }
-            fhir::RefineArg::Aggregate(_, flds, _) => {
+            fhir::RefineArg::Aggregate(_, flds, ..) => {
                 let mut exprs = vec![];
                 let mut is_binder = vec![];
                 for arg in flds {
@@ -403,8 +404,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
         };
-        (expr, is_binder)
-        // (self.coerce_index(expr, sort), is_binder)
+        (self.coerce_index(expr, self.node_sort(arg.node_id())), is_binder)
     }
 
     fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
@@ -516,6 +516,16 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {
         self.genv.early_cx()
+    }
+
+    fn expect_func(&self, node_id: fhir::NodeId) -> fhir::FuncSort {
+        self.early_cx()
+            .is_coercible_to_func(self.node_sort(node_id))
+            .unwrap()
+    }
+
+    fn node_sort(&self, node_id: fhir::NodeId) -> &fhir::Sort {
+        &self.wfckresults.node_sorts()[&node_id]
     }
 }
 

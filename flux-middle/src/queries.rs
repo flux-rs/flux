@@ -38,7 +38,7 @@ pub enum QueryErr {
 pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult<fhir::WfResults>,
+    pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult<fhir::WfckResults>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Binder<rty::Ty>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
@@ -51,7 +51,7 @@ pub struct Queries<'tcx> {
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
-    check_wf: Cache<LocalDefId, QueryResult<Rc<fhir::WfResults>>>,
+    check_wf: Cache<LocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, rty::AdtDef>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::GenericPredicates>>,
@@ -107,7 +107,7 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: LocalDefId,
-    ) -> QueryResult<Rc<fhir::WfResults>> {
+    ) -> QueryResult<Rc<fhir::WfckResults>> {
         run_with_cache(&self.check_wf, def_id, || {
             let wfresults = (self.providers.check_wf)(genv, def_id)?;
             Ok(Rc::new(wfresults))
