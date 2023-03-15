@@ -459,7 +459,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         rcx: &mut RefineCtxt,
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
-        for predicate in obligs.predicates {
+        for predicate in &obligs.predicates {
             match predicate {
                 rty::Predicate::FnTrait(fn_pred) => {
                     if let Some(BaseTy::Closure(def_id)) =

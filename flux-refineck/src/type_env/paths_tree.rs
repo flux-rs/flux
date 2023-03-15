@@ -697,7 +697,7 @@ impl Node {
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    gen.check_constructor(rcx, &variant, substs, &fields)
+                    gen.check_constructor(rcx, variant, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
                 };
                 *self = Node::owned(ty.clone());
@@ -849,8 +849,8 @@ fn downcast_struct(
     Ok(genv
         .variant(def_id, variant_idx)?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
+        .subst(substs)
         .replace_bvar(&idx.expr)
-        .replace_generics(substs)
         .fields
         .to_vec())
 }
@@ -874,7 +874,7 @@ fn downcast_enum(
     let variant_def = genv
         .variant(def_id, variant_idx)?
         .expect("enums cannot be opaque")
-        .replace_generics(substs)
+        .subst(substs)
         .replace_bvar_with(|sort| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();

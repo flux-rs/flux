@@ -54,7 +54,7 @@ pub struct Queries<'tcx> {
     check_wf: Cache<LocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, rty::AdtDef>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
-    predicates_of: Cache<DefId, QueryResult<rty::GenericPredicates>>,
+    predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::PolyVariants>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolySig>>>,
@@ -146,15 +146,16 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::GenericPredicates> {
+    ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
             let predicates = genv.tcx.predicates_of(def_id);
             // FIXME(nilehmann) we should propagate this error through the query
             let predicates = lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
                 .unwrap_or_else(|_| FatalError.raise());
 
-            Refiner::default(genv, &genv.generics_of(def_id)?)
-                .refine_generic_predicates(&predicates)
+            let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
+                .refine_generic_predicates(&predicates)?;
+            Ok(rty::EarlyBinder(predicates))
         })
     }
 

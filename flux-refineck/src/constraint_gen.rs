@@ -3,6 +3,7 @@ use std::{iter, slice};
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
@@ -34,7 +35,7 @@ pub struct ConstrGen<'a, 'tcx> {
 }
 
 pub(crate) struct Obligations {
-    pub(crate) predicates: Vec<rty::Predicate>,
+    pub(crate) predicates: List<rty::Predicate>,
     /// Snapshot of the refinement subtree where the obligations should be checked
     pub(crate) snapshot: Snapshot,
 }
@@ -156,8 +157,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
         // Check closure obligations
-        let closure_obligs =
-            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { vec![] };
+        let closure_obligs = if let Some(did) = did {
+            mk_obligations(genv, did, &substs)?
+        } else {
+            List::from(vec![])
+        };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -233,7 +237,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub(crate) fn check_constructor(
         &mut self,
         rcx: &mut RefineCtxt,
-        variant: &PolyVariant,
+        variant: EarlyBinder<PolyVariant>,
         substs: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty, UnsolvedEvar> {
@@ -249,7 +253,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
-            .replace_generics(&substs)
+            .subst(&substs)
             .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
@@ -563,8 +567,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 }
 
 impl Obligations {
-    fn new(obligations: Vec<rty::Predicate>, snapshot: Snapshot) -> Self {
-        Self { predicates: obligations, snapshot }
+    fn new(predicates: List<rty::Predicate>, snapshot: Snapshot) -> Self {
+        Self { predicates, snapshot }
     }
 }
 
@@ -572,13 +576,8 @@ fn mk_obligations(
     genv: &GlobalEnv<'_, '_>,
     did: DefId,
     substs: &[GenericArg],
-) -> Result<Vec<rty::Predicate>, CheckerErrKind> {
-    Ok(genv
-        .predicates_of(did)?
-        .predicates
-        .iter()
-        .map(|predicate| predicate.replace_generics(substs))
-        .collect())
+) -> Result<List<rty::Predicate>, CheckerErrKind> {
+    Ok(genv.predicates_of(did)?.predicates().subst(substs))
 }
 
 impl<F> KVarGen for F

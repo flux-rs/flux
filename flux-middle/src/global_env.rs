@@ -111,7 +111,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.generics_of(self, def_id.into())
     }
 
-    pub fn predicates_of(&self, def_id: DefId) -> QueryResult<rty::GenericPredicates> {
+    pub fn predicates_of(
+        &self,
+        def_id: DefId,
+    ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         self.queries.predicates_of(self, def_id)
     }
 
@@ -131,10 +134,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         def_id: DefId,
         variant_idx: VariantIdx,
-    ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
+    ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariant>>> {
         Ok(self
             .variants_of(def_id)?
-            .map(|variants| variants[variant_idx.as_usize()].clone()))
+            .map(|variants| rty::EarlyBinder(variants[variant_idx.as_usize()].clone())))
     }
 
     pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {

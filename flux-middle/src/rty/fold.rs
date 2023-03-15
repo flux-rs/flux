@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, List},
-    rty::{subst::GenericsSubstFolder, Var, VariantDef},
+    rty::{Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -157,10 +157,6 @@ pub trait TypeFoldable: Sized {
         }
 
         self.fold_with(&mut WithHoles { in_exists: false })
-    }
-
-    fn replace_generics(&self, substs: &[GenericArg]) -> Self {
-        self.fold_with(&mut GenericsSubstFolder { substs })
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {

@@ -467,6 +467,12 @@ impl<T: TypeFoldable> EarlyBinder<T> {
     }
 }
 
+impl EarlyBinder<GenericPredicates> {
+    pub fn predicates(&self) -> EarlyBinder<List<Predicate>> {
+        EarlyBinder(self.0.predicates.clone())
+    }
+}
+
 impl VariantDef {
     pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
         VariantDef { fields: List::from_vec(fields), ret }
@@ -679,9 +685,10 @@ impl<T, E> Opaqueness<Result<T, E>> {
     }
 }
 
-impl PolyVariant {
+impl EarlyBinder<PolyVariant> {
     pub fn to_fn_sig(&self) -> EarlyBinder<PolySig> {
         let fn_sig = self
+            .0
             .as_ref()
             .map(|variant| {
                 let ret = variant.ret.shift_in_bvars(1);
@@ -690,6 +697,7 @@ impl PolyVariant {
             })
             .skip_binder();
         let params = self
+            .0
             .sort
             .expect_tuple()
             .iter()
