@@ -253,6 +253,7 @@ impl From<RefKind> for WeakKind {
 }
 
 newtype_index! {
+    #[debug_format = "NodeId({})"]
     pub struct NodeId { }
 }
 

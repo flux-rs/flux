@@ -66,10 +66,10 @@ enum LookupResultKind<'a> {
 pub(crate) fn expand_type_alias(
     genv: &GlobalEnv,
     alias: &fhir::TyAlias,
-    wfresults: &fhir::WfckResults,
+    wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let layer = Layer::from_params(genv.early_cx(), &alias.params);
-    let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
+    let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfckresults);
     let ty = cx.conv_ty(&alias.ty)?;
     let sort = cx.env.pop_layer().into_sort();
     Ok(rty::Binder::new(ty, sort))
@@ -150,10 +150,10 @@ pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty:
 pub(crate) fn conv_fn_sig(
     genv: &GlobalEnv,
     fn_sig: &fhir::FnSig,
-    wfresults: &fhir::WfckResults,
+    wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::PolySig> {
     let layer = Layer::from_fun_params(genv.early_cx(), &fn_sig.params);
-    let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
+    let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfckresults);
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
@@ -174,9 +174,9 @@ pub(crate) fn conv_fn_sig(
 pub(crate) fn conv_ty(
     genv: &GlobalEnv,
     ty: &fhir::Ty,
-    wfresults: &fhir::WfckResults,
+    wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let ty = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), Layer::empty()), wfresults)
+    let ty = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), Layer::empty()), wfckresults)
         .conv_ty(ty)?;
     Ok(rty::Binder::new(ty, rty::Sort::unit()))
 }
@@ -185,9 +185,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         env: Env<'a, 'tcx>,
-        wfresults: &'a fhir::WfckResults,
+        wfckresults: &'a fhir::WfckResults,
     ) -> Self {
-        Self { genv, env, wfckresults: wfresults }
+        Self { genv, env, wfckresults }
     }
 
     fn conv_fn_output(
@@ -213,22 +213,22 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
-        wfresults: &fhir::WfckResults,
+        wfckresults: &fhir::WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
         enum_def
             .variants
             .iter()
-            .map(|variant_def| ConvCtxt::conv_enum_variant(genv, variant_def, wfresults))
+            .map(|variant_def| ConvCtxt::conv_enum_variant(genv, variant_def, wfckresults))
             .try_collect()
     }
 
     fn conv_enum_variant(
         genv: &GlobalEnv,
         variant: &fhir::VariantDef,
-        wfresults: &fhir::WfckResults,
+        wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
         let layer = Layer::from_fun_params(genv.early_cx(), &variant.params);
-        let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
+        let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfckresults);
 
         let fields = variant
             .fields
@@ -246,10 +246,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
         struct_def: &fhir::StructDef,
-        wfresults: &fhir::WfckResults,
+        wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let layer = Layer::from_params(genv.early_cx(), &struct_def.params);
-        let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfresults);
+        let mut cx = ConvCtxt::new(genv, Env::with_layer(genv.early_cx(), layer), wfckresults);
 
         let def_id = struct_def.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {

@@ -109,8 +109,8 @@ impl<'tcx> Queries<'tcx> {
         def_id: LocalDefId,
     ) -> QueryResult<Rc<fhir::WfckResults>> {
         run_with_cache(&self.check_wf, def_id, || {
-            let wfresults = (self.providers.check_wf)(genv, def_id)?;
-            Ok(Rc::new(wfresults))
+            let wfckresults = (self.providers.check_wf)(genv, def_id)?;
+            Ok(Rc::new(wfckresults))
         })
     }
 
