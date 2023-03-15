@@ -341,13 +341,13 @@ where
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Name {
         match arg.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 *self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.def_span(), "no entry found for key: `{name:?}`")
                 })
             }
-            rty::ExprKind::LateBoundVar(_) => {
-                span_bug!(self.def_span(), "unexpected escaping variable")
+            rty::ExprKind::Var(_) => {
+                span_bug!(self.def_span(), "unexpected variable")
             }
             _ => {
                 let fresh = self.fresh_name();
@@ -456,7 +456,7 @@ impl KVarStore {
         }
         let args = itertools::chain(
             bound.iter().rev().enumerate().map(|(level, sort)| {
-                (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+                (rty::Var::LateBound(rty::DebruijnIndex::new(level as u32)), sort.clone())
             }),
             scope
                 .into_iter()
@@ -525,7 +525,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
         match expr.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in name_map for name: `{name:?}`")
                 });
@@ -567,12 +567,10 @@ impl<'a> ExprCtxt<'a> {
                     self.expr_to_fixpoint(e2),
                 ]))
             }
-            rty::ExprKind::EVar(_)
+            rty::ExprKind::Var(_)
             | rty::ExprKind::Hole
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
-            | rty::ExprKind::LateBoundVar(_)
-            | rty::ExprKind::EarlyBoundVar(..)
             | rty::ExprKind::Abs(_)
             | rty::ExprKind::Func(_)
             | rty::ExprKind::PathProj(..) => {
@@ -605,7 +603,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
         match func.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no name found for key: `{name:?}`")
                 });

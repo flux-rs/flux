@@ -39,12 +39,12 @@ impl FVarSubst {
 
     fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
-            (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
-                if let Some(old_e) = self.insert(*fvar, e1.clone()) {
+            (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
+                if let Some(old_e) = self.insert(*name, e1.clone()) {
                     if &old_e != e1 {
                         bug!(
                             "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *fvar,
+                            *name,
                             old_e,
                             e1
                         );
@@ -73,7 +73,7 @@ struct FVarSubstFolder<'a> {
 
 impl TypeFolder for FVarSubstFolder<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        if let ExprKind::FreeVar(name) = expr.kind() {
+        if let ExprKind::Var(Var::Free(name)) = expr.kind() {
             self.subst
                 .fvar_map
                 .get(name)
@@ -111,7 +111,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::LateBoundVar(debruijn) = e.kind() && *debruijn == self.current_index {
+        if let ExprKind::Var(Var::LateBound(debruijn)) = e.kind() && *debruijn == self.current_index {
             self.expr.shift_in_bvars(self.current_index.as_u32())
         } else {
             e.super_fold_with(self)
@@ -134,7 +134,7 @@ impl<'a> EVarSubstFolder<'a> {
 
 impl TypeFolder for EVarSubstFolder<'_> {
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::EVar(evar) = e.kind() && let Some(sol) = self.evars.get(*evar) {
+        if let ExprKind::Var(Var::EVar(evar)) = e.kind() && let Some(sol) = self.evars.get(*evar) {
             sol.clone()
         } else {
             e.super_fold_with(self)
@@ -172,7 +172,7 @@ impl TypeFolder for GenericsSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        if let ExprKind::EarlyBoundVar(idx) = expr.kind() {
+        if let ExprKind::Var(Var::EarlyBound(idx)) = expr.kind() {
             self.expr_for_param(*idx)
         } else {
             expr.super_fold_with(self)

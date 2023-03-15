@@ -26,10 +26,7 @@ pub struct ExprS {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExprKind {
-    FreeVar(Name),
-    EVar(EVar),
-    LateBoundVar(DebruijnIndex),
-    EarlyBoundVar(u32),
+    Var(Var),
     Local(Local),
     Constant(Constant),
     ConstDefId(DefId),
@@ -71,7 +68,8 @@ pub struct KVar {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    Bound(DebruijnIndex),
+    LateBound(DebruijnIndex),
+    EarlyBound(u32),
     EVar(EVar),
 }
 
@@ -111,9 +109,7 @@ impl ExprKind {
 
     pub fn to_var(&self) -> Option<Var> {
         match self {
-            ExprKind::FreeVar(name) => Some(Var::Free(*name)),
-            ExprKind::LateBoundVar(bvar) => Some(Var::Bound(*bvar)),
-            ExprKind::EVar(evar) => Some(Var::EVar(*evar)),
+            ExprKind::Var(var) => Some(*var),
             _ => None,
         }
     }
@@ -191,20 +187,24 @@ impl Expr {
         Expr::tuple(vec![])
     }
 
+    pub fn var(var: Var) -> Expr {
+        ExprKind::Var(var).intern()
+    }
+
     pub fn fvar(name: Name) -> Expr {
-        ExprKind::FreeVar(name).intern()
+        Var::Free(name).to_expr()
     }
 
     pub fn evar(evar: EVar) -> Expr {
-        ExprKind::EVar(evar).intern()
+        Var::EVar(evar).to_expr()
     }
 
     pub fn late_bvar(bvar: DebruijnIndex) -> Expr {
-        ExprKind::LateBoundVar(bvar).intern()
+        Var::LateBound(bvar).to_expr()
     }
 
     pub fn early_bvar(idx: u32) -> Expr {
-        ExprKind::EarlyBoundVar(idx).intern()
+        Var::EarlyBound(idx).to_expr()
     }
 
     pub fn local(local: Local) -> Expr {
@@ -422,12 +422,12 @@ impl Expr {
         self.kind().to_var()
     }
 
-    pub fn to_fvar(&self) -> Option<Name> {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Some(*name),
-            _ => None,
-        }
-    }
+    // pub fn to_fvar(&self) -> Option<Name> {
+    //     match self.kind() {
+    //         ExprKind::Var(Var::Free(name)) => Some(*name),
+    //         _ => None,
+    //     }
+    // }
 
     pub fn to_loc(&self) -> Option<Loc> {
         if let ExprKind::Local(local) = self.kind() {
@@ -443,11 +443,10 @@ impl Expr {
         proj.reverse();
         let proj = List::from(proj);
 
-        match expr.kind() {
-            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name), proj)),
-            ExprKind::LateBoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar), proj)),
-            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar), proj)),
-            _ => None,
+        if let ExprKind::Var(var) = expr.kind() {
+            Some(Loc::Var(*var, proj))
+        } else {
+            None
         }
     }
 
@@ -532,11 +531,7 @@ impl KVar {
 
 impl Var {
     pub fn to_expr(&self) -> Expr {
-        match self {
-            Var::Bound(bvar) => Expr::late_bvar(*bvar),
-            Var::Free(name) => Expr::fvar(*name),
-            Var::EVar(evar) => Expr::evar(*evar),
-        }
+        Expr::var(*self)
     }
 }
 
@@ -763,10 +758,7 @@ mod pretty {
             }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
-                ExprKind::LateBoundVar(bvar) => w!("{:?}", ^bvar),
-                ExprKind::EarlyBoundVar(idx) => w!("#{}", ^idx),
-                ExprKind::FreeVar(name) => w!("{:?}", ^name),
-                ExprKind::EVar(evar) => w!("{:?}", evar),
+                ExprKind::Var(var) => w!("{:?}", var),
                 ExprKind::Local(local) => w!("{:?}", ^local),
                 ExprKind::ConstDefId(did) => w!("{}", ^pretty::def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!("{}", ^c),
@@ -832,6 +824,18 @@ mod pretty {
                     w!("{:?}", body)
                 }
                 ExprKind::Func(func) => w!("{:?}", ^func),
+            }
+        }
+    }
+
+    impl Pretty for Var {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Var::LateBound(bvar) => w!("{:?}", ^bvar),
+                Var::EarlyBound(idx) => w!("#{}", ^idx),
+                Var::Free(name) => w!("{:?}", ^name),
+                Var::EVar(evar) => w!("{:?}", evar),
             }
         }
     }

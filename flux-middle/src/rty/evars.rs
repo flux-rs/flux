@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
 
-use super::{Expr, ExprKind};
+use super::{Expr, ExprKind, Var};
 
 static NEXT_CTXT_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -112,7 +112,7 @@ impl EVarSol {
         let vec = self
             .iter()
             .flat_map(|(evar, arg)| {
-                if let ExprKind::EVar(evar2) = arg.kind() {
+                if let ExprKind::Var(Var::EVar(evar2)) = arg.kind() {
                     Some((evar, self.get(*evar2).unwrap().clone()))
                 } else {
                     None

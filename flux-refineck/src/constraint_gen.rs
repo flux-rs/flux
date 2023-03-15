@@ -10,7 +10,7 @@ use flux_middle::{
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
         GenericArg, InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree,
-        Ty, TyKind,
+        Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -553,7 +553,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
-        if let ExprKind::EVar(evar) = e2.kind()
+        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
            && let scope = &self.scopes[&evar.cx()]
            && !scope.has_free_vars(e1)
         {

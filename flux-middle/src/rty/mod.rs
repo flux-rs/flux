@@ -1280,18 +1280,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for Var {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-
-            match self {
-                Var::Bound(bvar) => w!("{:?}", ^bvar),
-                Var::Free(name) => w!("{:?}", ^name),
-                Var::EVar(evar) => w!("{:?}", evar),
-            }
-        }
-    }
-
     impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
