@@ -1,0 +1,9 @@
+[package]
+edition = "2021"
+name = "flux-attrs"
+version = "0.1.0"
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "1", features = ["full"] }

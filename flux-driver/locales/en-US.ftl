@@ -24,3 +24,9 @@ driver_missing_variant =
     missing variant annotation
     .label = this variant doesn't have a refinement annotation
     .note = all variants in a refined enum must be annotated
+
+driver_malformed_extern_spec =
+    malformed extern_spec, expecting a function definition with a call to the external method as the body
+
+driver_missing_fn_sig_for_extern_spec =
+    missing flux::sig attribute (functions declared as flux::extern_spec require a flux::sig)

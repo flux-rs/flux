@@ -98,6 +98,7 @@ pub struct Map {
     fns: FxHashMap<LocalDefId, FnSig>,
     fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
     trusted: FxHashSet<LocalDefId>,
+    extern_fns: FxHashMap<DefId, LocalDefId>,
 }
 
 #[derive(Debug)]
@@ -654,6 +655,14 @@ impl Map {
 
     pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
         self.trusted.contains(&def_id)
+    }
+
+    pub fn insert_extern_fn(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
+        self.extern_fns.insert(extern_def_id, local_def_id);
+    }
+
+    pub fn extern_fns(&self) -> &FxHashMap<DefId, LocalDefId> {
+        &self.extern_fns
     }
 
     // ADT
