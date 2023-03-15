@@ -142,11 +142,16 @@ impl TypeFolder for EVarSubstFolder<'_> {
     }
 }
 
-/// Substitution for generics (type, lifetimes and const generics). Only substitution for types
-/// is implemented. Higher-ranked types are not supported yet, i.e., we only support early bound
-/// parameters.
+/// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
-    pub(super) substs: &'a [GenericArg],
+    generics: &'a [GenericArg],
+    refine: &'a [Expr],
+}
+
+impl<'a> GenericsSubstFolder<'a> {
+    pub(super) fn new(generics: &'a [GenericArg], refine: &'a [Expr]) -> Self {
+        Self { generics, refine }
+    }
 }
 
 impl TypeFolder for GenericsSubstFolder<'_> {
@@ -165,27 +170,19 @@ impl TypeFolder for GenericsSubstFolder<'_> {
             _ => ty.super_fold_with(self),
         }
     }
+
+    fn fold_expr(&mut self, expr: &Expr) -> Expr {
+        if let ExprKind::EarlyBoundVar(idx, _) = expr.kind() {
+            self.expr_for_param(*idx)
+        } else {
+            expr.super_fold_with(self)
+        }
+    }
 }
 
 impl GenericsSubstFolder<'_> {
-    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
-        match self.substs.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
-        }
-    }
-
-    fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
-        match self.substs.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
-            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
-        }
-    }
-
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
-        match self.substs.get(param_ty.index as usize) {
+        match self.generics.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => arg.sort().clone(),
             Some(GenericArg::Ty(arg)) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
@@ -193,5 +190,25 @@ impl GenericsSubstFolder<'_> {
             Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
             None => bug!("type parameter out of range {param_ty:?}"),
         }
+    }
+
+    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
+        match self.generics.get(param_ty.index as usize) {
+            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
+        match self.generics.get(param_ty.index as usize) {
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
+            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn expr_for_param(&self, idx: u32) -> Expr {
+        self.refine[idx as usize].clone()
     }
 }

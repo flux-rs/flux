@@ -459,7 +459,7 @@ where
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn subst(self, generics: &[GenericArg]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder { substs: generics })
+            .fold_with(&mut subst::GenericsSubstFolder::new(generics, &[]))
     }
 
     pub fn subst_identity(self) -> T {
