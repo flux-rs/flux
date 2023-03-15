@@ -474,6 +474,13 @@ where
             _ => bug!("expected leaf"),
         }
     }
+
+    pub fn as_leaf(&self) -> Option<&T> {
+        match self {
+            TupleTree::Leaf(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 impl Index {
@@ -1168,24 +1175,17 @@ mod pretty {
                 expr: &Expr,
             ) -> fmt::Result {
                 define_scoped!(cx, f);
-                match (is_binder, expr.kind()) {
-                    (TupleTree::Tuple(is_binder), ExprKind::Tuple(es)) => {
-                        debug_assert_eq!(is_binder.len(), es.len());
-                        w!("(")?;
-                        for (is_binder, e) in iter::zip(is_binder, es) {
-                            go(cx, f, is_binder, e)?;
-                            w!(", ")?;
-                        }
-                        w!(")")?;
+                if let ExprKind::Tuple(es) = expr.kind() {
+                    w!("(")?;
+                    for (is_binder, e) in iter::zip(is_binder.split(), es) {
+                        go(cx, f, is_binder, e)?;
+                        w!(", ")?;
                     }
-                    (TupleTree::Leaf(is_binder), _) => {
-                        if *is_binder {
-                            w!("@{:?}", expr)?;
-                        } else {
-                            w!("{:?}", expr)?;
-                        }
-                    }
-                    _ => bug!("{is_binder:?} {expr:?}"),
+                    w!(")")?;
+                } else if let Some(true) = is_binder.as_leaf() {
+                    w!("@{:?}", expr)?;
+                } else {
+                    w!("{:?}", expr)?;
                 }
                 Ok(())
             }

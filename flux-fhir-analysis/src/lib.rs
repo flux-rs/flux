@@ -28,7 +28,6 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
-use wf::Wf;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -108,11 +107,15 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty:
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
-            conv::expand_type_alias(genv, alias)
+            let wfckresults = genv.check_wf(def_id)?;
+            conv::expand_type_alias(genv, alias, &wfckresults)
         }
         DefKind::TyParam => {
             match &genv.early_cx().get_generic_param(def_id).kind {
-                fhir::GenericParamDefKind::Type { default: Some(ty) } => conv::conv_ty(genv, ty),
+                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
+                    let wfckresults = genv.check_wf(def_id)?;
+                    conv::conv_ty(genv, ty, &wfckresults)
+                }
                 _ => bug!("non-type def"),
             }
         }
@@ -123,62 +126,80 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Binder<rty:
 }
 
 fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
-    match genv.tcx.def_kind(def_id) {
+    let variants = match genv.tcx.def_kind(def_id) {
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
-            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def)?
+            let wfckresults = genv.check_wf(def_id)?;
+            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def, &wfckresults)?
                 .into_iter()
                 .map(|variant| normalize(genv, variant))
                 .try_collect()?;
-            Ok(rty::Opaqueness::Transparent(variants))
+            rty::Opaqueness::Transparent(variants)
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
-            let variants = conv::ConvCtxt::conv_struct_def_variant(genv, struct_def)?
+            let wfckresults = genv.check_wf(def_id)?;
+            conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfckresults)?
                 .normalize(genv.defns()?)
-                .map(|variant| List::from(vec![variant]));
-            Ok(variants)
+                .map(|variant| List::from(vec![variant]))
         }
         kind => {
             bug!("expected struct or enum found `{kind:?}`")
         }
+    };
+    if config::dump_rty() {
+        dbg::dump_item_info(genv.tcx, def_id, "rty", &variants).unwrap();
     }
+    Ok(variants)
 }
 
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolySig> {
     let fn_sig = genv.map().get_fn_sig(def_id);
-    let fn_sig = conv::conv_fn_sig(genv, fn_sig)?.normalize(genv.defns()?);
+    let wfckresults = genv.check_wf(def_id)?;
+    let fn_sig = conv::conv_fn_sig(genv, fn_sig, &wfckresults)?.normalize(genv.defns()?);
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
     Ok(fn_sig)
 }
 
-fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult {
+fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
-            Wf::check_alias(genv.early_cx(), alias)?;
+            let wfckresults = wf::check_alias(genv.early_cx(), alias)?;
             annot_check::check_alias(genv.early_cx(), alias)?;
-            Ok(())
+            Ok(wfckresults)
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
-            Wf::check_struct_def(genv.early_cx(), struct_def)?;
+            let wfckresults = wf::check_struct_def(genv.early_cx(), struct_def)?;
             annot_check::check_struct_def(genv.early_cx(), struct_def)?;
-            Ok(())
+            Ok(wfckresults)
         }
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
-            Wf::check_enum_def(genv.early_cx(), enum_def)?;
+            let wfckresults = wf::check_enum_def(genv.early_cx(), enum_def)?;
             annot_check::check_enum_def(genv.early_cx(), enum_def)?;
-            Ok(())
+            Ok(wfckresults)
+        }
+        DefKind::TyParam => {
+            match &genv.early_cx().get_generic_param(def_id).kind {
+                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
+                    let wfckresults = wf::check_type(genv.early_cx(), ty)?;
+                    Ok(wfckresults)
+                }
+                fhir::GenericParamDefKind::Type { default: None } => {
+                    bug!("type parameter without default")
+                }
+                _ => bug!("non-type def"),
+            }
         }
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(def_id);
-            Wf::check_fn_sig(genv.early_cx(), fn_sig)?;
+            let wf = wf::check_fn_sig(genv.early_cx(), fn_sig)?;
             annot_check::check_fn_sig(genv.early_cx(), def_id, fn_sig)?;
-            Ok(())
+            Ok(wf)
         }
         kind => bug!("unexpected def kind `{kind:?}`"),
     }
@@ -197,18 +218,18 @@ fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
     }
 
     for defn in genv.map().defns() {
-        err = Wf::check_defn(genv.early_cx(), defn).err().or(err);
+        err = wf::check_defn(genv.early_cx(), defn).err().or(err);
     }
 
     for qualifier in genv.map().qualifiers() {
-        err = Wf::check_qualifier(genv.early_cx(), qualifier)
+        err = wf::check_qualifier(genv.early_cx(), qualifier)
             .err()
             .or(err);
     }
 
     let qualifiers = genv.map().qualifiers().map(|q| q.name.clone()).collect();
     for (_, fn_quals) in genv.map().fn_quals() {
-        err = Wf::check_fn_quals(genv.sess, &qualifiers, fn_quals)
+        err = wf::check_fn_quals(genv.sess, &qualifiers, fn_quals)
             .err()
             .or(err);
     }

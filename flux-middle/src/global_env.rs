@@ -103,7 +103,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.adt_def(self, def_id.into())
     }
 
-    pub fn check_wf(&self, def_id: LocalDefId) -> QueryResult {
+    pub fn check_wf(&self, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
         self.queries.check_wf(self, def_id)
     }
 

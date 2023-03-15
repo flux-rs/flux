@@ -231,6 +231,11 @@ pub enum WeakKind {
     Arr,
 }
 
+#[derive(Default)]
+pub struct WfckResults {
+    node_sorts: FxHashMap<NodeId, Sort>,
+}
+
 impl From<BaseTy> for Ty {
     fn from(bty: BaseTy) -> Ty {
         let span = bty.span;
@@ -247,15 +252,27 @@ impl From<RefKind> for WeakKind {
     }
 }
 
+newtype_index! {
+    /// A unique identifier for a node in the AST. They are suppose to be unique per definition
+    /// (i.e. a function, struct, etc.) but not across them. We don't generate ids for all nodes,
+    /// but only for those we need to remember information elaborated during well-formedness
+    /// checking to later be used during conversion into [`rty`].
+    ///
+    /// [`rty`]: crate::rty
+    #[debug_format = "NodeId({})"]
+    pub struct NodeId { }
+}
+
 pub enum RefineArg {
     Expr {
         expr: Expr,
         /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
         /// inferring parameters at function calls.
         is_binder: bool,
+        node_id: NodeId,
     },
-    Abs(Vec<(Ident, Sort)>, Expr, Span),
-    Aggregate(DefId, Vec<RefineArg>, Span),
+    Abs(Vec<(Ident, Sort)>, Expr, Span, NodeId),
+    Aggregate(DefId, Vec<RefineArg>, Span, NodeId),
 }
 
 pub struct BaseTy {
@@ -378,6 +395,16 @@ pub struct Ident {
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
+}
+
+impl RefineArg {
+    pub fn node_id(&self) -> NodeId {
+        match self {
+            RefineArg::Expr { node_id, .. }
+            | RefineArg::Abs(.., node_id)
+            | RefineArg::Aggregate(.., node_id) => *node_id,
+        }
+    }
 }
 
 impl BaseTy {
@@ -742,6 +769,20 @@ impl StructDef {
     }
 }
 
+impl WfckResults {
+    pub fn new() -> Self {
+        Self { node_sorts: FxHashMap::default() }
+    }
+
+    pub fn node_sorts_mut(&mut self) -> &mut FxHashMap<NodeId, Sort> {
+        &mut self.node_sorts
+    }
+
+    pub fn node_sorts(&self) -> &FxHashMap<NodeId, Sort> {
+        &self.node_sorts
+    }
+}
+
 impl_internable!([Sort]);
 
 impl fmt::Debug for FnSig {
@@ -857,16 +898,16 @@ impl fmt::Debug for Path {
 impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RefineArg::Expr { expr, is_binder } => {
+            RefineArg::Expr { expr, is_binder, .. } => {
                 if *is_binder {
                     write!(f, "@")?;
                 }
                 write!(f, "{expr:?}")
             }
-            RefineArg::Abs(params, body, _) => {
+            RefineArg::Abs(params, body, ..) => {
                 write!(f, "|{:?}| {body:?}", params.iter().format(","))
             }
-            RefineArg::Aggregate(def_id, flds, _) => {
+            RefineArg::Aggregate(def_id, flds, ..) => {
                 write!(
                     f,
                     "{} {{ {:?} }}",

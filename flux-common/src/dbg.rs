@@ -27,7 +27,7 @@ pub fn dump_item_info<T: fmt::Debug>(
     val: &T,
 ) -> io::Result<()> {
     let mut writer = writer_for_item(tcx, def_id.into(), ext)?;
-    write!(writer, "{val:?}")
+    write!(writer, "{val:#?}")
 }
 
 #[macro_export]
