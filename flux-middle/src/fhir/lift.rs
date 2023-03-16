@@ -1,5 +1,6 @@
+//! "Lift" HIR types into  FHIR types.
+//!
 use fhir::FhirId;
-///! "Lift" HIR types into  FHIR types.
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use hir::{def::DefKind, def_id::DefId};
