@@ -137,6 +137,9 @@ pub struct Binder<T> {
     value: T,
 }
 
+#[derive(Clone, TyEncodable, TyDecodable)]
+pub struct EarlyBinder<T>(pub T);
+
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TupleTree<T>
 where
@@ -147,7 +150,7 @@ where
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
-pub struct PolySig {
+pub struct PolyFnSig {
     pub fn_sig: Binder<FnSig>,
     pub modes: List<InferMode>,
 }
@@ -193,9 +196,10 @@ pub struct UifDef {
 #[derive(Debug)]
 pub struct ClosureOblig {
     pub oblig_def_id: DefId,
-    pub oblig_sig: PolySig,
+    pub oblig_sig: PolyFnSig,
 }
 
+pub type PolyTy = Binder<Ty>;
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -263,7 +267,7 @@ pub enum GenericArg {
 }
 
 impl FnTraitPredicate {
-    pub fn to_poly_sig(&self, closure_id: DefId) -> PolySig {
+    pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match self.kind {
             ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
@@ -279,7 +283,7 @@ impl FnTraitPredicate {
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), Sort::unit()),
         );
-        PolySig::new(vec![], fn_sig)
+        PolyFnSig::new(vec![], fn_sig)
     }
 }
 
@@ -417,7 +421,7 @@ impl<T> Binder<T> {
         Binder { sort: self.sort.clone(), value: &self.value }
     }
 
-    pub fn skip_binders(self) -> T {
+    pub fn skip_binder(self) -> T {
         self.value
     }
 
@@ -426,13 +430,13 @@ impl<T> Binder<T> {
     }
 }
 
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
+impl<T> EarlyBinder<T> {
+    pub fn as_ref(&self) -> EarlyBinder<&T> {
+        EarlyBinder(&self.0)
     }
 
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
+    pub fn skip_binder(self) -> T {
+        self.0
     }
 }
 
@@ -449,6 +453,43 @@ where
     pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
         let expr = f(&self.sort);
         self.replace_bvar(&expr)
+    }
+}
+
+impl<T: TypeFoldable> EarlyBinder<T> {
+    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T
+    where
+        T: std::fmt::Debug,
+    {
+        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
+    }
+
+    pub fn subst_generics(self, generics: &[GenericArg]) -> T
+    where
+        T: std::fmt::Debug,
+    {
+        self.subst(generics, &[])
+    }
+
+    pub fn subst_identity(self) -> T {
+        self.0
+    }
+}
+
+impl EarlyBinder<GenericPredicates> {
+    pub fn predicates(&self) -> EarlyBinder<List<Predicate>> {
+        EarlyBinder(self.0.predicates.clone())
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
     }
 }
 
@@ -502,11 +543,11 @@ impl From<(Expr, TupleTree<bool>)> for Index {
     }
 }
 
-impl PolySig {
-    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolySig {
+impl PolyFnSig {
+    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolyFnSig {
         let (sorts, modes) = params.into_iter().unzip();
         let fn_sig = Binder::new(fn_sig, Sort::Tuple(List::from_vec(sorts)));
-        PolySig { fn_sig, modes: List::from_vec(modes) }
+        PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
@@ -654,23 +695,25 @@ impl<T, E> Opaqueness<Result<T, E>> {
     }
 }
 
-impl PolyVariant {
-    pub fn to_fn_sig(&self) -> PolySig {
+impl EarlyBinder<PolyVariant> {
+    pub fn to_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
         let fn_sig = self
+            .0
             .as_ref()
             .map(|variant| {
                 let ret = variant.ret.shift_in_bvars(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
-            .skip_binders();
+            .skip_binder();
         let params = self
+            .0
             .sort
             .expect_tuple()
             .iter()
             .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
             .collect_vec();
-        PolySig::new(params, fn_sig)
+        EarlyBinder(PolyFnSig::new(params, fn_sig))
     }
 }
 
@@ -833,7 +876,7 @@ impl TyS {
     pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_binders()?),
             TyKind::Constr(_, ty) => ty.as_bty_skipping_binders(),
             _ => None,
         }
@@ -1059,7 +1102,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for PolySig {
+    impl Pretty for PolyFnSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let sorts = self.fn_sig.sort.expect_tuple();
@@ -1236,21 +1279,9 @@ mod pretty {
             match self {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
                 GenericArg::BaseTy(arg) => {
-                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
+                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binder())
                 }
                 GenericArg::Lifetime => w!("'_"),
-            }
-        }
-    }
-
-    impl Pretty for Var {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-
-            match self {
-                Var::Bound(bvar) => w!("{:?}", ^bvar),
-                Var::Free(name) => w!("{:?}", ^name),
-                Var::EVar(evar) => w!("{:?}", evar),
             }
         }
     }
@@ -1266,7 +1297,7 @@ mod pretty {
         Constraint,
         Sort,
         TyS => "ty",
-        PolySig,
+        PolyFnSig,
         BaseTy,
         FnSig,
         GenericArg,

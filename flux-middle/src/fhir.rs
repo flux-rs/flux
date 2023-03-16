@@ -104,9 +104,10 @@ pub struct Map {
 #[derive(Debug)]
 pub struct TyAlias {
     pub def_id: LocalDefId,
-    pub params: Vec<(Ident, Sort)>,
     pub ty: Ty,
     pub span: Span,
+    pub early_bound_params: Vec<(Ident, Sort)>,
+    pub index_params: Vec<(Ident, Sort)>,
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
@@ -769,6 +770,12 @@ impl Map {
 
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
         self.sort_decls.get(name.borrow())
+    }
+}
+
+impl TyAlias {
+    pub fn all_params(&self) -> impl Iterator<Item = &(Ident, Sort)> {
+        self.early_bound_params.iter().chain(&self.index_params)
     }
 }
 

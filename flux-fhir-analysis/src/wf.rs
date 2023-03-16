@@ -59,6 +59,17 @@ impl From<&[(fhir::Ident, fhir::Sort)]> for Env {
     }
 }
 
+impl<'a> FromIterator<&'a (fhir::Ident, fhir::Sort)> for Env {
+    fn from_iter<T: IntoIterator<Item = &'a (fhir::Ident, fhir::Sort)>>(iter: T) -> Self {
+        Env {
+            sorts: iter
+                .into_iter()
+                .map(|(ident, sort)| (ident.name, sort.clone()))
+                .collect(),
+        }
+    }
+}
+
 impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
     type Output = fhir::Sort;
 
@@ -114,7 +125,7 @@ pub(crate) fn check_alias(
     alias: &fhir::TyAlias,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx);
-    let mut env = Env::from(&alias.params[..]);
+    let mut env = Env::from_iter(alias.all_params());
     wf.check_type(&mut env, &alias.ty)?;
     Ok(wf.into_results())
 }

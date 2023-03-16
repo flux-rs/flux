@@ -110,7 +110,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Ok(rty::Binder::new(value, rty::Sort::unit()))
     }
 
-    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolySig> {
+    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolyFnSig> {
         let args = fn_sig
             .inputs()
             .iter()
@@ -118,7 +118,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .try_collect_vec()?;
         let ret = self.refine_ty(&fn_sig.output())?;
         let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
-        Ok(rty::PolySig::new([], rty::FnSig::new(vec![], args, output)))
+        Ok(rty::PolyFnSig::new([], rty::FnSig::new(vec![], args, output)))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -131,7 +131,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
-                Ok(rty::GenericArg::BaseTy(self.refine_bound_ty(ty)?))
+                Ok(rty::GenericArg::BaseTy(self.refine_poly_ty(ty)?))
             }
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
                 Ok(rty::GenericArg::Lifetime)
@@ -141,7 +141,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
-        let ty = self.refine_bound_ty(ty)?;
+        let ty = self.refine_poly_ty(ty)?;
         if ty.sort().is_unit() {
             Ok(ty.replace_bvar(&rty::Expr::unit()))
         } else {
@@ -149,7 +149,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
-    fn refine_bound_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Binder<rty::Ty>> {
+    fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
             rustc::ty::TyKind::Never => rty::BaseTy::Never,

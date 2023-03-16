@@ -80,7 +80,14 @@ pub fn lift_type_alias(
     };
     let cx = LiftCtxt::new(early_cx, def_id);
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::TyAlias { def_id, params: vec![], ty, span: item.span, lifted: true })
+    Ok(fhir::TyAlias {
+        def_id,
+        early_bound_params: vec![],
+        index_params: vec![],
+        ty,
+        span: item.span,
+        lifted: true,
+    })
 }
 
 pub fn lift_field_def(

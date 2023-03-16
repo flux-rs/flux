@@ -85,7 +85,7 @@ pub fn desugar_refined_by(
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
     let mut set = FxHashSet::default();
-    refined_by.iter().try_for_each_exhaust(|param| {
+    refined_by.all_params().try_for_each_exhaust(|param| {
         if let Some(old) = set.get(&param.name) {
             return Err(early_cx
                 .sess
@@ -115,13 +115,16 @@ pub fn desugar_type_alias(
     def_id: LocalDefId,
     alias: surface::TyAlias<Res>,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, &alias.refined_by)?;
+    let mut binders = Binders::from_params(early_cx, alias.refined_by.all_params())?;
     let mut cx = DesugarCtxt::new(early_cx);
     let ty = cx.desugar_ty(None, &alias.ty, &mut binders)?;
 
+    let mut early_bound_params = binders.pop_layer().into_params();
+    let index_params = early_bound_params.split_off(alias.refined_by.early_bound_params.len());
     Ok(fhir::TyAlias {
         def_id,
-        params: binders.pop_layer().into_params(),
+        early_bound_params,
+        index_params,
         ty,
         span: alias.span,
         lifted: false,
@@ -133,7 +136,13 @@ pub fn desugar_struct_def(
     struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let def_id = struct_def.def_id;
-    let mut binders = Binders::from_params(early_cx, struct_def.refined_by.iter().flatten())?;
+    let mut binders = Binders::from_params(
+        early_cx,
+        struct_def
+            .refined_by
+            .iter()
+            .flat_map(surface::RefinedBy::all_params),
+    )?;
 
     let mut cx = DesugarCtxt::new(early_cx);
 
@@ -178,7 +187,13 @@ pub fn desugar_enum_def(
         .map(|variant| cx.desugar_enum_variant_def(variant))
         .try_collect_exhaust()?;
 
-    let mut binders = Binders::from_params(early_cx, enum_def.refined_by.iter().flatten())?;
+    let mut binders = Binders::from_params(
+        early_cx,
+        enum_def
+            .refined_by
+            .iter()
+            .flat_map(surface::RefinedBy::all_params),
+    )?;
     let invariants = enum_def
         .invariants
         .iter()

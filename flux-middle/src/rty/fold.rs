@@ -10,12 +10,12 @@ use super::{
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
-    FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolySig, Predicate, Qualifier,
-    Sort, Ty, TyKind, INNERMOST,
+    FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate,
+    Qualifier, Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, List},
-    rty::{subst::GenericsSubstFolder, Var, VariantDef},
+    rty::{Var, VariantDef},
 };
 
 pub trait TypeVisitor: Sized {
@@ -27,9 +27,7 @@ pub trait TypeVisitor: Sized {
         expr.super_visit_with(self);
     }
 
-    fn visit_fvar(&mut self, name: Name) {
-        name.super_visit_with(self);
-    }
+    fn visit_fvar(&mut self, _name: Name) {}
 
     fn visit_ty(&mut self, ty: &Ty) {
         ty.super_visit_with(self);
@@ -41,7 +39,7 @@ pub trait TypeVisitor: Sized {
 }
 
 pub trait TypeFolder: Sized {
-    fn fold_binders<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+    fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
         t.super_fold_with(self)
     }
 
@@ -108,7 +106,7 @@ pub trait TypeFoldable: Sized {
         where
             F: FnMut(&[Sort]) -> Expr,
         {
-            fn fold_binders<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
                 self.1.push(t.sort().clone());
                 let t = t.super_fold_with(self);
                 self.1.pop();
@@ -159,10 +157,6 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut WithHoles { in_exists: false })
     }
 
-    fn replace_generics(&self, substs: &[GenericArg]) -> Self {
-        self.fold_with(&mut GenericsSubstFolder { substs })
-    }
-
     fn replace_evars(&self, evars: &EVarSol) -> Self {
         self.fold_with(&mut EVarSubstFolder::new(evars))
             .normalize(&Default::default())
@@ -175,7 +169,7 @@ pub trait TypeFoldable: Sized {
         }
 
         impl TypeFolder for Shifter {
-            fn fold_binders<T>(&mut self, t: &Binder<T>) -> Binder<T>
+            fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
             where
                 T: TypeFoldable,
             {
@@ -186,10 +180,10 @@ pub trait TypeFoldable: Sized {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::BoundVar(debruijn) = expr.kind()
+                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_in(self.amount))
+                    Expr::late_bvar(debruijn.shifted_in(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -205,8 +199,8 @@ pub trait TypeFoldable: Sized {
 
         impl TypeFolder for Shifter {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::BoundVar(debruijn) = expr.kind() {
-                    Expr::bvar(debruijn.shifted_out(self.amount))
+                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind() {
+                    Expr::late_bvar(debruijn.shifted_out(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -232,7 +226,7 @@ pub trait TypeFoldable: Sized {
             // TODO(nilehmann) keep track of the outermost binder to optimize this, i.e.,
             // what rustc calls outer_exclusive_binder.
             fn visit_expr(&mut self, expr: &Expr) {
-                if let ExprKind::BoundVar(debruijn) = expr.kind() {
+                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind() {
                     if *debruijn >= self.outer_index {
                         self.found = true;
                     }
@@ -317,7 +311,7 @@ where
     }
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_binders(self)
+        folder.fold_binder(self)
     }
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -325,9 +319,9 @@ where
     }
 }
 
-impl TypeFoldable for PolySig {
+impl TypeFoldable for PolyFnSig {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        PolySig { fn_sig: self.fn_sig.fold_with(folder), modes: self.modes.clone() }
+        PolyFnSig { fn_sig: self.fn_sig.fold_with(folder), modes: self.modes.clone() }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -562,9 +556,7 @@ impl TypeFoldable for KVar {
 impl TypeFoldable for Expr {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self.kind() {
-            ExprKind::FreeVar(name) => Expr::fvar(name.fold_with(folder)),
-            ExprKind::BoundVar(bvar) => Expr::bvar(*bvar),
-            ExprKind::EVar(evar) => Expr::evar(*evar),
+            ExprKind::Var(var) => Expr::var(*var),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
@@ -590,7 +582,7 @@ impl TypeFoldable for Expr {
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self.kind() {
-            ExprKind::FreeVar(name) => name.visit_with(visitor),
+            ExprKind::Var(Var::Free(name)) => visitor.visit_fvar(*name),
             ExprKind::BinaryOp(_, e1, e2) => {
                 e1.visit_with(visitor);
                 e2.visit_with(visitor);
@@ -616,8 +608,7 @@ impl TypeFoldable for Expr {
             ExprKind::Abs(body) => body.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole
-            | ExprKind::BoundVar(_)
-            | ExprKind::EVar(_)
+            | ExprKind::Var(_)
             | ExprKind::Local(_)
             | ExprKind::Func(_)
             | ExprKind::ConstDefId(_) => {}
@@ -630,31 +621,6 @@ impl TypeFoldable for Expr {
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_expr(self);
-    }
-}
-
-impl TypeFoldable for Var {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        self.to_expr()
-            .fold_with(folder)
-            .to_var()
-            .expect("folding produced invalid var")
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.to_expr().visit_with(visitor);
-    }
-}
-
-impl TypeFoldable for Name {
-    fn super_fold_with<F: TypeFolder>(&self, _folder: &mut F) -> Self {
-        *self
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, _visitor: &mut V) {}
-
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        visitor.visit_fvar(*self);
     }
 }
 

@@ -3,12 +3,14 @@ use std::{iter, slice};
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
+        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
+        GenericArg, InferMode, Path, PolyFnSig, PolyVariant, PtrKind, Ref, RefKind, Sort,
+        TupleTree, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -33,7 +35,7 @@ pub struct ConstrGen<'a, 'tcx> {
 }
 
 pub(crate) struct Obligations {
-    pub(crate) predicates: Vec<rty::Predicate>,
+    pub(crate) predicates: List<rty::Predicate>,
     /// Snapshot of the refinement subtree where the obligations should be checked
     pub(crate) snapshot: Snapshot,
 }
@@ -110,7 +112,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         did: Option<DefId>,
-        fn_sig: &PolySig,
+        fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
@@ -118,16 +120,25 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
         // mutable references.
-        let actuals = iter::zip(actuals, fn_sig.fn_sig.as_ref().skip_binders().args())
-            .map(|(actual, formal)| {
-                if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+        let actuals = iter::zip(
+            actuals,
+            fn_sig
+                .as_ref()
+                .skip_binder()
+                .fn_sig
+                .as_ref()
+                .skip_binder()
+                .args(),
+        )
+        .map(|(actual, formal)| {
+            if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
                     actual.clone()
                 }
-            })
-            .collect_vec();
+        })
+        .collect_vec();
 
         let genv = self.genv;
 
@@ -142,12 +153,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let inst_fn_sig = fn_sig
-            .replace_generics(&substs)
+            .subst_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
         // Check closure obligations
-        let closure_obligs =
-            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { vec![] };
+        let closure_obligs = if let Some(did) = did {
+            mk_obligations(genv, did, &substs)?
+        } else {
+            List::from(vec![])
+        };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -223,7 +237,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub(crate) fn check_constructor(
         &mut self,
         rcx: &mut RefineCtxt,
-        variant: &PolyVariant,
+        variant: EarlyBinder<PolyVariant>,
         substs: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty, UnsolvedEvar> {
@@ -239,7 +253,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
-            .replace_generics(&substs)
+            .subst_generics(&substs)
             .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
@@ -539,7 +553,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
-        if let ExprKind::EVar(evar) = e2.kind()
+        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
            && let scope = &self.scopes[&evar.cx()]
            && !scope.has_free_vars(e1)
         {
@@ -553,8 +567,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 }
 
 impl Obligations {
-    fn new(obligations: Vec<rty::Predicate>, snapshot: Snapshot) -> Self {
-        Self { predicates: obligations, snapshot }
+    fn new(predicates: List<rty::Predicate>, snapshot: Snapshot) -> Self {
+        Self { predicates, snapshot }
     }
 }
 
@@ -562,13 +576,8 @@ fn mk_obligations(
     genv: &GlobalEnv<'_, '_>,
     did: DefId,
     substs: &[GenericArg],
-) -> Result<Vec<rty::Predicate>, CheckerErrKind> {
-    Ok(genv
-        .predicates_of(did)?
-        .predicates
-        .iter()
-        .map(|predicate| predicate.replace_generics(substs))
-        .collect())
+) -> Result<List<rty::Predicate>, CheckerErrKind> {
+    Ok(genv.predicates_of(did)?.predicates().subst_generics(substs))
 }
 
 impl<F> KVarGen for F

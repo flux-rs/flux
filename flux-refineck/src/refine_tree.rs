@@ -428,7 +428,7 @@ impl Node {
             child.borrow_mut().simplify();
         }
 
-        match &self.kind {
+        match &mut self.kind {
             NodeKind::Head(pred, tag) => {
                 let pred = pred.simplify();
                 if pred.is_trivially_true() {
@@ -439,6 +439,7 @@ impl Node {
             }
             NodeKind::True => {}
             NodeKind::Guard(pred) => {
+                *pred = pred.simplify();
                 self.children.drain_filter(|child| {
                     matches!(child.borrow().kind, NodeKind::True)
                         || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
