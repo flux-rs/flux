@@ -12,7 +12,7 @@ use std::{borrow::Borrow, iter};
 use flux_common::{bug, span_bug};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, SurfaceIdent},
+    fhir::{self, FhirId, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -419,7 +419,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
         };
-        (self.coerce_index(expr, self.node_sort(arg.node_id())), is_binder)
+        (self.coerce_index(expr, self.node_sort(arg.fhir_id())), is_binder)
     }
 
     fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
@@ -528,14 +528,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         self.genv.early_cx()
     }
 
-    fn expect_func(&self, node_id: fhir::NodeId) -> fhir::FuncSort {
+    fn expect_func(&self, fhir_id: FhirId) -> fhir::FuncSort {
         self.early_cx()
-            .is_coercible_to_func(self.node_sort(node_id))
+            .is_coercible_to_func(self.node_sort(fhir_id))
             .unwrap()
     }
 
-    fn node_sort(&self, node_id: fhir::NodeId) -> &fhir::Sort {
-        &self.wfckresults.node_sorts()[&node_id]
+    fn node_sort(&self, fhir_id: FhirId) -> &fhir::Sort {
+        &self.wfckresults.expr_sorts()[&fhir_id]
     }
 }
 

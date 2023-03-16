@@ -235,7 +235,7 @@ pub enum WeakKind {
 
 #[derive(Default)]
 pub struct WfckResults {
-    node_sorts: FxHashMap<NodeId, Sort>,
+    node_sorts: FxHashMap<FhirId, Sort>,
 }
 
 impl From<BaseTy> for Ty {
@@ -254,15 +254,23 @@ impl From<RefKind> for WeakKind {
     }
 }
 
+/// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
+/// `local_id`. We don't generate ids for all nodes, but only for those we need to remember
+/// information elaborated during well-formedness checking to later be used during conversion into
+/// [`rty`].
+///
+/// [`rty`]: crate::rty
+/// [`HirId`]: rustc_hir::HirId
+#[derive(Hash, PartialEq, Eq, Copy, Clone)]
+pub struct FhirId {
+    /// FIXME(nilehmann) make this an `OwnerId` as in hir
+    pub owner: LocalDefId,
+    pub local_id: ItemLocalId,
+}
+
 newtype_index! {
-    /// A unique identifier for a node in the AST. They are suppose to be unique per definition
-    /// (i.e. a function, struct, etc.) but not across them. We don't generate ids for all nodes,
-    /// but only for those we need to remember information elaborated during well-formedness
-    /// checking to later be used during conversion into [`rty`].
-    ///
-    /// [`rty`]: crate::rty
-    #[debug_format = "NodeId({})"]
-    pub struct NodeId { }
+    /// An `ItemLocalId` uniquely identifies something within a given "item-like".
+    pub struct ItemLocalId {}
 }
 
 pub enum RefineArg {
@@ -271,10 +279,10 @@ pub enum RefineArg {
         /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
         /// inferring parameters at function calls.
         is_binder: bool,
-        node_id: NodeId,
+        fhir_id: FhirId,
     },
-    Abs(Vec<(Ident, Sort)>, Expr, Span, NodeId),
-    Aggregate(DefId, Vec<RefineArg>, Span, NodeId),
+    Abs(Vec<(Ident, Sort)>, Expr, Span, FhirId),
+    Aggregate(DefId, Vec<RefineArg>, Span, FhirId),
 }
 
 pub struct BaseTy {
@@ -400,9 +408,9 @@ newtype_index! {
 }
 
 impl RefineArg {
-    pub fn node_id(&self) -> NodeId {
+    pub fn fhir_id(&self) -> FhirId {
         match self {
-            RefineArg::Expr { node_id, .. }
+            RefineArg::Expr { fhir_id: node_id, .. }
             | RefineArg::Abs(.., node_id)
             | RefineArg::Aggregate(.., node_id) => *node_id,
         }
@@ -790,11 +798,11 @@ impl WfckResults {
         Self { node_sorts: FxHashMap::default() }
     }
 
-    pub fn node_sorts_mut(&mut self) -> &mut FxHashMap<NodeId, Sort> {
+    pub fn expr_sorts_mut(&mut self) -> &mut FxHashMap<FhirId, Sort> {
         &mut self.node_sorts
     }
 
-    pub fn node_sorts(&self) -> &FxHashMap<NodeId, Sort> {
+    pub fn expr_sorts(&self) -> &FxHashMap<FhirId, Sort> {
         &self.node_sorts
     }
 }

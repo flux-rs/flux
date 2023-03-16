@@ -367,8 +367,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         self.wfckresults
-            .node_sorts_mut()
-            .insert(arg.node_id(), expected.clone());
+            .expr_sorts_mut()
+            .insert(arg.fhir_id(), expected.clone());
 
         match arg {
             fhir::RefineArg::Expr { expr, .. } => {

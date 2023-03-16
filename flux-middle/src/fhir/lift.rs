@@ -1,4 +1,6 @@
-///! "Lift" HIR types into  FHIR types.
+//! "Lift" HIR types into  FHIR types.
+//!
+use fhir::FhirId;
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use hir::{def::DefKind, def_id::DefId};
@@ -13,7 +15,7 @@ use crate::{early_ctxt::EarlyCtxt, fhir};
 struct LiftCtxt<'a, 'sess, 'tcx> {
     early_cx: &'a EarlyCtxt<'sess, 'tcx>,
     def_id: LocalDefId,
-    node_id_gen: IndexGen<fhir::NodeId>,
+    local_id_gen: IndexGen<fhir::ItemLocalId>,
 }
 
 pub fn lift_generics(
@@ -140,7 +142,7 @@ pub fn lift_enum_variant_def(
     };
     let ret = fhir::VariantRet {
         bty: fhir::BaseTy::from(path),
-        idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span, cx.next_node_id()),
+        idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span, cx.next_fhir_id()),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
 }
@@ -181,11 +183,11 @@ pub fn lift_fn_sig(
 
 impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'sess, 'tcx>, def_id: LocalDefId) -> Self {
-        Self { early_cx, def_id, node_id_gen: IndexGen::new() }
+        Self { early_cx, def_id, local_id_gen: IndexGen::new() }
     }
 
-    fn next_node_id(&self) -> fhir::NodeId {
-        self.node_id_gen.fresh()
+    fn next_fhir_id(&self) -> FhirId {
+        FhirId { owner: self.def_id, local_id: self.local_id_gen.fresh() }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
