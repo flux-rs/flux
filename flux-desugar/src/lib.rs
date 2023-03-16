@@ -52,7 +52,7 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, def_id)?;
     let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
-    desugar::desugar_fn_sig(early_cx, &fn_sig)
+    desugar::desugar_fn_sig(early_cx, def_id, &fn_sig)
 }
 
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
