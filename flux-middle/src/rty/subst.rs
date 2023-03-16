@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use flux_common::bug;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -9,7 +11,7 @@ use crate::rty::*;
 
 /// A substitution for [free variables]
 ///
-/// [free variables]: `crate::rty::ExprKind::FreeVar`
+/// [free variables]: `crate::rty::Var::Free`
 #[derive(Debug)]
 pub struct FVarSubst {
     fvar_map: FxHashMap<Name, Expr>,
@@ -85,9 +87,9 @@ impl TypeFolder for FVarSubstFolder<'_> {
     }
 }
 
-/// Substitution for [bound variables]
+/// Substitution for [late bound variables]
 ///
-/// [bound variables]: `crate::rty::ExprKind::BoundVar`
+/// [late bound variables]: `crate::rty::Var::LateBound`
 pub(super) struct BVarSubstFolder<'a> {
     current_index: DebruijnIndex,
     expr: &'a Expr,
@@ -100,7 +102,7 @@ impl<'a> BVarSubstFolder<'a> {
 }
 
 impl TypeFolder for BVarSubstFolder<'_> {
-    fn fold_binders<T>(&mut self, t: &Binder<T>) -> Binder<T>
+    fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
     where
         T: TypeFoldable,
     {
@@ -111,8 +113,12 @@ impl TypeFolder for BVarSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::LateBound(debruijn)) = e.kind() && *debruijn == self.current_index {
-            self.expr.shift_in_bvars(self.current_index.as_u32())
+        if let ExprKind::Var(Var::LateBound(debruijn)) = e.kind() {
+            match debruijn.cmp(&self.current_index) {
+                Ordering::Less => Expr::late_bvar(*debruijn),
+                Ordering::Equal => self.expr.shift_in_bvars(self.current_index.as_u32()),
+                Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1)),
+            }
         } else {
             e.super_fold_with(self)
         }
@@ -121,7 +127,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
 
 /// Substitution for [existential variables]
 ///
-/// [existential variables]: `crate::rty::ExprKind::EVar`
+/// [existential variables]: `crate::rty::Var::EVar`
 pub(super) struct EVarSubstFolder<'a> {
     evars: &'a EVarSol,
 }
@@ -144,17 +150,25 @@ impl TypeFolder for EVarSubstFolder<'_> {
 
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
+    current_index: DebruijnIndex,
     generics: &'a [GenericArg],
     refine: &'a [Expr],
 }
 
 impl<'a> GenericsSubstFolder<'a> {
     pub(super) fn new(generics: &'a [GenericArg], refine: &'a [Expr]) -> Self {
-        Self { generics, refine }
+        Self { current_index: INNERMOST, generics, refine }
     }
 }
 
 impl TypeFolder for GenericsSubstFolder<'_> {
+    fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+        self.current_index.shift_in(1);
+        let r = t.super_fold_with(self);
+        self.current_index.shift_out(1);
+        r
+    }
+
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
         if let Sort::Param(param_ty) = sort {
             self.sort_for_param(*param_ty)
@@ -209,6 +223,6 @@ impl GenericsSubstFolder<'_> {
     }
 
     fn expr_for_param(&self, idx: u32) -> Expr {
-        self.refine[idx as usize].clone()
+        self.refine[idx as usize].shift_in_bvars(self.current_index.as_u32())
     }
 }

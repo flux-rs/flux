@@ -457,12 +457,18 @@ where
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T {
+    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T
+    where
+        T: std::fmt::Debug,
+    {
         self.0
             .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
     }
 
-    pub fn subst_generics(self, generics: &[GenericArg]) -> T {
+    pub fn subst_generics(self, generics: &[GenericArg]) -> T
+    where
+        T: std::fmt::Debug,
+    {
         self.subst(generics, &[])
     }
 

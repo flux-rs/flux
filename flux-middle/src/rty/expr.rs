@@ -813,7 +813,7 @@ mod pretty {
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)
                 }
-                ExprKind::Func(func) => w!("{:?}", ^func),
+                ExprKind::Func(func) => w!("{}", ^func),
             }
         }
     }

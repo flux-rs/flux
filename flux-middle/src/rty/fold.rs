@@ -39,7 +39,7 @@ pub trait TypeVisitor: Sized {
 }
 
 pub trait TypeFolder: Sized {
-    fn fold_binders<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+    fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
         t.super_fold_with(self)
     }
 
@@ -106,7 +106,7 @@ pub trait TypeFoldable: Sized {
         where
             F: FnMut(&[Sort]) -> Expr,
         {
-            fn fold_binders<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
                 self.1.push(t.sort().clone());
                 let t = t.super_fold_with(self);
                 self.1.pop();
@@ -169,7 +169,7 @@ pub trait TypeFoldable: Sized {
         }
 
         impl TypeFolder for Shifter {
-            fn fold_binders<T>(&mut self, t: &Binder<T>) -> Binder<T>
+            fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
             where
                 T: TypeFoldable,
             {
@@ -311,7 +311,7 @@ where
     }
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_binders(self)
+        folder.fold_binder(self)
     }
 
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
