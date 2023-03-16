@@ -50,7 +50,7 @@ pub(crate) struct Specs {
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
-    pub extern_fns: FxHashMap<DefId, LocalDefId>,
+    pub externs: FxHashMap<DefId, LocalDefId>,
 }
 
 pub(crate) struct FnSpec {
@@ -192,7 +192,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-struct attrs
 
-        let opaque = attrs.opaque();
+        let mut opaque = attrs.opaque();
 
         let refined_by = attrs.refined_by();
 
@@ -203,6 +203,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
+
+        if attrs.extern_spec() {
+            // extern_spec dummy structs are always opaque because they contain
+            // one field: the external struct they are meant to represent.
+            opaque = true;
+            let extern_def_id = self.extract_extern_def_id_from_extern_spec_struct(def_id, data)?;
+            self.specs.externs.insert(extern_def_id, def_id);
+        }
 
         self.specs.structs.insert(
             owner_id,
@@ -286,7 +294,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 }));
             }
             let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
-            self.specs.extern_fns.insert(extern_def_id, owner_id.def_id);
+            self.specs.externs.insert(extern_def_id, owner_id.def_id);
             // We should never check an extern spec (it will infinitely recurse)
             trusted = true;
         }
@@ -391,14 +399,28 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
             && let ExprKind::Block(b, _) = e.kind
             && let Some(e) = b.expr
-            && let ExprKind::Call(callee, _) = e.kind
-            && let ExprKind::Path(ref qself) = callee.kind
+            && let ExprKind::Call(callee, _) = &e.kind
+            && let ExprKind::Path(qself) = &callee.kind
         {
                 let typeck_result = self.tcx.typeck(def_id);
                 if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
                 {
                     return Ok(def_id);
                 }
+        }
+        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+    }
+
+    fn extract_extern_def_id_from_extern_spec_struct(
+        &mut self,
+        def_id: LocalDefId,
+        data: &VariantData,
+    ) -> Result<DefId, ErrorGuaranteed> {
+        if let Some(extern_field) = data.fields().first() {
+            let ty = self.tcx.type_of(extern_field.def_id);
+            if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
+                return Ok(adt_def.did());
+            }
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
@@ -458,7 +480,7 @@ impl Specs {
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
             crate_config: None,
-            extern_fns: FxHashMap::default(),
+            externs: FxHashMap::default(),
         }
     }
 

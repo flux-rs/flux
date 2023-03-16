@@ -40,7 +40,10 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
     }
 
     pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
-        if let Some(local_id) = def_id.as_local() {
+        if let Some(local_id) = def_id
+            .as_local()
+            .or_else(|| self.map.externs().get(&def_id).copied())
+        {
             self.map.refined_by(local_id).index_sorts()
         } else {
             self.cstore
