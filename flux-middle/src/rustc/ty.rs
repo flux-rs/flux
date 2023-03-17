@@ -74,16 +74,8 @@ pub struct FnSig {
 pub type PolyFnSig = Binder<FnSig>;
 
 /// FIXME(nilehmann)
-/// [`AdtDef`] and [`VariantDef`] are inconsistent with the convention in the rest of this module
-/// because they do not correspond to a lowered version of the same struct in rustc.
-#[derive(Debug)]
-pub struct AdtDef {
-    pub variants: Vec<VariantDef>,
-}
-
-/// FIXME(nilehmann)
-/// [`AdtDef`] and [`VariantDef`] are inconsistent with the convention in the rest of this module
-/// because they do not correspond to a lowered version of the same struct in rustc.
+/// [`VariantDef`] is inconsistent with the convention in the rest of this module
+/// because it doesn't correspond to a lowered version of the same struct in rustc.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct VariantDef {
     pub def_id: DefId,

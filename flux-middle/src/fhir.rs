@@ -98,14 +98,20 @@ pub struct Map {
     fns: FxHashMap<LocalDefId, FnSig>,
     fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
     trusted: FxHashSet<LocalDefId>,
+    extern_fns: FxHashMap<DefId, LocalDefId>,
 }
 
 #[derive(Debug)]
 pub struct TyAlias {
     pub def_id: LocalDefId,
-    pub params: Vec<(Ident, Sort)>,
     pub ty: Ty,
     pub span: Span,
+    pub early_bound_params: Vec<(Ident, Sort)>,
+    pub index_params: Vec<(Ident, Sort)>,
+    /// Whether this alias was [lifted] from a `hir` alias
+    ///
+    /// [lifted]: lift::lift_type_alias
+    pub lifted: bool,
 }
 
 #[derive(Debug)]
@@ -118,8 +124,18 @@ pub struct StructDef {
 
 #[derive(Debug)]
 pub enum StructKind {
-    Transparent { fields: Vec<Ty> },
+    Transparent { fields: Vec<FieldDef> },
     Opaque,
+}
+
+#[derive(Debug)]
+pub struct FieldDef {
+    pub def_id: LocalDefId,
+    pub ty: Ty,
+    /// Whether this field was [lifted] from a `hir` field
+    ///
+    /// [lifted]: lift::lift_field_def
+    pub lifted: bool,
 }
 
 #[derive(Debug)]
@@ -136,6 +152,11 @@ pub struct VariantDef {
     pub params: Vec<FunRefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
+    pub span: Span,
+    /// Whether this variant was [lifted] from a hir variant
+    ///
+    /// [lifted]: lift::lift_enum_variant_def
+    pub lifted: bool,
 }
 
 #[derive(Debug)]
@@ -152,6 +173,11 @@ pub struct FnSig {
     /// example: vec![(x: StrRef(l))]
     pub args: Vec<Ty>,
     pub output: FnOutput,
+    /// Whether the sig was [lifted] from a hir signature
+    ///
+    /// [lifted]: lift::lift_fn_sig
+    pub lifted: bool,
+    pub span: Span,
 }
 
 pub struct FnOutput {
@@ -191,6 +217,7 @@ pub enum TyKind {
 
 pub struct ArrayLen {
     pub val: usize,
+    pub span: Span,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encodable, Decodable)]
@@ -204,6 +231,11 @@ pub enum WeakKind {
     Shr,
     Mut,
     Arr,
+}
+
+#[derive(Default)]
+pub struct WfckResults {
+    node_sorts: FxHashMap<FhirId, Sort>,
 }
 
 impl From<BaseTy> for Ty {
@@ -222,15 +254,35 @@ impl From<RefKind> for WeakKind {
     }
 }
 
+/// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
+/// `local_id`. We don't generate ids for all nodes, but only for those we need to remember
+/// information elaborated during well-formedness checking to later be used during conversion into
+/// [`rty`].
+///
+/// [`rty`]: crate::rty
+/// [`HirId`]: rustc_hir::HirId
+#[derive(Hash, PartialEq, Eq, Copy, Clone)]
+pub struct FhirId {
+    /// FIXME(nilehmann) make this an `OwnerId` as in hir
+    pub owner: LocalDefId,
+    pub local_id: ItemLocalId,
+}
+
+newtype_index! {
+    /// An `ItemLocalId` uniquely identifies something within a given "item-like".
+    pub struct ItemLocalId {}
+}
+
 pub enum RefineArg {
     Expr {
         expr: Expr,
         /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
         /// inferring parameters at function calls.
         is_binder: bool,
+        fhir_id: FhirId,
     },
-    Abs(Vec<(Ident, Sort)>, Expr, Span),
-    Aggregate(DefId, Vec<RefineArg>, Span),
+    Abs(Vec<(Ident, Sort)>, Expr, Span, FhirId),
+    Aggregate(DefId, Vec<RefineArg>, Span, FhirId),
 }
 
 pub struct BaseTy {
@@ -255,7 +307,8 @@ pub struct Path {
 pub enum Res {
     PrimTy(PrimTy),
     Alias(DefId),
-    Adt(DefId),
+    Struct(DefId),
+    Enum(DefId),
     Param(DefId),
 }
 
@@ -354,6 +407,16 @@ newtype_index! {
     pub struct Name {}
 }
 
+impl RefineArg {
+    pub fn fhir_id(&self) -> FhirId {
+        match self {
+            RefineArg::Expr { fhir_id: node_id, .. }
+            | RefineArg::Abs(.., node_id)
+            | RefineArg::Aggregate(.., node_id) => *node_id,
+        }
+    }
+}
+
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
         matches!(self.kind, BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }))
@@ -361,7 +424,7 @@ impl BaseTy {
 
     pub fn is_aggregate(&self) -> Option<DefId> {
         if let BaseTyKind::Path(path) = &self.kind
-           && let Res::Adt(def_id) | Res::Alias(def_id) = path.res
+           && let Res::Struct(def_id) | Res::Enum(def_id) | Res::Alias(def_id) = path.res
         {
             Some(def_id)
         } else {
@@ -369,13 +432,25 @@ impl BaseTy {
         }
     }
 
-    pub(crate) fn expect_param(&self) -> DefId {
+    pub fn expect_param(&self) -> DefId {
         if let BaseTyKind::Path(path) = &self.kind
            && let Res::Param(def_id) = path.res
         {
             def_id
         } else {
             panic!("expected param")
+        }
+    }
+}
+
+impl Res {
+    pub fn descr(&self) -> &'static str {
+        match self {
+            Res::PrimTy(_) => "builtin type",
+            Res::Alias(_) => "type alias",
+            Res::Struct(_) => "struct",
+            Res::Enum(_) => "enum",
+            Res::Param(_) => "type parameter",
         }
     }
 }
@@ -525,13 +600,25 @@ impl rustc_errors::IntoDiagnosticArg for Sort {
     }
 }
 
+impl rustc_errors::IntoDiagnosticArg for &Ty {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for &Path {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
+}
+
 impl Map {
     pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
         self.generics.insert(def_id, generics);
     }
 
-    pub fn generics_of(&self, def_id: LocalDefId) -> &Generics {
-        &self.generics[&def_id]
+    pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
+        self.generics.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -566,12 +653,24 @@ impl Map {
         self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
     }
 
+    pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
+        &self.fns[&def_id]
+    }
+
     pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
         self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
     }
 
     pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
         self.trusted.contains(&def_id)
+    }
+
+    pub fn insert_extern_fn(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
+        self.extern_fns.insert(extern_def_id, local_def_id);
+    }
+
+    pub fn extern_fns(&self) -> &FxHashMap<DefId, LocalDefId> {
+        &self.extern_fns
     }
 
     // ADT
@@ -682,9 +781,29 @@ impl Map {
     }
 }
 
+impl TyAlias {
+    pub fn all_params(&self) -> impl Iterator<Item = &(Ident, Sort)> {
+        self.early_bound_params.iter().chain(&self.index_params)
+    }
+}
+
 impl StructDef {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
+    }
+}
+
+impl WfckResults {
+    pub fn new() -> Self {
+        Self { node_sorts: FxHashMap::default() }
+    }
+
+    pub fn expr_sorts_mut(&mut self) -> &mut FxHashMap<FhirId, Sort> {
+        &mut self.node_sorts
+    }
+
+    pub fn expr_sorts(&self) -> &FxHashMap<FhirId, Sort> {
+        &self.node_sorts
     }
 }
 
@@ -765,59 +884,57 @@ impl fmt::Debug for ArrayLen {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Int(int_ty)), .. }) => {
-                write!(f, "{}", int_ty.name_str())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Uint(uint_ty)), .. }) => {
-                write!(f, "{}", uint_ty.name_str())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }) => write!(f, "bool"),
-            BaseTyKind::Path(Path { res: Res::Alias(def_id), generics, refine, .. }) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))?;
-                if !generics.is_empty() {
-                    write!(f, "<{:?}>", generics.iter().format(", "))?;
-                }
-                if !refine.is_empty() {
-                    write!(f, "({:?})", refine.iter().format(", "))?;
-                }
-                Ok(())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Float(float_ty)), .. }) => {
-                write!(f, "{}", float_ty.name_str())
-            }
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Str), .. }) => write!(f, "str"),
-            BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Char), .. }) => write!(f, "char"),
-            BaseTyKind::Path(Path { res: Res::Adt(did), generics, .. }) => {
-                write!(f, "{}", pretty::def_id_to_string(*did))?;
-                if !generics.is_empty() {
-                    write!(f, "<{:?}>", generics.iter().format(", "))?;
-                }
-                Ok(())
-            }
-            BaseTyKind::Path(Path { res: Res::Param(def_id), .. }) => {
-                write!(f, "{}", pretty::def_id_to_string(*def_id))
-            }
+            BaseTyKind::Path(path) => write!(f, "{path:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
         }
+    }
+}
+
+impl fmt::Debug for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.res {
+            Res::PrimTy(PrimTy::Int(int_ty)) => {
+                write!(f, "{}", int_ty.name_str())?;
+            }
+            Res::PrimTy(PrimTy::Uint(uint_ty)) => {
+                write!(f, "{}", uint_ty.name_str())?;
+            }
+            Res::PrimTy(PrimTy::Float(float_ty)) => {
+                write!(f, "{}", float_ty.name_str())?;
+            }
+            Res::PrimTy(PrimTy::Bool) => write!(f, "bool")?,
+            Res::PrimTy(PrimTy::Str) => write!(f, "str")?,
+            Res::PrimTy(PrimTy::Char) => write!(f, "char")?,
+            Res::Alias(def_id) | Res::Struct(def_id) | Res::Enum(def_id) | Res::Param(def_id) => {
+                write!(f, "{}", pretty::def_id_to_string(def_id))?;
+            }
+        }
+        if !self.generics.is_empty() {
+            write!(f, "<{:?}>", self.generics.iter().format(", "))?;
+        }
+        if !self.refine.is_empty() {
+            write!(f, "({:?})", self.refine.iter().format(", "))?;
+        }
+        Ok(())
     }
 }
 
 impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RefineArg::Expr { expr, is_binder } => {
+            RefineArg::Expr { expr, is_binder, .. } => {
                 if *is_binder {
                     write!(f, "@")?;
                 }
                 write!(f, "{expr:?}")
             }
-            RefineArg::Abs(params, body, _) => {
+            RefineArg::Abs(params, body, ..) => {
                 write!(f, "|{:?}| {body:?}", params.iter().format(","))
             }
-            RefineArg::Aggregate(def_id, flds, _) => {
+            RefineArg::Aggregate(def_id, flds, ..) => {
                 write!(
                     f,
-                    "[{}{{ {:?} }}]",
+                    "{} {{ {:?} }}",
                     pretty::def_id_to_string(*def_id),
                     flds.iter().format(", ")
                 )

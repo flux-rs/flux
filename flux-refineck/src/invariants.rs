@@ -1,11 +1,11 @@
 use flux_common::{cache::QueryCache, iter::IterExt};
-use flux_errors::ErrorGuaranteed;
+use flux_errors::{ErrorGuaranteed, ResultExt};
 use flux_middle::{fhir, global_env::GlobalEnv, rty};
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
     constraint_gen::{ConstrReason, Tag},
-    fixpoint::{FixpointCtxt, KVarStore},
+    fixpoint_encoding::{FixpointCtxt, KVarStore},
     refine_tree::RefineTree,
 };
 
@@ -39,7 +39,9 @@ fn check_invariant(
 
         let variant = genv
             .variant(adt_def.def_id(), variant_idx)
+            .emit(genv.sess)?
             .expect("cannot check opaque structs")
+            .subst_identity()
             .replace_bvar_with(|sort| rcx.define_vars(sort));
 
         for ty in variant.fields() {
@@ -54,8 +56,12 @@ fn check_invariant(
     }
     let mut fcx = FixpointCtxt::new(genv, adt_def.def_id(), KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    fcx.check(cache, constraint)
-        .map_err(|_| genv.sess.emit_err(errors::Invalid { span }))
+    let errors = fcx.check(cache, constraint).emit(genv.sess)?;
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(genv.sess.emit_err(errors::Invalid { span }))
+    }
 }
 
 mod errors {
@@ -63,7 +69,7 @@ mod errors {
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(invariants::invalid, code = "FLUX")]
+    #[diag(refineck_invalid_invariant, code = "FLUX")]
     pub struct Invalid {
         #[primary_span]
         pub span: Span,

@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use flux_common::bug;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -9,7 +11,7 @@ use crate::rty::*;
 
 /// A substitution for [free variables]
 ///
-/// [free variables]: `crate::rty::ExprKind::FreeVar`
+/// [free variables]: `crate::rty::Var::Free`
 #[derive(Debug)]
 pub struct FVarSubst {
     fvar_map: FxHashMap<Name, Expr>,
@@ -39,12 +41,12 @@ impl FVarSubst {
 
     fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
         match (e1.kind(), e2.kind()) {
-            (_, ExprKind::FreeVar(fvar)) if params.contains(fvar) => {
-                if let Some(old_e) = self.insert(*fvar, e1.clone()) {
+            (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
+                if let Some(old_e) = self.insert(*name, e1.clone()) {
                     if &old_e != e1 {
                         bug!(
                             "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *fvar,
+                            *name,
                             old_e,
                             e1
                         );
@@ -73,7 +75,7 @@ struct FVarSubstFolder<'a> {
 
 impl TypeFolder for FVarSubstFolder<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        if let ExprKind::FreeVar(name) = expr.kind() {
+        if let ExprKind::Var(Var::Free(name)) = expr.kind() {
             self.subst
                 .fvar_map
                 .get(name)
@@ -85,9 +87,9 @@ impl TypeFolder for FVarSubstFolder<'_> {
     }
 }
 
-/// Substitution for [bound variables]
+/// Substitution for [late bound variables]
 ///
-/// [bound variables]: `crate::rty::ExprKind::BoundVar`
+/// [late bound variables]: `crate::rty::Var::LateBound`
 pub(super) struct BVarSubstFolder<'a> {
     current_index: DebruijnIndex,
     expr: &'a Expr,
@@ -100,7 +102,7 @@ impl<'a> BVarSubstFolder<'a> {
 }
 
 impl TypeFolder for BVarSubstFolder<'_> {
-    fn fold_binders<T>(&mut self, t: &Binder<T>) -> Binder<T>
+    fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
     where
         T: TypeFoldable,
     {
@@ -111,8 +113,12 @@ impl TypeFolder for BVarSubstFolder<'_> {
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::BoundVar(debruijn) = e.kind() && *debruijn == self.current_index {
-            self.expr.shift_in_bvars(self.current_index.as_u32())
+        if let ExprKind::Var(Var::LateBound(debruijn)) = e.kind() {
+            match debruijn.cmp(&self.current_index) {
+                Ordering::Less => Expr::late_bvar(*debruijn),
+                Ordering::Equal => self.expr.shift_in_bvars(self.current_index.as_u32()),
+                Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1)),
+            }
         } else {
             e.super_fold_with(self)
         }
@@ -121,7 +127,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
 
 /// Substitution for [existential variables]
 ///
-/// [existential variables]: `crate::rty::ExprKind::EVar`
+/// [existential variables]: `crate::rty::Var::EVar`
 pub(super) struct EVarSubstFolder<'a> {
     evars: &'a EVarSol,
 }
@@ -134,7 +140,7 @@ impl<'a> EVarSubstFolder<'a> {
 
 impl TypeFolder for EVarSubstFolder<'_> {
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::EVar(evar) = e.kind() && let Some(sol) = self.evars.get(*evar) {
+        if let ExprKind::Var(Var::EVar(evar)) = e.kind() && let Some(sol) = self.evars.get(*evar) {
             sol.clone()
         } else {
             e.super_fold_with(self)
@@ -142,14 +148,27 @@ impl TypeFolder for EVarSubstFolder<'_> {
     }
 }
 
-/// Substitution for generics (type, lifetimes and const generics). Only substitution for types
-/// is implemented. Higher-ranked types are not supported yet, i.e., we only support early bound
-/// parameters.
+/// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
-    pub(super) substs: &'a [GenericArg],
+    current_index: DebruijnIndex,
+    generics: &'a [GenericArg],
+    refine: &'a [Expr],
+}
+
+impl<'a> GenericsSubstFolder<'a> {
+    pub(super) fn new(generics: &'a [GenericArg], refine: &'a [Expr]) -> Self {
+        Self { current_index: INNERMOST, generics, refine }
+    }
 }
 
 impl TypeFolder for GenericsSubstFolder<'_> {
+    fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+        self.current_index.shift_in(1);
+        let r = t.super_fold_with(self);
+        self.current_index.shift_out(1);
+        r
+    }
+
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
         if let Sort::Param(param_ty) = sort {
             self.sort_for_param(*param_ty)
@@ -165,27 +184,19 @@ impl TypeFolder for GenericsSubstFolder<'_> {
             _ => ty.super_fold_with(self),
         }
     }
+
+    fn fold_expr(&mut self, expr: &Expr) -> Expr {
+        if let ExprKind::Var(Var::EarlyBound(idx)) = expr.kind() {
+            self.expr_for_param(*idx)
+        } else {
+            expr.super_fold_with(self)
+        }
+    }
 }
 
 impl GenericsSubstFolder<'_> {
-    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
-        match self.substs.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
-        }
-    }
-
-    fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
-        match self.substs.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
-            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
-        }
-    }
-
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
-        match self.substs.get(param_ty.index as usize) {
+        match self.generics.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => arg.sort().clone(),
             Some(GenericArg::Ty(arg)) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
@@ -193,5 +204,25 @@ impl GenericsSubstFolder<'_> {
             Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
             None => bug!("type parameter out of range {param_ty:?}"),
         }
+    }
+
+    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
+        match self.generics.get(param_ty.index as usize) {
+            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
+        match self.generics.get(param_ty.index as usize) {
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
+            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn expr_for_param(&self, idx: u32) -> Expr {
+        self.refine[idx as usize].shift_in_bvars(self.current_index.as_u32())
     }
 }

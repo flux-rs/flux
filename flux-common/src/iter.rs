@@ -6,6 +6,13 @@ use std::{
 use rustc_errors::ErrorGuaranteed;
 
 pub trait IterExt: Iterator {
+    fn try_collect_vec<T, E>(self) -> Result<Vec<T>, E>
+    where
+        Self: Sized + Iterator<Item = Result<T, E>>,
+    {
+        self.collect()
+    }
+
     fn try_collect_exhaust<T, V>(self) -> Result<V, ErrorGuaranteed>
     where
         V: FromIterator<T>,

@@ -1,13 +1,6 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-// ensures clause on non-strong reference
-#[flux::sig(fn(x:&mut i32[@n]) ensures x: i32[n+1])] //~ ERROR cannot resolve
-pub fn test00(x: &mut i32) {
-    *x += 1;
-    return;
-}
-
 // structurally equal but different types
 #[flux::sig(fn(x: i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn test01(x: bool) -> i32 {
@@ -37,11 +30,11 @@ pub fn test04(x: i32) -> i32 {
 pub fn test05(x: &i32) {}
 
 // expected a return type
-#[flux::sig(fn(x:i32) -> i32)] //~ ERROR return type mismatch
+#[flux::sig(fn(x:i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn test06(x: i32) {}
 
 // missing return type
-#[flux::sig(fn())] //~ ERROR missing return type
+#[flux::sig(fn())] //~ ERROR invalid refinement annotation
 fn test07() -> i32 {
     0
 }
@@ -55,9 +48,21 @@ fn test08(f: &mut f32) {}
 fn test09(f: f32) {}
 
 // strong reference for a non &mut T
-#[flux::sig(fn(x: &strg i32))] //~ ERROR invalid refinement annotation
+#[flux::sig(fn(x: &strg i32) ensures x: i32)] //~ ERROR invalid refinement annotation
 fn test10(x: &i32) {}
 
 // constrained type for a non path
 #[flux::sig(fn(x: i32{x > 0}))] //~ ERROR invalid refinement annotation
 fn test11(x: &mut i32) {}
+
+// tuples differ in length
+#[flux::sig(fn(x: (i32, i32, i32)))] //~ ERROR invalid refinement annotation
+fn test12(x: (i32, i32)) {}
+
+// base type differ
+#[flux::sig(fn(x: &[i32]))] //~ ERROR invalid refinement annotation
+fn test13(x: &i32) {}
+
+// TODO(nilehmann) uncomment when we support raw pointer in the surface syntax
+// #[flux::sig(fn(x: *mut i32))]
+// fn test14(x: *mut i32) {}

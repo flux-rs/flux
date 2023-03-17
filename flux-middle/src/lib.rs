@@ -1,3 +1,4 @@
+#![warn(unused_extern_crates)]
 #![feature(rustc_private, once_cell, if_let_guard, min_specialization, box_patterns, let_chains)]
 
 //! This crate contains common type definitions that are used by other crates.
@@ -26,5 +27,11 @@ pub mod fhir;
 pub mod global_env;
 pub mod intern;
 pub mod pretty;
+pub mod queries;
 pub mod rty;
 pub mod rustc;
+
+use flux_macros::fluent_messages;
+use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
+
+fluent_messages! { "../locales/en-US.ftl" }

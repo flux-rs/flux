@@ -1,4 +1,5 @@
-#![allow(warnings)]
+#![deny(unused_must_use)]
+#![allow(clippy::all, clippy::pedantic)]
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -31,7 +32,7 @@ impl SubdiagnosticDeriveBuilder {
         Self { diag, f }
     }
 
-    pub(crate) fn into_tokens<'a>(self, mut structure: Structure<'a>) -> TokenStream {
+    pub(crate) fn into_tokens(self, mut structure: Structure<'_>) -> TokenStream {
         let implementation = {
             let ast = structure.ast();
             let span = ast.span().unwrap();
@@ -202,8 +203,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                 throw_span_err!(
                     attr.span().unwrap(),
                     &format!(
-                        "diagnostic slug must be first argument of a `#[{}(...)]` attribute",
-                        name
+                        "diagnostic slug must be first argument of a `#[{name}(...)]` attribute"
                     )
                 );
             };
@@ -252,11 +252,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     return quote! {};
                 }
 
-                let info = FieldInfo {
-                    binding,
-                    ty: inner_ty.inner_type().unwrap_or(&ast.ty),
-                    span: &ast.span(),
-                };
+                let info = FieldInfo { binding, ty: inner_ty, span: &ast.span() };
 
                 let generated = self
                     .generate_field_code_inner(kind_stats, attr, info, inner_ty.will_iterate())
@@ -319,6 +315,21 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     let binding = info.binding.binding.clone();
                     // FIXME(#100717): support `Option<Span>` on `primary_span` like in the
                     // diagnostic derive
+                    if !matches!(info.ty, FieldInnerTy::Plain(_)) {
+                        throw_invalid_attr!(attr, &Meta::Path(path), |diag| {
+                            let diag = diag.note("there must be exactly one primary span");
+
+                            if kind_stats.has_normal_suggestion {
+                                diag.help(
+                                    "to create a suggestion with multiple spans, \
+                                     use `#[multipart_suggestion]` instead",
+                                )
+                            } else {
+                                diag
+                            }
+                        });
+                    }
+
                     self.span_field.set_once(binding, span);
                 }
 
@@ -368,7 +379,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     span_attrs.push("suggestion_part");
                 }
                 if !kind_stats.all_multipart_suggestions {
-                    span_attrs.push("primary_span");
+                    span_attrs.push("primary_span")
                 }
 
                 invalid_attr(attr, &Meta::Path(path))
@@ -415,7 +426,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                 let mut code = None;
                 for nested_attr in list.nested.iter() {
                     let NestedMeta::Meta(ref meta) = nested_attr else {
-                        throw_invalid_nested_attr!(attr, &nested_attr);
+                        throw_invalid_nested_attr!(attr, nested_attr);
                     };
 
                     let span = meta.span().unwrap();
@@ -434,7 +445,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                             code.set_once((code_field, formatting_init), span);
                         }
                         _ => {
-                            throw_invalid_nested_attr!(attr, &nested_attr, |diag| {
+                            throw_invalid_nested_attr!(attr, nested_attr, |diag| {
                                 diag.help("`code` is the only valid nested attribute")
                             })
                         }
@@ -463,7 +474,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                         span_attrs.push("suggestion_part");
                     }
                     if !kind_stats.all_multipart_suggestions {
-                        span_attrs.push("primary_span");
+                        span_attrs.push("primary_span")
                     }
                     diag.help(format!(
                         "only `{}`, `applicability` and `skip_arg` are valid field attributes",
@@ -512,7 +523,9 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
         let mut calls = TokenStream::new();
         for (kind, slug) in kind_slugs {
             let message = format_ident!("__message");
-            calls.extend(quote! { let #message = #f(#diag, flux_errors::fluent::#slug.into()); });
+            calls.extend(
+                quote! { let #message = #f(#diag, crate::fluent_generated::#slug.into()); },
+            );
 
             let name = format_ident!("{}{}", if span_field.is_some() { "span_" } else { "" }, kind);
             let call = match kind {

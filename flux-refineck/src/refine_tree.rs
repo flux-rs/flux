@@ -16,7 +16,7 @@ use itertools::Itertools;
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint::{sort_to_fixpoint, FixpointCtxt, TagIdx},
+    fixpoint_encoding::{sort_to_fixpoint, FixpointCtxt, TagIdx},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -75,7 +75,7 @@ pub(crate) struct RefineCtxt<'a> {
 /// snapshot correponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
 /// if the underlying node is [`cleared`].
 ///
-/// [`cleared`]: RefineSubtree::clear
+/// [`cleared`]: RefineSubtree::clear_children
 /// [refinement tree]: RefineTree
 pub(crate) struct Snapshot {
     ptr: WeakNodePtr,
@@ -428,7 +428,7 @@ impl Node {
             child.borrow_mut().simplify();
         }
 
-        match &self.kind {
+        match &mut self.kind {
             NodeKind::Head(pred, tag) => {
                 let pred = pred.simplify();
                 if pred.is_trivially_true() {
@@ -439,6 +439,7 @@ impl Node {
             }
             NodeKind::True => {}
             NodeKind::Guard(pred) => {
+                *pred = pred.simplify();
                 self.children.drain_filter(|child| {
                     matches!(child.borrow().kind, NodeKind::True)
                         || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)

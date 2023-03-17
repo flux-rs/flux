@@ -1,3 +1,4 @@
+///! Encoding of the refinement tree into a fixpoint constraint.
 use std::iter;
 
 use fixpoint::FixpointResult;
@@ -12,6 +13,7 @@ use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, Constant},
 };
 use itertools::{self, Itertools};
@@ -149,10 +151,10 @@ where
         self,
         cache: &mut QueryCache,
         constraint: fixpoint::Constraint<TagIdx>,
-    ) -> Result<(), Vec<Tag>> {
+    ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
-            return Ok(());
+            return Ok(vec![]);
         }
         let span = self.def_span();
 
@@ -173,7 +175,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(self.def_id)
+            .qualifiers(self.def_id)?
             .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
             .collect();
 
@@ -211,9 +213,9 @@ where
         let task_key = self.genv.tcx.def_path_str(self.def_id);
 
         match task.check_with_cache(task_key, cache) {
-            Ok(FixpointResult::Safe(_)) => Ok(()),
+            Ok(FixpointResult::Safe(_)) => Ok(vec![]),
             Ok(FixpointResult::Unsafe(_, errors)) => {
-                Err(errors
+                Ok(errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
@@ -339,13 +341,13 @@ where
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Name {
         match arg.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 *self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.def_span(), "no entry found for key: `{name:?}`")
                 })
             }
-            rty::ExprKind::BoundVar(_) => {
-                span_bug!(self.def_span(), "unexpected escaping variable")
+            rty::ExprKind::Var(_) => {
+                span_bug!(self.def_span(), "unexpected variable")
             }
             _ => {
                 let fresh = self.fresh_name();
@@ -454,7 +456,7 @@ impl KVarStore {
         }
         let args = itertools::chain(
             bound.iter().rev().enumerate().map(|(level, sort)| {
-                (rty::Var::Bound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+                (rty::Var::LateBound(rty::DebruijnIndex::new(level as u32)), sort.clone())
             }),
             scope
                 .into_iter()
@@ -523,7 +525,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
         match expr.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in name_map for name: `{name:?}`")
                 });
@@ -565,11 +567,10 @@ impl<'a> ExprCtxt<'a> {
                     self.expr_to_fixpoint(e2),
                 ]))
             }
-            rty::ExprKind::EVar(_)
+            rty::ExprKind::Var(_)
             | rty::ExprKind::Hole
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
-            | rty::ExprKind::BoundVar(_)
             | rty::ExprKind::Abs(_)
             | rty::ExprKind::Func(_)
             | rty::ExprKind::PathProj(..) => {
@@ -602,7 +603,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
         match func.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no name found for key: `{name:?}`")
                 });
