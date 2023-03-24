@@ -84,6 +84,7 @@ pub enum Sort {
     Int,
     Bool,
     Real,
+    BitVec(usize),
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
@@ -1064,6 +1065,7 @@ mod pretty {
                 Sort::Bool => w!("bool"),
                 Sort::Int => w!("int"),
                 Sort::Real => w!("real"),
+                Sort::BitVec(w) => w!("bitvec({})", ^w),
                 Sort::Loc => w!("loc"),
                 Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {

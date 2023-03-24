@@ -22,6 +22,7 @@ pub enum Sort {
     Bool,
     Real,
     Unit,
+    BitVec(usize),
     Pair(Box<Sort>, Box<Sort>),
     Func(FuncSort),
 }
@@ -271,6 +272,7 @@ impl fmt::Display for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
             Sort::Unit => write!(f, "Unit"),
+            Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
         }

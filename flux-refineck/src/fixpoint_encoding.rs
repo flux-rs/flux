@@ -485,6 +485,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Int => fixpoint::Sort::Int,
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
+        rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,

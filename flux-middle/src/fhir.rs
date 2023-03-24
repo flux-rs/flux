@@ -339,6 +339,7 @@ pub enum Sort {
     Real,
     Loc,
     Unit,
+    BitVec(usize),
     Func(FuncSort),
     /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of an aggregate sort can be projected using dot notation to extract their fields.
@@ -1006,6 +1007,7 @@ impl fmt::Display for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
             Sort::Real => write!(f, "real"),
+            Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),

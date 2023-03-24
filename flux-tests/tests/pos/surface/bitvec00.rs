@@ -3,11 +3,11 @@
 #![feature(custom_inner_attributes)]
 #![flux::defs(
       fn pow2(x:int) -> bool { pow2bv(int2bv(x)) }
-      fn pow2bv(x:bitvec32) -> bool { bv_and(x, bv_sub(x, int_to_bv32(1))) == int_to_bv32(0) }
+      fn pow2bv(x:bitvec<32>) -> bool { bv_and(x, bv_sub(x, int_to_bv32(1))) == int_to_bv32(0) }
   )]
 
 // Define a new type to wrap `usize` but indexed by actual bitvec
-#[flux::refined_by(value: bitvec32)]
+#[flux::refined_by(value: bitvec<32>)]
 struct UsizeBv {
     inner: usize,
 }

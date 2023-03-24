@@ -43,7 +43,7 @@ pub fn desugar_defn(
     Ok(fhir::Defn { name, args, sort, expr })
 }
 
-fn sort_ident(sort: &surface::Sort) -> Result<surface::Ident, ErrorGuaranteed> {
+fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed> {
     match sort {
         surface::Sort::Base(x) => Ok(*x),
         surface::Sort::Func { .. } => panic!("Unexpected func-sort!"),
@@ -55,12 +55,12 @@ pub fn resolve_defn_uif(
     early_cx: &EarlyCtxt,
     defn: &surface::Defn,
 ) -> Result<fhir::UifDef, ErrorGuaranteed> {
-    let inputs: Vec<surface::Ident> = defn
+    let inputs: Vec<surface::BaseSort> = defn
         .args
         .iter()
-        .map(|arg| sort_ident(&arg.sort))
+        .map(|arg| sort_base(&arg.sort))
         .try_collect_exhaust()?;
-    let output: surface::Ident = sort_ident(&defn.sort)?;
+    let output = sort_base(&defn.sort)?;
     let sort = resolve_func_sort(early_cx, &inputs[..], &output)?;
     Ok(fhir::UifDef { name: defn.name.name, sort })
 }
@@ -69,12 +69,12 @@ pub fn resolve_uif_def(
     early_cx: &EarlyCtxt,
     defn: surface::UifDef,
 ) -> Result<fhir::UifDef, ErrorGuaranteed> {
-    let inputs: Vec<surface::Ident> = defn
+    let inputs: Vec<surface::BaseSort> = defn
         .args
         .iter()
-        .map(|arg| sort_ident(&arg.sort))
+        .map(|arg| sort_base(&arg.sort))
         .try_collect_exhaust()?;
-    let output: surface::Ident = sort_ident(&defn.sort)?;
+    let output = sort_base(&defn.sort)?;
     let sort = resolve_func_sort(early_cx, &inputs[..], &output)?;
     Ok(fhir::UifDef { name: defn.name.name, sort })
 }
@@ -720,8 +720,8 @@ fn resolve_sort(early_cx: &EarlyCtxt, sort: &surface::Sort) -> Result<fhir::Sort
 
 fn resolve_func_sort(
     early_cx: &EarlyCtxt,
-    inputs: &[surface::Ident],
-    output: &surface::Ident,
+    inputs: &[surface::BaseSort],
+    output: &surface::BaseSort,
 ) -> Result<fhir::FuncSort, ErrorGuaranteed> {
     let mut inputs_and_output: Vec<fhir::Sort> = inputs
         .iter()
@@ -733,18 +733,28 @@ fn resolve_func_sort(
 
 fn resolve_base_sort(
     early_cx: &EarlyCtxt,
-    sort: surface::Ident,
+    base: surface::BaseSort,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
-    if sort.name == SORTS.int {
+    match base {
+        surface::BaseSort::Ident(ident) => resolve_base_sort_ident(early_cx, ident),
+        surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(w)),
+    }
+}
+
+fn resolve_base_sort_ident(
+    early_cx: &EarlyCtxt,
+    ident: surface::Ident,
+) -> Result<fhir::Sort, ErrorGuaranteed> {
+    if ident.name == SORTS.int {
         Ok(fhir::Sort::Int)
-    } else if sort.name == sym::bool {
+    } else if ident.name == sym::bool {
         Ok(fhir::Sort::Bool)
-    } else if sort.name == SORTS.real {
+    } else if ident.name == SORTS.real {
         Ok(fhir::Sort::Real)
-    } else if early_cx.sort_decl(sort.name).is_some() {
-        Ok(fhir::Sort::User(sort.name))
+    } else if early_cx.sort_decl(ident.name).is_some() {
+        Ok(fhir::Sort::User(ident.name))
     } else {
-        Err(early_cx.emit_err(errors::UnresolvedSort::new(sort)))
+        Err(early_cx.emit_err(errors::UnresolvedSort::new(ident)))
     }
 }
 

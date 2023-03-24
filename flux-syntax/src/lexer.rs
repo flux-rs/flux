@@ -59,6 +59,7 @@ pub enum Token {
     Sort,
     Opaque,
     Local,
+    BitVec,
 }
 
 pub(crate) struct Cursor {
@@ -78,6 +79,7 @@ struct Symbols {
     sort: Symbol,
     opaque: Symbol,
     local: Symbol,
+    bitvec: Symbol,
 }
 
 struct Frame {
@@ -102,6 +104,7 @@ impl Cursor {
                 ensures: Symbol::intern("ensures"),
                 qualifier: Symbol::intern("qualifier"),
                 sort: Symbol::intern("sort"),
+                bitvec: Symbol::intern("bitvec"),
                 opaque: Symbol::intern("opaque"),
                 local: Symbol::intern("local"),
             },
@@ -143,6 +146,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == self.symbs.sort => Token::Sort,
             TokenKind::Ident(symb, _) if symb == self.symbs.opaque => Token::Opaque,
             TokenKind::Ident(symb, _) if symb == self.symbs.local => Token::Local,
+            TokenKind::Ident(symb, _) if symb == self.symbs.bitvec => Token::BitVec,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) if symb == kw::Type => Token::Type,

@@ -135,7 +135,8 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             | fhir::Sort::Bool
             | fhir::Sort::Real
             | fhir::Sort::Unit
-            | fhir::Sort::User(_) => true,
+            | fhir::Sort::User(_)
+            | fhir::Sort::BitVec(_) => true,
             fhir::Sort::Aggregate(def_id) => {
                 self.index_sorts_of(*def_id)
                     .iter()
