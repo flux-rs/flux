@@ -192,6 +192,7 @@ pub struct Defn {
 pub struct UifDef {
     pub name: Symbol,
     pub sort: FuncSort,
+    pub interp: bool,
 }
 
 #[derive(Debug)]

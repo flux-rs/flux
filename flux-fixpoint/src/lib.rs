@@ -29,11 +29,13 @@ use serde::{de, Deserialize};
 use crate::constraint::DEFAULT_QUALIFIERS;
 
 #[derive(Clone, Debug, Hash)]
-pub struct ConstInfo {
-    pub name: ConstName,
+pub struct FixConstInfo<T> {
+    pub name: T,
     pub orig: rustc_span::Symbol,
     pub sort: Sort,
 }
+
+pub type ConstInfo = FixConstInfo<Func>;
 
 pub struct Task<Tag> {
     pub comments: Vec<String>,
@@ -172,8 +174,24 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
+        // let fixconsts: Vec<FixConstInfo<ConstName>> = &self
+        //     .constants
+        //     .into_iter()
+        //     .filter_map(|cinfo| {
+        //         if let Func::Uif(name) = cinfo.name {
+        //             Some(FixConstInfo { name, sort: cinfo.sort, orig: cinfo.orig })
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect_vec();
+
         for cinfo in &self.constants {
-            writeln!(f, "{cinfo}")?;
+            if let Func::Uif(name) = cinfo.name {
+                let fixconst = FixConstInfo { name, sort: cinfo.sort.clone(), orig: cinfo.orig };
+                writeln!(f, "{fixconst}")?;
+                // writeln!(f, "(constant {:?} {:?}) // orig: {}", name, cinfo.sort, cinfo.orig);
+            }
         }
 
         for kvar in &self.kvars {
@@ -201,7 +219,7 @@ impl fmt::Display for KVar {
     }
 }
 
-impl fmt::Display for ConstInfo {
+impl fmt::Display for FixConstInfo<ConstName> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(constant {:?} {:?}) // orig: {}", self.name, self.sort, self.orig)
     }

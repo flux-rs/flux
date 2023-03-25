@@ -92,11 +92,10 @@ struct ExprCtxt<'a> {
 
 #[derive(Debug)]
 struct ConstInfo {
-    name: fixpoint::ConstName,
+    name: fixpoint::Func,
     sym: rustc_span::Symbol,
     sort: fixpoint::Sort,
     val: Option<Constant>,
-    interp: bool,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -169,8 +168,8 @@ where
 
         let mut closed_constraint = constraint;
         for const_info in self.const_map.values() {
-            if let Some(val) = const_info.val {
-                closed_constraint = Self::assume_const_val(closed_constraint, const_info.name, val);
+            if let Some(val) = const_info.val && let fixpoint::Func::Uif(const_name) = const_info.name {
+                closed_constraint = Self::assume_const_val(closed_constraint, const_name, val);
             }
         }
 
@@ -384,7 +383,7 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
-            let name = const_name_gen.fresh();
+            let name = flux_fixpoint::Func::Uif(const_name_gen.fresh());
             let cinfo = ConstInfo {
                 name,
                 sym: const_info.sym,
@@ -397,7 +396,11 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
         .uifs()
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
         .map(|uif_def| {
-            let name = const_name_gen.fresh();
+            let name = if uif_def.interp {
+                flux_fixpoint::Func::Itf(uif_def.name)
+            } else {
+                flux_fixpoint::Func::Uif(const_name_gen.fresh())
+            };
             let sort = func_sort_to_fixpoint(&uif_def.sort);
             let cinfo =
                 ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
@@ -555,7 +558,11 @@ impl<'a> ExprCtxt<'a> {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
                 });
-                fixpoint::Expr::ConstVar(const_info.name)
+                if let flux_fixpoint::Func::Uif(name) = const_info.name {
+                    fixpoint::Expr::ConstVar(name)
+                } else {
+                    span_bug!(self.dbg_span, "invalid name in const_map for def_id: `{did:?}`")
+                }
             }
             rty::ExprKind::App(func, arg) => {
                 let func = self.func_to_fixpoint(func);
@@ -615,7 +622,7 @@ impl<'a> ExprCtxt<'a> {
                 let cinfo = self.const_map.get(&Key::Uif(*name)).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
                 });
-                fixpoint::Func::Uif(cinfo.name)
+                cinfo.name.clone()
             }
             _ => {
                 span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")
