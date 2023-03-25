@@ -96,6 +96,7 @@ struct ConstInfo {
     sym: rustc_span::Symbol,
     sort: fixpoint::Sort,
     val: Option<Constant>,
+    interp: bool,
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
