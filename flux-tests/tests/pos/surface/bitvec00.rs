@@ -25,22 +25,25 @@ fn from_bv(bv: UsizeBv) -> usize {
     bv.inner
 }
 
-#[flux::trusted]
-#[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvand(x, y)])]
-fn bv_and(x: UsizeBv, y: UsizeBv) -> UsizeBv {
-    UsizeBv { inner: x.inner & y.inner }
+impl std::ops::Sub<UsizeBv> for UsizeBv {
+    type Output = UsizeBv;
+    #[flux::trusted]
+    #[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvsub(x,y)])]
+    fn sub(self, other: UsizeBv) -> UsizeBv {
+        UsizeBv { inner: self.inner - other.inner }
+    }
 }
 
-#[flux::trusted]
-#[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvsub(x, y)])]
-fn bv_sub(x: UsizeBv, y: UsizeBv) -> UsizeBv {
-    UsizeBv { inner: x.inner - y.inner }
+impl std::ops::BitAnd<UsizeBv> for UsizeBv {
+    type Output = UsizeBv;
+    #[flux::trusted]
+    #[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvand(x,y)])]
+    fn bitand(self, other: UsizeBv) -> UsizeBv {
+        UsizeBv { inner: self.inner & other.inner }
+    }
 }
 
 #[flux::sig(fn (index: usize, size:usize{1 <= size && pow2(size)}) -> usize{v: v < size})]
 pub fn wrap_index(index: usize, size: usize) -> usize {
-    // size is always a power of 2
-    // assert(is_power_of_two(size));
-    from_bv(bv_and(to_bv(index), bv_sub(to_bv(size), to_bv(1))))
-    // define `&` with precise semantics for BV sort.
+    from_bv(to_bv(index) & (to_bv(size) - to_bv(1)))
 }
