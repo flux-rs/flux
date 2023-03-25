@@ -86,7 +86,7 @@ pub struct SortDecl {
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
-    uifs: FxHashMap<Symbol, UifDef>,
+    uifs: FxHashMap<Symbol, FuncDef>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
@@ -503,9 +503,11 @@ pub struct RefinedBy {
 }
 
 #[derive(Debug)]
-pub struct UifDef {
+pub struct FuncDef {
     pub name: Symbol,
     pub sort: FuncSort,
+    // Is this an interpreted theory symbol
+    pub interp: bool,
 }
 
 #[derive(Debug)]
@@ -614,6 +616,12 @@ impl rustc_errors::IntoDiagnosticArg for &Path {
 }
 
 impl Map {
+    pub fn new() -> Self {
+        let mut me = Self::default();
+        me.insert_interpreted_funcs();
+        me
+    }
+
     pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
         self.generics.insert(def_id, generics);
     }
@@ -740,17 +748,38 @@ impl Map {
         self.consts.get(name.borrow())
     }
 
+    // Theory Symbols
+    fn insert_interp_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
+        let sort = FuncSort::new(inputs, output);
+        self.uifs.insert(name, FuncDef { name, sort, interp: true });
+    }
+
+    pub fn insert_interpreted_funcs(&mut self) {
+        self.insert_interp_func(Symbol::intern("int_to_bv32"), vec![Sort::Int], Sort::BitVec(32));
+        self.insert_interp_func(Symbol::intern("bv32_to_int"), vec![Sort::BitVec(32)], Sort::Int);
+        self.insert_interp_func(
+            Symbol::intern("bvsub"),
+            vec![Sort::BitVec(32), Sort::BitVec(32)],
+            Sort::BitVec(32),
+        );
+        self.insert_interp_func(
+            Symbol::intern("bvand"),
+            vec![Sort::BitVec(32), Sort::BitVec(32)],
+            Sort::BitVec(32),
+        );
+    }
+
     // UIF
 
-    pub fn insert_uif(&mut self, symb: Symbol, uif: UifDef) {
+    pub fn insert_uif(&mut self, symb: Symbol, uif: FuncDef) {
         self.uifs.insert(symb, uif);
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = &UifDef> {
+    pub fn uifs(&self) -> impl Iterator<Item = &FuncDef> {
         self.uifs.values()
     }
 
-    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&UifDef> {
+    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDef> {
         self.uifs.get(sym.borrow())
     }
 

@@ -84,7 +84,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
             return Ok(());
         }
 
-        let mut early_cx = EarlyCtxt::new(tcx, sess, Box::new(cstore), fhir::Map::default());
+        let mut early_cx = EarlyCtxt::new(tcx, sess, Box::new(cstore), fhir::Map::new());
         build_fhir_map(&mut early_cx, &mut specs)?;
 
         let mut genv = flux_fhir_analysis::build_genv(early_cx)?;

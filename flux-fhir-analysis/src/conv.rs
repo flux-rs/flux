@@ -802,7 +802,7 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::UifDef) -> rty::UifDef {
+pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::FuncDef) -> rty::UifDef {
     rty::UifDef { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort) }
 }
 

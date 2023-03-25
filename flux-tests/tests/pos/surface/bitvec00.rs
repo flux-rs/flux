@@ -2,8 +2,8 @@
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
 #![flux::defs(
-      fn pow2(x:int) -> bool { pow2bv(int2bv(x)) }
-      fn pow2bv(x:bitvec<32>) -> bool { bv_and(x, bv_sub(x, int_to_bv32(1))) == int_to_bv32(0) }
+      fn pow2(x:int) -> bool { pow2bv(int_to_bv32(x)) }
+      fn pow2bv(x:bitvec<32>) -> bool { bvand(x, bvsub(x, int_to_bv32(1))) == int_to_bv32(0) }
   )]
 
 // Define a new type to wrap `usize` but indexed by actual bitvec
@@ -25,6 +25,8 @@ fn from_bv(bv: UsizeBv) -> usize {
     bv.inner
 }
 
+#[flux::trusted]
+#[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvand(x, y)])]
 fn bv_and(x: UsizeBv, y: UsizeBv) -> UsizeBv {
     UsizeBv { inner: x.inner & y.inner }
 }
