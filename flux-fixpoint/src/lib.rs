@@ -174,23 +174,10 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
-        // let fixconsts: Vec<FixConstInfo<ConstName>> = &self
-        //     .constants
-        //     .into_iter()
-        //     .filter_map(|cinfo| {
-        //         if let Func::Uif(name) = cinfo.name {
-        //             Some(FixConstInfo { name, sort: cinfo.sort, orig: cinfo.orig })
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .collect_vec();
-
         for cinfo in &self.constants {
             if let Func::Uif(name) = cinfo.name {
                 let fixconst = FixConstInfo { name, sort: cinfo.sort.clone(), orig: cinfo.orig };
                 writeln!(f, "{fixconst}")?;
-                // writeln!(f, "(constant {:?} {:?}) // orig: {}", name, cinfo.sort, cinfo.orig);
             }
         }
 
