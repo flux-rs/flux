@@ -373,7 +373,7 @@ impl fmt::Display for Func {
         match self {
             Func::Var(name) => write!(f, "{name:?}"),
             Func::Uif(uif) => write!(f, "{uif:?}"),
-            Func::Itf(itf) => write!(f, "{itf:?}"),
+            Func::Itf(itf) => write!(f, "{itf}"),
         }
     }
 }

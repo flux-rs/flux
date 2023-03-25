@@ -31,10 +31,16 @@ fn bv_and(x: UsizeBv, y: UsizeBv) -> UsizeBv {
     UsizeBv { inner: x.inner & y.inner }
 }
 
+#[flux::trusted]
+#[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvsub(x, y)])]
+fn bv_sub(x: UsizeBv, y: UsizeBv) -> UsizeBv {
+    UsizeBv { inner: x.inner - y.inner }
+}
+
 #[flux::sig(fn (index: usize, size:usize{1 <= size && pow2(size)}) -> usize{v: v < size})]
 pub fn wrap_index(index: usize, size: usize) -> usize {
     // size is always a power of 2
     // assert(is_power_of_two(size));
-    from_bv(bv_and(to_bv(index), to_bv(size - 1)))
+    from_bv(bv_and(to_bv(index), bv_sub(to_bv(size), to_bv(1))))
     // define `&` with precise semantics for BV sort.
 }
