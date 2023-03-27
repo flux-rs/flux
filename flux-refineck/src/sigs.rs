@@ -79,18 +79,6 @@ macro_rules! s {
     };
 }
 
-fn int_max(bit_width: u64) -> E {
-    E::constant(flux_fixpoint::Constant::int_max(bit_width.try_into().unwrap()))
-}
-
-fn int_min(bit_width: u64) -> E {
-    E::constant(flux_fixpoint::Constant::int_min(bit_width.try_into().unwrap()))
-}
-
-fn uint_max(bit_width: u64) -> E {
-    E::constant(flux_fixpoint::Constant::uint_max(bit_width.try_into().unwrap()))
-}
-
 /// This set of signatures does not check for overflow. They check for underflow
 /// in subtraction.
 #[rustfmt::skip]
@@ -149,10 +137,10 @@ fn mk_unsigned_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig
             [
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b]
-                         requires E::le(a + b, uint_max(bit_width)) => ConstrReason::Overflow)
+                         requires E::le(a + b, E::uint_max(bit_width)) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b]
-                         requires E::le(a * b, uint_max(bit_width)) => ConstrReason::Overflow)
+                         requires E::le(a * b, E::uint_max(bit_width)) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
                          requires E::ge(a - b, 0) => ConstrReason::Overflow)
@@ -229,20 +217,20 @@ fn mk_signed_bin_ops_check_overflow() -> impl Iterator<Item = (mir::BinOp, Sig<2
                 // ARITH
                 (Add, s!(fn(a: Int, b: Int) -> Int[a + b]
                             requires E::and([
-                                         E::le(&a + &b, int_max(bit_width)),
-                                         E::ge(a + b, int_min(bit_width))
+                                         E::le(&a + &b, E::int_max(bit_width)),
+                                         E::ge(a + b, E::int_min(bit_width))
                                      ]) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Int, b: Int) -> Int[a - b]
                             requires E::and([
-                                         E::le(&a - &b, int_max(bit_width)),
-                                         E::ge(a - b, int_min(bit_width))
+                                         E::le(&a - &b, E::int_max(bit_width)),
+                                         E::ge(a - b, E::int_min(bit_width))
                                      ]) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Int, b: Int) -> Int[a * b]
                             requires E::and([
-                                         E::le(&a - &b, int_max(bit_width)),
-                                         E::ge(a - b, int_min(bit_width))
+                                         E::le(&a - &b, E::int_max(bit_width)),
+                                         E::ge(a - b, E::int_min(bit_width))
                                      ]) => ConstrReason::Overflow)
                 ),
                 (Div, s!(fn(a: Int, b: Int) -> Int[a / b]

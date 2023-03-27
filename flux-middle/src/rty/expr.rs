@@ -148,6 +148,18 @@ impl Expr {
             .clone()
     }
 
+    pub fn int_max(bit_width: u64) -> Expr {
+        Expr::constant(Constant::int_max(bit_width.try_into().unwrap()))
+    }
+
+    pub fn int_min(bit_width: u64) -> Expr {
+        Expr::constant(Constant::int_min(bit_width.try_into().unwrap()))
+    }
+
+    pub fn uint_max(bit_width: u64) -> Expr {
+        Expr::constant(Constant::uint_max(bit_width.try_into().unwrap()))
+    }
+
     pub fn nu() -> Expr {
         Expr::late_bvar(INNERMOST)
     }
