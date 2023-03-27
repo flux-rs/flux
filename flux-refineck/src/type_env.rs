@@ -324,10 +324,11 @@ impl TypeEnv {
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
                     (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(RefKind::Mut, bound)) => {
-                        let ty = self
-                            .bindings
-                            .lookup(gen.genv, rcx, ptr_path)?
-                            .block(rcx, gen)?;
+                        let ty = self.bindings.lookup(gen.genv, rcx, ptr_path)?.block_with(
+                            rcx,
+                            gen,
+                            bound.clone(),
+                        )?;
                         gen.subtyping(rcx, &ty, bound, reason);
 
                         self.bindings
