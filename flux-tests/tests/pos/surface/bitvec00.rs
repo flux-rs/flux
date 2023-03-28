@@ -20,8 +20,7 @@ fn to_bv(n: usize) -> UsizeBv {
 #[flux::trusted]
 #[flux::sig(fn (bv:UsizeBv) -> usize[bv32_to_int(bv)])]
 fn from_bv(bv: UsizeBv) -> usize {
-    let UsizeBv(n) = bv;
-    n
+    bv.0
 }
 
 impl std::ops::Sub<UsizeBv> for UsizeBv {
@@ -38,7 +37,7 @@ impl std::ops::BitAnd<UsizeBv> for UsizeBv {
     #[flux::trusted]
     #[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvand(x,y)])]
     fn bitand(self, other: UsizeBv) -> UsizeBv {
-        UsizeBv(self.0 & other.0 )
+        UsizeBv(self.0 & other.0)
     }
 }
 
