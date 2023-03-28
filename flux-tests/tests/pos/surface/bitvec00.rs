@@ -8,21 +8,20 @@
 
 // Define a new type to wrap `usize` but indexed by actual bitvec
 #[flux::refined_by(value: bitvec<32>)]
-struct UsizeBv {
-    inner: usize,
-}
+struct UsizeBv(usize);
 
 // Define "cast" functions
 #[flux::trusted]
 #[flux::sig(fn (n:usize) -> UsizeBv[int_to_bv32(n)])]
-fn to_bv(inner: usize) -> UsizeBv {
-    UsizeBv { inner }
+fn to_bv(n: usize) -> UsizeBv {
+    UsizeBv(n)
 }
 
 #[flux::trusted]
 #[flux::sig(fn (bv:UsizeBv) -> usize[bv32_to_int(bv)])]
 fn from_bv(bv: UsizeBv) -> usize {
-    bv.inner
+    let UsizeBv(n) = bv;
+    n
 }
 
 impl std::ops::Sub<UsizeBv> for UsizeBv {
@@ -30,7 +29,7 @@ impl std::ops::Sub<UsizeBv> for UsizeBv {
     #[flux::trusted]
     #[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvsub(x,y)])]
     fn sub(self, other: UsizeBv) -> UsizeBv {
-        UsizeBv { inner: self.inner - other.inner }
+        UsizeBv(self.0 - other.0)
     }
 }
 
@@ -39,7 +38,7 @@ impl std::ops::BitAnd<UsizeBv> for UsizeBv {
     #[flux::trusted]
     #[flux::sig(fn (x:UsizeBv, y:UsizeBv) -> UsizeBv[bvand(x,y)])]
     fn bitand(self, other: UsizeBv) -> UsizeBv {
-        UsizeBv { inner: self.inner & other.inner }
+        UsizeBv(self.0 & other.0 )
     }
 }
 
