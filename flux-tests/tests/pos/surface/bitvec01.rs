@@ -14,3 +14,9 @@ use rbitvec::UsizeBv;
 pub fn wrap_index(index: usize, size: usize) -> usize {
     UsizeBv::from_bv(UsizeBv::to_bv(index) & (UsizeBv::to_bv(size) - UsizeBv::to_bv(1)))
 }
+
+#[flux::trusted] // kills Z3
+#[flux::sig(fn (n:usize{pow2(n)}) -> bool{v: pow2(n + n)})]
+fn lem_power_two(_: usize) -> bool {
+    true
+}
