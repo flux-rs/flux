@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Install - Flux Documentation</title>
+        <title>Architecture - Flux Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -83,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html" class="active"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">3.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">3.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">4.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">5.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">6.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">3.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html" class="active"><strong aria-hidden="true">3.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">4.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">5.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">6.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -144,38 +144,31 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="installing-flux"><a class="header" href="#installing-flux">Installing Flux</a></h1>
-<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
-<ul>
-<li><a href="https://rustup.rs/">rustup</a></li>
-<li><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a></li>
-<li><a href="https://github.com/Z3Prover/z3">z3</a></li>
-</ul>
-<p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your $PATH.</p>
-<h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
-<p>The only way to use <code>flux</code> is to build it from source.</p>
-<p>First you need to clone the repository</p>
-<pre><code class="language-bash">git clone https://github.com/liquid-rust/flux
-cd flux
-</code></pre>
-<p>To build the source you need a nightly version of rustc.
-We pin the version using a <a href="/rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
-If you are using rustup, no special action is needed as it should install the correct rustc version and components based on the information on that file.</p>
-<p>Next, run the following to build and install <code>flux</code> binaries</p>
-<pre><code class="language-bash">cargo install --path flux
-cargo install --path flux-bin
-</code></pre>
-<p>This will install <code>flux-driver</code>, <code>rustc-flux</code> and <code>cargo-flux</code>. Note that you should not call <code>flux-driver</code> directly, but rather use <code>rustc-flux</code> and <code>cargo-flux</code>.</p>
+                        <h1 id="high-level-architecture"><a class="header" href="#high-level-architecture">High-level Architecture</a></h1>
+<p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
+<h2 id="intermediate-representations"><a class="header" href="#intermediate-representations">Intermediate Representations</a></h2>
+<p>Flux has several intermediate representations (IR) for types. They represent a refined version of an equivalent type in <code>rustc</code> IRs. We have picked a distinct <em>verb</em> to refer to the process of going between these different representations to make it easier to refer to them.</p>
+<p><img src="../img/irs.svg" alt="IRs diagram" /></p>
+<h3 id="surface"><a class="header" href="#surface">Surface</a></h3>
+<p>The surface IR represents source level Flux annotations. It corresponds to the [<code>rustc_ast</code>] data structures in <code>rustc</code>. The definition as well as the parser is located in the <code>flux-syntax</code> crate.</p>
+<h3 id="fhir"><a class="header" href="#fhir">Fhir</a></h3>
+<p>The Flux High-Level Intermediate Representation (fhir) is a refined version of the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_hir/index.html"><code>rustc</code>'s hir</a>. The definition is located in the <code>flux_middle</code> crate inside the <code>fhir</code> module. The process of going from <code>surface</code> to <code>fhir</code> is called <em>desugaring</em>, and it is implemented in the <code>flux-desugar</code> crate.</p>
+<h3 id="rty"><a class="header" href="#rty">Rty</a></h3>
+<p>The definition in the <code>flux_middle::rty</code> module correspond to a refined version of the main <code>rustc</code> representation for types defined in <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/index.html"><code>rustc_middle::ty</code></a>. The process of going from <code>fhir</code> to <code>rty</code> is called <em>conversion</em>, and it is implemented in the <code>flux-fhir-analysis::conv</code> module.</p>
+<h3 id="simplified-rustc"><a class="header" href="#simplified-rustc">Simplified Rustc</a></h3>
+<p>The definition in the <code>flux_middle::rustc</code> module correspond to simplified version of data structures in <code>rustc</code>. They can be understood as the currently supported subset of Rust. The process of going from a definition in <code>rustc_middle</code> into <code>flux_middle::rustc</code> is called <em>lowering</em> and it is implemented in <code>flux_middle::rustc::lowering</code>.</p>
+<h3 id="lifting-and-refining"><a class="header" href="#lifting-and-refining">Lifting and Refining</a></h3>
+<p>Besides the different translation between Flux intermediate representations, there are two ways to get a refined version from a rust type. The process of going from a type in <code>hir</code> into a type in <code>fhir</code> is called <em>lifting</em>, and it is implemented in <code>flux_middle::fhir::lift</code>. The process for going from a type in <code>flux_middle::rustc::ty</code> into a <code>flux_middle::rty</code> is called <em>refining</em>, and it is implemented <code>flux_middle::rty::refining</code>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../dev/develop.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next" href="../guide/run.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="../blog/01-introducing-flux.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -185,11 +178,11 @@ cargo install --path flux-bin
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../dev/develop.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next" href="../guide/run.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="../blog/01-introducing-flux.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
