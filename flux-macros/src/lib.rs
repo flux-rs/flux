@@ -1,8 +1,7 @@
-#![feature(proc_macro_diagnostic, never_type, proc_macro_span)]
+#![feature(proc_macro_diagnostic, never_type, proc_macro_span, let_chains, if_let_guard)]
 
 mod diagnostics;
 
-use proc_macro::TokenStream;
 use synstructure::decl_derive;
 
 decl_derive!(
@@ -46,6 +45,6 @@ decl_derive!(
 );
 
 #[proc_macro]
-pub fn fluent_messages(input: TokenStream) -> TokenStream {
+pub fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     diagnostics::fluent_messages(input)
 }

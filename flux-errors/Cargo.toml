@@ -3,11 +3,11 @@ edition = "2021"
 name = "flux-errors"
 version = "0.1.0"
 
+[lib]
+doctest = false
+test = false
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-flux-macros = { path = "../flux-macros" }
-
 
 [package.metadata.rust-analyzer]
 rustc_private = true

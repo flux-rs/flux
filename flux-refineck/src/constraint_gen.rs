@@ -1,26 +1,30 @@
-use std::iter;
+use std::{iter, slice};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
-    global_env::{GlobalEnv, OpaqueStructErr},
+    global_env::GlobalEnv,
+    intern::List,
     rty::{
+        self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, Expr, ExprKind, FnOutput, GenericArg,
-        InferMode, Path, PolySig, PolyVariant, PtrKind, Ref, RefKind, Sort, TupleTree, Ty, TyKind,
+        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
+        GenericArg, InferMode, Path, PolyFnSig, PolyVariant, PtrKind, Ref, RefKind, Sort,
+        TupleTree, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
 use crate::{
-    checker::errors::CheckerError,
-    fixpoint::{KVarEncoding, KVarGen},
-    refine_tree::{RefineCtxt, Scope, UnpackFlags},
+    checker::errors::CheckerErrKind,
+    fixpoint_encoding::KVarEncoding,
+    refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
     type_env::TypeEnv,
 };
 
@@ -28,6 +32,16 @@ pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
     span: Span,
+}
+
+pub(crate) struct Obligations {
+    pub(crate) predicates: List<rty::Predicate>,
+    /// Snapshot of the refinement subtree where the obligations should be checked
+    pub(crate) snapshot: Snapshot,
+}
+
+pub trait KVarGen {
+    fn fresh(&mut self, args: &[Sort], kind: KVarEncoding) -> Expr;
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -97,46 +111,61 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        fn_sig: &PolySig,
+        did: Option<DefId>,
+        fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<Binder<FnOutput>, CheckerError> {
+    ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
         // mutable references.
-        let actuals = iter::zip(actuals, fn_sig.fn_sig.as_ref().skip_binders().args())
-            .map(|(actual, formal)| {
-                if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+        let actuals = iter::zip(
+            actuals,
+            fn_sig
+                .as_ref()
+                .skip_binder()
+                .fn_sig
+                .as_ref()
+                .skip_binder()
+                .args(),
+        )
+        .map(|(actual, formal)| {
+            if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
                     actual.clone()
                 }
-            })
-            .collect_vec();
+        })
+        .collect_vec();
+
+        let genv = self.genv;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
         // Replace holes in generic arguments with fresh kvars
+        let snapshot = rcx.snapshot();
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
-        // println!("TRACE: check_fn_call fn_sig (generic) = {fn_sig:?}");
-        // println!("TRACE: check_fn_call substs = {substs:?}");
-
         // Generate fresh evars and kvars for refinement parameters
-        let fn_sig = fn_sig
-            .replace_generics(&substs)
+        let inst_fn_sig = fn_sig
+            .subst_generics(&substs)
             .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
 
-        // println!("TRACE: check_fn_call {fn_sig:?} with {actuals:?}");
+        // Check closure obligations
+        let closure_obligs = if let Some(did) = did {
+            mk_obligations(genv, did, &substs)?
+        } else {
+            List::from(vec![])
+        };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
-        for constr in fn_sig.requires() {
+        for constr in inst_fn_sig.requires() {
             match constr {
                 Constraint::Type(path, ty) => {
                     requires.insert(path.clone(), ty);
@@ -148,7 +177,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(&actuals, fn_sig.args()) {
+        for (actual, formal) in iter::zip(&actuals, inst_fn_sig.args()) {
             let rcx = &mut rcx.push_comment(format!("{actual:?} <: {formal:?}"));
 
             let (formal, pred) = formal.unconstr();
@@ -160,11 +189,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
+                    let ty =
+                        env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path)?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
@@ -175,9 +205,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-        let output = fn_sig.output().replace_evars(&evars_sol);
+        let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok(output)
+        Ok((output, Obligations::new(closure_obligs, snapshot)))
     }
 
     pub(crate) fn check_ret(
@@ -185,10 +215,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         output: &Binder<FnOutput>,
-    ) -> Result<(), CheckerError> {
-        let ret_place_ty = env
-            .lookup_place(rcx, self, Place::RETURN)
-            .map_err(CheckerError::from)?;
+    ) -> Result<(), CheckerErrKind> {
+        let ret_place_ty = env.lookup_place(rcx, self, Place::RETURN)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -209,7 +237,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub(crate) fn check_constructor(
         &mut self,
         rcx: &mut RefineCtxt,
-        variant: &PolyVariant,
+        variant: EarlyBinder<PolyVariant>,
         substs: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty, UnsolvedEvar> {
@@ -220,12 +248,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let substs = substs
             .iter()
-            .map(|arg| arg.replace_holes(&mut |sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
-            .replace_generics(&substs)
+            .subst_generics(&substs)
             .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
@@ -246,10 +274,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         args: &[Ty],
         arr_ty: Ty,
-    ) -> Result<Ty, CheckerError> {
+    ) -> Result<Ty, CheckerErrKind> {
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = arr_ty.replace_holes(&mut |sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        let arr_ty = arr_ty.replace_holes(|sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
 
         let (arr_ty, pred) = arr_ty.unconstr();
         infcx.check_pred(rcx, pred);
@@ -258,11 +286,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
-                    let ty = env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone());
+                    let ty =
+                        env.block_with(rcx, &mut infcx.as_constr_gen(), path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path);
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path)?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),
@@ -299,8 +328,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn fresh_kvar(&mut self, sort: Sort, encoding: KVarEncoding) -> Binder<Expr> {
-        self.kvar_gen.fresh(sort, encoding)
+    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Expr {
+        self.kvar_gen.fresh(sorts, encoding)
     }
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
@@ -312,7 +341,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match kind {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                Expr::abs(self.fresh_kvar(fsort.input().clone(), KVarEncoding::Single))
+                let input = fsort.input();
+                Expr::abs(Binder::new(
+                    self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
+                    input.clone(),
+                ))
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
@@ -332,7 +365,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         env: &mut TypeEnv,
         path: &Path,
         ty: &Ty,
-    ) -> Result<(), OpaqueStructErr> {
+    ) -> Result<(), CheckerErrKind> {
         let actual_ty = env.lookup_path(rcx, &mut self.as_constr_gen(), path)?;
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
@@ -343,7 +376,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
-    ) -> Result<(), OpaqueStructErr> {
+    ) -> Result<(), CheckerErrKind> {
         let rcx = &mut rcx.branch();
         match constraint {
             Constraint::Type(path, ty) => self.check_type_constr(rcx, env, path, ty),
@@ -520,7 +553,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
-        if let ExprKind::EVar(evar) = e2.kind()
+        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
            && let scope = &self.scopes[&evar.cx()]
            && !scope.has_free_vars(e1)
         {
@@ -530,6 +563,41 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
+    }
+}
+
+impl Obligations {
+    fn new(predicates: List<rty::Predicate>, snapshot: Snapshot) -> Self {
+        Self { predicates, snapshot }
+    }
+}
+
+fn mk_obligations(
+    genv: &GlobalEnv<'_, '_>,
+    did: DefId,
+    substs: &[GenericArg],
+) -> Result<List<rty::Predicate>, CheckerErrKind> {
+    Ok(genv.predicates_of(did)?.predicates().subst_generics(substs))
+}
+
+impl<F> KVarGen for F
+where
+    F: FnMut(&[Sort], KVarEncoding) -> Expr,
+{
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (self)(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (**self).fresh(sorts, kind)
+    }
+}
+
+impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
+    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+        (**self).fresh(sorts, kind)
     }
 }
 

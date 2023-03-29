@@ -1,12 +1,10 @@
+#![warn(unused_extern_crates)]
 #![feature(rustc_private, box_patterns, let_chains, type_alias_impl_trait)]
 
-extern crate flux_errors;
 extern crate rustc_ast;
-extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_middle;
-extern crate rustc_session;
 extern crate rustc_span;
 
 pub mod lexer;

@@ -4,12 +4,11 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
-pub mod conv;
 pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
-pub(crate) mod refining;
+pub mod refining;
 pub mod subst;
 
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
@@ -19,10 +18,11 @@ pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, 
 use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
+pub use normalize::Defns;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Field, Mutability};
-pub use rustc_middle::ty::{AdtFlags, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+pub use rustc_middle::ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
@@ -34,6 +34,7 @@ pub use crate::{
 use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
+    queries::QueryResult,
     rustc::mir::Place,
 };
 
@@ -57,6 +58,25 @@ pub enum GenericParamDefKind {
     Type { has_default: bool },
     BaseTy,
     Lifetime,
+}
+
+#[derive(Clone, Debug)]
+pub struct GenericPredicates {
+    pub parent: Option<DefId>,
+    pub predicates: List<Predicate>,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum Predicate {
+    FnTrait(FnTraitPredicate),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct FnTraitPredicate {
+    pub bounded_ty: Ty,
+    pub tupled_args: Ty,
+    pub output: Ty,
+    pub kind: ClosureKind,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -91,7 +111,7 @@ pub struct AdtDefData {
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
-#[derive(Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
@@ -102,6 +122,7 @@ pub struct Invariant {
     pub pred: Binder<Expr>,
 }
 
+pub type PolyVariants = Opaqueness<List<Binder<VariantDef>>>;
 pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -116,6 +137,9 @@ pub struct Binder<T> {
     value: T,
 }
 
+#[derive(Clone, TyEncodable, TyDecodable)]
+pub struct EarlyBinder<T>(pub T);
+
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TupleTree<T>
 where
@@ -126,7 +150,7 @@ where
 }
 
 #[derive(Clone, TyEncodable, TyDecodable)]
-pub struct PolySig {
+pub struct PolyFnSig {
     pub fn_sig: Binder<FnSig>,
     pub modes: List<InferMode>,
 }
@@ -169,6 +193,13 @@ pub struct UifDef {
     pub sort: FuncSort,
 }
 
+#[derive(Debug)]
+pub struct ClosureOblig {
+    pub oblig_def_id: DefId,
+    pub oblig_sig: PolyFnSig,
+}
+
+pub type PolyTy = Binder<Ty>;
 pub type Ty = Interned<TyS>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -235,12 +266,33 @@ pub enum GenericArg {
     Lifetime,
 }
 
+impl FnTraitPredicate {
+    pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
+        let closure_ty = Ty::closure(closure_id);
+        let env_ty = match self.kind {
+            ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
+            ClosureKind::FnMut => Ty::mk_ref(RefKind::Mut, closure_ty),
+            ClosureKind::FnOnce => closure_ty,
+        };
+        let inputs = std::iter::once(env_ty)
+            .chain(self.tupled_args.expect_tuple().iter().cloned())
+            .collect_vec();
+
+        let fn_sig = FnSig::new(
+            vec![],
+            inputs,
+            Binder::new(FnOutput::new(self.output.clone(), vec![]), Sort::unit()),
+        );
+        PolyFnSig::new(vec![], fn_sig)
+    }
+}
+
 impl Generics {
-    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> GenericParamDef {
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
-            self.params[index].clone()
+            Ok(self.params[index].clone())
         } else {
-            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))
+            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
                 .param_at(param_index, genv)
         }
     }
@@ -251,7 +303,7 @@ impl Sort {
         Sort::Tuple(sorts.into())
     }
 
-    pub(crate) fn unit() -> Self {
+    pub fn unit() -> Self {
         Self::tuple(vec![])
     }
 
@@ -289,7 +341,7 @@ impl Sort {
         }
     }
 
-    pub(crate) fn is_unit(&self) -> bool {
+    pub fn is_unit(&self) -> bool {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
 
@@ -329,7 +381,7 @@ impl Sort {
 }
 
 impl FuncSort {
-    pub(crate) fn new(input: Sort, output: Sort) -> Self {
+    pub fn new(input: Sort, output: Sort) -> Self {
         FuncSort { input_and_output: List::from_vec(vec![input, output]) }
     }
 
@@ -369,7 +421,7 @@ impl<T> Binder<T> {
         Binder { sort: self.sort.clone(), value: &self.value }
     }
 
-    pub fn skip_binders(self) -> T {
+    pub fn skip_binder(self) -> T {
         self.value
     }
 
@@ -378,13 +430,13 @@ impl<T> Binder<T> {
     }
 }
 
-impl VariantDef {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
+impl<T> EarlyBinder<T> {
+    pub fn as_ref(&self) -> EarlyBinder<&T> {
+        EarlyBinder(&self.0)
     }
 
-    pub fn fields(&self) -> &[Ty] {
-        &self.fields
+    pub fn skip_binder(self) -> T {
+        self.0
     }
 }
 
@@ -401,6 +453,43 @@ where
     pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
         let expr = f(&self.sort);
         self.replace_bvar(&expr)
+    }
+}
+
+impl<T: TypeFoldable> EarlyBinder<T> {
+    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T
+    where
+        T: std::fmt::Debug,
+    {
+        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
+    }
+
+    pub fn subst_generics(self, generics: &[GenericArg]) -> T
+    where
+        T: std::fmt::Debug,
+    {
+        self.subst(generics, &[])
+    }
+
+    pub fn subst_identity(self) -> T {
+        self.0
+    }
+}
+
+impl EarlyBinder<GenericPredicates> {
+    pub fn predicates(&self) -> EarlyBinder<List<Predicate>> {
+        EarlyBinder(self.0.predicates.clone())
+    }
+}
+
+impl VariantDef {
+    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
+        VariantDef { fields: List::from_vec(fields), ret }
+    }
+
+    pub fn fields(&self) -> &[Ty] {
+        &self.fields
     }
 }
 
@@ -426,6 +515,13 @@ where
             _ => bug!("expected leaf"),
         }
     }
+
+    pub fn as_leaf(&self) -> Option<&T> {
+        match self {
+            TupleTree::Leaf(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 impl Index {
@@ -447,11 +543,11 @@ impl From<(Expr, TupleTree<bool>)> for Index {
     }
 }
 
-impl PolySig {
-    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolySig {
+impl PolyFnSig {
+    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolyFnSig {
         let (sorts, modes) = params.into_iter().unzip();
         let fn_sig = Binder::new(fn_sig, Sort::Tuple(List::from_vec(sorts)));
-        PolySig { fn_sig, modes: List::from_vec(modes) }
+        PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
     pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
@@ -491,7 +587,7 @@ impl FnOutput {
 }
 
 impl AdtDef {
-    pub(crate) fn new(
+    pub fn new(
         rustc_def: rustc_middle::ty::AdtDef,
         sort: Sort,
         invariants: Vec<Invariant>,
@@ -573,31 +669,51 @@ impl<T> Opaqueness<T> {
         }
     }
 
-    pub fn ok_or<E>(self, err: E) -> Result<T, E> {
+    pub fn ok_or_else<E>(self, err: impl FnOnce() -> E) -> Result<T, E> {
         match self {
-            Opaqueness::Opaque => Err(err),
-            Opaqueness::Transparent(value) => Ok(value),
+            Opaqueness::Transparent(v) => Ok(v),
+            Opaqueness::Opaque => Err(err()),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect(self, msg: &str) -> T {
+        match self {
+            Opaqueness::Transparent(val) => val,
+            Opaqueness::Opaque => bug!("{}", msg),
         }
     }
 }
 
-impl PolyVariant {
-    pub fn to_fn_sig(&self) -> PolySig {
+impl<T, E> Opaqueness<Result<T, E>> {
+    pub fn transpose(self) -> Result<Opaqueness<T>, E> {
+        match self {
+            Opaqueness::Transparent(Ok(x)) => Ok(Opaqueness::Transparent(x)),
+            Opaqueness::Transparent(Err(e)) => Err(e),
+            Opaqueness::Opaque => Ok(Opaqueness::Opaque),
+        }
+    }
+}
+
+impl EarlyBinder<PolyVariant> {
+    pub fn to_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
         let fn_sig = self
+            .0
             .as_ref()
             .map(|variant| {
                 let ret = variant.ret.shift_in_bvars(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
-            .skip_binders();
+            .skip_binder();
         let params = self
+            .0
             .sort
             .expect_tuple()
             .iter()
             .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
             .collect_vec();
-        PolySig::new(params, fn_sig)
+        EarlyBinder(PolyFnSig::new(params, fn_sig))
     }
 }
 
@@ -731,6 +847,14 @@ impl TyS {
         }
     }
 
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            bug!("expected adt")
+        }
+    }
+
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
         self.as_bty_skipping_binders()
@@ -749,10 +873,10 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binders().as_bty_skipping_binders()?),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_binders()?),
             TyKind::Constr(_, ty) => ty.as_bty_skipping_binders(),
             _ => None,
         }
@@ -873,6 +997,8 @@ impl_internable!(
     [TupleTree<bool>],
     [Sort],
     [GenericParamDef],
+    [Predicate],
+    [PolyVariant],
 );
 
 #[macro_export]
@@ -976,7 +1102,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for PolySig {
+    impl Pretty for PolyFnSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let sorts = self.fn_sig.sort.expect_tuple();
@@ -1092,24 +1218,17 @@ mod pretty {
                 expr: &Expr,
             ) -> fmt::Result {
                 define_scoped!(cx, f);
-                match (is_binder, expr.kind()) {
-                    (TupleTree::Tuple(is_binder), ExprKind::Tuple(es)) => {
-                        debug_assert_eq!(is_binder.len(), es.len());
-                        w!("(")?;
-                        for (is_binder, e) in iter::zip(is_binder, es) {
-                            go(cx, f, is_binder, e)?;
-                            w!(", ")?;
-                        }
-                        w!(")")?;
+                if let ExprKind::Tuple(es) = expr.kind() {
+                    w!("(")?;
+                    for (is_binder, e) in iter::zip(is_binder.split(), es) {
+                        go(cx, f, is_binder, e)?;
+                        w!(", ")?;
                     }
-                    (TupleTree::Leaf(is_binder), _) => {
-                        if *is_binder {
-                            w!("@{:?}", expr)?;
-                        } else {
-                            w!("{:?}", expr)?;
-                        }
-                    }
-                    _ => bug!("{is_binder:?} {expr:?}"),
+                    w!(")")?;
+                } else if let Some(true) = is_binder.as_leaf() {
+                    w!("@{:?}", expr)?;
+                } else {
+                    w!("{:?}", expr)?;
                 }
                 Ok(())
             }
@@ -1149,7 +1268,7 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
-                BaseTy::Closure(did) => w!("closure({:?})", did),
+                BaseTy::Closure(did) => w!("{:?}", did),
             }
         }
     }
@@ -1160,21 +1279,9 @@ mod pretty {
             match self {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
                 GenericArg::BaseTy(arg) => {
-                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binders())
+                    w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binder())
                 }
                 GenericArg::Lifetime => w!("'_"),
-            }
-        }
-    }
-
-    impl Pretty for Var {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-
-            match self {
-                Var::Bound(bvar) => w!("{:?}", ^bvar),
-                Var::Free(name) => w!("{:?}", ^name),
-                Var::EVar(evar) => w!("{:?}", evar),
             }
         }
     }
@@ -1190,7 +1297,7 @@ mod pretty {
         Constraint,
         Sort,
         TyS => "ty",
-        PolySig,
+        PolyFnSig,
         BaseTy,
         FnSig,
         GenericArg,

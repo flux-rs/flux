@@ -1,3 +1,4 @@
+///! Encoding of the refinement tree into a fixpoint constraint.
 use std::iter;
 
 use fixpoint::FixpointResult;
@@ -12,7 +13,8 @@ use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
     global_env::GlobalEnv,
-    rty::{self, Binder, Constant, INNERMOST},
+    queries::QueryResult,
+    rty::{self, Constant},
 };
 use itertools::{self, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -33,8 +35,8 @@ pub struct KVarStore {
 
 #[derive(Clone)]
 struct KVarDecl {
-    args: Vec<rty::Sort>,
-    scope: Vec<rty::Sort>,
+    self_args: usize,
+    sorts: Vec<rty::Sort>,
     encoding: KVarEncoding,
 }
 
@@ -48,10 +50,6 @@ pub enum KVarEncoding {
     /// Concretely, a kvar `$k(a0, a1, ..., an)[b0, ...]` becomes
     /// `$k0(a0, a1, ..., an, b0, ...) ∧ $k1(a1, ..., an, b0, ...) ∧ ... ∧ $kn(an, b0, ...)`
     Conj,
-}
-
-pub trait KVarGen {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr>;
 }
 
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
@@ -153,10 +151,10 @@ where
         self,
         cache: &mut QueryCache,
         constraint: fixpoint::Constraint<TagIdx>,
-    ) -> Result<(), Vec<Tag>> {
+    ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
-            return Ok(());
+            return Ok(vec![]);
         }
         let span = self.def_span();
 
@@ -177,7 +175,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(self.def_id)
+            .qualifiers(self.def_id)?
             .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
             .collect();
 
@@ -215,9 +213,9 @@ where
         let task_key = self.genv.tcx.def_path_str(self.def_id);
 
         match task.check_with_cache(task_key, cache) {
-            Ok(FixpointResult::Safe(_)) => Ok(()),
+            Ok(FixpointResult::Safe(_)) => Ok(vec![]),
             Ok(FixpointResult::Unsafe(_, errors)) => {
-                Err(errors
+                Ok(errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
@@ -278,7 +276,7 @@ where
 
         let decl = self.kvars.get(kvar.kvid);
 
-        let all_args = iter::zip(kvar.all_args(), decl.all_args())
+        let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.imm(arg, sort, bindings))
             .collect_vec();
 
@@ -310,7 +308,7 @@ where
         self.kvid_map.entry(kvid).or_insert_with(|| {
             let decl = self.kvars.get(kvid);
 
-            let all_args = decl.all_args().map(sort_to_fixpoint).collect_vec();
+            let all_args = decl.sorts.iter().map(sort_to_fixpoint).collect_vec();
 
             if all_args.is_empty() {
                 let sorts = vec![fixpoint::Sort::Unit];
@@ -324,7 +322,7 @@ where
                     vec![kvid]
                 }
                 KVarEncoding::Conj => {
-                    let n = usize::max(decl.args.len(), 1);
+                    let n = usize::max(decl.self_args, 1);
                     (0..n)
                         .map(|i| {
                             let sorts = all_args.iter().skip(n - i - 1).cloned().collect();
@@ -343,13 +341,13 @@ where
         bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
     ) -> fixpoint::Name {
         match arg.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 *self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.def_span(), "no entry found for key: `{name:?}`")
                 })
             }
-            rty::ExprKind::BoundVar(_) => {
-                span_bug!(self.def_span(), "unexpected escaping variable")
+            rty::ExprKind::Var(_) => {
+                span_bug!(self.def_span(), "unexpected variable")
             }
             _ => {
                 let fresh = self.fresh_name();
@@ -375,27 +373,6 @@ where
 impl FixpointKVar {
     fn new(sorts: Vec<fixpoint::Sort>, orig: rty::KVid) -> Self {
         Self { sorts, orig }
-    }
-}
-
-impl<F> KVarGen for F
-where
-    F: FnMut(rty::Sort, KVarEncoding) -> Binder<rty::Expr>,
-{
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (self)(sort, kind)
-    }
-}
-
-impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (**self).fresh(sort, kind)
-    }
-}
-
-impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sort: rty::Sort, kind: KVarEncoding) -> Binder<rty::Expr> {
-        (**self).fresh(sort, kind)
     }
 }
 
@@ -428,12 +405,6 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
     itertools::chain(consts, uifs).collect()
 }
 
-impl KVarDecl {
-    fn all_args(&self) -> impl Iterator<Item = &rty::Sort> {
-        self.args.iter().chain(&self.scope)
-    }
-}
-
 impl KVarStore {
     pub fn new() -> Self {
         Self { kvars: IndexVec::new() }
@@ -443,37 +414,55 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<S>(
+    pub fn fresh<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
+    where
+        A: IntoIterator<Item = (rty::Var, rty::Sort)>,
+    {
+        let mut sorts = vec![];
+        let mut exprs = vec![];
+
+        let mut flattened_self_args = 0;
+        for (i, (var, sort)) in args.into_iter().enumerate() {
+            let is_self_arg = i < self_args;
+            let var = var.to_expr();
+            sort.walk(|sort, proj| {
+                if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
+                    flattened_self_args += is_self_arg as usize;
+                    sorts.push(sort.clone());
+                    exprs.push(rty::Expr::tuple_projs(&var, proj));
+                }
+            });
+        }
+
+        let kvid = self
+            .kvars
+            .push(KVarDecl { self_args: flattened_self_args, sorts, encoding });
+
+        let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
+        rty::Expr::kvar(kvar)
+    }
+
+    pub fn fresh_bound<S>(
         &mut self,
-        sort: rty::Sort,
+        bound: &[rty::Sort],
         scope: S,
         encoding: KVarEncoding,
-    ) -> Binder<rty::Expr>
+    ) -> rty::Expr
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        let mut scope_sorts = vec![];
-        let mut scope_exprs = vec![];
-        for (name, sort) in scope {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                scope_sorts.push(sort);
-                scope_exprs.push(rty::Expr::fvar(name));
-            }
+        if bound.is_empty() {
+            return self.fresh(0, [], encoding);
         }
-        let mut arg_sorts = vec![];
-        let mut arg_exprs = vec![];
-        sort.walk(|sort, proj| {
-            if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
-                arg_sorts.push(sort.clone());
-                arg_exprs.push(rty::Expr::tuple_projs(rty::Expr::bvar(INNERMOST), proj));
-            }
-        });
-        let kvid =
-            self.kvars
-                .push(KVarDecl { args: arg_sorts, scope: scope_sorts.clone(), encoding });
-
-        let kvar = rty::KVar::new(kvid, arg_exprs, scope_exprs.clone());
-        Binder::new(rty::Expr::kvar(kvar), sort)
+        let args = itertools::chain(
+            bound.iter().rev().enumerate().map(|(level, sort)| {
+                (rty::Var::LateBound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+            }),
+            scope
+                .into_iter()
+                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+        );
+        self.fresh(1, args, encoding)
     }
 }
 
@@ -536,7 +525,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
         match expr.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in name_map for name: `{name:?}`")
                 });
@@ -578,11 +567,10 @@ impl<'a> ExprCtxt<'a> {
                     self.expr_to_fixpoint(e2),
                 ]))
             }
-            rty::ExprKind::EVar(_)
+            rty::ExprKind::Var(_)
             | rty::ExprKind::Hole
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
-            | rty::ExprKind::BoundVar(_)
             | rty::ExprKind::Abs(_)
             | rty::ExprKind::Func(_)
             | rty::ExprKind::PathProj(..) => {
@@ -615,7 +603,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
         match func.kind() {
-            rty::ExprKind::FreeVar(name) => {
+            rty::ExprKind::Var(rty::Var::Free(name)) => {
                 let name = self.name_map.get(name).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no name found for key: `{name:?}`")
                 });

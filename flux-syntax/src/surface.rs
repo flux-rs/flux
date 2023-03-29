@@ -311,18 +311,8 @@ impl RefinedBy {
     pub const DUMMY: &RefinedBy =
         &RefinedBy { index_params: vec![], early_bound_params: vec![], span: rustc_span::DUMMY_SP };
 
-    pub fn iter(&self) -> impl Iterator<Item = &RefineParam> {
+    pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
         self.early_bound_params.iter().chain(&self.index_params)
-    }
-}
-
-impl<'a> IntoIterator for &'a RefinedBy {
-    type Item = &'a RefineParam;
-
-    type IntoIter = impl Iterator<Item = &'a RefineParam>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
     }
 }
 

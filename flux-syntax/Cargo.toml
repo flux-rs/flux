@@ -3,12 +3,15 @@ edition = "2021"
 name = "flux-syntax"
 version = "0.1.0"
 
+[lib]
+doctest = false
+test = false
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lalrpop-util = "0.19"
-flux-macros = { path = "../flux-macros" }
 flux-errors = { path = "../flux-errors" }
+lalrpop-util = "0.19"
 
 [build-dependencies]
 lalrpop = "0.19"

@@ -27,28 +27,28 @@ pub fn dump_item_info<T: fmt::Debug>(
     val: &T,
 ) -> io::Result<()> {
     let mut writer = writer_for_item(tcx, def_id.into(), ext)?;
-    write!(writer, "{val:?}")
+    write!(writer, "{val:#?}")
 }
 
 #[macro_export]
-macro_rules! _infer_span {
+macro_rules! _shape_mode_span {
     ($tcx:expr, $def_id:expr) => {{
         let path = $tcx.def_path($def_id);
         let def_id = path.data.iter().join("::");
-        tracing::info_span!("infer", def_id = def_id.as_str())
+        tracing::info_span!("shape", def_id = def_id.as_str())
     }};
 }
-pub use crate::_infer_span as infer_span;
+pub use crate::_shape_mode_span as shape_mode_span;
 
 #[macro_export]
-macro_rules! _check_span {
-    ($tcx:expr, $def_id:expr, $bb_envs_infer:expr) => {{
+macro_rules! _refine_mode_span {
+    ($tcx:expr, $def_id:expr, $bb_envs:expr) => {{
         let path = $tcx.def_path($def_id);
         let def_id = path.data.iter().join("::");
-        tracing::info_span!("check", def_id = def_id.as_str(), bb_envs_infer = ?$bb_envs_infer)
+        tracing::info_span!("refine", def_id = def_id.as_str(), bb_envs = ?$bb_envs)
     }};
 }
-pub use crate::_check_span as check_span;
+pub use crate::_refine_mode_span as refine_mode_span;
 
 #[macro_export]
 macro_rules! _check_fn_span {
@@ -85,32 +85,32 @@ macro_rules! _terminator{
 pub use crate::_terminator as terminator;
 
 #[macro_export]
-macro_rules! _check_goto {
+macro_rules! _refine_goto {
     ($target:expr, $rcx:expr, $env:expr, $bb_env:expr) => {{
-        tracing::debug!(event = "check_goto", target = ?$target, rcx = ?$rcx, env = ?$env, bb_env = ?$bb_env)
+        tracing::debug!(event = "refine_goto", target = ?$target, rcx = ?$rcx, env = ?$env, bb_env = ?$bb_env)
     }};
 }
-pub use crate::_check_goto as check_goto;
+pub use crate::_refine_goto as refine_goto;
 
 #[macro_export]
-macro_rules! _infer_goto_enter {
+macro_rules! _shape_goto_enter {
     ($target:expr, $env:expr, $bb_env:expr) => {{
         if let Some(bb_env) = &$bb_env {
-            tracing::debug!(event = "infer_goto_enter", target = ?$target, env = ?&$env, ?bb_env)
+            tracing::debug!(event = "shape_goto_enter", target = ?$target, env = ?&$env, ?bb_env)
         } else {
-            tracing::debug!(event = "infer_goto_enter", target = ?$target, env = ?&$env, bb_env = "empty")
+            tracing::debug!(event = "shape_goto_enter", target = ?$target, env = ?&$env, bb_env = "empty")
         }
     }};
 }
-pub use crate::_infer_goto_enter as infer_goto_enter;
+pub use crate::_shape_goto_enter as shape_goto_enter;
 
 #[macro_export]
-macro_rules! _infer_goto_exit {
+macro_rules! _shape_goto_exit {
     ($target:expr, $bb_env:expr) => {{
-        tracing::debug!(event = "infer_goto_exit", target = ?$target, bb_env = ?&$bb_env)
+        tracing::debug!(event = "shape_goto_exit", target = ?$target, bb_env = ?&$bb_env)
     }};
 }
-pub use crate::_infer_goto_exit as infer_goto_exit;
+pub use crate::_shape_goto_exit as shape_goto_exit;
 
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);

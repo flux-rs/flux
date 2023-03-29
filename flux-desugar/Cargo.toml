@@ -3,12 +3,15 @@ edition = "2021"
 name = "flux-desugar"
 version = "0.1.0"
 
+[lib]
+doctest = false
+test = false
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 flux-common = { path = "../flux-common" }
 flux-errors = { path = "../flux-errors" }
-flux-fixpoint = { path = "../flux-fixpoint" }
 flux-macros = { path = "../flux-macros" }
 flux-middle = { path = "../flux-middle" }
 flux-syntax = { path = "../flux-syntax" }

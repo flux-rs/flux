@@ -1,3 +1,4 @@
+#![warn(unused_extern_crates)]
 #![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -20,8 +21,9 @@ use std::path::PathBuf;
 
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
-use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, rty};
-use itertools::Itertools;
+use flux_macros::fluent_messages;
+use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, intern::List, rty};
+use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -30,6 +32,8 @@ use rustc_session::{config::OutputType, utils::CanonicalizedPath};
 use rustc_span::def_id::{CrateNum, DefId, DefIndex};
 
 pub use crate::encoder::encode_metadata;
+
+fluent_messages! { "../locales/en-US.ftl" }
 
 const METADATA_VERSION: u8 = 0;
 const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSION];
@@ -40,17 +44,17 @@ pub struct CStore {
 
 #[derive(TyEncodable, TyDecodable)]
 pub struct CrateMetadata {
-    fn_sigs: FxHashMap<DefIndex, rty::PolySig>,
+    fn_sigs: FxHashMap<DefIndex, rty::EarlyBinder<rty::PolyFnSig>>,
     refined_bys: FxHashMap<DefIndex, fhir::RefinedBy>,
     adts: FxHashMap<DefIndex, AdtMetadata>,
     /// For now it only store type of aliases
-    type_of: FxHashMap<DefIndex, rty::Binder<rty::Ty>>,
+    type_of: FxHashMap<DefIndex, rty::EarlyBinder<rty::PolyTy>>,
 }
 
 #[derive(TyEncodable, TyDecodable)]
 struct AdtMetadata {
     adt_def: rty::AdtDef,
-    variants: rty::Opaqueness<Vec<rty::PolyVariant>>,
+    variants: rty::Opaqueness<List<rty::PolyVariant>>,
 }
 
 impl CStore {
@@ -73,7 +77,7 @@ impl CStore {
 }
 
 impl CrateStore for CStore {
-    fn fn_sig(&self, def_id: DefId) -> Option<rty::PolySig> {
+    fn fn_sig(&self, def_id: DefId) -> Option<rty::EarlyBinder<rty::PolyFnSig>> {
         self.meta
             .get(&def_id.krate)?
             .fn_sigs
@@ -93,7 +97,7 @@ impl CrateStore for CStore {
         self.adt(def_id).map(|adt| adt.variants.as_deref())
     }
 
-    fn type_of(&self, def_id: DefId) -> Option<&rty::Binder<rty::Ty>> {
+    fn type_of(&self, def_id: DefId) -> Option<&rty::EarlyBinder<rty::PolyTy>> {
         self.meta.get(&def_id.krate)?.type_of.get(&def_id.index)
     }
 }
@@ -112,34 +116,18 @@ impl CrateMetadata {
 
             match def_kind {
                 DefKind::Fn | DefKind::AssocFn => {
-                    fn_sigs.insert(
-                        def_id.index,
-                        genv.lookup_fn_sig(def_id)
-                            .unwrap_or_else(|err| genv.sess.emit_fatal(err)),
-                    );
+                    fn_sigs.insert(def_id.index, genv.fn_sig(def_id).unwrap());
                 }
                 DefKind::Enum | DefKind::Struct => {
                     let adt_def = genv.adt_def(def_id);
-                    let variants = if adt_def.is_opaque() {
-                        rty::Opaqueness::Opaque
-                    } else {
-                        rty::Opaqueness::Transparent(
-                            adt_def
-                                .variants()
-                                .map(|variant_idx| {
-                                    genv.variant(def_id, variant_idx)
-                                        .expect("adt must be transparent")
-                                })
-                                .collect_vec(),
-                        )
-                    };
+                    let variants = genv.variants_of(def_id).unwrap();
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
 
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 DefKind::TyAlias => {
-                    type_of.insert(def_id.index, genv.type_of(def_id));
+                    type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                     refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 _ => {}

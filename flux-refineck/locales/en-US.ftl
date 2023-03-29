@@ -1,3 +1,5 @@
+# Refinememt checking errors
+
 refineck_goto_error =
     error jumping to join point
 
@@ -37,3 +39,8 @@ refineck_opaque_struct_error =
 refineck_unsupported_call =
     unsupported type in function call
     .function_definition = function defined here
+
+# Invariant checking
+
+refineck_invalid_invariant =
+    invariant cannot be proven

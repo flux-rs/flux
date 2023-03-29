@@ -26,9 +26,7 @@ pub struct ExprS {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExprKind {
-    FreeVar(Name),
-    EVar(EVar),
-    BoundVar(DebruijnIndex),
+    Var(Var),
     Local(Local),
     Constant(Constant),
     ConstDefId(DefId),
@@ -56,18 +54,22 @@ pub enum ExprKind {
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
 /// fixpoint makes a diference between the first and the rest of the variables, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
-/// Flux generalizes the self argument to be a list.
+/// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct KVar {
     pub kvid: KVid,
+    /// The number of arguments consider to be *self arguments*.
+    pub self_args: usize,
+    /// The list of *all* arguments with the self arguments at the beginning, i.e., the
+    /// list of self arguments followed by the scope.
     pub args: List<Expr>,
-    pub scope: List<Expr>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    Bound(DebruijnIndex),
+    LateBound(DebruijnIndex),
+    EarlyBound(u32),
     EVar(EVar),
 }
 
@@ -80,7 +82,7 @@ pub struct Path {
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
-    Var(Var, List<u32>),
+    TupleProj(Var, List<u32>),
 }
 
 newtype_index! {
@@ -103,15 +105,6 @@ newtype_index! {
 impl ExprKind {
     fn intern(self) -> Expr {
         Interned::new(ExprS { kind: self })
-    }
-
-    pub fn to_var(&self) -> Option<Var> {
-        match self {
-            ExprKind::FreeVar(name) => Some(Var::Free(*name)),
-            ExprKind::BoundVar(bvar) => Some(Var::Bound(*bvar)),
-            ExprKind::EVar(evar) => Some(Var::EVar(*evar)),
-            _ => None,
-        }
     }
 }
 
@@ -155,8 +148,20 @@ impl Expr {
             .clone()
     }
 
+    pub fn int_max(bit_width: u64) -> Expr {
+        Expr::constant(Constant::int_max(bit_width.try_into().unwrap()))
+    }
+
+    pub fn int_min(bit_width: u64) -> Expr {
+        Expr::constant(Constant::int_min(bit_width.try_into().unwrap()))
+    }
+
+    pub fn uint_max(bit_width: u64) -> Expr {
+        Expr::constant(Constant::uint_max(bit_width.try_into().unwrap()))
+    }
+
     pub fn nu() -> Expr {
-        Expr::bvar(INNERMOST)
+        Expr::late_bvar(INNERMOST)
     }
 
     pub fn as_tuple(&self) -> &[Expr] {
@@ -187,16 +192,24 @@ impl Expr {
         Expr::tuple(vec![])
     }
 
+    pub fn var(var: Var) -> Expr {
+        ExprKind::Var(var).intern()
+    }
+
     pub fn fvar(name: Name) -> Expr {
-        ExprKind::FreeVar(name).intern()
+        Var::Free(name).to_expr()
     }
 
     pub fn evar(evar: EVar) -> Expr {
-        ExprKind::EVar(evar).intern()
+        Var::EVar(evar).to_expr()
     }
 
-    pub fn bvar(bvar: DebruijnIndex) -> Expr {
-        ExprKind::BoundVar(bvar).intern()
+    pub fn late_bvar(bvar: DebruijnIndex) -> Expr {
+        Var::LateBound(bvar).to_expr()
+    }
+
+    pub fn early_bvar(idx: u32) -> Expr {
+        Var::EarlyBound(idx).to_expr()
     }
 
     pub fn local(local: Local) -> Expr {
@@ -411,13 +424,10 @@ impl Expr {
     }
 
     pub fn to_var(&self) -> Option<Var> {
-        self.kind().to_var()
-    }
-
-    pub fn to_fvar(&self) -> Option<Name> {
-        match self.kind() {
-            ExprKind::FreeVar(name) => Some(*name),
-            _ => None,
+        if let ExprKind::Var(var) = self.kind() {
+            Some(*var)
+        } else {
+            None
         }
     }
 
@@ -435,11 +445,10 @@ impl Expr {
         proj.reverse();
         let proj = List::from(proj);
 
-        match expr.kind() {
-            ExprKind::FreeVar(name) => Some(Loc::Var(Var::Free(*name), proj)),
-            ExprKind::BoundVar(bvar) => Some(Loc::Var(Var::Bound(*bvar), proj)),
-            ExprKind::EVar(evar) => Some(Loc::Var(Var::EVar(*evar), proj)),
-            _ => None,
+        if let ExprKind::Var(var) = expr.kind() {
+            Some(Loc::TupleProj(*var, proj))
+        } else {
+            None
         }
     }
 
@@ -466,7 +475,7 @@ impl Expr {
         Binder::new(Expr::app(self, Expr::nu()), sort.clone())
     }
 
-    pub(crate) fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
+    pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
         fn go(sort: &Sort, projs: &mut Vec<u32>, f: &impl Fn(&[u32]) -> Expr) -> Expr {
             if let Sort::Tuple(sorts) = sort {
                 Expr::tuple(
@@ -509,22 +518,22 @@ impl Expr {
 }
 
 impl KVar {
-    pub fn new(kvid: KVid, args: Vec<Expr>, scope: Vec<Expr>) -> Self {
-        KVar { kvid, args: List::from_vec(args), scope: List::from_vec(scope) }
+    pub fn new(kvid: KVid, self_args: usize, args: Vec<Expr>) -> Self {
+        KVar { kvid, self_args, args: List::from_vec(args) }
     }
 
-    pub fn all_args(&self) -> impl Iterator<Item = &Expr> {
-        self.args.iter().chain(&self.scope)
+    fn self_args(&self) -> &[Expr] {
+        &self.args[..self.self_args]
+    }
+
+    fn scope(&self) -> &[Expr] {
+        &self.args[self.self_args..]
     }
 }
 
 impl Var {
     pub fn to_expr(&self) -> Expr {
-        match self {
-            Var::Bound(bvar) => Expr::bvar(*bvar),
-            Var::Free(name) => Expr::fvar(*name),
-            Var::EVar(evar) => Expr::evar(*evar),
-        }
+        Expr::var(*self)
     }
 }
 
@@ -569,7 +578,7 @@ impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
             Loc::Local(local) => Expr::local(*local),
-            Loc::Var(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
+            Loc::TupleProj(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
         }
     }
 }
@@ -678,7 +687,7 @@ impl From<Name> for Expr {
 
 impl From<DebruijnIndex> for Expr {
     fn from(bvar: DebruijnIndex) -> Self {
-        Expr::bvar(bvar)
+        Expr::late_bvar(bvar)
     }
 }
 
@@ -690,7 +699,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::Var(Var::Free(name), List::from(vec![]))
+        Loc::TupleProj(Var::Free(name), List::from(vec![]))
     }
 }
 
@@ -751,9 +760,7 @@ mod pretty {
             }
             let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
             match e.kind() {
-                ExprKind::BoundVar(bvar) => w!("{:?}", ^bvar),
-                ExprKind::FreeVar(name) => w!("{:?}", ^name),
-                ExprKind::EVar(evar) => w!("{:?}", evar),
+                ExprKind::Var(var) => w!("{:?}", var),
                 ExprKind::Local(local) => w!("{:?}", ^local),
                 ExprKind::ConstDefId(did) => w!("{}", ^pretty::def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!("{}", ^c),
@@ -818,7 +825,19 @@ mod pretty {
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)
                 }
-                ExprKind::Func(func) => w!("{:?}", ^func),
+                ExprKind::Func(func) => w!("{}", ^func),
+            }
+        }
+    }
+
+    impl Pretty for Var {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Var::LateBound(bvar) => w!("{:?}", ^bvar),
+                Var::EarlyBound(idx) => w!("#{}", ^idx),
+                Var::Free(name) => w!("{:?}", ^name),
+                Var::EVar(evar) => w!("{:?}", evar),
             }
         }
     }
@@ -829,9 +848,9 @@ mod pretty {
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
                 KVarArgs::All => {
-                    w!("({:?})[{:?}]", join!(", ", &self.args), join!(", ", &self.scope))?;
+                    w!("({:?})[{:?}]", join!(", ", self.self_args()), join!(", ", self.scope()))?;
                 }
-                KVarArgs::SelfOnly => w!("({:?})", join!(", ", &self.args))?,
+                KVarArgs::SelfOnly => w!("({:?})", join!(", ", self.self_args()))?,
                 KVarArgs::Hide => {}
             }
             Ok(())
@@ -854,7 +873,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::Var(var, proj) => {
+                Loc::TupleProj(var, proj) => {
                     w!("{:?}", var)?;
                     for field in proj.iter() {
                         w!(".{}", ^field)?;

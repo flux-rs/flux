@@ -2,12 +2,15 @@
 
 members = [
     "flux",
+    "flux-attrs",
+    "flux-attrs-proc-macros",
     "flux-bin",
     "flux-common",
     "flux-config",
     "flux-desugar",
     "flux-driver",
     "flux-errors",
+    "flux-fhir-analysis",
     "flux-fixpoint",
     "flux-macros",
     "flux-metadata",

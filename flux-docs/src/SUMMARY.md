@@ -6,7 +6,8 @@
 
 - [Install](guide/install.md)
 - [Run](guide/run.md)
-- [Develop](guide/develop.md)
+- [Develop](dev/develop.md)
+  - [Architecture](dev/architecture.md)
 
 
 # Examples
