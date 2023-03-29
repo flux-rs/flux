@@ -649,7 +649,7 @@ impl<'a> ExprCtxt<'a> {
             rty::ExprKind::Func(name) => {
                 if let Some(cinfo) = self.const_map.get(&Key::Uif(*name)) {
                     fixpoint::Func::Uif(cinfo.name)
-                } else if let Some(_) = self.thy_map.get(&Key::Uif(*name)) {
+                } else if self.thy_map.get(&Key::Uif(*name)).is_some() {
                     fixpoint::Func::Itf(*name)
                 } else {
                     span_bug!(self.dbg_span, "no const or theory symbol found for key: `{name:?}`")
