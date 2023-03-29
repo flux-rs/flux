@@ -86,7 +86,7 @@ pub struct SortDecl {
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
-    uifs: FxHashMap<Symbol, FuncDef>,
+    uifs: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
@@ -378,8 +378,8 @@ pub enum ExprKind {
 pub enum Func {
     /// A function comming from a refinement parameter.
     Var(Ident),
-    /// A _global_ uninterpreted function.
-    Uif(Symbol, Span),
+    /// A _global_ function symbol (including possibly theory symbols)
+    Uif(Symbol, FuncKind, Span),
 }
 
 /// representation of uninterpreted functions
@@ -503,11 +503,20 @@ pub struct RefinedBy {
 }
 
 #[derive(Debug)]
-pub struct FuncDef {
+pub struct FuncDecl {
     pub name: Symbol,
     pub sort: FuncSort,
-    // Is this an interpreted theory symbol
-    pub interp: bool,
+    pub kind: FuncKind,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum FuncKind {
+    /// Theory symbols "interpreted" by the SMT solver
+    Thy,
+    /// User-defined uninterpreted functions with no definition
+    Uif,
+    /// User-defined functions with a body definition
+    Def,
 }
 
 #[derive(Debug)]
@@ -618,7 +627,7 @@ impl rustc_errors::IntoDiagnosticArg for &Path {
 impl Map {
     pub fn new() -> Self {
         let mut me = Self::default();
-        me.insert_interpreted_funcs();
+        me.insert_theory_funcs();
         me
     }
 
@@ -749,20 +758,21 @@ impl Map {
     }
 
     // Theory Symbols
-    fn insert_interp_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
+    fn insert_theory_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
         let sort = FuncSort::new(inputs, output);
-        self.uifs.insert(name, FuncDef { name, sort, interp: true });
+        self.uifs
+            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy });
     }
 
-    pub fn insert_interpreted_funcs(&mut self) {
-        self.insert_interp_func(Symbol::intern("int_to_bv32"), vec![Sort::Int], Sort::BitVec(32));
-        self.insert_interp_func(Symbol::intern("bv32_to_int"), vec![Sort::BitVec(32)], Sort::Int);
-        self.insert_interp_func(
+    fn insert_theory_funcs(&mut self) {
+        self.insert_theory_func(Symbol::intern("int_to_bv32"), vec![Sort::Int], Sort::BitVec(32));
+        self.insert_theory_func(Symbol::intern("bv32_to_int"), vec![Sort::BitVec(32)], Sort::Int);
+        self.insert_theory_func(
             Symbol::intern("bvsub"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
-        self.insert_interp_func(
+        self.insert_theory_func(
             Symbol::intern("bvand"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
@@ -771,15 +781,15 @@ impl Map {
 
     // UIF
 
-    pub fn insert_uif(&mut self, symb: Symbol, uif: FuncDef) {
+    pub fn insert_uif(&mut self, symb: Symbol, uif: FuncDecl) {
         self.uifs.insert(symb, uif);
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = &FuncDef> {
+    pub fn uifs(&self) -> impl Iterator<Item = &FuncDecl> {
         self.uifs.values()
     }
 
-    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDef> {
+    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDecl> {
         self.uifs.get(sym.borrow())
     }
 
@@ -1009,7 +1019,7 @@ impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Var(func) => write!(f, "{func:?}"),
-            Self::Uif(sym, _) => write!(f, "{sym}"),
+            Self::Uif(sym, _, _) => write!(f, "{sym}"),
         }
     }
 }

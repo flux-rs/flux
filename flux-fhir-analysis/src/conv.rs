@@ -606,7 +606,7 @@ impl Env<'_, '_> {
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
             fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
+            fhir::Func::Uif(sym, _, _) => rty::Expr::func(*sym),
         }
     }
 
@@ -802,8 +802,8 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::FuncDef) -> rty::UifDef {
-    rty::UifDef { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort), interp: uif.interp }
+pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::FuncDecl) -> rty::UifDef {
+    rty::UifDef { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort), kind: uif.kind }
 }
 
 fn conv_sorts<'a>(

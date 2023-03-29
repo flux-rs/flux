@@ -29,13 +29,11 @@ use serde::{de, Deserialize};
 use crate::constraint::DEFAULT_QUALIFIERS;
 
 #[derive(Clone, Debug, Hash)]
-pub struct FixConstInfo<T> {
-    pub name: T,
+pub struct ConstInfo {
+    pub name: ConstName,
     pub orig: rustc_span::Symbol,
     pub sort: Sort,
 }
-
-pub type ConstInfo = FixConstInfo<Func>;
 
 pub struct Task<Tag> {
     pub comments: Vec<String>,
@@ -175,10 +173,8 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
         writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for cinfo in &self.constants {
-            if let Func::Uif(name) = cinfo.name {
-                let fixconst = FixConstInfo { name, sort: cinfo.sort.clone(), orig: cinfo.orig };
-                writeln!(f, "{fixconst}")?;
-            }
+            // let fixconst = FixConstInfo { name: cinfo.name, sort: cinfo.sort.clone(), orig: cinfo.orig };
+            writeln!(f, "{cinfo}")?;
         }
 
         for kvar in &self.kvars {
@@ -206,7 +202,7 @@ impl fmt::Display for KVar {
     }
 }
 
-impl fmt::Display for FixConstInfo<ConstName> {
+impl fmt::Display for ConstInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(constant {:?} {:?}) // orig: {}", self.name, self.sort, self.orig)
     }

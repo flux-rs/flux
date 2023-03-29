@@ -17,6 +17,6 @@ pub fn wrap_index(index: u32, size: u32) -> u32 {
 
 #[flux::trusted] // kills Z3
 #[flux::sig(fn (n:u32{pow2(n)}) -> bool{v: pow2(n + n)})]
-fn lem_power_two(_: u32) -> bool {
+fn _lem_power_two(_: u32) -> bool {
     true
 }

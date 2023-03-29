@@ -54,7 +54,7 @@ fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed>
 pub fn resolve_defn_uif(
     early_cx: &EarlyCtxt,
     defn: &surface::Defn,
-) -> Result<fhir::FuncDef, ErrorGuaranteed> {
+) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
     let inputs: Vec<surface::BaseSort> = defn
         .args
         .iter()
@@ -62,13 +62,13 @@ pub fn resolve_defn_uif(
         .try_collect_exhaust()?;
     let output = sort_base(&defn.sort)?;
     let sort = resolve_func_sort(early_cx, &inputs[..], &output)?;
-    Ok(fhir::FuncDef { name: defn.name.name, sort, interp: false })
+    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Def })
 }
 
 pub fn resolve_uif_def(
     early_cx: &EarlyCtxt,
     defn: surface::UifDef,
-) -> Result<fhir::FuncDef, ErrorGuaranteed> {
+) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
     let inputs: Vec<surface::BaseSort> = defn
         .args
         .iter()
@@ -76,7 +76,7 @@ pub fn resolve_uif_def(
         .try_collect_exhaust()?;
     let output = sort_base(&defn.sort)?;
     let sort = resolve_func_sort(early_cx, &inputs[..], &output)?;
-    Ok(fhir::FuncDef { name: defn.name.name, sort, interp: false })
+    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Uif })
 }
 
 pub fn desugar_refined_by(
@@ -306,7 +306,7 @@ struct ExprCtxt<'a, 'tcx> {
 
 enum FuncRes<'a> {
     Param(fhir::Name, &'a fhir::Sort),
-    Uif(&'a fhir::FuncDef),
+    Uif(&'a fhir::FuncDecl),
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
@@ -612,8 +612,11 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(args)?;
                 match self.resolve_func(*func)? {
-                    FuncRes::Uif(_) => {
-                        fhir::ExprKind::App(fhir::Func::Uif(func.name, func.span), args)
+                    FuncRes::Uif(fundecl) => {
+                        fhir::ExprKind::App(
+                            fhir::Func::Uif(func.name, fundecl.kind, func.span),
+                            args,
+                        )
                     }
                     FuncRes::Param(name, _) => {
                         let func = fhir::Func::Var(fhir::Ident::new(name, *func));

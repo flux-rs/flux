@@ -55,6 +55,7 @@ pub enum KVarEncoding {
 type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
 type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxIndexMap<Key, ConstInfo>;
+type ThyMap = FxHashMap<Key, fixpoint::FuncSort>;
 
 #[derive(Eq, Hash, PartialEq)]
 enum Key {
@@ -71,6 +72,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     name_gen: IndexGen<fixpoint::Name>,
     name_map: NameMap,
     const_map: ConstMap,
+    thy_map: ThyMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: FxHashMap<T, TagIdx>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
@@ -86,13 +88,14 @@ struct FixpointKVar {
 struct ExprCtxt<'a> {
     name_map: &'a NameMap,
     const_map: &'a ConstMap,
+    thy_map: &'a ThyMap,
     /// Used to report bugs
     dbg_span: Span,
 }
 
 #[derive(Debug)]
 struct ConstInfo {
-    name: fixpoint::Func,
+    name: fixpoint::ConstName,
     sym: rustc_span::Symbol,
     sort: fixpoint::Sort,
     val: Option<Constant>,
@@ -104,7 +107,7 @@ where
 {
     pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: DefId, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
-        let const_map = fixpoint_const_map(genv);
+        let (const_map, thy_map) = fixpoint_const_map(genv);
         Self {
             comments: vec![],
             kvars,
@@ -114,6 +117,7 @@ where
             kvid_map: KVidMap::default(),
             name_map: NameMap::default(),
             const_map,
+            thy_map,
             tags: IndexVec::new(),
             tags_inv: FxHashMap::default(),
             def_id,
@@ -168,15 +172,17 @@ where
 
         let mut closed_constraint = constraint;
         for const_info in self.const_map.values() {
-            if let Some(val) = const_info.val && let fixpoint::Func::Uif(const_name) = const_info.name {
-                closed_constraint = Self::assume_const_val(closed_constraint, const_name, val);
+            if let Some(val) = const_info.val
+            /* && let fixpoint::Func::Uif(const_name) = const_info.name */
+            {
+                closed_constraint = Self::assume_const_val(closed_constraint, const_info.name, val);
             }
         }
 
         let qualifiers = self
             .genv
             .qualifiers(self.def_id)?
-            .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
+            .map(|qual| qualifier_to_fixpoint(span, &self.const_map, &self.thy_map, qual))
             .collect();
 
         let constants = self
@@ -362,7 +368,7 @@ where
     }
 
     fn as_expr_cx(&self) -> ExprCtxt<'_> {
-        ExprCtxt::new(&self.name_map, &self.const_map, self.def_span())
+        ExprCtxt::new(&self.name_map, &self.const_map, &self.thy_map, self.def_span())
     }
 
     fn def_span(&self) -> Span {
@@ -376,14 +382,14 @@ impl FixpointKVar {
     }
 }
 
-fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
+fn fixpoint_const_map(genv: &GlobalEnv) -> (ConstMap, ThyMap) {
     let const_name_gen = IndexGen::new();
     let consts = genv
         .map()
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
-            let name = flux_fixpoint::Func::Uif(const_name_gen.fresh());
+            let name = const_name_gen.fresh();
             let cinfo = ConstInfo {
                 name,
                 sym: const_info.sym,
@@ -395,18 +401,39 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
     let uifs = genv
         .uifs()
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
-        .map(|uif_def| {
-            let name = if uif_def.interp {
-                flux_fixpoint::Func::Itf(uif_def.name)
-            } else {
-                flux_fixpoint::Func::Uif(const_name_gen.fresh())
-            };
-            let sort = func_sort_to_fixpoint(&uif_def.sort);
-            let cinfo =
-                ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
-            (Key::Uif(cinfo.sym), cinfo)
+        .filter_map(|uif_def| {
+            match uif_def.kind {
+                flux_middle::fhir::FuncKind::Uif => {
+                    let name = const_name_gen.fresh();
+                    let sort = func_sort_to_fixpoint(&uif_def.sort);
+                    let cinfo = ConstInfo {
+                        name,
+                        sym: uif_def.name,
+                        sort: fixpoint::Sort::Func(sort),
+                        val: None,
+                    };
+                    Some((Key::Uif(cinfo.sym), cinfo))
+                }
+                _ => None,
+            }
         });
-    itertools::chain(consts, uifs).collect()
+    let const_map = itertools::chain(consts, uifs).collect();
+
+    let thys = genv
+        .uifs()
+        .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
+        .filter_map(|uif_def| {
+            if let flux_middle::fhir::FuncKind::Thy = uif_def.kind {
+                let sort = func_sort_to_fixpoint(&uif_def.sort);
+                Some((Key::Uif(uif_def.name), sort))
+            } else {
+                None
+            }
+        });
+
+    let thy_map = thys.collect();
+
+    (const_map, thy_map)
 }
 
 impl KVarStore {
@@ -524,8 +551,13 @@ fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
 }
 
 impl<'a> ExprCtxt<'a> {
-    fn new(name_map: &'a NameMap, const_map: &'a ConstMap, dbg_span: Span) -> Self {
-        Self { name_map, const_map, dbg_span }
+    fn new(
+        name_map: &'a NameMap,
+        const_map: &'a ConstMap,
+        thy_map: &'a ThyMap,
+        dbg_span: Span,
+    ) -> Self {
+        Self { name_map, const_map, thy_map, dbg_span }
     }
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
@@ -558,11 +590,7 @@ impl<'a> ExprCtxt<'a> {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
                 });
-                if let flux_fixpoint::Func::Uif(name) = const_info.name {
-                    fixpoint::Expr::ConstVar(name)
-                } else {
-                    span_bug!(self.dbg_span, "invalid name in const_map for def_id: `{did:?}`")
-                }
+                fixpoint::Expr::ConstVar(const_info.name)
             }
             rty::ExprKind::App(func, arg) => {
                 let func = self.func_to_fixpoint(func);
@@ -619,10 +647,13 @@ impl<'a> ExprCtxt<'a> {
                 fixpoint::Func::Var(*name)
             }
             rty::ExprKind::Func(name) => {
-                let cinfo = self.const_map.get(&Key::Uif(*name)).unwrap_or_else(|| {
-                    span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
-                });
-                cinfo.name.clone()
+                if let Some(cinfo) = self.const_map.get(&Key::Uif(*name)) {
+                    fixpoint::Func::Uif(cinfo.name)
+                } else if let Some(_) = self.thy_map.get(&Key::Uif(*name)) {
+                    fixpoint::Func::Itf(*name)
+                } else {
+                    span_bug!(self.dbg_span, "no const or theory symbol found for key: `{name:?}`")
+                }
             }
             _ => {
                 span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")
@@ -634,6 +665,7 @@ impl<'a> ExprCtxt<'a> {
 fn qualifier_to_fixpoint(
     dbg_span: Span,
     const_map: &ConstMap,
+    thy_map: &ThyMap,
     qualifier: &rty::Qualifier,
 ) -> fixpoint::Qualifier {
     let (args, body) = qualifier.with_fresh_fvars();
@@ -648,7 +680,7 @@ fn qualifier_to_fixpoint(
         })
         .collect_vec();
     let name = qualifier.name.clone();
-    let cx = ExprCtxt::new(&name_map, const_map, dbg_span);
+    let cx = ExprCtxt::new(&name_map, const_map, thy_map, dbg_span);
     let body = cx.expr_to_fixpoint(&body);
     let global = qualifier.global;
     fixpoint::Qualifier { name, args, body, global }

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 // Define a new type to wrap `u32` but indexed by actual bitvec
+#[flux::opaque]
 #[flux::refined_by(value: bitvec<32>)]
 pub struct Bv32(u32);
 
