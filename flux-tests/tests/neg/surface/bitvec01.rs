@@ -8,9 +8,9 @@
 
 #[path = "../../lib/rbitvec.rs"]
 mod rbitvec;
-use rbitvec::UsizeBv;
+use rbitvec::Bv32;
 
-#[flux::sig(fn (index: usize, size:usize{1 <= size && pow2(size)}) -> usize{v: v < size})]
-pub fn wrap_index(index: usize, size: usize) -> usize {
-    UsizeBv::from_bv(UsizeBv::to_bv(index) & UsizeBv::to_bv(size)) //~ ERROR: postcondition
+#[flux::sig(fn (index: u32, size:u32{1 <= size && pow2(size)}) -> u32{v: v < size})]
+pub fn wrap_index(index: u32, size: u32) -> u32 {
+    Bv32::from_bv(Bv32::to_bv(index) & Bv32::to_bv(size)) //~ ERROR: postcondition
 }
