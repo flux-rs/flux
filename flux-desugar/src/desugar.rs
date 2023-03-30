@@ -241,7 +241,7 @@ pub fn desugar_fn_sig(
         .ensures
         .iter()
         .map(|(bind, ty)| {
-            let loc = cx.as_expr_ctxt(&binders).desugar_loc(*bind);
+            let loc = cx.as_expr_ctxt(&binders).resolve_loc(*bind);
             let ty = cx.desugar_ty(None, ty, &mut binders);
             Ok(fhir::Constraint::Type(loc?, ty?))
         })
@@ -305,8 +305,13 @@ struct ExprCtxt<'a, 'tcx> {
 }
 
 enum FuncRes<'a> {
-    Param(fhir::Name, &'a fhir::Sort),
+    Param(fhir::Ident),
     Global(&'a fhir::FuncDecl),
+}
+
+enum VarRes<'a> {
+    Param(fhir::Ident),
+    Const(&'a fhir::ConstInfo),
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
@@ -373,7 +378,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let span = loc.span;
-                let loc = self.as_expr_ctxt(binders).desugar_loc(*loc)?;
+                let loc = self.as_expr_ctxt(binders).resolve_loc(*loc)?;
                 let ty = self.desugar_ty(None, ty, binders)?;
                 self.requires.push(fhir::Constraint::Type(loc, ty));
                 let kind = fhir::TyKind::Ptr(loc);
@@ -590,7 +595,14 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn desugar_expr(&self, expr: &surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match &expr.kind {
-            surface::ExprKind::Var(ident) => return self.desugar_var(*ident),
+            surface::ExprKind::Var(ident) => {
+                match self.resolve_var(*ident)? {
+                    VarRes::Param(ident) => fhir::ExprKind::Var(ident),
+                    VarRes::Const(const_info) => {
+                        fhir::ExprKind::Const(const_info.def_id, ident.span)
+                    }
+                }
+            }
             surface::ExprKind::Literal(lit) => {
                 fhir::ExprKind::Literal(self.desugar_lit(expr.span, *lit)?)
             }
@@ -603,8 +615,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 fhir::ExprKind::UnaryOp(desugar_un_op(*op), Box::new(self.desugar_expr(e)?))
             }
             surface::ExprKind::Dot(var, fld) => {
-                if let fhir::ExprKind::Var(var) = self.desugar_var(*var)?.kind {
-                    fhir::ExprKind::Dot(var, *fld)
+                if let VarRes::Param(ident) = self.resolve_var(*var)? {
+                    fhir::ExprKind::Dot(ident, *fld)
                 } else {
                     return Err(self.emit_err(errors::InvalidDotVar { span: expr.span }));
                 }
@@ -618,8 +630,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                             args,
                         )
                     }
-                    FuncRes::Param(name, _) => {
-                        let func = fhir::Func::Var(fhir::Ident::new(name, *func));
+                    FuncRes::Param(ident) => {
+                        let func = fhir::Func::Var(ident);
                         fhir::ExprKind::App(func, args)
                     }
                 }
@@ -639,21 +651,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             .iter()
             .map(|e| self.desugar_expr(e))
             .try_collect_exhaust()
-    }
-
-    fn resolve_func(&self, func: surface::Ident) -> Result<FuncRes, ErrorGuaranteed> {
-        if let Some(b) = self.binders.get(func) {
-            match b {
-                Binder::Refined(name, sort, _) => return Ok(FuncRes::Param(*name, sort)),
-                Binder::Unrefined => {
-                    return Err(self.emit_err(errors::InvalidUnrefinedParam::new(func)));
-                }
-            }
-        }
-        if let Some(decl) = self.early_cx.func_decl(func.name) {
-            return Ok(FuncRes::Global(decl));
-        }
-        Err(self.emit_err(errors::UnresolvedVar::new(func)))
     }
 
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit, ErrorGuaranteed> {
@@ -676,21 +673,39 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         }
     }
 
-    fn desugar_var(&self, ident: surface::Ident) -> Result<fhir::Expr, ErrorGuaranteed> {
-        let kind = match (self.binders.get(ident), self.early_cx.const_by_name(ident.name)) {
-            (Some(Binder::Refined(name, ..)), _) => {
-                fhir::ExprKind::Var(fhir::Ident::new(*name, ident))
+    fn resolve_func(&self, func: surface::Ident) -> Result<FuncRes, ErrorGuaranteed> {
+        match self.binders.get(func) {
+            Some(Binder::Refined(name, ..)) => {
+                return Ok(FuncRes::Param(fhir::Ident::new(*name, func)))
             }
-            (Some(Binder::Unrefined), _) => {
-                return Err(self.emit_err(errors::InvalidUnrefinedParam::new(ident)));
+            Some(Binder::Unrefined) => {
+                return Err(self.emit_err(errors::InvalidUnrefinedParam::new(func)));
             }
-            (None, Some(const_info)) => fhir::ExprKind::Const(const_info.def_id, ident.span),
-            (None, None) => return Err(self.emit_err(errors::UnresolvedVar::new(ident))),
+            None => {}
         };
-        Ok(fhir::Expr { kind, span: ident.span })
+        if let Some(decl) = self.early_cx.func_decl(func.name) {
+            return Ok(FuncRes::Global(decl));
+        }
+        Err(self.emit_err(errors::UnresolvedVar::new(func)))
     }
 
-    fn desugar_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
+    fn resolve_var(&self, var: surface::Ident) -> Result<VarRes, ErrorGuaranteed> {
+        match self.binders.get(var) {
+            Some(Binder::Refined(name, ..)) => {
+                return Ok(VarRes::Param(fhir::Ident::new(*name, var)))
+            }
+            Some(Binder::Unrefined) => {
+                return Err(self.emit_err(errors::InvalidUnrefinedParam::new(var)));
+            }
+            None => {}
+        };
+        if let Some(const_info) = self.early_cx.const_by_name(var.name) {
+            return Ok(VarRes::Const(const_info));
+        }
+        Err(self.emit_err(errors::UnresolvedVar::new(var)))
+    }
+
+    fn resolve_loc(&self, loc: surface::Ident) -> Result<fhir::Ident, ErrorGuaranteed> {
         match self.binders.get(loc) {
             Some(Binder::Refined(name, ..)) => Ok(fhir::Ident::new(*name, loc)),
             Some(Binder::Unrefined) => Err(self.emit_err(errors::InvalidUnrefinedParam::new(loc))),
