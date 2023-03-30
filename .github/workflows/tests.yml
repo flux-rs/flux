@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.2.1
       # We need to build before running tests for the binary to be ready
       - name: Build
         run: |
