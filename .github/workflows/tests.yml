@@ -37,7 +37,7 @@ jobs:
         uses: cda-tum/setup-z3@v1.0.9
         with:
           version: 4.12.1
-          platform: glibc-2.35
+          platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Add Fixpoint to the path
