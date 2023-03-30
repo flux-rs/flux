@@ -38,6 +38,8 @@ jobs:
         with:
           version: 4.12.1
           platform: glibc-2.35
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Add Fixpoint to the path
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
