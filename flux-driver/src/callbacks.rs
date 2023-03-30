@@ -225,7 +225,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .into_iter()
         .try_for_each_exhaust(|uif_def| {
             let name = uif_def.name;
-            let uif_def = desugar::resolve_uif_def(early_cx, uif_def)?;
+            let uif_def = desugar::uif_to_func_decl(early_cx, uif_def)?;
             early_cx.map.insert_func_decl(name.name, uif_def);
             Ok(())
         })
@@ -238,7 +238,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            let defn_uif = desugar::resolve_defn_uif(early_cx, defn)?;
+            let defn_uif = desugar::defn_to_func_decl(early_cx, defn)?;
             early_cx.map.insert_func_decl(name.name, defn_uif);
             Ok(())
         })

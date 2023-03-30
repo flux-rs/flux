@@ -191,7 +191,7 @@ pub struct Defn {
 }
 
 #[derive(Debug)]
-pub struct UifDef {
+pub struct FuncDecl {
     pub name: Symbol,
     pub sort: FuncSort,
     pub kind: FuncKind,

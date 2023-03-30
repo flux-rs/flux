@@ -379,7 +379,7 @@ pub enum Func {
     /// A function comming from a refinement parameter.
     Var(Ident),
     /// A _global_ function symbol (including possibly theory symbols)
-    Uif(Symbol, FuncKind, Span),
+    Global(Symbol, FuncKind, Span),
 }
 
 /// representation of uninterpreted functions
@@ -1019,7 +1019,7 @@ impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Var(func) => write!(f, "{func:?}"),
-            Self::Uif(sym, _, _) => write!(f, "{sym}"),
+            Self::Global(sym, _, _) => write!(f, "{sym}"),
         }
     }
 }
