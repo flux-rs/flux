@@ -93,7 +93,7 @@ pub enum Sort {
     User(Symbol),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     input_and_output: List<Sort>,
 }
@@ -1310,5 +1310,6 @@ mod pretty {
         VariantDef,
         PtrKind,
         Binder<FnOutput>,
+        FuncSort,
     );
 }

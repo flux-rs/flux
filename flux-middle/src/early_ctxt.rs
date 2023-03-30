@@ -32,7 +32,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
     }
 
     pub fn uif(&self, name: impl Borrow<Symbol>) -> Option<&fhir::FuncDecl> {
-        self.map.uif(name)
+        self.map.func_decl(name)
     }
 
     pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&fhir::ConstInfo> {

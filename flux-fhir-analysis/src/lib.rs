@@ -36,7 +36,7 @@ pub fn build_genv<'sess, 'tcx>(
 ) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
     let uifs = early_cx
         .map
-        .uifs()
+        .func_decls()
         .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
         .collect();
 

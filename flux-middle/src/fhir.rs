@@ -86,7 +86,7 @@ pub struct SortDecl {
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
-    uifs: FxHashMap<Symbol, FuncDecl>,
+    func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
@@ -760,7 +760,7 @@ impl Map {
     // Theory Symbols
     fn insert_theory_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
         let sort = FuncSort::new(inputs, output);
-        self.uifs
+        self.func_decls
             .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy });
     }
 
@@ -781,16 +781,16 @@ impl Map {
 
     // UIF
 
-    pub fn insert_uif(&mut self, symb: Symbol, uif: FuncDecl) {
-        self.uifs.insert(symb, uif);
+    pub fn insert_func_decl(&mut self, symb: Symbol, uif: FuncDecl) {
+        self.func_decls.insert(symb, uif);
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = &FuncDecl> {
-        self.uifs.values()
+    pub fn func_decls(&self) -> impl Iterator<Item = &FuncDecl> {
+        self.func_decls.values()
     }
 
-    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDecl> {
-        self.uifs.get(sym.borrow())
+    pub fn func_decl(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDecl> {
+        self.func_decls.get(sym.borrow())
     }
 
     // Defn
