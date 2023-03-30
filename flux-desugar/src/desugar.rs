@@ -306,7 +306,7 @@ struct ExprCtxt<'a, 'tcx> {
 
 enum FuncRes<'a> {
     Param(fhir::Name, &'a fhir::Sort),
-    FuncDecl(&'a fhir::FuncDecl),
+    Global(&'a fhir::FuncDecl),
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
@@ -612,7 +612,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(args)?;
                 match self.resolve_func(*func)? {
-                    FuncRes::FuncDecl(fundecl) => {
+                    FuncRes::Global(fundecl) => {
                         fhir::ExprKind::App(
                             fhir::Func::Global(func.name, fundecl.kind, func.span),
                             args,
@@ -651,7 +651,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
         }
         if let Some(decl) = self.early_cx.func_decl(func.name) {
-            return Ok(FuncRes::FuncDecl(decl));
+            return Ok(FuncRes::Global(decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::new(func)))
     }
