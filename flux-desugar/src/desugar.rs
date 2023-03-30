@@ -86,14 +86,13 @@ pub fn desugar_refined_by(
 ) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
     let mut set = FxHashSet::default();
     refined_by.all_params().try_for_each_exhaust(|param| {
-        if let Some(old) = set.get(&param.name) {
-            return Err(early_cx
+        if let Some(old) = set.replace(param.name) {
+            Err(early_cx
                 .sess
-                .emit_err(errors::DuplicateParam::new(*old, param.name)));
+                .emit_err(errors::DuplicateParam::new(old, param.name)))
         } else {
-            set.insert(param.name);
+            Ok(())
         }
-        Ok(())
     })?;
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params

@@ -9,7 +9,6 @@ use flux_middle::{
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
-use flux_syntax::surface;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
@@ -220,7 +219,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
             .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
-    // Register UIFs
+    // Register FnDecls
     err = std::mem::take(&mut specs.uifs)
         .into_iter()
         .try_for_each_exhaust(|uif_def| {
@@ -231,8 +230,6 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         })
         .err()
         .or(err);
-
-    // Register Defns as UIFs for sort-checking
     err = specs
         .dfns
         .iter()
@@ -245,39 +242,16 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .err()
         .or(err);
 
-    // Register AdtDefs
+    // Register RefinedBys
     err = specs
-        .structs
-        .iter()
-        .try_for_each_exhaust(|(def_id, def)| {
-            let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_refined_by(early_cx, *def_id, refined_by)?;
-            early_cx.map.insert_refined_by(*def_id, adt_def);
-            Ok(())
-        })
-        .err()
-        .or(err);
-    err = specs
-        .enums
-        .iter()
-        .try_for_each_exhaust(|(def_id, def)| {
-            let refined_by = def.refined_by.as_ref().unwrap_or(surface::RefinedBy::DUMMY);
-            let adt_def = desugar::desugar_refined_by(early_cx, *def_id, refined_by)?;
-            early_cx.map.insert_refined_by(*def_id, adt_def);
-            Ok(())
-        })
-        .err()
-        .or(err);
-    err = specs
-        .aliases
-        .iter()
-        .try_for_each_exhaust(|(def_id, alias)| {
-            let adt_def = if let Some(alias) = alias {
-                desugar::desugar_refined_by(early_cx, *def_id, &alias.refined_by)?
+        .refined_bys()
+        .try_for_each_exhaust(|(def_id, refined_by)| {
+            let refined_by = if let Some(refined_by) = refined_by {
+                desugar::desugar_refined_by(early_cx, def_id, refined_by)?
             } else {
-                fhir::lift::lift_refined_by(early_cx, *def_id)
+                fhir::lift::lift_refined_by(early_cx, def_id)
             };
-            early_cx.map.insert_refined_by(*def_id, adt_def);
+            early_cx.map.insert_refined_by(def_id, refined_by);
             Ok(())
         })
         .err()
