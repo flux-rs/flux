@@ -192,11 +192,13 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
 fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
+    let tcx = early_cx.tcx;
+    let sess = early_cx.sess;
 
     // Register Generics
-    err = defs_with_generics(early_cx.tcx)
+    err = defs_with_generics(tcx)
         .try_for_each_exhaust(|def_id| {
-            let generics = fhir::lift::lift_generics(early_cx, def_id)?;
+            let generics = fhir::lift::lift_generics(tcx, sess, def_id)?;
             early_cx.map.insert_generics(def_id, generics);
             Ok(())
         })
@@ -213,7 +215,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
     // Register Consts
     for (def_id, const_sig) in std::mem::take(&mut specs.consts) {
         let did = def_id.to_def_id();
-        let sym = def_id_symbol(early_cx.tcx, def_id);
+        let sym = def_id_symbol(tcx, def_id);
         early_cx
             .map
             .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
@@ -249,7 +251,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
             let refined_by = if let Some(refined_by) = refined_by {
                 desugar::desugar_refined_by(early_cx, def_id, refined_by)?
             } else {
-                fhir::lift::lift_refined_by(early_cx, def_id)
+                fhir::lift::lift_refined_by(tcx, def_id)
             };
             early_cx.map.insert_refined_by(def_id, refined_by);
             Ok(())
@@ -294,7 +296,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
             let alias = if let Some(alias) = alias {
                 desugar::desugar_type_alias(early_cx, def_id, alias)?
             } else {
-                fhir::lift::lift_type_alias(early_cx, def_id)?
+                fhir::lift::lift_type_alias(tcx, sess, def_id)?
             };
             early_cx.map.insert_type_alias(def_id, alias);
             Ok(())
@@ -308,7 +310,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .try_for_each_exhaust(|(def_id, struct_def)| {
             let struct_def = desugar::desugar_struct_def(early_cx, struct_def)?;
             if config::dump_fhir() {
-                dbg::dump_item_info(early_cx.tcx, def_id, "fhir", &struct_def).unwrap();
+                dbg::dump_item_info(tcx, def_id, "fhir", &struct_def).unwrap();
             }
             early_cx.map.insert_struct(def_id, struct_def);
             Ok(())
@@ -322,7 +324,7 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
         .try_for_each_exhaust(|(def_id, enum_def)| {
             let enum_def = desugar::desugar_enum_def(early_cx, enum_def)?;
             if config::dump_fhir() {
-                dbg::dump_item_info(early_cx.tcx, def_id.to_def_id(), "fhir", &enum_def).unwrap();
+                dbg::dump_item_info(tcx, def_id.to_def_id(), "fhir", &enum_def).unwrap();
             }
             early_cx.map.insert_enum(def_id, enum_def);
             Ok(())
@@ -340,10 +342,10 @@ fn build_fhir_map(early_cx: &mut EarlyCtxt, specs: &mut Specs) -> Result<(), Err
             let fn_sig = if let Some(fn_sig) = spec.fn_sig {
                 desugar::desugar_fn_sig(early_cx, def_id, fn_sig)?
             } else {
-                fhir::lift::lift_fn_sig(early_cx, def_id)?
+                fhir::lift::lift_fn_sig(tcx, sess, def_id)?
             };
             if config::dump_fhir() {
-                dbg::dump_item_info(early_cx.tcx, def_id.to_def_id(), "fhir", &fn_sig).unwrap();
+                dbg::dump_item_info(tcx, def_id.to_def_id(), "fhir", &fn_sig).unwrap();
             }
             early_cx.map.insert_fn_sig(def_id, fn_sig);
             if let Some(quals) = spec.qual_names {

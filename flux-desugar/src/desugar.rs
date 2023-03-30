@@ -165,7 +165,7 @@ pub fn desugar_struct_def(
                         lifted: false,
                     })
                 } else {
-                    fhir::lift::lift_field_def(early_cx, field.def_id)
+                    fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)
                 }
             })
             .try_collect_exhaust()?;
@@ -351,7 +351,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 lifted: false,
             })
         } else {
-            fhir::lift::lift_enum_variant_def(self.early_cx, variant_def.def_id)
+            fhir::lift::lift_enum_variant_def(
+                self.early_cx.tcx,
+                self.early_cx.sess,
+                variant_def.def_id,
+            )
         }
     }
 
