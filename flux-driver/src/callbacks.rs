@@ -181,6 +181,13 @@ fn build_stage1_fhir_map(
         .err()
         .or(err);
 
+    // Extern Fns
+    std::mem::take(&mut specs.extern_fns)
+        .into_iter()
+        .for_each(|(extern_def_id, local_def_id)| {
+            map.insert_extern_fn(extern_def_id, local_def_id);
+        });
+
     if let Some(err) = err {
         Err(err)
     } else {
@@ -288,13 +295,6 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         })
         .err()
         .or(err);
-
-    // Extern Fns
-    std::mem::take(&mut specs.extern_fns)
-        .into_iter()
-        .for_each(|(extern_def_id, local_def_id)| {
-            early_cx.map.insert_extern_fn(extern_def_id, local_def_id);
-        });
 
     if let Some(err) = err {
         Err(err)
