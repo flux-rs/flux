@@ -34,7 +34,7 @@ jobs:
           cd liquid-fixpoint
           stack install --fast --local-bin-path "$local_binaries_path"
       - name: Install Z3
-        uses: pavpanchekha/setup-z3@1.2.2
+        uses: cdta-tum/setup-z3@v1.0.9
         with:
           version: 4.12.1
           platform: glibc-2.35
