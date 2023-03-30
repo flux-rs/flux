@@ -12,6 +12,7 @@ use flux_common::{
 use flux_config as config;
 use flux_fixpoint as fixpoint;
 use flux_middle::{
+    fhir::FuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, Constant},
@@ -393,16 +394,16 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> ConstMap {
             (Key::Const(const_info.def_id), cinfo)
         });
     let uifs = genv
-        .uifs()
+        .func_decls()
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
-        .filter_map(|uif_def| {
-            match uif_def.kind {
-                flux_middle::fhir::FuncKind::Uif => {
+        .filter_map(|decl| {
+            match decl.kind {
+                FuncKind::Uif => {
                     let name = const_name_gen.fresh();
-                    let sort = func_sort_to_fixpoint(&uif_def.sort);
+                    let sort = func_sort_to_fixpoint(&decl.sort);
                     let cinfo = ConstInfo {
                         name,
-                        sym: uif_def.name,
+                        sym: decl.name,
                         sort: fixpoint::Sort::Func(sort),
                         val: None,
                     };

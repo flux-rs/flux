@@ -20,7 +20,7 @@ use crate::{
 pub struct GlobalEnv<'sess, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'sess FluxSession,
-    uifs: FxHashMap<Symbol, rty::UifDef>,
+    func_decls: FxHashMap<Symbol, rty::FuncDecl>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<String>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
@@ -31,7 +31,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn new(
         early_cx: EarlyCtxt<'sess, 'tcx>,
-        uifs: FxHashMap<Symbol, rty::UifDef>,
+        func_decls: FxHashMap<Symbol, rty::FuncDecl>,
         providers: Providers,
     ) -> Self {
         let mut fn_quals = FxHashMap::default();
@@ -49,7 +49,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             tcx: early_cx.tcx,
             sess: early_cx.sess,
             early_cx,
-            uifs,
+            func_decls,
             fn_quals,
             queries: Queries::new(providers),
             extern_fns,
@@ -80,8 +80,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = &rty::UifDef> {
-        self.uifs.values()
+    pub fn func_decls(&self) -> impl Iterator<Item = &rty::FuncDecl> {
+        self.func_decls.values()
     }
 
     pub fn variances_of(&self, did: DefId) -> &[Variance] {

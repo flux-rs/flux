@@ -51,7 +51,7 @@ fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed>
     }
 }
 
-pub fn resolve_defn_uif(
+pub fn defn_to_func_decl(
     early_cx: &EarlyCtxt,
     defn: &surface::Defn,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
@@ -65,7 +65,7 @@ pub fn resolve_defn_uif(
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Def })
 }
 
-pub fn resolve_uif_def(
+pub fn uif_to_func_decl(
     early_cx: &EarlyCtxt,
     defn: surface::UifDef,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
@@ -306,7 +306,7 @@ struct ExprCtxt<'a, 'tcx> {
 
 enum FuncRes<'a> {
     Param(fhir::Name, &'a fhir::Sort),
-    Uif(&'a fhir::FuncDecl),
+    Global(&'a fhir::FuncDecl),
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
@@ -612,9 +612,9 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(args)?;
                 match self.resolve_func(*func)? {
-                    FuncRes::Uif(fundecl) => {
+                    FuncRes::Global(fundecl) => {
                         fhir::ExprKind::App(
-                            fhir::Func::Uif(func.name, fundecl.kind, func.span),
+                            fhir::Func::Global(func.name, fundecl.kind, func.span),
                             args,
                         )
                     }
@@ -650,8 +650,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 }
             }
         }
-        if let Some(uif) = self.early_cx.uif(func.name) {
-            return Ok(FuncRes::Uif(uif));
+        if let Some(decl) = self.early_cx.func_decl(func.name) {
+            return Ok(FuncRes::Global(decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::new(func)))
     }

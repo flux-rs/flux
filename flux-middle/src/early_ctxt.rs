@@ -31,7 +31,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         self.map.sort_decl(name)
     }
 
-    pub fn uif(&self, name: impl Borrow<Symbol>) -> Option<&fhir::FuncDecl> {
+    pub fn func_decl(&self, name: impl Borrow<Symbol>) -> Option<&fhir::FuncDecl> {
         self.map.func_decl(name)
     }
 
