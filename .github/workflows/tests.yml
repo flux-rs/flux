@@ -35,6 +35,8 @@ jobs:
           stack install --fast --local-bin-path "$local_binaries_path"
       - name: Install Z3
         uses: pavpanchekha/setup-z3@1.2.2
+        with:
+          version: 4.12.1
       - name: Add Fixpoint to the path
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
