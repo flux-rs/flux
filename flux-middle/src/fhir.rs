@@ -80,6 +80,8 @@ pub struct SortDecl {
     pub span: Span,
 }
 
+pub type SortDecls = FxHashMap<Symbol, SortDecl>;
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
@@ -812,8 +814,8 @@ impl Map {
         self.sort_decls.insert(sort_decl.name, sort_decl);
     }
 
-    pub fn sort_decls(&self) -> impl Iterator<Item = &SortDecl> {
-        self.sort_decls.values()
+    pub fn sort_decls(&self) -> &SortDecls {
+        &self.sort_decls
     }
 
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {

@@ -38,7 +38,7 @@ pub fn desugar_defn(
     let mut binders = Binders::from_params(early_cx, &defn.args)?;
     let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&defn.expr)?;
     let name = defn.name.name;
-    let sort = resolve_sort(early_cx, &defn.sort)?;
+    let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.sort)?;
     let args = binders.pop_layer().into_params();
     Ok(fhir::Defn { name, args, sort, expr })
 }
@@ -52,7 +52,8 @@ fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed>
 }
 
 pub fn defn_to_func_decl(
-    early_cx: &EarlyCtxt,
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
     defn: &surface::Defn,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
     let inputs: Vec<surface::BaseSort> = defn
@@ -61,12 +62,13 @@ pub fn defn_to_func_decl(
         .map(|arg| sort_base(&arg.sort))
         .try_collect_exhaust()?;
     let output = sort_base(&defn.sort)?;
-    let sort = resolve_func_sort(early_cx, &inputs[..], &output)?;
+    let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Def })
 }
 
 pub fn uif_to_func_decl(
-    early_cx: &EarlyCtxt,
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
     defn: surface::UifDef,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
     let inputs: Vec<surface::BaseSort> = defn
@@ -75,21 +77,20 @@ pub fn uif_to_func_decl(
         .map(|arg| sort_base(&arg.sort))
         .try_collect_exhaust()?;
     let output = sort_base(&defn.sort)?;
-    let sort = resolve_func_sort(early_cx, &inputs[..], &output)?;
+    let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Uif })
 }
 
 pub fn desugar_refined_by(
-    early_cx: &EarlyCtxt,
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
     def_id: LocalDefId,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
     let mut set = FxHashSet::default();
     refined_by.all_params().try_for_each_exhaust(|param| {
         if let Some(old) = set.replace(param.name) {
-            Err(early_cx
-                .sess
-                .emit_err(errors::DuplicateParam::new(old, param.name)))
+            Err(sess.emit_err(errors::DuplicateParam::new(old, param.name)))
         } else {
             Ok(())
         }
@@ -97,13 +98,13 @@ pub fn desugar_refined_by(
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params
         .iter()
-        .map(|param| resolve_sort(early_cx, &param.sort))
+        .map(|param| resolve_sort(sess, sort_decls, &param.sort))
         .try_collect_exhaust()?;
 
     let index_params: Vec<_> = refined_by
         .index_params
         .iter()
-        .map(|param| Ok((param.name.name, resolve_sort(early_cx, &param.sort)?)))
+        .map(|param| Ok((param.name.name, resolve_sort(sess, sort_decls, &param.sort)?)))
         .try_collect_exhaust()?;
 
     Ok(fhir::RefinedBy::new(def_id, early_bound_params, index_params, refined_by.span))
@@ -729,41 +730,48 @@ fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {
     }
 }
 
-fn resolve_sort(early_cx: &EarlyCtxt, sort: &surface::Sort) -> Result<fhir::Sort, ErrorGuaranteed> {
+fn resolve_sort(
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
+    sort: &surface::Sort,
+) -> Result<fhir::Sort, ErrorGuaranteed> {
     match sort {
-        surface::Sort::Base(sort) => resolve_base_sort(early_cx, *sort),
+        surface::Sort::Base(sort) => resolve_base_sort(sess, sort_decls, *sort),
         surface::Sort::Func { inputs, output } => {
-            Ok(resolve_func_sort(early_cx, inputs, output)?.into())
+            Ok(resolve_func_sort(sess, sort_decls, inputs, output)?.into())
         }
         surface::Sort::Infer => Ok(fhir::Sort::Infer),
     }
 }
 
 fn resolve_func_sort(
-    early_cx: &EarlyCtxt,
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
     inputs: &[surface::BaseSort],
     output: &surface::BaseSort,
 ) -> Result<fhir::FuncSort, ErrorGuaranteed> {
     let mut inputs_and_output: Vec<fhir::Sort> = inputs
         .iter()
-        .map(|sort| resolve_base_sort(early_cx, *sort))
+        .map(|sort| resolve_base_sort(sess, sort_decls, *sort))
         .try_collect_exhaust()?;
-    inputs_and_output.push(resolve_base_sort(early_cx, *output)?);
+    inputs_and_output.push(resolve_base_sort(sess, sort_decls, *output)?);
     Ok(fhir::FuncSort { inputs_and_output: List::from_vec(inputs_and_output) })
 }
 
 fn resolve_base_sort(
-    early_cx: &EarlyCtxt,
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
     base: surface::BaseSort,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
     match base {
-        surface::BaseSort::Ident(ident) => resolve_base_sort_ident(early_cx, ident),
+        surface::BaseSort::Ident(ident) => resolve_base_sort_ident(sess, sort_decls, ident),
         surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(w)),
     }
 }
 
 fn resolve_base_sort_ident(
-    early_cx: &EarlyCtxt,
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
     ident: surface::Ident,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
     if ident.name == SORTS.int {
@@ -772,10 +780,10 @@ fn resolve_base_sort_ident(
         Ok(fhir::Sort::Bool)
     } else if ident.name == SORTS.real {
         Ok(fhir::Sort::Real)
-    } else if early_cx.sort_decl(ident.name).is_some() {
+    } else if sort_decls.get(&ident.name).is_some() {
         Ok(fhir::Sort::User(ident.name))
     } else {
-        Err(early_cx.emit_err(errors::UnresolvedSort::new(ident)))
+        Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
     }
 }
 
@@ -802,7 +810,11 @@ impl Binders {
             self.insert_binder(
                 early_cx.sess,
                 param.name,
-                Binder::Refined(self.fresh(), resolve_sort(early_cx, &param.sort)?, false),
+                Binder::Refined(
+                    self.fresh(),
+                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &param.sort)?,
+                    false,
+                ),
             )?;
         }
         Ok(())
@@ -870,7 +882,11 @@ impl Binders {
             self.insert_binder(
                 early_cx.sess,
                 param.name,
-                Binder::Refined(self.fresh(), resolve_sort(early_cx, &param.sort)?, false),
+                Binder::Refined(
+                    self.fresh(),
+                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &param.sort)?,
+                    false,
+                ),
             )?;
         }
         for arg in &fn_sig.args {

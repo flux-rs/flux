@@ -196,6 +196,7 @@ where
             .genv
             .map()
             .sort_decls()
+            .values()
             .map(|sort_decl| sort_decl.name.to_string())
             .collect_vec();
 
