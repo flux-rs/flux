@@ -606,7 +606,7 @@ impl Env<'_, '_> {
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
             fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
+            fhir::Func::Uif(sym, _, _) => rty::Expr::func(*sym),
         }
     }
 
@@ -802,8 +802,8 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::UifDef) -> rty::UifDef {
-    rty::UifDef { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort) }
+pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::FuncDecl) -> rty::UifDef {
+    rty::UifDef { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort), kind: uif.kind }
 }
 
 fn conv_sorts<'a>(
@@ -821,6 +821,7 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,
         fhir::Sort::Bool => rty::Sort::Bool,
+        fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::User(name) => rty::Sort::User(*name),

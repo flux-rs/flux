@@ -86,10 +86,21 @@ pub QualNames: surface::QualNames = {
 
 RefineParam: surface::RefineParam = <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> };
 
+BaseSort: surface::BaseSort = {
+    "bitvec" "<" <lo:@L> <lit:Lit> <hi:@R> ">" =>? {
+        if let Ok(width) = lit.symbol.as_str().parse::<usize>() {
+            Ok(surface::BaseSort::BitVec(width))
+        } else {
+            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        }
+    },
+    <sort: Ident> => surface::BaseSort::Ident(sort),
+}
+
 Sort: surface::Sort = {
-    <sort: Ident> => surface::Sort::Base(sort),
-    "(" <inputs:Comma<Ident>> ")" "->" <output:Ident> => surface::Sort::Func { <> },
-    <input:Ident> "->" <output:Ident>                 => surface::Sort::Func { inputs: vec![input], output }
+    <base: BaseSort> => surface::Sort::Base(base),
+    "(" <inputs:Comma<BaseSort>> ")" "->" <output:BaseSort> => surface::Sort::Func { <> },
+    <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
 pub FnSig: surface::FnSig = {
@@ -402,6 +413,7 @@ extern {
         "sort" => Token::Sort,
         "opaque" => Token::Opaque,
         "local" => Token::Local,
+        "bitvec" => Token::BitVec,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,

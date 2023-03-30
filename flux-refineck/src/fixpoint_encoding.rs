@@ -376,7 +376,7 @@ impl FixpointKVar {
     }
 }
 
-fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
+fn fixpoint_const_map(genv: &GlobalEnv) -> ConstMap {
     let const_name_gen = IndexGen::new();
     let consts = genv
         .map()
@@ -395,12 +395,21 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> FxIndexMap<Key, ConstInfo> {
     let uifs = genv
         .uifs()
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
-        .map(|uif_def| {
-            let name = const_name_gen.fresh();
-            let sort = func_sort_to_fixpoint(&uif_def.sort);
-            let cinfo =
-                ConstInfo { name, sym: uif_def.name, sort: fixpoint::Sort::Func(sort), val: None };
-            (Key::Uif(cinfo.sym), cinfo)
+        .filter_map(|uif_def| {
+            match uif_def.kind {
+                flux_middle::fhir::FuncKind::Uif => {
+                    let name = const_name_gen.fresh();
+                    let sort = func_sort_to_fixpoint(&uif_def.sort);
+                    let cinfo = ConstInfo {
+                        name,
+                        sym: uif_def.name,
+                        sort: fixpoint::Sort::Func(sort),
+                        val: None,
+                    };
+                    Some((Key::Uif(cinfo.sym), cinfo))
+                }
+                _ => None,
+            }
         });
     itertools::chain(consts, uifs).collect()
 }
@@ -485,6 +494,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Int => fixpoint::Sort::Int,
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
+        rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,
@@ -610,10 +620,11 @@ impl<'a> ExprCtxt<'a> {
                 fixpoint::Func::Var(*name)
             }
             rty::ExprKind::Func(name) => {
-                let cinfo = self.const_map.get(&Key::Uif(*name)).unwrap_or_else(|| {
-                    span_bug!(self.dbg_span, "no const found for key: `{name:?}`")
-                });
-                fixpoint::Func::Uif(cinfo.name)
+                if let Some(cinfo) = self.const_map.get(&Key::Uif(*name)) {
+                    fixpoint::Func::Uif(cinfo.name)
+                } else {
+                    fixpoint::Func::Itf(*name)
+                }
             }
             _ => {
                 span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")

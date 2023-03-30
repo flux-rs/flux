@@ -27,15 +27,16 @@ use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarSubstFolder};
-pub use crate::{
-    fhir::{InferMode, RefKind},
-    rustc::ty::Const,
-};
 use crate::{
+    fhir::FuncKind,
     global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
     queries::QueryResult,
     rustc::mir::Place,
+};
+pub use crate::{
+    fhir::{InferMode, RefKind},
+    rustc::ty::Const,
 };
 
 #[derive(Debug, Clone)]
@@ -84,6 +85,7 @@ pub enum Sort {
     Int,
     Bool,
     Real,
+    BitVec(usize),
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
@@ -188,9 +190,11 @@ pub struct Defn {
     pub expr: Binder<Expr>,
 }
 
+#[derive(Debug)]
 pub struct UifDef {
     pub name: Symbol,
     pub sort: FuncSort,
+    pub kind: FuncKind,
 }
 
 #[derive(Debug)]
@@ -1064,6 +1068,7 @@ mod pretty {
                 Sort::Bool => w!("bool"),
                 Sort::Int => w!("int"),
                 Sort::Real => w!("real"),
+                Sort::BitVec(w) => w!("bitvec({})", ^w),
                 Sort::Loc => w!("loc"),
                 Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {
@@ -1305,5 +1310,6 @@ mod pretty {
         VariantDef,
         PtrKind,
         Binder<FnOutput>,
+        FuncSort,
     );
 }
