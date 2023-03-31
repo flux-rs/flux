@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.2.1
       - name: Rust rustfmt
         run: cargo fmt --check
 
@@ -69,7 +69,7 @@ jobs:
       - name: Add clippy
         run: rustup component add clippy
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2.2.1
       - name: Run clippy
         uses: actions-rs/clippy-check@v1.0.7
         with:
