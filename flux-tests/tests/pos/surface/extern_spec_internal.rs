@@ -1,23 +1,13 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-use std::vec::Vec;
-
-#[flux::alias(type Lb(n: int) = usize{v: n <= v})]
-type Lb = usize;
-
-#[flux::trusted]
-fn make_vec() -> Vec<i32> {
-    vec!(1,2,3)
-}
-
 #[flux::extern_spec]
-#[flux::sig(fn(v: &Vec<i32>) -> Lb(10))]
-fn extern_len(v: &Vec<i32>) -> Lb {
-    Vec::len(v)
+#[flux::sig(fn(&T) -> &[T][1])]
+fn from_ref<T>(s: &T) -> &[T] {
+    std::slice::from_ref::<T>(s)
 }
 
-#[flux::sig(fn() -> Lb(10))]
-pub fn test() -> Lb {
-    Vec::len(&make_vec())
+#[flux::sig(fn(&i32) -> &[i32][1])]
+pub fn test(x: &i32) -> &[i32] {
+    from_ref(x)
 }

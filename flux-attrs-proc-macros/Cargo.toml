@@ -1,13 +1,13 @@
 [package]
+edition = "2021"
 name = "flux-attrs-proc-macros"
 version = "0.1.0"
-edition = "2021"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-flux-attrs= { path = "../flux-attrs", version = "0.1.0", optional = true }
+flux-attrs = { path = "../flux-attrs", version = "0.1.0", optional = true }
 proc-macro2 = { version = "1.0", optional = true }
 
 [features]
