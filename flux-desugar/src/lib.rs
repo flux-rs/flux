@@ -20,7 +20,7 @@ mod desugar;
 mod table_resolver;
 
 pub use desugar::{
-    desugar_defn, desugar_qualifier, desugar_refined_by, resolve_defn_uif, resolve_uif_def,
+    defn_to_func_decl, desugar_defn, desugar_qualifier, desugar_refined_by, uif_to_func_decl,
 };
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use flux_syntax::surface;

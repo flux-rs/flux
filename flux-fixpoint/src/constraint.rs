@@ -8,6 +8,7 @@ use flux_common::format::PadAdapter;
 use itertools::Itertools;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
+use rustc_span::Symbol;
 
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),
@@ -22,6 +23,7 @@ pub enum Sort {
     Bool,
     Real,
     Unit,
+    BitVec(usize),
     Pair(Box<Sort>, Box<Sort>),
     Func(FuncSort),
 }
@@ -52,10 +54,13 @@ pub enum Expr {
     Unit,
 }
 
-#[derive(Hash)]
+#[derive(Hash, Debug, Clone)]
 pub enum Func {
     Var(Name),
+    /// uninterepreted function
     Uif(ConstName),
+    /// interpreted (theory) function
+    Itf(Symbol),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -271,6 +276,7 @@ impl fmt::Display for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
             Sort::Unit => write!(f, "Unit"),
+            Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
         }
@@ -367,6 +373,7 @@ impl fmt::Display for Func {
         match self {
             Func::Var(name) => write!(f, "{name:?}"),
             Func::Uif(uif) => write!(f, "{uif:?}"),
+            Func::Itf(itf) => write!(f, "{itf}"),
         }
     }
 }
@@ -633,21 +640,20 @@ impl Constant {
         Some(Constant::Bool(n1 >= n2))
     }
 
-    /// Given the bit width of an integer type, produces the maximum integer for
-    /// that type.
+    /// Given the bit width of a signed integer type, produces the maximum integer for
+    /// that type, i.e., -2^(bit_width - 1).
     pub fn int_min(bit_width: u32) -> Constant {
-        let abs_max: u128 = 2_u128.pow(bit_width);
-        Constant::Int(Sign::Negative, abs_max)
+        Constant::Int(Sign::Negative, 1u128 << (bit_width - 1))
     }
 
-    /// Given the bit width of an integer type, produces the minimum integer for
-    /// that type.
+    /// Given the bit width of a signed integer type, produces the minimum integer for
+    /// that type, i.e., 2^(bit_width - 1) - 1.
     pub fn int_max(bit_width: u32) -> Constant {
         (i128::MAX >> (128 - bit_width)).into()
     }
 
     /// Given the bit width of an unsigned integer type, produces the maximum
-    /// unsigned integer for that type.
+    /// unsigned integer for that type, i.e., 2^bit_width - 1.
     pub fn uint_max(bit_width: u32) -> Constant {
         (u128::MAX >> (128 - bit_width)).into()
     }

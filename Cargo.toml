@@ -4,6 +4,7 @@ members = [
     "flux",
     "flux-attrs",
     "flux-attrs-proc-macros",
+    "flux-attrs-proc-macros-build",
     "flux-bin",
     "flux-common",
     "flux-config",

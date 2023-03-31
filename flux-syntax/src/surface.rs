@@ -132,14 +132,22 @@ pub struct RefineParam {
 #[derive(Debug)]
 pub enum Sort {
     /// A _base_ sort, e.g., `int` or `bool`.
-    Base(Ident),
+    Base(BaseSort),
     /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
     /// are all base sorts.
     Func {
-        inputs: Vec<Ident>,
-        output: Ident,
+        inputs: Vec<BaseSort>,
+        output: BaseSort,
     },
     Infer,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BaseSort {
+    /// a _base_ sort, e.g. `int` or `bool`
+    Ident(Ident),
+    /// A bitvector sort, e.g., BitVec(32)
+    BitVec(usize),
 }
 
 #[derive(Debug)]

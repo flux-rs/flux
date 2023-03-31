@@ -1,16 +1,15 @@
-// ignore-test
-// Need to add macros to test
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-use std::mem::swap;
+use std::slice::from_ref;
+
+use flux_attrs_proc_macros::extern_spec;
 
 #[extern_spec]
-#[flux::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
-fn swap(a: &mut i32, b: &mut i32);
+#[flux::sig(fn(&T) -> &[T][1])]
+fn from_ref<T>(s: &T) -> &[T];
 
-pub fn test() {
-  let mut x = 1;
-  let mut y = 2;
-  swap(&mut y, &mut x); //~ ERROR postcondition
+#[flux::sig(fn(&i32) -> &[i32]{n: n > 1})]
+pub fn test(x: &i32) -> &[i32] {
+    from_ref(x) //~ ERROR postcondition
 }

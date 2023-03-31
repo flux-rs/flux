@@ -80,13 +80,15 @@ pub struct SortDecl {
     pub span: Span,
 }
 
+pub type SortDecls = FxHashMap<Symbol, SortDecl>;
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
-    uifs: FxHashMap<Symbol, UifDef>,
+    func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     defns: FxHashMap<Symbol, Defn>,
     consts: FxHashMap<Symbol, ConstInfo>,
@@ -339,6 +341,7 @@ pub enum Sort {
     Real,
     Loc,
     Unit,
+    BitVec(usize),
     Func(FuncSort),
     /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of an aggregate sort can be projected using dot notation to extract their fields.
@@ -377,8 +380,8 @@ pub enum ExprKind {
 pub enum Func {
     /// A function comming from a refinement parameter.
     Var(Ident),
-    /// A _global_ uninterpreted function.
-    Uif(Symbol, Span),
+    /// A _global_ function symbol (including possibly theory symbols)
+    Global(Symbol, FuncKind, Span),
 }
 
 /// representation of uninterpreted functions
@@ -502,9 +505,20 @@ pub struct RefinedBy {
 }
 
 #[derive(Debug)]
-pub struct UifDef {
+pub struct FuncDecl {
     pub name: Symbol,
     pub sort: FuncSort,
+    pub kind: FuncKind,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum FuncKind {
+    /// Theory symbols "interpreted" by the SMT solver
+    Thy,
+    /// User-defined uninterpreted functions with no definition
+    Uif,
+    /// User-defined functions with a body definition
+    Def,
 }
 
 #[derive(Debug)]
@@ -613,6 +627,12 @@ impl rustc_errors::IntoDiagnosticArg for &Path {
 }
 
 impl Map {
+    pub fn new() -> Self {
+        let mut me = Self::default();
+        me.insert_theory_funcs();
+        me
+    }
+
     pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
         self.generics.insert(def_id, generics);
     }
@@ -739,18 +759,40 @@ impl Map {
         self.consts.get(name.borrow())
     }
 
+    // Theory Symbols
+    fn insert_theory_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
+        let sort = FuncSort::new(inputs, output);
+        self.func_decls
+            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy });
+    }
+
+    fn insert_theory_funcs(&mut self) {
+        self.insert_theory_func(Symbol::intern("int_to_bv32"), vec![Sort::Int], Sort::BitVec(32));
+        self.insert_theory_func(Symbol::intern("bv32_to_int"), vec![Sort::BitVec(32)], Sort::Int);
+        self.insert_theory_func(
+            Symbol::intern("bvsub"),
+            vec![Sort::BitVec(32), Sort::BitVec(32)],
+            Sort::BitVec(32),
+        );
+        self.insert_theory_func(
+            Symbol::intern("bvand"),
+            vec![Sort::BitVec(32), Sort::BitVec(32)],
+            Sort::BitVec(32),
+        );
+    }
+
     // UIF
 
-    pub fn insert_uif(&mut self, symb: Symbol, uif: UifDef) {
-        self.uifs.insert(symb, uif);
+    pub fn insert_func_decl(&mut self, symb: Symbol, uif: FuncDecl) {
+        self.func_decls.insert(symb, uif);
     }
 
-    pub fn uifs(&self) -> impl Iterator<Item = &UifDef> {
-        self.uifs.values()
+    pub fn func_decls(&self) -> impl Iterator<Item = &FuncDecl> {
+        self.func_decls.values()
     }
 
-    pub fn uif(&self, sym: impl Borrow<Symbol>) -> Option<&UifDef> {
-        self.uifs.get(sym.borrow())
+    pub fn func_decl(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDecl> {
+        self.func_decls.get(sym.borrow())
     }
 
     // Defn
@@ -772,8 +814,8 @@ impl Map {
         self.sort_decls.insert(sort_decl.name, sort_decl);
     }
 
-    pub fn sort_decls(&self) -> impl Iterator<Item = &SortDecl> {
-        self.sort_decls.values()
+    pub fn sort_decls(&self) -> &SortDecls {
+        &self.sort_decls
     }
 
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
@@ -979,7 +1021,7 @@ impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Var(func) => write!(f, "{func:?}"),
-            Self::Uif(sym, _) => write!(f, "{sym}"),
+            Self::Global(sym, _, _) => write!(f, "{sym}"),
         }
     }
 }
@@ -1006,6 +1048,7 @@ impl fmt::Display for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
             Sort::Real => write!(f, "real"),
+            Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),

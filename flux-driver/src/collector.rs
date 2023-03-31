@@ -462,6 +462,7 @@ impl Specs {
             extern_fns: FxHashMap::default(),
         }
     }
+
     fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
         for item in items {
             match item {
@@ -471,6 +472,22 @@ impl Specs {
                 surface::Item::SortDecl(sort_decl) => self.sort_decls.push(sort_decl),
             }
         }
+    }
+
+    pub fn refined_bys(&self) -> impl Iterator<Item = (LocalDefId, Option<&surface::RefinedBy>)> {
+        let structs = self
+            .structs
+            .iter()
+            .map(|(def_id, struct_def)| (*def_id, struct_def.refined_by.as_ref()));
+        let enums = self
+            .enums
+            .iter()
+            .map(|(def_id, enum_def)| (*def_id, enum_def.refined_by.as_ref()));
+        let aliases = self
+            .aliases
+            .iter()
+            .map(|(def_id, alias)| (*def_id, alias.as_ref().map(|alias| &alias.refined_by)));
+        itertools::chain!(structs, enums, aliases)
     }
 }
 

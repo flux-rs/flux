@@ -34,15 +34,15 @@ fluent_messages! { "../locales/en-US.ftl" }
 pub fn build_genv<'sess, 'tcx>(
     early_cx: EarlyCtxt<'sess, 'tcx>,
 ) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
-    let uifs = early_cx
+    let func_decls = early_cx
         .map
-        .uifs()
-        .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
+        .func_decls()
+        .map(|decl| (decl.name, conv::conv_func_decl(&early_cx, decl)))
         .collect();
 
     let genv = GlobalEnv::new(
         early_cx,
-        uifs,
+        func_decls,
         Providers {
             defns,
             qualifiers,
