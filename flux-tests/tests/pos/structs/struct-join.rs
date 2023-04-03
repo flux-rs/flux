@@ -3,12 +3,12 @@
 
 #[flux::refined_by(a: int)]
 pub struct S<T> {
-    #[flux::field({i32[@a] : a >= 0})]
+    #[flux::field({i32[@a] | a >= 0})]
     f1: i32,
     f2: T,
 }
 
-#[flux::sig(fn(bool, S<i32>) -> i32{v : v >= 0})]
+#[flux::sig(fn(bool, S<i32>) -> i32{v: v >= 0})]
 pub fn test1(b: bool, mut s: S<i32>) -> i32 {
     if b {
         // we break the invariant
@@ -18,7 +18,7 @@ pub fn test1(b: bool, mut s: S<i32>) -> i32 {
     s.f1 + 1
 }
 
-#[flux::sig(fn(bool, S<i32>) -> i32{v : v > 0})]
+#[flux::sig(fn(bool, S<i32>) -> i32{v: v > 0})]
 pub fn test2(b: bool, s: S<i32>) -> i32 {
     let x = if b {
         drop(s);
@@ -30,7 +30,7 @@ pub fn test2(b: bool, s: S<i32>) -> i32 {
     x + 1
 }
 
-#[flux::sig(fn(bool, S<Vec<i32> >) -> i32{v : v > 0})]
+#[flux::sig(fn(bool, S<Vec<i32> >) -> i32{v: v > 0})]
 pub fn test3(b: bool, s: S<Vec<i32>>) -> i32 {
     let x = if b {
         drop(s.f2);

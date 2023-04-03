@@ -3,9 +3,9 @@
 
 #[flux::refined_by(a: int, b: int)]
 struct Foo {
-    #[flux::field({i32[@a]: 0 <= a})]
+    #[flux::field({i32[@a] | 0 <= a})]
     x: i32,
-    #[flux::field({i32[@b]: a < b})]
+    #[flux::field({i32[@b] | a < b})]
     y: i32,
 }
 
@@ -14,7 +14,7 @@ fn test1(foo: &Foo) -> bool {
     foo.x < foo.y && 0 < foo.y
 }
 
-#[flux::sig(fn({&Foo[@a, @b] : b == 20}) -> i32[20])]
+#[flux::sig(fn({&Foo[@a, @b] | b == 20}) -> i32[20])]
 fn test2(foo: &Foo) -> i32 {
     foo.y
 }

@@ -19,7 +19,7 @@ pub fn fft(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     0
 }
 
-#[flux::sig(fn({&mut RVec<f32>[@n] : n > 0}, &mut RVec<f32>[n]) -> i32)]
+#[flux::sig(fn({&mut RVec<f32>[@n] | n > 0}, &mut RVec<f32>[n]) -> i32)]
 fn loop_a(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     let n = px.len() - 1;
     let mut n2 = n;
@@ -88,7 +88,7 @@ fn loop_a(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     0
 }
 
-#[flux::sig(fn({&mut RVec<f32>[@n] : n > 0}, &mut RVec<f32>[n]) -> i32)]
+#[flux::sig(fn({&mut RVec<f32>[@n] | n > 0}, &mut RVec<f32>[n]) -> i32)]
 fn loop_b(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     let n = px.len() - 1;
     let mut is = 1;

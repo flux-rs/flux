@@ -4,7 +4,7 @@
 #[flux::sig(fn(bool[true]))]
 fn assert(_b: bool) {}
 
-#[flux::sig(fn(&i32[@a], { &i32[@b] : b <= a } ) -> i32[a-b])]
+#[flux::sig(fn(&i32[@a], { &i32[@b] | b <= a } ) -> i32[a-b])]
 fn sub(x: &i32, y: &i32) -> i32 {
     let res = *x - *y;
     assert(0 < res); //~ ERROR precondition

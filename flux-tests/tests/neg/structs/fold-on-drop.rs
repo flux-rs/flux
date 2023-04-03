@@ -3,7 +3,7 @@
 
 #[flux::refined_by(a: int)]
 pub struct S {
-    #[flux::field({i32[@a] : a >= 0})]
+    #[flux::field({i32[@a] | a >= 0})]
     f1: i32,
     _f2: Vec<i32>,
 }
