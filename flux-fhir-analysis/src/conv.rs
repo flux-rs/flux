@@ -352,7 +352,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let sort = self.env.pop_layer().into_sort();
 
                 if sort.is_unit() {
-                    Ok(constr.shift_out_bvars(1))
+                    Ok(constr.shift_out_escaping(1))
                 } else {
                     Ok(rty::Ty::exists(rty::Binder::new(constr, sort)))
                 }
