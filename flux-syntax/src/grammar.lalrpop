@@ -269,7 +269,7 @@ Level9 = {
     <Level10>
 }
 Level10: surface::Expr = {
-    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
+    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
             span: mk_span(lo, hi),
@@ -299,6 +299,15 @@ Level10: surface::Expr = {
         span: mk_span(lo, hi),
     },
     "(" <Level1> ")"
+}
+ElseIf: surface::Expr = {
+    "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
+        surface::Expr {
+            kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
+            span: mk_span(lo, hi),
+        }
+    },
+    "else" "{" <Level1> "}"
 }
 
 

@@ -903,7 +903,7 @@ impl fmt::Debug for Ty {
         match &self.kind {
             TyKind::BaseTy(bty) => write!(f, "{bty:?}"),
             TyKind::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
-            TyKind::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?} : {p:?}}}"),
+            TyKind::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?}: {p:?}}}"),
             TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             TyKind::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
             TyKind::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),

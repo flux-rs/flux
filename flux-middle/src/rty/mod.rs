@@ -705,7 +705,7 @@ impl EarlyBinder<PolyVariant> {
             .0
             .as_ref()
             .map(|variant| {
-                let ret = variant.ret.shift_in_bvars(1);
+                let ret = variant.ret.shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
