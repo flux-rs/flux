@@ -65,8 +65,3 @@ spec nnf : bool for Pred {
     Or  : ( Box<Pred[@p1]>, Box<Pred[@p2]>) -> p1.nnf && p2.nnf,
 }
 ```
-
-
----
-
-## Dot-Syntax

@@ -34,15 +34,15 @@ fluent_messages! { "../locales/en-US.ftl" }
 pub fn build_genv<'sess, 'tcx>(
     early_cx: EarlyCtxt<'sess, 'tcx>,
 ) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
-    let uifs = early_cx
+    let func_decls = early_cx
         .map
-        .uifs()
-        .map(|uif| (uif.name, conv::conv_uif(&early_cx, uif)))
+        .func_decls()
+        .map(|decl| (decl.name, conv::conv_func_decl(&early_cx, decl)))
         .collect();
 
     let genv = GlobalEnv::new(
         early_cx,
-        uifs,
+        func_decls,
         Providers {
             defns,
             qualifiers,
@@ -83,10 +83,31 @@ fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .try_collect()
 }
 
-fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> rty::AdtDef {
+fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::Invariant>> {
+    let (params, invariants) = match genv.tcx.def_kind(def_id) {
+        DefKind::Enum => {
+            let enum_def = genv.map().get_enum(def_id);
+            (&enum_def.params, &enum_def.invariants)
+        }
+        DefKind::Struct => {
+            let struct_def = genv.map().get_struct(def_id);
+            (&struct_def.params, &struct_def.invariants)
+        }
+        kind => bug!("expected struct or enum found `{kind:?}`"),
+    };
+    conv::conv_invariants(genv, params, invariants)
+        .into_iter()
+        .map(|invariant| normalize(genv, invariant))
+        .collect()
+}
+
+fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
+    let invariants = invariants_of(genv, def_id)?;
     match genv.tcx.def_kind(def_id) {
-        DefKind::Enum => conv::adt_def_for_enum(genv.early_cx(), genv.map().get_enum(def_id)),
-        DefKind::Struct => conv::adt_def_for_struct(genv.early_cx(), genv.map().get_struct(def_id)),
+        DefKind::Enum => Ok(conv::adt_def_for_enum(genv, invariants, genv.map().get_enum(def_id))),
+        DefKind::Struct => {
+            Ok(conv::adt_def_for_struct(genv, invariants, genv.map().get_struct(def_id)))
+        }
         kind => bug!("expected struct or enum found `{kind:?}`"),
     }
 }

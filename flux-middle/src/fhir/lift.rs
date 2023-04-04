@@ -2,30 +2,33 @@
 //!
 use fhir::FhirId;
 use flux_common::{bug, index::IndexGen, iter::IterExt};
-use flux_errors::ErrorGuaranteed;
+use flux_errors::{ErrorGuaranteed, FluxSession};
 use hir::{def::DefKind, def_id::DefId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
+use rustc_middle::ty::TyCtxt;
 
-use crate::{early_ctxt::EarlyCtxt, fhir};
+use crate::fhir;
 
-struct LiftCtxt<'a, 'sess, 'tcx> {
-    early_cx: &'a EarlyCtxt<'sess, 'tcx>,
+struct LiftCtxt<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
+    sess: &'a FluxSession,
     def_id: LocalDefId,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
 }
 
 pub fn lift_generics(
-    early_cx: &EarlyCtxt,
+    tcx: TyCtxt,
+    sess: &FluxSession,
     def_id: LocalDefId,
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
-    let hir_generics = early_cx.hir().get_generics(def_id).unwrap();
-    let def_kind = early_cx.tcx.def_kind(def_id.to_def_id());
+    let hir_generics = tcx.hir().get_generics(def_id).unwrap();
+    let def_kind = tcx.def_kind(def_id.to_def_id());
 
-    let cx = LiftCtxt::new(early_cx, def_id);
+    let cx = LiftCtxt::new(tcx, sess, def_id);
 
     let params = hir_generics
         .params
@@ -47,8 +50,8 @@ pub fn lift_generics(
                     }
                 }
                 hir::GenericParamKind::Const { .. } => {
-                    return Err(early_cx.sess.emit_err(errors::UnsupportedHir::new(
-                        early_cx.tcx,
+                    return Err(sess.emit_err(errors::UnsupportedHir::new(
+                        tcx,
                         param.def_id,
                         "const generics are not supported",
                     )))
@@ -60,8 +63,8 @@ pub fn lift_generics(
     Ok(fhir::Generics { params })
 }
 
-pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
-    let item = early_cx.hir().expect_item(def_id);
+pub fn lift_refined_by(tcx: TyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
+    let item = tcx.hir().expect_item(def_id);
     match item.kind {
         hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
             fhir::RefinedBy::new(def_id, [], [], item.ident.span)
@@ -73,14 +76,15 @@ pub fn lift_refined_by(early_cx: &EarlyCtxt, def_id: LocalDefId) -> fhir::Refine
 }
 
 pub fn lift_type_alias(
-    early_cx: &EarlyCtxt,
+    tcx: TyCtxt,
+    sess: &FluxSession,
     def_id: LocalDefId,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
-    let item = early_cx.hir().expect_item(def_id);
+    let item = tcx.hir().expect_item(def_id);
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
-    let cx = LiftCtxt::new(early_cx, def_id);
+    let cx = LiftCtxt::new(tcx, sess, def_id);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
         def_id,
@@ -93,38 +97,40 @@ pub fn lift_type_alias(
 }
 
 pub fn lift_field_def(
-    early_cx: &EarlyCtxt,
+    tcx: TyCtxt,
+    sess: &FluxSession,
     def_id: LocalDefId,
 ) -> Result<fhir::FieldDef, ErrorGuaranteed> {
-    let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
-    let node = early_cx.hir().get(hir_id);
+    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+    let node = tcx.hir().get(hir_id);
     let hir::Node::Field(field_def) = node else {
         bug!("expected a field")
     };
-    let parent_id = early_cx.hir().get_parent_item(hir_id);
-    let ty = LiftCtxt::new(early_cx, parent_id.def_id).lift_ty(field_def.ty)?;
+    let parent_id = tcx.hir().get_parent_item(hir_id);
+    let ty = LiftCtxt::new(tcx, sess, parent_id.def_id).lift_ty(field_def.ty)?;
     Ok(fhir::FieldDef { def_id, ty, lifted: true })
 }
 
 pub fn lift_enum_variant_def(
-    early_cx: &EarlyCtxt,
+    tcx: TyCtxt,
+    sess: &FluxSession,
     def_id: LocalDefId,
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
-    let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
-    let node = early_cx.hir().get(hir_id);
+    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+    let node = tcx.hir().get(hir_id);
     let hir::Node::Variant(variant) = node else {
         bug!("expected a variant")
     };
-    let enum_id = early_cx.hir().get_parent_item(hir_id);
+    let enum_id = tcx.hir().get_parent_item(hir_id);
     let hir::OwnerNode::Item(hir::Item {
         ident,
         kind: hir::ItemKind::Enum(_, generics),
         ..
-    }) = early_cx.hir().owner(enum_id) else {
+    }) = tcx.hir().owner(enum_id) else {
         bug!("expected an enum")
     };
 
-    let cx = LiftCtxt::new(early_cx, def_id);
+    let cx = LiftCtxt::new(tcx, sess, def_id);
 
     let fields = variant
         .data
@@ -148,15 +154,16 @@ pub fn lift_enum_variant_def(
 }
 
 pub fn lift_fn_sig(
-    early_cx: &EarlyCtxt,
+    tcx: TyCtxt,
+    sess: &FluxSession,
     def_id: LocalDefId,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
-    let cx = LiftCtxt::new(early_cx, def_id);
-    let hir_id = early_cx.hir().local_def_id_to_hir_id(def_id);
-    let fn_sig = early_cx
+    let cx = LiftCtxt::new(tcx, sess, def_id);
+    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+    let fn_sig = tcx
         .hir()
         .fn_sig_by_hir_id(hir_id)
-        .expect("item is does not have a `FnDecl`");
+        .expect("item does not have a `FnDecl`");
 
     let args = fn_sig
         .decl
@@ -181,9 +188,9 @@ pub fn lift_fn_sig(
     })
 }
 
-impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'sess, 'tcx>, def_id: LocalDefId) -> Self {
-        Self { early_cx, def_id, local_id_gen: IndexGen::new() }
+impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
+    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, def_id: LocalDefId) -> Self {
+        Self { tcx, sess, def_id, local_id_gen: IndexGen::new() }
     }
 
     fn next_fhir_id(&self) -> FhirId {
@@ -257,7 +264,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let hir = self.early_cx.hir();
+        let hir = self.tcx.hir();
         let def_id = alias_to.expect_local();
         match hir.expect_item(def_id).kind {
             hir::ItemKind::Impl(parent_impl) => self.lift_ty(parent_impl.self_ty),
@@ -289,7 +296,7 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
 
     fn lift_array_len(&self, len: &hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
         let body = match len {
-            hir::ArrayLen::Body(anon_const) => self.early_cx.hir().body(anon_const.body),
+            hir::ArrayLen::Body(anon_const) => self.tcx.hir().body(anon_const.body),
             hir::ArrayLen::Infer(_, _) => bug!("unexpected `ArrayLen::Infer`"),
         };
         if let hir::ExprKind::Lit(lit) = &body.value.kind
@@ -324,11 +331,11 @@ impl<'a, 'sess, 'tcx> LiftCtxt<'a, 'sess, 'tcx> {
     }
 
     fn emit_unsupported<T>(&self, msg: &str) -> Result<T, ErrorGuaranteed> {
-        self.emit_err(errors::UnsupportedHir::new(self.early_cx.tcx, self.def_id, msg))
+        self.emit_err(errors::UnsupportedHir::new(self.tcx, self.def_id, msg))
     }
 
     fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {
-        Err(self.early_cx.sess.emit_err(err))
+        Err(self.sess.emit_err(err))
     }
 }
 

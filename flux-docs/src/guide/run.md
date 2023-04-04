@@ -11,7 +11,7 @@ For example, the following command checks the file `test.rs`.
 rustc-flux path/to/test.rs
 ```
 
-The flux binary accepts the same flags as rustc.
+The flux binary accepts the same flags as `rustc`.
 You could for example check a file as a library instead of a binary like so
 
 ```bash

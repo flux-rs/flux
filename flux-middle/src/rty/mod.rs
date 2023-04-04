@@ -27,15 +27,16 @@ use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
 use self::{fold::TypeFoldable, subst::BVarSubstFolder};
-pub use crate::{
-    fhir::{InferMode, RefKind},
-    rustc::ty::Const,
-};
 use crate::{
+    fhir::FuncKind,
     global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
     queries::QueryResult,
     rustc::mir::Place,
+};
+pub use crate::{
+    fhir::{InferMode, RefKind},
+    rustc::ty::Const,
 };
 
 #[derive(Debug, Clone)]
@@ -84,6 +85,7 @@ pub enum Sort {
     Int,
     Bool,
     Real,
+    BitVec(usize),
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
@@ -117,7 +119,7 @@ pub enum Opaqueness<T> {
     Transparent(T),
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
     pub pred: Binder<Expr>,
 }
@@ -188,9 +190,11 @@ pub struct Defn {
     pub expr: Binder<Expr>,
 }
 
-pub struct UifDef {
+#[derive(Debug)]
+pub struct FuncDecl {
     pub name: Symbol,
     pub sort: FuncSort,
+    pub kind: FuncKind,
 }
 
 #[derive(Debug)]
@@ -701,7 +705,7 @@ impl EarlyBinder<PolyVariant> {
             .0
             .as_ref()
             .map(|variant| {
-                let ret = variant.ret.shift_in_bvars(1);
+                let ret = variant.ret.shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
@@ -999,6 +1003,7 @@ impl_internable!(
     [GenericParamDef],
     [Predicate],
     [PolyVariant],
+    [Invariant],
 );
 
 #[macro_export]
@@ -1064,6 +1069,7 @@ mod pretty {
                 Sort::Bool => w!("bool"),
                 Sort::Int => w!("int"),
                 Sort::Real => w!("real"),
+                Sort::BitVec(w) => w!("bitvec({})", ^w),
                 Sort::Loc => w!("loc"),
                 Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {
@@ -1305,5 +1311,6 @@ mod pretty {
         VariantDef,
         PtrKind,
         Binder<FnOutput>,
+        FuncSort,
     );
 }

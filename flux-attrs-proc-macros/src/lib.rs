@@ -4,8 +4,8 @@ use proc_macro::TokenStream;
 
 #[cfg(not(feature = "enabled"))]
 #[proc_macro_attribute]
-pub fn extern_spec(_: TokenStream, tokens: TokenStream) -> TokenStream {
-    tokens
+pub fn extern_spec(_attrs: TokenStream, _tokens: TokenStream) -> TokenStream {
+    TokenStream::new()
 }
 
 #[cfg(feature = "enabled")]

@@ -120,28 +120,32 @@ pub(crate) fn conv_generics(
 }
 
 pub(crate) fn adt_def_for_struct(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
+    invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let mut env = Env::new(early_cx, []);
-    env.push_layer(Layer::from_params(early_cx, &struct_def.params));
-    let sort = env.top_layer().to_sort();
-    let invariants = env.conv_invariants(&sort, &struct_def.invariants);
-
-    rty::AdtDef::new(
-        early_cx.tcx.adt_def(struct_def.def_id),
-        sort,
-        invariants,
-        struct_def.is_opaque(),
-    )
+    let sort = Layer::from_params(genv.early_cx(), &struct_def.params).into_sort();
+    rty::AdtDef::new(genv.tcx.adt_def(struct_def.def_id), sort, invariants, struct_def.is_opaque())
 }
 
-pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -> rty::AdtDef {
-    let mut env = Env::new(early_cx, []);
-    env.push_layer(Layer::from_params(early_cx, &enum_def.params));
+pub(crate) fn adt_def_for_enum(
+    genv: &GlobalEnv,
+    invariants: Vec<rty::Invariant>,
+    enum_def: &fhir::EnumDef,
+) -> rty::AdtDef {
+    let sort = Layer::from_params(genv.early_cx(), &enum_def.params).into_sort();
+    rty::AdtDef::new(genv.tcx.adt_def(enum_def.def_id), sort, invariants, false)
+}
+
+pub(crate) fn conv_invariants(
+    genv: &GlobalEnv,
+    params: &[(fhir::Ident, fhir::Sort)],
+    invariants: &[fhir::Expr],
+) -> Vec<rty::Invariant> {
+    let mut env = Env::new(genv.early_cx(), []);
+    env.push_layer(Layer::from_params(genv.early_cx(), params));
     let sort = env.top_layer().to_sort();
-    let invariants = env.conv_invariants(&sort, &enum_def.invariants);
-    rty::AdtDef::new(early_cx.tcx.adt_def(enum_def.def_id), sort, invariants, false)
+    env.conv_invariants(&sort, invariants)
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
@@ -293,7 +297,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             let sort = cx.env.pop_layer().to_sort();
             let ret = rty::Ty::indexed(
-                rty::BaseTy::adt(genv.adt_def(def_id), substs),
+                rty::BaseTy::adt(genv.adt_def(def_id)?, substs),
                 rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
@@ -352,7 +356,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let sort = self.env.pop_layer().into_sort();
 
                 if sort.is_unit() {
-                    Ok(constr.shift_out_bvars(1))
+                    Ok(constr.shift_out_escaping(1))
                 } else {
                     Ok(rty::Ty::exists(rty::Binder::new(constr, sort)))
                 }
@@ -463,7 +467,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
             fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
-                let adt_def = self.genv.adt_def(*did);
+                let adt_def = self.genv.adt_def(*did)?;
                 let substs = self.conv_generic_args(*did, &path.generics)?;
                 rty::BaseTy::adt(adt_def, substs)
             }
@@ -606,7 +610,7 @@ impl Env<'_, '_> {
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
             fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Uif(sym, _) => rty::Expr::func(*sym),
+            fhir::Func::Global(sym, kind, _) => rty::Expr::global_func(*sym, *kind),
         }
     }
 
@@ -802,8 +806,8 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_uif(early_cx: &EarlyCtxt, uif: &fhir::UifDef) -> rty::UifDef {
-    rty::UifDef { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort) }
+pub fn conv_func_decl(early_cx: &EarlyCtxt, uif: &fhir::FuncDecl) -> rty::FuncDecl {
+    rty::FuncDecl { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort), kind: uif.kind }
 }
 
 fn conv_sorts<'a>(
@@ -821,6 +825,7 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,
         fhir::Sort::Bool => rty::Sort::Bool,
+        fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::User(name) => rty::Sort::User(*name),

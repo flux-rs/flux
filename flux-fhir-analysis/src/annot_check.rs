@@ -21,15 +21,18 @@ pub fn check_fn_sig(
     if fn_sig.lifted {
         return Ok(());
     }
-    Zipper::new(early_cx.sess).zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx, def_id)?)
+    Zipper::new(early_cx.sess)
+        .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx.tcx, early_cx.sess, def_id)?)
 }
 
 pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
     if alias.lifted {
         return Ok(());
     }
-    Zipper::new(early_cx.sess)
-        .zip_ty(&alias.ty, &fhir::lift::lift_type_alias(early_cx, alias.def_id)?.ty)
+    Zipper::new(early_cx.sess).zip_ty(
+        &alias.ty,
+        &fhir::lift::lift_type_alias(early_cx.tcx, early_cx.sess, alias.def_id)?.ty,
+    )
 }
 
 pub fn check_struct_def(
@@ -42,8 +45,10 @@ pub fn check_struct_def(
                 if field.lifted {
                     return Ok(());
                 }
-                Zipper::new(early_cx.sess)
-                    .zip_ty(&field.ty, &fhir::lift::lift_field_def(early_cx, field.def_id)?.ty)
+                Zipper::new(early_cx.sess).zip_ty(
+                    &field.ty,
+                    &fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)?.ty,
+                )
             })
         }
         _ => Ok(()),
@@ -60,7 +65,7 @@ pub fn check_enum_def(
         }
         Zipper::new(early_cx.sess).zip_enum_variant(
             variant,
-            &fhir::lift::lift_enum_variant_def(early_cx, variant.def_id)?,
+            &fhir::lift::lift_enum_variant_def(early_cx.tcx, early_cx.sess, variant.def_id)?,
         )
     })
 }

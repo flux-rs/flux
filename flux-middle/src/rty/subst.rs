@@ -116,7 +116,7 @@ impl TypeFolder for BVarSubstFolder<'_> {
         if let ExprKind::Var(Var::LateBound(debruijn)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
                 Ordering::Less => Expr::late_bvar(*debruijn),
-                Ordering::Equal => self.expr.shift_in_bvars(self.current_index.as_u32()),
+                Ordering::Equal => self.expr.shift_in_escaping(self.current_index.as_u32()),
                 Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1)),
             }
         } else {
@@ -223,6 +223,6 @@ impl GenericsSubstFolder<'_> {
     }
 
     fn expr_for_param(&self, idx: u32) -> Expr {
-        self.refine[idx as usize].shift_in_bvars(self.current_index.as_u32())
+        self.refine[idx as usize].shift_in_escaping(self.current_index.as_u32())
     }
 }

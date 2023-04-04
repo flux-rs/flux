@@ -45,8 +45,7 @@ pub Items: Vec<surface::Item> = {
 
 Item: surface::Item = {
     <Qualifier> => surface::Item::Qualifier(<>),
-    <Defn>      => surface::Item::Defn(<>),
-    <Uif>       => surface::Item::Uif(<>),
+    <FuncDef>   => surface::Item::FuncDef(<>),
     <SortDecl>  => surface::Item::SortDecl(<>),
 }
 
@@ -62,15 +61,12 @@ Qualifier: surface::Qualifier = {
     }
 }
 
-Defn: surface::Defn = {
-    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
-        surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }
-    }
-}
-
-Uif: surface::UifDef = {
-    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> ";" <hi:@R> => {
-        surface::UifDef { name, args, sort, span: mk_span(lo, hi) }
+FuncDef: surface::FuncDef = {
+    "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
+        surface::FuncDef { name, args, output, body: Some(body) }
+    },
+    "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <output:Sort> ";" => {
+        surface::FuncDef { name, args, output, body: None }
     }
 }
 
@@ -86,10 +82,21 @@ pub QualNames: surface::QualNames = {
 
 RefineParam: surface::RefineParam = <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> };
 
+BaseSort: surface::BaseSort = {
+    "bitvec" "<" <lo:@L> <lit:Lit> <hi:@R> ">" =>? {
+        if let Ok(width) = lit.symbol.as_str().parse::<usize>() {
+            Ok(surface::BaseSort::BitVec(width))
+        } else {
+            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        }
+    },
+    <sort: Ident> => surface::BaseSort::Ident(sort),
+}
+
 Sort: surface::Sort = {
-    <sort: Ident> => surface::Sort::Base(sort),
-    "(" <inputs:Comma<Ident>> ")" "->" <output:Ident> => surface::Sort::Func { <> },
-    <input:Ident> "->" <output:Ident>                 => surface::Sort::Func { inputs: vec![input], output }
+    <base: BaseSort> => surface::Sort::Base(base),
+    "(" <inputs:Comma<BaseSort>> ")" "->" <output:BaseSort> => surface::Sort::Func { <> },
+    <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
 pub FnSig: surface::FnSig = {
@@ -155,7 +162,7 @@ TyKind: surface::TyKind = {
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
-    "{" <ty:Ty> ":" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
+    "{" <ty:Ty> "|" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
 
     "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
 
@@ -258,7 +265,7 @@ Level9 = {
     <Level10>
 }
 Level10: surface::Expr = {
-    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" "else" "{" <e2:Level1> "}" <hi:@R> => {
+    <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
             span: mk_span(lo, hi),
@@ -288,6 +295,15 @@ Level10: surface::Expr = {
         span: mk_span(lo, hi),
     },
     "(" <Level1> ")"
+}
+ElseIf: surface::Expr = {
+    "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
+        surface::Expr {
+            kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
+            span: mk_span(lo, hi),
+        }
+    },
+    "else" "{" <Level1> "}"
 }
 
 
@@ -402,6 +418,7 @@ extern {
         "sort" => Token::Sort,
         "opaque" => Token::Opaque,
         "local" => Token::Local,
+        "bitvec" => Token::BitVec,
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,

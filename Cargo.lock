@@ -508,6 +508,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-attrs-proc-macros-build"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs-proc-macros",
+]
+
+[[package]]
 name = "flux-bin"
 version = "0.1.0"
 dependencies = [

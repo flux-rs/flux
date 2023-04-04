@@ -17,8 +17,7 @@ pub struct SortDecl {
 #[derive(Debug)]
 pub enum Item {
     Qualifier(Qualifier),
-    Defn(Defn),
-    Uif(UifDef),
+    FuncDef(FuncDef),
     SortDecl(SortDecl),
 }
 
@@ -31,31 +30,15 @@ pub struct Qualifier {
     pub global: bool,
 }
 
+/// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
+/// i.e., a function with a body.
 #[derive(Debug)]
-pub enum Def {
-    Defn(Defn),
-    UifDef(UifDef),
-}
-
-#[derive(Debug)]
-pub struct Defn {
+pub struct FuncDef {
     pub name: Ident,
     pub args: Vec<RefineParam>,
-    pub sort: Sort,
-    pub expr: Expr,
-    pub span: Span,
-}
-
-#[derive(Debug)]
-pub struct UifDef {
-    /// name of the uninterpreted function
-    pub name: Ident,
-    /// input sorts
-    pub args: Vec<RefineParam>,
-    /// output sort
-    pub sort: Sort,
-    /// definition source position
-    pub span: Span,
+    pub output: Sort,
+    /// Body of the function. If not present this definition corresponds to an uninterpreted function.
+    pub body: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -132,14 +115,22 @@ pub struct RefineParam {
 #[derive(Debug)]
 pub enum Sort {
     /// A _base_ sort, e.g., `int` or `bool`.
-    Base(Ident),
+    Base(BaseSort),
     /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
     /// are all base sorts.
     Func {
-        inputs: Vec<Ident>,
-        output: Ident,
+        inputs: Vec<BaseSort>,
+        output: BaseSort,
     },
     Infer,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BaseSort {
+    /// a _base_ sort, e.g. `int` or `bool`
+    Ident(Ident),
+    /// A bitvector sort, e.g., BitVec(32)
+    BitVec(usize),
 }
 
 #[derive(Debug)]

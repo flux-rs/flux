@@ -162,7 +162,7 @@ pub trait TypeFoldable: Sized {
             .normalize(&Default::default())
     }
 
-    fn shift_in_bvars(&self, amount: u32) -> Self {
+    fn shift_in_escaping(&self, amount: u32) -> Self {
         struct Shifter {
             current_index: DebruijnIndex,
             amount: u32,
@@ -192,21 +192,31 @@ pub trait TypeFoldable: Sized {
         self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
     }
 
-    fn shift_out_bvars(&self, amount: u32) -> Self {
+    fn shift_out_escaping(&self, amount: u32) -> Self {
         struct Shifter {
             amount: u32,
+            current_index: DebruijnIndex,
         }
 
         impl TypeFolder for Shifter {
+            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+                self.current_index.shift_in(1);
+                let t = t.super_fold_with(self);
+                self.current_index.shift_out(1);
+                t
+            }
+
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind() {
+                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind()
+                    && debruijn >= &self.current_index
+                {
                     Expr::late_bvar(debruijn.shifted_out(self.amount))
                 } else {
                     expr.super_fold_with(self)
                 }
             }
         }
-        self.fold_with(&mut Shifter { amount })
+        self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
     }
 
     fn has_escaping_bvars(&self) -> bool {
@@ -279,9 +289,13 @@ impl TypeFoldable for Sort {
             Sort::Func(fsort) => {
                 Sort::Func(FuncSort { input_and_output: fsort.input_and_output.fold_with(folder) })
             }
-            Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::Param(_) | Sort::User(_) => {
-                self.clone()
-            }
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::BitVec(_)
+            | Sort::Param(_)
+            | Sort::User(_) => self.clone(),
         }
     }
 
@@ -289,7 +303,13 @@ impl TypeFoldable for Sort {
         match self {
             Sort::Tuple(sorts) => sorts.visit_with(visitor),
             Sort::Func(fsort) => fsort.input_and_output.visit_with(visitor),
-            Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::Param(_) | Sort::User(_) => {}
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::BitVec(_)
+            | Sort::Loc
+            | Sort::Param(_)
+            | Sort::User(_) => {}
         }
     }
 
@@ -576,7 +596,7 @@ impl TypeFoldable for Expr {
             ExprKind::Hole => Expr::hole(),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
             ExprKind::Abs(body) => Expr::abs(body.fold_with(folder)),
-            ExprKind::Func(func) => Expr::func(*func),
+            ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
         }
     }
 
@@ -610,7 +630,7 @@ impl TypeFoldable for Expr {
             | ExprKind::Hole
             | ExprKind::Var(_)
             | ExprKind::Local(_)
-            | ExprKind::Func(_)
+            | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(_) => {}
         }
     }

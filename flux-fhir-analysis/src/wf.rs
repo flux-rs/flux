@@ -581,10 +581,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                         .emit_err(errors::ExpectedFun::new(var.span(), sort)))
                 }
             }
-            fhir::Func::Uif(func, span) => {
+            fhir::Func::Global(func, _, span) => {
                 Ok(self
                     .early_cx
-                    .uif(func)
+                    .func_decl(func)
                     .unwrap_or_else(|| bug!("no definition found for uif `{func:?}` - {span:?}"))
                     .sort
                     .clone())

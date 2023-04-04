@@ -40,12 +40,11 @@ pub enum IgnoreKey {
 pub type Ignores = FxHashSet<IgnoreKey>;
 
 pub(crate) struct Specs {
-    pub fns: FxHashMap<LocalDefId, FnSpec>,
+    pub fn_sigs: FxHashMap<LocalDefId, FnSpec>,
     pub structs: FxHashMap<LocalDefId, surface::StructDef>,
     pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
-    pub uifs: Vec<surface::UifDef>,
-    pub dfns: Vec<surface::Defn>,
+    pub func_defs: Vec<surface::FuncDef>,
     pub sort_decls: Vec<surface::SortDecl>,
     pub aliases: surface::AliasMap,
     pub ignores: Ignores,
@@ -291,7 +290,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             trusted = true;
         }
         self.specs
-            .fns
+            .fn_sigs
             .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
         Ok(())
     }
@@ -448,13 +447,12 @@ fn eval_const(tcx: TyCtxt, did: LocalDefId) -> Option<ScalarInt> {
 impl Specs {
     fn new() -> Specs {
         Specs {
-            fns: FxHashMap::default(),
+            fn_sigs: FxHashMap::default(),
             structs: FxHashMap::default(),
             enums: FxHashMap::default(),
             qualifs: Vec::default(),
             sort_decls: Vec::default(),
-            uifs: Vec::default(),
-            dfns: Vec::default(),
+            func_defs: Vec::default(),
             aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
@@ -462,15 +460,31 @@ impl Specs {
             extern_fns: FxHashMap::default(),
         }
     }
+
     fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
         for item in items {
             match item {
                 surface::Item::Qualifier(qualifier) => self.qualifs.push(qualifier),
-                surface::Item::Defn(defn) => self.dfns.push(defn),
-                surface::Item::Uif(uif) => self.uifs.push(uif),
+                surface::Item::FuncDef(defn) => self.func_defs.push(defn),
                 surface::Item::SortDecl(sort_decl) => self.sort_decls.push(sort_decl),
             }
         }
+    }
+
+    pub fn refined_bys(&self) -> impl Iterator<Item = (LocalDefId, Option<&surface::RefinedBy>)> {
+        let structs = self
+            .structs
+            .iter()
+            .map(|(def_id, struct_def)| (*def_id, struct_def.refined_by.as_ref()));
+        let enums = self
+            .enums
+            .iter()
+            .map(|(def_id, enum_def)| (*def_id, enum_def.refined_by.as_ref()));
+        let aliases = self
+            .aliases
+            .iter()
+            .map(|(def_id, alias)| (*def_id, alias.as_ref().map(|alias| &alias.refined_by)));
+        itertools::chain!(structs, enums, aliases)
     }
 }
 
