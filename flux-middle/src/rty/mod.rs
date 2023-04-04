@@ -119,7 +119,7 @@ pub enum Opaqueness<T> {
     Transparent(T),
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
     pub pred: Binder<Expr>,
 }
@@ -1003,6 +1003,7 @@ impl_internable!(
     [GenericParamDef],
     [Predicate],
     [PolyVariant],
+    [Invariant],
 );
 
 #[macro_export]

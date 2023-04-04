@@ -90,7 +90,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn mk_box(&self, ty: rty::Ty, alloc: rty::Ty) -> rty::Ty {
         let def_id = self.tcx.require_lang_item(LangItem::OwnedBox, None);
-        let adt_def = self.adt_def(def_id);
+        let adt_def = self.adt_def(def_id).unwrap();
 
         // this is harcoding that `Box` has two type parameters and
         // it is indexed by unit. We leave this as a reminder in case
@@ -107,7 +107,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.mir(self, def_id)
     }
 
-    pub fn adt_def(&self, def_id: impl Into<DefId>) -> rty::AdtDef {
+    pub fn adt_def(&self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
         self.queries.adt_def(self, def_id.into())
     }
 

@@ -39,7 +39,7 @@ pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult<fhir::WfckResults>,
-    pub adt_def: fn(&GlobalEnv, LocalDefId) -> rty::AdtDef,
+    pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
@@ -52,7 +52,7 @@ pub struct Queries<'tcx> {
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
-    adt_def: Cache<DefId, rty::AdtDef>,
+    adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
@@ -114,14 +114,14 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-    pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> rty::AdtDef {
+    pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
             } else if let Some(adt_def) = genv.early_cx().cstore.adt_def(def_id) {
-                adt_def.clone()
+                Ok(adt_def.clone())
             } else {
-                rty::AdtDef::new(genv.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false)
+                Ok(rty::AdtDef::new(genv.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false))
             }
         })
     }

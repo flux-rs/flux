@@ -1,7 +1,7 @@
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
-use flux_errors::FluxSession;
+use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -354,7 +354,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 refineck::check_fn(self.genv, &mut self.cache, def_id)
             }
             DefKind::Enum => {
-                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(self.genv.sess)?;
                 let enum_def = self.genv.map().get_enum(def_id);
                 refineck::invariants::check_invariants(
                     self.genv,
@@ -364,7 +364,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(self.genv.sess)?;
                 let struct_def = self.genv.map().get_struct(def_id);
                 if struct_def.is_opaque() {
                     return Ok(());
