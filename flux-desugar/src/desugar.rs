@@ -33,14 +33,18 @@ pub fn desugar_qualifier(
 
 pub fn desugar_defn(
     early_cx: &EarlyCtxt,
-    defn: surface::Defn,
-) -> Result<fhir::Defn, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, &defn.args)?;
-    let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&defn.expr)?;
-    let name = defn.name.name;
-    let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.sort)?;
-    let args = binders.pop_layer().into_params();
-    Ok(fhir::Defn { name, args, sort, expr })
+    defn: surface::FuncDef,
+) -> Result<Option<fhir::Defn>, ErrorGuaranteed> {
+    if let Some(body) = defn.body {
+        let mut binders = Binders::from_params(early_cx, &defn.args)?;
+        let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&body)?;
+        let name = defn.name.name;
+        let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.output)?;
+        let args = binders.pop_layer().into_params();
+        Ok(Some(fhir::Defn { name, args, sort, expr }))
+    } else {
+        Ok(None)
+    }
 }
 
 fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed> {
@@ -51,34 +55,20 @@ fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed>
     }
 }
 
-pub fn defn_to_func_decl(
+pub fn func_def_to_func_decl(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
-    defn: &surface::Defn,
+    defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
     let inputs: Vec<surface::BaseSort> = defn
         .args
         .iter()
         .map(|arg| sort_base(&arg.sort))
         .try_collect_exhaust()?;
-    let output = sort_base(&defn.sort)?;
+    let output = sort_base(&defn.output)?;
     let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
-    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Def })
-}
-
-pub fn uif_to_func_decl(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    defn: surface::UifDef,
-) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
-    let inputs: Vec<surface::BaseSort> = defn
-        .args
-        .iter()
-        .map(|arg| sort_base(&arg.sort))
-        .try_collect_exhaust()?;
-    let output = sort_base(&defn.sort)?;
-    let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
-    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Uif })
+    let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
+    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
 pub fn desugar_refined_by(
