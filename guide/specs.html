@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Develop - Flux Documentation</title>
+        <title>Specs - Flux Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -83,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html" class="active"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html" class="active"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -144,73 +144,79 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
-<h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
-<p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directory using</p>
-<pre><code class="language-console">$ cargo test -p flux-tests
-</code></pre>
-<h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
-<p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
-<p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
-<h3 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h3>
-<p>Below is a sample output for an invocation of <code>cargo-flux check</code> that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for <code>cargo check</code> to run.</p>
-<p>Note that <code>check_crate</code> contains everything running under <code>check_top</code>, which is why the sum of the spans is greater than 19 seconds.</p>
-<pre><code class="language-text">check_top
-  Checker::infer
-    num events:   205
-    min non-zero: 0.52ms
-    1st quartile: 0.52ms
-    2nd quartile: 1.05ms
-    3rd quartile: 2.62ms
-    max:          24.12ms
-    total time:   229.64ms
-  Checker::check
-    num events:   205
-    min non-zero: 0.52ms
-    1st quartile: 0.52ms
-    2nd quartile: 1.05ms
-    3rd quartile: 5.24ms
-    max:          159.91ms
-    total time:   2028.47ms
-  FixpointCtx::check
-    num events:   205
-    min non-zero: 22.02ms
-    1st quartile: 26.21ms
-    2nd quartile: 28.31ms
-    3rd quartile: 40.37ms
-    max:          1867.51ms
-    total time:   9106.36ms
-total time: 11364.47ms
-
-check_crate
-  Callbacks::check_wf
-    num events:   1
-    min non-zero: 18.35ms
-    1st quartile: 18.87ms
-    2nd quartile: 18.87ms
-    3rd quartile: 18.87ms
-    max:          18.87ms
-    total time:   18.87ms
-  Callbacks::check_crate
-    num events:   1
-    min non-zero: 16986.93ms
-    1st quartile: 16995.32ms
-    2nd quartile: 16995.32ms
-    3rd quartile: 16995.32ms
-    max:          16995.32ms
-    total time:   16995.32ms
-total time: 17014.19ms
+                        <h1 id="flux-specification-guide"><a class="header" href="#flux-specification-guide">Flux Specification Guide</a></h1>
+<p>This is a WIP guide to writing specifications in <code>flux</code>.</p>
+<h2 id="refinement-types"><a class="header" href="#refinement-types">Refinement Types</a></h2>
+<ul>
+<li>
+<p><strong>Indexed Type</strong>: An indexed type <code>B[r]</code> is composed of a base Rust type <code>B</code> and a refinement index <code>r</code>. The meaning of the index depends on the type. Some examples are</p>
+<ul>
+<li><code>i32[n]</code>: denotes the (singleton) set of <code>i32</code> values equal to <code>n</code>.</li>
+<li><code>List&lt;T&gt;[n]</code>: values of type <code>List&lt;T&gt;</code> of length <code>n</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Refinement parameter</strong>: Function signatures can be parametric on refinement variables. Refinement parameters are declared using the <code>@n</code> syntax. For example, the following signature:</p>
+<p><code>fn(i32[@n]) -&gt; i32[n + 1]</code></p>
+<p>binds <code>n</code> over the entire scope of the function to specify that it takes an <code>i32</code> equal to <code>n</code> and returns an <code>i32</code> equal to <code>n + 1</code>. This is analogous to languages like Haskell where a lower case letter can be used to quantify over a type, e.g., the type <code>a -&gt; a</code> in Haskell is polymorphic on the type <code>a</code> which is bound for the scope of the entire function type.</p>
+</li>
+<li>
+<p><strong>Existential Type</strong>: An existential type <code>B{v: r(v)}</code> is composed of a base type <code>B</code>, a refinement variable <code>v</code> and a refinement predicate <code>r</code> on <code>v</code>. Intuitively, a Rust value <code>x</code> has type <code>B{v: r(v)}</code> if there exists a refinement value <code>a</code> such that <code>r(a)</code> holds and <code>x</code> has type <code>B[x]</code>.</p>
+<ul>
+<li><code>i32{v: v &gt; 0}</code>: set of positive <code>i32</code> values.</li>
+<li><code>List&lt;T&gt;{v: v &gt; 0}</code>: set of non-empty lists.</li>
+</ul>
+</li>
+<li>
+<p><strong>Constraint Type</strong>: A constraint type has the form <code>{T | r}</code> where <code>T</code> is any type (not just a base type). Intuitively, a value has type <code>{T | r}</code> if it has type <code>T</code> and also <code>r</code> holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter <code>n</code> to be less than <code>n</code>.</p>
+<p><code>fn({i32[@n] | n &lt; 10}) -&gt; i32[n + 1]</code></p>
+<p>Constraint types serve a similar role as existentials as they can also be used to constraint some
+refinement value with a predicate, but an existential type can only be used to constraint refinement
+variable that it bound locally, in contrast constraint types can be used to constraint a &quot;non-local&quot; parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
+because it has to be used in the return type.</p>
+</li>
+</ul>
+<h2 id="argument-syntax"><a class="header" href="#argument-syntax">Argument Syntax</a></h2>
+<p>The <code>@n</code> syntax used to declare refinements parameters can be hard to read sometimes. Flux also supports a syntax that let you bind refinement parameters using colons similar to the syntax used to declare arguments in a function. We call this <em>argument syntax</em>. This syntax desugars to one of the refinements forms discussed above. For example, the following signature</p>
+<p><code>fn(x: i32, y: i32) -&gt; i32[x + y]</code></p>
+<p>desugars to</p>
+<p><code>fn(i32[@x], i32[@y]) -&gt; i32[x + y]</code></p>
+<p>It is also possible to attach some constraint to the parameters when using argument syntax. For example,
+to specify that <code>y</code> must be greater than <code>x</code> using argument syntax we can write:</p>
+<p><code>fn(x: i32, y: i32{x &gt; y}) -&gt; i32[x + y]</code></p>
+<p>This will desugar to:</p>
+<p><code>fn(i32[@x], {i32[@y] | x &gt; y}) -&gt; i32[x + y]</code></p>
+<h2 id="grammar-of-refinements"><a class="header" href="#grammar-of-refinements">Grammar of Refinements</a></h2>
+<pre><code class="language-text">r ::= n                     // numbers 1,2,3...
+    | x                     // identifiers x,y,z...
+    | x.f                   // index-field access
+    | r + r                 // addition
+    | r - r                 // subtraction
+    | n * e                 // multiplication by constant
+    | if r { r } else { r } // if-then-else
+    | f(r...)               // function application
+    | true | false          // booleans
+    | r == r                // equality
+    | r != r                // not equal
+    | r &lt; r                 // less than
+    | r &lt;= r                // less than or equal
+    | r &gt; r                 // greater than
+    | r &gt;= r                // greater than or equal
+    | r || r                // disjunction
+    | r &amp;&amp; r                // conjunction
+    | r =&gt; r                // implication
+    | !r                    // negation
 </code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../guide/specs.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/run.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next" href="../dev/architecture.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="../dev/develop.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -220,11 +226,11 @@ total time: 17014.19ms
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../guide/specs.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/run.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next" href="../dev/architecture.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="../dev/develop.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

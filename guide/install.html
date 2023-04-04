@@ -83,7 +83,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html" class="active"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">3.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">3.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">4.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">5.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">6.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/install.html" class="active"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="../guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="../guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="../dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="../dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="../blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="../blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Refined Vectors</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="../about.html">About</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -151,16 +151,16 @@
 <li><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a></li>
 <li><a href="https://github.com/Z3Prover/z3">z3</a></li>
 </ul>
-<p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your $PATH.</p>
+<p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your <code>$PATH</code>.</p>
 <h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
 <p>The only way to use <code>flux</code> is to build it from source.</p>
 <p>First you need to clone the repository</p>
 <pre><code class="language-bash">git clone https://github.com/liquid-rust/flux
 cd flux
 </code></pre>
-<p>To build the source you need a nightly version of rustc.
+<p>To build the source you need a nightly version of <code>rustc</code>.
 We pin the version using a <a href="/rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
-If you are using rustup, no special action is needed as it should install the correct rustc version and components based on the information on that file.</p>
+If you are using <code>rustup</code>, no special action is needed as it should install the correct <code>rustc</code> version and components based on the information on that file.</p>
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo install --path flux
 cargo install --path flux-bin
