@@ -344,21 +344,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let idxs = rty::Index::from(self.conv_refine_arg(idx));
                 self.conv_base_ty(bty, idxs)
             }
-            fhir::TyKind::Exists(bty, bind, pred) => {
-                let sort = self.genv.early_cx().sort_of_bty(bty).unwrap();
-                let layer = Layer::single(self.early_cx(), *bind, sort);
-
-                self.env.push_layer(layer);
-                let idx = rty::Index::from(self.env.lookup(*bind).to_expr());
-                let ty = self.conv_base_ty(bty, idx)?;
-                let pred = self.env.conv_expr(pred);
-                let constr = rty::Ty::constr(pred, ty);
+            fhir::TyKind::Exists(bind, sort, ty) => {
+                self.env
+                    .push_layer(Layer::single(self.early_cx(), *bind, sort.clone()));
+                let ty = self.conv_ty(ty)?;
                 let sort = self.env.pop_layer().into_sort();
-
                 if sort.is_unit() {
-                    Ok(constr.shift_out_escaping(1))
+                    Ok(ty.shift_out_escaping(1))
                 } else {
-                    Ok(rty::Ty::exists(rty::Binder::new(constr, sort)))
+                    Ok(rty::Ty::exists(rty::Binder::new(ty, sort)))
                 }
             }
             fhir::TyKind::Ptr(loc) => {
