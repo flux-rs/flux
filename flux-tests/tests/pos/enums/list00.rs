@@ -1,8 +1,8 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn(i32{v:false}) -> T)]
-pub fn never<T>(_x: i32) -> T {
+#[flux::sig(fn(i32{v: false}) -> T)]
+pub fn never<T>(_: i32) -> T {
     loop {}
 }
 
@@ -31,7 +31,7 @@ pub fn len(l: &List) -> i32 {
     }
 }
 
-#[flux::sig(fn({&List[@n] : 0 < n}) -> i32)]
+#[flux::sig(fn({&List[@n] | 0 < n}) -> i32)]
 pub fn head(l: &List) -> i32 {
     match l {
         List::Nil => never(0),
@@ -39,7 +39,7 @@ pub fn head(l: &List) -> i32 {
     }
 }
 
-#[flux::sig(fn({&List[@n] : 0 < n}) -> &List)]
+#[flux::sig(fn({&List[@n] | 0 < n}) -> &List)]
 pub fn tail(l: &List) -> &List {
     match l {
         List::Nil => never(0),
@@ -47,7 +47,7 @@ pub fn tail(l: &List) -> &List {
     }
 }
 
-#[flux::sig(fn(i32, n:usize) -> List[n])]
+#[flux::sig(fn(i32, n: usize) -> List[n])]
 pub fn clone(val: i32, n: usize) -> List {
     if n == 0 {
         List::Nil
