@@ -4,7 +4,7 @@
 
 You can run the various regression tests in the `tests/pos` and `tests/neg` directory using
 
-```
+```console
 $ cargo test -p flux-tests
 ```
 
@@ -20,7 +20,7 @@ Below is a sample output for an invocation of `cargo-flux check` that took 19 se
 
 Note that `check_crate` contains everything running under `check_top`, which is why the sum of the spans is greater than 19 seconds.
 
-```
+```text
 check_top
   Checker::infer
     num events:   205

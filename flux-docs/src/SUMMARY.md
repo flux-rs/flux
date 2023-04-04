@@ -6,9 +6,9 @@
 
 - [Install](guide/install.md)
 - [Run](guide/run.md)
+- [Specs](guide/specs.md)
 - [Develop](dev/develop.md)
   - [Architecture](dev/architecture.md)
-
 
 # Examples
 
@@ -19,8 +19,6 @@
 - [Structs]()
 - [Enums]()
 
-
 -----------
-
 
 [About](about.md)
