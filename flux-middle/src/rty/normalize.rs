@@ -3,9 +3,12 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
-use crate::rty::{
-    fold::{TypeFoldable, TypeFolder, TypeVisitor},
-    Binder, Defn, Expr, ExprKind,
+use crate::{
+    fhir::FuncKind,
+    rty::{
+        fold::{TypeFoldable, TypeFolder, TypeVisitor},
+        Binder, Defn, Expr, ExprKind,
+    },
 };
 
 #[derive(Default)]
@@ -28,7 +31,7 @@ impl Defns {
         impl TypeVisitor for DepsVisitor {
             fn visit_expr(&mut self, expr: &Expr) {
                 if let ExprKind::App(func, _) = expr.kind()
-                    && let ExprKind::Func(sym) = func.kind()
+                    && let ExprKind::GlobalFunc(sym, FuncKind::Def) = func.kind()
                 {
                     self.0.insert(*sym);
                 }
@@ -95,10 +98,7 @@ impl Defns {
     }
 
     fn func_defn(&self, f: &Symbol) -> Option<&Defn> {
-        if let Some(defn) = self.defns.get(f) {
-            return Some(defn);
-        }
-        None
+        self.defns.get(f)
     }
 }
 
@@ -109,7 +109,7 @@ impl<'a> Normalizer<'a> {
 
     fn app(&self, func: &Expr, arg: &Expr) -> Expr {
         match func.kind() {
-            ExprKind::Func(sym) if let Some(defn) = self.defs.func_defn(sym) => {
+            ExprKind::GlobalFunc(sym, FuncKind::Def) if let Some(defn) = self.defs.func_defn(sym) => {
                 defn.expr.replace_bvar(arg)
             }
             ExprKind::Abs(body) => body.replace_bvar(arg),

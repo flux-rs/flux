@@ -378,16 +378,10 @@ pub enum ExprKind {
 
 #[derive(Clone)]
 pub enum Func {
-    /// A function comming from a refinement parameter.
+    /// A function coming from a refinement parameter.
     Var(Ident),
-    /// A _global_ function symbol (including possibly theory symbols)
+    /// A _global_ function symbol (including possibly theory symbols).
     Global(Symbol, FuncKind, Span),
-}
-
-/// representation of uninterpreted functions
-pub struct UFun {
-    pub symbol: Symbol,
-    pub span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -511,7 +505,7 @@ pub struct FuncDecl {
     pub kind: FuncKind,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum FuncKind {
     /// Theory symbols "interpreted" by the SMT solver
     Thy,
@@ -993,13 +987,6 @@ impl fmt::Debug for RefKind {
         }
     }
 }
-impl fmt::Debug for UFun {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sym = self.symbol;
-        write!(f, "{sym:?}")
-    }
-}
-
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {

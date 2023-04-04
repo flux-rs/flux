@@ -12,6 +12,7 @@ use rustc_span::Symbol;
 
 use super::{evars::EVar, BaseTy, Binder, Sort};
 use crate::{
+    fhir::FuncKind,
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
     rustc::mir::{Place, PlaceElem},
@@ -32,7 +33,7 @@ pub enum ExprKind {
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     App(Expr, Expr),
-    Func(Symbol),
+    GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
@@ -276,8 +277,8 @@ impl Expr {
         ExprKind::App(func.into(), arg.into()).intern()
     }
 
-    pub fn func(func: Symbol) -> Expr {
-        ExprKind::Func(func).intern()
+    pub fn global_func(func: Symbol, kind: FuncKind) -> Expr {
+        ExprKind::GlobalFunc(func, kind).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -825,7 +826,7 @@ mod pretty {
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)
                 }
-                ExprKind::Func(func) => w!("{}", ^func),
+                ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
             }
         }
     }

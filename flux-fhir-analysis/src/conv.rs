@@ -606,7 +606,7 @@ impl Env<'_, '_> {
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
             fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Global(sym, _, _) => rty::Expr::func(*sym),
+            fhir::Func::Global(sym, kind, _) => rty::Expr::global_func(*sym, *kind),
         }
     }
 

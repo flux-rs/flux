@@ -596,7 +596,7 @@ impl TypeFoldable for Expr {
             ExprKind::Hole => Expr::hole(),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
             ExprKind::Abs(body) => Expr::abs(body.fold_with(folder)),
-            ExprKind::Func(func) => Expr::func(*func),
+            ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
         }
     }
 
@@ -630,7 +630,7 @@ impl TypeFoldable for Expr {
             | ExprKind::Hole
             | ExprKind::Var(_)
             | ExprKind::Local(_)
-            | ExprKind::Func(_)
+            | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(_) => {}
         }
     }
