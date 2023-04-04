@@ -189,7 +189,6 @@ impl<'sess> Resolver<'sess> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))
             }
-
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
                     .into_iter()

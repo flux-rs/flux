@@ -396,7 +396,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let idx = self.desugar_indices(&bty, indices, binders)?;
                 fhir::TyKind::Indexed(bty, idx)
             }
-            surface::TyKind::Exists { bind: ident, bty, pred } => {
+            surface::TyKind::Exists { bind: ex_bind, bty, pred } => {
+                let ty_span = ty.span;
+                let bty_span = bty.span;
+
                 let Some(sort) = index_sort(self.early_cx, bty) else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
                 };
@@ -404,13 +407,21 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let bty = self.desugar_bty(bty, binders)?;
                 binders.push_layer();
                 let name = binders.fresh();
-                let binder = Binder::Refined(name, sort, false);
-                binders.insert_binder(self.sess(), *ident, binder)?;
+                let binder = Binder::Refined(name, sort.clone(), false);
+                binders.insert_binder(self.sess(), *ex_bind, binder)?;
                 let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
-                let bind = fhir::Ident::new(name, *ident);
 
+                let bind = fhir::Ident::new(name, *ex_bind);
+                let idx = fhir::RefineArg::Expr {
+                    expr: fhir::Expr { kind: fhir::ExprKind::Var(bind), span: ex_bind.span },
+                    is_binder: false,
+                    fhir_id: self.next_node_id(),
+                };
+                let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
+                let constr =
+                    fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
                 binders.pop_layer();
-                fhir::TyKind::Exists(bty, bind, pred)
+                fhir::TyKind::Exists(bind, sort, Box::new(constr))
             }
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;

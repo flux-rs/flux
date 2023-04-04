@@ -287,11 +287,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_refine_arg(env, idx, &expected)?;
                 self.check_base_ty(env, bty)
             }
-            fhir::TyKind::Exists(bty, bind, pred) => {
-                let sort = self.sort_of_bty(bty);
-                self.check_base_ty(env, bty)?;
-                env.push_layer([(&bind.name, &sort)]);
-                self.check_pred(env, pred)
+            fhir::TyKind::Exists(bind, sort, ty) => {
+                env.push_layer([(&bind.name, sort)]);
+                self.check_type(env, ty)
             }
             fhir::TyKind::Ptr(loc) => self.check_loc(env, *loc),
             fhir::TyKind::Tuple(tys) => {
