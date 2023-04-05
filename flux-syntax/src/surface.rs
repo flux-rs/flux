@@ -175,16 +175,22 @@ pub struct Ty<R = ()> {
 pub enum TyKind<R = ()> {
     /// ty
     Base(BaseTy<R>),
-    /// `t[e]`
+    /// `B[r]`
     Indexed {
         bty: BaseTy<R>,
         indices: Indices,
     },
-    /// ty{b:e}
+    /// B{v: r}
     Exists {
         bind: Ident,
         bty: BaseTy<R>,
         pred: Expr,
+    },
+    GeneralExists {
+        bind: Ident,
+        sort: Sort,
+        ty: Box<Ty<R>>,
+        pred: Option<Expr>,
     },
     /// Mutable or shared reference
     Ref(RefKind, Box<Ty<R>>),
