@@ -205,7 +205,7 @@ pub enum TyKind {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
-    Exists(Ident, Sort, Box<Ty>),
+    Exists(Vec<(Ident, Sort)>, Box<Ty>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -905,11 +905,19 @@ impl fmt::Debug for Ty {
         match &self.kind {
             TyKind::BaseTy(bty) => write!(f, "{bty:?}"),
             TyKind::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
-            TyKind::Exists(bind, sort, ty) => {
+            TyKind::Exists(params, ty) => {
+                write!(f, "{{")?;
+                write!(
+                    f,
+                    "{}",
+                    params.iter().format_with(",", |(ident, sort), f| {
+                        f(&format_args!("{ident:?}:{sort:?}"))
+                    })
+                )?;
                 if let TyKind::Constr(pred, ty) = &ty.kind {
-                    write!(f, "{{{bind:?}: {sort:?}. {ty:?} | {pred:?}}}")
+                    write!(f, ". {ty:?} | {pred:?}}}")
                 } else {
-                    write!(f, "{{{bind:?}: {sort:?}. {ty:?}}}")
+                    write!(f, ". {ty:?}}}")
                 }
             }
             TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),

@@ -421,7 +421,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let constr =
                     fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
                 binders.pop_layer();
-                fhir::TyKind::Exists(bind, sort, Box::new(constr))
+                fhir::TyKind::Exists(vec![(bind, sort)], Box::new(constr))
             }
             surface::TyKind::GeneralExists { bind: ex_bind, sort, ty, pred } => {
                 binders.push_layer();
@@ -438,7 +438,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 }
                 binders.pop_layer();
 
-                fhir::TyKind::Exists(fhir::Ident::new(fresh, *ex_bind), sort, Box::new(ty))
+                fhir::TyKind::Exists(vec![(fhir::Ident::new(fresh, *ex_bind), sort)], Box::new(ty))
             }
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
