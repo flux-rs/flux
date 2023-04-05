@@ -26,6 +26,14 @@ struct Wf<'a, 'tcx> {
     xi: XiCtxt,
 }
 
+/// Keeps track of all refinement parameters that were used as an index such that their value is fully
+/// determined. The context is called Xi because in the paper [Focusing on Liquid Refinement Typing], the
+/// well-formedness judgment uses an uppercase Xi (Ξ) for a context that is similar in purpose.
+///
+/// This is basically a set of [`fhir::Name`] implemented with a snapshot map such that elements
+/// can be removed in batch when there's a change in polarity.
+///
+/// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
 #[derive(Default)]
 struct XiCtxt(SnapshotMap<fhir::Name, ()>);
 
