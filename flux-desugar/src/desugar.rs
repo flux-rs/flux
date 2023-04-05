@@ -423,6 +423,23 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 binders.pop_layer();
                 fhir::TyKind::Exists(bind, sort, Box::new(constr))
             }
+            surface::TyKind::GeneralExists { bind: ex_bind, sort, ty, pred } => {
+                binders.push_layer();
+                let fresh = binders.fresh();
+                let sort = resolve_sort(self.sess(), self.early_cx.map.sort_decls(), sort)?;
+                let binder = Binder::Refined(fresh, sort.clone(), false);
+                binders.insert_binder(self.sess(), *ex_bind, binder)?;
+
+                let mut ty = self.desugar_ty(None, ty, binders)?;
+                if let Some(pred) = pred {
+                    let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
+                    let span = ty.span.to(pred.span);
+                    ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
+                }
+                binders.pop_layer();
+
+                fhir::TyKind::Exists(fhir::Ident::new(fresh, *ex_bind), sort, Box::new(ty))
+            }
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
                 let ty = self.desugar_ty(None, ty, binders)?;
@@ -986,6 +1003,12 @@ impl Binders {
                     self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
                 self.gather_params_bty(early_cx, bty, pos)
+            }
+            surface::TyKind::GeneralExists { ty, .. } => {
+                if let Some(bind) = bind {
+                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                }
+                self.gather_params_ty(early_cx, None, ty, pos)
             }
         }
     }
