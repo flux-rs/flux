@@ -80,6 +80,11 @@ fhir_analysis_expected_numeric =
 fhir_analysis_no_equality =
     values of sort `{$sort}` cannot be compared for equality
 
+fhir_analysis_param_not_determined =
+    parameter `{$sym}` cannot be determined
+    .label = undetermined parameter
+    .help = try indexing a type with `{$sym}` in a position that fully determines its value
+
 # Annot check
 
 fhir_analysis_invalid_refinement =

@@ -1030,7 +1030,7 @@ impl Binders {
         path: &surface::Path<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
-        let pos = if is_box(early_cx, path.res) { pos } else { TypePos::Other };
+        let pos = if early_cx.is_box(path.res) { pos } else { TypePos::Other };
         path.generics
             .iter()
             .try_for_each_exhaust(|ty| self.gather_params_ty(early_cx, None, ty, pos))
@@ -1092,14 +1092,6 @@ fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
         fhir::InferMode::KVar
     } else {
         fhir::InferMode::EVar
-    }
-}
-
-fn is_box(early_cx: &EarlyCtxt, res: fhir::Res) -> bool {
-    if let Res::Struct(def_id) = res {
-        early_cx.tcx.adt_def(def_id).is_box()
-    } else {
-        false
     }
 }
 

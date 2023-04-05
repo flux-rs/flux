@@ -159,4 +159,12 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         let owner = self.hir().ty_param_owner(def_id);
         self.map.get_generics(owner).unwrap().get_param(def_id)
     }
+
+    pub fn is_box(&self, res: fhir::Res) -> bool {
+        if let fhir::Res::Struct(def_id) = res {
+            self.tcx.adt_def(def_id).is_box()
+        } else {
+            false
+        }
+    }
 }

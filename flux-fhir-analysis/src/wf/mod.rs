@@ -13,6 +13,7 @@ use flux_middle::{
     early_ctxt::EarlyCtxt,
     fhir::{self, SurfaceIdent, WfckResults},
 };
+use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -22,7 +23,11 @@ struct Wf<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
     wfckresults: fhir::WfckResults,
+    xi: XiCtxt,
 }
+
+#[derive(Default)]
+struct XiCtxt(SnapshotMap<fhir::Name, ()>);
 
 pub(crate) fn check_type(
     early_cx: &EarlyCtxt,
@@ -65,13 +70,14 @@ pub(crate) fn check_fn_quals(
     Ok(())
 }
 
-pub(crate) fn check_alias(
+pub(crate) fn check_ty_alias(
     early_cx: &EarlyCtxt,
     alias: &fhir::TyAlias,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx);
     let mut env = Env::from_iter(alias.all_params());
     wf.check_type(&mut env, &alias.ty)?;
+    wf.check_params(&env, alias.index_params.iter().map(|(name, _)| *name))?;
     Ok(wf.into_results())
 }
 
@@ -94,7 +100,9 @@ pub(crate) fn check_struct_def(
         fields
             .iter()
             .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
+        wf.check_params(&env, struct_def.params.iter().map(|(name, _)| *name))?;
     }
+
     Ok(wf.into_results())
 }
 
@@ -141,38 +149,46 @@ pub(crate) fn check_fn_sig(
         .iter()
         .try_for_each_exhaust(|constr| wf.check_constraint(&mut env, constr));
 
-    env.push_layer(
-        fn_sig
-            .output
-            .params
-            .iter()
-            .map(|param| (&param.name.name, &param.sort)),
-    );
-    let ret = wf.check_type(&mut env, &fn_sig.output.ret);
-    let ensures = fn_sig
-        .output
-        .ensures
-        .iter()
-        .try_for_each_exhaust(|constr| wf.check_constraint(&mut env, constr));
+    let output = wf.check_fn_output(&mut env, &fn_sig.output);
 
     let constrs = wf.check_output_locs(fn_sig);
 
     args?;
-    ret?;
-    ensures?;
+    output?;
     requires?;
     constrs?;
+
+    wf.check_params(&env, fn_sig.params.iter().map(|param| param.name))?;
 
     Ok(wf.into_results())
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
-        Wf { early_cx, modes: FxHashMap::default(), wfckresults: fhir::WfckResults::new() }
+        Wf {
+            early_cx,
+            modes: Default::default(),
+            wfckresults: fhir::WfckResults::new(),
+            xi: Default::default(),
+        }
     }
 
     fn into_results(self) -> fhir::WfckResults {
         self.wfckresults
+    }
+
+    fn check_params(
+        &mut self,
+        env: &Env,
+        params: impl Iterator<Item = fhir::Ident>,
+    ) -> Result<(), ErrorGuaranteed> {
+        params.try_for_each_exhaust(|param| {
+            let determined = self.xi.remove(param.name);
+            if self.infer_mode(env, param.name) == fhir::InferMode::EVar && !determined {
+                return self.emit_err(errors::ParamNotDetermined::new(param));
+            }
+            Ok(())
+        })
     }
 
     fn check_variant(&mut self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
@@ -186,6 +202,31 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         fields?;
         indices?;
         Ok(())
+    }
+
+    fn check_fn_output(
+        &mut self,
+        env: &mut Env,
+        fn_output: &fhir::FnOutput,
+    ) -> Result<(), ErrorGuaranteed> {
+        let snapshot = self.xi.snapshot();
+        env.push_layer(
+            fn_output
+                .params
+                .iter()
+                .map(|param| (&param.name.name, &param.sort)),
+        );
+        self.check_type(env, &fn_output.ret)?;
+        fn_output
+            .ensures
+            .iter()
+            .try_for_each_exhaust(|constr| self.check_constraint(env, constr))?;
+
+        let params = self.check_params(env, fn_output.params.iter().map(|param| param.name));
+
+        self.xi.rollback_to(snapshot);
+
+        params
     }
 
     fn check_output_locs(&self, fn_sig: &fhir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -240,9 +281,16 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::TyKind::Exists(bind, sort, ty) => {
                 env.push_layer([(&bind.name, sort)]);
-                self.check_type(env, ty)
+                self.check_type(env, ty)?;
+                if !self.xi.remove(bind.name) {
+                    return self.emit_err(errors::ParamNotDetermined::new(*bind));
+                }
+                Ok(())
             }
-            fhir::TyKind::Ptr(loc) => self.sort_checker().check_loc(env, *loc),
+            fhir::TyKind::Ptr(loc) => {
+                self.xi.insert(loc.name);
+                self.sort_checker().check_loc(env, *loc)
+            }
             fhir::TyKind::Tuple(tys) => {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(env, ty))
@@ -283,9 +331,15 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::PrimTy(..)
             | fhir::Res::Param(_) => {}
         }
-        path.generics
+        let snapshot = self.xi.snapshot();
+        let res = path
+            .generics
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(env, ty))
+            .try_for_each_exhaust(|ty| self.check_type(env, ty));
+        if !self.early_cx.is_box(path.res) {
+            self.xi.rollback_to(snapshot);
+        }
+        res
     }
 
     fn check_refine_arg(
@@ -312,7 +366,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             fhir::RefineArg::Expr { expr, .. } => {
-                if !matches!(&expr.kind, fhir::ExprKind::Var(..)) {
+                if let fhir::ExprKind::Var(var) = &expr.kind {
+                    self.xi.insert(var.name);
+                } else {
                     self.check_param_uses_expr(env, expr, false)?;
                 }
                 Ok(())
@@ -371,6 +427,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
+    fn infer_mode(&self, env: &Env, name: fhir::Name) -> fhir::InferMode {
+        self.modes
+            .get(&name)
+            .copied()
+            .unwrap_or_else(|| env[name].default_infer_mode())
+    }
+
     fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
         self.early_cx
             .sort_of_bty(bty)
@@ -384,5 +447,23 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     #[track_caller]
     fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
         Err(self.early_cx.emit_err(err))
+    }
+}
+
+impl XiCtxt {
+    fn insert(&mut self, name: fhir::Name) {
+        self.0.insert(name, ());
+    }
+
+    fn remove(&mut self, name: fhir::Name) -> bool {
+        self.0.remove(name)
+    }
+
+    fn snapshot(&mut self) -> snapshot_map::Snapshot {
+        self.0.snapshot()
+    }
+
+    fn rollback_to(&mut self, snapshot: snapshot_map::Snapshot) {
+        self.0.rollback_to(snapshot);
     }
 }
