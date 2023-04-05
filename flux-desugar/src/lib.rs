@@ -1,8 +1,5 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private)]
-#![feature(min_specialization)]
-#![feature(box_patterns, once_cell)]
-#![feature(let_chains)]
+#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;

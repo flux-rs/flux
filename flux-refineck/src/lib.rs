@@ -1,14 +1,14 @@
 #![warn(unused_extern_crates)]
 #![feature(
-    rustc_private,
-    min_specialization,
-    once_cell,
-    if_let_guard,
-    let_chains,
-    type_alias_impl_trait,
     box_patterns,
     drain_filter,
-    result_option_inspect
+    if_let_guard,
+    lazy_cell,
+    let_chains,
+    min_specialization,
+    result_option_inspect,
+    rustc_private,
+    type_alias_impl_trait
 )]
 ///! Refinement type checking
 extern crate rustc_data_structures;

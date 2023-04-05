@@ -10,7 +10,7 @@ use flux_middle::{
         AdtDef, BaseTy, Expr, GenericArg, Index, Loc, Path, PtrKind, Ref, Sort, Substs, Ty, TyKind,
         Var, VariantIdx,
     },
-    rustc::mir::{Field, Place, PlaceElem},
+    rustc::mir::{FieldIdx, Place, PlaceElem},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
@@ -164,7 +164,7 @@ impl PathsTree {
             ptr: &NodePtr,
             loc: &Loc,
             kind: &LocKind,
-            proj: &mut Vec<Field>,
+            proj: &mut Vec<FieldIdx>,
             f: &mut impl FnMut(&LocKind, Path, &Binding),
         ) {
             let node = ptr.borrow();
@@ -174,7 +174,7 @@ impl PathsTree {
                 }
                 Node::Internal(_, children) => {
                     for (idx, ptr) in children.iter().enumerate() {
-                        proj.push(Field::from(idx));
+                        proj.push(FieldIdx::from(idx));
                         go(ptr, loc, kind, proj, f);
                         proj.pop();
                     }
@@ -567,7 +567,7 @@ impl Node {
         &mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        field: Field,
+        field: FieldIdx,
     ) -> Result<&NodePtr, CheckerErrKind> {
         if let Node::Leaf(_) = self {
             self.split(genv, rcx)?;
@@ -751,7 +751,7 @@ impl NodePtr {
         &self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        field: Field,
+        field: FieldIdx,
     ) -> Result<NodePtr, CheckerErrKind> {
         Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field)?))
     }

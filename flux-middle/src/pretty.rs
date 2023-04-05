@@ -1,8 +1,9 @@
 use std::{cell::RefCell, fmt};
 
 use flux_config as config;
+use rustc_abi::FieldIdx;
 use rustc_hir::def_id::DefId;
-use rustc_middle::{mir::Field, ty::TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 
 use crate::intern::{Internable, Interned};
@@ -327,7 +328,7 @@ pub fn def_id_to_string(def_id: DefId) -> String {
     rustc_middle::ty::tls::with(|tcx| format!("{:?}", WithCx::new(&PPrintCx::default(tcx), def_id)))
 }
 
-impl Pretty for Field {
+impl Pretty for FieldIdx {
     fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_u32())
     }
