@@ -46,3 +46,12 @@ fn test04() {
 
     f((0, 1));
 }
+
+// Multi param existential
+fn test05() {
+    #[flux::sig(fn({ a:int,b:int. (i32[a], i32[b]) | b > a }) -> i32{v: v > 0})]
+    fn f(x: (i32, i32)) -> i32 {
+        x.1 - x.0
+    }
+    f((0, 1));
+}

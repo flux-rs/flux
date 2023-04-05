@@ -19,4 +19,8 @@ type A = i32;
 
 // Undetermined parameter in general existential
 #[flux::sig(fn({a:int. {i32 | a > 0}}))] //~ ERROR parameter `a` cannot be determined
-fn test(x: i32) {}
+fn test01(x: i32) {}
+
+// Undetermined parameter in multi param existential
+#[flux::sig(fn({a:int,b:int. i32[a]}))] //~ ERROR parameter `b` cannot be determined
+fn test02(x: i32) {}
