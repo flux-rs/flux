@@ -187,8 +187,7 @@ pub enum TyKind<R = ()> {
         pred: Expr,
     },
     GeneralExists {
-        bind: Ident,
-        sort: Sort,
+        params: Vec<RefineParam>,
         ty: Box<Ty<R>>,
         pred: Option<Expr>,
     },
