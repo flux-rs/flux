@@ -21,7 +21,7 @@ use itertools::Itertools;
 pub use normalize::Defns;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::mir::{Field, Mutability};
+use rustc_middle::mir::Mutability;
 pub use rustc_middle::ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
@@ -995,7 +995,6 @@ impl_internable!(
     TyS,
     [Ty],
     [GenericArg],
-    [Field],
     [Constraint],
     [InferMode],
     [TupleTree<bool>],

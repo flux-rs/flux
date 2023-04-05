@@ -1,4 +1,4 @@
-#![feature(rustc_private, try_trait_v2, try_blocks, never_type, once_cell)]
+#![feature(rustc_private, try_trait_v2, try_blocks, never_type)]
 
 extern crate rustc_borrowck;
 extern crate rustc_driver;
