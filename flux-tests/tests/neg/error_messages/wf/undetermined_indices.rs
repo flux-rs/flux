@@ -16,3 +16,7 @@ struct S2 {
 
 #[flux::alias(type A[n: int] = i32{v: v > n})] //~ ERROR parameter `n` cannot be determined
 type A = i32;
+
+// Undetermined parameter in general existential
+#[flux::sig(fn({a:int. {i32 | a > 0}}))] //~ ERROR parameter `a` cannot be determined
+fn test(x: i32) {}

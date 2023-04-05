@@ -1008,7 +1008,10 @@ impl Binders {
                 if let Some(bind) = bind {
                     self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_ty(early_cx, None, ty, pos)
+                // Declaring parameters with @ inside and existential has weird behavior if names
+                // are being shadowed. Thus, we don't allow it to keep things simple. We could eventually
+                // allow it if we resolve the weird behavior by detecting shadowing.
+                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
         }
     }
