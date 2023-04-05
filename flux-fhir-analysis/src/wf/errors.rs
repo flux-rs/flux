@@ -209,3 +209,19 @@ impl<'a> NoEquality<'a> {
         Self { span, sort }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_param_not_determined, code = "FLUX")]
+#[help]
+pub(super) struct ParamNotDetermined {
+    #[primary_span]
+    #[label]
+    span: Span,
+    sym: Symbol,
+}
+
+impl ParamNotDetermined {
+    pub(super) fn new(ident: fhir::Ident) -> Self {
+        Self { span: ident.span(), sym: ident.sym() }
+    }
+}

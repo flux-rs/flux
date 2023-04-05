@@ -189,7 +189,7 @@ fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResul
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
-            let wfckresults = wf::check_alias(genv.early_cx(), alias)?;
+            let wfckresults = wf::check_ty_alias(genv.early_cx(), alias)?;
             annot_check::check_alias(genv.early_cx(), alias)?;
             Ok(wfckresults)
         }

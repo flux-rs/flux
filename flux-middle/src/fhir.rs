@@ -579,6 +579,14 @@ impl Sort {
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
     }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
 }
 
 impl From<FuncSort> for Sort {
@@ -1066,7 +1074,7 @@ impl fmt::Display for FuncSort {
                 write!(f, "{} -> {}", input, self.output())
             }
             inputs => {
-                write!(f, "{} -> {}", inputs.iter().join(","), self.output())
+                write!(f, "({}) -> {}", inputs.iter().join(", "), self.output())
             }
         }
     }
