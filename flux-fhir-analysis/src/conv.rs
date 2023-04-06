@@ -404,8 +404,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::RefineArg::Expr { expr, is_binder, .. } => {
                 (self.conv_expr(env, expr), rty::TupleTree::Leaf(*is_binder))
             }
-            fhir::RefineArg::Abs(params, body, _, node_id) => {
-                let fsort = self.expect_func(*node_id);
+            fhir::RefineArg::Abs(params, body, _, fhir_id) => {
+                let fsort = self.expect_func(*fhir_id);
                 let params = iter::zip(params, fsort.inputs())
                     .map(|(param, sort)| fhir::RefineParam { sort: sort.clone(), ..*param })
                     .collect_vec();
@@ -416,7 +416,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let sort = env.pop_layer().to_sort();
 
                 let body = rty::Binder::new(pred, sort);
-                (rty::Expr::abs(body), rty::TupleTree::Leaf(false))
+                let expr = self.add_coercions(rty::Expr::abs(body), *fhir_id);
+                (expr, rty::TupleTree::Leaf(false))
             }
             fhir::RefineArg::Aggregate(_, flds, ..) => {
                 let mut exprs = vec![];
@@ -429,18 +430,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
         };
-        // (self.coerce_index(expr, self.node_sort(arg.fhir_id())), is_binder)
         (expr, is_binder)
     }
-
-    // fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
-    //     if self.early_cx().is_single_field_aggregate(sort).is_some() && !expr.is_tuple() {
-    //         expr = rty::Expr::tuple(vec![expr]);
-    //     } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Unit) && expr.is_tuple() {
-    //         expr = rty::Expr::tuple_proj(expr, 0);
-    //     }
-    //     expr
-    // }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
         match rk {
@@ -627,10 +618,11 @@ impl ConvCtxt<'_, '_> {
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
-        match func {
-            fhir::Func::Var(ident) => env.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Global(sym, kind, _) => rty::Expr::global_func(*sym, *kind),
-        }
+        let expr = match func {
+            fhir::Func::Var(ident, _) => env.lookup(*ident).to_expr(),
+            fhir::Func::Global(sym, kind, ..) => rty::Expr::global_func(*sym, *kind),
+        };
+        self.add_coercions(expr, func.fhir_id())
     }
 
     fn conv_exprs(&self, env: &Env, exprs: &[fhir::Expr]) -> List<rty::Expr> {

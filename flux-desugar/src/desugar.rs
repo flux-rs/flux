@@ -670,12 +670,17 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 match self.resolve_func(*func)? {
                     FuncRes::Global(fundecl) => {
                         fhir::ExprKind::App(
-                            fhir::Func::Global(func.name, fundecl.kind, func.span),
+                            fhir::Func::Global(
+                                func.name,
+                                fundecl.kind,
+                                func.span,
+                                self.next_fhir_id(),
+                            ),
                             args,
                         )
                     }
                     FuncRes::Param(ident) => {
-                        let func = fhir::Func::Var(ident);
+                        let func = fhir::Func::Var(ident, self.next_fhir_id());
                         fhir::ExprKind::App(func, args)
                     }
                 }

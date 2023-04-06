@@ -44,8 +44,8 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
 
         match arg {
             fhir::RefineArg::Expr { expr, .. } => self.check_expr(env, expr, expected),
-            fhir::RefineArg::Abs(params, body, span, _) => {
-                if let Some(fsort) = self.is_coercible_to_func(expected) {
+            fhir::RefineArg::Abs(params, body, span, fhir_id) => {
+                if let Some(fsort) = self.is_coercible_to_func(expected, *fhir_id) {
                     if params.len() != fsort.inputs().len() {
                         return self.emit_err(errors::ParamCountMismatch::new(
                             *span,
@@ -244,17 +244,21 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         Ok(fsort.output().clone())
     }
 
-    fn synth_func(&self, env: &Env, func: &fhir::Func) -> Result<fhir::FuncSort, ErrorGuaranteed> {
+    fn synth_func(
+        &mut self,
+        env: &Env,
+        func: &fhir::Func,
+    ) -> Result<fhir::FuncSort, ErrorGuaranteed> {
         match func {
-            fhir::Func::Var(var) => {
+            fhir::Func::Var(var, fhir_id) => {
                 let sort = &env[&var.name];
-                if let Some(fsort) = self.is_coercible_to_func(sort) {
+                if let Some(fsort) = self.is_coercible_to_func(sort, *fhir_id) {
                     Ok(fsort)
                 } else {
                     self.emit_err(errors::ExpectedFun::new(var.span(), sort))
                 }
             }
-            fhir::Func::Global(func, _, span) => {
+            fhir::Func::Global(func, _, span, _) => {
                 Ok(self
                     .early_cx
                     .func_decl(func)
@@ -292,8 +296,21 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         sort1 == sort2
     }
 
-    fn is_coercible_to_func(&mut self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
-        self.early_cx.is_coercible_to_func(sort)
+    fn is_coercible_to_func(
+        &mut self,
+        sort: &fhir::Sort,
+        fhir_id: FhirId,
+    ) -> Option<fhir::FuncSort> {
+        if let fhir::Sort::Func(fsort) = sort {
+            Some(fsort.clone())
+        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_aggregate(sort) {
+            self.wfckresults
+                .coercions_mut()
+                .insert(fhir_id, vec![fhir::Coercion::Project]);
+            Some(fsort.clone())
+        } else {
+            None
+        }
     }
 
     fn is_coercible_to_numeric(

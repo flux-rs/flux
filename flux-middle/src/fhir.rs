@@ -424,9 +424,9 @@ pub enum ExprKind {
 #[derive(Clone)]
 pub enum Func {
     /// A function coming from a refinement parameter.
-    Var(Ident),
+    Var(Ident, FhirId),
     /// A _global_ function symbol (including possibly theory symbols).
-    Global(Symbol, FuncKind, Span),
+    Global(Symbol, FuncKind, Span, FhirId),
 }
 
 #[derive(Clone, Copy)]
@@ -516,6 +516,15 @@ impl From<Path> for BaseTy {
     fn from(path: Path) -> Self {
         let span = path.span;
         Self { kind: BaseTyKind::Path(path), span }
+    }
+}
+
+impl Func {
+    pub fn fhir_id(&self) -> FhirId {
+        match self {
+            Func::Var(_, fhir_id) => *fhir_id,
+            Func::Global(_, _, _, fhir_id) => *fhir_id,
+        }
     }
 }
 
@@ -1098,7 +1107,13 @@ impl fmt::Debug for RefineArg {
                 write!(f, "{expr:?}")
             }
             RefineArg::Abs(params, body, ..) => {
-                write!(f, "|{:?}| {body:?}", params.iter().format(","))
+                write!(
+                    f,
+                    "|{}| {body:?}",
+                    params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                    })
+                )
             }
             RefineArg::Aggregate(def_id, flds, ..) => {
                 write!(
@@ -1140,8 +1155,8 @@ impl fmt::Debug for Expr {
 impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Var(func) => write!(f, "{func:?}"),
-            Self::Global(sym, _, _) => write!(f, "{sym}"),
+            Self::Var(func, _) => write!(f, "{func:?}"),
+            Self::Global(sym, ..) => write!(f, "{sym}"),
         }
     }
 }
