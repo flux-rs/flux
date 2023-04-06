@@ -331,16 +331,6 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
     }
 }
 
-impl From<&[fhir::FunRefineParam]> for Env {
-    fn from(params: &[fhir::FunRefineParam]) -> Env {
-        let sorts = params
-            .iter()
-            .map(|param| (param.ident.name, param.sort.clone()))
-            .collect();
-        Env { sorts }
-    }
-}
-
 impl From<&[fhir::RefineParam]> for Env {
     fn from(params: &[fhir::RefineParam]) -> Self {
         Env::from_iter(params.iter())

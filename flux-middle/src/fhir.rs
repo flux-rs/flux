@@ -151,7 +151,7 @@ pub struct EnumDef {
 #[derive(Debug)]
 pub struct VariantDef {
     pub def_id: LocalDefId,
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
     pub span: Span,
@@ -169,7 +169,7 @@ pub struct VariantRet {
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -183,7 +183,7 @@ pub struct FnSig {
 }
 
 pub struct FnOutput {
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     pub ret: Ty,
     pub ensures: Vec<Constraint>,
 }
@@ -314,17 +314,11 @@ pub enum Res {
     Param(DefId),
 }
 
-#[derive(Debug)]
-pub struct FunRefineParam {
-    pub ident: Ident,
-    pub sort: Sort,
-    pub mode: InferMode,
-}
-
 #[derive(Debug, Clone)]
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
+    pub mode: InferMode,
 }
 
 /// *Infer*ence *mode* for parameter at function calls

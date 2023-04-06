@@ -218,12 +218,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         fn_output: &fhir::FnOutput,
     ) -> Result<(), ErrorGuaranteed> {
         let snapshot = self.xi.snapshot();
-        env.push_layer(
-            fn_output
-                .params
-                .iter()
-                .map(|param| fhir::RefineParam { ident: param.ident, sort: param.sort.clone() }),
-        );
+        env.push_layer(fn_output.params.iter().cloned());
         self.check_type(env, &fn_output.ret)?;
         fn_output
             .ensures

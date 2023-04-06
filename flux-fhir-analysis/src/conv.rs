@@ -77,7 +77,7 @@ pub(crate) fn expand_type_alias(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut env = Env::new(genv.early_cx(), &alias.early_bound_params);
-    env.push_layer(Layer::from_params(genv.early_cx(), &alias.index_params));
+    env.push_layer(Layer::list(genv.early_cx(), &alias.index_params, false));
     let mut cx = ConvCtxt::new(genv, env, wfckresults);
     let ty = cx.conv_ty(&alias.ty)?;
     let sort = cx.env.pop_layer().into_sort();
@@ -124,7 +124,7 @@ pub(crate) fn adt_def_for_struct(
     invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let sort = Layer::from_params(genv.early_cx(), &struct_def.params).into_sort();
+    let sort = Layer::list(genv.early_cx(), &struct_def.params, false).into_sort();
     rty::AdtDef::new(genv.tcx.adt_def(struct_def.def_id), sort, invariants, struct_def.is_opaque())
 }
 
@@ -133,7 +133,7 @@ pub(crate) fn adt_def_for_enum(
     invariants: Vec<rty::Invariant>,
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
-    let sort = Layer::from_params(genv.early_cx(), &enum_def.params).into_sort();
+    let sort = Layer::list(genv.early_cx(), &enum_def.params, false).into_sort();
     rty::AdtDef::new(genv.tcx.adt_def(enum_def.def_id), sort, invariants, false)
 }
 
@@ -143,14 +143,14 @@ pub(crate) fn conv_invariants(
     invariants: &[fhir::Expr],
 ) -> Vec<rty::Invariant> {
     let mut env = Env::new(genv.early_cx(), &[]);
-    env.push_layer(Layer::from_params(genv.early_cx(), params));
+    env.push_layer(Layer::list(genv.early_cx(), params, false));
     let sort = env.top_layer().to_sort();
     env.conv_invariants(&sort, invariants)
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
     let mut env = Env::new(early_cx, &[]);
-    env.push_layer(Layer::from_params(early_cx, &defn.args));
+    env.push_layer(Layer::list(early_cx, &defn.args, false));
     let expr = env.conv_expr(&defn.expr);
     let expr = rty::Binder::new(expr, env.pop_layer().into_sort());
     rty::Defn { name: defn.name, expr }
@@ -158,7 +158,7 @@ pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
 
 pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
     let mut env = Env::new(early_cx, &[]);
-    env.push_layer(Layer::from_params(early_cx, &qualifier.args));
+    env.push_layer(Layer::list(early_cx, &qualifier.args, false));
     let body = env.conv_expr(&qualifier.expr);
     let body = rty::Binder::new(body, env.pop_layer().into_sort());
     rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
@@ -170,7 +170,7 @@ pub(crate) fn conv_fn_sig(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::PolyFnSig> {
     let mut env = Env::new(genv.early_cx(), &[]);
-    env.push_layer(Layer::from_fun_params(genv.early_cx(), &fn_sig.params));
+    env.push_layer(Layer::list(genv.early_cx(), &fn_sig.params, true));
     let mut cx = ConvCtxt::new(genv, env, wfckresults);
 
     let mut requires = vec![];
@@ -212,7 +212,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         output: &fhir::FnOutput,
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
         self.env
-            .push_layer(Layer::from_fun_params(self.early_cx(), &output.params));
+            .push_layer(Layer::list(self.early_cx(), &output.params, true));
 
         let ret = self.conv_ty(&output.ret)?;
         let ensures: List<rty::Constraint> = output
@@ -245,7 +245,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
         let mut env = Env::new(genv.early_cx(), &[]);
-        env.push_layer(Layer::from_fun_params(genv.early_cx(), &variant.params));
+        env.push_layer(Layer::list(genv.early_cx(), &variant.params, true));
         let mut cx = ConvCtxt::new(genv, env, wfckresults);
 
         let fields = variant
@@ -267,7 +267,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let mut env = Env::new(genv.early_cx(), &[]);
-        env.push_layer(Layer::from_params(genv.early_cx(), &struct_def.params));
+        env.push_layer(Layer::list(genv.early_cx(), &struct_def.params, false));
         let mut cx = ConvCtxt::new(genv, env, wfckresults);
 
         let def_id = struct_def.def_id;
@@ -348,7 +348,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let layer = if let [param] = &params[..] {
                     Layer::single(self.early_cx(), param.ident, param.sort.clone())
                 } else {
-                    Layer::from_params(self.early_cx(), params)
+                    Layer::list(self.early_cx(), params, false)
                 };
                 self.env.push_layer(layer);
                 let ty = self.conv_ty(ty)?;
@@ -401,7 +401,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let params = iter::zip(params, fsort.inputs())
                     .map(|(param, sort)| fhir::RefineParam { sort: sort.clone(), ..*param })
                     .collect_vec();
-                let layer = Layer::from_params(self.early_cx(), &params);
+                let layer = Layer::list(self.early_cx(), &params, false);
 
                 self.env.push_layer(layer);
                 let pred = self.env.conv_expr(body);
@@ -626,27 +626,16 @@ impl Env<'_, '_> {
 }
 
 impl Layer {
-    fn from_params(early_cx: &EarlyCtxt, params: &[fhir::RefineParam]) -> Self {
+    fn list(early_cx: &EarlyCtxt, params: &[fhir::RefineParam], filter_unit: bool) -> Self {
         let mut idx = 0;
         let map = params
             .iter()
             .map(|param| {
                 let entry = ListEntry::new(early_cx, idx, param.sort.clone(), None);
-                idx += 1;
+                if !filter_unit || !matches!(entry, ListEntry::Unit) {
+                    idx += 1;
+                }
                 (param.name(), entry)
-            })
-            .collect();
-        Self::List(map)
-    }
-
-    fn from_fun_params(early_cx: &EarlyCtxt, params: &[fhir::FunRefineParam]) -> Self {
-        let mut idx = 0;
-        let map = params
-            .iter()
-            .map(|param| {
-                let entry = ListEntry::new(early_cx, idx, param.sort.clone(), Some(param.mode));
-                idx += !matches!(entry, ListEntry::Unit) as u32;
-                (param.ident.name, entry)
             })
             .collect();
         Self::List(map)
