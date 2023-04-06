@@ -2,7 +2,10 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::ErrorGuaranteed;
-use flux_middle::{early_ctxt::EarlyCtxt, fhir};
+use flux_middle::{
+    early_ctxt::EarlyCtxt,
+    fhir::{self, FhirId},
+};
 use itertools::izip;
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
@@ -36,17 +39,11 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         self.wfckresults
-            .expr_sorts_mut()
+            .node_sorts_mut()
             .insert(arg.fhir_id(), expected.clone());
 
         match arg {
-            fhir::RefineArg::Expr { expr, .. } => {
-                let found = self.synth_expr(env, expr)?;
-                if !self.is_coercible(&found, expected) {
-                    return self.emit_err(errors::SortMismatch::new(expr.span, expected, &found));
-                }
-                Ok(())
-            }
+            fhir::RefineArg::Expr { expr, .. } => self.check_expr(env, expr, expected),
             fhir::RefineArg::Abs(params, body, span, _) => {
                 if let Some(fsort) = self.is_coercible_to_func(expected) {
                     if params.len() != fsort.inputs().len() {
@@ -99,16 +96,16 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     }
 
     pub(super) fn check_expr(
-        &self,
+        &mut self,
         env: &Env,
-        e: &fhir::Expr,
+        expr: &fhir::Expr,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        let found = self.synth_expr(env, e)?;
-        if self.is_coercible(&found, expected) {
+        let found = self.synth_expr(env, expr)?;
+        if self.is_coercible(&found, expected, expr.fhir_id) {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(e.span, expected, &found))
+            self.emit_err(errors::SortMismatch::new(expr.span, expected, &found))
         }
     }
 
@@ -121,7 +118,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         }
     }
 
-    fn synth_expr(&self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
+    fn synth_expr(&mut self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
         match &e.kind {
             fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
@@ -159,7 +156,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     }
 
     fn synth_binary_op(
-        &self,
+        &mut self,
         env: &Env,
         span: Span,
         op: fhir::BinOp,
@@ -207,7 +204,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     }
 
     fn synth_unary_op(
-        &self,
+        &mut self,
         env: &Env,
         op: fhir::UnOp,
         e: &fhir::Expr,
@@ -225,7 +222,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     }
 
     fn synth_app(
-        &self,
+        &mut self,
         env: &Env,
         func: &fhir::Func,
         args: &[fhir::Expr],
@@ -276,15 +273,22 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     /// adt.
     ///
     /// [`Aggregate`]: fhir::Sort::Aggregate
-    fn is_coercible(&self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> bool {
+    fn is_coercible(&mut self, sort1: &fhir::Sort, sort2: &fhir::Sort, fhir_id: FhirId) -> bool {
+        if sort1 == sort2 {
+            return true;
+        }
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
-        if let Some(sort) = self.is_single_field_adt(&sort1) {
+        let mut coercions = vec![];
+        if let Some(sort) = self.is_single_field_aggregate(&sort1) {
+            coercions.push(fhir::Coercion::Project);
             sort1 = sort.clone();
         }
-        if let Some(sort) = self.is_single_field_adt(&sort2) {
+        if let Some(sort) = self.is_single_field_aggregate(&sort2) {
+            coercions.push(fhir::Coercion::Inject);
             sort2 = sort.clone();
         }
+        self.wfckresults.coercions_mut().insert(fhir_id, coercions);
         sort1 == sort2
     }
 
@@ -295,15 +299,15 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     fn is_coercible_to_numeric(&self, sort: &fhir::Sort) -> Option<fhir::Sort> {
         if sort.is_numeric() {
             Some(sort.clone())
-        } else if let Some(sort) = self.is_single_field_adt(sort) && sort.is_numeric() {
+        } else if let Some(sort) = self.is_single_field_aggregate(sort) && sort.is_numeric() {
             Some(sort.clone())
         } else {
             None
         }
     }
 
-    fn is_single_field_adt(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
-        self.early_cx.is_single_field_adt(sort)
+    fn is_single_field_aggregate(&self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
+        self.early_cx.is_single_field_aggregate(sort)
     }
 
     #[track_caller]

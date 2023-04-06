@@ -246,6 +246,12 @@ pub enum WeakKind {
 pub struct WfckResults {
     owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
+    coercions: ItemLocalMap<Vec<Coercion>>,
+}
+
+pub enum Coercion {
+    Inject,
+    Project,
 }
 
 pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
@@ -920,15 +926,19 @@ impl StructDef {
 
 impl WfckResults {
     pub fn new(owner: FluxOwnerId) -> Self {
-        Self { owner, node_sorts: ItemLocalMap::default() }
+        Self { owner, node_sorts: ItemLocalMap::default(), coercions: ItemLocalMap::default() }
     }
 
-    pub fn expr_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn expr_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
     }
 }
 

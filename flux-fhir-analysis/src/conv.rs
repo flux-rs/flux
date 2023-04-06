@@ -438,7 +438,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
-        if self.early_cx().is_single_field_adt(sort).is_some() && !expr.is_tuple() {
+        if self.early_cx().is_single_field_aggregate(sort).is_some() && !expr.is_tuple() {
             expr = rty::Expr::tuple(vec![expr]);
         } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Unit) && expr.is_tuple() {
             expr = rty::Expr::tuple_proj(expr, 0);
@@ -556,7 +556,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn node_sort(&self, fhir_id: FhirId) -> &fhir::Sort {
-        self.wfckresults.expr_sorts().get(fhir_id).unwrap()
+        self.wfckresults.node_sorts().get(fhir_id).unwrap()
     }
 }
 
