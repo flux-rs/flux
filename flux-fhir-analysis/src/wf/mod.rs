@@ -53,21 +53,25 @@ pub(crate) fn check_type(
 pub(crate) fn check_qualifier(
     early_cx: &EarlyCtxt,
     qualifier: &fhir::Qualifier,
-) -> Result<(), ErrorGuaranteed> {
+) -> Result<WfckResults, ErrorGuaranteed> {
     let env = Env::from(&qualifier.args[..]);
-    let flux_id = FluxOwnerId::Flux(qualifier.name);
-    SortChecker::new(early_cx, &mut WfckResults::new(flux_id)).check_expr(
+    let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(qualifier.name));
+    SortChecker::new(early_cx, &mut wfckresults).check_expr(
         &env,
         &qualifier.expr,
         &fhir::Sort::Bool,
-    )
+    )?;
+    Ok(wfckresults)
 }
 
-pub(crate) fn check_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> Result<(), ErrorGuaranteed> {
+pub(crate) fn check_defn(
+    early_cx: &EarlyCtxt,
+    defn: &fhir::Defn,
+) -> Result<WfckResults, ErrorGuaranteed> {
     let env = Env::from(&defn.args[..]);
-    let flux_id = FluxOwnerId::Flux(defn.name);
-    SortChecker::new(early_cx, &mut WfckResults::new(flux_id))
-        .check_expr(&env, &defn.expr, &defn.sort)
+    let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(defn.name));
+    SortChecker::new(early_cx, &mut wfckresults).check_expr(&env, &defn.expr, &defn.sort)?;
+    Ok(wfckresults)
 }
 
 pub(crate) fn check_fn_quals(

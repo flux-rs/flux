@@ -194,13 +194,11 @@ fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<fhir::Wfck
 }
 
 fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<fhir::WfckResults> {
-    match genv.map().get_flux_item(sym).unwrap() {
+    let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
         fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv.early_cx(), qualifier)?,
-        fhir::FluxItem::Defn(defn) => {
-            wf::check_defn(genv.early_cx(), defn)?;
-        }
-    }
-    Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Flux(sym)))
+        fhir::FluxItem::Defn(defn) => wf::check_defn(genv.early_cx(), defn)?,
+    };
+    Ok(wfckresults)
 }
 
 fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
