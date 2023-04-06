@@ -400,7 +400,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         env: &mut Env,
         arg: &fhir::RefineArg,
     ) -> (rty::Expr, rty::TupleTree<bool>) {
-        let (expr, is_binder) = match arg {
+        match arg {
             fhir::RefineArg::Expr { expr, is_binder, .. } => {
                 (self.conv_expr(env, expr), rty::TupleTree::Leaf(*is_binder))
             }
@@ -429,8 +429,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
-        };
-        (expr, is_binder)
+        }
     }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
