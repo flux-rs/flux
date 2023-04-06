@@ -11,6 +11,7 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
+use super::FluxOwnerId;
 use crate::fhir;
 
 struct LiftCtxt<'a, 'tcx> {
@@ -106,8 +107,8 @@ pub fn lift_field_def(
     let hir::Node::Field(field_def) = node else {
         bug!("expected a field")
     };
-    let parent_id = tcx.hir().get_parent_item(hir_id);
-    let ty = LiftCtxt::new(tcx, sess, parent_id.def_id).lift_ty(field_def.ty)?;
+    let struct_id = tcx.hir().get_parent_item(hir_id);
+    let ty = LiftCtxt::new(tcx, sess, struct_id.def_id).lift_ty(field_def.ty)?;
     Ok(fhir::FieldDef { def_id, ty, lifted: true })
 }
 
@@ -130,7 +131,7 @@ pub fn lift_enum_variant_def(
         bug!("expected an enum")
     };
 
-    let cx = LiftCtxt::new(tcx, sess, def_id);
+    let cx = LiftCtxt::new(tcx, sess, enum_id.def_id);
 
     let fields = variant
         .data
@@ -194,7 +195,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: self.def_id, local_id: self.local_id_gen.fresh() }
+        FhirId { owner: FluxOwnerId::Rust(self.def_id), local_id: self.local_id_gen.fresh() }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {

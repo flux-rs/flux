@@ -1,4 +1,4 @@
-use std::{rc::Rc, string::ToString};
+use std::rc::Rc;
 
 use flux_errors::FluxSession;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -22,7 +22,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     pub sess: &'sess FluxSession,
     func_decls: FxHashMap<Symbol, rty::FuncDecl>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
-    fn_quals: FxHashMap<DefId, FxHashSet<String>>,
+    fn_quals: FxHashMap<DefId, FxHashSet<Symbol>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     queries: Queries<'tcx>,
     extern_fns: FxHashMap<DefId, DefId>,
@@ -36,7 +36,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     ) -> Self {
         let mut fn_quals = FxHashMap::default();
         for (def_id, names) in early_cx.map.fn_quals() {
-            let names = names.iter().map(|ident| ident.name.to_string()).collect();
+            let names = names.iter().map(|ident| ident.name).collect();
             fn_quals.insert(def_id.to_def_id(), names);
         }
         let extern_fns = early_cx
@@ -64,10 +64,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.defns(self)
     }
 
-    fn fn_quals(&self, did: DefId) -> Vec<String> {
+    fn fn_quals(&self, did: DefId) -> FxHashSet<Symbol> {
         match self.fn_quals.get(&did) {
-            None => vec![],
-            Some(names) => names.iter().map(ToString::to_string).collect(),
+            None => FxHashSet::default(),
+            Some(names) => names.clone(),
         }
     }
 

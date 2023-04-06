@@ -161,7 +161,7 @@ pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty:
     env.push_layer(Layer::list(early_cx, &qualifier.args, false));
     let body = env.conv_expr(&qualifier.expr);
     let body = rty::Binder::new(body, env.pop_layer().into_sort());
-    rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
+    rty::Qualifier { name: qualifier.name, body, global: qualifier.global }
 }
 
 pub(crate) fn conv_fn_sig(
@@ -537,7 +537,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn node_sort(&self, fhir_id: FhirId) -> &fhir::Sort {
-        &self.wfckresults.expr_sorts()[&fhir_id]
+        self.wfckresults.expr_sorts().get(fhir_id).unwrap()
     }
 }
 

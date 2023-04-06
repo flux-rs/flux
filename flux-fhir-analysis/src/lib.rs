@@ -208,7 +208,9 @@ fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResul
         DefKind::TyParam => {
             match &genv.early_cx().get_generic_param(def_id).kind {
                 fhir::GenericParamDefKind::Type { default: Some(ty) } => {
-                    let wfckresults = wf::check_type(genv.early_cx(), ty)?;
+                    let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
+                    let owner = genv.hir().get_parent_item(hir_id);
+                    let wfckresults = wf::check_type(genv.early_cx(), ty, owner.def_id)?;
                     Ok(wfckresults)
                 }
                 fhir::GenericParamDefKind::Type { default: None } => {
@@ -219,7 +221,7 @@ fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResul
         }
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(def_id);
-            let wf = wf::check_fn_sig(genv.early_cx(), fn_sig)?;
+            let wf = wf::check_fn_sig(genv.early_cx(), fn_sig, def_id)?;
             annot_check::check_fn_sig(genv.early_cx(), def_id, fn_sig)?;
             Ok(wf)
         }
@@ -249,7 +251,7 @@ fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .or(err);
     }
 
-    let qualifiers = genv.map().qualifiers().map(|q| q.name.clone()).collect();
+    let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
     for (_, fn_quals) in genv.map().fn_quals() {
         err = wf::check_fn_quals(genv.sess, &qualifiers, fn_quals)
             .err()
