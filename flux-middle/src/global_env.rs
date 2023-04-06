@@ -11,7 +11,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, VariantIdx},
+    fhir::{self, FluxLocalDefId, VariantIdx},
     queries::{Providers, Queries, QueryResult},
     rty::{self, normalize::Defns, refining::Refiner},
     rustc,
@@ -111,8 +111,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.adt_def(self, def_id.into())
     }
 
-    pub fn check_wf(&self, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
-        self.queries.check_wf(self, def_id)
+    pub fn check_wf(
+        &self,
+        flux_id: impl Into<FluxLocalDefId>,
+    ) -> QueryResult<Rc<fhir::WfckResults>> {
+        self.queries.check_wf(self, flux_id.into())
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
