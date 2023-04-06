@@ -78,6 +78,12 @@ pub struct Qualifier {
 }
 
 #[derive(Debug)]
+pub enum FluxItem {
+    Qualifier(Qualifier),
+    Defn(Defn),
+}
+
+#[derive(Debug)]
 pub struct SortDecl {
     pub name: Symbol,
     pub span: Span,
@@ -93,9 +99,8 @@ pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
-    defns: FxHashMap<Symbol, Defn>,
+    flux_items: FxHashMap<Symbol, FluxItem>,
     consts: FxHashMap<Symbol, ConstInfo>,
-    qualifiers: Vec<Qualifier>,
     refined_by: FxHashMap<LocalDefId, RefinedBy>,
     type_aliases: FxHashMap<LocalDefId, TyAlias>,
     structs: FxHashMap<LocalDefId, StructDef>,
@@ -703,11 +708,18 @@ impl Map {
     // Qualifiers
 
     pub fn insert_qualifier(&mut self, qualifier: Qualifier) {
-        self.qualifiers.push(qualifier);
+        self.flux_items
+            .insert(qualifier.name, FluxItem::Qualifier(qualifier));
     }
 
     pub fn qualifiers(&self) -> impl Iterator<Item = &Qualifier> {
-        self.qualifiers.iter()
+        self.flux_items.values().filter_map(|item| {
+            if let FluxItem::Qualifier(qual) = item {
+                Some(qual)
+            } else {
+                None
+            }
+        })
     }
 
     // FnSigs
@@ -852,15 +864,27 @@ impl Map {
 
     // Defn
     pub fn insert_defn(&mut self, symb: Symbol, defn: Defn) {
-        self.defns.insert(symb, defn);
+        self.flux_items.insert(symb, FluxItem::Defn(defn));
     }
 
     pub fn defns(&self) -> impl Iterator<Item = &Defn> {
-        self.defns.values()
+        self.flux_items.values().filter_map(|item| {
+            if let FluxItem::Defn(defn) = item {
+                Some(defn)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
-        self.defns.get(sym.borrow())
+        self.flux_items.get(sym.borrow()).and_then(|item| {
+            if let FluxItem::Defn(defn) = item {
+                Some(defn)
+            } else {
+                None
+            }
+        })
     }
 
     // Sorts

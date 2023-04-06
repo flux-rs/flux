@@ -28,6 +28,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
+use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
