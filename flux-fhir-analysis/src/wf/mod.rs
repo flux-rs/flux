@@ -85,7 +85,7 @@ pub(crate) fn check_ty_alias(
     let mut wf = Wf::new(early_cx);
     let mut env = Env::from_iter(alias.all_params());
     wf.check_type(&mut env, &alias.ty)?;
-    wf.check_params_determined(&env, alias.index_params.iter().map(|(name, _)| *name))?;
+    wf.check_params_determined(&env, alias.index_params.iter().map(|param| param.ident))?;
     Ok(wf.into_results())
 }
 
@@ -108,7 +108,7 @@ pub(crate) fn check_struct_def(
         fields
             .iter()
             .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
-        wf.check_params_determined(&env, struct_def.params.iter().map(|(name, _)| *name))?;
+        wf.check_params_determined(&env, struct_def.params.iter().map(|param| param.ident))?;
     }
 
     Ok(wf.into_results())
@@ -143,7 +143,7 @@ pub(crate) fn check_fn_sig(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx);
     for param in &fn_sig.params {
-        wf.modes.insert(param.name.name, param.mode);
+        wf.modes.insert(param.ident.name, param.mode);
     }
     let mut env = Env::from(&fn_sig.params[..]);
 
@@ -166,7 +166,7 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
-    wf.check_params_determined(&env, fn_sig.params.iter().map(|param| param.name))?;
+    wf.check_params_determined(&env, fn_sig.params.iter().map(|param| param.ident))?;
 
     Ok(wf.into_results())
 }
@@ -222,7 +222,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fn_output
                 .params
                 .iter()
-                .map(|param| (param.name, param.sort.clone())),
+                .map(|param| fhir::RefineParam { ident: param.ident, sort: param.sort.clone() }),
         );
         self.check_type(env, &fn_output.ret)?;
         fn_output
@@ -231,7 +231,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_for_each_exhaust(|constr| self.check_constraint(env, constr))?;
 
         let params =
-            self.check_params_determined(env, fn_output.params.iter().map(|param| param.name));
+            self.check_params_determined(env, fn_output.params.iter().map(|param| param.ident));
 
         self.xi.rollback_to(snapshot);
 
@@ -291,7 +291,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::TyKind::Exists(params, ty) => {
                 env.push_layer(params.iter().cloned());
                 self.check_type(env, ty)?;
-                self.check_params_determined(env, params.iter().map(|(ident, _)| *ident))
+                self.check_params_determined(env, params.iter().map(|param| param.ident))
             }
             fhir::TyKind::Ptr(loc) => {
                 self.xi.insert(loc.name);

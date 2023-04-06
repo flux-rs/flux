@@ -57,8 +57,9 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                         ));
                     }
                     env.push_layer(
-                        iter::zip(params, fsort.inputs())
-                            .map(|((name, _), sort)| (*name, sort.clone())),
+                        iter::zip(params, fsort.inputs()).map(|(param, sort)| {
+                            fhir::RefineParam { sort: sort.clone(), ..*param }
+                        }),
                     );
                     self.check_expr(env, body, fsort.output())
                 } else {
@@ -313,12 +314,9 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
 
 impl Env {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn push_layer(
-        &mut self,
-        binders: impl IntoIterator<Item = (fhir::Ident, fhir::Sort)>,
-    ) {
-        for (ident, sort) in binders {
-            self.sorts.insert(ident.name, sort);
+    pub(super) fn push_layer(&mut self, params: impl IntoIterator<Item = fhir::RefineParam>) {
+        for param in params {
+            self.sorts.insert(param.name(), param.sort.clone());
         }
     }
 }
@@ -337,29 +335,24 @@ impl From<&[fhir::FunRefineParam]> for Env {
     fn from(params: &[fhir::FunRefineParam]) -> Env {
         let sorts = params
             .iter()
-            .map(|param| (param.name.name, param.sort.clone()))
+            .map(|param| (param.ident.name, param.sort.clone()))
             .collect();
         Env { sorts }
     }
 }
 
-impl From<&[(fhir::Ident, fhir::Sort)]> for Env {
-    fn from(params: &[(fhir::Ident, fhir::Sort)]) -> Self {
-        Env {
-            sorts: params
-                .iter()
-                .map(|(ident, sort)| (ident.name, sort.clone()))
-                .collect(),
-        }
+impl From<&[fhir::RefineParam]> for Env {
+    fn from(params: &[fhir::RefineParam]) -> Self {
+        Env::from_iter(params.iter())
     }
 }
 
-impl<'a> FromIterator<&'a (fhir::Ident, fhir::Sort)> for Env {
-    fn from_iter<T: IntoIterator<Item = &'a (fhir::Ident, fhir::Sort)>>(iter: T) -> Self {
+impl<'a> FromIterator<&'a fhir::RefineParam> for Env {
+    fn from_iter<T: IntoIterator<Item = &'a fhir::RefineParam>>(iter: T) -> Self {
         Env {
             sorts: iter
                 .into_iter()
-                .map(|(ident, sort)| (ident.name, sort.clone()))
+                .map(|param| (param.name(), param.sort.clone()))
                 .collect(),
         }
     }

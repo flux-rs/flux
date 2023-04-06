@@ -414,7 +414,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let params = binders.pop_layer().into_params();
 
                 let idx = fhir::RefineArg::Expr {
-                    expr: fhir::Expr { kind: fhir::ExprKind::Var(params[0].0), span: ex_bind.span },
+                    expr: fhir::Expr {
+                        kind: fhir::ExprKind::Var(params[0].ident),
+                        span: ex_bind.span,
+                    },
                     is_binder: false,
                     fhir_id: self.next_node_id(),
                 };
@@ -1138,8 +1141,8 @@ fn param_from_ident(
     sort: fhir::Sort,
     mode: fhir::InferMode,
 ) -> fhir::FunRefineParam {
-    let name = fhir::Ident::new(name, ident);
-    fhir::FunRefineParam { name, sort, mode }
+    let ident = fhir::Ident::new(name, ident);
+    fhir::FunRefineParam { ident, sort, mode }
 }
 
 fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
@@ -1191,12 +1194,12 @@ impl Layer {
         }
     }
 
-    fn into_params(self) -> Vec<(fhir::Ident, fhir::Sort)> {
+    fn into_params(self) -> Vec<fhir::RefineParam> {
         let mut args = vec![];
         for (ident, binder) in self.map {
             if let Binder::Refined(name, sort, _) = binder {
-                let name = fhir::Ident::new(name, ident);
-                args.push((name, sort));
+                let ident = fhir::Ident::new(name, ident);
+                args.push(fhir::RefineParam { ident, sort });
             } else {
                 span_bug!(ident.span, "unexpected refined binder");
             }
