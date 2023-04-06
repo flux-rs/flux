@@ -69,7 +69,7 @@ pub struct ConstInfo {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: String,
-    pub args: Vec<(Ident, Sort)>,
+    pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub global: bool,
 }
@@ -108,8 +108,8 @@ pub struct TyAlias {
     pub def_id: LocalDefId,
     pub ty: Ty,
     pub span: Span,
-    pub early_bound_params: Vec<(Ident, Sort)>,
-    pub index_params: Vec<(Ident, Sort)>,
+    pub early_bound_params: Vec<RefineParam>,
+    pub index_params: Vec<RefineParam>,
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
@@ -119,7 +119,7 @@ pub struct TyAlias {
 #[derive(Debug)]
 pub struct StructDef {
     pub def_id: LocalDefId,
-    pub params: Vec<(Ident, Sort)>,
+    pub params: Vec<RefineParam>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
 }
@@ -143,7 +143,7 @@ pub struct FieldDef {
 #[derive(Debug)]
 pub struct EnumDef {
     pub def_id: LocalDefId,
-    pub params: Vec<(Ident, Sort)>,
+    pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
 }
@@ -151,7 +151,7 @@ pub struct EnumDef {
 #[derive(Debug)]
 pub struct VariantDef {
     pub def_id: LocalDefId,
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
     pub span: Span,
@@ -169,7 +169,7 @@ pub struct VariantRet {
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -183,7 +183,7 @@ pub struct FnSig {
 }
 
 pub struct FnOutput {
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     pub ret: Ty,
     pub ensures: Vec<Constraint>,
 }
@@ -205,7 +205,7 @@ pub enum TyKind {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
-    Exists(Vec<(Ident, Sort)>, Box<Ty>),
+    Exists(Vec<RefineParam>, Box<Ty>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -283,16 +283,16 @@ pub enum RefineArg {
         is_binder: bool,
         fhir_id: FhirId,
     },
-    Abs(Vec<(Ident, Sort)>, Expr, Span, FhirId),
+    Abs(Vec<RefineParam>, Expr, Span, FhirId),
     Aggregate(DefId, Vec<RefineArg>, Span, FhirId),
 }
 
+/// These are types of things that may be refined with indices or existentials
 pub struct BaseTy {
     pub kind: BaseTyKind,
     pub span: Span,
 }
 
-/// These are types of things that may be refined with indices or existentials
 pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
@@ -314,10 +314,12 @@ pub enum Res {
     Param(DefId),
 }
 
-#[derive(Debug)]
-pub struct FunRefineParam {
-    pub name: Ident,
+#[derive(Debug, Clone)]
+pub struct RefineParam {
+    pub ident: Ident,
     pub sort: Sort,
+    /// Inferce mode for this parameter at function calls. It has no meaning for parameters in
+    /// other places.
     pub mode: InferMode,
 }
 
@@ -329,7 +331,7 @@ pub enum InferMode {
     /// (mostly) freely.
     EVar,
     /// Generate a fresh kvar and let fixpoint infer it. This mode can only be used with abstract
-    /// refinements predicates. If the parameter is marked as kvar then it can only appear in
+    /// refinement predicates. If the parameter is marked as kvar then it can only appear in
     /// positions that result in a _horn_ constraint as required by fixpoint.
     KVar,
 }
@@ -518,7 +520,7 @@ pub enum FuncKind {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
-    pub args: Vec<(Ident, Sort)>,
+    pub args: Vec<RefineParam>,
     pub sort: Sort,
     pub expr: Expr,
 }
@@ -586,6 +588,12 @@ impl Sort {
         } else {
             InferMode::EVar
         }
+    }
+}
+
+impl RefineParam {
+    pub fn name(&self) -> Name {
+        self.ident.name
     }
 }
 
@@ -826,7 +834,7 @@ impl Map {
 }
 
 impl TyAlias {
-    pub fn all_params(&self) -> impl Iterator<Item = &(Ident, Sort)> {
+    pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
         self.early_bound_params.iter().chain(&self.index_params)
     }
 }
@@ -860,7 +868,7 @@ impl fmt::Debug for FnSig {
                 f,
                 "for<{}> ",
                 self.params.iter().format_with(", ", |param, f| {
-                    f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                    f(&format_args!("{:?}: {:?}", param.ident, param.sort))
                 })
             )?;
         }
@@ -878,7 +886,7 @@ impl fmt::Debug for FnOutput {
                 f,
                 "exists<{}> ",
                 self.params.iter().format_with(", ", |param, f| {
-                    f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                    f(&format_args!("{:?}: {:?}", param.ident, param.sort))
                 })
             )?;
         }
@@ -910,8 +918,8 @@ impl fmt::Debug for Ty {
                 write!(
                     f,
                     "{}",
-                    params.iter().format_with(",", |(ident, sort), f| {
-                        f(&format_args!("{ident:?}:{sort:?}"))
+                    params.iter().format_with(",", |param, f| {
+                        f(&format_args!("{:?}:{:?}", param.ident, param.sort))
                     })
                 )?;
                 if let TyKind::Constr(pred, ty) = &ty.kind {
