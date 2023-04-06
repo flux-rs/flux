@@ -238,7 +238,6 @@ pub enum WeakKind {
 pub struct WfckResults {
     owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
-    coercions: ItemLocalMap<Coercion>,
 }
 
 pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
@@ -251,14 +250,6 @@ pub struct LocalTableInContext<'a, T> {
 pub struct LocalTableInContextMut<'a, T> {
     owner: FluxOwnerId,
     data: &'a mut ItemLocalMap<T>,
-}
-
-pub enum Coercion {
-    /// Coerce an aggregate sort with a single field of sort `s` into a value of sort `s` by projecting
-    /// the field.
-    Project,
-    /// Inject a value of sort `s` into an aggregate sort with a single field of sort `s`.
-    Inject,
 }
 
 impl From<BaseTy> for Ty {
@@ -878,7 +869,7 @@ impl StructDef {
 
 impl WfckResults {
     pub fn new(owner: FluxOwnerId) -> Self {
-        Self { owner, node_sorts: ItemLocalMap::default(), coercions: ItemLocalMap::default() }
+        Self { owner, node_sorts: ItemLocalMap::default() }
     }
 
     pub fn expr_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
@@ -887,10 +878,6 @@ impl WfckResults {
 
     pub fn expr_sorts(&self) -> LocalTableInContext<Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
-    }
-
-    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Coercion> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
     }
 }
 
