@@ -272,10 +272,17 @@ impl From<RefKind> for WeakKind {
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum FluxOwnerId {
+pub enum FluxLocalDefId {
     /// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
     Flux(Symbol),
     /// An item with a corresponding Rust definition, e.g., struct, enum, or function.
+    Rust(LocalDefId),
+}
+
+/// Owner version of [`FluxLocalDefId`]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum FluxOwnerId {
+    Flux(Symbol),
     Rust(OwnerId),
 }
 
@@ -427,6 +434,21 @@ pub struct Ident {
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
+}
+
+impl From<FluxOwnerId> for FluxLocalDefId {
+    fn from(flux_id: FluxOwnerId) -> Self {
+        match flux_id {
+            FluxOwnerId::Flux(sym) => FluxLocalDefId::Flux(sym),
+            FluxOwnerId::Rust(owner_id) => FluxLocalDefId::Rust(owner_id.def_id),
+        }
+    }
+}
+
+impl From<LocalDefId> for FluxLocalDefId {
+    fn from(def_id: LocalDefId) -> Self {
+        FluxLocalDefId::Rust(def_id)
+    }
 }
 
 impl RefineArg {

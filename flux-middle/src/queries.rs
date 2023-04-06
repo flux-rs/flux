@@ -12,7 +12,7 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 use crate::{
-    fhir,
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -38,7 +38,7 @@ pub enum QueryErr {
 pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult<fhir::WfckResults>,
+    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<fhir::WfckResults>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
@@ -51,7 +51,7 @@ pub struct Queries<'tcx> {
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
-    check_wf: Cache<LocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
+    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -106,10 +106,10 @@ impl<'tcx> Queries<'tcx> {
     pub(crate) fn check_wf(
         &self,
         genv: &GlobalEnv,
-        def_id: LocalDefId,
+        flux_id: FluxLocalDefId,
     ) -> QueryResult<Rc<fhir::WfckResults>> {
-        run_with_cache(&self.check_wf, def_id, || {
-            let wfckresults = (self.providers.check_wf)(genv, def_id)?;
+        run_with_cache(&self.check_wf, flux_id, || {
+            let wfckresults = (self.providers.check_wf)(genv, flux_id)?;
             Ok(Rc::new(wfckresults))
         })
     }

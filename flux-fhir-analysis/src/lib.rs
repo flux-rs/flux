@@ -18,7 +18,7 @@ use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir,
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
@@ -185,7 +185,14 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
     Ok(rty::EarlyBinder(fn_sig))
 }
 
-fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
+fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<fhir::WfckResults> {
+    match flux_id {
+        FluxLocalDefId::Flux(_) => todo!(),
+        FluxLocalDefId::Rust(def_id) => check_wf_rust_item(genv, def_id),
+    }
+}
+
+fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
