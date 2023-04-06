@@ -56,9 +56,10 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                             params.len(),
                         ));
                     }
-                    let params = iter::zip(params, fsort.inputs())
-                        .map(|((name, _), sort)| (&name.name, sort));
-                    env.push_layer(params);
+                    env.push_layer(
+                        iter::zip(params, fsort.inputs())
+                            .map(|((name, _), sort)| (*name, sort.clone())),
+                    );
                     self.check_expr(env, body, fsort.output())
                 } else {
                     self.emit_err(errors::UnexpectedFun::new(*span, expected))
@@ -312,12 +313,12 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
 
 impl Env {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn push_layer<'a>(
+    pub(super) fn push_layer(
         &mut self,
-        binders: impl IntoIterator<Item = (&'a fhir::Name, &'a fhir::Sort)>,
+        binders: impl IntoIterator<Item = (fhir::Ident, fhir::Sort)>,
     ) {
-        for (binder, sort) in binders {
-            self.sorts.insert(*binder, sort.clone());
+        for (ident, sort) in binders {
+            self.sorts.insert(ident.name, sort);
         }
     }
 }

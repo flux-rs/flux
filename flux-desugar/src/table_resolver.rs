@@ -181,9 +181,9 @@ impl<'sess> Resolver<'sess> {
                 let bty = self.resolve_bty(bty)?;
                 surface::TyKind::Exists { bind, bty, pred }
             }
-            surface::TyKind::GeneralExists { bind, sort, ty, pred } => {
+            surface::TyKind::GeneralExists { params, ty, pred } => {
                 let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::GeneralExists { bind, sort, ty: Box::new(ty), pred }
+                surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
             }
             surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty)?;

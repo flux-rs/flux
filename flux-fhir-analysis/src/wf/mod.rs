@@ -85,7 +85,7 @@ pub(crate) fn check_ty_alias(
     let mut wf = Wf::new(early_cx);
     let mut env = Env::from_iter(alias.all_params());
     wf.check_type(&mut env, &alias.ty)?;
-    wf.check_params(&env, alias.index_params.iter().map(|(name, _)| *name))?;
+    wf.check_params_determined(&env, alias.index_params.iter().map(|(name, _)| *name))?;
     Ok(wf.into_results())
 }
 
@@ -108,7 +108,7 @@ pub(crate) fn check_struct_def(
         fields
             .iter()
             .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
-        wf.check_params(&env, struct_def.params.iter().map(|(name, _)| *name))?;
+        wf.check_params_determined(&env, struct_def.params.iter().map(|(name, _)| *name))?;
     }
 
     Ok(wf.into_results())
@@ -166,7 +166,7 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
-    wf.check_params(&env, fn_sig.params.iter().map(|param| param.name))?;
+    wf.check_params_determined(&env, fn_sig.params.iter().map(|param| param.name))?;
 
     Ok(wf.into_results())
 }
@@ -185,12 +185,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.wfckresults
     }
 
-    fn check_params(
+    fn check_params_determined(
         &mut self,
         env: &Env,
-        params: impl Iterator<Item = fhir::Ident>,
+        params: impl IntoIterator<Item = fhir::Ident>,
     ) -> Result<(), ErrorGuaranteed> {
-        params.try_for_each_exhaust(|param| {
+        params.into_iter().try_for_each_exhaust(|param| {
             let determined = self.xi.remove(param.name);
             if self.infer_mode(env, param.name) == fhir::InferMode::EVar && !determined {
                 return self.emit_err(errors::ParamNotDetermined::new(param));
@@ -222,7 +222,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fn_output
                 .params
                 .iter()
-                .map(|param| (&param.name.name, &param.sort)),
+                .map(|param| (param.name, param.sort.clone())),
         );
         self.check_type(env, &fn_output.ret)?;
         fn_output
@@ -230,7 +230,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .iter()
             .try_for_each_exhaust(|constr| self.check_constraint(env, constr))?;
 
-        let params = self.check_params(env, fn_output.params.iter().map(|param| param.name));
+        let params =
+            self.check_params_determined(env, fn_output.params.iter().map(|param| param.name));
 
         self.xi.rollback_to(snapshot);
 
@@ -287,13 +288,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_refine_arg(env, idx, &expected)?;
                 self.check_base_ty(env, bty)
             }
-            fhir::TyKind::Exists(bind, sort, ty) => {
-                env.push_layer([(&bind.name, sort)]);
+            fhir::TyKind::Exists(params, ty) => {
+                env.push_layer(params.iter().cloned());
                 self.check_type(env, ty)?;
-                if !self.xi.remove(bind.name) {
-                    return self.emit_err(errors::ParamNotDetermined::new(*bind));
-                }
-                Ok(())
+                self.check_params_determined(env, params.iter().map(|(ident, _)| *ident))
             }
             fhir::TyKind::Ptr(loc) => {
                 self.xi.insert(loc.name);

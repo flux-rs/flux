@@ -163,8 +163,8 @@ TyKind: surface::TyKind = {
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
     "{" <ty:Ty> "|" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
-    "{" <bind:Ident> ":" <sort:Sort> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
-        surface::TyKind::GeneralExists { bind, sort, ty: Box::new(ty), pred }
+    "{" <params:Comma1<RefineParam>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
+        surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
     },
     "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
 
@@ -404,6 +404,7 @@ Sep1<S, T>: Vec<T> = {
 }
 
 Comma<T> = Sep<",", T>;
+Comma1<T> = Sep1<",", T>;
 
 Binding<A, B>: (A, B) = <A> ":" <B>;
 
