@@ -16,7 +16,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
-    EnumDef, ImplItemKind, Item, ItemKind, VariantData,
+    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_span::{Span, Symbol};
@@ -40,13 +40,13 @@ pub enum IgnoreKey {
 pub type Ignores = FxHashSet<IgnoreKey>;
 
 pub(crate) struct Specs {
-    pub fn_sigs: FxHashMap<LocalDefId, FnSpec>,
-    pub structs: FxHashMap<LocalDefId, surface::StructDef>,
-    pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
+    pub fn_sigs: FxHashMap<OwnerId, FnSpec>,
+    pub structs: FxHashMap<OwnerId, surface::StructDef>,
+    pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
     pub sort_decls: Vec<surface::SortDecl>,
-    pub aliases: surface::AliasMap,
+    pub aliases: FxHashMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
@@ -87,13 +87,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let item = tcx.hir().item(item_id);
             let hir_id = item.hir_id();
             let attrs = tcx.hir().attrs(hir_id);
-            let def_id = item.owner_id.def_id;
+            let owner_id = item.owner_id;
             let _ = match &item.kind {
-                ItemKind::Fn(..) => collector.parse_fn_spec(def_id, attrs),
-                ItemKind::Struct(data, ..) => collector.parse_struct_def(def_id, attrs, data),
-                ItemKind::Enum(def, ..) => collector.parse_enum_def(def_id, attrs, def),
-                ItemKind::Mod(..) => collector.parse_mod_spec(def_id, attrs),
-                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(def_id, attrs),
+                ItemKind::Fn(..) => collector.parse_fn_spec(owner_id, attrs),
+                ItemKind::Struct(data, ..) => collector.parse_struct_def(owner_id, attrs, data),
+                ItemKind::Enum(def, ..) => collector.parse_enum_def(owner_id, attrs, def),
+                ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
+                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(_ty, _body_id) => collector.parse_const_spec(item, attrs),
                 _ => Ok(()),
             };
@@ -101,11 +101,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
-            let def_id = impl_item.owner_id.def_id;
+            let owner_id = impl_item.owner_id;
             if let ImplItemKind::Fn(..) = &impl_item.kind {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
-                let _ = collector.parse_fn_spec(def_id, attrs);
+                let _ = collector.parse_fn_spec(owner_id, attrs);
             }
         }
 
@@ -174,17 +174,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_tyalias_spec(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.specs.aliases.insert(def_id, attrs.alias());
+        self.specs.aliases.insert(owner_id, attrs.alias());
         Ok(())
     }
 
     fn parse_struct_def(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
         data: &VariantData,
     ) -> Result<(), ErrorGuaranteed> {
@@ -204,9 +204,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let invariants = attrs.invariants();
 
-        self.specs
-            .structs
-            .insert(def_id, surface::StructDef { def_id, refined_by, fields, opaque, invariants });
+        self.specs.structs.insert(
+            owner_id,
+            surface::StructDef { owner_id, refined_by, fields, opaque, invariants },
+        );
 
         Ok(())
     }
@@ -227,7 +228,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_enum_def(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
         enum_def: &EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
@@ -244,7 +245,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .enums
-            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, invariants });
+            .insert(owner_id, surface::EnumDef { owner_id, refined_by, variants, invariants });
         Ok(())
     }
 
@@ -268,7 +269,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_fn_spec(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
@@ -281,17 +282,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         if attrs.extern_spec() {
             if fn_sig.is_none() {
                 return Err(self.emit_err(errors::MissingFnSigForExternSpec {
-                    span: self.tcx.def_span(def_id),
+                    span: self.tcx.def_span(owner_id),
                 }));
             }
-            let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(def_id)?;
-            self.specs.extern_fns.insert(extern_def_id, def_id);
+            let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
+            self.specs.extern_fns.insert(extern_def_id, owner_id.def_id);
             // We should never check an extern spec (it will infinitely recurse)
             trusted = true;
         }
         self.specs
             .fn_sigs
-            .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
+            .insert(owner_id, FnSpec { fn_sig, trusted, qual_names });
         Ok(())
     }
 
@@ -471,19 +472,19 @@ impl Specs {
         }
     }
 
-    pub fn refined_bys(&self) -> impl Iterator<Item = (LocalDefId, Option<&surface::RefinedBy>)> {
+    pub fn refined_bys(&self) -> impl Iterator<Item = (OwnerId, Option<&surface::RefinedBy>)> {
         let structs = self
             .structs
             .iter()
-            .map(|(def_id, struct_def)| (*def_id, struct_def.refined_by.as_ref()));
+            .map(|(owner_id, struct_def)| (*owner_id, struct_def.refined_by.as_ref()));
         let enums = self
             .enums
             .iter()
-            .map(|(def_id, enum_def)| (*def_id, enum_def.refined_by.as_ref()));
+            .map(|(owner_id, enum_def)| (*owner_id, enum_def.refined_by.as_ref()));
         let aliases = self
             .aliases
             .iter()
-            .map(|(def_id, alias)| (*def_id, alias.as_ref().map(|alias| &alias.refined_by)));
+            .map(|(owner_id, alias)| (*owner_id, alias.as_ref().map(|alias| &alias.refined_by)));
         itertools::chain!(structs, enums, aliases)
     }
 }

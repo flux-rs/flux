@@ -28,8 +28,11 @@ use itertools::Itertools;
 use rustc_ast::Mutability;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::def_id::{DefId, LocalDefId};
 pub use rustc_hir::PrimTy;
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    OwnerId,
+};
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_span::{Span, Symbol};
@@ -105,7 +108,7 @@ pub struct Map {
 
 #[derive(Debug)]
 pub struct TyAlias {
-    pub def_id: LocalDefId,
+    pub owner_id: OwnerId,
     pub ty: Ty,
     pub span: Span,
     pub early_bound_params: Vec<RefineParam>,
@@ -118,7 +121,7 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct StructDef {
-    pub def_id: LocalDefId,
+    pub owner_id: OwnerId,
     pub params: Vec<RefineParam>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
@@ -142,7 +145,7 @@ pub struct FieldDef {
 
 #[derive(Debug)]
 pub struct EnumDef {
-    pub def_id: LocalDefId,
+    pub owner_id: OwnerId,
     pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
@@ -273,9 +276,7 @@ pub enum FluxOwnerId {
     /// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
     Flux(Symbol),
     /// An item with a corresponding Rust definition, e.g., struct, enum, or function.
-    ///
-    /// [FIXME] We should use an `OwnerId` here
-    Rust(LocalDefId),
+    Rust(OwnerId),
 }
 
 /// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a

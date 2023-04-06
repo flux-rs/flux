@@ -125,7 +125,8 @@ pub(crate) fn adt_def_for_struct(
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
     let sort = Layer::list(genv.early_cx(), &struct_def.params, false).into_sort();
-    rty::AdtDef::new(genv.tcx.adt_def(struct_def.def_id), sort, invariants, struct_def.is_opaque())
+    let adt_def = genv.tcx.adt_def(struct_def.owner_id.def_id);
+    rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
 
 pub(crate) fn adt_def_for_enum(
@@ -134,7 +135,7 @@ pub(crate) fn adt_def_for_enum(
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
     let sort = Layer::list(genv.early_cx(), &enum_def.params, false).into_sort();
-    rty::AdtDef::new(genv.tcx.adt_def(enum_def.def_id), sort, invariants, false)
+    rty::AdtDef::new(genv.tcx.adt_def(enum_def.owner_id), sort, invariants, false)
 }
 
 pub(crate) fn conv_invariants(
@@ -270,7 +271,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         env.push_layer(Layer::list(genv.early_cx(), &struct_def.params, false));
         let mut cx = ConvCtxt::new(genv, env, wfckresults);
 
-        let def_id = struct_def.def_id;
+        let def_id = struct_def.owner_id.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let fields = fields
                 .iter()

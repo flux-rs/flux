@@ -3,7 +3,7 @@
 use fhir::FhirId;
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use hir::{def::DefKind, def_id::DefId};
+use hir::{def::DefKind, def_id::DefId, OwnerId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
@@ -17,19 +17,20 @@ use crate::fhir;
 struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
-    def_id: LocalDefId,
+    owner: OwnerId,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
 }
 
 pub fn lift_generics(
     tcx: TyCtxt,
     sess: &FluxSession,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
     let hir_generics = tcx.hir().get_generics(def_id).unwrap();
     let def_kind = tcx.def_kind(def_id.to_def_id());
 
-    let cx = LiftCtxt::new(tcx, sess, def_id);
+    let cx = LiftCtxt::new(tcx, sess, owner_id);
 
     let params = hir_generics
         .params
@@ -64,7 +65,8 @@ pub fn lift_generics(
     Ok(fhir::Generics { params })
 }
 
-pub fn lift_refined_by(tcx: TyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
+pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
+    let def_id = owner_id.def_id;
     let item = tcx.hir().expect_item(def_id);
     match item.kind {
         hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
@@ -79,16 +81,17 @@ pub fn lift_refined_by(tcx: TyCtxt, def_id: LocalDefId) -> fhir::RefinedBy {
 pub fn lift_type_alias(
     tcx: TyCtxt,
     sess: &FluxSession,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
     let item = tcx.hir().expect_item(def_id);
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
-    let cx = LiftCtxt::new(tcx, sess, def_id);
+    let cx = LiftCtxt::new(tcx, sess, owner_id);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
-        def_id,
+        owner_id,
         early_bound_params: vec![],
         index_params: vec![],
         ty,
@@ -108,7 +111,7 @@ pub fn lift_field_def(
         bug!("expected a field")
     };
     let struct_id = tcx.hir().get_parent_item(hir_id);
-    let ty = LiftCtxt::new(tcx, sess, struct_id.def_id).lift_ty(field_def.ty)?;
+    let ty = LiftCtxt::new(tcx, sess, struct_id).lift_ty(field_def.ty)?;
     Ok(fhir::FieldDef { def_id, ty, lifted: true })
 }
 
@@ -131,7 +134,7 @@ pub fn lift_enum_variant_def(
         bug!("expected an enum")
     };
 
-    let cx = LiftCtxt::new(tcx, sess, enum_id.def_id);
+    let cx = LiftCtxt::new(tcx, sess, enum_id);
 
     let fields = variant
         .data
@@ -157,9 +160,10 @@ pub fn lift_enum_variant_def(
 pub fn lift_fn_sig(
     tcx: TyCtxt,
     sess: &FluxSession,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
-    let cx = LiftCtxt::new(tcx, sess, def_id);
+    let def_id = owner_id.def_id;
+    let cx = LiftCtxt::new(tcx, sess, owner_id);
     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
     let fn_sig = tcx
         .hir()
@@ -190,12 +194,12 @@ pub fn lift_fn_sig(
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, def_id: LocalDefId) -> Self {
-        Self { tcx, sess, def_id, local_id_gen: IndexGen::new() }
+    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, owner: OwnerId) -> Self {
+        Self { tcx, sess, owner, local_id_gen: IndexGen::new() }
     }
 
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: FluxOwnerId::Rust(self.def_id), local_id: self.local_id_gen.fresh() }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -332,7 +336,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn emit_unsupported<T>(&self, msg: &str) -> Result<T, ErrorGuaranteed> {
-        self.emit_err(errors::UnsupportedHir::new(self.tcx, self.def_id, msg))
+        self.emit_err(errors::UnsupportedHir::new(self.tcx, self.owner, msg))
     }
 
     fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {

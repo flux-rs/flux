@@ -1,13 +1,11 @@
 use std::fmt;
 
 pub use rustc_ast::token::{Lit, LitKind};
-use rustc_hir::def_id::LocalDefId;
 pub use rustc_hir::PrimTy;
+use rustc_hir::{def_id::LocalDefId, OwnerId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
 use rustc_span::Span;
-
-pub type AliasMap = rustc_hash::FxHashMap<LocalDefId, Option<TyAlias>>;
 
 #[derive(Debug)]
 pub struct SortDecl {
@@ -52,7 +50,7 @@ pub struct TyAlias<R = ()> {
 
 #[derive(Debug)]
 pub struct StructDef<R = ()> {
-    pub def_id: LocalDefId,
+    pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
     pub fields: Vec<FieldDef<R>>,
     pub opaque: bool,
@@ -67,7 +65,7 @@ pub struct FieldDef<R = ()> {
 
 #[derive(Debug)]
 pub struct EnumDef<R = ()> {
-    pub def_id: LocalDefId,
+    pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
     pub variants: Vec<VariantDef<R>>,
     pub invariants: Vec<Expr>,

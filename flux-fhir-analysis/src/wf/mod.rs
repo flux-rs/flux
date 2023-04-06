@@ -16,7 +16,7 @@ use flux_middle::{
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::OwnerId;
 use rustc_span::Symbol;
 
 use self::sortck::{Env, SortChecker};
@@ -42,7 +42,7 @@ struct XiCtxt(SnapshotMap<fhir::Name, ()>);
 pub(crate) fn check_type(
     early_cx: &EarlyCtxt,
     ty: &fhir::Ty,
-    owner: LocalDefId,
+    owner: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(owner));
     let mut env = Env::default();
@@ -86,12 +86,12 @@ pub(crate) fn check_fn_quals(
 
 pub(crate) fn check_ty_alias(
     early_cx: &EarlyCtxt,
-    alias: &fhir::TyAlias,
+    ty_alias: &fhir::TyAlias,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(alias.def_id));
-    let mut env = Env::from_iter(alias.all_params());
-    wf.check_type(&mut env, &alias.ty)?;
-    wf.check_params_determined(&env, alias.index_params.iter().map(|param| param.ident))?;
+    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(ty_alias.owner_id));
+    let mut env = Env::from_iter(ty_alias.all_params());
+    wf.check_type(&mut env, &ty_alias.ty)?;
+    wf.check_params_determined(&env, ty_alias.index_params.iter().map(|param| param.ident))?;
     Ok(wf.into_results())
 }
 
@@ -99,7 +99,7 @@ pub(crate) fn check_struct_def(
     early_cx: &EarlyCtxt,
     struct_def: &fhir::StructDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(struct_def.def_id));
+    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(struct_def.owner_id));
     let mut env = Env::from(&struct_def.params[..]);
 
     struct_def
@@ -124,7 +124,7 @@ pub(crate) fn check_enum_def(
     early_cx: &EarlyCtxt,
     enum_def: &fhir::EnumDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(enum_def.def_id));
+    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(enum_def.owner_id));
 
     let env = Env::from(&enum_def.params[..]);
     enum_def
@@ -146,9 +146,9 @@ pub(crate) fn check_enum_def(
 pub(crate) fn check_fn_sig(
     early_cx: &EarlyCtxt,
     fn_sig: &fhir::FnSig,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(def_id));
+    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(owner_id));
     for param in &fn_sig.params {
         wf.modes.insert(param.ident.name, param.mode);
     }

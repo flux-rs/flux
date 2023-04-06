@@ -11,7 +11,7 @@ use flux_middle::{
 use flux_refineck as refineck;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
@@ -128,9 +128,9 @@ fn build_stage1_fhir_map(
 
     // Register Generics
     err = defs_with_generics(tcx)
-        .try_for_each_exhaust(|def_id| {
-            let generics = fhir::lift::lift_generics(tcx, sess, def_id)?;
-            map.insert_generics(def_id, generics);
+        .try_for_each_exhaust(|owner_id| {
+            let generics = fhir::lift::lift_generics(tcx, sess, owner_id)?;
+            map.insert_generics(owner_id.def_id, generics);
             Ok(())
         })
         .err()
@@ -159,13 +159,13 @@ fn build_stage1_fhir_map(
     // Register RefinedBys
     err = specs
         .refined_bys()
-        .try_for_each_exhaust(|(def_id, refined_by)| {
+        .try_for_each_exhaust(|(owner_id, refined_by)| {
             let refined_by = if let Some(refined_by) = refined_by {
-                desugar::desugar_refined_by(sess, map.sort_decls(), def_id, refined_by)?
+                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, refined_by)?
             } else {
-                fhir::lift::lift_refined_by(tcx, def_id)
+                fhir::lift::lift_refined_by(tcx, owner_id)
             };
-            map.insert_refined_by(def_id, refined_by);
+            map.insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
         })
         .err()
@@ -223,13 +223,13 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     // Aliases
     err = std::mem::take(&mut specs.aliases)
         .into_iter()
-        .try_for_each_exhaust(|(def_id, alias)| {
+        .try_for_each_exhaust(|(owner_id, alias)| {
             let alias = if let Some(alias) = alias {
-                desugar::desugar_type_alias(&early_cx, def_id, alias)?
+                desugar::desugar_type_alias(&early_cx, owner_id, alias)?
             } else {
-                fhir::lift::lift_type_alias(tcx, sess, def_id)?
+                fhir::lift::lift_type_alias(tcx, sess, owner_id)?
             };
-            early_cx.map.insert_type_alias(def_id, alias);
+            early_cx.map.insert_type_alias(owner_id.def_id, alias);
             Ok(())
         })
         .err()
@@ -238,12 +238,12 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     // Structs
     err = std::mem::take(&mut specs.structs)
         .into_iter()
-        .try_for_each_exhaust(|(def_id, struct_def)| {
+        .try_for_each_exhaust(|(owner_id, struct_def)| {
             let struct_def = desugar::desugar_struct_def(&early_cx, struct_def)?;
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, def_id, "fhir", &struct_def).unwrap();
+                dbg::dump_item_info(tcx, owner_id, "fhir", &struct_def).unwrap();
             }
-            early_cx.map.insert_struct(def_id, struct_def);
+            early_cx.map.insert_struct(owner_id.def_id, struct_def);
             Ok(())
         })
         .err()
@@ -252,12 +252,12 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     // Enums
     err = std::mem::take(&mut specs.enums)
         .into_iter()
-        .try_for_each_exhaust(|(def_id, enum_def)| {
+        .try_for_each_exhaust(|(owner_id, enum_def)| {
             let enum_def = desugar::desugar_enum_def(&early_cx, enum_def)?;
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, def_id.to_def_id(), "fhir", &enum_def).unwrap();
+                dbg::dump_item_info(tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
             }
-            early_cx.map.insert_enum(def_id, enum_def);
+            early_cx.map.insert_enum(owner_id.def_id, enum_def);
             Ok(())
         })
         .err()
@@ -266,17 +266,18 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     // FnSigs
     err = std::mem::take(&mut specs.fn_sigs)
         .into_iter()
-        .try_for_each_exhaust(|(def_id, spec)| {
+        .try_for_each_exhaust(|(owner_id, spec)| {
+            let def_id = owner_id.def_id;
             if spec.trusted {
                 early_cx.map.add_trusted(def_id);
             }
             let fn_sig = if let Some(fn_sig) = spec.fn_sig {
-                desugar::desugar_fn_sig(&early_cx, def_id, fn_sig)?
+                desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?
             } else {
-                fhir::lift::lift_fn_sig(tcx, sess, def_id)?
+                fhir::lift::lift_fn_sig(tcx, sess, owner_id)?
             };
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, def_id.to_def_id(), "fhir", &fn_sig).unwrap();
+                dbg::dump_item_info(tcx, def_id, "fhir", &fn_sig).unwrap();
             }
             early_cx.map.insert_fn_sig(def_id, fn_sig);
             if let Some(quals) = spec.qual_names {
@@ -421,7 +422,7 @@ fn is_tool_registered(tcx: TyCtxt) -> bool {
     false
 }
 
-fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = LocalDefId> + '_ {
+fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = OwnerId> + '_ {
     tcx.hir_crate_items(())
         .definitions()
         .flat_map(move |def_id| {
@@ -431,7 +432,7 @@ fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = LocalDefId> + '_ {
                 | DefKind::Fn
                 | DefKind::Impl { .. }
                 | DefKind::TyAlias
-                | DefKind::AssocFn => Some(def_id),
+                | DefKind::AssocFn => Some(OwnerId { def_id }),
                 _ => None,
             }
         })

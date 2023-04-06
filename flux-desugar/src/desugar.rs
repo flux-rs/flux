@@ -12,7 +12,7 @@ use flux_syntax::surface;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::OwnerId;
 use rustc_span::{sym, symbol::kw, Span, Symbol};
 
 pub fn desugar_qualifier(
@@ -77,7 +77,7 @@ pub fn func_def_to_func_decl(
 pub fn desugar_refined_by(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy, ErrorGuaranteed> {
     let mut set = FxHashSet::default();
@@ -100,22 +100,22 @@ pub fn desugar_refined_by(
         .map(|param| Ok((param.name.name, resolve_sort(sess, sort_decls, &param.sort)?)))
         .try_collect_exhaust()?;
 
-    Ok(fhir::RefinedBy::new(def_id, early_bound_params, index_params, refined_by.span))
+    Ok(fhir::RefinedBy::new(owner_id.def_id, early_bound_params, index_params, refined_by.span))
 }
 
 pub fn desugar_type_alias(
     early_cx: &EarlyCtxt,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
     alias: surface::TyAlias<Res>,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
     let mut binders = Binders::from_params(early_cx, alias.refined_by.all_params())?;
-    let mut cx = DesugarCtxt::new(early_cx, def_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id);
     let ty = cx.desugar_ty(None, &alias.ty, &mut binders)?;
 
     let mut early_bound_params = binders.pop_layer().into_params();
     let index_params = early_bound_params.split_off(alias.refined_by.early_bound_params.len());
     Ok(fhir::TyAlias {
-        def_id,
+        owner_id,
         early_bound_params,
         index_params,
         ty,
@@ -128,7 +128,6 @@ pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
     struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let def_id = struct_def.def_id;
     let mut binders = Binders::from_params(
         early_cx,
         struct_def
@@ -137,7 +136,7 @@ pub fn desugar_struct_def(
             .flat_map(surface::RefinedBy::all_params),
     )?;
 
-    let mut cx = DesugarCtxt::new(early_cx, struct_def.def_id);
+    let mut cx = DesugarCtxt::new(early_cx, struct_def.owner_id);
 
     let invariants = struct_def
         .invariants
@@ -165,15 +164,19 @@ pub fn desugar_struct_def(
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };
-    Ok(fhir::StructDef { def_id, params: binders.pop_layer().into_params(), kind, invariants })
+    Ok(fhir::StructDef {
+        owner_id: struct_def.owner_id,
+        params: binders.pop_layer().into_params(),
+        kind,
+        invariants,
+    })
 }
 
 pub fn desugar_enum_def(
     early_cx: &EarlyCtxt,
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let def_id = enum_def.def_id;
-    let mut cx = DesugarCtxt::new(early_cx, enum_def.def_id);
+    let mut cx = DesugarCtxt::new(early_cx, enum_def.owner_id);
     let variants = enum_def
         .variants
         .iter()
@@ -193,19 +196,24 @@ pub fn desugar_enum_def(
         .map(|invariant| cx.as_expr_ctxt(&binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
-    Ok(fhir::EnumDef { def_id, params: binders.pop_layer().into_params(), variants, invariants })
+    Ok(fhir::EnumDef {
+        owner_id: enum_def.owner_id,
+        params: binders.pop_layer().into_params(),
+        variants,
+        invariants,
+    })
 }
 
 pub fn desugar_fn_sig(
     early_cx: &EarlyCtxt,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
     fn_sig: &surface::FnSig<Res>,
 ) -> Result<fhir::FnSig, ErrorGuaranteed> {
     let mut binders = Binders::new();
 
     // Desugar inputs
     binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
-    let mut cx = DesugarCtxt::new(early_cx, def_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id);
 
     if let Some(e) = &fn_sig.requires {
         let pred = cx.as_expr_ctxt(&binders).desugar_expr(e)?;
@@ -256,7 +264,7 @@ pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     requires: Vec<fhir::Constraint>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
-    owner: LocalDefId,
+    owner: OwnerId,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -307,8 +315,8 @@ enum VarRes<'a> {
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, def_id: LocalDefId) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { early_cx, requires: vec![], owner: def_id, local_id_gen: IndexGen::new() }
+    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, owner: OwnerId) -> DesugarCtxt<'a, 'tcx> {
+        DesugarCtxt { early_cx, requires: vec![], owner, local_id_gen: IndexGen::new() }
     }
 
     fn as_expr_ctxt<'b>(&'b self, binders: &'b Binders) -> ExprCtxt<'b, 'tcx> {
