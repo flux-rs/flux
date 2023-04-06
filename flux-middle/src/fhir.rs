@@ -395,6 +395,7 @@ pub struct FuncSort {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+    pub fhir_id: FhirId,
 }
 
 pub enum ExprKind {

@@ -20,7 +20,9 @@ pub fn desugar_qualifier(
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier, ErrorGuaranteed> {
     let mut binders = Binders::from_params(early_cx, &qualifier.args)?;
-    let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&qualifier.expr);
+    let expr =
+        ExprCtxt::new(early_cx, &binders, FluxOwnerId::Flux(qualifier.name.name), &IndexGen::new())
+            .desugar_expr(&qualifier.expr);
 
     Ok(fhir::Qualifier {
         name: qualifier.name.name,
@@ -36,7 +38,9 @@ pub fn desugar_defn(
 ) -> Result<Option<fhir::Defn>, ErrorGuaranteed> {
     if let Some(body) = defn.body {
         let mut binders = Binders::from_params(early_cx, &defn.args)?;
-        let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&body)?;
+        let expr =
+            ExprCtxt::new(early_cx, &binders, FluxOwnerId::Flux(defn.name.name), &IndexGen::new())
+                .desugar_expr(&body)?;
         let name = defn.name.name;
         let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.output)?;
         let args = binders.pop_layer().into_params();
@@ -186,7 +190,7 @@ pub fn desugar_enum_def(
     let invariants = enum_def
         .invariants
         .iter()
-        .map(|invariant| ExprCtxt::new(early_cx, &binders).desugar_expr(invariant))
+        .map(|invariant| cx.as_expr_ctxt(&binders).desugar_expr(invariant))
         .try_collect_exhaust()?;
 
     Ok(fhir::EnumDef { def_id, params: binders.pop_layer().into_params(), variants, invariants })
@@ -252,7 +256,7 @@ pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     requires: Vec<fhir::Constraint>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
-    def_id: LocalDefId,
+    owner: LocalDefId,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -288,6 +292,8 @@ enum Binder {
 struct ExprCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     binders: &'a Binders,
+    local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
+    owner: FluxOwnerId,
 }
 
 enum FuncRes<'a> {
@@ -302,15 +308,15 @@ enum VarRes<'a> {
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, def_id: LocalDefId) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { early_cx, requires: vec![], def_id, local_id_gen: IndexGen::new() }
+        DesugarCtxt { early_cx, requires: vec![], owner: def_id, local_id_gen: IndexGen::new() }
     }
 
-    fn as_expr_ctxt(&self, binders: &'a Binders) -> ExprCtxt<'a, 'tcx> {
-        ExprCtxt::new(self.early_cx, binders)
+    fn as_expr_ctxt<'b>(&'b self, binders: &'b Binders) -> ExprCtxt<'b, 'tcx> {
+        ExprCtxt::new(self.early_cx, binders, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
     }
 
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: FluxOwnerId::Rust(self.def_id), local_id: self.local_id_gen.fresh() }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn desugar_enum_variant_def(
@@ -413,6 +419,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     expr: fhir::Expr {
                         kind: fhir::ExprKind::Var(params[0].ident),
                         span: ex_bind.span,
+                        fhir_id: self.next_fhir_id(),
                     },
                     is_binder: false,
                     fhir_id: self.next_fhir_id(),
@@ -502,7 +509,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         match binders.get(ident) {
             Some(Binder::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
-                let expr = fhir::Expr { kind, span: ident.span };
+                let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
                 Ok(Some(fhir::RefineArg::Expr {
                     expr,
                     is_binder: true,
@@ -613,8 +620,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 }
 
 impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, binders: &'a Binders) -> Self {
-        Self { early_cx, binders }
+    fn new(
+        early_cx: &'a EarlyCtxt<'a, 'tcx>,
+        binders: &'a Binders,
+        owner: FluxOwnerId,
+        local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
+    ) -> Self {
+        Self { early_cx, binders, local_id_gen, owner }
     }
 
     fn desugar_expr(&self, expr: &surface::Expr) -> Result<fhir::Expr, ErrorGuaranteed> {
@@ -667,7 +679,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 fhir::ExprKind::IfThenElse(Box::new([p?, e1?, e2?]))
             }
         };
-        Ok(fhir::Expr { kind, span: expr.span })
+        Ok(fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() })
     }
 
     fn desugar_exprs(&self, exprs: &[surface::Expr]) -> Result<Vec<fhir::Expr>, ErrorGuaranteed> {
@@ -740,6 +752,10 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
         self.early_cx.emit_err(err)
+    }
+
+    fn next_fhir_id(&self) -> FhirId {
+        FhirId { owner: self.owner, local_id: self.local_id_gen.fresh() }
     }
 }
 
