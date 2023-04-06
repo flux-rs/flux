@@ -184,7 +184,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
                 let sort = self.synth_expr(env, e1)?;
-                if let Some(sort) = self.is_coercible_to_numeric(&sort) {
+                if let Some(sort) = self.is_coercible_to_numeric(&sort, e1.fhir_id) {
                     self.check_expr(env, e2, &sort)?;
                     Ok(fhir::Sort::Bool)
                 } else {
@@ -193,7 +193,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
                 let sort = self.synth_expr(env, e1)?;
-                if let Some(sort) = self.is_coercible_to_numeric(&sort) {
+                if let Some(sort) = self.is_coercible_to_numeric(&sort, e1.fhir_id) {
                     self.check_expr(env, e2, &sort)?;
                     Ok(sort)
                 } else {
@@ -292,14 +292,21 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         sort1 == sort2
     }
 
-    fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
+    fn is_coercible_to_func(&mut self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
         self.early_cx.is_coercible_to_func(sort)
     }
 
-    fn is_coercible_to_numeric(&self, sort: &fhir::Sort) -> Option<fhir::Sort> {
+    fn is_coercible_to_numeric(
+        &mut self,
+        sort: &fhir::Sort,
+        fhir_id: FhirId,
+    ) -> Option<fhir::Sort> {
         if sort.is_numeric() {
             Some(sort.clone())
         } else if let Some(sort) = self.is_single_field_aggregate(sort) && sort.is_numeric() {
+            self.wfckresults
+                .coercions_mut()
+                .insert(fhir_id, vec![fhir::Coercion::Project]);
             Some(sort.clone())
         } else {
             None

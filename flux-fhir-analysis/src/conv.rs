@@ -401,11 +401,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         arg: &fhir::RefineArg,
     ) -> (rty::Expr, rty::TupleTree<bool>) {
         let (expr, is_binder) = match arg {
-            fhir::RefineArg::Expr {
-                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
-                is_binder,
-                ..
-            } => (env.lookup(*var).to_expr(), rty::TupleTree::Leaf(*is_binder)),
             fhir::RefineArg::Expr { expr, is_binder, .. } => {
                 (self.conv_expr(env, expr), rty::TupleTree::Leaf(*is_binder))
             }
@@ -434,17 +429,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
         };
-        (self.coerce_index(expr, self.node_sort(arg.fhir_id())), is_binder)
+        // (self.coerce_index(expr, self.node_sort(arg.fhir_id())), is_binder)
+        (expr, is_binder)
     }
 
-    fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
-        if self.early_cx().is_single_field_aggregate(sort).is_some() && !expr.is_tuple() {
-            expr = rty::Expr::tuple(vec![expr]);
-        } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Unit) && expr.is_tuple() {
-            expr = rty::Expr::tuple_proj(expr, 0);
-        }
-        expr
-    }
+    // fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
+    //     if self.early_cx().is_single_field_aggregate(sort).is_some() && !expr.is_tuple() {
+    //         expr = rty::Expr::tuple(vec![expr]);
+    //     } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Unit) && expr.is_tuple() {
+    //         expr = rty::Expr::tuple_proj(expr, 0);
+    //     }
+    //     expr
+    // }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
         match rk {
@@ -603,9 +599,10 @@ impl Env {
 
 impl ConvCtxt<'_, '_> {
     fn conv_expr(&self, env: &Env, expr: &fhir::Expr) -> rty::Expr {
-        match &expr.kind {
+        let fhir_id = expr.fhir_id;
+        let expr = match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => env.lookup(*var).to_expr().singleton_proj_coercion(),
+            fhir::ExprKind::Var(var) => env.lookup(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2))
@@ -625,7 +622,8 @@ impl ConvCtxt<'_, '_> {
                 )
             }
             fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv.early_cx(), *fld),
-        }
+        };
+        self.add_coercions(expr, fhir_id)
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
@@ -650,6 +648,18 @@ impl ConvCtxt<'_, '_> {
         rty::Invariant {
             pred: rty::Binder::new(self.conv_expr(env, invariant), env.top_layer().to_sort()),
         }
+    }
+
+    fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
+        if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
+            for coercion in coercions {
+                expr = match coercion {
+                    fhir::Coercion::Inject => rty::Expr::tuple(vec![expr]),
+                    fhir::Coercion::Project => rty::Expr::tuple_proj(expr, 0),
+                };
+            }
+        }
+        expr
     }
 }
 

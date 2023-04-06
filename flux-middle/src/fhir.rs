@@ -249,6 +249,7 @@ pub struct WfckResults {
     coercions: ItemLocalMap<Vec<Coercion>>,
 }
 
+#[derive(Debug)]
 pub enum Coercion {
     Inject,
     Project,
@@ -256,6 +257,7 @@ pub enum Coercion {
 
 pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
 
+#[derive(Debug)]
 pub struct LocalTableInContext<'a, T> {
     owner: FluxOwnerId,
     data: &'a ItemLocalMap<T>,
@@ -304,7 +306,7 @@ pub enum FluxOwnerId {
 ///
 /// [`rty`]: crate::rty
 /// [`HirId`]: rustc_hir::HirId
-#[derive(Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 pub struct FhirId {
     pub owner: FluxOwnerId,
     pub local_id: ItemLocalId,
@@ -939,6 +941,10 @@ impl WfckResults {
 
     pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
+    }
+
+    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+        LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 }
 
