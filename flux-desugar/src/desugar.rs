@@ -5,7 +5,7 @@ use flux_common::{index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, FhirId, Res},
+    fhir::{self, FhirId, FluxOwnerId, Res},
     intern::List,
 };
 use flux_syntax::surface;
@@ -20,11 +20,10 @@ pub fn desugar_qualifier(
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier, ErrorGuaranteed> {
     let mut binders = Binders::from_params(early_cx, &qualifier.args)?;
-    let name = qualifier.name.name.to_ident_string();
     let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&qualifier.expr);
 
     Ok(fhir::Qualifier {
-        name,
+        name: qualifier.name.name,
         args: binders.pop_layer().into_params(),
         global: qualifier.global,
         expr: expr?,
@@ -310,8 +309,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         ExprCtxt::new(self.early_cx, binders)
     }
 
-    fn next_node_id(&self) -> FhirId {
-        FhirId { owner: self.def_id, local_id: self.local_id_gen.fresh() }
+    fn next_fhir_id(&self) -> FhirId {
+        FhirId { owner: FluxOwnerId::Rust(self.def_id), local_id: self.local_id_gen.fresh() }
     }
 
     fn desugar_enum_variant_def(
@@ -416,7 +415,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                         span: ex_bind.span,
                     },
                     is_binder: false,
-                    fhir_id: self.next_node_id(),
+                    fhir_id: self.next_fhir_id(),
                 };
                 let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
                 let constr =
@@ -479,7 +478,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.desugar_refine_arg(idx, binders)
         } else if let Some(def_id) = bty.is_aggregate() {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
-            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span, self.next_node_id()))
+            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span, self.next_fhir_id()))
         } else {
             span_bug!(bty.span, "invalid index on non-aggregate type")
         }
@@ -507,7 +506,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(Some(fhir::RefineArg::Expr {
                     expr,
                     is_binder: true,
-                    fhir_id: self.next_node_id(),
+                    fhir_id: self.next_fhir_id(),
                 }))
             }
             Some(Binder::Unrefined) => Ok(None),
@@ -529,7 +528,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt(binders).desugar_expr(expr)?,
                     is_binder: false,
-                    fhir_id: self.next_node_id(),
+                    fhir_id: self.next_fhir_id(),
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
@@ -537,7 +536,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 binders.insert_params(self.early_cx, params)?;
                 let body = self.as_expr_ctxt(binders).desugar_expr(body)?;
                 let params = binders.pop_layer().into_params();
-                Ok(fhir::RefineArg::Abs(params, body, *span, self.next_node_id()))
+                Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
             }
         }
     }

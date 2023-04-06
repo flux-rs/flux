@@ -180,7 +180,7 @@ pub enum Constraint {
 
 #[derive(Debug)]
 pub struct Qualifier {
-    pub name: String,
+    pub name: Symbol,
     pub body: Binder<Expr>,
     pub global: bool,
 }

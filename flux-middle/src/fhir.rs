@@ -68,7 +68,7 @@ pub struct ConstInfo {
 
 #[derive(Debug)]
 pub struct Qualifier {
-    pub name: String,
+    pub name: Symbol,
     pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub global: bool,
@@ -235,9 +235,21 @@ pub enum WeakKind {
     Arr,
 }
 
-#[derive(Default)]
 pub struct WfckResults {
-    node_sorts: FxHashMap<FhirId, Sort>,
+    owner: FluxOwnerId,
+    node_sorts: ItemLocalMap<Sort>,
+}
+
+pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
+
+pub struct LocalTableInContext<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a ItemLocalMap<T>,
+}
+
+pub struct LocalTableInContextMut<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a mut ItemLocalMap<T>,
 }
 
 impl From<BaseTy> for Ty {
@@ -256,6 +268,16 @@ impl From<RefKind> for WeakKind {
     }
 }
 
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum FluxOwnerId {
+    /// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
+    Flux(Symbol),
+    /// An item with a corresponding Rust definition, e.g., struct, enum, or function.
+    ///
+    /// [FIXME] We should use an `OwnerId` here
+    Rust(LocalDefId),
+}
+
 /// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
 /// `local_id`. We don't generate ids for all nodes, but only for those we need to remember
 /// information elaborated during well-formedness checking to later be used during conversion into
@@ -265,8 +287,7 @@ impl From<RefKind> for WeakKind {
 /// [`HirId`]: rustc_hir::HirId
 #[derive(Hash, PartialEq, Eq, Copy, Clone)]
 pub struct FhirId {
-    /// FIXME(nilehmann) make this an `OwnerId` as in hir
-    pub owner: LocalDefId,
+    pub owner: FluxOwnerId,
     pub local_id: ItemLocalId,
 }
 
@@ -846,16 +867,30 @@ impl StructDef {
 }
 
 impl WfckResults {
-    pub fn new() -> Self {
-        Self { node_sorts: FxHashMap::default() }
+    pub fn new(owner: FluxOwnerId) -> Self {
+        Self { owner, node_sorts: FxHashMap::default() }
     }
 
-    pub fn expr_sorts_mut(&mut self) -> &mut FxHashMap<FhirId, Sort> {
-        &mut self.node_sorts
+    pub fn expr_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn expr_sorts(&self) -> &FxHashMap<FhirId, Sort> {
-        &self.node_sorts
+    pub fn expr_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+}
+
+impl<'a, T> LocalTableInContextMut<'a, T> {
+    pub fn insert(&mut self, fhir_id: FhirId, value: T) {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.insert(fhir_id.local_id, value);
+    }
+}
+
+impl<'a, T> LocalTableInContext<'a, T> {
+    pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.get(&fhir_id.local_id)
     }
 }
 
