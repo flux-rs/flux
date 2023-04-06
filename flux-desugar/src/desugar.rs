@@ -489,11 +489,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         idxs: &surface::Indices,
         binders: &mut Binders,
     ) -> Result<fhir::RefineArg, ErrorGuaranteed> {
-        if let [idx] = &idxs.indices[..] {
-            self.desugar_refine_arg(idx, binders)
+        if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
+            self.ident_into_refine_arg(*ident, binders)
+                .transpose()
+                .unwrap()
         } else if let Some(def_id) = bty.is_aggregate() {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
             Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span, self.next_fhir_id()))
+        } else if let [arg] = &idxs.indices[..] {
+            self.desugar_refine_arg(arg, binders)
         } else {
             span_bug!(bty.span, "invalid index on non-aggregate type")
         }
@@ -507,26 +511,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         args.iter()
             .map(|idx| self.desugar_refine_arg(idx, binders))
             .try_collect_exhaust()
-    }
-
-    fn ident_into_refine_arg(
-        &self,
-        ident: surface::Ident,
-        binders: &mut Binders,
-    ) -> Result<Option<fhir::RefineArg>, ErrorGuaranteed> {
-        match binders.get(ident) {
-            Some(Binder::Refined(name, ..)) => {
-                let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
-                let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
-                Ok(Some(fhir::RefineArg::Expr {
-                    expr,
-                    is_binder: true,
-                    fhir_id: self.next_fhir_id(),
-                }))
-            }
-            Some(Binder::Unrefined) => Ok(None),
-            None => Err(self.emit_err(errors::UnresolvedVar::new(ident))),
-        }
     }
 
     fn desugar_refine_arg(
@@ -553,6 +537,26 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let params = binders.pop_layer().into_params();
                 Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
             }
+        }
+    }
+
+    fn ident_into_refine_arg(
+        &self,
+        ident: surface::Ident,
+        binders: &mut Binders,
+    ) -> Result<Option<fhir::RefineArg>, ErrorGuaranteed> {
+        match binders.get(ident) {
+            Some(Binder::Refined(name, ..)) => {
+                let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
+                let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
+                Ok(Some(fhir::RefineArg::Expr {
+                    expr,
+                    is_binder: true,
+                    fhir_id: self.next_fhir_id(),
+                }))
+            }
+            Some(Binder::Unrefined) => Ok(None),
+            None => Err(self.emit_err(errors::UnresolvedVar::new(ident))),
         }
     }
 
@@ -670,12 +674,17 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 match self.resolve_func(*func)? {
                     FuncRes::Global(fundecl) => {
                         fhir::ExprKind::App(
-                            fhir::Func::Global(func.name, fundecl.kind, func.span),
+                            fhir::Func::Global(
+                                func.name,
+                                fundecl.kind,
+                                func.span,
+                                self.next_fhir_id(),
+                            ),
                             args,
                         )
                     }
                     FuncRes::Param(ident) => {
-                        let func = fhir::Func::Var(ident);
+                        let func = fhir::Func::Var(ident, self.next_fhir_id());
                         fhir::ExprKind::App(func, args)
                     }
                 }

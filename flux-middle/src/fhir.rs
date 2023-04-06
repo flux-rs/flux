@@ -246,10 +246,18 @@ pub enum WeakKind {
 pub struct WfckResults {
     owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
+    coercions: ItemLocalMap<Vec<Coercion>>,
+}
+
+#[derive(Debug)]
+pub enum Coercion {
+    Inject,
+    Project,
 }
 
 pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
 
+#[derive(Debug)]
 pub struct LocalTableInContext<'a, T> {
     owner: FluxOwnerId,
     data: &'a ItemLocalMap<T>,
@@ -298,7 +306,7 @@ pub enum FluxOwnerId {
 ///
 /// [`rty`]: crate::rty
 /// [`HirId`]: rustc_hir::HirId
-#[derive(Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 pub struct FhirId {
     pub owner: FluxOwnerId,
     pub local_id: ItemLocalId,
@@ -416,9 +424,9 @@ pub enum ExprKind {
 #[derive(Clone)]
 pub enum Func {
     /// A function coming from a refinement parameter.
-    Var(Ident),
+    Var(Ident, FhirId),
     /// A _global_ function symbol (including possibly theory symbols).
-    Global(Symbol, FuncKind, Span),
+    Global(Symbol, FuncKind, Span, FhirId),
 }
 
 #[derive(Clone, Copy)]
@@ -508,6 +516,15 @@ impl From<Path> for BaseTy {
     fn from(path: Path) -> Self {
         let span = path.span;
         Self { kind: BaseTyKind::Path(path), span }
+    }
+}
+
+impl Func {
+    pub fn fhir_id(&self) -> FhirId {
+        match self {
+            Func::Var(_, fhir_id) => *fhir_id,
+            Func::Global(_, _, _, fhir_id) => *fhir_id,
+        }
     }
 }
 
@@ -920,15 +937,23 @@ impl StructDef {
 
 impl WfckResults {
     pub fn new(owner: FluxOwnerId) -> Self {
-        Self { owner, node_sorts: ItemLocalMap::default() }
+        Self { owner, node_sorts: ItemLocalMap::default(), coercions: ItemLocalMap::default() }
     }
 
-    pub fn expr_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn expr_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
+    }
+
+    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+        LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 }
 
@@ -1082,7 +1107,13 @@ impl fmt::Debug for RefineArg {
                 write!(f, "{expr:?}")
             }
             RefineArg::Abs(params, body, ..) => {
-                write!(f, "|{:?}| {body:?}", params.iter().format(","))
+                write!(
+                    f,
+                    "|{}| {body:?}",
+                    params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                    })
+                )
             }
             RefineArg::Aggregate(def_id, flds, ..) => {
                 write!(
@@ -1124,8 +1155,8 @@ impl fmt::Debug for Expr {
 impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Var(func) => write!(f, "{func:?}"),
-            Self::Global(sym, _, _) => write!(f, "{sym}"),
+            Self::Var(func, _) => write!(f, "{func:?}"),
+            Self::Global(sym, ..) => write!(f, "{sym}"),
         }
     }
 }

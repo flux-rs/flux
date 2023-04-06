@@ -410,7 +410,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses_expr(env, e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
-                   && let fhir::Func::Var(var) = func
+                   && let fhir::Func::Var(var, _) = func
                    && let fhir::InferMode::KVar = self.modes[&var.name]
                 {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), &env[var.name]));

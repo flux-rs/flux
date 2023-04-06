@@ -64,7 +64,8 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
         .map()
         .defns()
         .map(|defn| -> QueryResult<_> {
-            let defn = conv::conv_defn(genv.early_cx(), defn);
+            let wfckresults = genv.check_wf(FluxLocalDefId::Flux(defn.name))?;
+            let defn = conv::conv_defn(genv, defn, &wfckresults);
             Ok((defn.name, defn))
         })
         .try_collect()?;
@@ -80,7 +81,10 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
 fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
-        .map(|qualifier| normalize(genv, conv::conv_qualifier(genv.early_cx(), qualifier)))
+        .map(|qualifier| {
+            let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
+            normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
+        })
         .try_collect()
 }
 
@@ -96,7 +100,8 @@ fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::I
         }
         kind => bug!("expected struct or enum found `{kind:?}`"),
     };
-    conv::conv_invariants(genv, params, invariants)
+    let wfckresults = genv.check_wf(def_id)?;
+    conv::conv_invariants(genv, params, invariants, &wfckresults)
         .into_iter()
         .map(|invariant| normalize(genv, invariant))
         .collect()

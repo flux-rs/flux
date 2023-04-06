@@ -182,14 +182,6 @@ impl Expr {
         }
     }
 
-    pub fn singleton_proj_coercion(self) -> Expr {
-        if let ExprKind::Tuple(tup) = self.kind() && tup.len() == 1 {
-            Expr::tuple_proj(self, 0)
-        } else {
-            self
-        }
-    }
-
     pub fn unit() -> Expr {
         Expr::tuple(vec![])
     }
