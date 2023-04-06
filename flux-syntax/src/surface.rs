@@ -292,6 +292,16 @@ pub enum UnOp {
     Neg,
 }
 
+impl Indices {
+    pub fn is_single_var(&self) -> Option<Ident> {
+        match &self.indices[..] {
+            [RefineArg::Bind(ident, ..)]
+            | [RefineArg::Expr(Expr { kind: ExprKind::Var(ident), .. })] => Some(*ident),
+            _ => None,
+        }
+    }
+}
+
 impl BindKind {
     pub fn token_str(&self) -> &'static str {
         match self {
