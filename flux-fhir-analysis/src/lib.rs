@@ -188,9 +188,19 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
 
 fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<fhir::WfckResults> {
     match flux_id {
-        FluxLocalDefId::Flux(_) => todo!(),
+        FluxLocalDefId::Flux(sym) => check_wf_flux_item(genv, sym),
         FluxLocalDefId::Rust(def_id) => check_wf_rust_item(genv, def_id),
     }
+}
+
+fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<fhir::WfckResults> {
+    match genv.map().get_flux_item(sym).unwrap() {
+        fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv.early_cx(), qualifier)?,
+        fhir::FluxItem::Defn(defn) => {
+            wf::check_defn(genv.early_cx(), defn)?;
+        }
+    }
+    Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Flux(sym)))
 }
 
 fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
@@ -251,11 +261,17 @@ fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
     }
 
     for defn in genv.map().defns() {
-        err = wf::check_defn(genv.early_cx(), defn).err().or(err);
+        err = genv
+            .check_wf(FluxLocalDefId::Flux(defn.name))
+            .emit(genv.sess)
+            .err()
+            .or(err);
     }
 
     for qualifier in genv.map().qualifiers() {
-        err = wf::check_qualifier(genv.early_cx(), qualifier)
+        err = genv
+            .check_wf(FluxLocalDefId::Flux(qualifier.name))
+            .emit(genv.sess)
             .err()
             .or(err);
     }

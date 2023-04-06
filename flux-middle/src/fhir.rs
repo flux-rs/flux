@@ -900,6 +900,10 @@ impl Map {
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
         self.sort_decls.get(name.borrow())
     }
+
+    pub fn get_flux_item(&self, name: impl Borrow<Symbol>) -> Option<&FluxItem> {
+        self.flux_items.get(name.borrow())
+    }
 }
 
 impl TyAlias {
