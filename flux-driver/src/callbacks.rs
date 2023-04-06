@@ -1,7 +1,7 @@
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
-use flux_errors::FluxSession;
+use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -144,23 +144,13 @@ fn build_stage1_fhir_map(
     }
 
     // Register FnDecls
-    err = std::mem::take(&mut specs.uifs)
-        .into_iter()
-        .try_for_each_exhaust(|uif_def| {
-            let name = uif_def.name;
-            let uif_def = desugar::uif_to_func_decl(sess, map.sort_decls(), uif_def)?;
-            map.insert_func_decl(name.name, uif_def);
-            Ok(())
-        })
-        .err()
-        .or(err);
     err = specs
-        .dfns
+        .func_defs
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            let defn_uif = desugar::defn_to_func_decl(sess, map.sort_decls(), defn)?;
-            map.insert_func_decl(name.name, defn_uif);
+            let func_decl = desugar::func_def_to_func_decl(sess, map.sort_decls(), defn)?;
+            map.insert_func_decl(name.name, func_decl);
             Ok(())
         })
         .err()
@@ -206,12 +196,13 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     let mut early_cx = EarlyCtxt::new(tcx, sess, Box::new(cstore), map);
 
     // Register Defns
-    err = std::mem::take(&mut specs.dfns)
+    err = std::mem::take(&mut specs.func_defs)
         .into_iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            let defn = desugar::desugar_defn(&early_cx, defn)?;
-            early_cx.map.insert_defn(name.name, defn);
+            if let Some(defn) = desugar::desugar_defn(&early_cx, defn)? {
+                early_cx.map.insert_defn(name.name, defn);
+            }
             Ok(())
         })
         .err()
@@ -273,7 +264,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         .or(err);
 
     // FnSigs
-    err = std::mem::take(&mut specs.fns)
+    err = std::mem::take(&mut specs.fn_sigs)
         .into_iter()
         .try_for_each_exhaust(|(def_id, spec)| {
             if spec.trusted {
@@ -354,7 +345,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 refineck::check_fn(self.genv, &mut self.cache, def_id)
             }
             DefKind::Enum => {
-                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(self.genv.sess)?;
                 let enum_def = self.genv.map().get_enum(def_id);
                 refineck::invariants::check_invariants(
                     self.genv,
@@ -364,7 +355,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self.genv.adt_def(def_id.to_def_id());
+                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(self.genv.sess)?;
                 let struct_def = self.genv.map().get_struct(def_id);
                 if struct_def.is_opaque() {
                     return Ok(());

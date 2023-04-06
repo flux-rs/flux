@@ -17,8 +17,7 @@ pub struct SortDecl {
 #[derive(Debug)]
 pub enum Item {
     Qualifier(Qualifier),
-    Defn(Defn),
-    Uif(UifDef),
+    FuncDef(FuncDef),
     SortDecl(SortDecl),
 }
 
@@ -31,31 +30,15 @@ pub struct Qualifier {
     pub global: bool,
 }
 
+/// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
+/// i.e., a function with a body.
 #[derive(Debug)]
-pub enum Def {
-    Defn(Defn),
-    UifDef(UifDef),
-}
-
-#[derive(Debug)]
-pub struct Defn {
+pub struct FuncDef {
     pub name: Ident,
     pub args: Vec<RefineParam>,
-    pub sort: Sort,
-    pub expr: Expr,
-    pub span: Span,
-}
-
-#[derive(Debug)]
-pub struct UifDef {
-    /// name of the uninterpreted function
-    pub name: Ident,
-    /// input sorts
-    pub args: Vec<RefineParam>,
-    /// output sort
-    pub sort: Sort,
-    /// definition source position
-    pub span: Span,
+    pub output: Sort,
+    /// Body of the function. If not present this definition corresponds to an uninterpreted function.
+    pub body: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -192,16 +175,21 @@ pub struct Ty<R = ()> {
 pub enum TyKind<R = ()> {
     /// ty
     Base(BaseTy<R>),
-    /// `t[e]`
+    /// `B[r]`
     Indexed {
         bty: BaseTy<R>,
         indices: Indices,
     },
-    /// ty{b:e}
+    /// B{v: r}
     Exists {
         bind: Ident,
         bty: BaseTy<R>,
         pred: Expr,
+    },
+    GeneralExists {
+        params: Vec<RefineParam>,
+        ty: Box<Ty<R>>,
+        pred: Option<Expr>,
     },
     /// Mutable or shared reference
     Ref(RefKind, Box<Ty<R>>),

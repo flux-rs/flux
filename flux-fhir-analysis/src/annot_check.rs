@@ -138,11 +138,11 @@ impl<'zip> Zipper<'zip> {
         expected_ty: &'zip fhir::Ty,
     ) -> Result<(), ErrorGuaranteed> {
         match (&ty.kind, &expected_ty.kind) {
-            (fhir::TyKind::Constr(_, ty), _) => self.zip_ty(ty, expected_ty),
+            (fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(.., ty), _) => {
+                self.zip_ty(ty, expected_ty)
+            }
             (
-                fhir::TyKind::BaseTy(bty)
-                | fhir::TyKind::Indexed(bty, _)
-                | fhir::TyKind::Exists(bty, ..),
+                fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _),
                 fhir::TyKind::BaseTy(expected_bty),
             ) => self.zip_bty(bty, expected_bty),
             (fhir::TyKind::Ptr(loc), fhir::TyKind::Ref(expected_rk, expected_ref_ty)) => {

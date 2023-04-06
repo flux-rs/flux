@@ -4,14 +4,16 @@ use flux_common::bug;
 use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
+use rustc_abi::FieldIdx;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::mir::{Field, Local};
+use rustc_middle::mir::Local;
 use rustc_span::Symbol;
 
 use super::{evars::EVar, BaseTy, Binder, Sort};
 use crate::{
+    fhir::FuncKind,
     intern::{impl_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
     rustc::mir::{Place, PlaceElem},
@@ -32,11 +34,11 @@ pub enum ExprKind {
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     App(Expr, Expr),
-    Func(Symbol),
+    GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
-    PathProj(Expr, Field),
+    PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
     /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
@@ -76,7 +78,7 @@ pub enum Var {
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct Path {
     pub loc: Loc,
-    projection: List<Field>,
+    projection: List<FieldIdx>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -276,8 +278,8 @@ impl Expr {
         ExprKind::App(func.into(), arg.into()).intern()
     }
 
-    pub fn func(func: Symbol) -> Expr {
-        ExprKind::Func(func).intern()
+    pub fn global_func(func: Symbol, kind: FuncKind) -> Expr {
+        ExprKind::GlobalFunc(func, kind).intern()
     }
 
     pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
@@ -320,7 +322,7 @@ impl Expr {
         projs.iter().copied().fold(e.into(), Expr::tuple_proj)
     }
 
-    pub fn path_proj(base: Expr, field: Field) -> Expr {
+    pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
         ExprKind::PathProj(base, field).intern()
     }
 
@@ -538,7 +540,7 @@ impl Var {
 }
 
 impl Path {
-    pub fn new(loc: Loc, projection: impl Into<List<Field>>) -> Path {
+    pub fn new(loc: Loc, projection: impl Into<List<FieldIdx>>) -> Path {
         Path { loc, projection: projection.into() }
     }
 
@@ -554,7 +556,7 @@ impl Path {
         Some(Path::new(Loc::Local(place.local), proj))
     }
 
-    pub fn projection(&self) -> &[Field] {
+    pub fn projection(&self) -> &[FieldIdx] {
         &self.projection[..]
     }
 
@@ -709,7 +711,7 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS, [Expr], [KVar], [u32]);
+impl_internable!(ExprS, [Expr], [KVar], [u32], [FieldIdx]);
 
 mod pretty {
     use super::*;
@@ -825,7 +827,7 @@ mod pretty {
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)
                 }
-                ExprKind::Func(func) => w!("{}", ^func),
+                ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
             }
         }
     }

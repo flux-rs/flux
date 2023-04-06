@@ -120,28 +120,32 @@ pub(crate) fn conv_generics(
 }
 
 pub(crate) fn adt_def_for_struct(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
+    invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let mut env = Env::new(early_cx, []);
-    env.push_layer(Layer::from_params(early_cx, &struct_def.params));
-    let sort = env.top_layer().to_sort();
-    let invariants = env.conv_invariants(&sort, &struct_def.invariants);
-
-    rty::AdtDef::new(
-        early_cx.tcx.adt_def(struct_def.def_id),
-        sort,
-        invariants,
-        struct_def.is_opaque(),
-    )
+    let sort = Layer::from_params(genv.early_cx(), &struct_def.params).into_sort();
+    rty::AdtDef::new(genv.tcx.adt_def(struct_def.def_id), sort, invariants, struct_def.is_opaque())
 }
 
-pub(crate) fn adt_def_for_enum(early_cx: &EarlyCtxt, enum_def: &fhir::EnumDef) -> rty::AdtDef {
-    let mut env = Env::new(early_cx, []);
-    env.push_layer(Layer::from_params(early_cx, &enum_def.params));
+pub(crate) fn adt_def_for_enum(
+    genv: &GlobalEnv,
+    invariants: Vec<rty::Invariant>,
+    enum_def: &fhir::EnumDef,
+) -> rty::AdtDef {
+    let sort = Layer::from_params(genv.early_cx(), &enum_def.params).into_sort();
+    rty::AdtDef::new(genv.tcx.adt_def(enum_def.def_id), sort, invariants, false)
+}
+
+pub(crate) fn conv_invariants(
+    genv: &GlobalEnv,
+    params: &[(fhir::Ident, fhir::Sort)],
+    invariants: &[fhir::Expr],
+) -> Vec<rty::Invariant> {
+    let mut env = Env::new(genv.early_cx(), []);
+    env.push_layer(Layer::from_params(genv.early_cx(), params));
     let sort = env.top_layer().to_sort();
-    let invariants = env.conv_invariants(&sort, &enum_def.invariants);
-    rty::AdtDef::new(early_cx.tcx.adt_def(enum_def.def_id), sort, invariants, false)
+    env.conv_invariants(&sort, invariants)
 }
 
 pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
@@ -293,7 +297,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
             let sort = cx.env.pop_layer().to_sort();
             let ret = rty::Ty::indexed(
-                rty::BaseTy::adt(genv.adt_def(def_id), substs),
+                rty::BaseTy::adt(genv.adt_def(def_id)?, substs),
                 rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
@@ -340,21 +344,19 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let idxs = rty::Index::from(self.conv_refine_arg(idx));
                 self.conv_base_ty(bty, idxs)
             }
-            fhir::TyKind::Exists(bty, bind, pred) => {
-                let sort = self.genv.early_cx().sort_of_bty(bty).unwrap();
-                let layer = Layer::single(self.early_cx(), *bind, sort);
-
-                self.env.push_layer(layer);
-                let idx = rty::Index::from(self.env.lookup(*bind).to_expr());
-                let ty = self.conv_base_ty(bty, idx)?;
-                let pred = self.env.conv_expr(pred);
-                let constr = rty::Ty::constr(pred, ty);
-                let sort = self.env.pop_layer().into_sort();
-
-                if sort.is_unit() {
-                    Ok(constr.shift_out_escaping(1))
+            fhir::TyKind::Exists(params, ty) => {
+                let layer = if let [(ident, sort)] = &params[..] {
+                    Layer::single(self.early_cx(), *ident, sort.clone())
                 } else {
-                    Ok(rty::Ty::exists(rty::Binder::new(constr, sort)))
+                    Layer::from_params(self.early_cx(), params)
+                };
+                self.env.push_layer(layer);
+                let ty = self.conv_ty(ty)?;
+                let sort = self.env.pop_layer().into_sort();
+                if sort.is_unit() {
+                    Ok(ty.shift_out_escaping(1))
+                } else {
+                    Ok(rty::Ty::exists(rty::Binder::new(ty, sort)))
                 }
             }
             fhir::TyKind::Ptr(loc) => {
@@ -463,7 +465,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
             fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
-                let adt_def = self.genv.adt_def(*did);
+                let adt_def = self.genv.adt_def(*did)?;
                 let substs = self.conv_generic_args(*did, &path.generics)?;
                 rty::BaseTy::adt(adt_def, substs)
             }
@@ -606,7 +608,7 @@ impl Env<'_, '_> {
     fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
         match func {
             fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Global(sym, _, _) => rty::Expr::func(*sym),
+            fhir::Func::Global(sym, kind, _) => rty::Expr::global_func(*sym, *kind),
         }
     }
 

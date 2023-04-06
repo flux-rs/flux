@@ -205,8 +205,8 @@ pub enum TyKind {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
-    Exists(BaseTy, Ident, Expr),
-    /// Constrained types `{T : p}` are like existentials but without binders, and are useful
+    Exists(Vec<(Ident, Sort)>, Box<Ty>),
+    /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
     Ptr(Ident),
@@ -378,16 +378,10 @@ pub enum ExprKind {
 
 #[derive(Clone)]
 pub enum Func {
-    /// A function comming from a refinement parameter.
+    /// A function coming from a refinement parameter.
     Var(Ident),
-    /// A _global_ function symbol (including possibly theory symbols)
+    /// A _global_ function symbol (including possibly theory symbols).
     Global(Symbol, FuncKind, Span),
-}
-
-/// representation of uninterpreted functions
-pub struct UFun {
-    pub symbol: Symbol,
-    pub span: Span,
 }
 
 #[derive(Clone, Copy)]
@@ -511,7 +505,7 @@ pub struct FuncDecl {
     pub kind: FuncKind,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum FuncKind {
     /// Theory symbols "interpreted" by the SMT solver
     Thy,
@@ -584,6 +578,14 @@ impl Sort {
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+    }
+
+    pub fn default_infer_mode(&self) -> InferMode {
+        if self.is_pred() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
     }
 }
 
@@ -903,14 +905,28 @@ impl fmt::Debug for Ty {
         match &self.kind {
             TyKind::BaseTy(bty) => write!(f, "{bty:?}"),
             TyKind::Indexed(bty, idx) => write!(f, "{bty:?}[{idx:?}]"),
-            TyKind::Exists(bty, bind, p) => write!(f, "{bty:?}{{{bind:?}: {p:?}}}"),
+            TyKind::Exists(params, ty) => {
+                write!(f, "{{")?;
+                write!(
+                    f,
+                    "{}",
+                    params.iter().format_with(",", |(ident, sort), f| {
+                        f(&format_args!("{ident:?}:{sort:?}"))
+                    })
+                )?;
+                if let TyKind::Constr(pred, ty) = &ty.kind {
+                    write!(f, ". {ty:?} | {pred:?}}}")
+                } else {
+                    write!(f, ". {ty:?}}}")
+                }
+            }
             TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
             TyKind::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
             TyKind::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
-            TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} : {pred:?}}}"),
+            TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
         }
@@ -993,13 +1009,6 @@ impl fmt::Debug for RefKind {
         }
     }
 }
-impl fmt::Debug for UFun {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sym = self.symbol;
-        write!(f, "{sym:?}")
-    }
-}
-
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
@@ -1073,7 +1082,7 @@ impl fmt::Display for FuncSort {
                 write!(f, "{} -> {}", input, self.output())
             }
             inputs => {
-                write!(f, "{} -> {}", inputs.iter().join(","), self.output())
+                write!(f, "({}) -> {}", inputs.iter().join(", "), self.output())
             }
         }
     }

@@ -1,4 +1,4 @@
-#![feature(once_cell)]
+#![feature(lazy_cell)]
 
 use std::{io::Read, path::PathBuf, sync::LazyLock};
 

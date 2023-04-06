@@ -1,8 +1,9 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private, once_cell, if_let_guard, min_specialization, box_patterns, let_chains)]
+#![feature(rustc_private, lazy_cell, if_let_guard, min_specialization, box_patterns, let_chains)]
 
 //! This crate contains common type definitions that are used by other crates.
 
+extern crate rustc_abi;
 extern crate rustc_ast;
 extern crate rustc_const_eval;
 extern crate rustc_data_structures;

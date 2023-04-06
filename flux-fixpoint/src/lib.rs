@@ -1,5 +1,5 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private, min_specialization, once_cell, box_patterns, let_chains)]
+#![feature(rustc_private, min_specialization, lazy_cell, box_patterns, let_chains)]
 
 extern crate rustc_index;
 extern crate rustc_macros;

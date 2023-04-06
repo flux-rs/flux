@@ -584,7 +584,7 @@ impl<'a> ExprCtxt<'a> {
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::Abs(_)
-            | rty::ExprKind::Func(_)
+            | rty::ExprKind::GlobalFunc(..)
             | rty::ExprKind::PathProj(..) => {
                 span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
             }
@@ -621,12 +621,18 @@ impl<'a> ExprCtxt<'a> {
                 });
                 fixpoint::Func::Var(*name)
             }
-            rty::ExprKind::Func(name) => {
-                if let Some(cinfo) = self.const_map.get(&Key::Uif(*name)) {
-                    fixpoint::Func::Uif(cinfo.name)
-                } else {
-                    fixpoint::Func::Itf(*name)
-                }
+            rty::ExprKind::GlobalFunc(sym, FuncKind::Thy) => fixpoint::Func::Itf(*sym),
+            rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
+                let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
+                    span_bug!(
+                        self.dbg_span,
+                        "no constant found for uninterpreted function `{sym}` in `const_map`"
+                    )
+                });
+                fixpoint::Func::Uif(cinfo.name)
+            }
+            rty::ExprKind::GlobalFunc(sym, FuncKind::Def) => {
+                span_bug!(self.dbg_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
             }
             _ => {
                 span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")

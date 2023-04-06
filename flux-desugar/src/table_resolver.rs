@@ -181,6 +181,10 @@ impl<'sess> Resolver<'sess> {
                 let bty = self.resolve_bty(bty)?;
                 surface::TyKind::Exists { bind, bty, pred }
             }
+            surface::TyKind::GeneralExists { params, ty, pred } => {
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
+            }
             surface::TyKind::Ref(rk, ty) => {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Ref(rk, Box::new(ty))
@@ -189,7 +193,6 @@ impl<'sess> Resolver<'sess> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Constr(pred, Box::new(ty))
             }
-
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
                     .into_iter()

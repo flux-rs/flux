@@ -45,8 +45,7 @@ pub Items: Vec<surface::Item> = {
 
 Item: surface::Item = {
     <Qualifier> => surface::Item::Qualifier(<>),
-    <Defn>      => surface::Item::Defn(<>),
-    <Uif>       => surface::Item::Uif(<>),
+    <FuncDef>   => surface::Item::FuncDef(<>),
     <SortDecl>  => surface::Item::SortDecl(<>),
 }
 
@@ -62,15 +61,12 @@ Qualifier: surface::Qualifier = {
     }
 }
 
-Defn: surface::Defn = {
-    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> "{" <expr:Expr> "}" <hi:@R> => {
-        surface::Defn { name, args, sort, expr, span: mk_span(lo, hi) }
-    }
-}
-
-Uif: surface::UifDef = {
-    <lo:@L> "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <sort:Sort> ";" <hi:@R> => {
-        surface::UifDef { name, args, sort, span: mk_span(lo, hi) }
+FuncDef: surface::FuncDef = {
+    "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
+        surface::FuncDef { name, args, output, body: Some(body) }
+    },
+    "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <output:Sort> ";" => {
+        surface::FuncDef { name, args, output, body: None }
     }
 }
 
@@ -166,8 +162,10 @@ TyKind: surface::TyKind = {
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
-    "{" <ty:Ty> ":" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
-
+    "{" <ty:Ty> "|" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
+    "{" <params:Comma1<RefineParam>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
+        surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
+    },
     "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
 
     "&" <ty:Ty>                     => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
@@ -406,6 +404,7 @@ Sep1<S, T>: Vec<T> = {
 }
 
 Comma<T> = Sep<",", T>;
+Comma1<T> = Sep1<",", T>;
 
 Binding<A, B>: (A, B) = <A> ":" <B>;
 

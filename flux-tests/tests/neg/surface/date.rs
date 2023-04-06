@@ -16,11 +16,11 @@
 #[allow(dead_code)]
 #[flux::refined_by(d:int, m:int, y:int)]
 pub struct Date {
-    #[flux::field({ usize[@d] : ok_day(d) })]
+    #[flux::field({ usize[@d] | ok_day(d) })]
     day: usize,
-    #[flux::field({ usize[@m] : ok_month(d, m)})]
+    #[flux::field({ usize[@m] | ok_month(d, m)})]
     month: usize,
-    #[flux::field({ usize[@y] : ok_year(d, m, y)})]
+    #[flux::field({ usize[@y] | ok_year(d, m, y)})]
     year: usize,
 }
 

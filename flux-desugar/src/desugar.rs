@@ -33,14 +33,18 @@ pub fn desugar_qualifier(
 
 pub fn desugar_defn(
     early_cx: &EarlyCtxt,
-    defn: surface::Defn,
-) -> Result<fhir::Defn, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, &defn.args)?;
-    let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&defn.expr)?;
-    let name = defn.name.name;
-    let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.sort)?;
-    let args = binders.pop_layer().into_params();
-    Ok(fhir::Defn { name, args, sort, expr })
+    defn: surface::FuncDef,
+) -> Result<Option<fhir::Defn>, ErrorGuaranteed> {
+    if let Some(body) = defn.body {
+        let mut binders = Binders::from_params(early_cx, &defn.args)?;
+        let expr = ExprCtxt::new(early_cx, &binders).desugar_expr(&body)?;
+        let name = defn.name.name;
+        let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.output)?;
+        let args = binders.pop_layer().into_params();
+        Ok(Some(fhir::Defn { name, args, sort, expr }))
+    } else {
+        Ok(None)
+    }
 }
 
 fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed> {
@@ -51,34 +55,20 @@ fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed>
     }
 }
 
-pub fn defn_to_func_decl(
+pub fn func_def_to_func_decl(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
-    defn: &surface::Defn,
+    defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
     let inputs: Vec<surface::BaseSort> = defn
         .args
         .iter()
         .map(|arg| sort_base(&arg.sort))
         .try_collect_exhaust()?;
-    let output = sort_base(&defn.sort)?;
+    let output = sort_base(&defn.output)?;
     let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
-    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Def })
-}
-
-pub fn uif_to_func_decl(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    defn: surface::UifDef,
-) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
-    let inputs: Vec<surface::BaseSort> = defn
-        .args
-        .iter()
-        .map(|arg| sort_base(&arg.sort))
-        .try_collect_exhaust()?;
-    let output = sort_base(&defn.sort)?;
-    let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
-    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind: fhir::FuncKind::Uif })
+    let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
+    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
 pub fn desugar_refined_by(
@@ -406,21 +396,52 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let idx = self.desugar_indices(&bty, indices, binders)?;
                 fhir::TyKind::Indexed(bty, idx)
             }
-            surface::TyKind::Exists { bind: ident, bty, pred } => {
+            surface::TyKind::Exists { bind: ex_bind, bty, pred } => {
+                let ty_span = ty.span;
+                let bty_span = bty.span;
+
                 let Some(sort) = index_sort(self.early_cx, bty) else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
                 };
 
                 let bty = self.desugar_bty(bty, binders)?;
+
                 binders.push_layer();
                 let name = binders.fresh();
                 let binder = Binder::Refined(name, sort, false);
-                binders.insert_binder(self.sess(), *ident, binder)?;
+                binders.insert_binder(self.sess(), *ex_bind, binder)?;
                 let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
-                let bind = fhir::Ident::new(name, *ident);
+                let params = binders.pop_layer().into_params();
 
-                binders.pop_layer();
-                fhir::TyKind::Exists(bty, bind, pred)
+                let idx = fhir::RefineArg::Expr {
+                    expr: fhir::Expr { kind: fhir::ExprKind::Var(params[0].0), span: ex_bind.span },
+                    is_binder: false,
+                    fhir_id: self.next_node_id(),
+                };
+                let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
+                let constr =
+                    fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
+                fhir::TyKind::Exists(params, Box::new(constr))
+            }
+            surface::TyKind::GeneralExists { params, ty, pred } => {
+                binders.push_layer();
+                for param in params {
+                    let fresh = binders.fresh();
+                    let sort =
+                        resolve_sort(self.sess(), self.early_cx.map.sort_decls(), &param.sort)?;
+                    let binder = Binder::Refined(fresh, sort.clone(), false);
+                    binders.insert_binder(self.sess(), param.name, binder)?;
+                }
+
+                let mut ty = self.desugar_ty(None, ty, binders)?;
+                if let Some(pred) = pred {
+                    let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
+                    let span = ty.span.to(pred.span);
+                    ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
+                }
+                let params = binders.pop_layer().into_params();
+
+                fhir::TyKind::Exists(params, Box::new(ty))
             }
             surface::TyKind::Constr(pred, ty) => {
                 let pred = self.as_expr_ctxt(binders).desugar_expr(pred)?;
@@ -986,6 +1007,15 @@ impl Binders {
                 }
                 self.gather_params_bty(early_cx, bty, pos)
             }
+            surface::TyKind::GeneralExists { ty, .. } => {
+                if let Some(bind) = bind {
+                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                }
+                // Declaring parameters with @ inside and existential has weird behavior if names
+                // are being shadowed. Thus, we don't allow it to keep things simple. We could eventually
+                // allow it if we resolve the weird behavior by detecting shadowing.
+                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
+            }
         }
     }
 
@@ -1029,7 +1059,7 @@ impl Binders {
         path: &surface::Path<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
-        let pos = if is_box(early_cx, path.res) { pos } else { TypePos::Other };
+        let pos = if early_cx.is_box(path.res) { pos } else { TypePos::Other };
         path.generics
             .iter()
             .try_for_each_exhaust(|ty| self.gather_params_ty(early_cx, None, ty, pos))
@@ -1091,14 +1121,6 @@ fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
         fhir::InferMode::KVar
     } else {
         fhir::InferMode::EVar
-    }
-}
-
-fn is_box(early_cx: &EarlyCtxt, res: fhir::Res) -> bool {
-    if let Res::Struct(def_id) = res {
-        early_cx.tcx.adt_def(def_id).is_box()
-    } else {
-        false
     }
 }
 

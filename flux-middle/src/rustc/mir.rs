@@ -4,6 +4,7 @@ use std::fmt;
 
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
+pub use rustc_abi::FieldIdx;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
@@ -12,7 +13,7 @@ use rustc_middle::{
     ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
-    mir::{BasicBlock, Field, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
+    mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
     ty::Variance,
 };
 use rustc_span::Span;
@@ -196,7 +197,7 @@ pub struct Place {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PlaceElem {
     Deref,
-    Field(Field),
+    Field(FieldIdx),
     Downcast(VariantIdx),
     Index(Local),
 }
@@ -287,7 +288,7 @@ impl Place {
 }
 
 impl PlaceElem {
-    pub fn as_field(&self) -> Option<Field> {
+    pub fn as_field(&self) -> Option<FieldIdx> {
         match self {
             PlaceElem::Field(field) => Some(*field),
             _ => None,

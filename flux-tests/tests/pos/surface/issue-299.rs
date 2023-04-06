@@ -17,7 +17,7 @@ struct S2 {
     pub f1: i32,
     #[flux::field(i32[@a])]
     pub f2: i32,
-    #[flux::field({i32[@b] : b > 0})]
+    #[flux::field({i32[@b] | b > 0})]
     pub f3: i32,
     #[flux::field(i32{v: v > 0})]
     pub f4: i32,

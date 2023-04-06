@@ -21,7 +21,7 @@ use itertools::Itertools;
 pub use normalize::Defns;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::mir::{Field, Mutability};
+use rustc_middle::mir::Mutability;
 pub use rustc_middle::ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
@@ -119,7 +119,7 @@ pub enum Opaqueness<T> {
     Transparent(T),
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
     pub pred: Binder<Expr>,
 }
@@ -995,7 +995,6 @@ impl_internable!(
     TyS,
     [Ty],
     [GenericArg],
-    [Field],
     [Constraint],
     [InferMode],
     [TupleTree<bool>],
@@ -1003,6 +1002,7 @@ impl_internable!(
     [GenericParamDef],
     [Predicate],
     [PolyVariant],
+    [Invariant],
 );
 
 #[macro_export]

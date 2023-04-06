@@ -104,7 +104,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let substs = iter::zip(&self.generics.params, substs)
             .map(|(param, arg)| self.refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        let bty = rty::BaseTy::adt(self.adt_def(*def_id), substs);
+        let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
         Ok(rty::Binder::new(value, rty::Sort::unit()))
@@ -177,7 +177,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 }
             }
             rustc::ty::TyKind::Adt(def_id, substs) => {
-                let adt_def = self.genv.adt_def(*def_id);
+                let adt_def = self.genv.adt_def(*def_id)?;
                 let substs = iter::zip(&self.generics_of(*def_id)?.params, substs)
                     .map(|(param, arg)| self.refine_generic_arg(param, arg))
                     .try_collect_vec()?;
@@ -201,7 +201,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Refiner { refine: refine_default, ..*self }
     }
 
-    fn adt_def(&self, def_id: DefId) -> rty::AdtDef {
+    fn adt_def(&self, def_id: DefId) -> QueryResult<rty::AdtDef> {
         self.genv.adt_def(def_id)
     }
 

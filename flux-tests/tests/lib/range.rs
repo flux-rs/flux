@@ -9,7 +9,7 @@ pub struct RngIter {
 }
 
 impl RngIter {
-    #[flux::sig(fn(lo:i32, hi:i32{lo <= hi}) -> RngIter[lo, hi])]
+    #[flux::sig(fn(lo: i32, hi: i32{lo <= hi}) -> RngIter[lo, hi])]
     pub fn new(lo: i32, hi: i32) -> RngIter {
         Self { _lo: lo, hi, cur: lo }
     }
@@ -19,7 +19,7 @@ impl RngIter {
 pub struct Rng {
     #[flux::field(i32[@lo])]
     lo: i32,
-    #[flux::field({i32[@hi] : lo <= hi})]
+    #[flux::field({i32[@hi] | lo <= hi})]
     hi: i32,
 }
 
@@ -33,7 +33,7 @@ impl Rng {
 impl Iterator for RngIter {
     type Item = i32;
 
-    #[flux::sig(fn(self: &mut RngIter[@lo, @hi]) -> Option<i32{v:lo <= v && v < hi}>)]
+    #[flux::sig(fn(self: &mut RngIter[@lo, @hi]) -> Option<i32{v: lo <= v && v < hi}>)]
     fn next(&mut self) -> Option<i32> {
         let cur = self.cur;
         let hi = self.hi;

@@ -1,8 +1,5 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private)]
-#![feature(min_specialization)]
-#![feature(box_patterns, once_cell)]
-#![feature(let_chains)]
+#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -19,9 +16,7 @@ fluent_messages! { "../locales/en-US.ftl" }
 mod desugar;
 mod table_resolver;
 
-pub use desugar::{
-    defn_to_func_decl, desugar_defn, desugar_qualifier, desugar_refined_by, uif_to_func_decl,
-};
+pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
