@@ -142,9 +142,11 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     .iter()
                     .all(|sort| self.has_equality(sort))
             }
-            fhir::Sort::Loc | fhir::Sort::Func(_) | fhir::Sort::Param(_) | fhir::Sort::Infer => {
-                false
-            }
+            fhir::Sort::Loc
+            | fhir::Sort::Func(_)
+            | fhir::Sort::Param(_)
+            | fhir::Sort::Wildcard
+            | fhir::Sort::Infer(_) => false,
         }
     }
 

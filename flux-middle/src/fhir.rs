@@ -360,8 +360,7 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Inferce mode for this parameter at function calls. It has no meaning for parameters in
-    /// other places.
+    /// Inference mode for parameter at function calls. It has no meaning for parameters in other places.
     pub mode: InferMode,
 }
 
@@ -376,6 +375,12 @@ pub enum InferMode {
     /// refinement predicates. If the parameter is marked as kvar then it can only appear in
     /// positions that result in a _horn_ constraint as required by fixpoint.
     KVar,
+}
+
+newtype_index! {
+    /// A *Sort* *v*variable *id*
+    #[debug_format = "#{}"]
+    pub struct SortVid {}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -396,7 +401,8 @@ pub enum Sort {
     Param(DefId),
     /// A sort to be inferred, this is only partially implemented now and is only used for arguments
     /// to abstract refinement predicates.
-    Infer,
+    Wildcard,
+    Infer(SortVid),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1190,7 +1196,8 @@ impl fmt::Display for Sort {
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::User(name) => write!(f, "{name}"),
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
-            Sort::Infer => write!(f, "_"),
+            Sort::Wildcard => write!(f, "_"),
+            Sort::Infer(vid) => write!(f, "{vid:?}"),
         }
     }
 }

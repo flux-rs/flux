@@ -846,7 +846,7 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
         }
-        fhir::Sort::Infer => bug!("unexpected sort `{sort:?}`"),
+        fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
     }
 }
 

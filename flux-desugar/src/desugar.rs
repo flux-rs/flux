@@ -793,7 +793,7 @@ fn resolve_sort(
         surface::Sort::Func { inputs, output } => {
             Ok(resolve_func_sort(sess, sort_decls, inputs, output)?.into())
         }
-        surface::Sort::Infer => Ok(fhir::Sort::Infer),
+        surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
     }
 }
 
