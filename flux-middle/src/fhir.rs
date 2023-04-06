@@ -318,6 +318,8 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
+    /// Inferce mode for this parameter at function calls. It has no meaning for parameters in
+    /// other places.
     pub mode: InferMode,
 }
 
