@@ -54,7 +54,7 @@ pub(crate) fn check_qualifier(
     early_cx: &EarlyCtxt,
     qualifier: &fhir::Qualifier,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut env = Env::from(&qualifier.args[..]);
+    let mut env = Env::from_iter(&qualifier.args);
     let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(qualifier.name));
     SortChecker::new(early_cx, &mut wfckresults).check_expr(
         &mut env,
@@ -68,7 +68,7 @@ pub(crate) fn check_defn(
     early_cx: &EarlyCtxt,
     defn: &fhir::Defn,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut env = Env::from(&defn.args[..]);
+    let mut env = Env::from_iter(&defn.args);
     let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(defn.name));
     SortChecker::new(early_cx, &mut wfckresults).check_expr(&mut env, &defn.expr, &defn.sort)?;
     Ok(wfckresults)
@@ -95,7 +95,7 @@ pub(crate) fn check_ty_alias(
     let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(ty_alias.owner_id));
     let mut env = Env::from_iter(ty_alias.all_params());
     wf.check_type(&mut env, &ty_alias.ty)?;
-    wf.check_params_determined(&env, ty_alias.index_params.iter().map(|param| param.ident))?;
+    wf.check_params_determined(&env, &ty_alias.index_params)?;
     Ok(wf.into_results())
 }
 
@@ -104,7 +104,7 @@ pub(crate) fn check_struct_def(
     struct_def: &fhir::StructDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(struct_def.owner_id));
-    let mut env = Env::from(&struct_def.params[..]);
+    let mut env = Env::from_iter(&struct_def.params);
 
     struct_def
         .invariants
@@ -118,7 +118,7 @@ pub(crate) fn check_struct_def(
         fields
             .iter()
             .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
-        wf.check_params_determined(&env, struct_def.params.iter().map(|param| param.ident))?;
+        wf.check_params_determined(&env, &struct_def.params)?;
     }
 
     Ok(wf.into_results())
@@ -130,7 +130,7 @@ pub(crate) fn check_enum_def(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(enum_def.owner_id));
 
-    let mut env = Env::from(&enum_def.params[..]);
+    let mut env = Env::from_iter(&enum_def.params);
     enum_def
         .invariants
         .iter()
@@ -156,7 +156,7 @@ pub(crate) fn check_fn_sig(
     for param in &fn_sig.params {
         wf.modes.insert(param.ident.name, param.mode);
     }
-    let mut env = Env::from(&fn_sig.params[..]);
+    let mut env = Env::from_iter(&fn_sig.params);
 
     let args = fn_sig
         .args
@@ -177,7 +177,7 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
-    wf.check_params_determined(&env, fn_sig.params.iter().map(|param| param.ident))?;
+    wf.check_params_determined(&env, &fn_sig.params)?;
 
     Ok(wf.into_results())
 }
@@ -199,19 +199,19 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn check_params_determined(
         &mut self,
         env: &Env,
-        params: impl IntoIterator<Item = fhir::Ident>,
+        params: &[fhir::RefineParam],
     ) -> Result<(), ErrorGuaranteed> {
-        params.into_iter().try_for_each_exhaust(|param| {
-            let determined = self.xi.remove(param.name);
-            if self.infer_mode(env, param.name) == fhir::InferMode::EVar && !determined {
-                return self.emit_err(errors::ParamNotDetermined::new(param));
+        params.iter().try_for_each_exhaust(|param| {
+            let determined = self.xi.remove(param.name());
+            if self.infer_mode(env, param.name()) == fhir::InferMode::EVar && !determined {
+                return self.emit_err(errors::ParamNotDetermined::new(param.ident));
             }
             Ok(())
         })
     }
 
     fn check_variant(&mut self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::from(&variant.params[..]);
+        let mut env = Env::from_iter(&variant.params);
         let fields = variant
             .fields
             .iter()
@@ -229,15 +229,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         fn_output: &fhir::FnOutput,
     ) -> Result<(), ErrorGuaranteed> {
         let snapshot = self.xi.snapshot();
-        env.push_layer(fn_output.params.iter().cloned());
+        env.push_layer(&fn_output.params);
         self.check_type(env, &fn_output.ret)?;
         fn_output
             .ensures
             .iter()
             .try_for_each_exhaust(|constr| self.check_constraint(env, constr))?;
 
-        let params =
-            self.check_params_determined(env, fn_output.params.iter().map(|param| param.ident));
+        let params = self.check_params_determined(env, &fn_output.params);
 
         self.xi.rollback_to(snapshot);
 
@@ -295,10 +294,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_base_ty(env, bty)
             }
             fhir::TyKind::Exists(params, ty) => {
-                env.push_layer(params.iter().cloned());
+                env.push_layer(params);
                 self.check_type(env, ty)?;
                 self.sort_checker().resolve_params_sorts(env, params)?;
-                self.check_params_determined(env, params.iter().map(|param| param.ident))
+                self.check_params_determined(env, params)
             }
             fhir::TyKind::Ptr(loc) => {
                 self.xi.insert(loc.name);
@@ -310,8 +309,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(env, ty),
             fhir::TyKind::Constr(pred, ty) => {
-                self.check_pred(env, pred)?;
-                self.check_type(env, ty)
+                self.check_type(env, ty)?;
+                self.check_pred(env, pred)
             }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(env, ty),
             fhir::TyKind::Never => Ok(()),

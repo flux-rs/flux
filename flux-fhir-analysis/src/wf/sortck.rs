@@ -66,7 +66,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(fsort) = self.is_coercible_to_func(env, expected, *fhir_id) {
-            env.push_layer(params.iter().cloned());
+            env.push_layer(params);
 
             if params.len() != fsort.inputs().len() {
                 return self.emit_err(errors::ParamCountMismatch::new(
@@ -453,8 +453,15 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
 }
 
 impl Env {
+    fn new() -> Self {
+        Self { sorts: FxHashMap::default(), unification_table: InPlaceUnificationTable::default() }
+    }
+
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn push_layer(&mut self, params: impl IntoIterator<Item = fhir::RefineParam>) {
+    pub(super) fn push_layer<'a>(
+        &mut self,
+        params: impl IntoIterator<Item = &'a fhir::RefineParam>,
+    ) {
         for param in params {
             let sort = if param.sort == fhir::Sort::Wildcard {
                 fhir::Sort::Infer(self.next_sort_vid())
@@ -572,29 +579,11 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for Env {
     }
 }
 
-impl From<&[fhir::RefineParam]> for Env {
-    fn from(params: &[fhir::RefineParam]) -> Self {
-        Env::from_iter(params.iter())
-    }
-}
-
 impl<'a> FromIterator<&'a fhir::RefineParam> for Env {
     fn from_iter<T: IntoIterator<Item = &'a fhir::RefineParam>>(iter: T) -> Self {
-        let mut unification_table = InPlaceUnificationTable::default();
-        Env {
-            sorts: iter
-                .into_iter()
-                .map(|param| {
-                    let sort = if param.sort == fhir::Sort::Wildcard {
-                        fhir::Sort::Infer(unification_table.new_key(None))
-                    } else {
-                        param.sort.clone()
-                    };
-                    (param.name(), sort)
-                })
-                .collect(),
-            unification_table,
-        }
+        let mut env = Env::new();
+        env.push_layer(iter);
+        env
     }
 }
 

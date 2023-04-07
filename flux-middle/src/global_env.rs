@@ -151,8 +151,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .map(|variants| rty::EarlyBinder(variants[variant_idx.as_usize()].clone())))
     }
 
-    pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
-        self.early_cx.index_sorts_of(def_id)
+    pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {
+        self.early_cx.index_sorts_of(def_id.into())
     }
 
     pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {

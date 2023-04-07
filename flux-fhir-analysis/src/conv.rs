@@ -124,8 +124,9 @@ pub(crate) fn adt_def_for_struct(
     invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let sort = Layer::list_(genv.early_cx(), &struct_def.params).into_sort();
-    let adt_def = genv.tcx.adt_def(struct_def.owner_id.def_id);
+    let sort =
+        rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(struct_def.owner_id)));
+    let adt_def = genv.tcx.adt_def(struct_def.owner_id);
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
 
@@ -134,7 +135,8 @@ pub(crate) fn adt_def_for_enum(
     invariants: Vec<rty::Invariant>,
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
-    let sort = Layer::list_(genv.early_cx(), &enum_def.params).into_sort();
+    let sort =
+        rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(enum_def.owner_id)));
     rty::AdtDef::new(genv.tcx.adt_def(enum_def.owner_id), sort, invariants, false)
 }
 
@@ -144,9 +146,10 @@ pub(crate) fn conv_invariants(
     invariants: &[fhir::Expr],
     wfckresults: &fhir::WfckResults,
 ) -> Vec<rty::Invariant> {
+    let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[]);
-    env.push_layer(Layer::list_(genv.early_cx(), params));
-    ConvCtxt::new(genv, wfckresults).conv_invariants(&env, invariants)
+    env.push_layer(Layer::list(&cx, params, false));
+    cx.conv_invariants(&env, invariants)
 }
 
 pub(crate) fn conv_defn(
@@ -659,19 +662,6 @@ impl ConvCtxt<'_, '_> {
 }
 
 impl Layer {
-    fn list_(early_cx: &EarlyCtxt, params: &[fhir::RefineParam]) -> Self {
-        let mut idx = 0;
-        let map = params
-            .iter()
-            .map(|param| {
-                let entry = ListEntry::new(early_cx, idx, param.sort.clone(), None);
-                idx += 1;
-                (param.name(), entry)
-            })
-            .collect();
-        Self::List(map)
-    }
-
     fn list(cx: &ConvCtxt, params: &[fhir::RefineParam], filter_unit: bool) -> Self {
         let mut idx = 0;
         let map = params
