@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -22,6 +22,7 @@ pub(super) struct SortChecker<'a, 'tcx> {
 #[derive(Default)]
 pub(super) struct Env {
     sorts: FxHashMap<fhir::Name, fhir::Sort>,
+    sort_vid_gen: IndexGen<fhir::SortVid>,
 }
 
 impl<'a, 'tcx> SortChecker<'a, 'tcx> {
@@ -344,8 +345,17 @@ impl Env {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
     pub(super) fn push_layer(&mut self, params: impl IntoIterator<Item = fhir::RefineParam>) {
         for param in params {
-            self.sorts.insert(param.name(), param.sort.clone());
+            let sort = if param.sort == fhir::Sort::Wildcard {
+                fhir::Sort::Infer(self.next_sort_vid())
+            } else {
+                param.sort.clone()
+            };
+            self.sorts.insert(param.name(), sort);
         }
+    }
+
+    fn next_sort_vid(&self) -> fhir::SortVid {
+        self.sort_vid_gen.fresh()
     }
 }
 
@@ -367,11 +377,20 @@ impl From<&[fhir::RefineParam]> for Env {
 
 impl<'a> FromIterator<&'a fhir::RefineParam> for Env {
     fn from_iter<T: IntoIterator<Item = &'a fhir::RefineParam>>(iter: T) -> Self {
+        let sort_vid_gen = IndexGen::new();
         Env {
             sorts: iter
                 .into_iter()
-                .map(|param| (param.name(), param.sort.clone()))
+                .map(|param| {
+                    let sort = if param.sort == fhir::Sort::Wildcard {
+                        fhir::Sort::Infer(sort_vid_gen.fresh())
+                    } else {
+                        param.sort.clone()
+                    };
+                    (param.name(), sort)
+                })
                 .collect(),
+            sort_vid_gen,
         }
     }
 }
