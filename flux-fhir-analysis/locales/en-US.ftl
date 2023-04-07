@@ -85,6 +85,10 @@ fhir_analysis_param_not_determined =
     .label = undetermined parameter
     .help = try indexing a type with `{$sym}` in a position that fully determines its value
 
+fhir_analysis_sort_annotation_needed =
+    sort annotation needed
+    .label = help: consider giving this parameter an explicit sort
+
 # Annot check
 
 fhir_analysis_invalid_refinement =

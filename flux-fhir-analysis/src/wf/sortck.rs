@@ -439,7 +439,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                         .node_sorts_mut()
                         .insert(param.fhir_id, sort);
                 } else {
-                    todo!()
+                    return self.emit_err(errors::SortAnnotationNeeded::new(param));
                 }
             }
             Ok(())

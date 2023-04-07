@@ -225,3 +225,17 @@ impl ParamNotDetermined {
         Self { span: ident.span(), sym: ident.sym() }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_sort_annotation_needed, code = "FLUX")]
+pub(super) struct SortAnnotationNeeded {
+    #[primary_span]
+    #[label]
+    span: Span,
+}
+
+impl SortAnnotationNeeded {
+    pub(super) fn new(param: &fhir::RefineParam) -> Self {
+        Self { span: param.ident.span() }
+    }
+}
