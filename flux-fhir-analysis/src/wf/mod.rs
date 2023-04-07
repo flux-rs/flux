@@ -54,10 +54,10 @@ pub(crate) fn check_qualifier(
     early_cx: &EarlyCtxt,
     qualifier: &fhir::Qualifier,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let env = Env::from(&qualifier.args[..]);
+    let mut env = Env::from(&qualifier.args[..]);
     let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(qualifier.name));
     SortChecker::new(early_cx, &mut wfckresults).check_expr(
-        &env,
+        &mut env,
         &qualifier.expr,
         &fhir::Sort::Bool,
     )?;
@@ -68,9 +68,9 @@ pub(crate) fn check_defn(
     early_cx: &EarlyCtxt,
     defn: &fhir::Defn,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let env = Env::from(&defn.args[..]);
+    let mut env = Env::from(&defn.args[..]);
     let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(defn.name));
-    SortChecker::new(early_cx, &mut wfckresults).check_expr(&env, &defn.expr, &defn.sort)?;
+    SortChecker::new(early_cx, &mut wfckresults).check_expr(&mut env, &defn.expr, &defn.sort)?;
     Ok(wfckresults)
 }
 
@@ -111,7 +111,7 @@ pub(crate) fn check_struct_def(
         .iter()
         .try_for_each_exhaust(|invariant| {
             wf.sort_checker()
-                .check_expr(&env, invariant, &fhir::Sort::Bool)
+                .check_expr(&mut env, invariant, &fhir::Sort::Bool)
         })?;
 
     if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
@@ -130,13 +130,13 @@ pub(crate) fn check_enum_def(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(enum_def.owner_id));
 
-    let env = Env::from(&enum_def.params[..]);
+    let mut env = Env::from(&enum_def.params[..]);
     enum_def
         .invariants
         .iter()
         .try_for_each_exhaust(|invariant| {
             wf.sort_checker()
-                .check_expr(&env, invariant, &fhir::Sort::Bool)
+                .check_expr(&mut env, invariant, &fhir::Sort::Bool)
         })?;
 
     enum_def
@@ -297,6 +297,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::TyKind::Exists(params, ty) => {
                 env.push_layer(params.iter().cloned());
                 self.check_type(env, ty)?;
+                self.sort_checker().resolve_params_sorts(env, params)?;
                 self.check_params_determined(env, params.iter().map(|param| param.ident))
             }
             fhir::TyKind::Ptr(loc) => {
@@ -364,7 +365,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_param_uses_refine_arg(env, arg)
     }
 
-    fn check_pred(&mut self, env: &Env, expr: &fhir::Expr) -> Result<(), ErrorGuaranteed> {
+    fn check_pred(&mut self, env: &mut Env, expr: &fhir::Expr) -> Result<(), ErrorGuaranteed> {
         self.sort_checker()
             .check_expr(env, expr, &fhir::Sort::Bool)?;
         self.check_param_uses_expr(env, expr, true)

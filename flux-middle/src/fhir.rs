@@ -362,6 +362,7 @@ pub struct RefineParam {
     pub sort: Sort,
     /// Inference mode for parameter at function calls. It has no meaning for parameters in other places.
     pub mode: InferMode,
+    pub fhir_id: FhirId,
 }
 
 /// *Infer*ence *mode* for parameter at function calls
@@ -642,7 +643,7 @@ impl Sort {
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
-    fn is_bool(&self) -> bool {
+    pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
 
@@ -663,6 +664,26 @@ impl Sort {
         }
     }
 }
+
+impl ena::unify::UnifyKey for SortVid {
+    type Value = Option<Sort>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        SortVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "SortVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for Sort {}
 
 impl RefineParam {
     pub fn name(&self) -> Name {
