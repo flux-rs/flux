@@ -40,10 +40,6 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         arg: &fhir::RefineArg,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        // self.wfckresults
-        //     .node_sorts_mut()
-        //     .insert(arg.fhir_id(), expected.clone());
-
         match arg {
             fhir::RefineArg::Expr { expr, .. } => self.check_expr(env, expr, expected),
             fhir::RefineArg::Abs(params, body, span, fhir_id) => {
@@ -90,7 +86,8 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                 }
                 Ok(())
             })?;
-            self.check_expr(env, body, fsort.output())
+            self.check_expr(env, body, fsort.output())?;
+            self.resolve_params_sorts(env, params)
         } else {
             self.emit_err(errors::UnexpectedFun::new(*span, expected))
         }
@@ -259,7 +256,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             fhir::BinOp::Eq | fhir::BinOp::Ne => {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, &s)?;
-                if !self.early_cx.has_equality(&s) {
+                if !self.has_equality(env, &s) {
                     return self.emit_err(errors::NoEquality::new(expr.span, &s));
                 }
                 Ok(fhir::Sort::Bool)
@@ -433,12 +430,16 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         env.is_single_field_aggregate(self.early_cx, sort)
     }
 
-    pub(crate) fn resolve_params_sorts<'b>(
+    fn has_equality(&self, env: &mut Env, sort: &fhir::Sort) -> bool {
+        env.has_equality(self.early_cx, sort)
+    }
+
+    pub(crate) fn resolve_params_sorts(
         &mut self,
         env: &mut Env,
-        params: impl IntoIterator<Item = &'b fhir::RefineParam>,
+        params: &[fhir::RefineParam],
     ) -> Result<(), ErrorGuaranteed> {
-        params.into_iter().try_for_each_exhaust(|param| {
+        params.iter().try_for_each_exhaust(|param| {
             if param.sort == fhir::Sort::Wildcard {
                 if let Some(sort) = env.resolve_param(param) {
                     self.wfckresults
@@ -538,6 +539,11 @@ impl Env {
     ) -> Option<&'a fhir::Sort> {
         self.resolve_sort(sort)
             .and_then(|s| early_cx.is_single_field_aggregate(&s))
+    }
+
+    fn has_equality(&mut self, early_cx: &EarlyCtxt, sort: &fhir::Sort) -> bool {
+        self.resolve_sort(sort)
+            .map_or(false, |s| early_cx.has_equality(&s))
     }
 }
 

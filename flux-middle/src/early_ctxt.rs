@@ -86,16 +86,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         self.sess.emit_err(err)
     }
 
-    pub fn is_coercible_to_func(&self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
-        if let fhir::Sort::Func(fsort) = sort {
-            Some(fsort.clone())
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_aggregate(sort) {
-            Some(fsort.clone())
-        } else {
-            None
-        }
-    }
-
     pub fn is_single_field_aggregate<'b>(&'b self, sort: &fhir::Sort) -> Option<&'b fhir::Sort> {
         if let fhir::Sort::Aggregate(def_id) = sort && let [sort] = self.index_sorts_of(*def_id) {
             Some(sort)
