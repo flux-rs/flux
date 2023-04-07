@@ -360,9 +360,9 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Inferce mode for this parameter at function calls. It has no meaning for parameters in
-    /// other places.
+    /// Inference mode for parameter at function calls. It has no meaning for parameters in other places.
     pub mode: InferMode,
+    pub fhir_id: FhirId,
 }
 
 /// *Infer*ence *mode* for parameter at function calls
@@ -376,6 +376,12 @@ pub enum InferMode {
     /// refinement predicates. If the parameter is marked as kvar then it can only appear in
     /// positions that result in a _horn_ constraint as required by fixpoint.
     KVar,
+}
+
+newtype_index! {
+    /// A *Sort* *v*variable *id*
+    #[debug_format = "#{}"]
+    pub struct SortVid {}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -394,9 +400,10 @@ pub enum Sort {
     User(Symbol),
     /// The sort associated to a type variable
     Param(DefId),
-    /// A sort to be inferred, this is only partially implemented now and is only used for arguments
-    /// to abstract refinement predicates.
-    Infer,
+    /// A sort that needs to be inferred
+    Wildcard,
+    /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
+    Infer(SortVid),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -636,7 +643,7 @@ impl Sort {
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
-    fn is_bool(&self) -> bool {
+    pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
 
@@ -657,6 +664,26 @@ impl Sort {
         }
     }
 }
+
+impl ena::unify::UnifyKey for SortVid {
+    type Value = Option<Sort>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        SortVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "SortVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for Sort {}
 
 impl RefineParam {
     pub fn name(&self) -> Name {
@@ -687,7 +714,7 @@ impl FuncSort {
 
 impl rustc_errors::IntoDiagnosticArg for Sort {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
     }
 }
 
@@ -1179,6 +1206,16 @@ impl fmt::Debug for Lit {
 
 impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Sort::Infer(_) = self {
+            write!(f, "_")
+        } else {
+            fmt::Debug::fmt(self, f)
+        }
+    }
+}
+
+impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
@@ -1190,14 +1227,9 @@ impl fmt::Display for Sort {
             Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::User(name) => write!(f, "{name}"),
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
-            Sort::Infer => write!(f, "_"),
+            Sort::Wildcard => write!(f, "_"),
+            Sort::Infer(vid) => write!(f, "{vid:?}"),
         }
-    }
-}
-
-impl fmt::Debug for Sort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
     }
 }
 
