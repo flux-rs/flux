@@ -80,7 +80,10 @@ pub QualNames: surface::QualNames = {
     <names:Comma<Ident>> => surface::QualNames { names }
 }
 
-RefineParam: surface::RefineParam = <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> };
+RefineParam: surface::RefineParam = {
+    <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> },
+    <name:Ident>                 => surface::RefineParam { name, sort: surface::Sort::Infer },
+};
 
 BaseSort: surface::BaseSort = {
     "bitvec" "<" <lo:@L> <lit:Lit> <hi:@R> ">" =>? {
