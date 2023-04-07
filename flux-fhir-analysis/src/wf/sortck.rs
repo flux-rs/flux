@@ -102,12 +102,73 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         expr: &fhir::Expr,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        let found = self.synth_expr(env, expr)?;
-        if self.is_coercible(&found, expected, expr.fhir_id) {
-            Ok(())
-        } else {
-            self.emit_err(errors::SortMismatch::new(expr.span, expected, &found))
+        match &expr.kind {
+            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
+                self.check_binary_op(env, expr, *op, e1, e2, expected)?;
+            }
+            fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
+                self.check_expr(env, p, &fhir::Sort::Bool)?;
+                self.check_expr(env, e1, expected)?;
+                self.check_expr(env, e2, expected)?;
+            }
+            fhir::ExprKind::UnaryOp(_, _)
+            | fhir::ExprKind::Dot(_, _)
+            | fhir::ExprKind::App(_, _)
+            | fhir::ExprKind::Const(_, _)
+            | fhir::ExprKind::Var(_)
+            | fhir::ExprKind::Literal(_) => {
+                let found = self.synth_expr(env, expr)?;
+                if !self.is_coercible(&found, expected, expr.fhir_id) {
+                    self.emit_err(errors::SortMismatch::new(expr.span, expected, &found))?;
+                }
+            }
         }
+        Ok(())
+    }
+
+    fn check_binary_op(
+        &mut self,
+        env: &Env,
+        expr: &fhir::Expr,
+        op: fhir::BinOp,
+        e1: &fhir::Expr,
+        e2: &fhir::Expr,
+        expected: &fhir::Sort,
+    ) -> Result<(), ErrorGuaranteed> {
+        match op {
+            fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
+                if matches!(expected, fhir::Sort::Bool) {
+                    self.check_expr(env, e1, &fhir::Sort::Bool)?;
+                    self.check_expr(env, e2, &fhir::Sort::Bool)?;
+                    return Ok(());
+                }
+            }
+            fhir::BinOp::Mod => {
+                if matches!(expected, fhir::Sort::Int) {
+                    self.check_expr(env, e1, &fhir::Sort::Int)?;
+                    self.check_expr(env, e2, &fhir::Sort::Int)?;
+                    return Ok(());
+                }
+            }
+            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
+                if expected.is_numeric() {
+                    self.check_expr(env, e1, expected)?;
+                    self.check_expr(env, e2, expected)?;
+                    return Ok(());
+                }
+            }
+            fhir::BinOp::Eq
+            | fhir::BinOp::Ne
+            | fhir::BinOp::Lt
+            | fhir::BinOp::Le
+            | fhir::BinOp::Gt
+            | fhir::BinOp::Ge => {}
+        }
+        let found = self.synth_binary_op(env, expr, op, e1, e2)?;
+        if !self.is_coercible(&found, expected, expr.fhir_id) {
+            self.emit_err(errors::SortMismatch::new(expr.span, expected, &found))?;
+        }
+        Ok(())
     }
 
     pub(super) fn check_loc(&self, env: &Env, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
@@ -119,16 +180,16 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         }
     }
 
-    fn synth_expr(&mut self, env: &Env, e: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
-        match &e.kind {
+    fn synth_expr(&mut self, env: &Env, expr: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
+        match &expr.kind {
             fhir::ExprKind::Var(var) => Ok(env[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
-                self.synth_binary_op(env, e.span, *op, e1, e2)
+                self.synth_binary_op(env, expr, *op, e1, e2)
             }
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(env, *op, e),
             fhir::ExprKind::Const(_, _) => Ok(fhir::Sort::Int), // TODO: generalize const sorts
-            fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, e.span),
+            fhir::ExprKind::App(f, es) => self.synth_app(env, f, es, expr.span),
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 self.check_expr(env, p, &fhir::Sort::Bool)?;
                 let sort = self.synth_expr(env, e1)?;
@@ -159,7 +220,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     fn synth_binary_op(
         &mut self,
         env: &Env,
-        span: Span,
+        expr: &fhir::Expr,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
@@ -174,7 +235,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                 let s = self.synth_expr(env, e1)?;
                 self.check_expr(env, e2, &s)?;
                 if !self.early_cx.has_equality(&s) {
-                    return self.emit_err(errors::NoEquality::new(span, &s));
+                    return self.emit_err(errors::NoEquality::new(expr.span, &s));
                 }
                 Ok(fhir::Sort::Bool)
             }
