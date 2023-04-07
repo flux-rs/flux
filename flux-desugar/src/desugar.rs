@@ -50,26 +50,18 @@ pub fn desugar_defn(
     }
 }
 
-fn sort_base(sort: &surface::Sort) -> Result<surface::BaseSort, ErrorGuaranteed> {
-    match sort {
-        surface::Sort::Base(x) => Ok(*x),
-        surface::Sort::Func { .. } => panic!("Unexpected func-sort!"),
-        surface::Sort::Infer => panic!("Unexpected infer-sort!"),
-    }
-}
-
 pub fn func_def_to_func_decl(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
     defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl, ErrorGuaranteed> {
-    let inputs: Vec<surface::BaseSort> = defn
+    let mut inputs_and_output: Vec<fhir::Sort> = defn
         .args
         .iter()
-        .map(|arg| sort_base(&arg.sort))
+        .map(|arg| resolve_sort(sess, sort_decls, &arg.sort))
         .try_collect_exhaust()?;
-    let output = sort_base(&defn.output)?;
-    let sort = resolve_func_sort(sess, sort_decls, &inputs[..], &output)?;
+    inputs_and_output.push(resolve_sort(sess, sort_decls, &defn.output)?);
+    let sort = fhir::FuncSort { inputs_and_output: List::from(inputs_and_output) };
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }

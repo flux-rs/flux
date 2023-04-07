@@ -49,7 +49,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                 self.check_aggregate(env, *def_id, flds, *span)?;
                 let found = fhir::Sort::Aggregate(*def_id);
                 if &found != expected {
-                    return self.emit_err(errors::SortMismatch::new(*span, expected, &found));
+                    return self.emit_err(env.sort_mismatch(*span, expected, &found));
                 }
                 Ok(())
             }
@@ -76,13 +76,9 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                 ));
             }
             iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                let sort = env[&param.ident.name].clone();
-                if env.try_equate(&sort, expected).is_none() {
-                    return self.emit_err(errors::SortMismatch::new(
-                        param.ident.span(),
-                        expected,
-                        &sort,
-                    ));
+                let found = env[&param.ident.name].clone();
+                if env.try_equate(&found, expected).is_none() {
+                    return self.emit_err(env.sort_mismatch(param.ident.span(), expected, &found));
                 }
                 Ok(())
             })?;
@@ -137,7 +133,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             | fhir::ExprKind::Literal(_) => {
                 let found = self.synth_expr(env, expr)?;
                 if !self.is_coercible(env, &found, expected, expr.fhir_id) {
-                    self.emit_err(errors::SortMismatch::new(expr.span, expected, &found))?;
+                    self.emit_err(env.sort_mismatch(expr.span, expected, &found))?;
                 }
             }
         }
@@ -184,17 +180,17 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         }
         let found = self.synth_binary_op(env, expr, op, e1, e2)?;
         if &found != expected {
-            self.emit_err(errors::SortMismatch::new(expr.span, expected, &found))?;
+            self.emit_err(env.sort_mismatch(expr.span, expected, &found))?;
         }
         Ok(())
     }
 
-    pub(super) fn check_loc(&self, env: &Env, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
-        let found = &env[&loc.name];
-        if found == &fhir::Sort::Loc {
+    pub(super) fn check_loc(&self, env: &mut Env, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
+        let found = env[&loc.name].clone();
+        if found == fhir::Sort::Loc {
             Ok(())
         } else {
-            self.emit_err(errors::SortMismatch::new(loc.span(), &fhir::Sort::Loc, found))
+            self.emit_err(env.sort_mismatch(loc.span(), &fhir::Sort::Loc, &found))
         }
     }
 
@@ -219,21 +215,18 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
                 Ok(sort)
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let sort = &env[var.name];
+                let sort = env[var.name].clone();
                 match sort {
                     fhir::Sort::Aggregate(def_id) => {
                         self.early_cx
-                            .field_sort(*def_id, fld.name)
+                            .field_sort(def_id, fld.name)
                             .cloned()
-                            .ok_or_else(|| {
-                                self.early_cx
-                                    .emit_err(errors::FieldNotFound::new(sort, *fld))
-                            })
+                            .ok_or_else(|| self.early_cx.emit_err(env.field_not_found(&sort, *fld)))
                     }
                     fhir::Sort::Bool | fhir::Sort::Int | fhir::Sort::Real => {
-                        self.emit_err(errors::InvalidPrimitiveDotAccess::new(sort, *fld))
+                        self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, *fld))
                     }
-                    _ => self.emit_err(errors::FieldNotFound::new(sort, *fld)),
+                    _ => self.emit_err(env.field_not_found(&sort, *fld)),
                 }
             }
         }
@@ -544,6 +537,28 @@ impl Env {
     fn has_equality(&mut self, early_cx: &EarlyCtxt, sort: &fhir::Sort) -> bool {
         self.resolve_sort(sort)
             .map_or(false, |s| early_cx.has_equality(&s))
+    }
+
+    fn sort_mismatch(
+        &mut self,
+        span: Span,
+        expected: &fhir::Sort,
+        found: &fhir::Sort,
+    ) -> errors::SortMismatch {
+        let expected = self
+            .resolve_sort(expected)
+            .unwrap_or_else(|| expected.clone());
+        let found = self.resolve_sort(found).unwrap_or_else(|| found.clone());
+        errors::SortMismatch::new(span, expected, found)
+    }
+
+    fn field_not_found(
+        &mut self,
+        sort: &fhir::Sort,
+        field: fhir::SurfaceIdent,
+    ) -> errors::FieldNotFound {
+        let sort = self.resolve_sort(sort).unwrap_or_else(|| sort.clone());
+        errors::FieldNotFound::new(sort, field)
     }
 }
 

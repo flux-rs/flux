@@ -14,8 +14,8 @@ pub TyAlias: surface::TyAlias = {
     <ident:Ident>
     <generics:GenericArgs?>
     <refined_by_lo:@L>
-    <early_bound_params:("(" <Comma<RefineParam>> ")")?>
-    <index_params:("[" <Comma<RefineParam>> "]")?>
+    <early_bound_params:("(" <RefineParams<"!">> ")")?>
+    <index_params:("[" <RefineParams<"!">> "]")?>
     <refined_by_hi:@R>
     "="
     <ty:Ty>
@@ -36,7 +36,7 @@ pub TyAlias: surface::TyAlias = {
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <index_params:Comma<RefineParam>> <hi:@R> => surface::RefinedBy { index_params, early_bound_params: vec![], span: mk_span(lo, hi) }
+    <lo:@L> <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy { index_params, early_bound_params: vec![], span: mk_span(lo, hi) }
 }
 
 pub Items: Vec<surface::Item> = {
@@ -54,7 +54,7 @@ Qualifier: surface::Qualifier = {
     <local: ("local")?>
     "qualifier"
     <name:Ident>
-    "(" <args:Comma<RefineParam>> ")" "{" <expr:Expr> "}"
+    "(" <args:RefineParams<"!">> ")" "{" <expr:Expr> "}"
     <hi:@R> =>? {
         let global = local.is_none();
         Ok(surface::Qualifier { name, args, expr, global, span: mk_span(lo, hi) })
@@ -62,10 +62,10 @@ Qualifier: surface::Qualifier = {
 }
 
 FuncDef: surface::FuncDef = {
-    "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
+    "fn" <name:Ident> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
         surface::FuncDef { name, args, output, body: Some(body) }
     },
-    "fn" <name:Ident> "(" <args:Comma<RefineParam>> ")" "->" <output:Sort> ";" => {
+    "fn" <name:Ident> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
         surface::FuncDef { name, args, output, body: None }
     }
 }
@@ -80,9 +80,11 @@ pub QualNames: surface::QualNames = {
     <names:Comma<Ident>> => surface::QualNames { names }
 }
 
-RefineParam: surface::RefineParam = {
+RefineParams<T>: Vec<surface::RefineParam> = Comma<RefineParam<T>>;
+
+RefineParam<T>: surface::RefineParam = {
     <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> },
-    <name:Ident>                 => surface::RefineParam { name, sort: surface::Sort::Infer },
+    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer },
 };
 
 BaseSort: surface::BaseSort = {
@@ -105,7 +107,7 @@ Sort: surface::Sort = {
 pub FnSig: surface::FnSig = {
     <lo:@L>
     "fn"
-    <params:("<" <Comma<RefineParam>> ">")?>
+    <params:("<" <RefineParams<"!">> ">")?>
     "(" <args:Args> ")"
     <returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
@@ -166,7 +168,7 @@ TyKind: surface::TyKind = {
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
     "{" <ty:Ty> "|" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
-    "{" <params:Comma1<RefineParam>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
+    "{" <params:Comma1<RefineParam<"?">>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
         surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
     },
     "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
@@ -241,11 +243,7 @@ RefineArg: surface::RefineArg = {
     <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, mk_span(lo, hi)),
     <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, mk_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
-    <lo:@L> "|"<params: Comma<Ident>> "|" <body:Expr> <hi:@R> => {
-        let params = params
-            .into_iter()
-            .map(|param| surface::RefineParam { name: param, sort: surface::Sort::Infer })
-            .collect();
+    <lo:@L> "|"<params:RefineParams<"?">> "|" <body:Expr> <hi:@R> => {
         surface::RefineArg::Abs(params, body, mk_span(lo, hi))
     }
 };

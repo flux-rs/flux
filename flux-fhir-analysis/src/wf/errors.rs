@@ -4,16 +4,16 @@ use rustc_span::{Span, Symbol};
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_sort_mismatch, code = "FLUX")]
-pub(super) struct SortMismatch<'a> {
+pub(super) struct SortMismatch {
     #[primary_span]
     #[label]
     span: Span,
-    expected: &'a fhir::Sort,
-    found: &'a fhir::Sort,
+    expected: fhir::Sort,
+    found: fhir::Sort,
 }
 
-impl<'a> SortMismatch<'a> {
-    pub(super) fn new(span: Span, expected: &'a fhir::Sort, found: &'a fhir::Sort) -> Self {
+impl SortMismatch {
+    pub(super) fn new(span: Span, expected: fhir::Sort, found: fhir::Sort) -> Self {
         Self { span, expected, found }
     }
 }
@@ -169,15 +169,15 @@ impl ParamCountMismatch {
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_field_not_found, code = "FLUX")]
-pub(super) struct FieldNotFound<'a> {
+pub(super) struct FieldNotFound {
     #[primary_span]
     span: Span,
-    sort: &'a fhir::Sort,
+    sort: fhir::Sort,
     fld: SurfaceIdent,
 }
 
-impl<'a> FieldNotFound<'a> {
-    pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+impl FieldNotFound {
+    pub(super) fn new(sort: fhir::Sort, fld: SurfaceIdent) -> Self {
         Self { span: fld.span, sort, fld }
     }
 }
