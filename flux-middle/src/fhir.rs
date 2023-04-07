@@ -400,9 +400,9 @@ pub enum Sort {
     User(Symbol),
     /// The sort associated to a type variable
     Param(DefId),
-    /// A sort to be inferred, this is only partially implemented now and is only used for arguments
-    /// to abstract refinement predicates.
+    /// A sort that needs to be inferred
     Wildcard,
+    /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
     Infer(SortVid),
 }
 
