@@ -326,7 +326,7 @@ pub enum RefineArg {
         fhir_id: FhirId,
     },
     Abs(Vec<RefineParam>, Expr, Span, FhirId),
-    Aggregate(DefId, Vec<RefineArg>, Span, FhirId),
+    Record(DefId, Vec<RefineArg>, Span, FhirId),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -393,10 +393,10 @@ pub enum Sort {
     Unit,
     BitVec(usize),
     Func(FuncSort),
-    /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
-    /// Values of an aggregate sort can be projected using dot notation to extract their fields.
-    Aggregate(DefId),
-    /// User defined sort
+    /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
+    /// Values of a record sort can be projected using dot notation to extract their fields.
+    Record(DefId),
+    /// User defined opaque sort
     User(Symbol),
     /// The sort associated to a type variable
     Param(DefId),
@@ -476,7 +476,7 @@ impl RefineArg {
         match self {
             RefineArg::Expr { fhir_id: node_id, .. }
             | RefineArg::Abs(.., node_id)
-            | RefineArg::Aggregate(.., node_id) => *node_id,
+            | RefineArg::Record(.., node_id) => *node_id,
         }
     }
 }
@@ -486,7 +486,7 @@ impl BaseTy {
         matches!(self.kind, BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }))
     }
 
-    pub fn is_aggregate(&self) -> Option<DefId> {
+    pub fn is_refined_by_record(&self) -> Option<DefId> {
         if let BaseTyKind::Path(path) = &self.kind
            && let Res::Struct(def_id) | Res::Enum(def_id) | Res::Alias(def_id) = path.res
         {
@@ -1142,7 +1142,7 @@ impl fmt::Debug for RefineArg {
                     })
                 )
             }
-            RefineArg::Aggregate(def_id, flds, ..) => {
+            RefineArg::Record(def_id, flds, ..) => {
                 write!(
                     f,
                     "{} {{ {:?} }}",
@@ -1224,7 +1224,7 @@ impl fmt::Debug for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
-            Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
+            Sort::Record(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::User(name) => write!(f, "{name}"),
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::Wildcard => write!(f, "_"),

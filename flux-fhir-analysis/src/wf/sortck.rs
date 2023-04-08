@@ -45,9 +45,9 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             fhir::RefineArg::Abs(params, body, span, fhir_id) => {
                 self.check_abs(env, params, body, span, fhir_id, expected)
             }
-            fhir::RefineArg::Aggregate(def_id, flds, span, _) => {
-                self.check_aggregate(env, *def_id, flds, *span)?;
-                let found = fhir::Sort::Aggregate(*def_id);
+            fhir::RefineArg::Record(def_id, flds, span, _) => {
+                self.check_record(env, *def_id, flds, *span)?;
+                let found = fhir::Sort::Record(*def_id);
                 if &found != expected {
                     return self.emit_err(env.sort_mismatch(*span, expected, &found));
                 }
@@ -89,7 +89,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         }
     }
 
-    fn check_aggregate(
+    fn check_record(
         &mut self,
         env: &mut Env,
         def_id: DefId,
@@ -217,7 +217,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = env[var.name].clone();
                 match sort {
-                    fhir::Sort::Aggregate(def_id) => {
+                    fhir::Sort::Record(def_id) => {
                         self.early_cx
                             .field_sort(def_id, fld.name)
                             .cloned()
@@ -349,11 +349,11 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
-    /// [`Aggregate`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
-    /// versa, i.e., we can automatically project the field out of the adt or inject a value into an
-    /// adt.
+    /// [`Record`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
+    /// versa, i.e., we can automatically project the field out of the record or inject a value into a
+    /// record.
     ///
-    /// [`Aggregate`]: fhir::Sort::Aggregate
+    /// [`Record`]: fhir::Sort::Record
     fn is_coercible(
         &mut self,
         env: &mut Env,
@@ -367,11 +367,11 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
         let mut coercions = vec![];
-        if let Some(sort) = self.is_single_field_aggregate(env, &sort1) {
+        if let Some(sort) = self.is_single_field_record(env, &sort1) {
             coercions.push(fhir::Coercion::Project);
             sort1 = sort.clone();
         }
-        if let Some(sort) = self.is_single_field_aggregate(env, &sort2) {
+        if let Some(sort) = self.is_single_field_record(env, &sort2) {
             coercions.push(fhir::Coercion::Inject);
             sort2 = sort.clone();
         }
@@ -387,7 +387,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     ) -> Option<fhir::FuncSort> {
         if let Some(fsort) = env.is_func(sort) {
             Some(fsort)
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_aggregate(env, sort) {
+        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_record(env, sort) {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![fhir::Coercion::Project]);
@@ -405,7 +405,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
     ) -> Option<fhir::Sort> {
         if env.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some(sort) = self.is_single_field_aggregate(env, sort) && sort.is_numeric() {
+        } else if let Some(sort) = self.is_single_field_record(env, sort) && sort.is_numeric() {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![fhir::Coercion::Project]);
@@ -415,12 +415,8 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
         }
     }
 
-    fn is_single_field_aggregate(
-        &self,
-        env: &mut Env,
-        sort: &fhir::Sort,
-    ) -> Option<&'a fhir::Sort> {
-        env.is_single_field_aggregate(self.early_cx, sort)
+    fn is_single_field_record(&self, env: &mut Env, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
+        env.is_single_field_record(self.early_cx, sort)
     }
 
     fn has_equality(&self, env: &mut Env, sort: &fhir::Sort) -> bool {
@@ -532,13 +528,18 @@ impl Env {
         })
     }
 
-    fn is_single_field_aggregate<'a>(
+    fn is_single_field_record<'a>(
         &mut self,
         early_cx: &'a EarlyCtxt,
         sort: &fhir::Sort,
     ) -> Option<&'a fhir::Sort> {
-        self.resolve_sort(sort)
-            .and_then(|s| early_cx.is_single_field_aggregate(&s))
+        self.resolve_sort(sort).and_then(|s| {
+            if let fhir::Sort::Record(def_id) = s && let [sort] = early_cx.index_sorts_of(def_id) {
+                Some(sort)
+            } else {
+                None
+            }
+        })
     }
 
     fn has_equality(&mut self, early_cx: &EarlyCtxt, sort: &fhir::Sort) -> bool {

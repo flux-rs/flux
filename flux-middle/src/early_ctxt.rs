@@ -86,14 +86,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         self.sess.emit_err(err)
     }
 
-    pub fn is_single_field_aggregate<'b>(&'b self, sort: &fhir::Sort) -> Option<&'b fhir::Sort> {
-        if let fhir::Sort::Aggregate(def_id) = sort && let [sort] = self.index_sorts_of(*def_id) {
-            Some(sort)
-        } else {
-            None
-        }
-    }
-
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
         self.tcx.hir()
     }
@@ -112,7 +104,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                 }
             }
             fhir::Res::Alias(def_id) | fhir::Res::Enum(def_id) | fhir::Res::Struct(def_id) => {
-                fhir::Sort::Aggregate(def_id)
+                fhir::Sort::Record(def_id)
             }
         };
         Some(sort)
@@ -127,7 +119,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             | fhir::Sort::Unit
             | fhir::Sort::User(_)
             | fhir::Sort::BitVec(_) => true,
-            fhir::Sort::Aggregate(def_id) => {
+            fhir::Sort::Record(def_id) => {
                 self.index_sorts_of(*def_id)
                     .iter()
                     .all(|sort| self.has_equality(sort))

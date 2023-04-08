@@ -424,7 +424,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let expr = self.add_coercions(rty::Expr::abs(body), *fhir_id);
                 (expr, rty::TupleTree::Leaf(false))
             }
-            fhir::RefineArg::Aggregate(_, flds, ..) => {
+            fhir::RefineArg::Record(_, flds, ..) => {
                 let mut exprs = vec![];
                 let mut is_binder = vec![];
                 for arg in flds {
@@ -791,18 +791,16 @@ impl LookupResult<'_> {
         }
     }
 
-    fn is_aggregate(&self) -> Option<DefId> {
+    fn is_record(&self) -> Option<DefId> {
         match &self.kind {
-            LookupResultKind::LateBoundSingle { sort: fhir::Sort::Aggregate(def_id), .. } => {
+            LookupResultKind::LateBoundSingle { sort: fhir::Sort::Record(def_id), .. } => {
                 Some(*def_id)
             }
             LookupResultKind::LateBoundList {
-                entry: ListEntry::Sort { sort: fhir::Sort::Aggregate(def_id), .. },
+                entry: ListEntry::Sort { sort: fhir::Sort::Record(def_id), .. },
                 ..
             } => Some(*def_id),
-            LookupResultKind::EarlyBound { sort: fhir::Sort::Aggregate(def_id), .. } => {
-                Some(*def_id)
-            }
+            LookupResultKind::EarlyBound { sort: fhir::Sort::Record(def_id), .. } => Some(*def_id),
             _ => None,
         }
     }
@@ -814,13 +812,13 @@ impl LookupResult<'_> {
     }
 
     fn get_field(&self, early_cx: &EarlyCtxt, fld: SurfaceIdent) -> rty::Expr {
-        if let Some(def_id) = self.is_aggregate() {
+        if let Some(def_id) = self.is_record() {
             let i = early_cx
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
             rty::Expr::tuple_proj(self.to_expr(), i as u32)
         } else {
-            span_bug!(fld.span, "expected aggregate sort")
+            span_bug!(fld.span, "expected record sort")
         }
     }
 }
@@ -849,7 +847,7 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::User(name) => rty::Sort::User(*name),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(early_cx, fsort)),
-        fhir::Sort::Aggregate(def_id) => {
+        fhir::Sort::Record(def_id) => {
             rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
         }
         fhir::Sort::Param(def_id) => {

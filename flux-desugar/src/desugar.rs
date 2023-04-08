@@ -483,13 +483,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
                 .unwrap()
-        } else if let Some(def_id) = bty.is_aggregate() {
+        } else if let Some(def_id) = bty.is_refined_by_record() {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
-            Ok(fhir::RefineArg::Aggregate(def_id, flds, idxs.span, self.next_fhir_id()))
+            Ok(fhir::RefineArg::Record(def_id, flds, idxs.span, self.next_fhir_id()))
         } else if let [arg] = &idxs.indices[..] {
             self.desugar_refine_arg(arg, binders)
         } else {
-            span_bug!(bty.span, "invalid index on non-aggregate type")
+            span_bug!(bty.span, "invalid index on non-record type")
         }
     }
 
@@ -1246,7 +1246,7 @@ fn index_sort(early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Option<fhir::
 }
 
 fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sort] {
-    if let fhir::Sort::Aggregate(def_id) = sort {
+    if let fhir::Sort::Record(def_id) = sort {
         early_cx.index_sorts_of(*def_id)
     } else {
         slice::from_ref(sort)

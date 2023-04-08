@@ -152,7 +152,7 @@ pub fn lift_enum_variant_def(
     };
     let ret = fhir::VariantRet {
         bty: fhir::BaseTy::from(path),
-        idx: fhir::RefineArg::Aggregate(enum_id.to_def_id(), vec![], ident.span, cx.next_fhir_id()),
+        idx: fhir::RefineArg::Record(enum_id.to_def_id(), vec![], ident.span, cx.next_fhir_id()),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
 }

@@ -1,4 +1,4 @@
-// ignore-test disabled until we implement resolving of aggregate sorts
+// ignore-test disabled until we implement resolving of record sorts
 
 #![feature(register_tool)]
 #![register_tool(flux)]
