@@ -45,7 +45,7 @@ impl<'a, 'tcx> SortChecker<'a, 'tcx> {
             fhir::RefineArg::Abs(params, body, span, fhir_id) => {
                 self.check_abs(env, params, body, span, fhir_id, expected)
             }
-            fhir::RefineArg::Record(def_id, flds, span, _) => {
+            fhir::RefineArg::Record(def_id, flds, span) => {
                 self.check_record(env, *def_id, flds, *span)?;
                 let found = fhir::Sort::Record(*def_id);
                 if &found != expected {

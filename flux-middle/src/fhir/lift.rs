@@ -1,7 +1,6 @@
 //! "Lift" HIR types into  FHIR types.
 //!
-use fhir::FhirId;
-use flux_common::{bug, index::IndexGen, iter::IterExt};
+use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use hir::{def::DefKind, def_id::DefId, OwnerId};
 use itertools::Itertools;
@@ -11,14 +10,12 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
-use super::FluxOwnerId;
 use crate::fhir;
 
 struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     owner: OwnerId,
-    local_id_gen: IndexGen<fhir::ItemLocalId>,
 }
 
 pub fn lift_generics(
@@ -152,7 +149,7 @@ pub fn lift_enum_variant_def(
     };
     let ret = fhir::VariantRet {
         bty: fhir::BaseTy::from(path),
-        idx: fhir::RefineArg::Record(enum_id.to_def_id(), vec![], ident.span, cx.next_fhir_id()),
+        idx: fhir::RefineArg::Record(enum_id.to_def_id(), vec![], ident.span),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
 }
@@ -195,11 +192,7 @@ pub fn lift_fn_sig(
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, owner: OwnerId) -> Self {
-        Self { tcx, sess, owner, local_id_gen: IndexGen::new() }
-    }
-
-    fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+        Self { tcx, sess, owner }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {

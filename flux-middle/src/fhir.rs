@@ -323,10 +323,9 @@ pub enum RefineArg {
         /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
         /// inferring parameters at function calls.
         is_binder: bool,
-        fhir_id: FhirId,
     },
     Abs(Vec<RefineParam>, Expr, Span, FhirId),
-    Record(DefId, Vec<RefineArg>, Span, FhirId),
+    Record(DefId, Vec<RefineArg>, Span),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -468,16 +467,6 @@ impl From<FluxOwnerId> for FluxLocalDefId {
 impl From<LocalDefId> for FluxLocalDefId {
     fn from(def_id: LocalDefId) -> Self {
         FluxLocalDefId::Rust(def_id)
-    }
-}
-
-impl RefineArg {
-    pub fn fhir_id(&self) -> FhirId {
-        match self {
-            RefineArg::Expr { fhir_id: node_id, .. }
-            | RefineArg::Abs(.., node_id)
-            | RefineArg::Record(.., node_id) => *node_id,
-        }
     }
 }
 

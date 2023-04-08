@@ -420,7 +420,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                         fhir_id: self.next_fhir_id(),
                     },
                     is_binder: false,
-                    fhir_id: self.next_fhir_id(),
                 };
                 let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
                 let constr =
@@ -485,7 +484,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .unwrap()
         } else if let Some(def_id) = bty.is_refined_by_record() {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
-            Ok(fhir::RefineArg::Record(def_id, flds, idxs.span, self.next_fhir_id()))
+            Ok(fhir::RefineArg::Record(def_id, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
             self.desugar_refine_arg(arg, binders)
         } else {
@@ -517,7 +516,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(fhir::RefineArg::Expr {
                     expr: self.as_expr_ctxt().desugar_expr(binders, expr)?,
                     is_binder: false,
-                    fhir_id: self.next_fhir_id(),
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
@@ -539,11 +537,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Some(Binder::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
                 let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
-                Ok(Some(fhir::RefineArg::Expr {
-                    expr,
-                    is_binder: true,
-                    fhir_id: self.next_fhir_id(),
-                }))
+                Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
             }
             Some(Binder::Unrefined) => Ok(None),
             None => Err(self.emit_err(errors::UnresolvedVar::new(ident))),
