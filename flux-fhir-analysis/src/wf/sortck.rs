@@ -327,8 +327,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
         }
     }
+}
 
-    /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
+impl<'a> InferCtxt<'a, '_> {
+    /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
+    pub(super) fn push_layer<'b>(
+        &mut self,
+        params: impl IntoIterator<Item = &'b fhir::RefineParam>,
+    ) {
+        for param in params {
+            let sort = if param.sort == fhir::Sort::Wildcard {
+                fhir::Sort::Infer(self.next_sort_vid())
+            } else {
+                param.sort.clone()
+            };
+            self.sorts.insert(param.name(), sort);
+        }
+    }
+
+    /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of a
     /// [`Record`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
     /// versa, i.e., we can automatically project the field out of the record or inject a value into a
     /// record.
@@ -353,6 +370,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.try_equate(&sort1, &sort2).is_some()
     }
 
+    fn is_coercible_to_numeric(
+        &mut self,
+        sort: &fhir::Sort,
+        fhir_id: FhirId,
+    ) -> Option<fhir::Sort> {
+        if self.is_numeric(sort) {
+            Some(sort.clone())
+        } else if let Some(sort) = self.is_single_field_record(sort) && sort.is_numeric() {
+            self.wfckresults
+                .coercions_mut()
+                .insert(fhir_id, vec![fhir::Coercion::Project]);
+            Some(sort.clone())
+        } else {
+            None
+        }
+    }
+
     fn is_coercible_to_func(
         &mut self,
         sort: &fhir::Sort,
@@ -367,28 +401,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             Some(fsort.clone())
         } else {
             None
-        }
-    }
-
-    #[track_caller]
-    fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
-        self.early_cx.emit_err(err)
-    }
-}
-
-impl<'a> InferCtxt<'a, '_> {
-    /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn push_layer<'b>(
-        &mut self,
-        params: impl IntoIterator<Item = &'b fhir::RefineParam>,
-    ) {
-        for param in params {
-            let sort = if param.sort == fhir::Sort::Wildcard {
-                fhir::Sort::Infer(self.next_sort_vid())
-            } else {
-                param.sort.clone()
-            };
-            self.sorts.insert(param.name(), sort);
         }
     }
 
@@ -485,6 +497,12 @@ impl<'a> InferCtxt<'a, '_> {
             .map_or(false, |s| self.early_cx.has_equality(&s))
     }
 
+    pub(crate) fn into_results(self) -> WfckResults {
+        self.wfckresults
+    }
+}
+
+impl InferCtxt<'_, '_> {
     fn emit_sort_mismatch(
         &mut self,
         span: Span,
@@ -507,25 +525,9 @@ impl<'a> InferCtxt<'a, '_> {
         self.emit_err(errors::FieldNotFound::new(sort, field))
     }
 
-    fn is_coercible_to_numeric(
-        &mut self,
-        sort: &fhir::Sort,
-        fhir_id: FhirId,
-    ) -> Option<fhir::Sort> {
-        if self.is_numeric(sort) {
-            Some(sort.clone())
-        } else if let Some(sort) = self.is_single_field_record(sort) && sort.is_numeric() {
-            self.wfckresults
-                .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
-            Some(sort.clone())
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn into_results(self) -> WfckResults {
-        self.wfckresults
+    #[track_caller]
+    fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
+        self.early_cx.emit_err(err)
     }
 }
 
