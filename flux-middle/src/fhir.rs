@@ -470,6 +470,12 @@ impl From<LocalDefId> for FluxLocalDefId {
     }
 }
 
+impl From<OwnerId> for FluxOwnerId {
+    fn from(owner_id: OwnerId) -> Self {
+        FluxOwnerId::Rust(owner_id)
+    }
+}
+
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
         matches!(self.kind, BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }))

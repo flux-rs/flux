@@ -19,12 +19,11 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::OwnerId;
 use rustc_span::Symbol;
 
-use self::sortck::{Env, SortChecker};
+use self::sortck::InferCtxt;
 
 struct Wf<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
-    wfckresults: fhir::WfckResults,
     xi: XiCtxt,
 }
 
@@ -44,34 +43,32 @@ pub(crate) fn check_type(
     ty: &fhir::Ty,
     owner: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(owner));
-    let mut env = Env::default();
-    wf.check_type(&mut env, ty)?;
-    Ok(wf.into_results())
+    let mut infcx = InferCtxt::new(early_cx, owner.into());
+    let mut wf = Wf::new(early_cx);
+    wf.check_type(&mut infcx, ty)?;
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_qualifier(
     early_cx: &EarlyCtxt,
     qualifier: &fhir::Qualifier,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut env = Env::from_iter(&qualifier.args);
-    let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(qualifier.name));
-    SortChecker::new(early_cx, &mut wfckresults).check_expr(
-        &mut env,
-        &qualifier.expr,
-        &fhir::Sort::Bool,
-    )?;
-    Ok(wfckresults)
+    let owner = FluxOwnerId::Flux(qualifier.name);
+    let mut infcx = InferCtxt::new(early_cx, owner);
+    infcx.push_layer(&qualifier.args);
+    infcx.check_expr(&qualifier.expr, &fhir::Sort::Bool)?;
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_defn(
     early_cx: &EarlyCtxt,
     defn: &fhir::Defn,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut env = Env::from_iter(&defn.args);
-    let mut wfckresults = WfckResults::new(FluxOwnerId::Flux(defn.name));
-    SortChecker::new(early_cx, &mut wfckresults).check_expr(&mut env, &defn.expr, &defn.sort)?;
-    Ok(wfckresults)
+    let owner = FluxOwnerId::Flux(defn.name);
+    let mut infcx = InferCtxt::new(early_cx, owner);
+    infcx.push_layer(&defn.args);
+    infcx.check_expr(&defn.expr, &defn.sort)?;
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_fn_quals(
@@ -92,59 +89,56 @@ pub(crate) fn check_ty_alias(
     early_cx: &EarlyCtxt,
     ty_alias: &fhir::TyAlias,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(ty_alias.owner_id));
-    let mut env = Env::from_iter(ty_alias.all_params());
-    wf.check_type(&mut env, &ty_alias.ty)?;
-    wf.check_params_determined(&env, &ty_alias.index_params)?;
-    Ok(wf.into_results())
+    let mut infcx = InferCtxt::new(early_cx, ty_alias.owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    infcx.push_layer(ty_alias.all_params());
+    wf.check_type(&mut infcx, &ty_alias.ty)?;
+    wf.check_params_determined(&infcx, &ty_alias.index_params)?;
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_struct_def(
     early_cx: &EarlyCtxt,
     struct_def: &fhir::StructDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(struct_def.owner_id));
-    let mut env = Env::from_iter(&struct_def.params);
+    let mut infcx = InferCtxt::new(early_cx, struct_def.owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    infcx.push_layer(&struct_def.params);
 
     struct_def
         .invariants
         .iter()
-        .try_for_each_exhaust(|invariant| {
-            wf.sort_checker()
-                .check_expr(&mut env, invariant, &fhir::Sort::Bool)
-        })?;
+        .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &fhir::Sort::Bool))?;
 
     if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
         fields
             .iter()
-            .try_for_each_exhaust(|field_def| wf.check_type(&mut env, &field_def.ty))?;
-        wf.check_params_determined(&env, &struct_def.params)?;
+            .try_for_each_exhaust(|field_def| wf.check_type(&mut infcx, &field_def.ty))?;
+        wf.check_params_determined(&infcx, &struct_def.params)?;
     }
 
-    Ok(wf.into_results())
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_enum_def(
     early_cx: &EarlyCtxt,
     enum_def: &fhir::EnumDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(enum_def.owner_id));
+    let mut infcx = InferCtxt::new(early_cx, enum_def.owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    infcx.push_layer(&enum_def.params);
 
-    let mut env = Env::from_iter(&enum_def.params);
     enum_def
         .invariants
         .iter()
-        .try_for_each_exhaust(|invariant| {
-            wf.sort_checker()
-                .check_expr(&mut env, invariant, &fhir::Sort::Bool)
-        })?;
+        .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &fhir::Sort::Bool))?;
 
     enum_def
         .variants
         .iter()
-        .try_for_each_exhaust(|variant| wf.check_variant(variant))?;
+        .try_for_each_exhaust(|variant| wf.check_variant(&mut infcx, variant))?;
 
-    Ok(wf.into_results())
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_fn_sig(
@@ -152,23 +146,24 @@ pub(crate) fn check_fn_sig(
     fn_sig: &fhir::FnSig,
     owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut wf = Wf::new(early_cx, FluxOwnerId::Rust(owner_id));
+    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
+    let mut wf = Wf::new(early_cx);
     for param in &fn_sig.params {
         wf.modes.insert(param.ident.name, param.mode);
     }
-    let mut env = Env::from_iter(&fn_sig.params);
+    infcx.push_layer(&fn_sig.params);
 
     let args = fn_sig
         .args
         .iter()
-        .try_for_each_exhaust(|ty| wf.check_type(&mut env, ty));
+        .try_for_each_exhaust(|ty| wf.check_type(&mut infcx, ty));
 
     let requires = fn_sig
         .requires
         .iter()
-        .try_for_each_exhaust(|constr| wf.check_constraint(&mut env, constr));
+        .try_for_each_exhaust(|constr| wf.check_constraint(&mut infcx, constr));
 
-    let output = wf.check_fn_output(&mut env, &fn_sig.output);
+    let output = wf.check_fn_output(&mut infcx, &fn_sig.output);
 
     let constrs = wf.check_output_locs(fn_sig);
 
@@ -177,28 +172,19 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
-    wf.check_params_determined(&env, &fn_sig.params)?;
+    wf.check_params_determined(&infcx, &fn_sig.params)?;
 
-    Ok(wf.into_results())
+    Ok(infcx.into_results())
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, owner: FluxOwnerId) -> Self {
-        Wf {
-            early_cx,
-            modes: Default::default(),
-            wfckresults: fhir::WfckResults::new(owner),
-            xi: Default::default(),
-        }
-    }
-
-    fn into_results(self) -> fhir::WfckResults {
-        self.wfckresults
+    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
+        Wf { early_cx, modes: Default::default(), xi: Default::default() }
     }
 
     fn check_params_determined(
         &mut self,
-        env: &Env,
+        env: &InferCtxt,
         params: &[fhir::RefineParam],
     ) -> Result<(), ErrorGuaranteed> {
         params.iter().try_for_each_exhaust(|param| {
@@ -210,14 +196,18 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         })
     }
 
-    fn check_variant(&mut self, variant: &fhir::VariantDef) -> Result<(), ErrorGuaranteed> {
-        let mut env = Env::from_iter(&variant.params);
+    fn check_variant(
+        &mut self,
+        infcx: &mut InferCtxt,
+        variant: &fhir::VariantDef,
+    ) -> Result<(), ErrorGuaranteed> {
+        infcx.push_layer(&variant.params);
         let fields = variant
             .fields
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(&mut env, ty));
+            .try_for_each_exhaust(|ty| self.check_type(infcx, ty));
         let expected = self.sort_of_bty(&variant.ret.bty);
-        let indices = self.check_refine_arg(&mut env, &variant.ret.idx, &expected);
+        let indices = self.check_refine_arg(infcx, &variant.ret.idx, &expected);
         fields?;
         indices?;
         Ok(())
@@ -225,7 +215,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_fn_output(
         &mut self,
-        env: &mut Env,
+        env: &mut InferCtxt,
         fn_output: &fhir::FnOutput,
     ) -> Result<(), ErrorGuaranteed> {
         let snapshot = self.xi.snapshot();
@@ -272,59 +262,67 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_constraint(
         &mut self,
-        env: &mut Env,
+        infcx: &mut InferCtxt,
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
         match constr {
             fhir::Constraint::Type(loc, ty) => {
-                [self.sort_checker().check_loc(env, *loc), self.check_type(env, ty)]
+                [infcx.check_loc(*loc), self.check_type(infcx, ty)]
                     .into_iter()
                     .try_collect_exhaust()
             }
-            fhir::Constraint::Pred(pred) => self.check_pred(env, pred),
+            fhir::Constraint::Pred(pred) => self.check_pred(infcx, pred),
         }
     }
 
-    fn check_type(&mut self, env: &mut Env, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
+    fn check_type(&mut self, infcx: &mut InferCtxt, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => self.check_base_ty(env, bty),
+            fhir::TyKind::BaseTy(bty) => self.check_base_ty(infcx, bty),
             fhir::TyKind::Indexed(bty, idx) => {
                 let expected = self.sort_of_bty(bty);
-                self.check_refine_arg(env, idx, &expected)?;
-                self.check_base_ty(env, bty)
+                self.check_refine_arg(infcx, idx, &expected)?;
+                self.check_base_ty(infcx, bty)
             }
             fhir::TyKind::Exists(params, ty) => {
-                env.push_layer(params);
-                self.check_type(env, ty)?;
-                self.sort_checker().resolve_params_sorts(env, params)?;
-                self.check_params_determined(env, params)
+                infcx.push_layer(params);
+                self.check_type(infcx, ty)?;
+                infcx.resolve_params_sorts(params)?;
+                self.check_params_determined(infcx, params)
             }
             fhir::TyKind::Ptr(loc) => {
                 self.xi.insert(loc.name);
-                self.sort_checker().check_loc(env, *loc)
+                infcx.check_loc(*loc)
             }
             fhir::TyKind::Tuple(tys) => {
                 tys.iter()
-                    .try_for_each_exhaust(|ty| self.check_type(env, ty))
+                    .try_for_each_exhaust(|ty| self.check_type(infcx, ty))
             }
-            fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(env, ty),
+            fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Constr(pred, ty) => {
-                self.check_type(env, ty)?;
-                self.check_pred(env, pred)
+                self.check_type(infcx, ty)?;
+                self.check_pred(infcx, pred)
             }
-            fhir::TyKind::RawPtr(ty, _) => self.check_type(env, ty),
+            fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Never => Ok(()),
         }
     }
 
-    fn check_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> Result<(), ErrorGuaranteed> {
+    fn check_base_ty(
+        &mut self,
+        env: &mut InferCtxt,
+        bty: &fhir::BaseTy,
+    ) -> Result<(), ErrorGuaranteed> {
         match &bty.kind {
             fhir::BaseTyKind::Path(path) => self.check_path(env, path),
             fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
         }
     }
 
-    fn check_path(&mut self, env: &mut Env, path: &fhir::Path) -> Result<(), ErrorGuaranteed> {
+    fn check_path(
+        &mut self,
+        env: &mut InferCtxt,
+        path: &fhir::Path,
+    ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
             fhir::Res::Alias(def_id) => {
                 let sorts = self.early_cx.early_bound_sorts_of(*def_id);
@@ -356,24 +354,27 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_refine_arg(
         &mut self,
-        env: &mut Env,
+        infcx: &mut InferCtxt,
         arg: &fhir::RefineArg,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        self.sort_checker().check_refine_arg(env, arg, expected)?;
-        self.check_param_uses_refine_arg(env, arg)
+        infcx.check_refine_arg(arg, expected)?;
+        self.check_param_uses_refine_arg(infcx, arg)
     }
 
-    fn check_pred(&mut self, env: &mut Env, expr: &fhir::Expr) -> Result<(), ErrorGuaranteed> {
-        self.sort_checker()
-            .check_expr(env, expr, &fhir::Sort::Bool)?;
-        self.check_param_uses_expr(env, expr, true)
+    fn check_pred(
+        &mut self,
+        infcx: &mut InferCtxt,
+        expr: &fhir::Expr,
+    ) -> Result<(), ErrorGuaranteed> {
+        infcx.check_expr(expr, &fhir::Sort::Bool)?;
+        self.check_param_uses_expr(infcx, expr, true)
     }
 
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_refine_arg(
         &mut self,
-        env: &Env,
+        env: &InferCtxt,
         arg: &fhir::RefineArg,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
@@ -396,7 +397,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_expr(
         &self,
-        env: &Env,
+        env: &InferCtxt,
         expr: &fhir::Expr,
         is_top_level_conj: bool,
     ) -> Result<(), ErrorGuaranteed> {
@@ -439,7 +440,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn infer_mode(&self, env: &Env, name: fhir::Name) -> fhir::InferMode {
+    fn infer_mode(&self, env: &InferCtxt, name: fhir::Name) -> fhir::InferMode {
         self.modes
             .get(&name)
             .copied()
@@ -450,10 +451,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.early_cx
             .sort_of_bty(bty)
             .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
-    }
-
-    fn sort_checker(&mut self) -> SortChecker<'_, 'tcx> {
-        SortChecker::new(self.early_cx, &mut self.wfckresults)
     }
 
     #[track_caller]
