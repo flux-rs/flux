@@ -299,6 +299,16 @@ dump_mir = true
 <p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
 containing profiling information. It will <em>not</em> dump the MIR because that setting
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
+<h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
+<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
+This can only be used in nightly and requires enabling the feature <code>custom_inner_attributes</code>
+For example, to enable overflow checking:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span>#![feature(custom_inner_attributes)]
+#![flux:cfg(check_overflow = true)]
+<span class="boring">fn main() {
+</span><span class="boring">}</span></code></pre></pre>
+<p>The only flag supported now is overflow checking.</p>
 <h3 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h3>
 <p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each <code>DefId</code> in
 <code>FLUX_LOG_DIR/FLUX_CACHE_FILE</code>, and on subsequent runs, skips queries that are
