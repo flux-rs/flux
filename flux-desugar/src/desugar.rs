@@ -303,9 +303,10 @@ enum FuncRes<'a> {
     Global(&'a fhir::FuncDecl),
 }
 
-enum VarRes<'a> {
+enum QPathRes<'a> {
     Param(fhir::Ident),
     Const(&'a fhir::ConstInfo),
+    NumConst(i128),
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
@@ -540,7 +541,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
             }
             Some(Binder::Unrefined) => Ok(None),
-            None => Err(self.emit_err(errors::UnresolvedVar::new(ident))),
+            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(ident))),
         }
     }
 
@@ -630,12 +631,13 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         expr: &surface::Expr,
     ) -> Result<fhir::Expr, ErrorGuaranteed> {
         let kind = match &expr.kind {
-            surface::ExprKind::Var(ident) => {
-                match self.resolve_var(binders, *ident)? {
-                    VarRes::Param(ident) => fhir::ExprKind::Var(ident),
-                    VarRes::Const(const_info) => {
-                        fhir::ExprKind::Const(const_info.def_id, ident.span)
+            surface::ExprKind::QPath(qpath) => {
+                match self.resolve_qpath(binders, qpath)? {
+                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident),
+                    QPathRes::Const(const_info) => {
+                        fhir::ExprKind::Const(const_info.def_id, qpath.span)
                     }
+                    QPathRes::NumConst(i) => fhir::ExprKind::Literal(fhir::Lit::Int(i)),
                 }
             }
             surface::ExprKind::Literal(lit) => {
@@ -652,8 +654,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                     Box::new(self.desugar_expr(binders, e)?),
                 )
             }
-            surface::ExprKind::Dot(var, fld) => {
-                if let VarRes::Param(ident) = self.resolve_var(binders, *var)? {
+            surface::ExprKind::Dot(qpath, fld) => {
+                if let QPathRes::Param(ident) = self.resolve_qpath(binders, qpath)? {
                     fhir::ExprKind::Dot(ident, *fld)
                 } else {
                     return Err(self.emit_err(errors::InvalidDotVar { span: expr.span }));
@@ -737,27 +739,36 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         if let Some(decl) = self.early_cx.func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
-        Err(self.emit_err(errors::UnresolvedVar::new(func)))
+        Err(self.emit_err(errors::UnresolvedVar::from_ident(func)))
     }
 
-    fn resolve_var(
+    fn resolve_qpath(
         &self,
         binders: &Binders,
-        var: surface::Ident,
-    ) -> Result<VarRes, ErrorGuaranteed> {
-        match binders.get(var) {
-            Some(Binder::Refined(name, ..)) => {
-                return Ok(VarRes::Param(fhir::Ident::new(*name, var)))
+        qpath: &surface::QPathExpr,
+    ) -> Result<QPathRes, ErrorGuaranteed> {
+        match &qpath.segments[..] {
+            [var] => {
+                match binders.get(var) {
+                    Some(Binder::Refined(name, ..)) => {
+                        return Ok(QPathRes::Param(fhir::Ident::new(*name, *var)))
+                    }
+                    Some(Binder::Unrefined) => {
+                        return Err(self.emit_err(errors::InvalidUnrefinedParam::new(*var)));
+                    }
+                    None => {}
+                };
+                if let Some(const_info) = self.early_cx.const_by_name(var.name) {
+                    return Ok(QPathRes::Const(const_info));
+                }
+                Err(self.emit_err(errors::UnresolvedVar::from_ident(*var)))
             }
-            Some(Binder::Unrefined) => {
-                return Err(self.emit_err(errors::InvalidUnrefinedParam::new(var)));
+            [typ, name] => {
+                resolve_num_const(*typ, *name)
+                    .ok_or_else(|| self.emit_err(errors::UnresolvedVar::from_qpath(qpath)))
             }
-            None => {}
-        };
-        if let Some(const_info) = self.early_cx.const_by_name(var.name) {
-            return Ok(VarRes::Const(const_info));
+            _ => Err(self.emit_err(errors::UnresolvedVar::from_qpath(qpath))),
         }
-        Err(self.emit_err(errors::UnresolvedVar::new(var)))
     }
 
     fn resolve_loc(
@@ -768,7 +779,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         match binders.get(loc) {
             Some(Binder::Refined(name, ..)) => Ok(fhir::Ident::new(*name, loc)),
             Some(Binder::Unrefined) => Err(self.emit_err(errors::InvalidUnrefinedParam::new(loc))),
-            None => Err(self.emit_err(errors::UnresolvedVar::new(loc))),
+            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc))),
         }
     }
 
@@ -1293,7 +1304,8 @@ static SORTS: std::sync::LazyLock<Sorts> =
 
 mod errors {
     use flux_macros::Diagnostic;
-    use flux_syntax::surface::BindKind;
+    use flux_syntax::surface::{BindKind, QPathExpr};
+    use itertools::Itertools;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -1302,12 +1314,19 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        var: Ident,
+        var: String,
     }
 
     impl UnresolvedVar {
-        pub(super) fn new(var: Ident) -> Self {
-            Self { span: var.span, var }
+        pub(super) fn from_qpath(qpath: &QPathExpr) -> Self {
+            Self {
+                span: qpath.span,
+                var: format!("{}", qpath.segments.iter().format_with("::", |s, f| f(&s.name))),
+            }
+        }
+
+        pub(super) fn from_ident(ident: Ident) -> Self {
+            Self { span: ident.span, var: format!("{ident}") }
         }
     }
 
@@ -1439,3 +1458,24 @@ mod errors {
         }
     }
 }
+
+macro_rules! define_resolve_num_const {
+    ($($typ:ident),*) => {
+        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<QPathRes<'static>> {
+            match typ.name.as_str() {
+                $(
+                    stringify!($typ) => {
+                        match name.name.as_str() {
+                            "MAX" => Some(QPathRes::NumConst($typ::MAX.try_into().unwrap())),
+                            "MIN" => Some(QPathRes::NumConst($typ::MIN.try_into().unwrap())),
+                            _ => None,
+                        }
+                    },
+                )*
+                _ => None
+            }
+        }
+    };
+}
+
+define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
