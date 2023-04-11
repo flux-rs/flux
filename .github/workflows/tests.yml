@@ -10,7 +10,7 @@ jobs:
   check-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.5
+      - uses: actions/checkout@v3
       - name: Clone fixpoint
         run: |
           git clone https://github.com/ucsd-progsys/liquid-fixpoint
@@ -56,7 +56,7 @@ jobs:
   check-fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.5
+      - uses: actions/checkout@v3
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
       - name: Rust rustfmt
@@ -65,7 +65,7 @@ jobs:
   check-clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.5
+      - uses: actions/checkout@v3
       - name: Add clippy
         run: rustup component add clippy
       - name: Rust Cache
