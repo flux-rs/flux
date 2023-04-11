@@ -30,6 +30,7 @@ mod sigs;
 mod type_env;
 
 use checker::Checker;
+pub use checker::CheckerConfig;
 use constraint_gen::{ConstrReason, Tag};
 use flux_common::{cache::QueryCache, dbg};
 use flux_config as config;
@@ -46,6 +47,7 @@ pub fn check_fn(
     genv: &GlobalEnv,
     cache: &mut QueryCache,
     local_id: LocalDefId,
+    config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = local_id.to_def_id();
     dbg::check_fn_span!(genv.tcx, def_id).in_scope(|| {
@@ -60,12 +62,12 @@ pub fn check_fn(
         }
 
         // PHASE 1: infer shape of basic blocks
-        let shape_result = Checker::run_in_shape_mode(genv, def_id).emit(genv.sess)?;
+        let shape_result = Checker::run_in_shape_mode(genv, def_id, config).emit(genv.sess)?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
         let (mut refine_tree, kvars) =
-            Checker::run_in_refine_mode(genv, def_id, shape_result).emit(genv.sess)?;
+            Checker::run_in_refine_mode(genv, def_id, shape_result, config).emit(genv.sess)?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraints

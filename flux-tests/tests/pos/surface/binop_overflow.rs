@@ -1,7 +1,6 @@
-// ignore-test
-// TODO: Uncomment when we can set flags on a per-test basis
-#![feature(register_tool)]
+#![feature(register_tool, custom_inner_attributes)]
 #![register_tool(flux)]
+#![flux::cfg(check_overflow = true)]
 
 // Arithmetic BinOps
 //

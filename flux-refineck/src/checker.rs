@@ -38,8 +38,14 @@ use crate::{
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
 };
 
+#[derive(Clone, Copy, Debug)]
+pub struct CheckerConfig {
+    pub check_overflow: bool,
+}
+
 pub(crate) struct Checker<'a, 'tcx, M> {
     genv: &'a GlobalEnv<'a, 'tcx>,
+    config: CheckerConfig,
     /// [`DefId`] of the function being checked, either a closure or a regular function.
     def_id: DefId,
     /// [`Generics`] of the function being checked.
@@ -106,6 +112,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
         output: Binder<FnOutput>,
         dominators: &'a Dominators<BasicBlock>,
         mode: &'a mut M,
+        config: CheckerConfig,
     ) -> Self {
         let generics = genv.generics_of(def_id).unwrap_or_else(|_| {
             span_bug!(body.span(), "checking function with unsupported signature")
@@ -121,6 +128,7 @@ impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             dominators,
             queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
+            config,
         }
     }
 }
@@ -129,6 +137,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
@@ -138,7 +147,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
                 .with_span(genv.tcx.def_span(def_id))?
                 .subst_identity();
 
-            Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig)?;
+            Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig, config)?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -150,6 +159,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
         bb_env_shapes: ShapeResult,
+        config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
         let fn_sig = genv
             .fn_sig(def_id)
@@ -162,7 +172,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
 
         dbg::refine_mode_span!(genv.tcx, def_id, bb_envs).in_scope(|| {
             let mut mode = RefineMode { bb_envs, kvars };
-            Checker::run(genv, refine_tree.as_subtree(), def_id, &mut mode, fn_sig)?;
+            Checker::run(genv, refine_tree.as_subtree(), def_id, &mut mode, fn_sig, config)?;
 
             Ok((refine_tree, mode.kvars))
         })
@@ -176,6 +186,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         def_id: DefId,
         mode: &'a mut M,
         fn_sig: PolyFnSig,
+        config: CheckerConfig,
     ) -> Result<(), CheckerError> {
         let body = genv
             .mir(def_id.expect_local())
@@ -189,7 +200,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let dominators = body.dominators();
 
-        let mut ck = Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, mode);
+        let mut ck =
+            Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, mode, config);
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -472,6 +484,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                             *def_id,
                             self.mode,
                             fn_pred.to_poly_sig(*def_id),
+                            self.config,
                         )?;
                     } else {
                         todo!("report error")
@@ -753,7 +766,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 }
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2);
+                let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2, self.config.check_overflow);
                 let (e1, e2) = (idx1.expr.clone(), idx2.expr.clone());
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(

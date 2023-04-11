@@ -1,3 +1,4 @@
+use config::CrateConfig;
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
@@ -9,6 +10,7 @@ use flux_middle::{
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
+use refineck::CheckerConfig;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
@@ -90,7 +92,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         tracing::info!("Callbacks::check_wf");
 
-        let mut ck = CrateChecker::new(&mut genv, specs.ignores);
+        let mut ck = CrateChecker::new(&mut genv, specs.ignores, specs.crate_config);
 
         let crate_items = tcx.hir_crate_items(());
         let items = crate_items.items().map(|item| item.owner_id.def_id);
@@ -312,11 +314,18 @@ struct CrateChecker<'a, 'genv, 'tcx> {
     genv: &'a mut GlobalEnv<'genv, 'tcx>,
     ignores: Ignores,
     cache: QueryCache,
+    checker_config: CheckerConfig,
 }
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
-    fn new(genv: &'a mut GlobalEnv<'genv, 'tcx>, ignores: Ignores) -> Self {
-        CrateChecker { genv, ignores, cache: QueryCache::load() }
+    fn new(
+        genv: &'a mut GlobalEnv<'genv, 'tcx>,
+        ignores: Ignores,
+        crate_config: Option<CrateConfig>,
+    ) -> Self {
+        let crate_config = crate_config.unwrap_or_default();
+        let checker_config = CheckerConfig { check_overflow: crate_config.check_overflow };
+        CrateChecker { genv, ignores, cache: QueryCache::load(), checker_config }
     }
 
     /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
@@ -343,7 +352,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
 
         match self.genv.tcx.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                refineck::check_fn(self.genv, &mut self.cache, def_id)
+                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(self.genv.sess)?;

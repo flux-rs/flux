@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
@@ -649,7 +649,7 @@ impl FluxAttrKind {
 
 #[derive(Debug)]
 struct CFGSetting {
-    setting: String,
+    setting: Symbol,
     span: Span,
 }
 
@@ -659,23 +659,21 @@ struct FluxAttrCFG {
 }
 
 macro_rules! try_read_setting {
-    ($self:expr, $setting:literal, $type:ident, $default:expr) => {
-        if let Some(CFGSetting { setting, span }) = $self.map.remove($setting) {
+    ($self:expr, $setting:ident, $type:ident, $cfg:expr) => {
+        if let Some(CFGSetting { setting, span }) = $self.map.remove(stringify!($setting)) {
             let parse_result = setting.as_str().parse::<$type>();
-            if parse_result.is_err() {
-                Err(errors::CFGError {
+            if let Ok(val) = parse_result {
+                $cfg.$setting = val;
+            } else {
+                return Err(errors::CFGError {
                     span,
                     message: format!(
                         "incorrect type in value for setting `{}`, expected {}",
-                        $setting,
+                        stringify!($setting),
                         stringify!($type)
                     ),
-                })
-            } else {
-                Ok(parse_result.unwrap())
+                });
             }
-        } else {
-            Ok($default)
         }
     };
 }
@@ -717,14 +715,11 @@ impl FluxAttrCFG {
                     }
 
                     // TODO: support types of values other than strings
-                    let value = item
-                        .value_str()
-                        .map(Symbol::to_ident_string)
-                        .ok_or_else(|| {
-                            errors::CFGError { span, message: "unsupported value".to_string() }
-                        })?;
+                    let value = item.name_value_literal().ok_or_else(|| {
+                        errors::CFGError { span, message: "unsupported value".to_string() }
+                    })?;
 
-                    let setting = CFGSetting { setting: value, span: item.span };
+                    let setting = CFGSetting { setting: value.symbol, span: item.span };
                     self.map.insert(name, setting);
                     return Ok(());
                 }
@@ -740,11 +735,8 @@ impl FluxAttrCFG {
     }
 
     fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
-        let log_dir = try_read_setting!(self, "log_dir", PathBuf, config::log_dir().clone())?;
-        let dump_constraint =
-            try_read_setting!(self, "dump_constraint", bool, config::dump_constraint())?;
-        let dump_checker_trace =
-            try_read_setting!(self, "dump_checker_trace", bool, config::dump_checker_trace())?;
+        let mut crate_config = CrateConfig::default();
+        try_read_setting!(self, check_overflow, bool, crate_config);
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {
@@ -753,7 +745,7 @@ impl FluxAttrCFG {
             });
         }
 
-        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace })
+        Ok(crate_config)
     }
 }
 
