@@ -208,8 +208,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             // extern_spec dummy structs are always opaque because they contain
             // one field: the external struct they are meant to represent.
             opaque = true;
-            let extern_def_id = self.extract_extern_def_id_from_extern_spec_struct(def_id, data)?;
-            self.specs.externs.insert(extern_def_id, def_id);
+            let extern_def_id =
+                self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
+            self.specs.externs.insert(extern_def_id, owner_id.def_id);
         }
 
         self.specs.structs.insert(
