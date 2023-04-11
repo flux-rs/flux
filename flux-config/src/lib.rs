@@ -63,9 +63,7 @@ pub fn check_overflow() -> bool {
 
 #[derive(Debug)]
 pub struct CrateConfig {
-    pub log_dir: PathBuf,
-    pub dump_constraint: bool,
-    pub dump_checker_trace: bool,
+    pub check_overflow: bool,
 }
 
 #[derive(Deserialize)]
@@ -172,3 +170,9 @@ pub static CONFIG_FILE: LazyLock<Value> = LazyLock::new(|| {
         toml::from_str("").unwrap()
     }
 });
+
+impl Default for CrateConfig {
+    fn default() -> Self {
+        Self { check_overflow: check_overflow() }
+    }
+}

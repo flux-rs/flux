@@ -70,7 +70,7 @@ error[FLUX]: postcondition might not hold
   |     ^^^^^
 ```
 
-as indeed `x - 1` is *not* greater than `x` as required by the output refinement `i32{v: x < v}`.
+as indeed `x - 1` is _not_ greater than `x` as required by the output refinement `i32{v: x < v}`.
 
 If you fix the error by replacing `x - 1` with `x + 1`, you should get no errors
 in the output (the output may be empty, but in this case no output is a good
@@ -168,6 +168,19 @@ FLUX_DUMP_MIR=0 cargo-flux check
 then `flux` will create the directory `./test/` and write `./test/timings`, a file
 containing profiling information. It will _not_ dump the MIR because that setting
 was overridden by setting the environment variable `FLUX_DUMP_MIR=0`.
+
+### Crate Config
+
+Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux::cfg]`.
+This can only be used in nightly and requires enabling the feature `custom_inner_attributes`
+For example, to enable overflow checking:
+
+```rust
+#![feature(custom_inner_attributes)]
+#![flux:cfg(check_overflow = true)]
+```
+
+The only flag supported now is overflow checking.
 
 ### Query Caching
 

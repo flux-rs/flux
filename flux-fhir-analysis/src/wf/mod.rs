@@ -133,6 +133,8 @@ pub(crate) fn check_enum_def(
         .iter()
         .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &fhir::Sort::Bool))?;
 
+    // We are reusing the same `InferCtxt` which may contain some variables from the enum params.
+    // This is not a problem because parameters in the variants with the same name will overwrite them.
     enum_def
         .variants
         .iter()
