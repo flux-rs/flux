@@ -25,6 +25,14 @@ pub(super) static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| 
     table
 });
 
+pub(super) static UN_OPS: LazyLock<SigTable<mir::UnOp, 1>> = LazyLock::new(|| {
+    let mut table = SigTable::new();
+
+    table.extend(mk_un_ops());
+
+    table
+});
+
 /// This set of signatures does not check for overflow. They check for underflow
 /// in subtraction.
 #[rustfmt::skip]
@@ -140,4 +148,20 @@ pub(crate) fn mk_shift_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)> {
                 (Shr, s!(fn(a: Uint, b: Uint) -> Uint{ v: E::tt() })),
             ]
         })
+}
+
+#[rustfmt::skip]
+fn mk_un_ops() -> impl Iterator<Item = (mir::UnOp, Sig<1>)> {
+    use mir::UnOp::*;
+    let signed = INT_TYS
+        .into_iter()
+        .map(|int_ty| {
+            define_btys! { let Int = BaseTy::Int(int_ty); }
+            (Neg, s!(fn(a: Int) -> Int[a.neg()]))
+        });
+    let boolean = {
+        define_btys! { let bool = BaseTy::Bool; }
+        [(Not, s!(fn(a: bool) -> bool[a.not()]))]
+    };
+    itertools::chain!(signed, boolean)
 }

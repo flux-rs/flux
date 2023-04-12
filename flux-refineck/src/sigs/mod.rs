@@ -2,26 +2,25 @@ mod default;
 mod overflow;
 
 use flux_middle::{
-    rty::{BaseTy, Expr, IntTy, UintTy},
+    rty::{self, BaseTy, Expr, IntTy, UintTy},
     rustc::mir,
 };
 use rustc_hash::FxHashMap;
 
 use crate::constraint_gen::ConstrReason;
 
-pub struct Sig<const N: usize> {
+pub(crate) struct Sig<const N: usize> {
     pub args: [BaseTy; N],
     pub pre: Pre<N>,
     pub out: Output<N>,
 }
 
-pub enum Pre<const N: usize> {
+pub(crate) enum Pre<const N: usize> {
     None,
     Some(ConstrReason, Box<dyn Fn([Expr; N]) -> Expr + Sync + Send>),
 }
 
-#[derive(Clone)]
-pub enum Output<const N: usize> {
+pub(crate) enum Output<const N: usize> {
     Indexed(BaseTy, fn([Expr; N]) -> Expr),
     Exists(BaseTy, fn(Expr, [Expr; N]) -> Expr),
 }
@@ -30,7 +29,7 @@ struct SigTable<T, const N: usize> {
     map: FxHashMap<(T, [BaseTy; N]), Sig<N>>,
 }
 
-pub fn get_bin_op_sig(
+pub(crate) fn get_bin_op_sig(
     op: mir::BinOp,
     bty1: &BaseTy,
     bty2: &BaseTy,
@@ -38,6 +37,21 @@ pub fn get_bin_op_sig(
 ) -> &'static Sig<2> {
     let table = if check_overflow { &overflow::BIN_OPS } else { &default::BIN_OPS };
     table.get(op, [bty1.clone(), bty2.clone()])
+}
+
+pub(crate) fn get_un_op_sig(op: mir::UnOp, bty: &BaseTy, check_overflow: bool) -> &'static Sig<1> {
+    UN_OPS.get(op, [bty.clone()])
+}
+
+impl<const N: usize> Output<N> {
+    pub(crate) fn to_ty(&self, exprs: [Expr; N]) -> rty::Ty {
+        match self {
+            Output::Indexed(bty, mk) => rty::Ty::indexed(bty.clone(), mk(exprs)),
+            Output::Exists(bty, mk) => {
+                rty::Ty::exists_with_constr(bty.clone(), mk(Expr::nu(), exprs))
+            }
+        }
+    }
 }
 
 #[macro_export]
@@ -86,6 +100,7 @@ macro_rules! _sig {
     };
 }
 
+use self::default::UN_OPS;
 use crate::_sig as s;
 
 impl<T, const N: usize> SigTable<T, N> {
