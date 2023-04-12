@@ -40,7 +40,8 @@ pub(crate) fn get_bin_op_sig(
 }
 
 pub(crate) fn get_un_op_sig(op: mir::UnOp, bty: &BaseTy, check_overflow: bool) -> &'static Sig<1> {
-    UN_OPS.get(op, [bty.clone()])
+    let table = if check_overflow { &overflow::UN_OPS } else { &default::UN_OPS };
+    table.get(op, [bty.clone()])
 }
 
 impl<const N: usize> Output<N> {
@@ -99,8 +100,6 @@ macro_rules! _sig {
         $crate::sigs::Pre::Some($tag, Box::new(move |[$($args),+]| $pre))
     };
 }
-
-use self::default::UN_OPS;
 use crate::_sig as s;
 
 impl<T, const N: usize> SigTable<T, N> {

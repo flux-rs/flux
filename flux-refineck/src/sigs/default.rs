@@ -28,7 +28,8 @@ pub(super) static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| 
 pub(super) static UN_OPS: LazyLock<SigTable<mir::UnOp, 1>> = LazyLock::new(|| {
     let mut table = SigTable::new();
 
-    table.extend(mk_un_ops());
+    table.extend(mk_neg());
+    table.extend([mk_not()]);
 
     table
 });
@@ -151,17 +152,17 @@ pub(crate) fn mk_shift_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)> {
 }
 
 #[rustfmt::skip]
-fn mk_un_ops() -> impl Iterator<Item = (mir::UnOp, Sig<1>)> {
+fn mk_neg() -> impl Iterator<Item = (mir::UnOp, Sig<1>)> {
     use mir::UnOp::*;
-    let signed = INT_TYS
+    INT_TYS
         .into_iter()
         .map(|int_ty| {
             define_btys! { let Int = BaseTy::Int(int_ty); }
             (Neg, s!(fn(a: Int) -> Int[a.neg()]))
-        });
-    let boolean = {
-        define_btys! { let bool = BaseTy::Bool; }
-        [(Not, s!(fn(a: bool) -> bool[a.not()]))]
-    };
-    itertools::chain!(signed, boolean)
+        })
+}
+
+pub(crate) fn mk_not() -> (mir::UnOp, Sig<1>) {
+    define_btys! { let bool = BaseTy::Bool; }
+    (mir::UnOp::Not, s!(fn(a: bool) -> bool[a.not()]))
 }
