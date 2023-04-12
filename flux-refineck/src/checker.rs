@@ -776,14 +776,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     );
                 }
 
-                match sig.out.clone() {
-                    sigs::Output::Indexed(bty, mk) => Ok(Ty::indexed(bty, mk([e1, e2]))),
-                    sigs::Output::Exists(bty, mk) => {
-                        Ok(Ty::exists_with_constr(bty, mk(Expr::nu(), [e1, e2])))
-                    }
-                }
+                Ok(sig.out.to_ty([e1, e2]))
             }
-            _ => tracked_span_bug!("incompatible types: `{:?}` `{:?}`", ty1, ty2),
+            _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
         }
     }
 
@@ -796,23 +791,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         op: &Operand,
     ) -> Result<Ty, CheckerError> {
         let ty = self.check_operand(rcx, env, source_span, op)?;
-        let ty = match un_op {
-            mir::UnOp::Not => {
-                if let Bool!(idx) = ty.kind() {
-                    Ty::indexed(BaseTy::Bool, idx.expr.not())
-                } else {
-                    tracked_span_bug!("incompatible type: `{:?}`", ty)
+        match ty.kind() {
+            Float!(float_ty) => Ok(Ty::float(*float_ty)),
+            TyKind::Indexed(bty, idx) => {
+                let sig = sigs::get_un_op_sig(un_op, bty, self.config.check_overflow);
+                let e = idx.expr.clone();
+                if let sigs::Pre::Some(reason, constr) = &sig.pre {
+                    self.constr_gen(rcx, source_span)
+                        .check_pred(rcx, constr([e.clone()]), *reason);
                 }
+                Ok(sig.out.to_ty([e]))
             }
-            mir::UnOp::Neg => {
-                match ty.kind() {
-                    Int!(int_ty, idx) => Ty::indexed(BaseTy::Int(*int_ty), idx.expr.neg()),
-                    Float!(float_ty) => Ty::float(*float_ty),
-                    _ => tracked_span_bug!("incompatible type: `{:?}`", ty),
-                }
-            }
-        };
-        Ok(ty)
+            _ => tracked_span_bug!("invalid type for unary operator `{un_op:?}` `{ty:?}`"),
+        }
     }
 
     fn check_cast(

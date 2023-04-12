@@ -24,6 +24,15 @@ pub(super) static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| 
     table
 });
 
+pub(super) static UN_OPS: LazyLock<SigTable<mir::UnOp, 1>> = LazyLock::new(|| {
+    let mut table = SigTable::new();
+
+    table.extend(mk_neg());
+    table.extend([super::default::mk_not()]);
+
+    table
+});
+
 /// This set of signatures checks for overflow and underflow. They work in
 /// tandem with the invariant for unsigned ints returned in
 /// [`BaseTy::invariants`].
@@ -121,5 +130,18 @@ fn mk_signed_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Lt, s!(fn(a: Int, b: Int) -> bool[E::lt(a, b)])),
                 (Gt, s!(fn(a: Int, b: Int) -> bool[E::gt(a, b)])),
             ]
+        })
+}
+
+#[rustfmt::skip]
+fn mk_neg() -> impl Iterator<Item = (mir::UnOp, Sig<1>)> {
+    use mir::UnOp::*;
+    INT_TYS
+        .into_iter()
+        .map(|int_ty| {
+            define_btys! { let Int = BaseTy::Int(int_ty); }
+            let bit_width: u64 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits());
+            (Neg, s!(fn(a: Int) -> Int[a.neg()]
+                     requires E::ne(a, E::int_min(bit_width)) => ConstrReason::Overflow))
         })
 }
