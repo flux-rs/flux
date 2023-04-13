@@ -144,7 +144,7 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
 /// Example:
 ///
 /// ```ignore
-/// #[extern_spec(mod_path = alloc::vec)]
+/// #[extern_spec(std::vec)]
 /// #[flux::refined_by(n: int)]
 /// struct Vec<T>;
 ///
@@ -153,7 +153,7 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
 /// #[flux::extern_spec]
 /// #[allow(unused, dead_code)]
 /// #[flux::refined_by(n: int)]
-/// struct FluxExternStructVec(alloc::vec::Vec<T>);
+/// struct FluxExternStructVec<T>(std::vec::Vec<T>);
 /// ```
 fn create_dummy_struct(
     mod_path: Option<syn::Path>,
@@ -167,8 +167,14 @@ fn create_dummy_struct(
         let generics = item_struct.generics;
         dummy_struct.ident = format_ident!("FluxExternStruct{}", ident);
         dummy_struct.semi_token = None;
-        let dummy_field: syn::FieldsUnnamed = parse_quote_spanned! {item_struct_span =>
-            ( #mod_path :: #ident #generics )
+        let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
+            parse_quote_spanned! {item_struct_span =>
+                ( #mod_path :: #ident #generics )
+            }
+        } else {
+            parse_quote_spanned! {item_struct_span =>
+                ( #ident #generics )
+            }
         };
         dummy_struct.fields = syn::Fields::Unnamed(dummy_field);
         let dummy_struct_with_attrs: syn::ItemStruct = parse_quote_spanned! { item_struct_span =>
