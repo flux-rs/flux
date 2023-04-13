@@ -1,133 +1,140 @@
 #![feature(proc_macro_diagnostic)]
 
-use proc_macro2::{Ident, TokenStream, TokenTree};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote_spanned, ToTokens};
 use syn::{
-    parse::{Parse, ParseStream},
-    parse_quote_spanned,
-    punctuated::Punctuated,
-    spanned::Spanned,
-    Expr, FnArg, GenericArgument, GenericParam, Token,
+    parse_quote_spanned, punctuated::Punctuated, spanned::Spanned, Expr, FnArg, GenericArgument,
+    GenericParam, Token,
 };
-
-/// Attributes on an extern spec.
-///
-/// Example:
-///
-/// ```ignore
-/// #[extern_spec(mod_path = std::vec, generics = <T>)]
-/// struct Vec<T>;
-/// ```
-#[derive(Default)]
-struct ExternSpecAttrs {
-    /// The path prefix of the extern spec.
-    ///
-    /// In the example, the mod_path is `std::vec` and the `Vec` gets expanded
-    /// to `std::vec::Vec`.
-    mod_path: Option<syn::Path>,
-    /// Any generics that the extern spec takes. A module path has to be
-    /// specified to take generics - an empty module path or `::` should suffice
-    /// if one is not necessary.
-    ///
-    /// In the example, the sole generic is the variable `T`. The dummy struct that
-    /// gets expanded has `T` as an argument on it. Without this generic,
-    /// we would get a compile error because the dummy struct would look like
-    ///
-    /// ```ignore
-    /// struct FluxExternStructVec(Vec<T>);
-    /// ```
-    ///
-    /// and the `T` would not be in scope.
-    generics: Option<syn::Generics>,
-}
-
-enum ExternSpecAttr {
-    ModPath(syn::Path),
-    Generics(syn::Generics),
-}
-
-impl Parse for ExternSpecAttr {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        // Extract an ident, erroring if there isn't one.
-        let ident: Ident = input.step(|cursor| {
-            if let Some((tt, next)) = cursor.token_tree() {
-                match tt {
-                    TokenTree::Ident(ident) => {
-                        Ok((ident, next))
-                    }
-                    _ => {
-                        Err(cursor.error(format!("Bad token {}: expecting an extern spec identifier (mod_path or generics)", tt)))
-                    }
-                }
-            } else {
-                Err(cursor.error("Empty stream: expecting an extern spec attribute, ex: mod_path = mod::path::def or generics = < Generics, List >"))
-            }
-        })?;
-        let _equals_token: Token![=] = input.parse()?;
-        match &ident.to_string()[..] {
-            "mod_path" => input.parse().map(Self::ModPath),
-            "generics" => input.parse().map(Self::Generics),
-            _ => {
-                Err(input
-                    .error(format!("Unexpected ident {}, expecting mod_path or generics", ident)))
-            }
-        }
-    }
-}
-
-impl Parse for ExternSpecAttrs {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let punctuated_attrs: Punctuated<ExternSpecAttr, Token![,]> =
-            input.parse_terminated(ExternSpecAttr::parse)?;
-        let mut attrs = ExternSpecAttrs::default();
-        for attr in punctuated_attrs {
-            match attr {
-                ExternSpecAttr::ModPath(mod_path) => {
-                    if attrs.mod_path.is_some() {
-                        return Err(
-                            input.error("Invalid extern_spec: duplicate mod_path attribute")
-                        );
-                    }
-                    attrs.mod_path = Some(mod_path);
-                }
-                ExternSpecAttr::Generics(generics) => {
-                    if attrs.generics.is_some() {
-                        return Err(
-                            input.error("Invalid extern_spec: duplicate generics attribute")
-                        );
-                    }
-                    attrs.generics = Some(generics);
-                }
-            }
-        }
-        Ok(attrs)
-    }
-}
 
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
 }
 
 fn transform_extern_spec(attr: TokenStream, tokens: TokenStream) -> syn::Result<TokenStream> {
-    let extern_spec_attrs: ExternSpecAttrs = syn::parse2(attr)?;
+    // let extern_spec_attrs: ExternSpecAttrs = syn::parse2(attr)?;
+    let mod_path: Option<syn::Path> =
+        if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     let span = tokens.span();
     match syn::parse2::<syn::Item>(tokens) {
-        // TODO: impls
-        Ok(syn::Item::Impl(_item_impl)) => {
-            unimplemented!()
-        }
-        Ok(syn::Item::Struct(item_struct)) => create_dummy_struct(extern_spec_attrs, item_struct),
+        Ok(syn::Item::Struct(item_struct)) => create_dummy_struct(mod_path, item_struct),
         // Function stubs end up as Verbatim
         Ok(syn::Item::Verbatim(tokens)) => {
             let (sig, attrs) = extract_sig_from_stub(tokens)?;
-            create_dummy_fn(extern_spec_attrs, sig, attrs)
+            create_dummy_fn(mod_path, None, sig, attrs)
+        }
+        Ok(syn::Item::Impl(item_impl)) => {
+            let self_ty_span = item_impl.self_ty.as_ref().span();
+            let mod_path_clone = mod_path.clone();
+            // This field corresponds to the Self type. Reading the mod_path
+            // from the extern_spec attr is probably not strictly necessary, but
+            // we do it so our behavior is consistent.
+            let self_ty = item_impl.self_ty.as_ref();
+            let struct_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
+                parse_quote_spanned! { self_ty_span => ( #mod_path :: #self_ty ) }
+            } else {
+                parse_quote_spanned! { self_ty_span => ( #self_ty ) }
+            };
+            // The name of this struct is mangled to ensure that it doesn't
+            // conflict with an actual impl. Same with the name of the type.
+            let dummy_ident = create_dummy_ident(&mut "FluxExternImplStruct".to_string(), item_impl.self_ty.as_ref())?;
+            let mut dummy_self_ty_path = syn::TypePath {
+                qself: None,
+                path: syn::Path {
+                    leading_colon: None,
+                    segments: Punctuated::new(),
+                }
+            };
+            let generics_span = item_impl.generics.span();
+            let generics = item_impl.generics.clone();
+            let generic_arguments: syn::AngleBracketedGenericArguments = parse_quote_spanned! { generics_span => #generics };
+            dummy_self_ty_path.path.segments.push(syn::PathSegment {
+                ident: dummy_ident.clone(),
+                arguments: syn::PathArguments::AngleBracketed(generic_arguments),
+            });
+            let dummy_self_ty = syn::Type::Path(dummy_self_ty_path);
+            let mut dummy_impl = item_impl.clone();
+            let item_impl_span = item_impl.span();
+            let item_struct = syn::ItemStruct {
+                attrs: item_impl.attrs,
+                vis: syn::Visibility::Inherited,
+                struct_token: syn::token::Struct { span: item_impl.impl_token.span },
+                ident: dummy_ident,
+                generics: item_impl.generics.clone(),
+                fields: syn::Fields::Unnamed(struct_field),
+                semi_token: Some(syn::token::Semi { spans: [item_impl_span] }),
+            };
+            dummy_impl.self_ty = Box::new(dummy_self_ty);
+            dummy_impl.items = item_impl.items.into_iter().map(|impl_item| {
+                match impl_item {
+                    // For whatever reason, syn parses function stubs correctly
+                    // by assuming that the semicolon at their end is wrapped in
+                    // braces (functions require a brace-delimited list of Items
+                    // inside of them, the semicolon gets converted to a
+                    // Verbatim).
+                    //
+                    // This does however mean that we will silently discard the
+                    // contents of any "implementation" of an extern function.
+                    syn::ImplItem::Method(impl_item_method) => {
+                        let span = impl_item_method.span();
+                        let dummy_fn_tokens = create_dummy_fn(mod_path_clone.clone(), Some(self_ty.clone()), impl_item_method.sig, impl_item_method.attrs)?;
+                        Ok(parse_quote_spanned! { span => #dummy_fn_tokens })
+                    }
+                    _ => {
+                        Err(syn::Error::new(
+                            impl_item.span(),
+                            format!("Invalid extern_spec: invalid impl item: {:?}\n extern impls may only contain function stubs such as fn len(v: &Vec<T>) -> usize;", impl_item)
+                        ))
+                    }
+                }
+            }).collect::<syn::Result<Vec<syn::ImplItem>>>()?;
+            Ok(TokenStream::from_iter([item_struct.to_token_stream(), dummy_impl.to_token_stream()].into_iter()))
         }
         Ok(_) => Err(syn::Error::new(
             span,
-            "Invalid extern_spec: the only items which are supported are impls and function stubs",
+            "Invalid extern_spec: the only items which are supported are structs, impls, and function stubs",
         )),
         Err(_) => {
             Err(syn::Error::new(span, "Invalid extern_spec: could not parse associated item"))
+        }
+    }
+}
+
+fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<syn::Ident> {
+    use syn::Type::*;
+    match ty {
+        Reference(ty_ref) => {
+            if ty_ref.mutability.is_some() {
+                dummy_prefix.push_str("Mut");
+            };
+            dummy_prefix.push_str("Ref");
+            create_dummy_ident(dummy_prefix, ty_ref.elem.as_ref())
+        }
+        Slice(ty_slice) => {
+            dummy_prefix.push_str("Slice");
+            create_dummy_ident(dummy_prefix, ty_slice.elem.as_ref())
+        }
+        // For paths, we mangle the last identifier
+        Path(ty_path) => {
+            if let Some(path_segment) = ty_path.path.segments.last() {
+                // Mangle the identifier using the dummy_prefix
+                let ident = syn::Ident::new(
+                    &format!("{}{}", dummy_prefix, path_segment.ident),
+                    path_segment.ident.span(),
+                );
+                Ok(ident)
+            } else {
+                Err(syn::Error::new(
+                    ty_path.path.span(),
+                    format!("Invalid extern_spec: empty TypePath {:?}", ty_path.path),
+                ))
+            }
+        }
+        _ => {
+            Err(syn::Error::new(
+                ty.span(),
+                format!("Invalid extern_spec: unsupported type {:?}", ty),
+            ))
         }
     }
 }
@@ -149,7 +156,7 @@ fn transform_extern_spec(attr: TokenStream, tokens: TokenStream) -> syn::Result<
 /// struct FluxExternStructVec(alloc::vec::Vec<T>);
 /// ```
 fn create_dummy_struct(
-    attrs: ExternSpecAttrs,
+    mod_path: Option<syn::Path>,
     item_struct: syn::ItemStruct,
 ) -> syn::Result<TokenStream> {
     let item_struct_span = item_struct.span();
@@ -160,18 +167,10 @@ fn create_dummy_struct(
         let generics = item_struct.generics;
         dummy_struct.ident = format_ident!("FluxExternStruct{}", ident);
         dummy_struct.semi_token = None;
-        let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = attrs.mod_path {
-            parse_quote_spanned! {item_struct_span =>
-                ( #mod_path :: #ident #generics )
-            }
-        } else {
-            parse_quote_spanned! {item_struct_span =>
-                ( #ident #generics )
-            }
+        let dummy_field: syn::FieldsUnnamed = parse_quote_spanned! {item_struct_span =>
+            ( #mod_path :: #ident #generics )
         };
         dummy_struct.fields = syn::Fields::Unnamed(dummy_field);
-        dummy_struct.generics =
-            if let Some(generics) = attrs.generics { generics } else { syn::Generics::default() };
         let dummy_struct_with_attrs: syn::ItemStruct = parse_quote_spanned! { item_struct_span =>
             #[flux::extern_spec]
             #[allow(unused, dead_code)]
@@ -235,7 +234,8 @@ fn extract_sig_from_stub(
 ///    so that flux knows this is the generated dummy function for the external function
 ///    that is being called.
 fn create_dummy_fn(
-    extern_spec_attrs: ExternSpecAttrs,
+    mod_path: Option<syn::Path>,
+    self_ty: Option<syn::Type>,
     sig: syn::Signature,
     attrs: Vec<syn::Attribute>,
 ) -> syn::Result<TokenStream> {
@@ -243,15 +243,18 @@ fn create_dummy_fn(
     let mut mangled_sig = sig.clone();
     let ident = sig.ident;
     mangled_sig.ident = format_ident!("flux_extern_spec_{}", ident);
-    if let Some(generics) = extern_spec_attrs.generics {
-        mangled_sig.generics.params.extend(generics.params);
-    }
     let generic_call_args = transform_generic_params_to_call_args(sig.generics.params);
     let call_args = transform_params_to_call_args(sig.inputs);
-    let fn_path: syn::Path = if let Some(mod_path) = extern_spec_attrs.mod_path {
-        parse_quote_spanned!( ident.span() => #mod_path :: #ident)
-    } else {
-        parse_quote_spanned!( ident.span() => #ident )
+    let fn_path: syn::TypePath = match (mod_path, self_ty) {
+        // I'm sure there's a more clever way to deal with the :: between
+        // mod_path and ident, but let's just be explicit so that we get it
+        // right.
+        (None, None) => parse_quote_spanned!( ident.span() => #ident ),
+        (Some(mod_path), None) => parse_quote_spanned!( ident.span() => #mod_path :: #ident ),
+        (None, Some(self_ty)) => parse_quote_spanned!( ident.span() => < #self_ty > :: #ident ),
+        (Some(mod_path), Some(self_ty)) => {
+            parse_quote_spanned!( ident.span() => < #mod_path :: #self_ty > :: #ident )
+        }
     };
     Ok(quote_spanned! { span =>
                         #[flux::extern_spec]

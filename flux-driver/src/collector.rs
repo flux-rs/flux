@@ -395,8 +395,24 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
     ) -> Result<DefId, ErrorGuaranteed> {
         use rustc_hir::{def, ExprKind, Node};
+        // Regular functions
         if let Node::Item(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
             && let ItemKind::Fn(_, _, body_id) = &i.kind
+            && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
+            && let ExprKind::Block(b, _) = e.kind
+            && let Some(e) = b.expr
+            && let ExprKind::Call(callee, _) = &e.kind
+            && let ExprKind::Path(qself) = &callee.kind
+        {
+                let typeck_result = self.tcx.typeck(def_id);
+                if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
+                {
+                    return Ok(def_id);
+                }
+        }
+        // impl functions
+        if let Node::ImplItem(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
+            && let ImplItemKind::Fn(_, body_id) = &i.kind
             && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
             && let ExprKind::Block(b, _) = e.kind
             && let Some(e) = b.expr
