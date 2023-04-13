@@ -11,7 +11,12 @@ pub(crate) mod normalize;
 pub mod refining;
 pub mod subst;
 
-use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
+use std::{
+    fmt,
+    hash::Hash,
+    iter, slice,
+    sync::{LazyLock, RwLock},
+};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{DebruijnIndex, Expr, ExprKind, KVar, KVid, Loc, Name, Path, Var, INNERMOST};
@@ -19,6 +24,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::Mutability;
@@ -920,7 +926,7 @@ impl BaseTy {
         }
     }
 
-    pub fn invariants(&self) -> &[Invariant] {
+    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
         static GE0: LazyLock<Invariant> = LazyLock::new(|| {
             Invariant {
                 pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
@@ -988,6 +994,38 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
     } else {
         bug!("invalid generic arguments for box");
     }
+}
+
+// define a static cache with a hash map
+fn uint_invariants_default(uint_ty: UintTy) -> &'static [Invariant] {
+    static CACHE: RwLock<FxHashMap<UintTy, Vec<Invariant>>> = RwLock::new(FxHashMap::default());
+
+    todo!()
+    // LazyLock::new(|| {
+    //     let mut map = FxHashMap::default();
+    //     map.insert(
+    //         UintTy::Usize,
+    //         vec![Invariant {
+    //             pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
+    //         }],
+    //     );
+    //     map
+    // });
+
+    // let mut cache = CACHE.lock();
+    // cache.entry(uint_ty).or_insert_with(|| {
+    //     let mut invariants = vec![];
+    //     let bit_width: u64 = uint_ty
+    //         .bit_width()
+    //         .unwrap_or(flux_config::pointer_width().bits());
+    //     invariants.push(Invariant {
+    //         pred: Binder::new(
+    //             Expr::binary_op(BinOp::Le, Expr::nu(), Expr::uint_max(bit_width)),
+    //             Sort::Int,
+    //         ),
+    //     });
+    //     invariants
+    // })
 }
 
 impl_internable!(
