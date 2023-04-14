@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use flux_middle::{
-    rty::{BaseTy, BinOp, Expr},
+    rty::{BaseTy, BinOp, Expr, INT_TYS, UINT_TYS},
     rustc::mir,
 };
 use itertools::iproduct;
@@ -9,7 +9,7 @@ use itertools::iproduct;
 use super::{Sig, SigTable};
 use crate::{
     constraint_gen::ConstrReason,
-    sigs::{define_btys, s, INT_TYS, UINT_TYS},
+    sigs::{define_btys, s},
 };
 
 type E = Expr;

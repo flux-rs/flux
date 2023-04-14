@@ -66,6 +66,7 @@ pub(crate) trait Mode: Sized {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
+        checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
@@ -196,7 +197,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let fn_sig = fn_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
 
-        let env = Self::init(&mut rcx, &body, &fn_sig);
+        let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
         let dominators = body.dominators();
 
@@ -221,7 +222,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig) -> TypeEnv {
+    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig, config: CheckerConfig) -> TypeEnv {
         let mut env = TypeEnv::new();
 
         for constr in fn_sig.requires() {
@@ -239,7 +240,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
             let ty = rcx.unpack(ty);
-            rcx.assume_invariants(&ty);
+            rcx.assume_invariants(&ty, config.check_overflow);
             env.alloc_with_ty(local, ty);
         }
 
@@ -300,8 +301,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 // println!("TRACE: check_statement {stmt:?}");
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
+                let checker_config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.write_place(rcx, gen, place, ty)
+                env.write_place(rcx, gen, place, ty, checker_config)
                     .with_src_info(stmt.source_info)?;
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -350,7 +352,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 self.mode
-                    .constr_gen(self.genv, rcx, span)
+                    .constr_gen(self.genv, rcx, self.config, span)
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 Ok(vec![])
@@ -401,9 +403,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 )?;
 
                 let ret = rcx.unpack(&ret);
-                rcx.assume_invariants(&ret);
+                rcx.assume_invariants(&ret, self.config.check_overflow);
+                let config = self.config;
                 let mut gen = self.constr_gen(rcx, terminator_span);
-                env.write_place(rcx, &mut gen, destination, ret)
+                env.write_place(rcx, &mut gen, destination, ret, config)
                     .with_span(terminator_span)?;
 
                 if let Some(target) = target {
@@ -419,8 +422,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
+                let config = self.config;
                 let mut gen = self.constr_gen(rcx, terminator_span);
-                let _ = env.move_place(rcx, &mut gen, place);
+                let _ = env.move_place(rcx, &mut gen, place, config);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -599,7 +603,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     rcx.assume_pred(expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(self.genv, &mut rcx, &place, variant_idx)
+                    env.downcast(self.genv, &mut rcx, &place, variant_idx, self.config)
                         .with_span(terminator_span)?;
                 }
             }
@@ -617,7 +621,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
             self.mode
-                .constr_gen(self.genv, &rcx, source_span)
+                .constr_gen(self.genv, &rcx, self.config, source_span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(source_span)
         } else if self.body.is_join_point(target) {
@@ -649,13 +653,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
             Rvalue::MutRef(place) => {
+                let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, RefKind::Mut, place)
+                env.borrow(rcx, gen, RefKind::Mut, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::ShrRef(place) => {
+                let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, RefKind::Shr, place)
+                env.borrow(rcx, gen, RefKind::Shr, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -698,8 +704,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 }
             }
             Rvalue::Discriminant(place) => {
+                let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                let ty = env.lookup_place(rcx, gen, place).with_span(stmt_span)?;
+                let ty = env
+                    .lookup_place(rcx, gen, place, config)
+                    .with_span(stmt_span)?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
             }
@@ -718,8 +727,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         source_span: Span,
         place: &Place,
     ) -> Result<Ty, CheckerError> {
+        let config = self.config;
         let gen = &mut self.constr_gen(rcx, source_span);
-        let ty = env.lookup_place(rcx, gen, place).with_span(source_span)?;
+        let ty = env
+            .lookup_place(rcx, gen, place, config)
+            .with_span(source_span)?;
 
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => {
@@ -867,13 +879,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
+                let config = self.config;
                 let gen = &mut self.constr_gen(rcx, source_span);
-                env.lookup_place(rcx, gen, p).with_span(source_span)?
+                env.lookup_place(rcx, gen, p, config)
+                    .with_span(source_span)?
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
+                let config = self.config;
                 let gen = &mut self.constr_gen(rcx, source_span);
-                env.move_place(rcx, gen, p).with_span(source_span)?
+                env.move_place(rcx, gen, p, config).with_span(source_span)?
             }
             Operand::Constant(c) => Self::check_constant(c),
         };
@@ -902,7 +917,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.mode.constr_gen(self.genv, rcx, span)
+        self.mode.constr_gen(self.genv, rcx, self.config, span)
     }
 
     #[track_caller]
@@ -979,9 +994,10 @@ impl Mode for ShapeMode {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         _rcx: &RefineCtxt,
+        checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), span)
+        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), checker_config, span)
     }
 
     fn enter_basic_block(
@@ -1005,13 +1021,14 @@ impl Mode for ShapeMode {
         let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
-        let mut gen = ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), terminator_span);
+        let mut gen =
+            ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), ck.config, terminator_span);
 
         let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => {
                 entry
                     .get_mut()
-                    .join(&mut rcx, &mut gen, env)
+                    .join(&mut rcx, &mut gen, env, ck.config)
                     .with_span(terminator_span)?
             }
             Entry::Vacant(entry) => {
@@ -1043,12 +1060,14 @@ impl Mode for RefineMode {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
+        checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
         ConstrGen::new(
             genv,
             move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            checker_config,
             span,
         )
     }
@@ -1080,9 +1099,10 @@ impl Mode for RefineMode {
                     .kvars
                     .fresh_bound(sorts, bb_env.scope().iter(), encoding)
             },
+            ck.config,
             terminator_span,
         );
-        env.check_goto(&mut rcx, gen, bb_env, target)
+        env.check_goto(&mut rcx, gen, bb_env, target, ck.config)
             .with_span(terminator_span)?;
 
         Ok(!ck.visited.contains(target))

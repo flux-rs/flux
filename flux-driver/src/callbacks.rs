@@ -362,6 +362,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     &mut self.cache,
                     &enum_def.invariants,
                     &adt_def,
+                    self.checker_config,
                 )
             }
             DefKind::Struct => {
@@ -375,6 +376,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     &mut self.cache,
                     &struct_def.invariants,
                     &adt_def,
+                    self.checker_config,
                 )
             }
             _ => Ok(()),

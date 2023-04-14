@@ -19,6 +19,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::Mutability;
@@ -118,6 +119,11 @@ pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
 }
+
+pub static INT_TYS: [IntTy; 6] =
+    [IntTy::Isize, IntTy::I8, IntTy::I16, IntTy::I32, IntTy::I64, IntTy::I128];
+pub static UINT_TYS: [UintTy; 6] =
+    [UintTy::Usize, UintTy::U8, UintTy::U16, UintTy::U32, UintTy::U64, UintTy::U128];
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
@@ -920,18 +926,12 @@ impl BaseTy {
         }
     }
 
-    pub fn invariants(&self) -> &[Invariant] {
-        static GE0: LazyLock<Invariant> = LazyLock::new(|| {
-            Invariant {
-                pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
-            }
-        });
-
+    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
         match self {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
-            BaseTy::Uint(_) => std::slice::from_ref(&GE0),
-            BaseTy::Int(_)
-            | BaseTy::Bool
+            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
+            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
+            BaseTy::Bool
             | BaseTy::Str
             | BaseTy::Float(_)
             | BaseTy::Slice(_)
@@ -987,6 +987,74 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
         (boxed, alloc)
     } else {
         bug!("invalid generic arguments for box");
+    }
+}
+
+fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
+    static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
+        [Invariant {
+            pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
+        }]
+    });
+
+    static OVERFLOW: LazyLock<FxHashMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
+        UINT_TYS
+            .into_iter()
+            .map(|uint_ty| {
+                let invariants = [
+                    Invariant {
+                        pred: Binder::new(
+                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
+                            Sort::Int,
+                        ),
+                    },
+                    Invariant {
+                        pred: Binder::new(
+                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty)),
+                            Sort::Int,
+                        ),
+                    },
+                ];
+                (uint_ty, invariants)
+            })
+            .collect()
+    });
+    if overflow_checking {
+        &OVERFLOW[&uint_ty]
+    } else {
+        &*DEFAULT
+    }
+}
+
+fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant] {
+    static DEFAULT: [Invariant; 0] = [];
+
+    static OVERFLOW: LazyLock<FxHashMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
+        INT_TYS
+            .into_iter()
+            .map(|int_ty| {
+                let invariants = [
+                    Invariant {
+                        pred: Binder::new(
+                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty)),
+                            Sort::Int,
+                        ),
+                    },
+                    Invariant {
+                        pred: Binder::new(
+                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty)),
+                            Sort::Int,
+                        ),
+                    },
+                ];
+                (int_ty, invariants)
+            })
+            .collect()
+    });
+    if overflow_checking {
+        &OVERFLOW[&int_ty]
+    } else {
+        &DEFAULT
     }
 }
 
