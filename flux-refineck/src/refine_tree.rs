@@ -276,7 +276,7 @@ impl RefineCtxt<'_> {
         self.unpack_with(ty, UnpackFlags::empty())
     }
 
-    pub(crate) fn assume_invariants(&mut self, ty: &Ty) {
+    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
         struct Visitor<'a, 'rcx> {
             rcx: &'a mut RefineCtxt<'rcx>,
             overflow_checking: bool,
@@ -305,7 +305,7 @@ impl RefineCtxt<'_> {
                 }
             }
         }
-        ty.visit_with(&mut Visitor { rcx: self, overflow_checking: true });
+        ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
     }
 
     pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {

@@ -2,7 +2,7 @@ mod default;
 mod overflow;
 
 use flux_middle::{
-    rty::{self, BaseTy, Expr, IntTy, UintTy},
+    rty::{self, BaseTy, Expr},
     rustc::mir,
 };
 use rustc_hash::FxHashMap;
@@ -123,8 +123,3 @@ where
         &self.map[&(op, btys)]
     }
 }
-
-static INT_TYS: [IntTy; 6] =
-    [IntTy::Isize, IntTy::I8, IntTy::I16, IntTy::I32, IntTy::I64, IntTy::I128];
-static UINT_TYS: [UintTy; 6] =
-    [UintTy::Usize, UintTy::U8, UintTy::U16, UintTy::U32, UintTy::U64, UintTy::U128];

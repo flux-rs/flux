@@ -1,14 +1,14 @@
 use std::sync::LazyLock;
 
 use flux_middle::{
-    rty::{BaseTy, BinOp, Expr},
+    rty::{BaseTy, BinOp, Expr, INT_TYS, UINT_TYS},
     rustc::mir,
 };
 
 use super::{Sig, SigTable};
 use crate::{
     constraint_gen::ConstrReason,
-    sigs::{define_btys, s, INT_TYS, UINT_TYS},
+    sigs::{define_btys, s},
 };
 
 type E = Expr;
@@ -48,14 +48,13 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 let bool = BaseTy::Bool;
                 let Uint = BaseTy::Uint(uint_ty);
             }
-            let bit_width: u64 = uint_ty.bit_width().unwrap_or(flux_config::pointer_width().bits());
             [
                 // ARITH
                 (Add, s!(fn(a: Uint, b: Uint) -> Uint[a + b]
-                         requires E::le(a + b, E::uint_max(bit_width)) => ConstrReason::Overflow)
+                         requires E::le(a + b, E::uint_max(uint_ty)) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Uint, b: Uint) -> Uint[a * b]
-                         requires E::le(a * b, E::uint_max(bit_width)) => ConstrReason::Overflow)
+                         requires E::le(a * b, E::uint_max(uint_ty)) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Uint, b: Uint) -> Uint[a - b]
                          requires E::ge(a - b, 0) => ConstrReason::Overflow)
@@ -90,25 +89,24 @@ fn mk_signed_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 let bool = BaseTy::Bool;
                 let Int = BaseTy::Int(int_ty);
             }
-            let bit_width: u64 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits());
             [
                 // ARITH
                 (Add, s!(fn(a: Int, b: Int) -> Int[a + b]
                             requires E::and([
-                                         E::le(&a + &b, E::int_max(bit_width)),
-                                         E::ge(a + b, E::int_min(bit_width))
+                                         E::le(&a + &b, E::int_max(int_ty)),
+                                         E::ge(a + b, E::int_min(int_ty))
                                      ]) => ConstrReason::Overflow)
                 ),
                 (Sub, s!(fn(a: Int, b: Int) -> Int[a - b]
                             requires E::and([
-                                         E::le(&a - &b, E::int_max(bit_width)),
-                                         E::ge(a - b, E::int_min(bit_width))
+                                         E::le(&a - &b, E::int_max(int_ty)),
+                                         E::ge(a - b, E::int_min(int_ty))
                                      ]) => ConstrReason::Overflow)
                 ),
                 (Mul, s!(fn(a: Int, b: Int) -> Int[a * b]
                             requires E::and([
-                                         E::le(&a - &b, E::int_max(bit_width)),
-                                         E::ge(a - b, E::int_min(bit_width))
+                                         E::le(&a - &b, E::int_max(int_ty)),
+                                         E::ge(a - b, E::int_min(int_ty))
                                      ]) => ConstrReason::Overflow)
                 ),
                 (Div, s!(fn(a: Int, b: Int) -> Int[a / b]
@@ -140,8 +138,7 @@ fn mk_neg() -> impl Iterator<Item = (mir::UnOp, Sig<1>)> {
         .into_iter()
         .map(|int_ty| {
             define_btys! { let Int = BaseTy::Int(int_ty); }
-            let bit_width: u64 = int_ty.bit_width().unwrap_or(flux_config::pointer_width().bits());
             (Neg, s!(fn(a: Int) -> Int[a.neg()]
-                     requires E::ne(a, E::int_min(bit_width)) => ConstrReason::Overflow))
+                     requires E::ne(a, E::int_min(int_ty)) => ConstrReason::Overflow))
         })
 }
