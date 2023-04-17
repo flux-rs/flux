@@ -25,7 +25,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_quals: FxHashMap<DefId, FxHashSet<Symbol>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     queries: Queries<'tcx>,
-    extern_fns: FxHashMap<DefId, DefId>,
+    extern_specs: FxHashMap<DefId, DefId>,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
@@ -39,9 +39,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let names = names.iter().map(|ident| ident.name).collect();
             fn_quals.insert(def_id.to_def_id(), names);
         }
-        let extern_fns = early_cx
+        let externs = early_cx
             .map
-            .extern_fns()
+            .externs()
             .iter()
             .map(|(extern_def_id, local_def_id)| (*extern_def_id, local_def_id.to_def_id()))
             .collect();
@@ -52,7 +52,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             func_decls,
             fn_quals,
             queries: Queries::new(providers),
-            extern_fns,
+            extern_specs: externs,
         }
     }
 
@@ -209,7 +209,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.hir()
     }
 
-    pub fn lookup_extern_fn(&self, def_id: &DefId) -> Option<&DefId> {
-        self.extern_fns.get(def_id)
+    pub fn lookup_extern(&self, def_id: &DefId) -> Option<&DefId> {
+        self.extern_specs.get(def_id)
     }
 }
