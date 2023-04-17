@@ -93,14 +93,22 @@ fn create_dummy_impl(
         qself: None,
         path: syn::Path { leading_colon: None, segments: Punctuated::new() },
     };
-    let generics_span = item_impl.generics.span();
-    let generics = item_impl.generics.clone();
-    let generic_arguments: syn::AngleBracketedGenericArguments =
-        parse_quote_spanned! { generics_span => #generics };
-    dummy_self_ty_path.path.segments.push(syn::PathSegment {
-        ident: dummy_ident.clone(),
-        arguments: syn::PathArguments::AngleBracketed(generic_arguments),
-    });
+    // Copy the generics onto the dummy self type
+    if !item_impl.generics.params.is_empty() {
+        let generics_span = item_impl.generics.span();
+        let generics = item_impl.generics.clone();
+        let generic_arguments: syn::AngleBracketedGenericArguments =
+            parse_quote_spanned! { generics_span => #generics };
+        dummy_self_ty_path.path.segments.push(syn::PathSegment {
+            ident: dummy_ident.clone(),
+            arguments: syn::PathArguments::AngleBracketed(generic_arguments),
+        });
+    } else {
+        dummy_self_ty_path.path.segments.push(syn::PathSegment {
+            ident: dummy_ident.clone(),
+            arguments: syn::PathArguments::None,
+        });
+    }
     let dummy_self_ty = syn::Type::Path(dummy_self_ty_path);
     let mut dummy_impl = item_impl.clone();
     let item_impl_span = item_impl.span();
@@ -133,6 +141,8 @@ fn create_dummy_impl(
                 let dummy_fn_tokens = create_dummy_fn(mod_path_clone.clone(), Some(self_ty.clone()), impl_item_method.sig, impl_item_method.attrs)?;
                 Ok(parse_quote_spanned! { span => #dummy_fn_tokens })
             }
+            // Both of these should be OK
+            syn::ImplItem::Type(_) | syn::ImplItem::Const(_) => Ok(impl_item),
             _ => {
                 Err(syn::Error::new(
                     impl_item.span(),
@@ -160,28 +170,30 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
             dummy_prefix.push_str("Slice");
             create_dummy_ident(dummy_prefix, ty_slice.elem.as_ref())
         }
-        // For paths, we mangle the last identifier
-        Path(ty_path) => {
-            if let Some(path_segment) = ty_path.path.segments.last() {
-                // Mangle the identifier using the dummy_prefix
-                let ident = syn::Ident::new(
-                    &format!("{}{}", dummy_prefix, path_segment.ident),
-                    path_segment.ident.span(),
-                );
-                Ok(ident)
-            } else {
-                Err(syn::Error::new(
-                    ty_path.path.span(),
-                    format!("Invalid extern_spec: empty TypePath {:?}", ty_path.path),
-                ))
-            }
-        }
+        Path(ty_path) => create_dummy_ident_from_path(dummy_prefix, &ty_path.path),
         _ => {
             Err(syn::Error::new(
                 ty.span(),
                 format!("Invalid extern_spec: unsupported type {:?}", ty),
             ))
         }
+    }
+}
+
+fn create_dummy_ident_from_path(
+    dummy_prefix: &mut String,
+    path: &syn::Path,
+) -> syn::Result<syn::Ident> {
+    // For paths, we mangle the last identifier
+    if let Some(path_segment) = path.segments.last() {
+        // Mangle the identifier using the dummy_prefix
+        let ident = syn::Ident::new(
+            &format!("{}{}", dummy_prefix, path_segment.ident),
+            path_segment.ident.span(),
+        );
+        Ok(ident)
+    } else {
+        Err(syn::Error::new(path.span(), format!("Invalid extern_spec: empty Path {:?}", path)))
     }
 }
 
