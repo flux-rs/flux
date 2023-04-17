@@ -12,7 +12,6 @@ pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 fn transform_extern_spec(attr: TokenStream, tokens: TokenStream) -> syn::Result<TokenStream> {
-    // let extern_spec_attrs: ExternSpecAttrs = syn::parse2(attr)?;
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     let span = tokens.span();
@@ -26,10 +25,10 @@ fn transform_extern_spec(attr: TokenStream, tokens: TokenStream) -> syn::Result<
         Ok(syn::Item::Impl(item_impl)) => create_dummy_impl(mod_path, item_impl),
         Ok(_) => Err(syn::Error::new(
             span,
-            "Invalid extern_spec: the only items which are supported are structs, impls, and function stubs",
+            "invalid extern_spec: the only items which are supported are structs, impls, and function stubs",
         )),
         Err(_) => {
-            Err(syn::Error::new(span, "Invalid extern_spec: could not parse associated item"))
+            Err(syn::Error::new(span, "invalid extern_spec: could not parse associated item"))
         }
     }
 }
@@ -88,7 +87,7 @@ fn create_dummy_impl(
     // The name of this struct is mangled to ensure that it doesn't
     // conflict with an actual impl. Same with the name of the type.
     let dummy_ident =
-        create_dummy_ident(&mut "FluxExternImplStruct".to_string(), item_impl.self_ty.as_ref())?;
+        create_dummy_ident(&mut "__FluxExternImplStruct".to_string(), item_impl.self_ty.as_ref())?;
     let mut dummy_self_ty_path = syn::TypePath {
         qself: None,
         path: syn::Path { leading_colon: None, segments: Punctuated::new() },
@@ -146,7 +145,7 @@ fn create_dummy_impl(
             _ => {
                 Err(syn::Error::new(
                     impl_item.span(),
-                    format!("Invalid extern_spec: invalid impl item: {:?}\n extern impls may only contain function stubs such as fn len(v: &Vec<T>) -> usize;", impl_item)
+                    format!("invalid extern_spec: invalid impl item: {:?}\n extern impls may only contain function stubs such as fn len(v: &Vec<T>) -> usize;", impl_item)
                 ))
             }
         }
@@ -174,7 +173,7 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
         _ => {
             Err(syn::Error::new(
                 ty.span(),
-                format!("Invalid extern_spec: unsupported type {:?}", ty),
+                format!("invalid extern_spec: unsupported type {:?}", ty),
             ))
         }
     }
@@ -193,7 +192,7 @@ fn create_dummy_ident_from_path(
         );
         Ok(ident)
     } else {
-        Err(syn::Error::new(path.span(), format!("Invalid extern_spec: empty Path {:?}", path)))
+        Err(syn::Error::new(path.span(), format!("invalid extern_spec: empty Path {:?}", path)))
     }
 }
 
@@ -219,34 +218,33 @@ fn create_dummy_struct(
 ) -> syn::Result<TokenStream> {
     let item_struct_span = item_struct.span();
     let fields_span = item_struct.fields.span();
-    if let syn::Fields::Unit = item_struct.fields {
-        let mut dummy_struct = item_struct.clone();
-        let ident = item_struct.ident;
-        let generics = item_struct.generics;
-        dummy_struct.ident = format_ident!("FluxExternStruct{}", ident);
-        dummy_struct.semi_token = None;
-        let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
-            parse_quote_spanned! {item_struct_span =>
-                ( #mod_path :: #ident #generics )
-            }
-        } else {
-            parse_quote_spanned! {item_struct_span =>
-                ( #ident #generics )
-            }
-        };
-        dummy_struct.fields = syn::Fields::Unnamed(dummy_field);
-        let dummy_struct_with_attrs: syn::ItemStruct = parse_quote_spanned! { item_struct_span =>
-            #[flux::extern_spec]
-            #[allow(unused, dead_code)]
-            #dummy_struct
-        };
-        Ok(dummy_struct_with_attrs.to_token_stream())
-    } else {
-        Err(syn::Error::new(
+    let syn::Fields::Unit = item_struct.fields else {
+        return Err(syn::Error::new(
             fields_span,
-            "Extern specs on structs cannot have fields, i.e. they must look like struct Vec<T>;",
+            "invalid extern spec: extern specs on structs cannot have fields, i.e. they must look like struct Vec<T>;",
         ))
-    }
+    };
+    let mut dummy_struct = item_struct.clone();
+    let ident = item_struct.ident;
+    let generics = item_struct.generics;
+    dummy_struct.ident = format_ident!("__FluxExternStruct{}", ident);
+    dummy_struct.semi_token = None;
+    let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
+        parse_quote_spanned! {item_struct_span =>
+                              ( #mod_path :: #ident #generics )
+        }
+    } else {
+        parse_quote_spanned! {item_struct_span =>
+                              ( #ident #generics )
+        }
+    };
+    dummy_struct.fields = syn::Fields::Unnamed(dummy_field);
+    let dummy_struct_with_attrs: syn::ItemStruct = parse_quote_spanned! { item_struct_span =>
+                                                                          #[flux::extern_spec]
+                                                                          #[allow(unused, dead_code)]
+                                                                          #dummy_struct
+    };
+    Ok(dummy_struct_with_attrs.to_token_stream())
 }
 
 /// Takes a function stub, i.e. something that looks like
@@ -265,7 +263,7 @@ fn extract_sig_from_stub(
         // Parse must succeed and it must not have a default implementation (i.e. it must end with a ';')
         Err(_) | Ok(syn::TraitItemMethod { default: Some(_), .. }) => Err(syn::Error::new(
             span,
-            "Invalid function stub: extern specs expect a function stub like: fn swap(a: &mut i32, b: &mut i32);"
+            "invalid function stub: extern specs expect a function stub like: fn swap(a: &mut i32, b: &mut i32);"
         )),
         Ok(trait_item_method) => {
             Ok((trait_item_method.sig, trait_item_method.attrs))
@@ -305,7 +303,7 @@ fn create_dummy_fn(
     let span = sig.span();
     let mut mangled_sig = sig.clone();
     let ident = sig.ident;
-    mangled_sig.ident = format_ident!("flux_extern_spec_{}", ident);
+    mangled_sig.ident = format_ident!("__flux_extern_spec_{}", ident);
     let generic_call_args = transform_generic_params_to_call_args(sig.generics.params);
     let call_args = transform_params_to_call_args(sig.inputs);
     let fn_path: syn::TypePath = match (mod_path, self_ty) {

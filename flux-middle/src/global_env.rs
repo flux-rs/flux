@@ -25,7 +25,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
     fn_quals: FxHashMap<DefId, FxHashSet<Symbol>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     queries: Queries<'tcx>,
-    externs: FxHashMap<DefId, DefId>,
+    extern_specs: FxHashMap<DefId, DefId>,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
@@ -52,7 +52,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             func_decls,
             fn_quals,
             queries: Queries::new(providers),
-            externs,
+            extern_specs: externs,
         }
     }
 
@@ -210,6 +210,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn lookup_extern(&self, def_id: &DefId) -> Option<&DefId> {
-        self.externs.get(def_id)
+        self.extern_specs.get(def_id)
     }
 }

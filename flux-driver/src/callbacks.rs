@@ -172,7 +172,7 @@ fn build_stage1_fhir_map(
         .or(err);
 
     // Externs
-    std::mem::take(&mut specs.externs)
+    std::mem::take(&mut specs.extern_specs)
         .into_iter()
         .for_each(|(extern_def_id, local_def_id)| {
             map.insert_extern(extern_def_id, local_def_id);

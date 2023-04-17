@@ -50,7 +50,7 @@ pub(crate) struct Specs {
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
-    pub externs: FxHashMap<DefId, LocalDefId>,
+    pub extern_specs: FxHashMap<DefId, LocalDefId>,
 }
 
 pub(crate) struct FnSpec {
@@ -210,7 +210,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             opaque = true;
             let extern_def_id =
                 self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
-            self.specs.externs.insert(extern_def_id, owner_id.def_id);
+            self.specs
+                .extern_specs
+                .insert(extern_def_id, owner_id.def_id);
         }
 
         self.specs.structs.insert(
@@ -295,7 +297,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 }));
             }
             let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
-            self.specs.externs.insert(extern_def_id, owner_id.def_id);
+            self.specs
+                .extern_specs
+                .insert(extern_def_id, owner_id.def_id);
             // We should never check an extern spec (it will infinitely recurse)
             trusted = true;
         }
@@ -497,7 +501,7 @@ impl Specs {
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
             crate_config: None,
-            externs: FxHashMap::default(),
+            extern_specs: FxHashMap::default(),
         }
     }
 
