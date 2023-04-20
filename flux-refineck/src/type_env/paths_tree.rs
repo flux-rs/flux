@@ -20,6 +20,7 @@ use crate::{
     checker::errors::CheckerErrKind,
     constraint_gen::ConstrGen,
     refine_tree::{RefineCtxt, Scope, UnpackFlags},
+    CheckerConfig,
 };
 
 #[derive(Default, Eq, PartialEq, Clone)]
@@ -204,10 +205,14 @@ impl PathsTree {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         other: &mut PathsTree,
+        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         for (loc, root1) in &self.map {
             let node2 = &mut *other.map[loc].ptr.borrow_mut();
-            root1.ptr.borrow_mut().join_with(gen, rcx, node2)?;
+            root1
+                .ptr
+                .borrow_mut()
+                .join_with(gen, rcx, node2, checker_config)?;
         }
         Ok(())
     }
@@ -217,6 +222,7 @@ impl PathsTree {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
+        checker_config: CheckerConfig,
     ) -> Result<LookupResult<'a>, CheckerErrKind> {
         let mut path = Path::from(key.loc());
         let place_proj = &mut key.proj();
@@ -234,7 +240,7 @@ impl PathsTree {
             );
 
             for field in path.projection() {
-                ptr = ptr.proj(genv, rcx, *field)?;
+                ptr = ptr.proj(genv, rcx, *field, checker_config)?;
                 path_proj.push(*field);
             }
 
@@ -242,10 +248,10 @@ impl PathsTree {
                 match elem {
                     PlaceElem::Field(field) => {
                         path_proj.push(field);
-                        ptr = ptr.proj(genv, rcx, field)?;
+                        ptr = ptr.proj(genv, rcx, field, checker_config)?;
                     }
                     PlaceElem::Downcast(variant_idx) => {
-                        ptr.downcast(genv, rcx, variant_idx)?;
+                        ptr.downcast(genv, rcx, variant_idx, checker_config)?;
                     }
                     PlaceElem::Deref => {
                         let ty = ptr.borrow().expect_owned();
@@ -261,6 +267,7 @@ impl PathsTree {
                                     WeakKind::from(*rk),
                                     ty,
                                     place_proj,
+                                    checker_config,
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
@@ -297,8 +304,14 @@ impl PathsTree {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                                let (rk, ty) =
-                                    Self::lookup_ty(genv, rcx, WeakKind::Arr, arr_ty, place_proj)?;
+                                let (rk, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::Arr,
+                                    arr_ty,
+                                    place_proj,
+                                    checker_config,
+                                )?;
                                 return Ok(LookupResult {
                                     tree: self,
                                     kind: LookupKind::Weak(rk, ty),
@@ -323,6 +336,7 @@ impl PathsTree {
         mut rk: WeakKind,
         ty: &Ty,
         proj: &mut impl Iterator<Item = PlaceElem>,
+        checker_config: CheckerConfig,
     ) -> Result<(WeakKind, Ty), CheckerErrKind> {
         use PlaceElem::*;
         let mut ty = ty.clone();
@@ -348,7 +362,7 @@ impl PathsTree {
                 (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
                     let tys = downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?;
                     ty = Ty::tuple(tys);
-                    rcx.assume_invariants(&ty);
+                    rcx.assume_invariants(&ty, checker_config.check_overflow);
                 }
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
                 _ => tracked_span_bug!("unexpected type and projection {elem:?} {ty:?}"),
@@ -517,19 +531,20 @@ impl Node {
         gen: &mut ConstrGen,
         rcx: &mut RefineCtxt,
         other: &mut Node,
+        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let map = &mut FxHashMap::default();
         match (&mut *self, &mut *other) {
             (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self)?;
+                other.join_with(gen, rcx, self, checker_config)?;
             }
             (Node::Leaf(_), Node::Leaf(_)) => {}
             (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
                 other.fold(map, rcx, gen, false, false)?;
             }
             (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx)?;
-                self.join_with(gen, rcx, other)?;
+                self.split(gen.genv, rcx, checker_config)?;
+                self.join_with(gen, rcx, other, checker_config)?;
             }
             (
                 Node::Internal(NodeKind::Adt(_, variant1, _), children1),
@@ -537,8 +552,12 @@ impl Node {
             ) => {
                 if variant1 == variant2 {
                     for (ptr1, ptr2) in iter::zip(children1, children2) {
-                        ptr1.borrow_mut()
-                            .join_with(gen, rcx, &mut ptr2.borrow_mut())?;
+                        ptr1.borrow_mut().join_with(
+                            gen,
+                            rcx,
+                            &mut ptr2.borrow_mut(),
+                            checker_config,
+                        )?;
                     }
                 } else {
                     self.fold(map, rcx, gen, false, false)?;
@@ -555,8 +574,12 @@ impl Node {
                 }
 
                 for (ptr1, ptr2) in iter::zip(children1, children2) {
-                    ptr1.borrow_mut()
-                        .join_with(gen, rcx, &mut ptr2.borrow_mut())?;
+                    ptr1.borrow_mut().join_with(
+                        gen,
+                        rcx,
+                        &mut ptr2.borrow_mut(),
+                        checker_config,
+                    )?;
                 }
             }
         };
@@ -568,9 +591,10 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: FieldIdx,
+        checker_config: CheckerConfig,
     ) -> Result<&NodePtr, CheckerErrKind> {
         if let Node::Leaf(_) = self {
-            self.split(genv, rcx)?;
+            self.split(genv, rcx, checker_config)?;
         }
         match self {
             Node::Internal(kind, children) => {
@@ -589,6 +613,7 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         variant_idx: VariantIdx,
+        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         match self {
             Node::Leaf(Binding::Owned(ty)) => {
@@ -599,7 +624,7 @@ impl Node {
                                 .into_iter()
                                 .map(|ty| {
                                     let ty = rcx.unpack(&ty);
-                                    rcx.assume_invariants(&ty);
+                                    rcx.assume_invariants(&ty, checker_config.check_overflow);
                                     Node::owned(ty).into_ptr()
                                 })
                                 .collect();
@@ -620,7 +645,12 @@ impl Node {
         Ok(())
     }
 
-    fn split(&mut self, genv: &GlobalEnv, rcx: &mut RefineCtxt) -> Result<(), CheckerErrKind> {
+    fn split(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_config: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
         let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(tys), _) => {
@@ -632,7 +662,7 @@ impl Node {
                 *self = Node::Internal(NodeKind::Tuple, children);
             }
             TyKind::Indexed(BaseTy::Adt(def, ..), ..) if def.is_struct() => {
-                self.downcast(genv, rcx, VariantIdx::from_u32(0))?;
+                self.downcast(genv, rcx, VariantIdx::from_u32(0), checker_config)?;
             }
             TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
             _ => tracked_span_bug!("type cannot be split: `{ty:?}`"),
@@ -752,8 +782,9 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         field: FieldIdx,
+        checker_config: CheckerConfig,
     ) -> Result<NodePtr, CheckerErrKind> {
-        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field)?))
+        Ok(NodePtr::clone(self.borrow_mut().proj(genv, rcx, field, checker_config)?))
     }
 
     fn downcast(
@@ -761,8 +792,10 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         variant_idx: VariantIdx,
+        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.borrow_mut().downcast(genv, rcx, variant_idx)
+        self.borrow_mut()
+            .downcast(genv, rcx, variant_idx, checker_config)
     }
 }
 

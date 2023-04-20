@@ -79,7 +79,7 @@ impl<'sess> Resolver<'sess> {
             .try_collect_exhaust()?;
 
         Ok(surface::StructDef {
-            def_id: struct_def.def_id,
+            owner_id: struct_def.owner_id,
             refined_by: struct_def.refined_by,
             fields,
             opaque: struct_def.opaque,
@@ -98,7 +98,7 @@ impl<'sess> Resolver<'sess> {
             .try_collect_exhaust()?;
 
         Ok(surface::EnumDef {
-            def_id: enum_def.def_id,
+            owner_id: enum_def.owner_id,
             refined_by: enum_def.refined_by,
             invariants: enum_def.invariants,
             variants,

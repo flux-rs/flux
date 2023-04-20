@@ -2,7 +2,6 @@
 #![feature(rustc_private, box_patterns, let_chains, type_alias_impl_trait)]
 
 extern crate rustc_ast;
-extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;

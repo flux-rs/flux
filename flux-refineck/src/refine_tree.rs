@@ -276,8 +276,11 @@ impl RefineCtxt<'_> {
         self.unpack_with(ty, UnpackFlags::empty())
     }
 
-    pub(crate) fn assume_invariants(&mut self, ty: &Ty) {
-        struct Visitor<'a, 'rcx>(&'a mut RefineCtxt<'rcx>);
+    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
+        struct Visitor<'a, 'rcx> {
+            rcx: &'a mut RefineCtxt<'rcx>,
+            overflow_checking: bool,
+        }
         impl TypeVisitor for Visitor<'_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) {
                 match bty {
@@ -292,9 +295,9 @@ impl RefineCtxt<'_> {
 
             fn visit_ty(&mut self, ty: &Ty) {
                 if let TyKind::Indexed(bty, idx) = ty.kind() {
-                    for invariant in bty.invariants() {
+                    for invariant in bty.invariants(self.overflow_checking) {
                         let invariant = invariant.pred.replace_bvar(&idx.expr);
-                        self.0.assume_pred(invariant);
+                        self.rcx.assume_pred(invariant);
                     }
                 }
                 if !matches!(ty.kind(), TyKind::Exists(..)) {
@@ -302,7 +305,7 @@ impl RefineCtxt<'_> {
                 }
             }
         }
-        ty.visit_with(&mut Visitor(self));
+        ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
     }
 
     pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {

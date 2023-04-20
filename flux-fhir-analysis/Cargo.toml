@@ -4,6 +4,7 @@ name = "flux-fhir-analysis"
 version = "0.1.0"
 
 [dependencies]
+ena = "0.14.2"
 flux-common = { path = "../flux-common" }
 flux-config = { path = "../flux-config" }
 flux-errors = { path = "../flux-errors" }

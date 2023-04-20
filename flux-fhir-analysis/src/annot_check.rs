@@ -11,27 +11,27 @@ use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::OwnerId;
 
 pub fn check_fn_sig(
     early_cx: &EarlyCtxt,
-    def_id: LocalDefId,
+    owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
 ) -> Result<(), ErrorGuaranteed> {
     if fn_sig.lifted {
         return Ok(());
     }
     Zipper::new(early_cx.sess)
-        .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx.tcx, early_cx.sess, def_id)?)
+        .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx.tcx, early_cx.sess, owner_id)?)
 }
 
-pub fn check_alias(early_cx: &EarlyCtxt, alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
-    if alias.lifted {
+pub fn check_alias(early_cx: &EarlyCtxt, ty_alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
+    if ty_alias.lifted {
         return Ok(());
     }
     Zipper::new(early_cx.sess).zip_ty(
-        &alias.ty,
-        &fhir::lift::lift_type_alias(early_cx.tcx, early_cx.sess, alias.def_id)?.ty,
+        &ty_alias.ty,
+        &fhir::lift::lift_type_alias(early_cx.tcx, early_cx.sess, ty_alias.owner_id)?.ty,
     )
 }
 

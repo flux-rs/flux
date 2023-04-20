@@ -28,8 +28,11 @@ use itertools::Itertools;
 use rustc_ast::Mutability;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::def_id::{DefId, LocalDefId};
 pub use rustc_hir::PrimTy;
+use rustc_hir::{
+    def_id::{DefId, LocalDefId},
+    OwnerId,
+};
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_span::{Span, Symbol};
@@ -68,10 +71,16 @@ pub struct ConstInfo {
 
 #[derive(Debug)]
 pub struct Qualifier {
-    pub name: String,
-    pub args: Vec<(Ident, Sort)>,
+    pub name: Symbol,
+    pub args: Vec<RefineParam>,
     pub expr: Expr,
     pub global: bool,
+}
+
+#[derive(Debug)]
+pub enum FluxItem {
+    Qualifier(Qualifier),
+    Defn(Defn),
 }
 
 #[derive(Debug)]
@@ -90,9 +99,8 @@ pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
-    defns: FxHashMap<Symbol, Defn>,
+    flux_items: FxHashMap<Symbol, FluxItem>,
     consts: FxHashMap<Symbol, ConstInfo>,
-    qualifiers: Vec<Qualifier>,
     refined_by: FxHashMap<LocalDefId, RefinedBy>,
     type_aliases: FxHashMap<LocalDefId, TyAlias>,
     structs: FxHashMap<LocalDefId, StructDef>,
@@ -100,16 +108,16 @@ pub struct Map {
     fns: FxHashMap<LocalDefId, FnSig>,
     fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
     trusted: FxHashSet<LocalDefId>,
-    extern_fns: FxHashMap<DefId, LocalDefId>,
+    externs: FxHashMap<DefId, LocalDefId>,
 }
 
 #[derive(Debug)]
 pub struct TyAlias {
-    pub def_id: LocalDefId,
+    pub owner_id: OwnerId,
     pub ty: Ty,
     pub span: Span,
-    pub early_bound_params: Vec<(Ident, Sort)>,
-    pub index_params: Vec<(Ident, Sort)>,
+    pub early_bound_params: Vec<RefineParam>,
+    pub index_params: Vec<RefineParam>,
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
@@ -118,8 +126,8 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct StructDef {
-    pub def_id: LocalDefId,
-    pub params: Vec<(Ident, Sort)>,
+    pub owner_id: OwnerId,
+    pub params: Vec<RefineParam>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
 }
@@ -142,8 +150,8 @@ pub struct FieldDef {
 
 #[derive(Debug)]
 pub struct EnumDef {
-    pub def_id: LocalDefId,
-    pub params: Vec<(Ident, Sort)>,
+    pub owner_id: OwnerId,
+    pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
 }
@@ -151,7 +159,7 @@ pub struct EnumDef {
 #[derive(Debug)]
 pub struct VariantDef {
     pub def_id: LocalDefId,
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
     pub span: Span,
@@ -169,7 +177,7 @@ pub struct VariantRet {
 
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -183,7 +191,7 @@ pub struct FnSig {
 }
 
 pub struct FnOutput {
-    pub params: Vec<FunRefineParam>,
+    pub params: Vec<RefineParam>,
     pub ret: Ty,
     pub ensures: Vec<Constraint>,
 }
@@ -205,7 +213,7 @@ pub enum TyKind {
     /// technically need this variant, but we keep it around to simplify desugaring.
     BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
-    Exists(Vec<(Ident, Sort)>, Box<Ty>),
+    Exists(Vec<RefineParam>, Box<Ty>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
@@ -235,9 +243,29 @@ pub enum WeakKind {
     Arr,
 }
 
-#[derive(Default)]
 pub struct WfckResults {
-    node_sorts: FxHashMap<FhirId, Sort>,
+    owner: FluxOwnerId,
+    node_sorts: ItemLocalMap<Sort>,
+    coercions: ItemLocalMap<Vec<Coercion>>,
+}
+
+#[derive(Debug)]
+pub enum Coercion {
+    Inject,
+    Project,
+}
+
+pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
+
+#[derive(Debug)]
+pub struct LocalTableInContext<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a ItemLocalMap<T>,
+}
+
+pub struct LocalTableInContextMut<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a mut ItemLocalMap<T>,
 }
 
 impl From<BaseTy> for Ty {
@@ -256,6 +284,21 @@ impl From<RefKind> for WeakKind {
     }
 }
 
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum FluxLocalDefId {
+    /// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
+    Flux(Symbol),
+    /// An item with a corresponding Rust definition, e.g., struct, enum, or function.
+    Rust(LocalDefId),
+}
+
+/// Owner version of [`FluxLocalDefId`]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum FluxOwnerId {
+    Flux(Symbol),
+    Rust(OwnerId),
+}
+
 /// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
 /// `local_id`. We don't generate ids for all nodes, but only for those we need to remember
 /// information elaborated during well-formedness checking to later be used during conversion into
@@ -263,10 +306,9 @@ impl From<RefKind> for WeakKind {
 ///
 /// [`rty`]: crate::rty
 /// [`HirId`]: rustc_hir::HirId
-#[derive(Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 pub struct FhirId {
-    /// FIXME(nilehmann) make this an `OwnerId` as in hir
-    pub owner: LocalDefId,
+    pub owner: FluxOwnerId,
     pub local_id: ItemLocalId,
 }
 
@@ -281,18 +323,17 @@ pub enum RefineArg {
         /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
         /// inferring parameters at function calls.
         is_binder: bool,
-        fhir_id: FhirId,
     },
-    Abs(Vec<(Ident, Sort)>, Expr, Span, FhirId),
-    Aggregate(DefId, Vec<RefineArg>, Span, FhirId),
+    Abs(Vec<RefineParam>, Expr, Span, FhirId),
+    Record(DefId, Vec<RefineArg>, Span),
 }
 
+/// These are types of things that may be refined with indices or existentials
 pub struct BaseTy {
     pub kind: BaseTyKind,
     pub span: Span,
 }
 
-/// These are types of things that may be refined with indices or existentials
 pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
@@ -314,11 +355,13 @@ pub enum Res {
     Param(DefId),
 }
 
-#[derive(Debug)]
-pub struct FunRefineParam {
-    pub name: Ident,
+#[derive(Debug, Clone)]
+pub struct RefineParam {
+    pub ident: Ident,
     pub sort: Sort,
+    /// Inference mode for parameter at function calls. It has no meaning for parameters in other places.
     pub mode: InferMode,
+    pub fhir_id: FhirId,
 }
 
 /// *Infer*ence *mode* for parameter at function calls
@@ -329,9 +372,15 @@ pub enum InferMode {
     /// (mostly) freely.
     EVar,
     /// Generate a fresh kvar and let fixpoint infer it. This mode can only be used with abstract
-    /// refinements predicates. If the parameter is marked as kvar then it can only appear in
+    /// refinement predicates. If the parameter is marked as kvar then it can only appear in
     /// positions that result in a _horn_ constraint as required by fixpoint.
     KVar,
+}
+
+newtype_index! {
+    /// A *Sort* *v*variable *id*
+    #[debug_format = "#{}"]
+    pub struct SortVid {}
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -343,16 +392,17 @@ pub enum Sort {
     Unit,
     BitVec(usize),
     Func(FuncSort),
-    /// An aggregate sort corresponds to the sort associated with a type alias or an adt (struct/enum).
-    /// Values of an aggregate sort can be projected using dot notation to extract their fields.
-    Aggregate(DefId),
-    /// User defined sort
+    /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
+    /// Values of a record sort can be projected using dot notation to extract their fields.
+    Record(DefId),
+    /// User defined opaque sort
     User(Symbol),
     /// The sort associated to a type variable
     Param(DefId),
-    /// A sort to be inferred, this is only partially implemented now and is only used for arguments
-    /// to abstract refinement predicates.
-    Infer,
+    /// A sort that needs to be inferred
+    Wildcard,
+    /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
+    Infer(SortVid),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -363,6 +413,7 @@ pub struct FuncSort {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+    pub fhir_id: FhirId,
 }
 
 pub enum ExprKind {
@@ -379,9 +430,9 @@ pub enum ExprKind {
 #[derive(Clone)]
 pub enum Func {
     /// A function coming from a refinement parameter.
-    Var(Ident),
+    Var(Ident, FhirId),
     /// A _global_ function symbol (including possibly theory symbols).
-    Global(Symbol, FuncKind, Span),
+    Global(Symbol, FuncKind, Span, FhirId),
 }
 
 #[derive(Clone, Copy)]
@@ -404,13 +455,24 @@ newtype_index! {
     pub struct Name {}
 }
 
-impl RefineArg {
-    pub fn fhir_id(&self) -> FhirId {
-        match self {
-            RefineArg::Expr { fhir_id: node_id, .. }
-            | RefineArg::Abs(.., node_id)
-            | RefineArg::Aggregate(.., node_id) => *node_id,
+impl From<FluxOwnerId> for FluxLocalDefId {
+    fn from(flux_id: FluxOwnerId) -> Self {
+        match flux_id {
+            FluxOwnerId::Flux(sym) => FluxLocalDefId::Flux(sym),
+            FluxOwnerId::Rust(owner_id) => FluxLocalDefId::Rust(owner_id.def_id),
         }
+    }
+}
+
+impl From<LocalDefId> for FluxLocalDefId {
+    fn from(def_id: LocalDefId) -> Self {
+        FluxLocalDefId::Rust(def_id)
+    }
+}
+
+impl From<OwnerId> for FluxOwnerId {
+    fn from(owner_id: OwnerId) -> Self {
+        FluxOwnerId::Rust(owner_id)
     }
 }
 
@@ -419,7 +481,7 @@ impl BaseTy {
         matches!(self.kind, BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }))
     }
 
-    pub fn is_aggregate(&self) -> Option<DefId> {
+    pub fn is_refined_by_record(&self) -> Option<DefId> {
         if let BaseTyKind::Path(path) = &self.kind
            && let Res::Struct(def_id) | Res::Enum(def_id) | Res::Alias(def_id) = path.res
         {
@@ -456,6 +518,15 @@ impl From<Path> for BaseTy {
     fn from(path: Path) -> Self {
         let span = path.span;
         Self { kind: BaseTyKind::Path(path), span }
+    }
+}
+
+impl Func {
+    pub fn fhir_id(&self) -> FhirId {
+        match self {
+            Func::Var(_, fhir_id) => *fhir_id,
+            Func::Global(_, _, _, fhir_id) => *fhir_id,
+        }
     }
 }
 
@@ -518,7 +589,7 @@ pub enum FuncKind {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
-    pub args: Vec<(Ident, Sort)>,
+    pub args: Vec<RefineParam>,
     pub sort: Sort,
     pub expr: Expr,
 }
@@ -567,7 +638,7 @@ impl Sort {
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
-    fn is_bool(&self) -> bool {
+    pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
 
@@ -586,6 +657,32 @@ impl Sort {
         } else {
             InferMode::EVar
         }
+    }
+}
+
+impl ena::unify::UnifyKey for SortVid {
+    type Value = Option<Sort>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        SortVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "SortVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for Sort {}
+
+impl RefineParam {
+    pub fn name(&self) -> Name {
+        self.ident.name
     }
 }
 
@@ -612,7 +709,7 @@ impl FuncSort {
 
 impl rustc_errors::IntoDiagnosticArg for Sort {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
     }
 }
 
@@ -650,11 +747,18 @@ impl Map {
     // Qualifiers
 
     pub fn insert_qualifier(&mut self, qualifier: Qualifier) {
-        self.qualifiers.push(qualifier);
+        self.flux_items
+            .insert(qualifier.name, FluxItem::Qualifier(qualifier));
     }
 
     pub fn qualifiers(&self) -> impl Iterator<Item = &Qualifier> {
-        self.qualifiers.iter()
+        self.flux_items.values().filter_map(|item| {
+            if let FluxItem::Qualifier(qual) = item {
+                Some(qual)
+            } else {
+                None
+            }
+        })
     }
 
     // FnSigs
@@ -687,12 +791,12 @@ impl Map {
         self.trusted.contains(&def_id)
     }
 
-    pub fn insert_extern_fn(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
-        self.extern_fns.insert(extern_def_id, local_def_id);
+    pub fn insert_extern(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
+        self.externs.insert(extern_def_id, local_def_id);
     }
 
-    pub fn extern_fns(&self) -> &FxHashMap<DefId, LocalDefId> {
-        &self.extern_fns
+    pub fn externs(&self) -> &FxHashMap<DefId, LocalDefId> {
+        &self.externs
     }
 
     // ADT
@@ -799,15 +903,27 @@ impl Map {
 
     // Defn
     pub fn insert_defn(&mut self, symb: Symbol, defn: Defn) {
-        self.defns.insert(symb, defn);
+        self.flux_items.insert(symb, FluxItem::Defn(defn));
     }
 
     pub fn defns(&self) -> impl Iterator<Item = &Defn> {
-        self.defns.values()
+        self.flux_items.values().filter_map(|item| {
+            if let FluxItem::Defn(defn) = item {
+                Some(defn)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
-        self.defns.get(sym.borrow())
+        self.flux_items.get(sym.borrow()).and_then(|item| {
+            if let FluxItem::Defn(defn) = item {
+                Some(defn)
+            } else {
+                None
+            }
+        })
     }
 
     // Sorts
@@ -823,10 +939,14 @@ impl Map {
     pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
         self.sort_decls.get(name.borrow())
     }
+
+    pub fn get_flux_item(&self, name: impl Borrow<Symbol>) -> Option<&FluxItem> {
+        self.flux_items.get(name.borrow())
+    }
 }
 
 impl TyAlias {
-    pub fn all_params(&self) -> impl Iterator<Item = &(Ident, Sort)> {
+    pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
         self.early_bound_params.iter().chain(&self.index_params)
     }
 }
@@ -838,16 +958,38 @@ impl StructDef {
 }
 
 impl WfckResults {
-    pub fn new() -> Self {
-        Self { node_sorts: FxHashMap::default() }
+    pub fn new(owner: FluxOwnerId) -> Self {
+        Self { owner, node_sorts: ItemLocalMap::default(), coercions: ItemLocalMap::default() }
     }
 
-    pub fn expr_sorts_mut(&mut self) -> &mut FxHashMap<FhirId, Sort> {
-        &mut self.node_sorts
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn expr_sorts(&self) -> &FxHashMap<FhirId, Sort> {
-        &self.node_sorts
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
+    }
+
+    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+        LocalTableInContext { owner: self.owner, data: &self.coercions }
+    }
+}
+
+impl<'a, T> LocalTableInContextMut<'a, T> {
+    pub fn insert(&mut self, fhir_id: FhirId, value: T) {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.insert(fhir_id.local_id, value);
+    }
+}
+
+impl<'a, T> LocalTableInContext<'a, T> {
+    pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.get(&fhir_id.local_id)
     }
 }
 
@@ -860,7 +1002,7 @@ impl fmt::Debug for FnSig {
                 f,
                 "for<{}> ",
                 self.params.iter().format_with(", ", |param, f| {
-                    f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                    f(&format_args!("{:?}: {:?}", param.ident, param.sort))
                 })
             )?;
         }
@@ -878,7 +1020,7 @@ impl fmt::Debug for FnOutput {
                 f,
                 "exists<{}> ",
                 self.params.iter().format_with(", ", |param, f| {
-                    f(&format_args!("{:?}: {:?}", param.name, param.sort))
+                    f(&format_args!("{:?}: {:?}", param.ident, param.sort))
                 })
             )?;
         }
@@ -910,8 +1052,8 @@ impl fmt::Debug for Ty {
                 write!(
                     f,
                     "{}",
-                    params.iter().format_with(",", |(ident, sort), f| {
-                        f(&format_args!("{ident:?}:{sort:?}"))
+                    params.iter().format_with(",", |param, f| {
+                        f(&format_args!("{:?}:{:?}", param.ident, param.sort))
                     })
                 )?;
                 if let TyKind::Constr(pred, ty) = &ty.kind {
@@ -987,9 +1129,15 @@ impl fmt::Debug for RefineArg {
                 write!(f, "{expr:?}")
             }
             RefineArg::Abs(params, body, ..) => {
-                write!(f, "|{:?}| {body:?}", params.iter().format(","))
+                write!(
+                    f,
+                    "|{}| {body:?}",
+                    params.iter().format_with(", ", |param, f| {
+                        f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                    })
+                )
             }
-            RefineArg::Aggregate(def_id, flds, ..) => {
+            RefineArg::Record(def_id, flds, ..) => {
                 write!(
                     f,
                     "{} {{ {:?} }}",
@@ -1029,8 +1177,8 @@ impl fmt::Debug for Expr {
 impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Var(func) => write!(f, "{func:?}"),
-            Self::Global(sym, _, _) => write!(f, "{sym}"),
+            Self::Var(func, _) => write!(f, "{func:?}"),
+            Self::Global(sym, ..) => write!(f, "{sym}"),
         }
     }
 }
@@ -1053,6 +1201,16 @@ impl fmt::Debug for Lit {
 
 impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Sort::Infer(_) = self {
+            write!(f, "_")
+        } else {
+            fmt::Debug::fmt(self, f)
+        }
+    }
+}
+
+impl fmt::Debug for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
@@ -1061,17 +1219,12 @@ impl fmt::Display for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
-            Sort::Aggregate(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
+            Sort::Record(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
             Sort::User(name) => write!(f, "{name}"),
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
-            Sort::Infer => write!(f, "_"),
+            Sort::Wildcard => write!(f, "_"),
+            Sort::Infer(vid) => write!(f, "{vid:?}"),
         }
-    }
-}
-
-impl fmt::Debug for Sort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
     }
 }
 

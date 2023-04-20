@@ -7,6 +7,7 @@ use crate::{
     constraint_gen::{ConstrReason, Tag},
     fixpoint_encoding::{FixpointCtxt, KVarStore},
     refine_tree::RefineTree,
+    CheckerConfig,
 };
 
 pub fn check_invariants(
@@ -14,6 +15,7 @@ pub fn check_invariants(
     cache: &mut QueryCache,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
+    checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     adt_def
         .invariants()
@@ -21,7 +23,7 @@ pub fn check_invariants(
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;
-            check_invariant(genv, cache, adt_def, span, invariant)
+            check_invariant(genv, cache, adt_def, span, invariant, checker_config)
         })
 }
 
@@ -31,6 +33,7 @@ fn check_invariant(
     adt_def: &rty::AdtDef,
     span: Span,
     invariant: &rty::Invariant,
+    checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     let mut refine_tree = RefineTree::new();
 
@@ -46,7 +49,7 @@ fn check_invariant(
 
         for ty in variant.fields() {
             let ty = rcx.unpack(ty);
-            rcx.assume_invariants(&ty);
+            rcx.assume_invariants(&ty, checker_config.check_overflow);
         }
         let (.., idx) = variant.ret.expect_adt();
         rcx.check_pred(

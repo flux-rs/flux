@@ -12,7 +12,7 @@ use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 use crate::{
-    fhir,
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -38,7 +38,7 @@ pub enum QueryErr {
 pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub check_wf: fn(&GlobalEnv, LocalDefId) -> QueryResult<fhir::WfckResults>,
+    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<fhir::WfckResults>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
@@ -51,7 +51,7 @@ pub struct Queries<'tcx> {
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
-    check_wf: Cache<LocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
+    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
@@ -106,16 +106,17 @@ impl<'tcx> Queries<'tcx> {
     pub(crate) fn check_wf(
         &self,
         genv: &GlobalEnv,
-        def_id: LocalDefId,
+        flux_id: FluxLocalDefId,
     ) -> QueryResult<Rc<fhir::WfckResults>> {
-        run_with_cache(&self.check_wf, def_id, || {
-            let wfckresults = (self.providers.check_wf)(genv, def_id)?;
+        run_with_cache(&self.check_wf, flux_id, || {
+            let wfckresults = (self.providers.check_wf)(genv, flux_id)?;
             Ok(Rc::new(wfckresults))
         })
     }
 
     pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
+            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
             } else if let Some(adt_def) = genv.early_cx().cstore.adt_def(def_id) {
@@ -132,7 +133,7 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Generics> {
         run_with_cache(&self.generics_of, def_id, || {
-            let def_id = *genv.lookup_extern_fn(&def_id).unwrap_or(&def_id);
+            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
@@ -216,7 +217,7 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.fn_sig, def_id, || {
             // If it's an extern_fn, resolve it to its local fn_sig's def_id,
             // otherwise don't change it.
-            let def_id = *genv.lookup_extern_fn(&def_id).unwrap_or(&def_id);
+            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
             } else if let Some(fn_sig) = genv.early_cx().cstore.fn_sig(def_id) {
