@@ -578,6 +578,7 @@ version = "0.1.0"
 name = "flux-fhir-analysis"
 version = "0.1.0"
 dependencies = [
+ "ena",
  "flux-common",
  "flux-config",
  "flux-errors",
@@ -627,6 +628,7 @@ name = "flux-middle"
 version = "0.1.0"
 dependencies = [
  "dashmap",
+ "ena",
  "flux-common",
  "flux-config",
  "flux-errors",

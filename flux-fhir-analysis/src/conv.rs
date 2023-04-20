@@ -7,7 +7,7 @@
 //!    refinement predicates, aka abstract refinements, since the syntax in [`rty`] has
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
-use std::{borrow::Borrow, iter};
+use std::borrow::Borrow;
 
 use flux_common::{bug, span_bug};
 use flux_middle::{
@@ -29,12 +29,10 @@ use rustc_middle::ty::TyCtxt;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    env: Env<'a, 'tcx>,
     wfckresults: &'a fhir::WfckResults,
 }
 
-struct Env<'a, 'tcx> {
-    early_cx: &'a EarlyCtxt<'a, 'tcx>,
+struct Env {
     layers: Vec<Layer>,
     early_bound: FxIndexMap<fhir::Name, (fhir::Sort, rty::Sort)>,
 }
@@ -76,11 +74,13 @@ pub(crate) fn expand_type_alias(
     alias: &fhir::TyAlias,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let mut env = Env::new(genv.early_cx(), &alias.early_bound_params);
-    env.push_layer(Layer::from_params(genv.early_cx(), &alias.index_params));
-    let mut cx = ConvCtxt::new(genv, env, wfckresults);
-    let ty = cx.conv_ty(&alias.ty)?;
-    let sort = cx.env.pop_layer().into_sort();
+    let cx = ConvCtxt::new(genv, wfckresults);
+
+    let mut env = Env::new(genv, &alias.early_bound_params);
+    env.push_layer(Layer::list(&cx, &alias.index_params, false));
+
+    let ty = cx.conv_ty(&mut env, &alias.ty)?;
+    let sort = env.pop_layer().into_sort();
     Ok(rty::Binder::new(ty, sort))
 }
 
@@ -124,8 +124,10 @@ pub(crate) fn adt_def_for_struct(
     invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let sort = Layer::from_params(genv.early_cx(), &struct_def.params).into_sort();
-    rty::AdtDef::new(genv.tcx.adt_def(struct_def.def_id), sort, invariants, struct_def.is_opaque())
+    let sort =
+        rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(struct_def.owner_id)));
+    let adt_def = genv.tcx.adt_def(struct_def.owner_id);
+    rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
 
 pub(crate) fn adt_def_for_enum(
@@ -133,35 +135,47 @@ pub(crate) fn adt_def_for_enum(
     invariants: Vec<rty::Invariant>,
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
-    let sort = Layer::from_params(genv.early_cx(), &enum_def.params).into_sort();
-    rty::AdtDef::new(genv.tcx.adt_def(enum_def.def_id), sort, invariants, false)
+    let sort =
+        rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(enum_def.owner_id)));
+    rty::AdtDef::new(genv.tcx.adt_def(enum_def.owner_id), sort, invariants, false)
 }
 
 pub(crate) fn conv_invariants(
     genv: &GlobalEnv,
-    params: &[(fhir::Ident, fhir::Sort)],
+    params: &[fhir::RefineParam],
     invariants: &[fhir::Expr],
+    wfckresults: &fhir::WfckResults,
 ) -> Vec<rty::Invariant> {
-    let mut env = Env::new(genv.early_cx(), []);
-    env.push_layer(Layer::from_params(genv.early_cx(), params));
-    let sort = env.top_layer().to_sort();
-    env.conv_invariants(&sort, invariants)
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut env = Env::new(genv, &[]);
+    env.push_layer(Layer::list(&cx, params, false));
+    cx.conv_invariants(&env, invariants)
 }
 
-pub(crate) fn conv_defn(early_cx: &EarlyCtxt, defn: &fhir::Defn) -> rty::Defn {
-    let mut env = Env::new(early_cx, []);
-    env.push_layer(Layer::from_params(early_cx, &defn.args));
-    let expr = env.conv_expr(&defn.expr);
+pub(crate) fn conv_defn(
+    genv: &GlobalEnv,
+    defn: &fhir::Defn,
+    wfckresults: &fhir::WfckResults,
+) -> rty::Defn {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut env = Env::new(genv, &[]);
+    env.push_layer(Layer::list(&cx, &defn.args, false));
+    let expr = cx.conv_expr(&env, &defn.expr);
     let expr = rty::Binder::new(expr, env.pop_layer().into_sort());
     rty::Defn { name: defn.name, expr }
 }
 
-pub fn conv_qualifier(early_cx: &EarlyCtxt, qualifier: &fhir::Qualifier) -> rty::Qualifier {
-    let mut env = Env::new(early_cx, []);
-    env.push_layer(Layer::from_params(early_cx, &qualifier.args));
-    let body = env.conv_expr(&qualifier.expr);
+pub fn conv_qualifier(
+    genv: &GlobalEnv,
+    qualifier: &fhir::Qualifier,
+    wfckresults: &fhir::WfckResults,
+) -> rty::Qualifier {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut env = Env::new(genv, &[]);
+    env.push_layer(Layer::list(&cx, &qualifier.args, false));
+    let body = cx.conv_expr(&env, &qualifier.expr);
     let body = rty::Binder::new(body, env.pop_layer().into_sort());
-    rty::Qualifier { name: qualifier.name.clone(), body, global: qualifier.global }
+    rty::Qualifier { name: qualifier.name, body, global: qualifier.global }
 }
 
 pub(crate) fn conv_fn_sig(
@@ -169,23 +183,24 @@ pub(crate) fn conv_fn_sig(
     fn_sig: &fhir::FnSig,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::PolyFnSig> {
-    let mut env = Env::new(genv.early_cx(), []);
-    env.push_layer(Layer::from_fun_params(genv.early_cx(), &fn_sig.params));
-    let mut cx = ConvCtxt::new(genv, env, wfckresults);
+    let cx = ConvCtxt::new(genv, wfckresults);
+
+    let mut env = Env::new(genv, &[]);
+    env.push_layer(Layer::list(&cx, &fn_sig.params, true));
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
-        requires.push(cx.conv_constr(constr)?);
+        requires.push(cx.conv_constr(&mut env, constr)?);
     }
 
     let mut args = vec![];
     for ty in &fn_sig.args {
-        args.push(cx.conv_ty(ty)?);
+        args.push(cx.conv_ty(&mut env, ty)?);
     }
 
-    let output = cx.conv_fn_output(&fn_sig.output)?;
+    let output = cx.conv_fn_output(&mut env, &fn_sig.output)?;
 
-    let params = cx.env.pop_layer().into_fun_params();
+    let params = env.pop_layer().into_fun_params();
     Ok(rty::PolyFnSig::new(params, rty::FnSig::new(requires, args, output)))
 }
 
@@ -194,35 +209,32 @@ pub(crate) fn conv_ty(
     ty: &fhir::Ty,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let ty = ConvCtxt::new(genv, Env::new(genv.early_cx(), []), wfckresults).conv_ty(ty)?;
+    let mut env = Env::new(genv, &[]);
+    let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
     Ok(rty::Binder::new(ty, rty::Sort::unit()))
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
-    fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
-        env: Env<'a, 'tcx>,
-        wfckresults: &'a fhir::WfckResults,
-    ) -> Self {
-        Self { genv, env, wfckresults }
+    fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a fhir::WfckResults) -> Self {
+        Self { genv, wfckresults }
     }
 
     fn conv_fn_output(
-        &mut self,
+        &self,
+        env: &mut Env,
         output: &fhir::FnOutput,
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
-        self.env
-            .push_layer(Layer::from_fun_params(self.early_cx(), &output.params));
+        env.push_layer(Layer::list(self, &output.params, true));
 
-        let ret = self.conv_ty(&output.ret)?;
+        let ret = self.conv_ty(env, &output.ret)?;
         let ensures: List<rty::Constraint> = output
             .ensures
             .iter()
-            .map(|constr| self.conv_constr(constr))
+            .map(|constr| self.conv_constr(env, constr))
             .try_collect()?;
         let output = rty::FnOutput::new(ret, ensures);
 
-        let sort = self.env.pop_layer().into_sort();
+        let sort = env.pop_layer().into_sort();
 
         Ok(rty::Binder::new(output, sort))
     }
@@ -244,20 +256,21 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         variant: &fhir::VariantDef,
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
-        let mut env = Env::new(genv.early_cx(), []);
-        env.push_layer(Layer::from_fun_params(genv.early_cx(), &variant.params));
-        let mut cx = ConvCtxt::new(genv, env, wfckresults);
+        let cx = ConvCtxt::new(genv, wfckresults);
+
+        let mut env = Env::new(genv, &[]);
+        env.push_layer(Layer::list(&cx, &variant.params, true));
 
         let fields = variant
             .fields
             .iter()
-            .map(|ty| cx.conv_ty(ty))
+            .map(|ty| cx.conv_ty(&mut env, ty))
             .try_collect()?;
-        let args = rty::Index::from(cx.conv_refine_arg(&variant.ret.idx));
-        let ret = cx.conv_base_ty(&variant.ret.bty, args)?;
+        let args = rty::Index::from(cx.conv_refine_arg(&mut env, &variant.ret.idx));
+        let ret = cx.conv_base_ty(&mut env, &variant.ret.bty, args)?;
         let variant = rty::VariantDef::new(fields, ret);
 
-        let sort = cx.env.pop_layer().to_sort();
+        let sort = env.pop_layer().to_sort();
         Ok(rty::Binder::new(variant, sort))
     }
 
@@ -266,15 +279,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         struct_def: &fhir::StructDef,
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
-        let mut env = Env::new(genv.early_cx(), []);
-        env.push_layer(Layer::from_params(genv.early_cx(), &struct_def.params));
-        let mut cx = ConvCtxt::new(genv, env, wfckresults);
+        let cx = ConvCtxt::new(genv, wfckresults);
+        let mut env = Env::new(genv, &[]);
+        env.push_layer(Layer::list(&cx, &struct_def.params, false));
 
-        let def_id = struct_def.def_id;
+        let def_id = struct_def.owner_id.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let fields = fields
                 .iter()
-                .map(|field_def| cx.conv_ty(&field_def.ty))
+                .map(|field_def| cx.conv_ty(&mut env, &field_def.ty))
                 .try_collect()?;
 
             let substs = genv
@@ -295,7 +308,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 })
                 .collect_vec();
 
-            let sort = cx.env.pop_layer().to_sort();
+            let sort = env.pop_layer().to_sort();
             let ret = rty::Ty::indexed(
                 rty::BaseTy::adt(genv.adt_def(def_id)?, substs),
                 rty::Expr::nu().eta_expand_tuple(&sort),
@@ -307,16 +320,20 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_constr(&mut self, constr: &fhir::Constraint) -> QueryResult<rty::Constraint> {
+    fn conv_constr(
+        &self,
+        env: &mut Env,
+        constr: &fhir::Constraint,
+    ) -> QueryResult<rty::Constraint> {
         match constr {
             fhir::Constraint::Type(loc, ty) => {
-                Ok(rty::Constraint::Type(self.env.lookup(*loc).to_path(), self.conv_ty(ty)?))
+                Ok(rty::Constraint::Type(env.lookup(*loc).to_path(), self.conv_ty(env, ty)?))
             }
-            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.env.conv_expr(pred))),
+            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred))),
         }
     }
 
-    fn conv_ty(&mut self, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
+    fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => {
                 match self.genv.early_cx().sort_of_bty(bty) {
@@ -325,12 +342,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
                         if sort.is_unit() {
                             let idx = rty::Index::from(rty::Expr::unit());
-                            self.conv_base_ty(bty, idx)
+                            self.conv_base_ty(env, bty, idx)
                         } else {
-                            self.env.push_layer(Layer::empty());
+                            env.push_layer(Layer::empty());
                             let idx = rty::Index::from(rty::Expr::nu());
-                            let ty = self.conv_base_ty(bty, idx)?;
-                            self.env.pop_layer();
+                            let ty = self.conv_base_ty(env, bty, idx)?;
+                            env.pop_layer();
                             Ok(rty::Ty::exists(rty::Binder::new(ty, sort)))
                         }
                     }
@@ -341,18 +358,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
             }
             fhir::TyKind::Indexed(bty, idx) => {
-                let idxs = rty::Index::from(self.conv_refine_arg(idx));
-                self.conv_base_ty(bty, idxs)
+                let idxs = rty::Index::from(self.conv_refine_arg(env, idx));
+                self.conv_base_ty(env, bty, idxs)
             }
             fhir::TyKind::Exists(params, ty) => {
-                let layer = if let [(ident, sort)] = &params[..] {
-                    Layer::single(self.early_cx(), *ident, sort.clone())
+                let layer = if let [param] = &params[..] {
+                    Layer::single(self, param)
                 } else {
-                    Layer::from_params(self.early_cx(), params)
+                    Layer::list(self, params, false)
                 };
-                self.env.push_layer(layer);
-                let ty = self.conv_ty(ty)?;
-                let sort = self.env.pop_layer().into_sort();
+                env.push_layer(layer);
+                let ty = self.conv_ty(env, ty)?;
+                let sort = env.pop_layer().into_sort();
                 if sort.is_unit() {
                     Ok(ty.shift_out_escaping(1))
                 } else {
@@ -360,77 +377,64 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
             }
             fhir::TyKind::Ptr(loc) => {
-                Ok(rty::Ty::ptr(rty::RefKind::Mut, self.env.lookup(*loc).to_path()))
+                Ok(rty::Ty::ptr(rty::RefKind::Mut, env.lookup(*loc).to_path()))
             }
             fhir::TyKind::Ref(rk, ty) => {
-                Ok(rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(ty)?))
+                Ok(rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(env, ty)?))
             }
             fhir::TyKind::Tuple(tys) => {
-                let tys: List<rty::Ty> = tys.iter().map(|ty| self.conv_ty(ty)).try_collect()?;
+                let tys: List<rty::Ty> =
+                    tys.iter().map(|ty| self.conv_ty(env, ty)).try_collect()?;
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(self.conv_ty(ty)?, rty::Const { val: len.val }))
+                Ok(rty::Ty::array(self.conv_ty(env, ty)?, rty::Const { val: len.val }))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
-                let pred = self.env.conv_expr(pred);
-                Ok(rty::Ty::constr(pred, self.conv_ty(ty)?))
+                let pred = self.conv_expr(env, pred);
+                Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
                 Ok(rty::Ty::indexed(
-                    rty::BaseTy::RawPtr(self.conv_ty(ty)?, *mutability),
+                    rty::BaseTy::RawPtr(self.conv_ty(env, ty)?, *mutability),
                     rty::Expr::unit(),
                 ))
             }
         }
     }
 
-    fn conv_refine_arg(&mut self, arg: &fhir::RefineArg) -> (rty::Expr, rty::TupleTree<bool>) {
-        let (expr, is_binder) = match arg {
-            fhir::RefineArg::Expr {
-                expr: fhir::Expr { kind: fhir::ExprKind::Var(var), .. },
-                is_binder,
-                ..
-            } => (self.env.lookup(*var).to_expr(), rty::TupleTree::Leaf(*is_binder)),
+    fn conv_refine_arg(
+        &self,
+        env: &mut Env,
+        arg: &fhir::RefineArg,
+    ) -> (rty::Expr, rty::TupleTree<bool>) {
+        match arg {
             fhir::RefineArg::Expr { expr, is_binder, .. } => {
-                (self.env.conv_expr(expr), rty::TupleTree::Leaf(*is_binder))
+                (self.conv_expr(env, expr), rty::TupleTree::Leaf(*is_binder))
             }
-            fhir::RefineArg::Abs(params, body, _, node_id) => {
-                let fsort = self.expect_func(*node_id);
-                let params = iter::zip(params, fsort.inputs())
-                    .map(|((name, _), sort)| (*name, sort.clone()))
-                    .collect_vec();
-                let layer = Layer::from_params(self.early_cx(), &params);
+            fhir::RefineArg::Abs(params, body, _, fhir_id) => {
+                let layer = Layer::list(self, params, false);
 
-                self.env.push_layer(layer);
-                let pred = self.env.conv_expr(body);
-                let sort = self.env.pop_layer().to_sort();
+                env.push_layer(layer);
+                let pred = self.conv_expr(env, body);
+                let sort = env.pop_layer().to_sort();
 
                 let body = rty::Binder::new(pred, sort);
-                (rty::Expr::abs(body), rty::TupleTree::Leaf(false))
+                let expr = self.add_coercions(rty::Expr::abs(body), *fhir_id);
+                (expr, rty::TupleTree::Leaf(false))
             }
-            fhir::RefineArg::Aggregate(_, flds, ..) => {
+            fhir::RefineArg::Record(_, flds, ..) => {
                 let mut exprs = vec![];
                 let mut is_binder = vec![];
                 for arg in flds {
-                    let (e, i) = self.conv_refine_arg(arg);
+                    let (e, i) = self.conv_refine_arg(env, arg);
                     exprs.push(e);
                     is_binder.push(i);
                 }
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
-        };
-        (self.coerce_index(expr, self.node_sort(arg.fhir_id())), is_binder)
-    }
-
-    fn coerce_index(&self, mut expr: rty::Expr, sort: &fhir::Sort) -> rty::Expr {
-        if self.early_cx().is_single_field_adt(sort).is_some() && !expr.is_tuple() {
-            expr = rty::Expr::tuple(vec![expr]);
-        } else if !matches!(sort, fhir::Sort::Aggregate(_) | fhir::Sort::Unit) && expr.is_tuple() {
-            expr = rty::Expr::tuple_proj(expr, 0);
         }
-        expr
     }
 
     fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
@@ -440,17 +444,22 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_base_ty(&mut self, bty: &fhir::BaseTy, idx: rty::Index) -> QueryResult<rty::Ty> {
+    fn conv_base_ty(
+        &self,
+        env: &mut Env,
+        bty: &fhir::BaseTy,
+        idx: rty::Index,
+    ) -> QueryResult<rty::Ty> {
         match &bty.kind {
-            fhir::BaseTyKind::Path(path) => self.conv_path(path, idx),
+            fhir::BaseTyKind::Path(path) => self.conv_path(env, path, idx),
             fhir::BaseTyKind::Slice(ty) => {
-                let slice = rty::BaseTy::slice(self.conv_ty(ty)?);
+                let slice = rty::BaseTy::slice(self.conv_ty(env, ty)?);
                 Ok(rty::Ty::indexed(slice, idx))
             }
         }
     }
 
-    fn conv_path(&mut self, path: &fhir::Path, idx: rty::Index) -> QueryResult<rty::Ty> {
+    fn conv_path(&self, env: &mut Env, path: &fhir::Path, idx: rty::Index) -> QueryResult<rty::Ty> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -466,18 +475,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let substs = self.conv_generic_args(*did, &path.generics)?;
+                let substs = self.conv_generic_args(env, *did, &path.generics)?;
                 rty::BaseTy::adt(adt_def, substs)
             }
             fhir::Res::Param(def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
             fhir::Res::Alias(def_id) => {
-                let generics = self.conv_generic_args(*def_id, &path.generics)?;
+                let generics = self.conv_generic_args(env, *def_id, &path.generics)?;
                 let refine = path
                     .refine
                     .iter()
-                    .map(|arg| self.conv_refine_arg(arg).0)
+                    .map(|arg| self.conv_refine_arg(env, arg).0)
                     .collect_vec();
                 let index_sorts = conv_sorts(self.early_cx(), self.genv.index_sorts_of(*def_id));
                 let idx = idx.expr.eta_expand_tuple(&rty::Sort::tuple(index_sorts));
@@ -492,7 +501,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_generic_args(
-        &mut self,
+        &self,
+        env: &mut Env,
         def_id: DefId,
         args: &[fhir::Ty],
     ) -> QueryResult<Vec<rty::GenericArg>> {
@@ -506,7 +516,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::GenericParamDefKind::Type { has_default } => {
                         if i < args.len() {
                             i += 1;
-                            Ok(rty::GenericArg::Ty(self.conv_ty(&args[i - 1])?))
+                            Ok(rty::GenericArg::Ty(self.conv_ty(env, &args[i - 1])?))
                         } else {
                             debug_assert!(has_default);
                             let ty = self
@@ -530,30 +540,29 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         self.genv.early_cx()
     }
 
-    fn expect_func(&self, fhir_id: FhirId) -> fhir::FuncSort {
-        self.early_cx()
-            .is_coercible_to_func(self.node_sort(fhir_id))
-            .unwrap()
+    fn resolve_param_sort(&self, param: &fhir::RefineParam) -> fhir::Sort {
+        if fhir::Sort::Wildcard == param.sort {
+            self.node_sort(param.fhir_id).clone()
+        } else {
+            param.sort.clone()
+        }
     }
 
     fn node_sort(&self, fhir_id: FhirId) -> &fhir::Sort {
-        &self.wfckresults.expr_sorts()[&fhir_id]
+        self.wfckresults.node_sorts().get(fhir_id).unwrap()
     }
 }
 
-impl<'a, 'tcx> Env<'a, 'tcx> {
-    fn new<'b>(
-        early_cx: &'a EarlyCtxt<'a, 'tcx>,
-        early_bound: impl IntoIterator<Item = &'b (fhir::Ident, fhir::Sort)>,
-    ) -> Self {
+impl Env {
+    fn new(genv: &GlobalEnv, early_bound: &[fhir::RefineParam]) -> Self {
         let early_bound = early_bound
-            .into_iter()
-            .map(|(name, sort)| {
-                let conv = conv_sort(early_cx, sort);
-                (name.name, (sort.clone(), conv))
+            .iter()
+            .map(|param| {
+                let conv = conv_sort(genv.early_cx(), &param.sort);
+                (param.name(), (param.sort.clone(), conv))
             })
             .collect();
-        Self { early_cx, layers: vec![], early_bound }
+        Self { layers: vec![], early_bound }
     }
 
     fn push_layer(&mut self, layer: Layer) {
@@ -585,82 +594,94 @@ impl<'a, 'tcx> Env<'a, 'tcx> {
     }
 }
 
-impl Env<'_, '_> {
-    fn conv_expr(&self, expr: &fhir::Expr) -> rty::Expr {
-        match &expr.kind {
+impl ConvCtxt<'_, '_> {
+    fn conv_expr(&self, env: &Env, expr: &fhir::Expr) -> rty::Expr {
+        let fhir_id = expr.fhir_id;
+        let expr = match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
-            fhir::ExprKind::Var(var) => self.lookup(*var).to_expr().singleton_proj_coercion(),
+            fhir::ExprKind::Var(var) => env.lookup(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
-                rty::Expr::binary_op(*op, self.conv_expr(e1), self.conv_expr(e2))
+                rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2))
             }
-            fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(e)),
+            fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(env, e)),
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(func), rty::Expr::tuple(self.conv_exprs(args)))
+                rty::Expr::app(
+                    self.conv_func(env, func),
+                    rty::Expr::tuple(self.conv_exprs(env, args)),
+                )
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
-                rty::Expr::ite(self.conv_expr(p), self.conv_expr(e1), self.conv_expr(e2))
+                rty::Expr::ite(
+                    self.conv_expr(env, p),
+                    self.conv_expr(env, e1),
+                    self.conv_expr(env, e2),
+                )
             }
-            fhir::ExprKind::Dot(var, fld) => self.lookup(*var).get_field(self.early_cx, *fld),
-        }
+            fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv.early_cx(), *fld),
+        };
+        self.add_coercions(expr, fhir_id)
     }
 
-    fn conv_func(&self, func: &fhir::Func) -> rty::Expr {
-        match func {
-            fhir::Func::Var(ident) => self.lookup(*ident).to_expr().singleton_proj_coercion(),
-            fhir::Func::Global(sym, kind, _) => rty::Expr::global_func(*sym, *kind),
-        }
+    fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
+        let expr = match func {
+            fhir::Func::Var(ident, _) => env.lookup(*ident).to_expr(),
+            fhir::Func::Global(sym, kind, ..) => rty::Expr::global_func(*sym, *kind),
+        };
+        self.add_coercions(expr, func.fhir_id())
     }
 
-    fn conv_exprs(&self, exprs: &[fhir::Expr]) -> List<rty::Expr> {
-        List::from_iter(exprs.iter().map(|e| self.conv_expr(e)))
+    fn conv_exprs(&self, env: &Env, exprs: &[fhir::Expr]) -> List<rty::Expr> {
+        List::from_iter(exprs.iter().map(|e| self.conv_expr(env, e)))
     }
 
-    fn conv_invariants(&self, sort: &rty::Sort, invariants: &[fhir::Expr]) -> Vec<rty::Invariant> {
+    fn conv_invariants(&self, env: &Env, invariants: &[fhir::Expr]) -> Vec<rty::Invariant> {
         invariants
             .iter()
-            .map(|invariant| self.conv_invariant(sort, invariant))
+            .map(|invariant| self.conv_invariant(env, invariant))
             .collect()
     }
 
-    fn conv_invariant(&self, sort: &rty::Sort, invariant: &fhir::Expr) -> rty::Invariant {
-        rty::Invariant { pred: rty::Binder::new(self.conv_expr(invariant), sort.clone()) }
+    fn conv_invariant(&self, env: &Env, invariant: &fhir::Expr) -> rty::Invariant {
+        rty::Invariant {
+            pred: rty::Binder::new(self.conv_expr(env, invariant), env.top_layer().to_sort()),
+        }
+    }
+
+    fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
+        if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
+            for coercion in coercions {
+                expr = match coercion {
+                    fhir::Coercion::Inject => rty::Expr::tuple(vec![expr]),
+                    fhir::Coercion::Project => rty::Expr::tuple_proj(expr, 0),
+                };
+            }
+        }
+        expr
     }
 }
 
 impl Layer {
-    fn from_params<'a>(
-        early_cx: &EarlyCtxt,
-        slice: impl IntoIterator<Item = &'a (fhir::Ident, fhir::Sort)>,
-    ) -> Self {
-        let mut idx = 0;
-        let map = slice
-            .into_iter()
-            .map(|(ident, sort)| {
-                let entry = ListEntry::new(early_cx, idx, sort.clone(), None);
-                idx += 1;
-                (ident.name, entry)
-            })
-            .collect();
-        Self::List(map)
-    }
-
-    fn from_fun_params(early_cx: &EarlyCtxt, params: &[fhir::FunRefineParam]) -> Self {
+    fn list(cx: &ConvCtxt, params: &[fhir::RefineParam], filter_unit: bool) -> Self {
         let mut idx = 0;
         let map = params
             .iter()
             .map(|param| {
-                let entry = ListEntry::new(early_cx, idx, param.sort.clone(), Some(param.mode));
-                idx += !matches!(entry, ListEntry::Unit) as u32;
-                (param.name.name, entry)
+                let sort = cx.resolve_param_sort(param);
+                let entry = ListEntry::new(cx.early_cx(), idx, sort, None);
+                if !filter_unit || !matches!(entry, ListEntry::Unit) {
+                    idx += 1;
+                }
+                (param.name(), entry)
             })
             .collect();
         Self::List(map)
     }
 
-    fn single(early_cx: &EarlyCtxt, bind: fhir::Ident, sort: fhir::Sort) -> Self {
-        let conv = conv_sort(early_cx, &sort);
-        Self::Single(bind.name, sort, conv)
+    fn single(cx: &ConvCtxt, param: &fhir::RefineParam) -> Self {
+        let sort = cx.resolve_param_sort(param);
+        let conv = conv_sort(cx.early_cx(), &sort);
+        Self::Single(param.ident.name, sort, conv)
     }
 
     fn empty() -> Self {
@@ -770,18 +791,16 @@ impl LookupResult<'_> {
         }
     }
 
-    fn is_aggregate(&self) -> Option<DefId> {
+    fn is_record(&self) -> Option<DefId> {
         match &self.kind {
-            LookupResultKind::LateBoundSingle { sort: fhir::Sort::Aggregate(def_id), .. } => {
+            LookupResultKind::LateBoundSingle { sort: fhir::Sort::Record(def_id), .. } => {
                 Some(*def_id)
             }
             LookupResultKind::LateBoundList {
-                entry: ListEntry::Sort { sort: fhir::Sort::Aggregate(def_id), .. },
+                entry: ListEntry::Sort { sort: fhir::Sort::Record(def_id), .. },
                 ..
             } => Some(*def_id),
-            LookupResultKind::EarlyBound { sort: fhir::Sort::Aggregate(def_id), .. } => {
-                Some(*def_id)
-            }
+            LookupResultKind::EarlyBound { sort: fhir::Sort::Record(def_id), .. } => Some(*def_id),
             _ => None,
         }
     }
@@ -793,13 +812,13 @@ impl LookupResult<'_> {
     }
 
     fn get_field(&self, early_cx: &EarlyCtxt, fld: SurfaceIdent) -> rty::Expr {
-        if let Some(def_id) = self.is_aggregate() {
+        if let Some(def_id) = self.is_record() {
             let i = early_cx
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
             rty::Expr::tuple_proj(self.to_expr(), i as u32)
         } else {
-            span_bug!(fld.span, "expected aggregate sort")
+            span_bug!(fld.span, "expected record sort")
         }
     }
 }
@@ -828,13 +847,13 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::User(name) => rty::Sort::User(*name),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(early_cx, fsort)),
-        fhir::Sort::Aggregate(def_id) => {
+        fhir::Sort::Record(def_id) => {
             rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
         }
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
         }
-        fhir::Sort::Infer => bug!("unexpected sort `{sort:?}`"),
+        fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
     }
 }
 

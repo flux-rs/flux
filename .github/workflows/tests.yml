@@ -10,21 +10,21 @@ jobs:
   check-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Clone fixpoint
         run: |
           git clone https://github.com/ucsd-progsys/liquid-fixpoint
           echo "fixpoint_hash=$(git -C liquid-fixpoint/ rev-parse HEAD)" >> $GITHUB_ENV
           echo "local_binaries_path=$(pwd)/local-binaries" >> $GITHUB_ENV
       - name: Cache fixpoint
-        uses: actions/cache@v2
+        uses: actions/cache@v3.3.1
         id: cache-fixpoint
         with:
           path: local-binaries
           key: fixpoint-bin-${{ runner.os }}-${{ env.fixpoint_hash }}
       - name: Install Haskell
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
-        uses: haskell/actions/setup@v1
+        uses: haskell/actions/setup@v2.3.7
         with:
           enable-stack: true
           stack-version: "latest"
@@ -56,7 +56,7 @@ jobs:
   check-fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
       - name: Rust rustfmt
@@ -65,7 +65,7 @@ jobs:
   check-clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Add clippy
         run: rustup component add clippy
       - name: Rust Cache

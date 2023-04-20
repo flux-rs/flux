@@ -1,4 +1,4 @@
-use std::{rc::Rc, string::ToString};
+use std::rc::Rc;
 
 use flux_errors::FluxSession;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -11,7 +11,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, VariantIdx},
+    fhir::{self, FluxLocalDefId, VariantIdx},
     queries::{Providers, Queries, QueryResult},
     rty::{self, normalize::Defns, refining::Refiner},
     rustc,
@@ -22,10 +22,10 @@ pub struct GlobalEnv<'sess, 'tcx> {
     pub sess: &'sess FluxSession,
     func_decls: FxHashMap<Symbol, rty::FuncDecl>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
-    fn_quals: FxHashMap<DefId, FxHashSet<String>>,
+    fn_quals: FxHashMap<DefId, FxHashSet<Symbol>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
     queries: Queries<'tcx>,
-    extern_fns: FxHashMap<DefId, DefId>,
+    extern_specs: FxHashMap<DefId, DefId>,
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
@@ -36,12 +36,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     ) -> Self {
         let mut fn_quals = FxHashMap::default();
         for (def_id, names) in early_cx.map.fn_quals() {
-            let names = names.iter().map(|ident| ident.name.to_string()).collect();
+            let names = names.iter().map(|ident| ident.name).collect();
             fn_quals.insert(def_id.to_def_id(), names);
         }
-        let extern_fns = early_cx
+        let externs = early_cx
             .map
-            .extern_fns()
+            .externs()
             .iter()
             .map(|(extern_def_id, local_def_id)| (*extern_def_id, local_def_id.to_def_id()))
             .collect();
@@ -52,7 +52,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             func_decls,
             fn_quals,
             queries: Queries::new(providers),
-            extern_fns,
+            extern_specs: externs,
         }
     }
 
@@ -64,10 +64,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.defns(self)
     }
 
-    fn fn_quals(&self, did: DefId) -> Vec<String> {
+    fn fn_quals(&self, did: DefId) -> FxHashSet<Symbol> {
         match self.fn_quals.get(&did) {
-            None => vec![],
-            Some(names) => names.iter().map(ToString::to_string).collect(),
+            None => FxHashSet::default(),
+            Some(names) => names.clone(),
         }
     }
 
@@ -111,8 +111,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.adt_def(self, def_id.into())
     }
 
-    pub fn check_wf(&self, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
-        self.queries.check_wf(self, def_id)
+    pub fn check_wf(
+        &self,
+        flux_id: impl Into<FluxLocalDefId>,
+    ) -> QueryResult<Rc<fhir::WfckResults>> {
+        self.queries.check_wf(self, flux_id.into())
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
@@ -148,8 +151,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .map(|variants| rty::EarlyBinder(variants[variant_idx.as_usize()].clone())))
     }
 
-    pub fn index_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
-        self.early_cx.index_sorts_of(def_id)
+    pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {
+        self.early_cx.index_sorts_of(def_id.into())
     }
 
     pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
@@ -206,7 +209,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.hir()
     }
 
-    pub fn lookup_extern_fn(&self, def_id: &DefId) -> Option<&DefId> {
-        self.extern_fns.get(def_id)
+    pub fn lookup_extern(&self, def_id: &DefId) -> Option<&DefId> {
+        self.extern_specs.get(def_id)
     }
 }

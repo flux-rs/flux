@@ -657,7 +657,7 @@ fn qualifier_to_fixpoint(
             (fresh, sort_to_fixpoint(&sort))
         })
         .collect_vec();
-    let name = qualifier.name.clone();
+    let name = qualifier.name.to_string();
     let cx = ExprCtxt::new(&name_map, const_map, dbg_span);
     let body = cx.expr_to_fixpoint(&body);
     let global = qualifier.global;

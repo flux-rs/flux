@@ -18,7 +18,7 @@ use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir,
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
@@ -27,7 +27,8 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
+use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -63,7 +64,8 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
         .map()
         .defns()
         .map(|defn| -> QueryResult<_> {
-            let defn = conv::conv_defn(genv.early_cx(), defn);
+            let wfckresults = genv.check_wf(FluxLocalDefId::Flux(defn.name))?;
+            let defn = conv::conv_defn(genv, defn, &wfckresults);
             Ok((defn.name, defn))
         })
         .try_collect()?;
@@ -79,7 +81,10 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
 fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
-        .map(|qualifier| normalize(genv, conv::conv_qualifier(genv.early_cx(), qualifier)))
+        .map(|qualifier| {
+            let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
+            normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
+        })
         .try_collect()
 }
 
@@ -95,7 +100,8 @@ fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::I
         }
         kind => bug!("expected struct or enum found `{kind:?}`"),
     };
-    conv::conv_invariants(genv, params, invariants)
+    let wfckresults = genv.check_wf(def_id)?;
+    conv::conv_invariants(genv, params, invariants, &wfckresults)
         .into_iter()
         .map(|invariant| normalize(genv, invariant))
         .collect()
@@ -185,7 +191,22 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
     Ok(rty::EarlyBinder(fn_sig))
 }
 
-fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
+fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<fhir::WfckResults> {
+    match flux_id {
+        FluxLocalDefId::Flux(sym) => check_wf_flux_item(genv, sym),
+        FluxLocalDefId::Rust(def_id) => check_wf_rust_item(genv, def_id),
+    }
+}
+
+fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<fhir::WfckResults> {
+    let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
+        fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv.early_cx(), qualifier)?,
+        fhir::FluxItem::Defn(defn) => wf::check_defn(genv.early_cx(), defn)?,
+    };
+    Ok(wfckresults)
+}
+
+fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
@@ -208,7 +229,9 @@ fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResul
         DefKind::TyParam => {
             match &genv.early_cx().get_generic_param(def_id).kind {
                 fhir::GenericParamDefKind::Type { default: Some(ty) } => {
-                    let wfckresults = wf::check_type(genv.early_cx(), ty)?;
+                    let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
+                    let owner = genv.hir().get_parent_item(hir_id);
+                    let wfckresults = wf::check_type(genv.early_cx(), ty, owner)?;
                     Ok(wfckresults)
                 }
                 fhir::GenericParamDefKind::Type { default: None } => {
@@ -219,8 +242,9 @@ fn check_wf(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResul
         }
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(def_id);
-            let wf = wf::check_fn_sig(genv.early_cx(), fn_sig)?;
-            annot_check::check_fn_sig(genv.early_cx(), def_id, fn_sig)?;
+            let owner_id = OwnerId { def_id };
+            let wf = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
+            annot_check::check_fn_sig(genv.early_cx(), owner_id, fn_sig)?;
             Ok(wf)
         }
         kind => bug!("unexpected def kind `{kind:?}`"),
@@ -240,16 +264,22 @@ fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
     }
 
     for defn in genv.map().defns() {
-        err = wf::check_defn(genv.early_cx(), defn).err().or(err);
-    }
-
-    for qualifier in genv.map().qualifiers() {
-        err = wf::check_qualifier(genv.early_cx(), qualifier)
+        err = genv
+            .check_wf(FluxLocalDefId::Flux(defn.name))
+            .emit(genv.sess)
             .err()
             .or(err);
     }
 
-    let qualifiers = genv.map().qualifiers().map(|q| q.name.clone()).collect();
+    for qualifier in genv.map().qualifiers() {
+        err = genv
+            .check_wf(FluxLocalDefId::Flux(qualifier.name))
+            .emit(genv.sess)
+            .err()
+            .or(err);
+    }
+
+    let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
     for (_, fn_quals) in genv.map().fn_quals() {
         err = wf::check_fn_quals(genv.sess, &qualifiers, fn_quals)
             .err()

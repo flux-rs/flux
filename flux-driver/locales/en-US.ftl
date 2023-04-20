@@ -26,7 +26,7 @@ driver_missing_variant =
     .note = all variants in a refined enum must be annotated
 
 driver_malformed_extern_spec =
-    malformed extern_spec, expecting a function definition with a call to the external method as the body
+    malformed extern_spec, this should never happen if you are using the extern_spec macro. Did you accidentally use the internal flux::extern_spec attribute?
 
 driver_missing_fn_sig_for_extern_spec =
     missing flux::sig attribute (functions declared as flux::extern_spec require a flux::sig)

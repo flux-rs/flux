@@ -11,7 +11,7 @@ use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::Local;
 use rustc_span::Symbol;
 
-use super::{evars::EVar, BaseTy, Binder, Sort};
+use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::FuncKind,
     intern::{impl_internable, Interned, List},
@@ -150,15 +150,24 @@ impl Expr {
             .clone()
     }
 
-    pub fn int_max(bit_width: u64) -> Expr {
+    pub fn int_max(int_ty: IntTy) -> Expr {
+        let bit_width: u64 = int_ty
+            .bit_width()
+            .unwrap_or(flux_config::pointer_width().bits());
         Expr::constant(Constant::int_max(bit_width.try_into().unwrap()))
     }
 
-    pub fn int_min(bit_width: u64) -> Expr {
+    pub fn int_min(int_ty: IntTy) -> Expr {
+        let bit_width: u64 = int_ty
+            .bit_width()
+            .unwrap_or(flux_config::pointer_width().bits());
         Expr::constant(Constant::int_min(bit_width.try_into().unwrap()))
     }
 
-    pub fn uint_max(bit_width: u64) -> Expr {
+    pub fn uint_max(uint_ty: UintTy) -> Expr {
+        let bit_width: u64 = uint_ty
+            .bit_width()
+            .unwrap_or(flux_config::pointer_width().bits());
         Expr::constant(Constant::uint_max(bit_width.try_into().unwrap()))
     }
 
@@ -179,14 +188,6 @@ impl Expr {
             tup
         } else {
             bug!("expected tuple")
-        }
-    }
-
-    pub fn singleton_proj_coercion(self) -> Expr {
-        if let ExprKind::Tuple(tup) = self.kind() && tup.len() == 1 {
-            Expr::tuple_proj(self, 0)
-        } else {
-            self
         }
     }
 

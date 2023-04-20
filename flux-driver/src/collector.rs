@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
@@ -16,7 +16,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
-    EnumDef, ImplItemKind, Item, ItemKind, VariantData,
+    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_span::{Span, Symbol};
@@ -40,17 +40,17 @@ pub enum IgnoreKey {
 pub type Ignores = FxHashSet<IgnoreKey>;
 
 pub(crate) struct Specs {
-    pub fn_sigs: FxHashMap<LocalDefId, FnSpec>,
-    pub structs: FxHashMap<LocalDefId, surface::StructDef>,
-    pub enums: FxHashMap<LocalDefId, surface::EnumDef>,
+    pub fn_sigs: FxHashMap<OwnerId, FnSpec>,
+    pub structs: FxHashMap<OwnerId, surface::StructDef>,
+    pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
     pub sort_decls: Vec<surface::SortDecl>,
-    pub aliases: surface::AliasMap,
+    pub aliases: FxHashMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
-    pub extern_fns: FxHashMap<DefId, LocalDefId>,
+    pub extern_specs: FxHashMap<DefId, LocalDefId>,
 }
 
 pub(crate) struct FnSpec {
@@ -87,13 +87,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let item = tcx.hir().item(item_id);
             let hir_id = item.hir_id();
             let attrs = tcx.hir().attrs(hir_id);
-            let def_id = item.owner_id.def_id;
+            let owner_id = item.owner_id;
             let _ = match &item.kind {
-                ItemKind::Fn(..) => collector.parse_fn_spec(def_id, attrs),
-                ItemKind::Struct(data, ..) => collector.parse_struct_def(def_id, attrs, data),
-                ItemKind::Enum(def, ..) => collector.parse_enum_def(def_id, attrs, def),
-                ItemKind::Mod(..) => collector.parse_mod_spec(def_id, attrs),
-                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(def_id, attrs),
+                ItemKind::Fn(..) => collector.parse_fn_spec(owner_id, attrs),
+                ItemKind::Struct(data, ..) => collector.parse_struct_def(owner_id, attrs, data),
+                ItemKind::Enum(def, ..) => collector.parse_enum_def(owner_id, attrs, def),
+                ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
+                ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(_ty, _body_id) => collector.parse_const_spec(item, attrs),
                 _ => Ok(()),
             };
@@ -101,11 +101,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
-            let def_id = impl_item.owner_id.def_id;
+            let owner_id = impl_item.owner_id;
             if let ImplItemKind::Fn(..) = &impl_item.kind {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
-                let _ = collector.parse_fn_spec(def_id, attrs);
+                let _ = collector.parse_fn_spec(owner_id, attrs);
             }
         }
 
@@ -174,17 +174,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_tyalias_spec(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.specs.aliases.insert(def_id, attrs.alias());
+        self.specs.aliases.insert(owner_id, attrs.alias());
         Ok(())
     }
 
     fn parse_struct_def(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
         data: &VariantData,
     ) -> Result<(), ErrorGuaranteed> {
@@ -192,7 +192,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-struct attrs
 
-        let opaque = attrs.opaque();
+        let mut opaque = attrs.opaque();
 
         let refined_by = attrs.refined_by();
 
@@ -204,9 +204,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let invariants = attrs.invariants();
 
-        self.specs
-            .structs
-            .insert(def_id, surface::StructDef { def_id, refined_by, fields, opaque, invariants });
+        if attrs.extern_spec() {
+            // extern_spec dummy structs are always opaque because they contain
+            // one field: the external struct they are meant to represent.
+            opaque = true;
+            let extern_def_id =
+                self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
+            self.specs
+                .extern_specs
+                .insert(extern_def_id, owner_id.def_id);
+        }
+
+        self.specs.structs.insert(
+            owner_id,
+            surface::StructDef { owner_id, refined_by, fields, opaque, invariants },
+        );
 
         Ok(())
     }
@@ -227,7 +239,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_enum_def(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
         enum_def: &EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
@@ -244,7 +256,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .enums
-            .insert(def_id, surface::EnumDef { def_id, refined_by, variants, invariants });
+            .insert(owner_id, surface::EnumDef { owner_id, refined_by, variants, invariants });
         Ok(())
     }
 
@@ -268,7 +280,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_fn_spec(
         &mut self,
-        def_id: LocalDefId,
+        owner_id: OwnerId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
@@ -281,17 +293,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         if attrs.extern_spec() {
             if fn_sig.is_none() {
                 return Err(self.emit_err(errors::MissingFnSigForExternSpec {
-                    span: self.tcx.def_span(def_id),
+                    span: self.tcx.def_span(owner_id),
                 }));
             }
-            let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(def_id)?;
-            self.specs.extern_fns.insert(extern_def_id, def_id);
+            let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
+            self.specs
+                .extern_specs
+                .insert(extern_def_id, owner_id.def_id);
             // We should never check an extern spec (it will infinitely recurse)
             trusted = true;
         }
         self.specs
             .fn_sigs
-            .insert(def_id, FnSpec { fn_sig, trusted, qual_names });
+            .insert(owner_id, FnSpec { fn_sig, trusted, qual_names });
         Ok(())
     }
 
@@ -385,19 +399,49 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
     ) -> Result<DefId, ErrorGuaranteed> {
         use rustc_hir::{def, ExprKind, Node};
+        // Regular functions
         if let Node::Item(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
             && let ItemKind::Fn(_, _, body_id) = &i.kind
             && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
             && let ExprKind::Block(b, _) = e.kind
             && let Some(e) = b.expr
-            && let ExprKind::Call(callee, _) = e.kind
-            && let ExprKind::Path(ref qself) = callee.kind
+            && let ExprKind::Call(callee, _) = &e.kind
+            && let ExprKind::Path(qself) = &callee.kind
         {
                 let typeck_result = self.tcx.typeck(def_id);
                 if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
                 {
                     return Ok(def_id);
                 }
+        }
+        // impl functions
+        if let Node::ImplItem(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
+            && let ImplItemKind::Fn(_, body_id) = &i.kind
+            && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
+            && let ExprKind::Block(b, _) = e.kind
+            && let Some(e) = b.expr
+            && let ExprKind::Call(callee, _) = &e.kind
+            && let ExprKind::Path(qself) = &callee.kind
+        {
+                let typeck_result = self.tcx.typeck(def_id);
+                if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
+                {
+                    return Ok(def_id);
+                }
+        }
+        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+    }
+
+    fn extract_extern_def_id_from_extern_spec_struct(
+        &mut self,
+        def_id: LocalDefId,
+        data: &VariantData,
+    ) -> Result<DefId, ErrorGuaranteed> {
+        if let Some(extern_field) = data.fields().first() {
+            let ty = self.tcx.type_of(extern_field.def_id);
+            if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
+                return Ok(adt_def.did());
+            }
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
@@ -457,7 +501,7 @@ impl Specs {
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
             crate_config: None,
-            extern_fns: FxHashMap::default(),
+            extern_specs: FxHashMap::default(),
         }
     }
 
@@ -471,19 +515,19 @@ impl Specs {
         }
     }
 
-    pub fn refined_bys(&self) -> impl Iterator<Item = (LocalDefId, Option<&surface::RefinedBy>)> {
+    pub fn refined_bys(&self) -> impl Iterator<Item = (OwnerId, Option<&surface::RefinedBy>)> {
         let structs = self
             .structs
             .iter()
-            .map(|(def_id, struct_def)| (*def_id, struct_def.refined_by.as_ref()));
+            .map(|(owner_id, struct_def)| (*owner_id, struct_def.refined_by.as_ref()));
         let enums = self
             .enums
             .iter()
-            .map(|(def_id, enum_def)| (*def_id, enum_def.refined_by.as_ref()));
+            .map(|(owner_id, enum_def)| (*owner_id, enum_def.refined_by.as_ref()));
         let aliases = self
             .aliases
             .iter()
-            .map(|(def_id, alias)| (*def_id, alias.as_ref().map(|alias| &alias.refined_by)));
+            .map(|(owner_id, alias)| (*owner_id, alias.as_ref().map(|alias| &alias.refined_by)));
         itertools::chain!(structs, enums, aliases)
     }
 }
@@ -648,7 +692,7 @@ impl FluxAttrKind {
 
 #[derive(Debug)]
 struct CFGSetting {
-    setting: String,
+    setting: Symbol,
     span: Span,
 }
 
@@ -658,23 +702,21 @@ struct FluxAttrCFG {
 }
 
 macro_rules! try_read_setting {
-    ($self:expr, $setting:literal, $type:ident, $default:expr) => {
-        if let Some(CFGSetting { setting, span }) = $self.map.remove($setting) {
+    ($self:expr, $setting:ident, $type:ident, $cfg:expr) => {
+        if let Some(CFGSetting { setting, span }) = $self.map.remove(stringify!($setting)) {
             let parse_result = setting.as_str().parse::<$type>();
-            if parse_result.is_err() {
-                Err(errors::CFGError {
+            if let Ok(val) = parse_result {
+                $cfg.$setting = val;
+            } else {
+                return Err(errors::CFGError {
                     span,
                     message: format!(
                         "incorrect type in value for setting `{}`, expected {}",
-                        $setting,
+                        stringify!($setting),
                         stringify!($type)
                     ),
-                })
-            } else {
-                Ok(parse_result.unwrap())
+                });
             }
-        } else {
-            Ok($default)
         }
     };
 }
@@ -716,14 +758,11 @@ impl FluxAttrCFG {
                     }
 
                     // TODO: support types of values other than strings
-                    let value = item
-                        .value_str()
-                        .map(Symbol::to_ident_string)
-                        .ok_or_else(|| {
-                            errors::CFGError { span, message: "unsupported value".to_string() }
-                        })?;
+                    let value = item.name_value_literal().ok_or_else(|| {
+                        errors::CFGError { span, message: "unsupported value".to_string() }
+                    })?;
 
-                    let setting = CFGSetting { setting: value, span: item.span };
+                    let setting = CFGSetting { setting: value.symbol, span: item.span };
                     self.map.insert(name, setting);
                     return Ok(());
                 }
@@ -739,11 +778,8 @@ impl FluxAttrCFG {
     }
 
     fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
-        let log_dir = try_read_setting!(self, "log_dir", PathBuf, config::log_dir().clone())?;
-        let dump_constraint =
-            try_read_setting!(self, "dump_constraint", bool, config::dump_constraint())?;
-        let dump_checker_trace =
-            try_read_setting!(self, "dump_checker_trace", bool, config::dump_checker_trace())?;
+        let mut crate_config = CrateConfig::default();
+        try_read_setting!(self, check_overflow, bool, crate_config);
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {
@@ -752,7 +788,7 @@ impl FluxAttrCFG {
             });
         }
 
-        Ok(CrateConfig { log_dir, dump_constraint, dump_checker_trace })
+        Ok(crate_config)
     }
 }
 
