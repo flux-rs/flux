@@ -512,7 +512,7 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
-            BaseTy::Closure(did) => BaseTy::Closure(*did),
+            BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.fold_with(folder)),
         }
     }
 
@@ -530,7 +530,7 @@ impl TypeFoldable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Closure(_)
+            | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => {}
         }

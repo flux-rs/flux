@@ -151,7 +151,22 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
-            rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
+            rustc::ty::TyKind::Closure(did, substs) => {
+                print!("TRACE: refine_poly_ty closure: {did:?}, {substs:?}");
+                if let rustc::ty::GenericArg::Ty(ty) = &substs[substs.len() - 1] &&
+                   let rustc::ty::TyKind::Tuple(tys) = ty.kind()
+                {
+                   let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
+                   rty::BaseTy::Closure(*did, tys)
+                } else {
+                    bug!()
+                }
+                // let substs = substs
+                //     .iter()
+                //     .map(|arg| self.refine_generic_arg(arg))
+                //     .try_collect_vec()?;
+                // rty::BaseTy::Closure(*did, tys)
+            }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {
                 rty::BaseTy::Ref(rty::RefKind::Mut, self.refine_ty(ty)?)

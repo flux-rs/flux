@@ -262,7 +262,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
-    Closure(DefId),
+    Closure(DefId, List<Ty>),
     Param(ParamTy),
 }
 
@@ -277,8 +277,8 @@ pub enum GenericArg {
 }
 
 impl FnTraitPredicate {
-    pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
-        let closure_ty = Ty::closure(closure_id);
+    pub fn to_poly_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+        let closure_ty = Ty::closure(closure_id, tys);
         let env_ty = match self.kind {
             ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
             ClosureKind::FnMut => Ty::mk_ref(RefKind::Mut, closure_ty),
@@ -806,8 +806,8 @@ impl Ty {
         BaseTy::Array(ty, c).into_ty()
     }
 
-    pub fn closure(did: DefId) -> Ty {
-        BaseTy::Closure(did).into_ty()
+    pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
+        BaseTy::Closure(did, tys.into()).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -940,7 +940,7 @@ impl BaseTy {
             | BaseTy::Ref(_, _)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Closure(_)
+            | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => &[],
         }
@@ -968,7 +968,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Closure(_)
+            | BaseTy::Closure(_, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1341,7 +1341,13 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
-                BaseTy::Closure(did) => w!("{:?}", did),
+                BaseTy::Closure(did, substs) => {
+                    w!("{:?}", did)?;
+                    if !substs.is_empty() {
+                        w!("<{:?}>", join!(", ", substs))?;
+                    }
+                    Ok(())
+                }
             }
         }
     }

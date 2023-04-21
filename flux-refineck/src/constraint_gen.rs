@@ -504,7 +504,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
-            (BaseTy::Closure(did1), BaseTy::Closure(did2)) if did1 == did2 => {}
+            (BaseTy::Closure(did1, _), BaseTy::Closure(did2, _)) if did1 == did2 => {}
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
