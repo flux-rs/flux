@@ -481,6 +481,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     if let Some(BaseTy::Closure(def_id, tys)) =
                         fn_pred.bounded_ty.as_bty_skipping_binders()
                     {
+                        // print!("TRACE: check_obligs {fn_pred:?} , {tys:?}");
                         let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
                         Checker::run(
                             self.genv,

@@ -152,7 +152,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, substs) => {
-                print!("TRACE: refine_poly_ty closure: {did:?}, {substs:?}");
                 if let rustc::ty::GenericArg::Ty(ty) = &substs[substs.len() - 1] &&
                    let rustc::ty::TyKind::Tuple(tys) = ty.kind()
                 {
