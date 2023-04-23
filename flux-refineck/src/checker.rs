@@ -298,7 +298,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let stmt_span = stmt.source_info.span;
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                // println!("TRACE: check_statement {stmt:?}");
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
                 let checker_config = self.config;
@@ -481,7 +480,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     if let Some(BaseTy::Closure(def_id, tys)) =
                         fn_pred.bounded_ty.as_bty_skipping_binders()
                     {
-                        // print!("TRACE: check_obligs {fn_pred:?} , {tys:?}");
                         let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
                         Checker::run(
                             self.genv,
@@ -696,14 +694,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, _substs), args) => {
-                // TODO (RJ): handle case where closure "moves" in values for "free variables"
+                // TODO(pack-closure): handle case where closure "moves" in values for "free variables"
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
-                // let substs = arg_tys
-                //     .into_iter()
-                //     .map(|ty| GenericArg::Ty(ty))
-                //     .collect_vec();
-                Ok(Ty::closure(*did, tys))
-                // panic!("TODO: check the closure defid = {did:?}, substs = {substs:?}, args = {args:?}")
+                let mut gen = self.constr_gen(rcx, stmt_span);
+                let tys = gen
+                    .pack_closure_operands(rcx, env, &tys)
+                    .with_span(stmt_span);
+
+                let res = Ty::closure(*did, tys?);
+                Ok(res)
             }
             Rvalue::Discriminant(place) => {
                 let config = self.config;

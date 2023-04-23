@@ -160,11 +160,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 } else {
                     bug!()
                 }
-                // let substs = substs
-                //     .iter()
-                //     .map(|arg| self.refine_generic_arg(arg))
-                //     .try_collect_vec()?;
-                // rty::BaseTy::Closure(*did, tys)
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(ty, rustc::ty::Mutability::Mut) => {

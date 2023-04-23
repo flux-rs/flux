@@ -653,7 +653,8 @@ impl Node {
     ) -> Result<(), CheckerErrKind> {
         let ty = self.expect_leaf_mut().unblock(rcx);
         match ty.kind() {
-            TyKind::Indexed(BaseTy::Tuple(tys), _) => {
+            TyKind::Indexed(BaseTy::Tuple(tys), _)
+            | TyKind::Indexed(BaseTy::Closure(_, tys), _) => {
                 let children = tys
                     .iter()
                     .cloned()
