@@ -351,7 +351,8 @@ impl PathsTree {
                     let (boxed, _) = box_args(substs);
                     ty = boxed.clone();
                 }
-                (Field(field), TyKind::Indexed(BaseTy::Tuple(tys), _)) => {
+                (Field(field), TyKind::Indexed(BaseTy::Tuple(tys), _))
+                | (Field(field), TyKind::Indexed(BaseTy::Closure(_, tys), _)) => {
                     ty = tys[field.as_usize()].clone();
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idx)) => {
@@ -365,7 +366,10 @@ impl PathsTree {
                     rcx.assume_invariants(&ty, checker_config.check_overflow);
                 }
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
-                _ => tracked_span_bug!("unexpected type and projection {elem:?} {ty:?}"),
+
+                _ => {
+                    tracked_span_bug!("unexpected type and projection elem = {elem:?}, ty = {ty:?}")
+                }
             }
         }
         Ok((rk, ty))
