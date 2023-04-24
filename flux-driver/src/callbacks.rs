@@ -216,7 +216,6 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         .iter()
         .try_for_each_exhaust(|qualifier| {
             let qualifier = desugar::desugar_qualifier(&early_cx, qualifier)?;
-            println!("TRACE: insert_qualifier: {qualifier:?}");
             early_cx.map.insert_qualifier(qualifier);
             Ok(())
         })
@@ -325,7 +324,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         crate_config: Option<CrateConfig>,
     ) -> Self {
         let crate_config = crate_config.unwrap_or_default();
-        let checker_config = CheckerConfig { check_overflow: crate_config.check_overflow };
+        let checker_config = CheckerConfig {
+            check_overflow: crate_config.check_overflow,
+            scrape_quals: crate_config.scrape_quals,
+        };
         CrateChecker { genv, ignores, cache: QueryCache::load(), checker_config }
     }
 

@@ -87,7 +87,6 @@ fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
         })
         .try_collect()?;
-    println!("TRACE: rty::Qualifiers = {qualifiers:?}");
     Ok(qualifiers)
 }
 

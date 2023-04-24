@@ -41,6 +41,7 @@ use crate::{
 #[derive(Clone, Copy, Debug)]
 pub struct CheckerConfig {
     pub check_overflow: bool,
+    pub scrape_quals: bool,
 }
 
 pub(crate) struct Checker<'a, 'tcx, M> {

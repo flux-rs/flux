@@ -77,7 +77,7 @@ pub fn check_fn(
         }
         let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
         let constraint = refine_tree.into_fixpoint(&mut fcx);
-        let errors = fcx.check(cache, constraint).emit(genv.sess)?;
+        let errors = fcx.check(cache, constraint, &config).emit(genv.sess)?;
 
         tracing::info!("check_fn::fixpoint");
         if errors.is_empty() {
