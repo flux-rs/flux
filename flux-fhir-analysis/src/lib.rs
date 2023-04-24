@@ -79,13 +79,16 @@ fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
 }
 
 fn qualifiers(genv: &GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
-    genv.map()
+    let qualifiers = genv
+        .map()
         .qualifiers()
         .map(|qualifier| {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
             normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
         })
-        .try_collect()
+        .try_collect()?;
+    println!("TRACE: rty::Qualifiers = {qualifiers:?}");
+    Ok(qualifiers)
 }
 
 fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::Invariant>> {

@@ -216,6 +216,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         .iter()
         .try_for_each_exhaust(|qualifier| {
             let qualifier = desugar::desugar_qualifier(&early_cx, qualifier)?;
+            println!("TRACE: insert_qualifier: {qualifier:?}");
             early_cx.map.insert_qualifier(qualifier);
             Ok(())
         })
