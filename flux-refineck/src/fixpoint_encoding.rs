@@ -24,6 +24,8 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_span::Span;
 
+use crate::CheckerConfig;
+
 newtype_index! {
     #[debug_format = "TagIdx({})"]
     pub struct TagIdx {}
@@ -152,6 +154,7 @@ where
         self,
         cache: &mut QueryCache,
         constraint: fixpoint::Constraint<TagIdx>,
+        config: &CheckerConfig,
     ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
@@ -207,6 +210,7 @@ where
             closed_constraint,
             qualifiers,
             sorts,
+            config.scrape_quals,
         );
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();

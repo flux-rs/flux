@@ -780,6 +780,7 @@ impl FluxAttrCFG {
     fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
         let mut crate_config = CrateConfig::default();
         try_read_setting!(self, check_overflow, bool, crate_config);
+        try_read_setting!(self, scrape_quals, bool, crate_config);
 
         if let Some((name, setting)) = self.map.iter().next() {
             return Err(errors::CFGError {

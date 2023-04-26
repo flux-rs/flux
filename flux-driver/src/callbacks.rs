@@ -324,7 +324,10 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
         crate_config: Option<CrateConfig>,
     ) -> Self {
         let crate_config = crate_config.unwrap_or_default();
-        let checker_config = CheckerConfig { check_overflow: crate_config.check_overflow };
+        let checker_config = CheckerConfig {
+            check_overflow: crate_config.check_overflow,
+            scrape_quals: crate_config.scrape_quals,
+        };
         CrateChecker { genv, ignores, cache: QueryCache::load(), checker_config }
     }
 
