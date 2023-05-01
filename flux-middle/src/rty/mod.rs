@@ -257,7 +257,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
-    Ref(Mutability, Ty),
+    Ref(Ty, Mutability),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
@@ -279,8 +279,8 @@ impl FnTraitPredicate {
     pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match self.kind {
-            ClosureKind::Fn => Ty::mk_ref(Mutability::Not, closure_ty),
-            ClosureKind::FnMut => Ty::mk_ref(Mutability::Mut, closure_ty),
+            ClosureKind::Fn => Ty::mk_ref(closure_ty, Mutability::Not),
+            ClosureKind::FnMut => Ty::mk_ref(closure_ty, Mutability::Mut),
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
@@ -793,8 +793,8 @@ impl Ty {
         BaseTy::Float(float_ty).into_ty()
     }
 
-    pub fn mk_ref(mutbl: Mutability, ty: Ty) -> Ty {
-        BaseTy::Ref(mutbl, ty).into_ty()
+    pub fn mk_ref(ty: Ty, mutbl: Mutability) -> Ty {
+        BaseTy::Ref(ty, mutbl).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
@@ -1329,8 +1329,8 @@ mod pretty {
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
-                BaseTy::Ref(Mutability::Mut, ty) => w!("&mut {:?}", ty),
-                BaseTy::Ref(Mutability::Not, ty) => w!("&{:?}", ty),
+                BaseTy::Ref(ty, Mutability::Mut) => w!("&mut {:?}", ty),
+                BaseTy::Ref(ty, Mutability::Not) => w!("&{:?}", ty),
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {
                         w!("({:?},)", ty)

@@ -260,7 +260,7 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            Ref!(mutbl, ty) => {
+                            Ref!(ty, mutbl) => {
                                 let (mutbl, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
@@ -343,8 +343,8 @@ impl PathsTree {
         for elem in proj.by_ref() {
             ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             match (elem, ty.kind()) {
-                (Deref, Ref!(rk2, ty2)) => {
-                    rk = rk.min(WeakKind::from(*rk2));
+                (Deref, Ref!(ty2, mutbl2)) => {
+                    rk = rk.min(WeakKind::from(*mutbl2));
                     ty = ty2.clone();
                 }
                 (Deref, TyKind::Indexed(BaseTy::Adt(adt, substs), _)) if adt.is_box() => {

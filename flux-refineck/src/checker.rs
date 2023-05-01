@@ -912,7 +912,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
-            Constant::Str => Ty::mk_ref(Mutability::Not, Ty::str()),
+            Constant::Str => Ty::mk_ref(Ty::str(), Mutability::Not),
             Constant::Char => Ty::char(),
         }
     }
