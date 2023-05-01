@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Path, PtrKind, Ref, RefKind, Ty, TyKind, Var, INNERMOST,
+        ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Ty, TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -109,7 +109,7 @@ impl TypeEnv {
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
-        rk: RefKind,
+        mutbl: Mutability,
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
@@ -118,12 +118,12 @@ impl TypeEnv {
             .lookup(gen.genv, rcx, place, checker_config)?
             .fold(rcx, gen, true)?
         {
-            FoldResult::Strg(path, _) => Ty::ptr(rk, path),
+            FoldResult::Strg(path, _) => Ty::ptr(mutbl, path),
             FoldResult::Weak(result_rk, ty) => {
-                debug_assert!(WeakKind::from(rk) <= result_rk);
-                Ty::mk_ref(rk, ty)
+                debug_assert!(WeakKind::from(mutbl) <= result_rk);
+                Ty::mk_ref(mutbl, ty)
             }
-            FoldResult::Raw(ty) => Ty::mk_ref(rk, ty), // TODO(RJ): is this legit?
+            FoldResult::Raw(ty) => Ty::mk_ref(mutbl, ty), // TODO(RJ): is this legit?
         };
         Ok(ty)
     }
@@ -334,7 +334,7 @@ impl TypeEnv {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(Mutability::Mut, bound)) => {
                         let ty = self
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path, checker_config)?
@@ -342,14 +342,14 @@ impl TypeEnv {
                         gen.subtyping(rcx, &ty, bound, reason);
 
                         self.bindings
-                            .update(path, Ty::mk_ref(RefKind::Mut, bound.clone()));
+                            .update(path, Ty::mk_ref(Mutability::Mut, bound.clone()));
                     }
-                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(Mutability::Not, _)) => {
                         let ty = self
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path, checker_config)?
                             .block(rcx, gen)?;
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        self.bindings.update(path, Ty::mk_ref(Mutability::Not, ty));
                     }
                     _ => (),
                 }
@@ -452,7 +452,7 @@ impl BasicBlockEnvShape {
                 BaseTy::Tuple(tys)
             }
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
-            BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, Self::pack_ty(scope, ty)),
+            BaseTy::Ref(mutbl, ty) => BaseTy::Ref(*mutbl, Self::pack_ty(scope, ty)),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
             | BaseTy::Param(_)
@@ -536,16 +536,16 @@ impl BasicBlockEnvShape {
                         let ty1 = self.block(rcx, gen, path1, checker_config)?;
                         let ty2 = self.block(rcx, gen, path2, checker_config)?;
 
-                        self.update(path, Ty::mk_ref(RefKind::Shr, ty1));
-                        other.update(path, Ty::mk_ref(RefKind::Shr, ty2));
+                        self.update(path, Ty::mk_ref(Mutability::Not, ty1));
+                        other.update(path, Ty::mk_ref(Mutability::Not, ty2));
                     }
-                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(RefKind::Shr, _)) => {
+                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(Mutability::Not, _)) => {
                         let ty = self.block(rcx, gen, ptr_path, checker_config)?;
-                        self.bindings.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        self.bindings.update(path, Ty::mk_ref(Mutability::Not, ty));
                     }
-                    (Ref!(RefKind::Shr, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
+                    (Ref!(Mutability::Not, _), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
                         let ty = other.block(rcx, gen, ptr_path, checker_config)?;
-                        other.update(path, Ty::mk_ref(RefKind::Shr, ty));
+                        other.update(path, Ty::mk_ref(Mutability::Not, ty));
                     }
                     (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2))
                         if path1 != path2 =>
@@ -554,21 +554,21 @@ impl BasicBlockEnvShape {
                         let ty2 = other.bindings.get(path2).expect_owned().with_holes();
 
                         self.bindings
-                            .update(path, Ty::mk_ref(RefKind::Mut, ty1.clone()));
-                        other.update(path, Ty::mk_ref(RefKind::Mut, ty2.clone()));
+                            .update(path, Ty::mk_ref(Mutability::Mut, ty1.clone()));
+                        other.update(path, Ty::mk_ref(Mutability::Mut, ty2.clone()));
 
                         self.block_with(rcx, gen, path1, ty1, checker_config)?;
                         other.block_with(rcx, gen, path2, ty2, checker_config)?;
                     }
-                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(RefKind::Mut, bound)) => {
+                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(Mutability::Mut, bound)) => {
                         let bound = bound.with_holes();
                         self.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
-                        self.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                        self.update(path, Ty::mk_ref(Mutability::Mut, bound));
                     }
-                    (Ref!(RefKind::Mut, bound), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
+                    (Ref!(Mutability::Mut, bound), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
                         let bound = bound.with_holes();
                         other.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
-                        other.update(path, Ty::mk_ref(RefKind::Mut, bound));
+                        other.update(path, Ty::mk_ref(Mutability::Mut, bound));
                     }
                     _ => {}
                 }
@@ -782,9 +782,9 @@ impl Generalizer {
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                 )
             }
-            BaseTy::Ref(RefKind::Shr, ty) => {
+            BaseTy::Ref(Mutability::Not, ty) => {
                 let ty = self.generalize_ty(ty);
-                BaseTy::Ref(RefKind::Shr, ty)
+                BaseTy::Ref(Mutability::Not, ty)
             }
             _ => bty.clone(),
         }

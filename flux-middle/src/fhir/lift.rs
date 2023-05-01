@@ -215,7 +215,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
             hir::TyKind::Ref(_, mut_ty) => {
-                fhir::TyKind::Ref(lift_mutability(mut_ty.mutbl), Box::new(self.lift_ty(mut_ty.ty)?))
+                fhir::TyKind::Ref(mut_ty.mutbl, Box::new(self.lift_ty(mut_ty.ty)?))
             }
             hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
@@ -334,13 +334,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
-    }
-}
-
-fn lift_mutability(mtbl: hir::Mutability) -> fhir::RefKind {
-    match mtbl {
-        hir::Mutability::Mut => fhir::RefKind::Mut,
-        hir::Mutability::Not => fhir::RefKind::Shr,
     }
 }
 

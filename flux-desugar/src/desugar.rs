@@ -452,11 +452,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty = self.desugar_ty(None, ty, binders)?;
                 fhir::TyKind::Constr(pred, Box::new(ty))
             }
-            surface::TyKind::Ref(rk, ty) => {
-                fhir::TyKind::Ref(
-                    desugar_ref_kind(*rk),
-                    Box::new(self.desugar_ty(None, ty, binders)?),
-                )
+            surface::TyKind::Ref(mutbl, ty) => {
+                fhir::TyKind::Ref(*mutbl, Box::new(self.desugar_ty(None, ty, binders)?))
             }
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
@@ -786,13 +783,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
         self.early_cx.emit_err(err)
-    }
-}
-
-fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {
-    match rk {
-        surface::RefKind::Mut => fhir::RefKind::Mut,
-        surface::RefKind::Shr => fhir::RefKind::Shr,
     }
 }
 

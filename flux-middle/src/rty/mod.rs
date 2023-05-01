@@ -22,8 +22,10 @@ pub use normalize::Defns;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::mir::Mutability;
-pub use rustc_middle::ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy};
+pub use rustc_middle::{
+    mir::Mutability,
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+};
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 
@@ -35,10 +37,7 @@ use crate::{
     queries::QueryResult,
     rustc::mir::Place,
 };
-pub use crate::{
-    fhir::{InferMode, RefKind},
-    rustc::ty::Const,
-};
+pub use crate::{fhir::InferMode, rustc::ty::Const};
 
 #[derive(Debug, Clone)]
 pub struct Generics {
@@ -258,7 +257,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
-    Ref(RefKind, Ty),
+    Ref(Mutability, Ty),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
@@ -280,8 +279,8 @@ impl FnTraitPredicate {
     pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match self.kind {
-            ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
-            ClosureKind::FnMut => Ty::mk_ref(RefKind::Mut, closure_ty),
+            ClosureKind::Fn => Ty::mk_ref(Mutability::Not, closure_ty),
+            ClosureKind::FnMut => Ty::mk_ref(Mutability::Mut, closure_ty),
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
@@ -794,8 +793,8 @@ impl Ty {
         BaseTy::Float(float_ty).into_ty()
     }
 
-    pub fn mk_ref(mode: RefKind, ty: Ty) -> Ty {
-        BaseTy::Ref(mode, ty).into_ty()
+    pub fn mk_ref(mutbl: Mutability, ty: Ty) -> Ty {
+        BaseTy::Ref(mutbl, ty).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
@@ -893,11 +892,11 @@ impl TyS {
     }
 }
 
-impl From<RefKind> for PtrKind {
-    fn from(rk: RefKind) -> Self {
-        match rk {
-            RefKind::Shr => PtrKind::Shr,
-            RefKind::Mut => PtrKind::Mut,
+impl From<Mutability> for PtrKind {
+    fn from(mutbl: Mutability) -> Self {
+        match mutbl {
+            Mutability::Not => PtrKind::Shr,
+            Mutability::Mut => PtrKind::Mut,
         }
     }
 }
@@ -1107,8 +1106,8 @@ pub use crate::_Float as Float;
 
 #[macro_export]
 macro_rules! _Ref {
-    ($rk:pat, $ty:pat) => {
-        TyKind::Indexed(BaseTy::Ref($rk, $ty), _)
+    ($mutbl:pat, $ty:pat) => {
+        TyKind::Indexed(BaseTy::Ref($mutbl, $ty), _)
     };
 }
 pub use crate::_Ref as Ref;
@@ -1330,8 +1329,8 @@ mod pretty {
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
-                BaseTy::Ref(RefKind::Mut, ty) => w!("&mut {:?}", ty),
-                BaseTy::Ref(RefKind::Shr, ty) => w!("&{:?}", ty),
+                BaseTy::Ref(Mutability::Mut, ty) => w!("&mut {:?}", ty),
+                BaseTy::Ref(Mutability::Not, ty) => w!("&{:?}", ty),
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {
                         w!("({:?},)", ty)

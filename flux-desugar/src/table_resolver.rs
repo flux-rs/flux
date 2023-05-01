@@ -185,9 +185,9 @@ impl<'sess> Resolver<'sess> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
             }
-            surface::TyKind::Ref(rk, ty) => {
+            surface::TyKind::Ref(mutbl, ty) => {
                 let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::Ref(rk, Box::new(ty))
+                surface::TyKind::Ref(mutbl, Box::new(ty))
             }
             surface::TyKind::Constr(pred, ty) => {
                 let ty = self.resolve_ty(*ty)?;

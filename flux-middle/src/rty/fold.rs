@@ -501,7 +501,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
-            BaseTy::Ref(rk, ty) => BaseTy::Ref(*rk, ty.fold_with(folder)),
+            BaseTy::Ref(mutbl, ty) => BaseTy::Ref(*mutbl, ty.fold_with(folder)),
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.fold_with(folder)),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Int(_)

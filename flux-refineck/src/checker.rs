@@ -9,7 +9,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, PolyFnSig, RefKind, Sort, Ty, TyKind, Uint,
+        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Sort, Ty, TyKind, Uint,
         UintTy, VariantIdx,
     },
     rustc::{
@@ -656,13 +656,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::MutRef(place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, RefKind::Mut, place, config)
+                env.borrow(rcx, gen, Mutability::Mut, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::ShrRef(place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, RefKind::Shr, place, config)
+                env.borrow(rcx, gen, Mutability::Not, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -912,7 +912,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
-            Constant::Str => Ty::mk_ref(RefKind::Shr, Ty::str()),
+            Constant::Str => Ty::mk_ref(Mutability::Not, Ty::str()),
             Constant::Char => Ty::char(),
         }
     }

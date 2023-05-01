@@ -10,7 +10,7 @@ use flux_middle::rty::{
     box_args,
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder, TypeVisitor},
-    BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
+    BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -257,12 +257,12 @@ impl RefineCtxt<'_> {
                             vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                         )
                     }
-                    BaseTy::Ref(rk, ty) => {
+                    BaseTy::Ref(mutbl, ty) => {
                         let in_mut_ref = self.in_mut_ref;
-                        self.in_mut_ref = matches!(rk, RefKind::Mut);
+                        self.in_mut_ref = matches!(mutbl, Mutability::Mut);
                         let ty = ty.fold_with(self);
                         self.in_mut_ref = in_mut_ref;
-                        BaseTy::Ref(*rk, ty)
+                        BaseTy::Ref(*mutbl, ty)
                     }
                     BaseTy::Tuple(_) => bty.super_fold_with(self),
                     _ => bty.clone(),

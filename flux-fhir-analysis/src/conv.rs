@@ -377,11 +377,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
             }
             fhir::TyKind::Ptr(loc) => {
-                Ok(rty::Ty::ptr(rty::RefKind::Mut, env.lookup(*loc).to_path()))
+                Ok(rty::Ty::ptr(rty::Mutability::Mut, env.lookup(*loc).to_path()))
             }
-            fhir::TyKind::Ref(rk, ty) => {
-                Ok(rty::Ty::mk_ref(Self::conv_ref_kind(*rk), self.conv_ty(env, ty)?))
-            }
+            fhir::TyKind::Ref(mutbl, ty) => Ok(rty::Ty::mk_ref(*mutbl, self.conv_ty(env, ty)?)),
             fhir::TyKind::Tuple(tys) => {
                 let tys: List<rty::Ty> =
                     tys.iter().map(|ty| self.conv_ty(env, ty)).try_collect()?;
@@ -434,13 +432,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
                 (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
             }
-        }
-    }
-
-    fn conv_ref_kind(rk: fhir::RefKind) -> rty::RefKind {
-        match rk {
-            fhir::RefKind::Mut => rty::RefKind::Mut,
-            fhir::RefKind::Shr => rty::RefKind::Shr,
         }
     }
 

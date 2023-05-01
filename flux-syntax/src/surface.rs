@@ -1,6 +1,9 @@
 use std::fmt;
 
-pub use rustc_ast::token::{Lit, LitKind};
+pub use rustc_ast::{
+    token::{Lit, LitKind},
+    Mutability,
+};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{def_id::LocalDefId, OwnerId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
@@ -190,7 +193,7 @@ pub enum TyKind<R = ()> {
         pred: Option<Expr>,
     },
     /// Mutable or shared reference
-    Ref(RefKind, Box<Ty<R>>),
+    Ref(Mutability, Box<Ty<R>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<R>>),
     Tuple(Vec<Ty<R>>),
@@ -242,12 +245,6 @@ pub struct Path<R = ()> {
     pub refine: Vec<RefineArg>,
     pub span: Span,
     pub res: R,
-}
-
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub enum RefKind {
-    Mut,
-    Shr,
 }
 
 #[derive(Debug, Clone)]

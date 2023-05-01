@@ -25,7 +25,6 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::Mutability;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
@@ -35,6 +34,7 @@ use rustc_hir::{
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+pub use rustc_middle::mir::Mutability;
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -218,7 +218,7 @@ pub enum TyKind {
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
     Ptr(Ident),
-    Ref(RefKind, Box<Ty>),
+    Ref(Mutability, Box<Ty>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
@@ -228,12 +228,6 @@ pub enum TyKind {
 pub struct ArrayLen {
     pub val: usize,
     pub span: Span,
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encodable, Decodable)]
-pub enum RefKind {
-    Shr,
-    Mut,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -275,11 +269,11 @@ impl From<BaseTy> for Ty {
     }
 }
 
-impl From<RefKind> for WeakKind {
-    fn from(rk: RefKind) -> WeakKind {
-        match rk {
-            RefKind::Shr => WeakKind::Shr,
-            RefKind::Mut => WeakKind::Mut,
+impl From<Mutability> for WeakKind {
+    fn from(mutbl: Mutability) -> WeakKind {
+        match mutbl {
+            Mutability::Not => WeakKind::Shr,
+            Mutability::Mut => WeakKind::Mut,
         }
     }
 }
@@ -1063,8 +1057,8 @@ impl fmt::Debug for Ty {
                 }
             }
             TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            TyKind::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
-            TyKind::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
+            TyKind::Ref(Mutability::Mut, ty) => write!(f, "&mut {ty:?}"),
+            TyKind::Ref(Mutability::Not, ty) => write!(f, "&{ty:?}"),
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
@@ -1149,14 +1143,6 @@ impl fmt::Debug for RefineArg {
     }
 }
 
-impl fmt::Debug for RefKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RefKind::Shr => write!(f, "shr"),
-            RefKind::Mut => write!(f, "mut"),
-        }
-    }
-}
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {

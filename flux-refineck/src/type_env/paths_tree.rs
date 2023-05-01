@@ -260,18 +260,18 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            Ref!(rk, ty) => {
-                                let (rk, ty) = Self::lookup_ty(
+                            Ref!(mutbl, ty) => {
+                                let (mutbl, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
-                                    WeakKind::from(*rk),
+                                    WeakKind::from(*mutbl),
                                     ty,
                                     place_proj,
                                     checker_config,
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(rk, ty),
+                                    kind: LookupKind::Weak(mutbl, ty),
                                 });
                             }
                             TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
@@ -304,7 +304,7 @@ impl PathsTree {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                                let (rk, ty) = Self::lookup_ty(
+                                let (mutbl, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
                                     WeakKind::Arr,
@@ -314,7 +314,7 @@ impl PathsTree {
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(rk, ty),
+                                    kind: LookupKind::Weak(mutbl, ty),
                                 });
                             }
                             _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
