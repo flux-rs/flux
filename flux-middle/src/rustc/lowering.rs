@@ -605,7 +605,9 @@ pub(crate) fn lower_ty<'tcx>(
     ty: rustc_ty::Ty<'tcx>,
 ) -> Result<Ty, UnsupportedDef> {
     match ty.kind() {
-        rustc_ty::Ref(_region, ty, mutability) => Ok(Ty::mk_ref(lower_ty(tcx, *ty)?, *mutability)),
+        rustc_ty::Ref(region, ty, mutability) => {
+            Ok(Ty::mk_ref(lower_region(region)?, lower_ty(tcx, *ty)?, *mutability))
+        }
         rustc_ty::Bool => Ok(Ty::mk_bool()),
         rustc_ty::Int(int_ty) => Ok(Ty::mk_int(*int_ty)),
         rustc_ty::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
@@ -681,10 +683,8 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
         }
         RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
         RegionKind::ReErased => Ok(Region::ReErased),
-        RegionKind::ReFree(_)
-        | RegionKind::ReStatic
-        | RegionKind::RePlaceholder(_)
-        | RegionKind::ReError(_) => {
+        RegionKind::ReStatic => Ok(Region::ReStatic),
+        RegionKind::ReFree(_) | RegionKind::RePlaceholder(_) | RegionKind::ReError(_) => {
             Err(UnsupportedDef { reason: format!("unsupported region `{region:?}`") })
         }
     }

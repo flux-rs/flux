@@ -103,7 +103,7 @@ pub enum TyKind {
     Int(IntTy),
     Never,
     Param(ParamTy),
-    Ref(Ty, Mutability),
+    Ref(Region, Ty, Mutability),
     Tuple(List<Ty>),
     Uint(UintTy),
     Slice(Ty),
@@ -125,9 +125,10 @@ pub enum GenericArg {
 
 #[derive(PartialEq, Eq, Hash)]
 pub enum Region {
-    ReVar(RegionVid),
     ReLateBound(DebruijnIndex, BoundRegion),
     ReEarlyBound(EarlyBoundRegion),
+    ReStatic,
+    ReVar(RegionVid),
     ReErased,
 }
 
@@ -224,8 +225,8 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
-    pub fn mk_ref(ty: Ty, mutability: Mutability) -> Ty {
-        TyKind::Ref(ty, mutability).intern()
+    pub fn mk_ref(region: Region, ty: Ty, mutability: Mutability) -> Ty {
+        TyKind::Ref(region, ty, mutability).intern()
     }
 
     pub fn mk_tuple(tys: impl Into<List<Ty>>) -> Ty {
@@ -267,9 +268,10 @@ impl std::fmt::Debug for GenericArg {
 impl std::fmt::Debug for Region {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Region::ReVar(rvid) => write!(f, "{rvid:?}"),
             Region::ReLateBound(_, bregion) => write!(f, "{bregion:?}"),
             Region::ReEarlyBound(bregion) => write!(f, "{bregion:?}"),
+            Region::ReStatic => write!(f, "'static"),
+            Region::ReVar(rvid) => write!(f, "{rvid:?}"),
             Region::ReErased => write!(f, "ReErased"),
         }
     }
@@ -297,8 +299,8 @@ impl std::fmt::Debug for Ty {
             TyKind::Uint(uint_ty) => write!(f, "{}", uint_ty.name_str()),
             TyKind::Never => write!(f, "!"),
             TyKind::Param(param_ty) => write!(f, "{param_ty}"),
-            TyKind::Ref(ty, Mutability::Mut) => write!(f, "&mut {ty:?}"),
-            TyKind::Ref(ty, Mutability::Not) => write!(f, "&{ty:?}"),
+            TyKind::Ref(region, ty, Mutability::Mut) => write!(f, "&{region:?} mut {ty:?}"),
+            TyKind::Ref(region, ty, Mutability::Not) => write!(f, "&{region:?} {ty:?}"),
             TyKind::Array(ty, c) => write!(f, "[{ty:?}; {c:?}]"),
             TyKind::Tuple(tys) => {
                 if let [ty] = &tys[..] {

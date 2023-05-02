@@ -153,7 +153,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
-            rustc::ty::TyKind::Ref(ty, mutbl) => rty::BaseTy::Ref(self.refine_ty(ty)?, *mutbl),
+            rustc::ty::TyKind::Ref(_, ty, mutbl) => rty::BaseTy::Ref(self.refine_ty(ty)?, *mutbl),
             rustc::ty::TyKind::Float(float_ty) => rty::BaseTy::Float(*float_ty),
             rustc::ty::TyKind::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
