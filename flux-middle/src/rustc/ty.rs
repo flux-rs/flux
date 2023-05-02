@@ -20,7 +20,7 @@ pub struct Generics<'tcx> {
     pub orig: &'tcx rustc_middle::ty::Generics,
 }
 
-#[derive(PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -64,7 +64,7 @@ pub enum PredicateKind {
     FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
 }
 
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }

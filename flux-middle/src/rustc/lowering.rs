@@ -7,7 +7,6 @@ use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir as rustc_mir,
     ty::{
@@ -16,7 +15,6 @@ use rustc_middle::{
         ParamEnv, TyCtxt,
     },
 };
-use rustc_trait_selection::traits::NormalizeExt;
 
 use super::{
     mir::{
@@ -543,18 +541,7 @@ fn mk_fake_predecessors(
     res
 }
 
-pub(crate) fn lower_fn_sig_of(tcx: TyCtxt, def_id: DefId) -> Result<PolyFnSig, UnsupportedReason> {
-    let fn_sig = tcx.fn_sig(def_id);
-    let param_env = tcx.param_env(def_id);
-    let result = tcx
-        .infer_ctxt()
-        .build()
-        .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
-        .normalize(fn_sig.subst_identity());
-    lower_fn_sig(tcx, result.value)
-}
-
-fn lower_fn_sig<'tcx>(
+pub(crate) fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedReason> {
