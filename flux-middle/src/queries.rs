@@ -3,6 +3,7 @@ use std::{
     rc::Rc,
 };
 
+use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use itertools::Itertools;
 use rustc_errors::{FatalError, IntoDiagnostic};
@@ -56,6 +57,7 @@ pub struct Queries<'tcx> {
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
+    lower_type_of: Cache<DefId, QueryResult<rustc::ty::Ty>>,
     variants_of: Cache<DefId, QueryResult<rty::PolyVariants>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
 }
@@ -72,6 +74,7 @@ impl<'tcx> Queries<'tcx> {
             generics_of: Cache::default(),
             predicates_of: Cache::default(),
             type_of: Cache::default(),
+            lower_type_of: Cache::default(),
             variants_of: Cache::default(),
             fn_sig: Cache::default(),
         }
@@ -172,11 +175,22 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(ty) = genv.early_cx().cstore.type_of(def_id) {
                 Ok(ty.clone())
             } else {
-                let rustc_ty = lowering::lower_type_of(genv.tcx, def_id)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+                let rustc_ty = genv.lower_type_of(def_id)?;
                 let ty = genv.refine_default(&genv.generics_of(def_id)?, &rustc_ty)?;
                 Ok(rty::EarlyBinder(rty::Binder::new(ty, rty::Sort::unit())))
             }
+        })
+    }
+
+    pub(crate) fn lower_type_of(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rustc::ty::Ty> {
+        run_with_cache(&self.lower_type_of, def_id, || {
+            let ty = genv.tcx.type_of(def_id).subst_identity();
+            lowering::lower_ty(genv.tcx, ty)
+                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))
         })
     }
 
@@ -197,11 +211,14 @@ impl<'tcx> Queries<'tcx> {
                     .variants()
                     .iter()
                     .map(|variant_def| {
-                        let variant_def =
-                            lowering::lower_variant_def(genv.tcx, def_id, variant_def)
-                                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+                        let fields = variant_def
+                            .fields
+                            .iter()
+                            .map(|field| genv.lower_type_of(field.did))
+                            .try_collect_vec()?;
+                        let ret = genv.lower_type_of(def_id)?;
                         Refiner::default(genv, &genv.generics_of(def_id)?)
-                            .refine_variant_def(&variant_def)
+                            .refine_variant_def(&fields, &ret)
                     })
                     .try_collect()?;
                 Ok(rty::Opaqueness::Transparent(variants))

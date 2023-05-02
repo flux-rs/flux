@@ -91,14 +91,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_variant_def(
         &self,
-        variant_def: &rustc::ty::VariantDef,
+        fields: &[rustc::ty::Ty],
+        ret: &rustc::ty::Ty,
     ) -> QueryResult<rty::PolyVariant> {
-        let fields = variant_def
-            .field_tys
-            .iter()
-            .map(|ty| self.refine_ty(ty))
-            .try_collect()?;
-        let rustc::ty::TyKind::Adt(def_id, substs) = variant_def.ret.kind() else {
+        let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
+        let rustc::ty::TyKind::Adt(def_id, substs) = ret.kind() else {
             bug!();
         };
         let substs = iter::zip(&self.generics.params, substs)
