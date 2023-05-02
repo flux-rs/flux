@@ -328,8 +328,12 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                     self.lower_operand(op2)?,
                 ))
             }
-            rustc_mir::Rvalue::Ref(_, bk, p) => {
-                Ok(Rvalue::Ref(self.lower_borrow_kind(*bk)?, self.lower_place(p)?))
+            rustc_mir::Rvalue::Ref(region, bk, p) => {
+                Ok(Rvalue::Ref(
+                    lower_region(region)?,
+                    self.lower_borrow_kind(*bk)?,
+                    self.lower_place(p)?,
+                ))
             }
             rustc_mir::Rvalue::UnaryOp(un_op, op) => {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))

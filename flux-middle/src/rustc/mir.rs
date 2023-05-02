@@ -19,7 +19,7 @@ pub use rustc_middle::{
 use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
-use super::ty::{GenericArg, Ty};
+use super::ty::{GenericArg, Region, Ty};
 use crate::intern::List;
 
 pub struct Body<'tcx> {
@@ -129,7 +129,7 @@ pub enum StatementKind {
 
 pub enum Rvalue {
     Use(Operand),
-    Ref(BorrowKind, Place),
+    Ref(Region, BorrowKind, Place),
     BinaryOp(BinOp, Operand, Operand),
     CheckedBinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
@@ -438,8 +438,8 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
-            Rvalue::Ref(BorrowKind::Mut { .. }, place) => write!(f, "&mut {place:?}"),
-            Rvalue::Ref(BorrowKind::Shared, place) => write!(f, "&{place:?}"),
+            Rvalue::Ref(_, BorrowKind::Mut { .. }, place) => write!(f, "&mut {place:?}"),
+            Rvalue::Ref(_, BorrowKind::Shared, place) => write!(f, "&{place:?}"),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
