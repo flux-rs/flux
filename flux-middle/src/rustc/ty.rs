@@ -1,7 +1,5 @@
 //! A simplified version of rust types.
 
-use std::iter;
-
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{Decodable, Encodable};
@@ -22,7 +20,7 @@ pub struct Generics<'tcx> {
     pub orig: &'tcx rustc_middle::ty::Generics,
 }
 
-#[derive(PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -66,23 +64,12 @@ pub enum PredicateKind {
     FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
 }
 
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
-
-/// FIXME(nilehmann)
-/// [`VariantDef`] is inconsistent with the convention in the rest of this module
-/// because it doesn't correspond to a lowered version of the same struct in rustc.
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct VariantDef {
-    pub def_id: DefId,
-    pub fields: Vec<DefId>,
-    pub field_tys: List<Ty>,
-    pub ret: Ty,
-}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ty(Interned<TyS>);
@@ -165,12 +152,6 @@ impl FnSig {
 
     pub fn output(&self) -> Ty {
         self.inputs_and_output[self.inputs_and_output.len() - 1].clone()
-    }
-}
-
-impl VariantDef {
-    pub fn fields(&self) -> impl Iterator<Item = (&Ty, &DefId)> {
-        iter::zip(&self.field_tys, &self.fields)
     }
 }
 

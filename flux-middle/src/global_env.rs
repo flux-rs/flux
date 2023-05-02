@@ -107,6 +107,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.mir(self, def_id)
     }
 
+    pub fn lower_type_of(&self, def_id: DefId) -> QueryResult<rustc::ty::Ty> {
+        self.queries.lower_type_of(self, def_id)
+    }
+
+    pub fn lower_fn_sig(&self, def_id: DefId) -> QueryResult<rustc::ty::PolyFnSig> {
+        self.queries.lower_fn_sig(self, def_id)
+    }
+
     pub fn adt_def(&self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
         self.queries.adt_def(self, def_id.into())
     }

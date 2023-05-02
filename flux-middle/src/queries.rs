@@ -3,13 +3,16 @@ use std::{
     rc::Rc,
 };
 
+use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use itertools::Itertools;
 use rustc_errors::{FatalError, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
+use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
     fhir::{self, FluxLocalDefId},
@@ -49,6 +52,8 @@ pub struct Providers {
 pub struct Queries<'tcx> {
     providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
+    lower_type_of: Cache<DefId, QueryResult<rustc::ty::Ty>>,
+    lower_fn_sig: Cache<DefId, QueryResult<rustc::ty::PolyFnSig>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
@@ -65,6 +70,8 @@ impl<'tcx> Queries<'tcx> {
         Self {
             providers,
             mir: Cache::default(),
+            lower_type_of: Cache::default(),
+            lower_fn_sig: Cache::default(),
             defns: OnceCell::new(),
             qualifiers: OnceCell::new(),
             check_wf: Cache::default(),
@@ -86,6 +93,37 @@ impl<'tcx> Queries<'tcx> {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx, def_id) };
             let mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx, genv.sess, mir)?;
             Ok(Rc::new(mir))
+        })
+    }
+
+    pub(crate) fn lower_type_of(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rustc::ty::Ty> {
+        run_with_cache(&self.lower_type_of, def_id, || {
+            let ty = genv.tcx.type_of(def_id).subst_identity();
+            lowering::lower_ty(genv.tcx, ty)
+                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))
+        })
+    }
+
+    pub(crate) fn lower_fn_sig(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rustc::ty::PolyFnSig> {
+        run_with_cache(&self.lower_fn_sig, def_id, || {
+            let fn_sig = genv.tcx.fn_sig(def_id);
+            let param_env = genv.tcx.param_env(def_id);
+            let result = genv
+                .tcx
+                .infer_ctxt()
+                .build()
+                .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
+                .normalize(fn_sig.subst_identity());
+            lowering::lower_fn_sig(genv.tcx, result.value)
+                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))
         })
     }
 
@@ -172,8 +210,7 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(ty) = genv.early_cx().cstore.type_of(def_id) {
                 Ok(ty.clone())
             } else {
-                let rustc_ty = lowering::lower_type_of(genv.tcx, def_id)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+                let rustc_ty = genv.lower_type_of(def_id)?;
                 let ty = genv.refine_default(&genv.generics_of(def_id)?, &rustc_ty)?;
                 Ok(rty::EarlyBinder(rty::Binder::new(ty, rty::Sort::unit())))
             }
@@ -197,11 +234,14 @@ impl<'tcx> Queries<'tcx> {
                     .variants()
                     .iter()
                     .map(|variant_def| {
-                        let variant_def =
-                            lowering::lower_variant_def(genv.tcx, def_id, variant_def)
-                                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+                        let fields = variant_def
+                            .fields
+                            .iter()
+                            .map(|field| genv.lower_type_of(field.did))
+                            .try_collect_vec()?;
+                        let ret = genv.lower_type_of(def_id)?;
                         Refiner::default(genv, &genv.generics_of(def_id)?)
-                            .refine_variant_def(&variant_def)
+                            .refine_variant_def(&fields, &ret)
                     })
                     .try_collect()?;
                 Ok(rty::Opaqueness::Transparent(variants))
@@ -223,9 +263,7 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(fn_sig) = genv.early_cx().cstore.fn_sig(def_id) {
                 Ok(fn_sig)
             } else {
-                let fn_sig = lowering::lower_fn_sig_of(genv.tcx, def_id)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?
-                    .skip_binder();
+                let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
                 let fn_sig =
                     Refiner::default(genv, &genv.generics_of(def_id)?).refine_fn_sig(&fn_sig)?;
                 Ok(rty::EarlyBinder(fn_sig))
