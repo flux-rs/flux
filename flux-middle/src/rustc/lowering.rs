@@ -20,8 +20,8 @@ use rustc_trait_selection::traits::NormalizeExt;
 
 use super::{
     mir::{
-        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, CallSubsts, CastKind,
-        Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
+        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BorrowKind, CallSubsts,
+        CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
@@ -327,11 +327,8 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                     self.lower_operand(op2)?,
                 ))
             }
-            rustc_mir::Rvalue::Ref(_, rustc_mir::BorrowKind::Mut { .. }, p) => {
-                Ok(Rvalue::MutRef(self.lower_place(p)?))
-            }
-            rustc_mir::Rvalue::Ref(_, rustc_mir::BorrowKind::Shared, p) => {
-                Ok(Rvalue::ShrRef(self.lower_place(p)?))
+            rustc_mir::Rvalue::Ref(_, bk, p) => {
+                Ok(Rvalue::Ref(self.lower_borrow_kind(*bk)?, self.lower_place(p)?))
             }
             rustc_mir::Rvalue::UnaryOp(un_op, op) => {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
@@ -350,13 +347,24 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 Ok(Rvalue::Cast(kind, op, ty))
             }
             rustc_mir::Rvalue::Repeat(_, _)
-            | rustc_mir::Rvalue::Ref(_, _, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
                 Err(format!("unsupported rvalue `{rvalue:?}`"))
+            }
+        }
+    }
+
+    fn lower_borrow_kind(&self, bk: rustc_mir::BorrowKind) -> Result<BorrowKind, String> {
+        match bk {
+            rustc_mir::BorrowKind::Shared => Ok(BorrowKind::Shared),
+            rustc_mir::BorrowKind::Mut { allow_two_phase_borrow } => {
+                Ok(BorrowKind::Mut { allow_two_phase_borrow })
+            }
+            rustc_mir::BorrowKind::Shallow | rustc_mir::BorrowKind::Unique => {
+                Err(format!("unsupported borrow kind `{bk:?}`"))
             }
         }
     }

@@ -129,8 +129,7 @@ pub enum StatementKind {
 
 pub enum Rvalue {
     Use(Operand),
-    MutRef(Place),
-    ShrRef(Place),
+    Ref(BorrowKind, Place),
     BinaryOp(BinOp, Operand, Operand),
     CheckedBinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
@@ -138,6 +137,11 @@ pub enum Rvalue {
     Discriminant(Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
+}
+
+pub enum BorrowKind {
+    Mut { allow_two_phase_borrow: bool },
+    Shared,
 }
 
 #[derive(Copy, Clone)]
@@ -434,8 +438,8 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
-            Rvalue::MutRef(place) => write!(f, "&mut {place:?}"),
-            Rvalue::ShrRef(place) => write!(f, "&{place:?}"),
+            Rvalue::Ref(BorrowKind::Mut { .. }, place) => write!(f, "&mut {place:?}"),
+            Rvalue::Ref(BorrowKind::Shared, place) => write!(f, "&{place:?}"),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {

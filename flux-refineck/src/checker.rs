@@ -15,9 +15,9 @@ use flux_middle::{
     rustc::{
         self,
         mir::{
-            self, AggregateKind, AssertKind, BasicBlock, Body, CastKind, Constant, Operand, Place,
-            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
-            START_BLOCK,
+            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+            Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+            RETURN_PLACE, START_BLOCK,
         },
     },
 };
@@ -653,13 +653,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ty = self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)?;
                 Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
-            Rvalue::MutRef(place) => {
+            Rvalue::Ref(BorrowKind::Mut { .. }, place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
                 env.borrow(rcx, gen, Mutability::Mut, place, config)
                     .with_span(stmt_span)
             }
-            Rvalue::ShrRef(place) => {
+            Rvalue::Ref(BorrowKind::Shared, place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
                 env.borrow(rcx, gen, Mutability::Not, place, config)
