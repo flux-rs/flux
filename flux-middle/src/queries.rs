@@ -21,7 +21,7 @@ use crate::{
     },
     rustc::{
         self,
-        lowering::{self, UnsupportedDef},
+        lowering::{self, UnsupportedReason},
     },
 };
 
@@ -31,7 +31,7 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
 #[derive(Debug, Clone)]
 pub enum QueryErr {
-    UnsupportedType { def_id: DefId, def_span: Span, reason: String },
+    UnsupportedType { def_id: DefId, def_span: Span, reason: UnsupportedReason },
     Emitted(ErrorGuaranteed),
 }
 
@@ -248,8 +248,8 @@ where
 }
 
 impl QueryErr {
-    pub fn unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedDef) -> Self {
-        QueryErr::UnsupportedType { def_id, def_span: tcx.def_span(def_id), reason: err.reason }
+    pub fn unsupported(tcx: TyCtxt, def_id: DefId, reason: UnsupportedReason) -> Self {
+        QueryErr::UnsupportedType { def_id, def_span: tcx.def_span(def_id), reason }
     }
 }
 
@@ -265,7 +265,7 @@ impl<'a> IntoDiagnostic<'a> for QueryErr {
                     fluent::middle_query_unsupported_type,
                     flux_errors::diagnostic_id(),
                 );
-                builder.note(reason);
+                builder.note(reason.descr);
                 builder
             }
             QueryErr::Emitted(_) => {
