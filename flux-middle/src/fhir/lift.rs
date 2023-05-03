@@ -230,9 +230,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::Array(ty, len) => {
                 fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
-            hir::TyKind::Ref(_, mut_ty) => {
-                fhir::TyKind::Ref(mut_ty.mutbl, Box::new(self.lift_ty(mut_ty.ty)?))
-            }
+            hir::TyKind::Ref(_, mut_ty) => fhir::TyKind::Ref(self.lift_mut_ty(mut_ty)?),
             hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
                 fhir::TyKind::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
@@ -249,6 +247,10 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
         };
         Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: ty.span })
+    }
+
+    fn lift_mut_ty(&self, mut_ty: &hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
+        Ok(fhir::MutTy { ty: Box::new(self.lift_ty(mut_ty.ty)?), mutbl: mut_ty.mutbl })
     }
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {

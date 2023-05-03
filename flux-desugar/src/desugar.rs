@@ -486,7 +486,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Constr(pred, Box::new(ty))
             }
             surface::TyKind::Ref(mutbl, ty) => {
-                fhir::TyKind::Ref(*mutbl, Box::new(self.desugar_ty(None, ty, binders)?))
+                fhir::TyKind::Ref(fhir::MutTy {
+                    ty: Box::new(self.desugar_ty(None, ty, binders)?),
+                    mutbl: *mutbl,
+                })
             }
             surface::TyKind::Tuple(tys) => {
                 let tys = tys

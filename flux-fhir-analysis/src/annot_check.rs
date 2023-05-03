@@ -157,9 +157,9 @@ impl<'zip> Zipper<'zip> {
                 fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _),
                 fhir::TyKind::BaseTy(expected_bty),
             ) => self.zip_bty(bty, expected_bty),
-            (fhir::TyKind::Ptr(loc), fhir::TyKind::Ref(expected_mutbl, expected_ref_ty)) => {
-                if let fhir::Mutability::Mut = expected_mutbl {
-                    self.locs.insert(loc.name, expected_ref_ty);
+            (fhir::TyKind::Ptr(loc), fhir::TyKind::Ref(expected_mut_ty)) => {
+                if expected_mut_ty.mutbl.is_mut() {
+                    self.locs.insert(loc.name, &expected_mut_ty.ty);
                     Ok(())
                 } else {
                     Err(self.emit_err(
@@ -169,17 +169,14 @@ impl<'zip> Zipper<'zip> {
                     ))
                 }
             }
-            (
-                fhir::TyKind::Ref(mutbl, ref_ty),
-                fhir::TyKind::Ref(expected_mutbl, expected_ref_ty),
-            ) => {
-                if mutbl != expected_mutbl {
+            (fhir::TyKind::Ref(mut_ty), fhir::TyKind::Ref(expected_mut_ty)) => {
+                if mut_ty.mutbl != expected_mut_ty.mutbl {
                     return Err(self.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
                             .with_note("types differ in mutability"),
                     ));
                 }
-                self.zip_ty(ref_ty, expected_ref_ty)
+                self.zip_ty(&mut_ty.ty, &expected_mut_ty.ty)
             }
             (fhir::TyKind::Tuple(tys), fhir::TyKind::Tuple(expected_tys)) => {
                 if tys.len() != expected_tys.len() {
