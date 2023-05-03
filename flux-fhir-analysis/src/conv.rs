@@ -379,7 +379,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::TyKind::Ptr(loc) => {
                 Ok(rty::Ty::ptr(rty::Mutability::Mut, env.lookup(*loc).to_path()))
             }
-            fhir::TyKind::Ref(fhir::MutTy { ty, mutbl }) => {
+            fhir::TyKind::Ref(_, fhir::MutTy { ty, mutbl }) => {
                 Ok(rty::Ty::mk_ref(self.conv_ty(env, ty)?, *mutbl))
             }
             fhir::TyKind::Tuple(tys) => {

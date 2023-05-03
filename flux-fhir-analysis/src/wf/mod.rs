@@ -299,7 +299,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(infcx, ty))
             }
-            fhir::TyKind::Ref(fhir::MutTy { ty, .. }) | fhir::TyKind::Array(ty, _) => {
+            fhir::TyKind::Ref(_, fhir::MutTy { ty, .. }) | fhir::TyKind::Array(ty, _) => {
                 self.check_type(infcx, ty)
             }
             fhir::TyKind::Constr(pred, ty) => {

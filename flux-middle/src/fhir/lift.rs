@@ -230,7 +230,9 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::Array(ty, len) => {
                 fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
-            hir::TyKind::Ref(_, mut_ty) => fhir::TyKind::Ref(self.lift_mut_ty(mut_ty)?),
+            hir::TyKind::Ref(lifetime, mut_ty) => {
+                fhir::TyKind::Ref(self.lift_lifetime(lifetime)?, self.lift_mut_ty(mut_ty)?)
+            }
             hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
                 fhir::TyKind::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
@@ -247,6 +249,19 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
         };
         Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: ty.span })
+    }
+
+    fn lift_lifetime(&self, lifetime: &hir::Lifetime) -> Result<fhir::Lifetime, ErrorGuaranteed> {
+        let res = match lifetime.res {
+            hir::LifetimeName::Param(def_id) => fhir::LifetimeRes::Param(def_id),
+            hir::LifetimeName::Static => fhir::LifetimeRes::Static,
+            hir::LifetimeName::ImplicitObjectLifetimeDefault
+            | hir::LifetimeName::Error
+            | hir::LifetimeName::Infer => {
+                return self.emit_unsupported(&format!("unsupported lifetime: `{lifetime}`",));
+            }
+        };
+        Ok(fhir::Lifetime { fhir_id: self.next_fhir_id(), ident: lifetime.ident, res })
     }
 
     fn lift_mut_ty(&self, mut_ty: &hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {

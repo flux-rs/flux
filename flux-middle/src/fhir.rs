@@ -221,7 +221,7 @@ pub enum TyKind {
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
     Ptr(Ident),
-    Ref(MutTy),
+    Ref(Lifetime, MutTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
@@ -233,6 +233,20 @@ pub enum TyKind {
 pub struct MutTy {
     pub ty: Box<Ty>,
     pub mutbl: Mutability,
+}
+
+#[derive(Clone)]
+pub struct Lifetime {
+    pub fhir_id: FhirId,
+    pub ident: SurfaceIdent,
+    pub res: LifetimeRes,
+}
+
+#[derive(Clone)]
+pub enum LifetimeRes {
+    Param(LocalDefId),
+    Static,
+    Hole,
 }
 
 #[derive(Clone)]
@@ -1081,7 +1095,9 @@ impl fmt::Debug for Ty {
                 }
             }
             TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            TyKind::Ref(mut_ty) => write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty),
+            TyKind::Ref(lifetime, mut_ty) => {
+                write!(f, "&{lifetime:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
@@ -1090,6 +1106,12 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
         }
+    }
+}
+
+impl fmt::Debug for Lifetime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.ident.name)
     }
 }
 

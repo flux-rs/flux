@@ -14,7 +14,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
-use rustc_span::{sym, symbol::kw, Span, Symbol};
+use rustc_span::{sym, symbol::kw, BytePos, Span, Symbol};
 
 pub fn desugar_qualifier(
     early_cx: &EarlyCtxt,
@@ -486,10 +486,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Constr(pred, Box::new(ty))
             }
             surface::TyKind::Ref(mutbl, ty) => {
-                fhir::TyKind::Ref(fhir::MutTy {
+                let mut_ty = fhir::MutTy {
                     ty: Box::new(self.desugar_ty(None, ty, binders)?),
                     mutbl: *mutbl,
-                })
+                };
+                let lft_sp = span.with_lo(span.lo() + BytePos(1)).shrink_to_lo();
+                let ident = surface::Ident { name: kw::UnderscoreLifetime, span: lft_sp };
+                let lifetime = fhir::Lifetime {
+                    fhir_id: self.next_fhir_id(),
+                    ident,
+                    res: fhir::LifetimeRes::Hole,
+                };
+                fhir::TyKind::Ref(lifetime, mut_ty)
             }
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
