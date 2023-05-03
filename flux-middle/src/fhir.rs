@@ -235,14 +235,14 @@ pub struct MutTy {
     pub mutbl: Mutability,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Lifetime {
     pub fhir_id: FhirId,
     pub ident: SurfaceIdent,
     pub res: LifetimeRes,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum LifetimeRes {
     Param(LocalDefId),
     Static,
@@ -266,7 +266,8 @@ pub struct WfckResults {
     owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
-    holes: ItemLocalMap<Ty>,
+    type_holes: ItemLocalMap<Ty>,
+    lifetime_holes: ItemLocalMap<Lifetime>,
 }
 
 #[derive(Debug)]
@@ -982,7 +983,8 @@ impl WfckResults {
             owner,
             node_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
-            holes: ItemLocalMap::default(),
+            type_holes: ItemLocalMap::default(),
+            lifetime_holes: ItemLocalMap::default(),
         }
     }
 
@@ -1002,12 +1004,20 @@ impl WfckResults {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 
-    pub fn holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.holes }
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
     }
 
-    pub fn holes(&self) -> LocalTableInContext<Ty> {
-        LocalTableInContext { owner: self.owner, data: &self.holes }
+    pub fn type_holes(&self) -> LocalTableInContext<Ty> {
+        LocalTableInContext { owner: self.owner, data: &self.type_holes }
+    }
+
+    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<Lifetime> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
+    }
+
+    pub fn lifetime_holes(&self) -> LocalTableInContext<Lifetime> {
+        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
     }
 }
 

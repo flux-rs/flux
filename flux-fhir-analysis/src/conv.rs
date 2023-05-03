@@ -405,7 +405,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.conv_ty(
                     env,
                     self.wfckresults
-                        .holes()
+                        .type_holes()
                         .get(ty.fhir_id)
                         .unwrap_or_else(|| span_bug!(ty.span, "unfilled hole")),
                 )

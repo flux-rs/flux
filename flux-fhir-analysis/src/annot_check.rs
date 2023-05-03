@@ -169,13 +169,16 @@ impl<'zip> Zipper<'zip> {
                     ))
                 }
             }
-            (fhir::TyKind::Ref(_, mut_ty), fhir::TyKind::Ref(_, expected_mut_ty)) => {
+            (fhir::TyKind::Ref(lft, mut_ty), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
                 if mut_ty.mutbl != expected_mut_ty.mutbl {
                     return Err(self.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
                             .with_note("types differ in mutability"),
                     ));
                 }
+                self.wfckresults
+                    .lifetime_holes_mut()
+                    .insert(lft.fhir_id, *expected_lft);
                 self.zip_ty(&mut_ty.ty, &expected_mut_ty.ty)
             }
             (fhir::TyKind::Tuple(tys), fhir::TyKind::Tuple(expected_tys)) => {
@@ -208,7 +211,7 @@ impl<'zip> Zipper<'zip> {
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
             (fhir::TyKind::Hole, _) => {
                 self.wfckresults
-                    .holes_mut()
+                    .type_holes_mut()
                     .insert(ty.fhir_id, expected_ty.clone());
                 Ok(())
             }
