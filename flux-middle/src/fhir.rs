@@ -220,12 +220,32 @@ pub enum TyKind {
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
-    Ptr(Ident),
-    Ref(Mutability, Box<Ty>),
+    Ptr(Lifetime, Ident),
+    Ref(Lifetime, MutTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
     Never,
+    Hole,
+}
+
+#[derive(Clone)]
+pub struct MutTy {
+    pub ty: Box<Ty>,
+    pub mutbl: Mutability,
+}
+
+#[derive(Copy, Clone)]
+pub struct Lifetime {
+    pub fhir_id: FhirId,
+    pub ident: SurfaceIdent,
+    pub res: LifetimeRes,
+}
+
+#[derive(Copy, Clone)]
+pub enum LifetimeRes {
+    Param(LocalDefId),
+    Static,
     Hole,
 }
 
@@ -246,7 +266,8 @@ pub struct WfckResults {
     owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
-    holes: ItemLocalMap<Ty>,
+    type_holes: ItemLocalMap<Ty>,
+    lifetime_holes: ItemLocalMap<Lifetime>,
 }
 
 #[derive(Debug)]
@@ -962,7 +983,8 @@ impl WfckResults {
             owner,
             node_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
-            holes: ItemLocalMap::default(),
+            type_holes: ItemLocalMap::default(),
+            lifetime_holes: ItemLocalMap::default(),
         }
     }
 
@@ -982,12 +1004,20 @@ impl WfckResults {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 
-    pub fn holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.holes }
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
     }
 
-    pub fn holes(&self) -> LocalTableInContext<Ty> {
-        LocalTableInContext { owner: self.owner, data: &self.holes }
+    pub fn type_holes(&self) -> LocalTableInContext<Ty> {
+        LocalTableInContext { owner: self.owner, data: &self.type_holes }
+    }
+
+    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<Lifetime> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
+    }
+
+    pub fn lifetime_holes(&self) -> LocalTableInContext<Lifetime> {
+        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
     }
 }
 
@@ -1074,9 +1104,10 @@ impl fmt::Debug for Ty {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            TyKind::Ref(Mutability::Mut, ty) => write!(f, "&mut {ty:?}"),
-            TyKind::Ref(Mutability::Not, ty) => write!(f, "&{ty:?}"),
+            TyKind::Ptr(lft, loc) => write!(f, "ref<{lft:?}, {loc:?}>"),
+            TyKind::Ref(lft, mut_ty) => {
+                write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
@@ -1085,6 +1116,12 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
         }
+    }
+}
+
+impl fmt::Debug for Lifetime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.ident.name)
     }
 }
 

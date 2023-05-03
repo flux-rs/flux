@@ -291,7 +291,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 infcx.resolve_params_sorts(params)?;
                 self.check_params_determined(infcx, params)
             }
-            fhir::TyKind::Ptr(loc) => {
+            fhir::TyKind::Ptr(_, loc) => {
                 self.xi.insert(loc.name);
                 infcx.check_loc(*loc)
             }
@@ -299,7 +299,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(infcx, ty))
             }
-            fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(infcx, ty),
+            fhir::TyKind::Ref(_, fhir::MutTy { ty, .. }) | fhir::TyKind::Array(ty, _) => {
+                self.check_type(infcx, ty)
+            }
             fhir::TyKind::Constr(pred, ty) => {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)

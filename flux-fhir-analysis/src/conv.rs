@@ -376,10 +376,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     Ok(rty::Ty::exists(rty::Binder::new(ty, sort)))
                 }
             }
-            fhir::TyKind::Ptr(loc) => {
+            fhir::TyKind::Ptr(_, loc) => {
                 Ok(rty::Ty::ptr(rty::Mutability::Mut, env.lookup(*loc).to_path()))
             }
-            fhir::TyKind::Ref(mutbl, ty) => Ok(rty::Ty::mk_ref(self.conv_ty(env, ty)?, *mutbl)),
+            fhir::TyKind::Ref(_, fhir::MutTy { ty, mutbl }) => {
+                Ok(rty::Ty::mk_ref(self.conv_ty(env, ty)?, *mutbl))
+            }
             fhir::TyKind::Tuple(tys) => {
                 let tys: List<rty::Ty> =
                     tys.iter().map(|ty| self.conv_ty(env, ty)).try_collect()?;
@@ -403,7 +405,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.conv_ty(
                     env,
                     self.wfckresults
-                        .holes()
+                        .type_holes()
                         .get(ty.fhir_id)
                         .unwrap_or_else(|| span_bug!(ty.span, "unfilled hole")),
                 )
