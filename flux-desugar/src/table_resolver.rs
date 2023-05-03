@@ -167,7 +167,13 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
-            surface::TyKind::Base(bty) => surface::TyKind::Base(self.resolve_bty(bty)?),
+            surface::TyKind::Base(bty) => {
+                if let BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                    surface::TyKind::Hole
+                } else {
+                    surface::TyKind::Base(self.resolve_bty(bty)?)
+                }
+            },
             surface::TyKind::Indexed { bty, indices } => {
                 let bty = self.resolve_bty(bty)?;
                 surface::TyKind::Indexed { bty, indices }
@@ -199,8 +205,20 @@ impl<'sess> Resolver<'sess> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Array(Box::new(ty), len)
             }
+            surface::TyKind::Hole => surface::TyKind::Hole,
         };
         Ok(surface::Ty { kind, span: ty.span })
+    }
+
+    fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
+        let kind = match bty.kind {
+            BaseTyKind::Path(path) => BaseTyKind::Path(self.resolve_path(path)?),
+            BaseTyKind::Slice(ty) => {
+                let ty = self.resolve_ty(*ty)?;
+                BaseTyKind::Slice(Box::new(ty))
+            }
+        };
+        Ok(BaseTy { kind, span: bty.span })
     }
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
@@ -228,17 +246,6 @@ impl<'sess> Resolver<'sess> {
                     .emit_err(errors::UnsupportedSignature::new(*span, reason)))
             }
         }
-    }
-
-    fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
-        let kind = match bty.kind {
-            BaseTyKind::Path(path) => BaseTyKind::Path(self.resolve_path(path)?),
-            BaseTyKind::Slice(ty) => {
-                let ty = self.resolve_ty(*ty)?;
-                BaseTyKind::Slice(Box::new(ty))
-            }
-        };
-        Ok(BaseTy { kind, span: bty.span })
     }
 }
 

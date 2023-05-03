@@ -305,7 +305,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(infcx, pred)
             }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
-            fhir::TyKind::Never => Ok(()),
+            fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
         }
     }
 

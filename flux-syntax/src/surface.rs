@@ -8,7 +8,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{def_id::LocalDefId, OwnerId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
-use rustc_span::Span;
+use rustc_span::{symbol::kw, Span};
 
 #[derive(Debug)]
 pub struct SortDecl {
@@ -192,6 +192,7 @@ pub enum TyKind<R = ()> {
     Constr(Expr, Box<Ty<R>>),
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
+    Hole,
 }
 
 #[derive(Debug)]
@@ -287,6 +288,16 @@ pub enum BinOp {
 pub enum UnOp {
     Not,
     Neg,
+}
+
+impl Path {
+    pub fn is_hole(&self) -> bool {
+        if let [segment] = &self.segments[..] && segment.name == kw::Underscore {
+            self.refine.is_empty() && self.generics.is_empty()
+        } else {
+            false
+        }
+    }
 }
 
 impl BindKind {

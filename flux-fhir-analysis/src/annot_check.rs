@@ -8,28 +8,36 @@ use std::iter;
 
 use flux_common::iter::IterExt;
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::{early_ctxt::EarlyCtxt, fhir};
+use flux_middle::{
+    early_ctxt::EarlyCtxt,
+    fhir::{self, WfckResults},
+};
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir::OwnerId;
 
 pub fn check_fn_sig(
     early_cx: &EarlyCtxt,
+    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
 ) -> Result<(), ErrorGuaranteed> {
     if fn_sig.lifted {
         return Ok(());
     }
-    Zipper::new(early_cx.sess)
+    Zipper::new(early_cx.sess, wfckresults)
         .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx.tcx, early_cx.sess, owner_id)?)
 }
 
-pub fn check_alias(early_cx: &EarlyCtxt, ty_alias: &fhir::TyAlias) -> Result<(), ErrorGuaranteed> {
+pub fn check_alias(
+    early_cx: &EarlyCtxt,
+    wfckresults: &mut WfckResults,
+    ty_alias: &fhir::TyAlias,
+) -> Result<(), ErrorGuaranteed> {
     if ty_alias.lifted {
         return Ok(());
     }
-    Zipper::new(early_cx.sess).zip_ty(
+    Zipper::new(early_cx.sess, wfckresults).zip_ty(
         &ty_alias.ty,
         &fhir::lift::lift_type_alias(early_cx.tcx, early_cx.sess, ty_alias.owner_id)?.ty,
     )
@@ -37,6 +45,7 @@ pub fn check_alias(early_cx: &EarlyCtxt, ty_alias: &fhir::TyAlias) -> Result<(),
 
 pub fn check_struct_def(
     early_cx: &EarlyCtxt,
+    wfckresults: &mut WfckResults,
     struct_def: &fhir::StructDef,
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
@@ -45,7 +54,7 @@ pub fn check_struct_def(
                 if field.lifted {
                     return Ok(());
                 }
-                Zipper::new(early_cx.sess).zip_ty(
+                Zipper::new(early_cx.sess, wfckresults).zip_ty(
                     &field.ty,
                     &fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)?.ty,
                 )
@@ -57,13 +66,14 @@ pub fn check_struct_def(
 
 pub fn check_enum_def(
     early_cx: &EarlyCtxt,
+    wfckresults: &mut WfckResults,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
         }
-        Zipper::new(early_cx.sess).zip_enum_variant(
+        Zipper::new(early_cx.sess, wfckresults).zip_enum_variant(
             variant,
             &fhir::lift::lift_enum_variant_def(early_cx.tcx, early_cx.sess, variant.def_id)?,
         )
@@ -72,14 +82,15 @@ pub fn check_enum_def(
 
 struct Zipper<'zip> {
     sess: &'zip FluxSession,
+    wfckresults: &'zip mut WfckResults,
     locs: LocsMap<'zip>,
 }
 
 type LocsMap<'a> = FxHashMap<fhir::Name, &'a fhir::Ty>;
 
 impl<'zip> Zipper<'zip> {
-    fn new(sess: &'zip FluxSession) -> Self {
-        Self { sess, locs: LocsMap::default() }
+    fn new(sess: &'zip FluxSession, wfckresults: &'zip mut WfckResults) -> Self {
+        Self { sess, wfckresults, locs: LocsMap::default() }
     }
 
     fn zip_enum_variant(
@@ -198,6 +209,12 @@ impl<'zip> Zipper<'zip> {
                 self.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
+            (fhir::TyKind::Hole, _) => {
+                self.wfckresults
+                    .holes_mut()
+                    .insert(ty.fhir_id, expected_ty.clone());
+                Ok(())
+            }
             _ => Err(self.emit_err(errors::InvalidRefinement::from_tys(ty, expected_ty))),
         }
     }

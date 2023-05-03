@@ -210,20 +210,20 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
     match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
-            let wfckresults = wf::check_ty_alias(genv.early_cx(), alias)?;
-            annot_check::check_alias(genv.early_cx(), alias)?;
+            let mut wfckresults = wf::check_ty_alias(genv.early_cx(), alias)?;
+            annot_check::check_alias(genv.early_cx(), &mut wfckresults, alias)?;
             Ok(wfckresults)
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
-            let wfckresults = wf::check_struct_def(genv.early_cx(), struct_def)?;
-            annot_check::check_struct_def(genv.early_cx(), struct_def)?;
+            let mut wfckresults = wf::check_struct_def(genv.early_cx(), struct_def)?;
+            annot_check::check_struct_def(genv.early_cx(), &mut wfckresults, struct_def)?;
             Ok(wfckresults)
         }
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
-            let wfckresults = wf::check_enum_def(genv.early_cx(), enum_def)?;
-            annot_check::check_enum_def(genv.early_cx(), enum_def)?;
+            let mut wfckresults = wf::check_enum_def(genv.early_cx(), enum_def)?;
+            annot_check::check_enum_def(genv.early_cx(), &mut wfckresults, enum_def)?;
             Ok(wfckresults)
         }
         DefKind::TyParam => {
@@ -243,9 +243,9 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(def_id);
             let owner_id = OwnerId { def_id };
-            let wf = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
-            annot_check::check_fn_sig(genv.early_cx(), owner_id, fn_sig)?;
-            Ok(wf)
+            let mut wfckresults = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
+            annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
+            Ok(wfckresults)
         }
         kind => bug!("unexpected def kind `{kind:?}`"),
     }
