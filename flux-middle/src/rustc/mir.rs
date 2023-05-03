@@ -22,7 +22,7 @@ use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
 use super::ty::{GenericArg, Region, Ty};
-use crate::intern::List;
+use crate::{intern::List, rustc::ty::BoundRegionKind};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -435,8 +435,12 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
-            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => write!(f, "&{r:?} mut {place:?}"),
-            Rvalue::Ref(r, BorrowKind::Shared, place) => write!(f, "&{r:?} {place:?}"),
+            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
+                write!(f, "&{} mut {place:?}", region_to_string(*r))
+            }
+            Rvalue::Ref(r, BorrowKind::Shared, place) => {
+                write!(f, "&{} {place:?}", region_to_string(*r))
+            }
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
@@ -530,5 +534,20 @@ fn opt_bb_to_str(bb: Option<BasicBlock>) -> String {
     match bb {
         Some(bb) => format!("{bb:?}"),
         None => "None".to_string(),
+    }
+}
+
+pub(crate) fn region_to_string(region: Region) -> String {
+    match region {
+        Region::ReLateBound(_, region) => {
+            match region.kind {
+                BoundRegionKind::BrAnon => "'<annon>".to_string(),
+                BoundRegionKind::BrNamed(_, sym) => format!("{sym}"),
+            }
+        }
+        Region::ReEarlyBound(region) => region.name.to_string(),
+        Region::ReStatic => "'static".to_string(),
+        Region::ReVar(vid) => format!("{vid:?}"),
+        Region::ReErased => "'<erased>".to_string(),
     }
 }

@@ -1122,7 +1122,7 @@ mod pretty {
     use rustc_middle::ty::TyCtxt;
 
     use super::*;
-    use crate::pretty::*;
+    use crate::{pretty::*, rustc::mir::region_to_string};
 
     impl<T> Pretty for Binder<T>
     where
@@ -1277,11 +1277,11 @@ mod pretty {
     }
 
     impl Pretty for PtrKind {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                PtrKind::Shr(r) => w!("shr[{:?}]", ^r),
-                PtrKind::Mut(r) => w!("mut[{:?}]", ^r),
+                PtrKind::Shr(r) => w!("shr[{:?}]", r),
+                PtrKind::Mut(r) => w!("mut[{:?}]", r),
                 PtrKind::Box => w!("box"),
             }
         }
@@ -1336,7 +1336,7 @@ mod pretty {
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
                 BaseTy::Ref(region, ty, mutbl) => {
-                    w!("&{:?} {}{:?}", ^region, ^mutbl.prefix_str(), ty)
+                    w!("&{:?} {}{:?}", region, ^mutbl.prefix_str(), ty)
                 }
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {
@@ -1368,7 +1368,14 @@ mod pretty {
     impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!(f, "({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+            w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+        }
+    }
+
+    impl Pretty for Region {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{}", ^region_to_string(*self))
         }
     }
 
