@@ -137,7 +137,7 @@ pub fn lift_enum_variant_def(
         .data
         .fields()
         .iter()
-        .map(|field| cx.lift_ty(field.ty))
+        .map(|field| cx.lift_field_def(field))
         .try_collect_exhaust()?;
 
     let path = fhir::Path {
@@ -203,6 +203,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
             hir::FnRetTy::Return(ty) => self.lift_ty(ty),
         }
+    }
+
+    fn lift_field_def(&self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef, ErrorGuaranteed> {
+        let ty = self.lift_ty(field_def.ty)?;
+        Ok(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: true })
     }
 
     fn lift_ty(&self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {

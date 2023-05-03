@@ -328,10 +328,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.gather_params_variant(self.early_cx, variant_def)?;
 
         if let Some(data) = &variant_def.data {
-            let fields = data
-                .fields
-                .iter()
-                .map(|ty| self.desugar_ty(None, ty, &mut binders))
+            let hir_id = self
+                .early_cx
+                .hir()
+                .local_def_id_to_hir_id(variant_def.def_id);
+            let hir::Node::Variant(hir_variant) = &self.early_cx.hir().get(hir_id) else {
+                bug!("expected enum variant")
+            };
+
+            let fields = iter::zip(&data.fields, hir_variant.data.fields())
+                .map(|(ty, hir_field)| {
+                    Ok(fhir::FieldDef {
+                        ty: self.desugar_ty(None, ty, &mut binders)?,
+                        def_id: hir_field.def_id,
+                        lifted: false,
+                    })
+                })
                 .try_collect_exhaust()?;
 
             let ret = self.desugar_variant_ret(&data.ret, &mut binders)?;

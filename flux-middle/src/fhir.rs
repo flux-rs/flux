@@ -160,7 +160,7 @@ pub struct EnumDef {
 pub struct VariantDef {
     pub def_id: LocalDefId,
     pub params: Vec<RefineParam>,
-    pub fields: Vec<Ty>,
+    pub fields: Vec<FieldDef>,
     pub ret: VariantRet,
     pub span: Span,
     /// Whether this variant was [lifted] from a hir variant
