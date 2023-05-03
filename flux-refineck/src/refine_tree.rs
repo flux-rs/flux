@@ -257,12 +257,12 @@ impl RefineCtxt<'_> {
                             vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                         )
                     }
-                    BaseTy::Ref(ty, mutbl) => {
+                    BaseTy::Ref(r, ty, mutbl) => {
                         let in_mut_ref = self.in_mut_ref;
                         self.in_mut_ref = matches!(mutbl, Mutability::Mut);
                         let ty = ty.fold_with(self);
                         self.in_mut_ref = in_mut_ref;
-                        BaseTy::Ref(ty, *mutbl)
+                        BaseTy::Ref(*r, ty, *mutbl)
                     }
                     BaseTy::Tuple(_) => bty.super_fold_with(self),
                     _ => bty.clone(),
@@ -287,7 +287,7 @@ impl RefineCtxt<'_> {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
                         substs.visit_with(self);
                     }
-                    BaseTy::Ref(ty, _) => ty.visit_with(self),
+                    BaseTy::Ref(_, ty, _) => ty.visit_with(self),
                     BaseTy::Tuple(tys) => tys.visit_with(self),
                     _ => {}
                 }

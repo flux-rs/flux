@@ -653,16 +653,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ty = self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)?;
                 Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
-            Rvalue::Ref(_, BorrowKind::Mut { .. }, place) => {
+            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, Mutability::Mut, place, config)
+                env.borrow(rcx, gen, *r, Mutability::Mut, place, config)
                     .with_span(stmt_span)
             }
-            Rvalue::Ref(_, BorrowKind::Shared, place) => {
+            Rvalue::Ref(r, BorrowKind::Shared, place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, Mutability::Not, place, config)
+                env.borrow(rcx, gen, *r, Mutability::Not, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),

@@ -2,7 +2,7 @@
 
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_macros::{Decodable, Encodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::ClosureKind;
 pub use rustc_middle::{
     mir::Mutability,
@@ -28,7 +28,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
 pub enum BoundRegionKind {
     BrAnon,
     BrNamed(DefId, Symbol),
@@ -110,7 +110,7 @@ pub enum GenericArg {
     Lifetime(Region),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Region {
     ReLateBound(DebruijnIndex, BoundRegion),
     ReEarlyBound(EarlyBoundRegion),
@@ -119,7 +119,7 @@ pub enum Region {
     ReErased,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
 pub struct BoundRegion {
     pub var: BoundVar,
     pub kind: BoundRegionKind,

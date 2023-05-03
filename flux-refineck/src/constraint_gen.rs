@@ -139,7 +139,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 .args(),
         )
         .map(|(actual, formal)| {
-            if let (Ref!(_, Mutability::Mut), Ref!(ty, Mutability::Mut)) = (actual.kind(), formal.kind())
+            if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
@@ -191,12 +191,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
             match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2)) => {
+                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
                     let bound = requires[path2];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
-                (TyKind::Ptr(PtrKind::Mut, path), Ref!(bound, Mutability::Mut)) => {
+                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block_with(
                         rcx,
@@ -207,7 +207,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     )?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
-                (TyKind::Ptr(PtrKind::Shr, path), Ref!(bound, Mutability::Not)) => {
+                (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
                     infcx.subtyping(rcx, &ty, bound);
@@ -300,7 +300,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut, path), Ref!(bound, Mutability::Mut)) => {
+                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block_with(
                         rcx,
@@ -311,7 +311,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     )?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
-                (TyKind::Ptr(PtrKind::Shr, path), Ref!(bound, Mutability::Not)) => {
+                (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
                     infcx.subtyping(rcx, &ty, bound);
@@ -480,11 +480,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
                 self.subtyping(rcx, ty1, ty2);
             }
-            (BaseTy::Ref(ty1, Mutability::Mut), BaseTy::Ref(ty2, Mutability::Mut)) => {
+            (BaseTy::Ref(_, ty1, Mutability::Mut), BaseTy::Ref(_, ty2, Mutability::Mut)) => {
                 self.subtyping(rcx, ty1, ty2);
                 self.subtyping(rcx, ty2, ty1);
             }
-            (BaseTy::Ref(ty1, Mutability::Not), BaseTy::Ref(ty2, Mutability::Not)) => {
+            (BaseTy::Ref(_, ty1, Mutability::Not), BaseTy::Ref(_, ty2, Mutability::Not)) => {
                 self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {

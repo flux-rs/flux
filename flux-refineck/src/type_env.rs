@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Ty, TyKind, Var, INNERMOST,
+        ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty, TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -109,6 +109,7 @@ impl TypeEnv {
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
+        region: Region,
         mutbl: Mutability,
         place: &Place,
         checker_config: CheckerConfig,
@@ -118,7 +119,7 @@ impl TypeEnv {
             .lookup(gen.genv, rcx, place, checker_config)?
             .fold(rcx, gen, true)?
         {
-            FoldResult::Strg(path, _) => Ty::ptr(mutbl, path),
+            FoldResult::Strg(path, _) => Ty::ptr(PtrKind::from_ref(region, mutbl), path),
             FoldResult::Weak(result_rk, ty) => {
                 debug_assert!(WeakKind::from(mutbl) <= result_rk);
                 Ty::mk_ref(ty, mutbl)
@@ -252,8 +253,8 @@ impl TypeEnv {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
             }
-            (TyKind::Ptr(pk1, path), Ref!(ty2, mutbl2)) => {
-                debug_assert_eq!(pk1, &PtrKind::from(*mutbl2));
+            (TyKind::Ptr(pk1, path), Ref!(r2, ty2, mutbl2)) => {
+                debug_assert_eq!(pk1, &PtrKind::from_ref(*r2, *mutbl2));
                 if let Binding::Owned(ty1) = self.bindings.get(path) {
                     self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, ty2, subst);
                 }
@@ -284,8 +285,9 @@ impl TypeEnv {
         subst: &mut FVarSubst,
     ) {
         match (bty1, bty2) {
-            (BaseTy::Ref(ty1, mutbl1), BaseTy::Ref(ty2, mutbl2)) => {
+            (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 debug_assert_eq!(mutbl1, mutbl2);
+                debug_assert_eq!(r1, r2);
                 self.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
             }
             (BaseTy::Adt(adt, substs1), BaseTy::Adt(_, substs2)) if adt.is_box() => {
@@ -334,7 +336,8 @@ impl TypeEnv {
             let binding1 = self.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(bound, Mutability::Mut)) => {
+                    (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
+                        debug_assert_eq!(r1, r2);
                         let ty = self
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path, checker_config)?
@@ -344,7 +347,8 @@ impl TypeEnv {
                         self.bindings
                             .update(path, Ty::mk_ref(bound.clone(), Mutability::Mut));
                     }
-                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(_, Mutability::Not)) => {
+                    (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
+                        debug_assert_eq!(r1, r2);
                         let ty = self
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path, checker_config)?
@@ -452,7 +456,7 @@ impl BasicBlockEnvShape {
                 BaseTy::Tuple(tys)
             }
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
-            BaseTy::Ref(ty, mutbl) => BaseTy::Ref(Self::pack_ty(scope, ty), *mutbl),
+            BaseTy::Ref(r, ty, mutbl) => BaseTy::Ref(*r, Self::pack_ty(scope, ty), *mutbl),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
             BaseTy::Int(_)
             | BaseTy::Param(_)
@@ -530,26 +534,32 @@ impl BasicBlockEnvShape {
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
                 match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(PtrKind::Shr, path1), TyKind::Ptr(PtrKind::Shr, path2))
-                        if path1 != path2 =>
-                    {
+                    (
+                        TyKind::Ptr(PtrKind::Shr(r1), path1),
+                        TyKind::Ptr(PtrKind::Shr(r2), path2),
+                    ) if path1 != path2 => {
+                        debug_assert_eq!(r1, r2);
                         let ty1 = self.block(rcx, gen, path1, checker_config)?;
                         let ty2 = self.block(rcx, gen, path2, checker_config)?;
 
                         self.update(path, Ty::mk_ref(ty1, Mutability::Not));
                         other.update(path, Ty::mk_ref(ty2, Mutability::Not));
                     }
-                    (TyKind::Ptr(PtrKind::Shr, ptr_path), Ref!(_, Mutability::Not)) => {
+                    (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
+                        debug_assert_eq!(r1, r2);
                         let ty = self.block(rcx, gen, ptr_path, checker_config)?;
                         self.bindings.update(path, Ty::mk_ref(ty, Mutability::Not));
                     }
-                    (Ref!(_, Mutability::Not), TyKind::Ptr(PtrKind::Shr, ptr_path)) => {
+                    (Ref!(r1, _, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) => {
+                        debug_assert_eq!(r1, r2);
                         let ty = other.block(rcx, gen, ptr_path, checker_config)?;
                         other.update(path, Ty::mk_ref(ty, Mutability::Not));
                     }
-                    (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2))
-                        if path1 != path2 =>
-                    {
+                    (
+                        TyKind::Ptr(PtrKind::Mut(r1), path1),
+                        TyKind::Ptr(PtrKind::Mut(r2), path2),
+                    ) if path1 != path2 => {
+                        debug_assert_eq!(r1, r2);
                         let ty1 = self.bindings.get(path1).expect_owned().with_holes();
                         let ty2 = other.bindings.get(path2).expect_owned().with_holes();
 
@@ -560,12 +570,14 @@ impl BasicBlockEnvShape {
                         self.block_with(rcx, gen, path1, ty1, checker_config)?;
                         other.block_with(rcx, gen, path2, ty2, checker_config)?;
                     }
-                    (TyKind::Ptr(PtrKind::Mut, ptr_path), Ref!(bound, Mutability::Mut)) => {
+                    (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
+                        debug_assert_eq!(r1, r2);
                         let bound = bound.with_holes();
                         self.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
                         self.update(path, Ty::mk_ref(bound, Mutability::Mut));
                     }
-                    (Ref!(bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut, ptr_path)) => {
+                    (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
+                        debug_assert_eq!(r1, r2);
                         let bound = bound.with_holes();
                         other.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
                         other.update(path, Ty::mk_ref(bound, Mutability::Mut));
@@ -668,9 +680,10 @@ impl BasicBlockEnvShape {
                     .collect();
                 BaseTy::Tuple(tys)
             }
-            (BaseTy::Ref(ty1, mutbl1), BaseTy::Ref(ty2, mutbl2)) => {
+            (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
+                debug_assert_eq!(r1, r2);
                 debug_assert_eq!(mutbl1, mutbl2);
-                BaseTy::Ref(self.join_ty(ty1, ty2), *mutbl1)
+                BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
                 debug_assert_eq!(len1, len2);
@@ -782,9 +795,9 @@ impl Generalizer {
                     vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                 )
             }
-            BaseTy::Ref(ty, Mutability::Not) => {
+            BaseTy::Ref(r, ty, Mutability::Not) => {
                 let ty = self.generalize_ty(ty);
-                BaseTy::Ref(ty, Mutability::Not)
+                BaseTy::Ref(*r, ty, Mutability::Not)
             }
             _ => bty.clone(),
         }

@@ -435,8 +435,8 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
-            Rvalue::Ref(_, BorrowKind::Mut { .. }, place) => write!(f, "&mut {place:?}"),
-            Rvalue::Ref(_, BorrowKind::Shared, place) => write!(f, "&{place:?}"),
+            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => write!(f, "&{r:?} mut {place:?}"),
+            Rvalue::Ref(r, BorrowKind::Shared, place) => write!(f, "&{r:?} {place:?}"),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {

@@ -37,7 +37,13 @@ use crate::{
     queries::QueryResult,
     rustc::mir::Place,
 };
-pub use crate::{fhir::InferMode, rustc::ty::Const};
+pub use crate::{
+    fhir::InferMode,
+    rustc::ty::{
+        Const,
+        Region::{self, *},
+    },
+};
 
 #[derive(Debug, Clone)]
 pub struct Generics {
@@ -235,8 +241,8 @@ pub enum TyKind {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PtrKind {
-    Shr,
-    Mut,
+    Shr(Region),
+    Mut(Region),
     Box,
 }
 
@@ -257,7 +263,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
-    Ref(Ty, Mutability),
+    Ref(Region, Ty, Mutability),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
@@ -726,6 +732,15 @@ impl EarlyBinder<PolyVariant> {
     }
 }
 
+impl PtrKind {
+    pub fn from_ref(r: Region, m: Mutability) -> Self {
+        match m {
+            Mutability::Not => PtrKind::Shr(r),
+            Mutability::Mut => PtrKind::Mut(r),
+        }
+    }
+}
+
 impl Ty {
     pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
@@ -794,7 +809,7 @@ impl Ty {
     }
 
     pub fn mk_ref(ty: Ty, mutbl: Mutability) -> Ty {
-        BaseTy::Ref(ty, mutbl).into_ty()
+        BaseTy::Ref(Region::ReErased, ty, mutbl).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
@@ -892,15 +907,6 @@ impl TyS {
     }
 }
 
-impl From<Mutability> for PtrKind {
-    fn from(mutbl: Mutability) -> Self {
-        match mutbl {
-            Mutability::Not => PtrKind::Shr,
-            Mutability::Mut => PtrKind::Mut,
-        }
-    }
-}
-
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
         BaseTy::Adt(adt_def, substs.into())
@@ -936,7 +942,7 @@ impl BaseTy {
             | BaseTy::Slice(_)
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
-            | BaseTy::Ref(_, _)
+            | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_)
@@ -1106,8 +1112,8 @@ pub use crate::_Float as Float;
 
 #[macro_export]
 macro_rules! _Ref {
-    ($mutbl:pat, $ty:pat) => {
-        TyKind::Indexed(BaseTy::Ref($mutbl, $ty), _)
+    ($($pats:pat),+ $(,)?) => {
+        TyKind::Indexed(BaseTy::Ref($($pats),+), _)
     };
 }
 pub use crate::_Ref as Ref;
@@ -1274,8 +1280,8 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                PtrKind::Shr => w!("shr"),
-                PtrKind::Mut => w!("mut"),
+                PtrKind::Shr(r) => w!("shr[{:?}]", ^r),
+                PtrKind::Mut(r) => w!("mut[{:?}]", ^r),
                 PtrKind::Box => w!("box"),
             }
         }
@@ -1329,8 +1335,9 @@ mod pretty {
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
-                BaseTy::Ref(ty, Mutability::Mut) => w!("&mut {:?}", ty),
-                BaseTy::Ref(ty, Mutability::Not) => w!("&{:?}", ty),
+                BaseTy::Ref(region, ty, mutbl) => {
+                    w!("&{:?} {}{:?}", ^region, ^mutbl.prefix_str(), ty)
+                }
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {
                         w!("({:?},)", ty)
