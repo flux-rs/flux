@@ -13,7 +13,9 @@ use rustc_middle::{
     ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
-    mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
+    mir::{
+        BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+    },
     ty::Variance,
 };
 use rustc_span::Span;
@@ -68,7 +70,7 @@ pub enum TerminatorKind<'tcx> {
         args: Vec<Operand>,
         destination: Place,
         target: Option<BasicBlock>,
-        cleanup: Option<BasicBlock>,
+        unwind: UnwindAction,
         resolved_call: (DefId, CallSubsts<'tcx>),
     },
     SwitchInt {
@@ -81,7 +83,7 @@ pub enum TerminatorKind<'tcx> {
     Drop {
         place: Place,
         target: BasicBlock,
-        unwind: Option<BasicBlock>,
+        unwind: UnwindAction,
     },
     Assert {
         cond: Operand,
@@ -96,7 +98,7 @@ pub enum TerminatorKind<'tcx> {
     },
     FalseUnwind {
         real_target: BasicBlock,
-        unwind: Option<BasicBlock>,
+        unwind: UnwindAction,
     },
     Resume,
 }
@@ -346,7 +348,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { func, substs, args, destination, target, cleanup, .. } => {
+            TerminatorKind::Call { func, substs, args, destination, target, unwind, .. } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
@@ -359,10 +361,9 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
 
                 write!(
                     f,
-                    "({args:?}) -> [return: {target}, cleanup: {cleanup}]",
+                    "({args:?}) -> [return: {target}, unwind: {unwind:?}]",
                     args = args.iter().format(", "),
                     target = opt_bb_to_str(*target),
-                    cleanup = opt_bb_to_str(*cleanup),
                 )
             }
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -379,11 +380,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
                 write!(f, "goto -> {target:?}")
             }
             TerminatorKind::Drop { place, target, unwind } => {
-                write!(
-                    f,
-                    "drop({place:?}) -> [{target:?}, unwind: {unwind}]",
-                    unwind = opt_bb_to_str(*unwind)
-                )
+                write!(f, "drop({place:?}) -> [{target:?}, unwind: {unwind:?}]",)
             }
             TerminatorKind::Assert { cond, target, expected, msg } => {
                 write!(

@@ -186,9 +186,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         let span = terminator.source_info.span;
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
-            rustc_mir::TerminatorKind::Call {
-                func, args, destination, target, cleanup, ..
-            } => {
+            rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
                 let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_substs(self.tcx, substs)
@@ -225,7 +223,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                         })
                         .try_collect()
                         .emit(self.sess)?,
-                    cleanup: *cleanup,
+                    unwind: *unwind,
                     resolved_call,
                 }
             }
@@ -274,7 +272,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
                 TerminatorKind::FalseUnwind { real_target: *real_target, unwind: *unwind }
             }
             rustc_mir::TerminatorKind::Resume => TerminatorKind::Resume,
-            rustc_mir::TerminatorKind::Abort
+            rustc_mir::TerminatorKind::Terminate
             | rustc_mir::TerminatorKind::Yield { .. }
             | rustc_mir::TerminatorKind::GeneratorDrop
             | rustc_mir::TerminatorKind::InlineAsm { .. } => {
@@ -687,7 +685,7 @@ fn lower_bound_region_kind(
         rustc_ty::BoundRegionKind::BrNamed(def_id, sym) => {
             Ok(BoundRegionKind::BrNamed(def_id, sym))
         }
-        rustc_ty::BoundRegionKind::BrAnon(u, _) => Ok(BoundRegionKind::BrAnon(u)),
+        rustc_ty::BoundRegionKind::BrAnon(_) => Ok(BoundRegionKind::BrAnon),
         _ => Err(UnsupportedReason::new(format!("unsupported bound region kind `{kind:?}`"))),
     }
 }
@@ -766,7 +764,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         let output = fn_output_proj.get(&substs).unwrap();
 
         let vars = substs.bound_vars();
-        let substs = substs.skip_binder().try_as_type_list().unwrap();
+        let substs = substs.skip_binder().into_type_list(tcx);
         let bounded_ty = lower_ty(tcx, substs[0])
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
