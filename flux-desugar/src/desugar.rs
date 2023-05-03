@@ -499,6 +499,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty = self.desugar_ty(None, ty, binders)?;
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
+            surface::TyKind::Hole => fhir::TyKind::Hole,
         };
         Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
     }
@@ -1084,6 +1085,7 @@ impl Binders {
                 // allow it if we resolve the weird behavior by detecting shadowing.
                 self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
+            surface::TyKind::Hole => Ok(()),
         }
     }
 
