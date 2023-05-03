@@ -122,9 +122,9 @@ impl TypeEnv {
             FoldResult::Strg(path, _) => Ty::ptr(PtrKind::from_ref(region, mutbl), path),
             FoldResult::Weak(result_rk, ty) => {
                 debug_assert!(WeakKind::from(mutbl) <= result_rk);
-                Ty::mk_ref(ty, mutbl)
+                Ty::mk_ref(region, ty, mutbl)
             }
-            FoldResult::Raw(ty) => Ty::mk_ref(ty, mutbl), // TODO(RJ): is this legit?
+            FoldResult::Raw(ty) => Ty::mk_ref(region, ty, mutbl), // TODO(RJ): is this legit?
         };
         Ok(ty)
     }
@@ -345,7 +345,7 @@ impl TypeEnv {
                         gen.subtyping(rcx, &ty, bound, reason);
 
                         self.bindings
-                            .update(path, Ty::mk_ref(bound.clone(), Mutability::Mut));
+                            .update(path, Ty::mk_ref(*r1, bound.clone(), Mutability::Mut));
                     }
                     (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
                         debug_assert_eq!(r1, r2);
@@ -353,7 +353,8 @@ impl TypeEnv {
                             .bindings
                             .lookup(gen.genv, rcx, ptr_path, checker_config)?
                             .block(rcx, gen)?;
-                        self.bindings.update(path, Ty::mk_ref(ty, Mutability::Not));
+                        self.bindings
+                            .update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
                     }
                     _ => (),
                 }
@@ -542,18 +543,19 @@ impl BasicBlockEnvShape {
                         let ty1 = self.block(rcx, gen, path1, checker_config)?;
                         let ty2 = self.block(rcx, gen, path2, checker_config)?;
 
-                        self.update(path, Ty::mk_ref(ty1, Mutability::Not));
-                        other.update(path, Ty::mk_ref(ty2, Mutability::Not));
+                        self.update(path, Ty::mk_ref(*r1, ty1, Mutability::Not));
+                        other.update(path, Ty::mk_ref(*r2, ty2, Mutability::Not));
                     }
                     (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
                         debug_assert_eq!(r1, r2);
                         let ty = self.block(rcx, gen, ptr_path, checker_config)?;
-                        self.bindings.update(path, Ty::mk_ref(ty, Mutability::Not));
+                        self.bindings
+                            .update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
                     }
                     (Ref!(r1, _, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) => {
                         debug_assert_eq!(r1, r2);
                         let ty = other.block(rcx, gen, ptr_path, checker_config)?;
-                        other.update(path, Ty::mk_ref(ty, Mutability::Not));
+                        other.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
                     }
                     (
                         TyKind::Ptr(PtrKind::Mut(r1), path1),
@@ -564,8 +566,8 @@ impl BasicBlockEnvShape {
                         let ty2 = other.bindings.get(path2).expect_owned().with_holes();
 
                         self.bindings
-                            .update(path, Ty::mk_ref(ty1.clone(), Mutability::Mut));
-                        other.update(path, Ty::mk_ref(ty2.clone(), Mutability::Mut));
+                            .update(path, Ty::mk_ref(*r1, ty1.clone(), Mutability::Mut));
+                        other.update(path, Ty::mk_ref(*r1, ty2.clone(), Mutability::Mut));
 
                         self.block_with(rcx, gen, path1, ty1, checker_config)?;
                         other.block_with(rcx, gen, path2, ty2, checker_config)?;
@@ -574,13 +576,13 @@ impl BasicBlockEnvShape {
                         debug_assert_eq!(r1, r2);
                         let bound = bound.with_holes();
                         self.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
-                        self.update(path, Ty::mk_ref(bound, Mutability::Mut));
+                        self.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
                     }
                     (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
                         debug_assert_eq!(r1, r2);
                         let bound = bound.with_holes();
                         other.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
-                        other.update(path, Ty::mk_ref(bound, Mutability::Mut));
+                        other.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
                     }
                     _ => {}
                 }

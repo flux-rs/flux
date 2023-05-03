@@ -23,7 +23,7 @@ pub struct Generics<'tcx> {
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }

@@ -263,7 +263,7 @@ pub enum WeakKind {
 }
 
 pub struct WfckResults {
-    owner: FluxOwnerId,
+    pub owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<Ty>,

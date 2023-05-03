@@ -40,7 +40,7 @@ use crate::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        Const,
+        BoundRegion, BoundRegionKind, Const, EarlyBoundRegion,
         Region::{self, *},
     },
 };
@@ -285,8 +285,8 @@ impl FnTraitPredicate {
     pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match self.kind {
-            ClosureKind::Fn => Ty::mk_ref(closure_ty, Mutability::Not),
-            ClosureKind::FnMut => Ty::mk_ref(closure_ty, Mutability::Mut),
+            ClosureKind::Fn => Ty::mk_ref(ReErased, closure_ty, Mutability::Not),
+            ClosureKind::FnMut => Ty::mk_ref(ReErased, closure_ty, Mutability::Mut),
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
@@ -808,8 +808,8 @@ impl Ty {
         BaseTy::Float(float_ty).into_ty()
     }
 
-    pub fn mk_ref(ty: Ty, mutbl: Mutability) -> Ty {
-        BaseTy::Ref(Region::ReErased, ty, mutbl).into_ty()
+    pub fn mk_ref(region: Region, ty: Ty, mutbl: Mutability) -> Ty {
+        BaseTy::Ref(region, ty, mutbl).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
