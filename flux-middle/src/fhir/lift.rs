@@ -1,6 +1,6 @@
 //! "Lift" HIR types into  FHIR types.
 //!
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use hir::{def::DefKind, def_id::DefId, OwnerId};
 use itertools::Itertools;
@@ -10,11 +10,13 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
+use super::{FhirId, FluxOwnerId};
 use crate::fhir;
 
 struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
+    local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
 
@@ -192,14 +194,18 @@ pub fn lift_fn_sig(
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, owner: OwnerId) -> Self {
-        Self { tcx, sess, owner }
+        Self { tcx, sess, local_id_gen: IndexGen::new(), owner }
+    }
+
+    fn next_fhir_id(&self) -> FhirId {
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
         match ret_ty {
             hir::FnRetTy::DefaultReturn(_) => {
                 let kind = fhir::TyKind::Tuple(vec![]);
-                Ok(fhir::Ty { kind, span: ret_ty.span() })
+                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: ret_ty.span() })
             }
             hir::FnRetTy::Return(ty) => self.lift_ty(ty),
         }
@@ -214,7 +220,12 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let kind = match &ty.kind {
             hir::TyKind::Slice(ty) => {
                 let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
-                return Ok(fhir::BaseTy { kind, span: ty.span }.into());
+                let bty = fhir::BaseTy { kind, span: ty.span };
+                return Ok(fhir::Ty {
+                    kind: fhir::TyKind::BaseTy(bty),
+                    fhir_id: self.next_fhir_id(),
+                    span: ty.span,
+                });
             }
             hir::TyKind::Array(ty, len) => {
                 fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
@@ -237,7 +248,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 ));
             }
         };
-        Ok(fhir::Ty { kind, span: ty.span })
+        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: ty.span })
     }
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -263,7 +274,9 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             refine: vec![],
             span: path.span,
         };
-        Ok(fhir::BaseTy::from(path).into())
+        let bty = fhir::BaseTy::from(path);
+        let span = bty.span;
+        Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), fhir_id: self.next_fhir_id(), span })
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -271,7 +284,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let def_id = alias_to.expect_local();
         match hir.expect_item(def_id).kind {
             hir::ItemKind::Impl(parent_impl) => self.lift_ty(parent_impl.self_ty),
-            _ => bug!("self types for structs and enums is not yet implemented"),
+            _ => bug!("self types for structs and enums are not yet implemented"),
         }
     }
 
@@ -322,7 +335,12 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                     let res = fhir::Res::Param(param.def_id.to_def_id());
                     let path =
                         fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
-                    args.push(fhir::BaseTy::from(path).into());
+                    let bty = fhir::BaseTy::from(path);
+                    args.push(fhir::Ty {
+                        kind: fhir::TyKind::BaseTy(bty),
+                        fhir_id: self.next_fhir_id(),
+                        span: param.span,
+                    });
                 }
                 hir::GenericParamKind::Lifetime { .. } => {}
                 hir::GenericParamKind::Const { .. } => {

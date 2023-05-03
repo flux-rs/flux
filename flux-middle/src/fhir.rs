@@ -205,6 +205,7 @@ pub enum Constraint {
 
 pub struct Ty {
     pub kind: TyKind,
+    pub fhir_id: FhirId,
     pub span: Span,
 }
 
@@ -223,6 +224,7 @@ pub enum TyKind {
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
     Never,
+    Hole,
 }
 
 pub struct ArrayLen {
@@ -260,13 +262,6 @@ pub struct LocalTableInContext<'a, T> {
 pub struct LocalTableInContextMut<'a, T> {
     owner: FluxOwnerId,
     data: &'a mut ItemLocalMap<T>,
-}
-
-impl From<BaseTy> for Ty {
-    fn from(bty: BaseTy) -> Ty {
-        let span = bty.span;
-        Ty { kind: TyKind::BaseTy(bty), span }
-    }
 }
 
 impl From<Mutability> for WeakKind {
@@ -1065,6 +1060,7 @@ impl fmt::Debug for Ty {
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
+            TyKind::Hole => write!(f, "_"),
         }
     }
 }

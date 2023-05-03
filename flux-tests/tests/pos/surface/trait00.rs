@@ -1,4 +1,4 @@
-// ignore-test disabled until we implement type holes
+// ignore-test disabled until we implement type projections
 
 #![feature(register_tool)]
 #![register_tool(flux)]
