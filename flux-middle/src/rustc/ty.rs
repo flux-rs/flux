@@ -143,6 +143,10 @@ impl<T> Binder<T> {
     pub fn as_ref(&self) -> Binder<&T> {
         Binder(&self.0, self.1.clone())
     }
+
+    pub fn vars(&self) -> &List<BoundVariableKind> {
+        &self.1
+    }
 }
 
 impl FnSig {
