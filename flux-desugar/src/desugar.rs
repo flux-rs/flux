@@ -1,7 +1,7 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter, slice};
 
-use flux_common::{index::IndexGen, iter::IterExt, span_bug};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -12,6 +12,7 @@ use flux_syntax::surface;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
+use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{sym, symbol::kw, Span, Symbol};
 
@@ -139,18 +140,19 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let fields = struct_def
-            .fields
-            .iter()
-            .map(|field| {
-                if let Some(ty) = &field.ty {
+        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(struct_def.owner_id.def_id).kind else {
+            bug!("expected struct")
+        };
+        let fields = iter::zip(&struct_def.fields, variant_data.fields())
+            .map(|(ty, hir_field)| {
+                if let Some(ty) = ty {
                     Ok(fhir::FieldDef {
                         ty: cx.desugar_ty(None, ty, &mut binders)?,
-                        def_id: field.def_id,
+                        def_id: hir_field.def_id,
                         lifted: false,
                     })
                 } else {
-                    fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)
+                    fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, hir_field.def_id)
                 }
             })
             .try_collect_exhaust()?;
