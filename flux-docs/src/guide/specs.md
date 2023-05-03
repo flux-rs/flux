@@ -46,6 +46,167 @@ This will desugar to:
 
 `fn(i32[@x], {i32[@y] | x > y}) -> i32[x + y]`
 
+## Extern specs
+
+Sometimes you may want to refine a struct or function that outside your code. We
+refer to such a specification as an "extern spec," which is short for "external
+specification."
+
+Flux right now has rudimentary support for extern specs: they are supported for
+functions, impls, and structs. Impls are only supported for structs and if you
+have multiple impls for a struct (such as `&[T]` and `[T]`), those may conflict.
+Structs only support opaque refinements.
+
+### Import the procedural macros
+
+In order to use an extern spec you need to add a dependency on
+[`flux_attrs_proc_macros`](https://github.com/flux-rs/flux/tree/main/flux-attrs-proc-macros).
+Right now this needs to be done as a local dependency since it is not published.
+Below is an example of how you can include it, although the version may be
+different.
+
+```toml
+[dependencies]
+flux-attrs-proc-macros = { path = "path-to-flux/flux/flux-attrs-proc-macros", version = "0.1.0" }
+```
+
+Then in your code you will need to include the `extern_spec` attribute macro.
+
+```
+use flux_attrs_proc_macros::extern_spec;
+```
+
+### Extern functions
+
+An example of refining an extern function can be found
+[here](https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs).
+
+To define an extern spec on a function, you need to do three things, which
+happen to correspond to each of the below lines.
+
+```
+#[extern_spec(std::mem)]
+#[flux::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
+fn swap(a: &mut i32, b: &mut i32);
+```
+
+1. Add the `#[extern_spec]` attribute. This attribute optionally takes a path;
+   in the above example, this is `std::mem`. You can use this path to qualify
+   the function. So in the above example, the function we are targeting has the
+   full path of `std::mem::swap`.
+2. Add a `#[flux::sig(...)]` attribute. This is required for any extern spec on
+   a function. This signature behaves as if the `#[flux::trusted]` attribute was
+   added, because we can't actually check the implementation. We just verify
+   some simple things, like that the function arguments have compatible types.
+3. Write a function stub that matches the external function.
+
+If you do the above, you can use `std::mem::swap` as if it were refined by the
+above type.
+
+You shouldn't need to know the details, but here's how the macro works. It
+parses the `std::mem` into a module path and then transforms the function into
+
+```
+#[flux::extern_spec]
+#[flux::sig(fn(&mut i32[@a], &mut i32{v : a < v }) -> ())]
+#[allow(unused, dead_code)]
+fn __flux_extern_spec_swap(a: &mut i32, b: &mut i32) {
+    std::mem::swap(a, b)
+}
+```
+
+It does this to get information about the function `std::mem::swap` and its
+arguments (this turns out to be difficult to do without giving the compiler
+something to inspect and type check).
+
+### Extern structs and impls
+
+An example of refining an extern struct and impl can be found
+[here](https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_impl.rs).
+A simpler example just involving structs can be found
+[here](https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_struct.rs).
+
+The syntax for an extern spec on a struct is very similar to that for a
+function. Once again, each line in the example happens to correspond to a step.
+
+```
+#[extern_spec(std::string)]
+#[flux::refined_by(len: int)]
+struct String;
+```
+
+1. Add the `#[extern_spec]` attribute. This attribute optionally takes a path;
+   in the above example, this is `std::string`. You can use this path to qualify
+   the function. So in the above example, the struct we are targeting has the
+   full path of `std::string::String`.
+2. Add a `#[flux::refined_by(...)]` attribute. This is required for any extern
+   spec on a struct. Right now these attributes behave as if they were opaque
+   (`#[flux::opaque]`), although we may support non-opaque extern structs.
+3. Write a stub for the extern struct.
+
+If you do the above, you can use `std::string::String` as if it were refined by
+an integer index.
+
+The syntax for an extern impl is a little different than that for functions or
+structs.
+
+```
+#[extern_spec(std::string)]
+impl String {
+    #[flux::sig(fn() -> String[0])]
+    fn new() -> String;
+
+    #[flux::sig(fn(&String[@n]) -> usize[n])]
+    fn len(s: &String) -> usize;
+}
+```
+
+1. You still need to add the `#[extern_spec]` attribute, with the same optional
+   argument of the path as above.
+2. You need to write out the `impl` block for the struct you want to refine.
+   This struct does not need an extern spec, since by refining the `impl` you're
+   only refining its methods.
+3. Write an extern spec for each function you wish to refine (this may be a
+   subset). This is written just like a function extern spec with the caveat
+   that the `self` parameter is not presently supported. So for example, instead
+   of writing `fn len(&self) -> usize;`, you need to write `fn len(s: &String)
+   -> usize;`.
+
+If you do the above, you can use the above methods of`std::string::String` as if
+they were refined.
+
+You shouldn't need to know the details, but here's how the above two macros expand.
+
+For structs:
+```
+#[flux::extern_spec]
+#[allow(unused, dead_code)]
+#[flux::refined_by(len: int)]
+struct __FluxExternSpecString(std::string::String);
+```
+
+For impls (this was translated manually so there might be some bugs):
+```
+#[allow(unused, dead_code)]
+struct __FluxExternImplStructString;
+
+#[allow(unused, dead_code)]
+impl __FluxExternImplStructString {
+    #[flux::extern_spec]
+    #[flux::sig(fn() -> String[0])]
+    #[allow(unused, dead_code)]
+    fn __flux_extern_spec_new() -> String {
+       std::string::String::new::<>() 
+    }
+    #[flux::extern_spec]
+    #[flux::sig(fn(&String[@n]) -> usize[n])]
+    #[allow(unused, dead_code)]
+    fn __flux_extern_spec_len(s: &String) -> usize {
+       std::string::String::len::<>(s) 
+    }
+}
+```
+
 ## Grammar of Refinements
 
 ```text
