@@ -1,8 +1,11 @@
+//! Refinement type checking
+
 #![warn(unused_extern_crates)]
 #![feature(
     box_patterns,
     drain_filter,
     if_let_guard,
+    impl_trait_in_assoc_type,
     lazy_cell,
     let_chains,
     min_specialization,
@@ -10,7 +13,7 @@
     rustc_private,
     type_alias_impl_trait
 )]
-///! Refinement type checking
+
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;

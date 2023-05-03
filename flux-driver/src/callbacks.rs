@@ -17,7 +17,7 @@ use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::ty::{
     query::{query_values, Providers},
-    TyCtxt, WithOptConstParam,
+    TyCtxt,
 };
 use rustc_session::config::OutputType;
 
@@ -50,7 +50,12 @@ impl Callbacks for FluxCallbacks {
         compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        if compiler.session().has_errors().is_some() {
+        if compiler
+            .session()
+            .diagnostic()
+            .has_errors_or_lint_errors()
+            .is_some()
+        {
             return Compilation::Stop;
         }
 
@@ -401,10 +406,7 @@ fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
 
 #[allow(clippy::needless_lifetimes)]
 fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> query_values::mir_borrowck<'tcx> {
-    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
-        tcx,
-        WithOptConstParam::unknown(def_id),
-    );
+    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(tcx, def_id);
 
     if config::dump_mir() {
         rustc_middle::mir::pretty::write_mir_fn(
