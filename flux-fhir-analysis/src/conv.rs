@@ -399,7 +399,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::Hole => span_bug!(ty.span, "unfilled hole"),
+            fhir::TyKind::Hole => {
+                self.conv_ty(
+                    env,
+                    self.wfckresults
+                        .holes()
+                        .get(ty.fhir_id)
+                        .unwrap_or_else(|| span_bug!(ty.span, "unfilled hole")),
+                )
+            }
         }
     }
 

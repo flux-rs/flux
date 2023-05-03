@@ -203,12 +203,14 @@ pub enum Constraint {
     Pred(Expr),
 }
 
+#[derive(Clone)]
 pub struct Ty {
     pub kind: TyKind,
     pub fhir_id: FhirId,
     pub span: Span,
 }
 
+#[derive(Clone)]
 pub enum TyKind {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
@@ -227,6 +229,7 @@ pub enum TyKind {
     Hole,
 }
 
+#[derive(Clone)]
 pub struct ArrayLen {
     pub val: usize,
     pub span: Span,
@@ -243,6 +246,7 @@ pub struct WfckResults {
     owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
+    holes: ItemLocalMap<Ty>,
 }
 
 #[derive(Debug)]
@@ -306,6 +310,7 @@ newtype_index! {
     pub struct ItemLocalId {}
 }
 
+#[derive(Clone)]
 pub enum RefineArg {
     Expr {
         expr: Expr,
@@ -318,16 +323,19 @@ pub enum RefineArg {
 }
 
 /// These are types of things that may be refined with indices or existentials
+#[derive(Clone)]
 pub struct BaseTy {
     pub kind: BaseTyKind,
     pub span: Span,
 }
 
+#[derive(Clone)]
 pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
 }
 
+#[derive(Clone)]
 pub struct Path {
     pub res: Res,
     pub generics: Vec<Ty>,
@@ -399,12 +407,14 @@ pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
 
+#[derive(Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
     pub fhir_id: FhirId,
 }
 
+#[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Ident),
@@ -948,7 +958,12 @@ impl StructDef {
 
 impl WfckResults {
     pub fn new(owner: FluxOwnerId) -> Self {
-        Self { owner, node_sorts: ItemLocalMap::default(), coercions: ItemLocalMap::default() }
+        Self {
+            owner,
+            node_sorts: ItemLocalMap::default(),
+            coercions: ItemLocalMap::default(),
+            holes: ItemLocalMap::default(),
+        }
     }
 
     pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
@@ -965,6 +980,14 @@ impl WfckResults {
 
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
+    }
+
+    pub fn holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.holes }
+    }
+
+    pub fn holes(&self) -> LocalTableInContext<Ty> {
+        LocalTableInContext { owner: self.owner, data: &self.holes }
     }
 }
 
