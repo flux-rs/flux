@@ -671,7 +671,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .variant(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
-                    .to_fn_sig();
+                    .to_poly_sig();
                 let adt_generics = &genv.generics_of(*def_id).with_span(stmt_span)?;
                 let substs = iter::zip(&adt_generics.params, substs)
                     .map(|(param, arg)| {

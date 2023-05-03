@@ -150,8 +150,8 @@ impl FnSig {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
 
-    pub fn output(&self) -> Ty {
-        self.inputs_and_output[self.inputs_and_output.len() - 1].clone()
+    pub fn output(&self) -> &Ty {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 

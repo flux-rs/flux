@@ -70,12 +70,7 @@ impl<'sess> Resolver<'sess> {
         let fields = struct_def
             .fields
             .into_iter()
-            .map(|field| {
-                Ok(surface::FieldDef {
-                    def_id: field.def_id,
-                    ty: field.ty.map(|ty| self.resolve_ty(ty)).transpose()?,
-                })
-            })
+            .map(|ty| ty.map(|ty| self.resolve_ty(ty)).transpose())
             .try_collect_exhaust()?;
 
         Ok(surface::StructDef {

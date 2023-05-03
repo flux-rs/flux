@@ -92,8 +92,9 @@ impl<'zip> Zipper<'zip> {
                 self.emit_err(errors::FieldCountMismatch::from_variants(variant, expected_variant))
             );
         }
-        iter::zip(&variant.fields, &expected_variant.fields)
-            .try_for_each_exhaust(|(ty, expected_ty)| self.zip_ty(ty, expected_ty))?;
+        iter::zip(&variant.fields, &expected_variant.fields).try_for_each_exhaust(
+            |(field, expected_field)| self.zip_ty(&field.ty, &expected_field.ty),
+        )?;
 
         self.zip_bty(&variant.ret.bty, &expected_variant.ret.bty)
     }

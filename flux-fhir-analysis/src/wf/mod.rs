@@ -207,7 +207,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let fields = variant
             .fields
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(infcx, ty));
+            .try_for_each_exhaust(|field| self.check_type(infcx, &field.ty));
         let expected = self.sort_of_bty(&variant.ret.bty);
         let indices = self.check_refine_arg(infcx, &variant.ret.idx, &expected);
         fields?;

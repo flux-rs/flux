@@ -264,7 +264,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let fields = variant
             .fields
             .iter()
-            .map(|ty| cx.conv_ty(&mut env, ty))
+            .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
         let args = rty::Index::from(cx.conv_refine_arg(&mut env, &variant.ret.idx));
         let ret = cx.conv_base_ty(&mut env, &variant.ret.bty, args)?;
