@@ -705,7 +705,7 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl EarlyBinder<PolyVariant> {
-    pub fn to_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
+    pub fn to_poly_sig(&self) -> EarlyBinder<PolyFnSig> {
         let fn_sig = self
             .0
             .as_ref()

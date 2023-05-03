@@ -227,7 +227,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         field: &rustc_hir::FieldDef,
         opaque: bool,
-    ) -> Result<surface::Ty, ErrorGuaranteed> {
+    ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
         let attrs = self.tcx.hir().attrs(field.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
