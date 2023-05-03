@@ -157,8 +157,11 @@ impl<'zip> Zipper<'zip> {
                 fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _),
                 fhir::TyKind::BaseTy(expected_bty),
             ) => self.zip_bty(bty, expected_bty),
-            (fhir::TyKind::Ptr(loc), fhir::TyKind::Ref(_, expected_mut_ty)) => {
+            (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
                 if expected_mut_ty.mutbl.is_mut() {
+                    self.wfckresults
+                        .lifetime_holes_mut()
+                        .insert(lft.fhir_id, *expected_lft);
                     self.locs.insert(loc.name, &expected_mut_ty.ty);
                     Ok(())
                 } else {

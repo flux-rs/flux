@@ -376,7 +376,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     Ok(rty::Ty::exists(rty::Binder::new(ty, sort)))
                 }
             }
-            fhir::TyKind::Ptr(loc) => {
+            fhir::TyKind::Ptr(_, loc) => {
                 Ok(rty::Ty::ptr(rty::Mutability::Mut, env.lookup(*loc).to_path()))
             }
             fhir::TyKind::Ref(_, fhir::MutTy { ty, mutbl }) => {

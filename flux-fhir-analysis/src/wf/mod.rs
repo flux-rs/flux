@@ -291,7 +291,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 infcx.resolve_params_sorts(params)?;
                 self.check_params_determined(infcx, params)
             }
-            fhir::TyKind::Ptr(loc) => {
+            fhir::TyKind::Ptr(_, loc) => {
                 self.xi.insert(loc.name);
                 infcx.check_loc(*loc)
             }

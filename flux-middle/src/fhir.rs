@@ -220,7 +220,7 @@ pub enum TyKind {
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
-    Ptr(Ident),
+    Ptr(Lifetime, Ident),
     Ref(Lifetime, MutTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
@@ -1104,9 +1104,9 @@ impl fmt::Debug for Ty {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            TyKind::Ref(lifetime, mut_ty) => {
-                write!(f, "&{lifetime:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            TyKind::Ptr(lft, loc) => write!(f, "ref<{lft:?}, {loc:?}>"),
+            TyKind::Ref(lft, mut_ty) => {
+                write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
