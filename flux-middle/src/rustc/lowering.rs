@@ -29,7 +29,11 @@ use super::{
         PredicateKind, Ty,
     },
 };
-use crate::{const_eval::scalar_int_to_constant, intern::List, rustc::ty::Region};
+use crate::{
+    const_eval::scalar_int_to_constant,
+    intern::List,
+    rustc::ty::{ReVar, Region},
+};
 
 pub struct LoweringCtxt<'a, 'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -660,7 +664,7 @@ fn lower_generic_arg<'tcx>(
 fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, UnsupportedReason> {
     use rustc_middle::ty::RegionKind;
     match region.kind() {
-        RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
+        RegionKind::ReVar(id) => Ok(Region::ReVar(ReVar { id, is_nll: true })),
         RegionKind::ReLateBound(debruijn, bregion) => {
             Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
         }

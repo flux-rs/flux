@@ -116,8 +116,14 @@ pub enum Region {
     ReLateBound(DebruijnIndex, BoundRegion),
     ReEarlyBound(EarlyBoundRegion),
     ReStatic,
-    ReVar(RegionVid),
+    ReVar(ReVar),
     ReErased,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct ReVar {
+    pub id: RegionVid,
+    pub is_nll: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
@@ -253,13 +259,7 @@ impl std::fmt::Debug for GenericArg {
 
 impl std::fmt::Debug for Region {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Region::ReLateBound(_, bregion) => write!(f, "{bregion:?}"),
-            Region::ReEarlyBound(bregion) => write!(f, "{bregion:?}"),
-            Region::ReStatic => write!(f, "'static"),
-            Region::ReVar(rvid) => write!(f, "{rvid:?}"),
-            Region::ReErased => write!(f, "ReErased"),
-        }
+        write!(f, "{}", region_to_string(*self))
     }
 }
 
@@ -333,7 +333,13 @@ pub(crate) fn region_to_string(region: Region) -> String {
         }
         Region::ReEarlyBound(region) => region.name.to_string(),
         Region::ReStatic => "'static".to_string(),
-        Region::ReVar(vid) => format!("{vid:?}"),
+        Region::ReVar(var) => {
+            if var.is_nll {
+                format!("?{:?}", var.id)
+            } else {
+                format!("{:?}", var.id)
+            }
+        }
         Region::ReErased => "'<erased>".to_string(),
     }
 }
