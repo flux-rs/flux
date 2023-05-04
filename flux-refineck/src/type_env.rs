@@ -11,7 +11,7 @@ use flux_middle::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
         ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty, TyKind, Var,
     },
-    rustc::mir::{BasicBlock, Local, Place, PlaceElem},
+    rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
 use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
@@ -30,8 +30,9 @@ use crate::{
 };
 
 #[derive(Clone, Default)]
-pub struct TypeEnv {
+pub struct TypeEnv<'a> {
     bindings: PathsTree,
+    local_decls: &'a LocalDecls,
 }
 
 pub struct BasicBlockEnvShape {
@@ -46,9 +47,9 @@ pub struct BasicBlockEnv {
     bindings: PathsTree,
 }
 
-impl TypeEnv {
-    pub fn new() -> TypeEnv {
-        TypeEnv { bindings: PathsTree::default() }
+impl TypeEnv<'_> {
+    pub fn new(local_decls: &LocalDecls) -> TypeEnv {
+        TypeEnv { bindings: PathsTree::default(), local_decls }
     }
 
     pub fn alloc_universal_loc(&mut self, loc: Loc, ty: Ty) {
@@ -397,8 +398,8 @@ impl TypeEnv {
 }
 
 impl BasicBlockEnvShape {
-    pub fn enter(&self) -> TypeEnv {
-        TypeEnv { bindings: self.bindings.clone() }
+    pub fn enter<'a>(&self, local_decls: &'a LocalDecls) -> TypeEnv<'a> {
+        TypeEnv { bindings: self.bindings.clone(), local_decls }
     }
 
     fn new(
@@ -818,7 +819,11 @@ impl Generalizer {
 }
 
 impl BasicBlockEnv {
-    pub(crate) fn enter(&self, rcx: &mut RefineCtxt) -> TypeEnv {
+    pub(crate) fn enter<'a>(
+        &self,
+        rcx: &mut RefineCtxt,
+        local_decls: &'a LocalDecls,
+    ) -> TypeEnv<'a> {
         let mut subst = FVarSubst::empty();
         for (name, sort) in &self.params {
             let fresh = rcx.define_var(sort);
@@ -828,7 +833,7 @@ impl BasicBlockEnv {
             rcx.assume_pred(subst.apply(constr));
         }
         let bindings = self.bindings.fmap(|binding| subst.apply(binding));
-        TypeEnv { bindings }
+        TypeEnv { bindings, local_decls }
     }
 
     pub(crate) fn scope(&self) -> &Scope {
@@ -844,7 +849,7 @@ mod pretty {
 
     use super::*;
 
-    impl Pretty for TypeEnv {
+    impl Pretty for TypeEnv<'_> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.bindings)
@@ -895,5 +900,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv => "type_env", BasicBlockEnvShape => "type_env_infer", BasicBlockEnv => "basic_block_env");
+    impl_debug_with_default_cx!(TypeEnv<'_> => "type_env", BasicBlockEnvShape => "type_env_infer", BasicBlockEnv => "basic_block_env");
 }

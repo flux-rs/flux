@@ -7,6 +7,7 @@ use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir,
@@ -38,6 +39,9 @@ pub struct BasicBlockData<'tcx> {
     pub is_cleanup: bool,
 }
 
+pub type LocalDecls = IndexSlice<Local, LocalDecl>;
+
+#[derive(Clone)]
 pub struct LocalDecl {
     pub ty: Ty,
     pub source_info: SourceInfo,

@@ -8,9 +8,9 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, subst::RegionSubst, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr,
-        Float, FnOutput, FnSig, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
-        Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
+        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Sort, Ty,
+        TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -44,22 +44,22 @@ pub struct CheckerConfig {
     pub scrape_quals: bool,
 }
 
-pub(crate) struct Checker<'a, 'tcx, M> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+pub(crate) struct Checker<'ck, 'tcx, M> {
+    genv: &'ck GlobalEnv<'ck, 'tcx>,
     config: CheckerConfig,
     /// [`DefId`] of the function being checked, either a closure or a regular function.
     def_id: DefId,
     /// [`Generics`] of the function being checked.
     generics: Generics,
-    body: &'a Body<'tcx>,
-    mode: &'a mut M,
+    body: &'ck Body<'tcx>,
+    mode: &'ck mut M,
     output: Binder<FnOutput>,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
-    dominators: &'a Dominators<BasicBlock>,
+    dominators: &'ck Dominators<BasicBlock>,
     visited: BitSet<BasicBlock>,
-    queue: WorkQueue<'a>,
+    queue: WorkQueue<'ck>,
 }
 
 pub(crate) trait Mode: Sized {
@@ -71,7 +71,11 @@ pub(crate) trait Mode: Sized {
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
-    fn enter_basic_block(ck: &mut Checker<Self>, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
+    fn enter_basic_block<'ck>(
+        ck: &mut Checker<'ck, '_, Self>,
+        rcx: &mut RefineCtxt,
+        bb: BasicBlock,
+    ) -> TypeEnv<'ck>;
 
     fn check_goto_join_point(
         ck: &mut Checker<Self>,
@@ -106,14 +110,14 @@ enum Guard {
     Match(Place, VariantIdx),
 }
 
-impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
+impl<'ck, 'tcx, M> Checker<'ck, 'tcx, M> {
     fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        genv: &'ck GlobalEnv<'ck, 'tcx>,
         def_id: DefId,
-        body: &'a Body<'tcx>,
+        body: &'ck Body<'tcx>,
         output: Binder<FnOutput>,
-        dominators: &'a Dominators<BasicBlock>,
-        mode: &'a mut M,
+        dominators: &'ck Dominators<BasicBlock>,
+        mode: &'ck mut M,
         config: CheckerConfig,
     ) -> Self {
         let generics = genv.generics_of(def_id).unwrap_or_else(|_| {
@@ -223,8 +227,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig, config: CheckerConfig) -> TypeEnv {
-        let mut env = TypeEnv::new();
+    fn init<'b>(
+        rcx: &mut RefineCtxt,
+        body: &'b Body,
+        fn_sig: &FnSig,
+        config: CheckerConfig,
+    ) -> TypeEnv<'b> {
+        let mut env = TypeEnv::new(&body.local_decls);
 
         for constr in fn_sig.requires() {
             match constr {
@@ -1003,12 +1012,12 @@ impl Mode for ShapeMode {
         ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), checker_config, span)
     }
 
-    fn enter_basic_block(
-        ck: &mut Checker<ShapeMode>,
+    fn enter_basic_block<'a>(
+        ck: &mut Checker<'a, '_, ShapeMode>,
         _rcx: &mut RefineCtxt,
         bb: BasicBlock,
-    ) -> TypeEnv {
-        ck.mode.bb_envs[&ck.def_id][&bb].enter()
+    ) -> TypeEnv<'a> {
+        ck.mode.bb_envs[&ck.def_id][&bb].enter(&ck.body.local_decls)
     }
 
     fn check_goto_join_point(
@@ -1075,12 +1084,12 @@ impl Mode for RefineMode {
         )
     }
 
-    fn enter_basic_block(
-        ck: &mut Checker<RefineMode>,
+    fn enter_basic_block<'a>(
+        ck: &mut Checker<'a, '_, RefineMode>,
         rcx: &mut RefineCtxt,
         bb: BasicBlock,
-    ) -> TypeEnv {
-        ck.mode.bb_envs[&ck.def_id][&bb].enter(rcx)
+    ) -> TypeEnv<'a> {
+        ck.mode.bb_envs[&ck.def_id][&bb].enter(rcx, &ck.body.local_decls)
     }
 
     fn check_goto_join_point(
