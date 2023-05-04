@@ -397,11 +397,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
             }
             fhir::TyKind::Ptr(lft, loc) => {
-                let region = self.conv_lifetime(*lft);
+                let region = self.conv_lifetime(env, *lft);
                 Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(*loc).to_path()))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
-                let region = self.conv_lifetime(*lft);
+                let region = self.conv_lifetime(env, *lft);
                 Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty)?, *mutbl))
             }
             fhir::TyKind::Tuple(tys) => {
@@ -424,25 +424,25 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 ))
             }
             fhir::TyKind::Hole => {
-                self.conv_ty(
-                    env,
-                    self.wfckresults
-                        .type_holes()
-                        .get(ty.fhir_id)
-                        .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole")),
-                )
+                let ty = self
+                    .wfckresults
+                    .type_holes()
+                    .get(ty.fhir_id)
+                    .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
+                self.conv_ty(env, ty)
             }
         }
     }
 
-    fn conv_lifetime(&self, lft: fhir::Lifetime) -> rty::Region {
+    fn conv_lifetime(&self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
         match lft.res {
             fhir::LifetimeRes::Param(local_def_id) => {
                 let def_id = local_def_id.to_def_id();
                 if let Some(&var) = self.late_bound_vars_map.get(&def_id) {
+                    let depth = env.depth().checked_sub(1).unwrap();
                     let kind = rty::BoundRegionKind::BrNamed(def_id, lft.ident.name);
                     let bound_region = rty::BoundRegion { var, kind };
-                    rty::ReLateBound(rustc::ty::DebruijnIndex::from_u32(0), bound_region)
+                    rty::ReLateBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
                 } else {
                     let index = def_id_to_param_index(self.genv.tcx, local_def_id);
                     rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name: lft.ident.name })
@@ -450,13 +450,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::LifetimeRes::Static => rty::ReStatic,
             fhir::LifetimeRes::Hole => {
-                self.conv_lifetime(
-                    *self
-                        .wfckresults
-                        .lifetime_holes()
-                        .get(lft.fhir_id)
-                        .unwrap_or_else(|| span_bug!(lft.ident.span, "unfilled lifetime hole")),
-                )
+                let lft = *self
+                    .wfckresults
+                    .lifetime_holes()
+                    .get(lft.fhir_id)
+                    .unwrap_or_else(|| span_bug!(lft.ident.span, "unfilled lifetime hole"));
+                self.conv_lifetime(env, lft)
             }
         }
     }
@@ -566,7 +565,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     i += 1;
                     match &args[i - 1] {
                         fhir::GenericArg::Lifetime(lft) => {
-                            Ok(rty::GenericArg::Lifetime(self.conv_lifetime(*lft)))
+                            Ok(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)))
                         }
                         fhir::GenericArg::Type(ty) => {
                             Ok(rty::GenericArg::Ty(self.conv_ty(env, ty)?))
@@ -614,6 +613,10 @@ impl Env {
             })
             .collect();
         Self { layers: vec![], early_bound }
+    }
+
+    fn depth(&self) -> usize {
+        self.layers.len()
     }
 
     fn push_layer(&mut self, layer: Layer) {

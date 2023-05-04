@@ -14,7 +14,7 @@ use crate::{
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryResult},
-    rty::{self, normalize::Defns, refining::Refiner},
+    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
     rustc,
 };
 
@@ -196,7 +196,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     ) -> QueryResult<rty::GenericArg> {
         Refiner::new(self, generics, |bty| {
             let sort = bty.sort();
-            let mut ty = rty::Ty::indexed(bty, rty::Expr::nu());
+            let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
             if !sort.is_unit() {
                 ty = rty::Ty::constr(rty::Expr::hole(), ty);
             }

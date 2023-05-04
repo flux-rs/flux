@@ -116,13 +116,13 @@ pub enum Region {
     ReLateBound(DebruijnIndex, BoundRegion),
     ReEarlyBound(EarlyBoundRegion),
     ReStatic,
-    ReVar(ReVar),
+    ReVar(RegionVar),
     ReErased,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub struct ReVar {
-    pub id: RegionVid,
+pub struct RegionVar {
+    pub rvid: RegionVid,
     pub is_nll: bool,
 }
 
@@ -335,9 +335,9 @@ pub(crate) fn region_to_string(region: Region) -> String {
         Region::ReStatic => "'static".to_string(),
         Region::ReVar(var) => {
             if var.is_nll {
-                format!("?{:?}", var.id)
+                format!("{:?}", var.rvid)
             } else {
-                format!("{:?}", var.id)
+                format!("{:?}?", var.rvid)
             }
         }
         Region::ReErased => "'<erased>".to_string(),

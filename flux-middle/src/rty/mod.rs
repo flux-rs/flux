@@ -30,12 +30,13 @@ use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 use rustc_type_ir::INNERMOST;
 
-use self::{fold::TypeFoldable, subst::BVarSubstFolder};
+use self::{fold::TypeFoldable, subst::BoundVarReplacer};
 use crate::{
     fhir::FuncKind,
     global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
     queries::QueryResult,
+    rty::subst::BoundVarReplacerDelegate,
     rustc::mir::Place,
 };
 pub use crate::{
@@ -512,8 +513,18 @@ where
     T: TypeFoldable,
 {
     pub fn replace_bvar(&self, expr: &Expr) -> T {
+        struct ExprDelegate<'a>(&'a Expr);
+        impl BoundVarReplacerDelegate for ExprDelegate<'_> {
+            fn replace_expr(&mut self) -> Expr {
+                self.0.clone()
+            }
+
+            fn replace_region(&mut self, _: BoundRegion) -> Region {
+                bug!("unexpected escaping region")
+            }
+        }
         self.value
-            .fold_with(&mut BVarSubstFolder::new(expr))
+            .fold_with(&mut BoundVarReplacer::new(ExprDelegate(expr)))
             .normalize(&Default::default())
     }
 
@@ -621,11 +632,39 @@ impl PolyFnSig {
         PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
+    pub fn replace_bvars_with(
+        &self,
+        f2: impl FnMut(BoundRegion) -> Region,
+        mut f1: impl FnMut(&Sort, InferMode) -> Expr,
+    ) -> FnSig {
+        struct Delegate<F> {
+            expr: Expr,
+            replace_region: F,
+        }
+
+        impl<F> BoundVarReplacerDelegate for Delegate<F>
+        where
+            F: FnMut(BoundRegion) -> Region,
+        {
+            fn replace_expr(&mut self) -> Expr {
+                self.expr.clone()
+            }
+
+            fn replace_region(&mut self, br: BoundRegion) -> Region {
+                (self.replace_region)(br)
+            }
+        }
+
         let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
-            .map(|(sort, kind)| f(sort, *kind))
+            .map(|(sort, kind)| f1(sort, *kind))
             .collect_vec();
-        self.fn_sig.replace_bvar(&Expr::tuple(exprs))
+
+        let delegate = Delegate { expr: Expr::tuple(exprs), replace_region: f2 };
+
+        self.fn_sig
+            .value
+            .fold_with(&mut BoundVarReplacer::new(delegate))
+            .normalize(&Default::default())
     }
 }
 
@@ -1179,6 +1218,7 @@ pub use crate::_Ref as Ref;
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
+    use rustc_type_ir::DebruijnIndex;
 
     use super::*;
     use crate::{pretty::*, rustc::ty::region_to_string};
@@ -1435,6 +1475,13 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{}", ^region_to_string(*self))
+        }
+    }
+
+    impl Pretty for DebruijnIndex {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("^{}", ^self.as_usize())
         }
     }
 

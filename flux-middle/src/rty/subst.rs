@@ -167,21 +167,27 @@ impl RegionSubst {
     }
 }
 
-/// Substitution for [late bound variables]
-///
-/// [late bound variables]: `crate::rty::Var::LateBound`
-pub(super) struct BVarSubstFolder<'a> {
+/// Substitution for late bound variables
+pub(super) struct BoundVarReplacer<D> {
     current_index: DebruijnIndex,
-    expr: &'a Expr,
+    delegate: D,
 }
 
-impl<'a> BVarSubstFolder<'a> {
-    pub(super) fn new(expr: &'a Expr) -> BVarSubstFolder<'a> {
-        BVarSubstFolder { expr, current_index: INNERMOST }
+pub trait BoundVarReplacerDelegate {
+    fn replace_expr(&mut self) -> Expr;
+    fn replace_region(&mut self, br: BoundRegion) -> Region;
+}
+
+impl<D> BoundVarReplacer<D> {
+    pub(super) fn new(delegate: D) -> BoundVarReplacer<D> {
+        BoundVarReplacer { delegate, current_index: INNERMOST }
     }
 }
 
-impl TypeFolder for BVarSubstFolder<'_> {
+impl<D> TypeFolder for BoundVarReplacer<D>
+where
+    D: BoundVarReplacerDelegate,
+{
     fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
     where
         T: TypeFoldable,
@@ -196,11 +202,39 @@ impl TypeFolder for BVarSubstFolder<'_> {
         if let ExprKind::Var(Var::LateBound(debruijn)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
                 Ordering::Less => Expr::late_bvar(*debruijn),
-                Ordering::Equal => self.expr.shift_in_escaping(self.current_index.as_u32()),
+                Ordering::Equal => {
+                    self.delegate
+                        .replace_expr()
+                        .shift_in_escaping(self.current_index.as_u32())
+                }
                 Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1)),
             }
         } else {
             e.super_fold_with(self)
+        }
+    }
+
+    fn fold_region(&mut self, re: &Region) -> Region {
+        if let ReLateBound(debruijn, br) = *re {
+            match debruijn.cmp(&self.current_index) {
+                Ordering::Less => *re,
+                Ordering::Equal => {
+                    let region = self.delegate.replace_region(br);
+                    if let ReLateBound(debruijn1, br) = region {
+                        // If the callback returns a late-bound region,
+                        // that region should always use the INNERMOST
+                        // debruijn index. Then we adjust it to the
+                        // correct depth.
+                        assert_eq!(debruijn1, INNERMOST);
+                        Region::ReLateBound(debruijn, br)
+                    } else {
+                        region
+                    }
+                }
+                Ordering::Greater => ReLateBound(debruijn.shifted_out(1), br),
+            }
+        } else {
+            *re
         }
     }
 }

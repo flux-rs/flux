@@ -1,6 +1,6 @@
 use std::{iter, slice};
 
-use flux_common::tracked_span_bug;
+use flux_common::{index::IndexGen, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -12,13 +12,16 @@ use flux_middle::{
         GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
         TupleTree, Ty, TyKind, Var,
     },
-    rustc::mir::{BasicBlock, Place},
+    rustc::{
+        mir::{BasicBlock, Place},
+        ty::RegionVar,
+    },
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::Variance;
+use rustc_middle::ty::{RegionVid, Variance};
 use rustc_span::Span;
 
 use crate::{
@@ -32,6 +35,7 @@ use crate::{
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
+    rvid_gen: &'a IndexGen<RegionVid>,
     checker_config: CheckerConfig,
     span: Span,
 }
@@ -50,6 +54,7 @@ struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
+    rvid_gen: &'a IndexGen<RegionVid>,
     tag: Tag,
     checker_config: CheckerConfig,
     scopes: FxIndexMap<EVarCxId, Scope>,
@@ -85,13 +90,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(
         genv: &'a GlobalEnv<'a, 'tcx>,
         kvar_gen: G,
+        rvid_gen: &'a IndexGen<RegionVid>,
         checker_config: CheckerConfig,
         span: Span,
     ) -> Self
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), checker_config, span }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), rvid_gen, checker_config, span }
     }
 
     pub(crate) fn check_pred(
@@ -160,9 +166,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
-        let inst_fn_sig = fn_sig
-            .subst_generics(&substs)
-            .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
+        let rvid_gen = infcx.rvid_gen;
+        let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bvars_with(
+            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+            |sort, kind| infcx.fresh_evars_or_kvar(sort, kind),
+        );
 
         // Check closure obligations
         let closure_obligs = if let Some(did) = did {
@@ -329,6 +337,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             self.genv,
             rcx,
             &mut self.kvar_gen,
+            self.rvid_gen,
             self.checker_config,
             Tag::new(reason, self.span),
         )
@@ -340,13 +349,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
+        rvid_gen: &'a IndexGen<RegionVid>,
         checker_config: CheckerConfig,
         tag: Tag,
     ) -> Self {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen, evar_gen, tag, checker_config, scopes }
+        Self { genv, kvar_gen, evar_gen, rvid_gen, tag, checker_config, scopes }
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -385,7 +395,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn as_constr_gen<'b>(&'b mut self) -> ConstrGen<'b, 'tcx> {
-        ConstrGen::new(self.genv, &mut *self.kvar_gen, self.checker_config, self.tag.span)
+        ConstrGen::new(
+            self.genv,
+            &mut *self.kvar_gen,
+            self.rvid_gen,
+            self.checker_config,
+            self.tag.span,
+        )
     }
 
     fn check_type_constr(

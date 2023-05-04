@@ -3,7 +3,12 @@ use std::{
     iter,
 };
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{
+    bug, dbg,
+    index::{IndexGen, IndexVec},
+    iter::IterExt,
+    tracked_span_bug,
+};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -19,6 +24,7 @@ use flux_middle::{
             Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
+        ty::RegionVar,
     },
 };
 use itertools::Itertools;
@@ -26,7 +32,7 @@ use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::mir as rustc_mir;
+use rustc_middle::{mir as rustc_mir, ty::RegionVid};
 use rustc_span::Span;
 
 use self::errors::{CheckerError, ResultExt};
@@ -46,6 +52,7 @@ pub struct CheckerConfig {
 
 pub(crate) struct Checker<'ck, 'tcx, M> {
     genv: &'ck GlobalEnv<'ck, 'tcx>,
+    rvid_gen: IndexGen<RegionVid>,
     config: CheckerConfig,
     /// [`DefId`] of the function being checked, either a closure or a regular function.
     def_id: DefId,
@@ -66,6 +73,7 @@ pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         checker_config: CheckerConfig,
         span: Span,
@@ -108,35 +116,6 @@ enum Guard {
     Pred(Expr),
     /// The corresponding place was found to be of a particular variant.
     Match(Place, VariantIdx),
-}
-
-impl<'ck, 'tcx, M> Checker<'ck, 'tcx, M> {
-    fn new(
-        genv: &'ck GlobalEnv<'ck, 'tcx>,
-        def_id: DefId,
-        body: &'ck Body<'tcx>,
-        output: Binder<FnOutput>,
-        dominators: &'ck Dominators<BasicBlock>,
-        mode: &'ck mut M,
-        config: CheckerConfig,
-    ) -> Self {
-        let generics = genv.generics_of(def_id).unwrap_or_else(|_| {
-            span_bug!(body.span(), "checking function with unsupported signature")
-        });
-        Checker {
-            def_id,
-            genv,
-            generics,
-            body,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
-            output,
-            mode,
-            snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            dominators,
-            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
-            config,
-        }
-    }
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
@@ -200,14 +179,30 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let fn_sig = poly_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
+        let rvid_gen = IndexGen::new();
+        let fn_sig = poly_sig.replace_bvars_with(
+            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+            |sort, _| rcx.define_vars(sort),
+        );
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
         let dominators = body.dominators();
 
-        let mut ck =
-            Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, mode, config);
+        let mut ck = Checker {
+            def_id,
+            genv,
+            rvid_gen,
+            generics: genv.generics_of(def_id).unwrap(),
+            body: &body,
+            visited: BitSet::new_empty(body.basic_blocks.len()),
+            output: fn_sig.output().clone(),
+            mode,
+            snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
+            dominators: &dominators,
+            queue: WorkQueue::empty(body.basic_blocks.len(), &dominators),
+            config,
+        };
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -362,7 +357,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 self.mode
-                    .constr_gen(self.genv, rcx, self.config, span)
+                    .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 Ok(vec![])
@@ -633,7 +628,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
             self.mode
-                .constr_gen(self.genv, &rcx, self.config, source_span)
+                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, source_span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(source_span)
         } else if self.body.is_join_point(target) {
@@ -929,7 +924,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.mode.constr_gen(self.genv, rcx, self.config, span)
+        self.mode
+            .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
     }
 
     #[track_caller]
@@ -1005,11 +1001,12 @@ impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
         checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), checker_config, span)
+        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), rvid_gen, checker_config, span)
     }
 
     fn enter_basic_block<'a>(
@@ -1033,8 +1030,13 @@ impl Mode for ShapeMode {
         let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
-        let mut gen =
-            ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), ck.config, terminator_span);
+        let mut gen = ConstrGen::new(
+            ck.genv,
+            |_: &[Sort], _| Expr::hole(),
+            &ck.rvid_gen,
+            ck.config,
+            terminator_span,
+        );
 
         let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => {
@@ -1071,6 +1073,7 @@ impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         checker_config: CheckerConfig,
         span: Span,
@@ -1079,6 +1082,7 @@ impl Mode for RefineMode {
         ConstrGen::new(
             genv,
             move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            rvid_gen,
             checker_config,
             span,
         )
@@ -1111,6 +1115,7 @@ impl Mode for RefineMode {
                     .kvars
                     .fresh_bound(sorts, bb_env.scope().iter(), encoding)
             },
+            &ck.rvid_gen,
             ck.config,
             terminator_span,
         );

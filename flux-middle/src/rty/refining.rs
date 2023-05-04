@@ -8,6 +8,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
+use super::fold::TypeFoldable;
 use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
@@ -57,7 +58,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             generics,
             refine: |bty| {
                 let sort = bty.sort();
-                let indexed = rty::Ty::indexed(bty, rty::Expr::nu());
+                let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
                 let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
                 rty::Binder::with_sort(constr, sort)
             },
@@ -220,5 +221,5 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
-    rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort)
+    rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
 }
