@@ -607,20 +607,31 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
-        let generics = self.desugar_generic_args(&path.generics, binders)?;
+        let generics = self.desugar_generic_args(path.res, &path.generics, binders)?;
         let refine = self.desugar_refine_args(&path.refine, binders)?;
         Ok(fhir::BaseTy::from(fhir::Path { res: path.res, generics, refine, span: path.span }))
     }
 
     fn desugar_generic_args(
         &mut self,
+        res: Res,
         substs: &[surface::Ty<Res>],
         binders: &mut Binders,
-    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
-        substs
-            .iter()
-            .map(|ty| self.desugar_ty(None, ty, binders))
-            .try_collect_exhaust()
+    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
+        let mut args = vec![];
+        if let Res::Alias(def_id) | Res::Struct(def_id) | Res::Enum(def_id) = res {
+            let generics = self.early_cx.tcx.generics_of(def_id);
+            for param in &generics.params {
+                if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
+                    let lft = self.mk_lifetime_hole(DUMMY_SP);
+                    args.push(fhir::GenericArg::Lifetime(lft));
+                }
+            }
+        }
+        for ty in substs {
+            args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
+        }
+        Ok(args)
     }
 
     fn desugar_bty_bind(
