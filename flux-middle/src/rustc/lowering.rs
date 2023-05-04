@@ -559,11 +559,11 @@ fn lower_binder<S, T>(
     binder: rustc_ty::Binder<S>,
     mut f: impl FnMut(S) -> Result<T, UnsupportedReason>,
 ) -> Result<Binder<T>, UnsupportedReason> {
-    let vars = lower_binder_vars(binder.bound_vars())?;
+    let vars = lower_bound_vars(binder.bound_vars())?;
     Ok(Binder::bind_with_vars(f(binder.skip_binder())?, vars))
 }
 
-fn lower_binder_vars(
+pub(crate) fn lower_bound_vars(
     bound_vars: &[rustc_ty::BoundVariableKind],
 ) -> Result<List<BoundVariableKind>, UnsupportedReason> {
     let mut vars = vec![];
@@ -775,7 +775,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
 
-        let vars = lower_binder_vars(vars)
+        let vars = lower_bound_vars(vars)
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
 

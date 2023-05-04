@@ -371,7 +371,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
                 let input = fsort.input();
-                Expr::abs(Binder::new(
+                Expr::abs(Binder::with_sort(
                     self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
                     input.clone(),
                 ))
