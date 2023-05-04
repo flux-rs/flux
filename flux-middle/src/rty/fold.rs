@@ -11,7 +11,7 @@ use super::{
     subst::EVarSubstFolder,
     BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
     FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate,
-    Qualifier, Sort, Ty, TyKind, INNERMOST,
+    PredicateKind, Qualifier, Sort, Ty, TyKind, INNERMOST,
 };
 use crate::{
     intern::{Internable, List},
@@ -253,14 +253,24 @@ pub trait TypeFoldable: Sized {
 
 impl TypeFoldable for Predicate {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        Predicate { kind: self.kind.fold_with(folder) }
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.kind.visit_with(visitor);
+    }
+}
+
+impl TypeFoldable for PredicateKind {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
-            Predicate::FnTrait(pred) => Predicate::FnTrait(pred.fold_with(folder)),
+            PredicateKind::FnTrait(pred) => PredicateKind::FnTrait(pred.fold_with(folder)),
         }
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
-            Predicate::FnTrait(pred) => pred.visit_with(visitor),
+            PredicateKind::FnTrait(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -268,7 +278,7 @@ impl TypeFoldable for Predicate {
 impl TypeFoldable for FnTraitPredicate {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         FnTraitPredicate {
-            bounded_ty: self.bounded_ty.fold_with(folder),
+            self_ty: self.self_ty.fold_with(folder),
             tupled_args: self.tupled_args.fold_with(folder),
             output: self.output.fold_with(folder),
             kind: self.kind,
@@ -276,7 +286,7 @@ impl TypeFoldable for FnTraitPredicate {
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.bounded_ty.visit_with(visitor);
+        self.self_ty.visit_with(visitor);
         self.tupled_args.visit_with(visitor);
         self.output.visit_with(visitor);
     }
@@ -323,7 +333,7 @@ where
     T: TypeFoldable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binder::new(self.value.fold_with(folder), self.sort.fold_with(folder))
+        Binder::new(self.value.fold_with(folder), self.vars.clone(), self.sort.fold_with(folder))
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
