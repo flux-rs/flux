@@ -22,7 +22,7 @@ use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
 use super::ty::{GenericArg, Region, Ty};
-use crate::{intern::List, rustc::ty::BoundRegionKind};
+use crate::{intern::List, rustc::ty::region_to_string};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -534,21 +534,5 @@ fn opt_bb_to_str(bb: Option<BasicBlock>) -> String {
     match bb {
         Some(bb) => format!("{bb:?}"),
         None => "None".to_string(),
-    }
-}
-
-pub(crate) fn region_to_string(region: Region) -> String {
-    match region {
-        Region::ReLateBound(_, region) => {
-            match region.kind {
-                BoundRegionKind::BrAnon => "'<annon>".to_string(),
-                BoundRegionKind::BrNamed(_, sym) => format!("{sym}"),
-                BoundRegionKind::BrEnv => "'<env>".to_string(),
-            }
-        }
-        Region::ReEarlyBound(region) => region.name.to_string(),
-        Region::ReStatic => "'static".to_string(),
-        Region::ReVar(vid) => format!("{vid:?}"),
-        Region::ReErased => "'<erased>".to_string(),
     }
 }

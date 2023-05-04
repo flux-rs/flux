@@ -1182,7 +1182,7 @@ mod pretty {
     use rustc_middle::ty::TyCtxt;
 
     use super::*;
-    use crate::{pretty::*, rustc::mir::region_to_string};
+    use crate::{pretty::*, rustc::ty::region_to_string};
 
     impl<T> Pretty for Binder<T>
     where

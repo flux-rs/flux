@@ -11,7 +11,7 @@ pub use rustc_middle::{
         ScalarInt, UintTy,
     },
 };
-use rustc_span::Symbol;
+use rustc_span::{symbol::kw, Symbol};
 
 use crate::intern::{impl_internable, Interned, List};
 
@@ -313,5 +313,27 @@ impl std::fmt::Debug for Ty {
 impl std::fmt::Debug for Const {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "_")
+    }
+}
+
+pub(crate) fn region_to_string(region: Region) -> String {
+    match region {
+        Region::ReLateBound(_, region) => {
+            match region.kind {
+                BoundRegionKind::BrAnon => "'<annon>".to_string(),
+                BoundRegionKind::BrNamed(_, sym) => {
+                    if sym == kw::UnderscoreLifetime {
+                        format!("{sym}{:?}", region.var)
+                    } else {
+                        format!("{sym}")
+                    }
+                }
+                BoundRegionKind::BrEnv => "'<env>".to_string(),
+            }
+        }
+        Region::ReEarlyBound(region) => region.name.to_string(),
+        Region::ReStatic => "'static".to_string(),
+        Region::ReVar(vid) => format!("{vid:?}"),
+        Region::ReErased => "'<erased>".to_string(),
     }
 }
