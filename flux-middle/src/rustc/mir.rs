@@ -543,6 +543,7 @@ pub(crate) fn region_to_string(region: Region) -> String {
             match region.kind {
                 BoundRegionKind::BrAnon => "'<annon>".to_string(),
                 BoundRegionKind::BrNamed(_, sym) => format!("{sym}"),
+                BoundRegionKind::BrEnv => "'<env>".to_string(),
             }
         }
         Region::ReEarlyBound(region) => region.name.to_string(),

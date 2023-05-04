@@ -300,6 +300,13 @@ impl Binder<FnTraitPredicate> {
     }
 
     pub fn to_closure_sig(&self, closure_id: DefId) -> PolyFnSig {
+        let bound_vars = self
+            .vars
+            .iter()
+            .copied()
+            .chain(std::iter::once(BoundVariableKind::Region(BoundRegionKind::BrEnv)))
+            .collect();
+
         let pred = self.as_ref().skip_binder();
 
         let closure_ty = Ty::closure(closure_id);
@@ -318,13 +325,12 @@ impl Binder<FnTraitPredicate> {
             Binder::with_sort(FnOutput::new(pred.output.clone(), vec![]), Sort::unit()),
         );
 
-        let vars = self.vars.clone();
         let params = self
             .sort()
             .expect_tuple()
             .iter()
             .map(|sort| (sort.clone(), sort.default_infer_mode()));
-        PolyFnSig::new(vars, params, fn_sig)
+        PolyFnSig::new(bound_vars, params, fn_sig)
     }
 }
 

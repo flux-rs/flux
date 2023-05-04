@@ -32,6 +32,7 @@ pub enum BoundVariableKind {
 pub enum BoundRegionKind {
     BrAnon,
     BrNamed(DefId, Symbol),
+    BrEnv,
 }
 
 #[derive(Hash, Eq, PartialEq)]
