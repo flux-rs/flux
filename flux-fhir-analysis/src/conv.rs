@@ -16,7 +16,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, fold::TypeFoldable, DebruijnIndex},
+    rty::{self, fold::TypeFoldable},
     rustc,
 };
 use itertools::Itertools;
@@ -26,6 +26,7 @@ use rustc_hir::{
     PrimTy,
 };
 use rustc_middle::ty::TyCtxt;
+use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -783,12 +784,12 @@ impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         match &self.kind {
             LookupResultKind::LateBoundList { level, entry: ListEntry::Sort { idx, conv, .. } } => {
-                rty::Expr::tuple_proj(rty::Expr::late_bvar(DebruijnIndex::new(*level)), *idx)
+                rty::Expr::tuple_proj(rty::Expr::late_bvar(DebruijnIndex::from_u32(*level)), *idx)
                     .eta_expand_tuple(conv)
             }
             LookupResultKind::LateBoundList { entry: ListEntry::Unit, .. } => rty::Expr::unit(),
             LookupResultKind::LateBoundSingle { level, conv, .. } => {
-                rty::Expr::late_bvar(DebruijnIndex::new(*level)).eta_expand_tuple(conv)
+                rty::Expr::late_bvar(DebruijnIndex::from_u32(*level)).eta_expand_tuple(conv)
             }
             LookupResultKind::EarlyBound { idx, conv, .. } => {
                 rty::Expr::early_bvar(*idx).eta_expand_tuple(conv)

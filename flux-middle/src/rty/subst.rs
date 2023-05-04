@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use flux_common::bug;
 use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,

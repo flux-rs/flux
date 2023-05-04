@@ -10,6 +10,7 @@ use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::Local;
 use rustc_span::Symbol;
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
@@ -95,13 +96,6 @@ newtype_index! {
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
-}
-
-newtype_index! {
-    #[debug_format = "^{}"]
-    pub struct DebruijnIndex {
-        const INNERMOST = 0;
-    }
 }
 
 impl ExprKind {
@@ -583,53 +577,6 @@ impl Loc {
             Loc::Local(local) => Expr::local(*local),
             Loc::TupleProj(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
         }
-    }
-}
-
-impl DebruijnIndex {
-    pub fn new(depth: u32) -> DebruijnIndex {
-        DebruijnIndex::from_u32(depth)
-    }
-
-    pub fn depth(&self) -> u32 {
-        self.as_u32()
-    }
-
-    /// Returns the resulting index when this value is moved into
-    /// `amount` number of new binders. So, e.g., if you had
-    ///
-    /// ```ignore
-    ///    for<a: int> fn(i32[a])
-    /// ```
-    ///
-    /// and you wanted to change it to
-    ///
-    /// ```ignore
-    ///    for<a: int> fn(for<b: int> fn(i32[a]))
-    /// ```
-    ///
-    /// you would need to shift the index for `a` into a new binder.
-    #[must_use]
-    pub fn shifted_in(self, amount: u32) -> DebruijnIndex {
-        DebruijnIndex::from_u32(self.as_u32() + amount)
-    }
-
-    /// Update this index in place by shifting it "in" through
-    /// `amount` number of binders.
-    pub fn shift_in(&mut self, amount: u32) {
-        *self = self.shifted_in(amount);
-    }
-
-    /// Returns the resulting index when this value is moved out from
-    /// `amount` number of new binders.
-    #[must_use]
-    pub fn shifted_out(self, amount: u32) -> DebruijnIndex {
-        DebruijnIndex::from_u32(self.as_u32() - amount)
-    }
-
-    /// Update in place by shifting out from `amount` binders.
-    pub fn shift_out(&mut self, amount: u32) {
-        *self = self.shifted_out(amount);
     }
 }
 
