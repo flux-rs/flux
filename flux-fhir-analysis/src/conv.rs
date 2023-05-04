@@ -314,7 +314,16 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         rty::GenericParamDefKind::BaseTy => {
                             bug!("generic base type in struct definition not suported")
                         }
-                        rty::GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                        rty::GenericParamDefKind::Lifetime => {
+                            let def_id = param.def_id;
+                            let index = def_id_to_param_index(genv.tcx, def_id.expect_local());
+                            let re = rty::ReEarlyBound(rty::EarlyBoundRegion {
+                                def_id,
+                                index,
+                                name: param.name,
+                            });
+                            rty::GenericArg::Lifetime(re)
+                        }
                     }
                 })
                 .collect_vec();
@@ -556,7 +565,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 if i < args.len() {
                     i += 1;
                     match &args[i - 1] {
-                        fhir::GenericArg::Lifetime(_) => Ok(rty::GenericArg::Lifetime),
+                        fhir::GenericArg::Lifetime(lft) => {
+                            Ok(rty::GenericArg::Lifetime(self.conv_lifetime(*lft)))
+                        }
                         fhir::GenericArg::Type(ty) => {
                             Ok(rty::GenericArg::Ty(self.conv_ty(env, ty)?))
                         }

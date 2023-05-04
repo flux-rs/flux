@@ -284,8 +284,7 @@ pub type Substs = List<GenericArg>;
 pub enum GenericArg {
     Ty(Ty),
     BaseTy(Binder<Ty>),
-    /// We treat lifetime opaquely
-    Lifetime,
+    Lifetime(Region),
 }
 
 impl Predicate {
@@ -1420,7 +1419,7 @@ mod pretty {
                 GenericArg::BaseTy(arg) => {
                     w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binder())
                 }
-                GenericArg::Lifetime => w!("'_"),
+                GenericArg::Lifetime(re) => w!("{:?}", re),
             }
         }
     }

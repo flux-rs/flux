@@ -100,6 +100,7 @@ impl RegionSubst {
     }
 
     pub fn infer_from_ty(&mut self, ty1: &Ty, ty2: &rustc::ty::Ty) {
+        println!("{ty1:?} {ty2:?}");
         use rustc::ty;
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
@@ -122,8 +123,9 @@ impl RegionSubst {
     fn infer_from_bty(&mut self, bty: &BaseTy, ty: &rustc::ty::Ty) {
         use rustc::ty;
         match (bty, ty.kind()) {
-            (BaseTy::Ref(r1, ..), ty::TyKind::Ref(r2, _, _)) => {
+            (BaseTy::Ref(r1, ty1, _), ty::TyKind::Ref(r2, ty2, _)) => {
                 self.insert(*r1, *r2);
+                self.infer_from_ty(ty1, ty2);
             }
             (BaseTy::Adt(_, substs1), ty::TyKind::Adt(_, substs2)) => {
                 debug_assert_eq!(substs1.len(), substs2.len());
@@ -134,6 +136,9 @@ impl RegionSubst {
                         }
                         (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) => {
                             self.infer_from_ty(ty1, ty2);
+                        }
+                        (GenericArg::Lifetime(re1), ty::GenericArg::Lifetime(re2)) => {
+                            self.insert(*re1, *re2);
                         }
                         _ => {}
                     }
@@ -276,7 +281,7 @@ impl GenericsSubstFolder<'_> {
             Some(GenericArg::Ty(arg)) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }
-            Some(GenericArg::Lifetime) => bug!("substitution for lifetimes is not supported"),
+            Some(GenericArg::Lifetime(_)) => bug!("substitution for lifetimes is not supported"),
             None => bug!("type parameter out of range {param_ty:?}"),
         }
     }

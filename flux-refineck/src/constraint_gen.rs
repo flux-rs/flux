@@ -533,7 +533,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
                 tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
             }
-            (GenericArg::Lifetime, GenericArg::Lifetime) => {}
+            (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => {}
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
         };
     }

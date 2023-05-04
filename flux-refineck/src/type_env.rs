@@ -479,7 +479,7 @@ impl BasicBlockEnvShape {
             GenericArg::BaseTy(arg) => {
                 GenericArg::BaseTy(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
             }
-            GenericArg::Lifetime => GenericArg::Lifetime,
+            GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
         }
     }
 
@@ -705,7 +705,10 @@ impl BasicBlockEnvShape {
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
                 tracked_span_bug!("generic argument join for base types ins not implemented")
             }
-            (GenericArg::Lifetime, GenericArg::Lifetime) => GenericArg::Lifetime,
+            (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) => {
+                debug_assert_eq!(re1, re2);
+                GenericArg::Lifetime(*re1)
+            }
             _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
         }
     }

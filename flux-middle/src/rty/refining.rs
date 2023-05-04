@@ -137,8 +137,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::BaseTy(self.refine_poly_ty(ty)?))
             }
-            (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
-                Ok(rty::GenericArg::Lifetime)
+            (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) => {
+                Ok(rty::GenericArg::Lifetime(*re))
             }
             _ => bug!("mismatched generic arg `{arg:?}` `{param:?}`"),
         }

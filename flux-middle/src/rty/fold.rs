@@ -561,7 +561,7 @@ impl TypeFoldable for GenericArg {
         match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
             GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.fold_with(folder)),
-            GenericArg::Lifetime => GenericArg::Lifetime,
+            GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
         }
     }
 
@@ -569,7 +569,7 @@ impl TypeFoldable for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
             GenericArg::BaseTy(ty) => ty.visit_with(visitor),
-            GenericArg::Lifetime => {}
+            GenericArg::Lifetime(_) => {}
         }
     }
 }
