@@ -8,7 +8,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
-use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
+use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -59,7 +59,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty, rty::Expr::nu());
                 let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
-                rty::Binder::new(constr, List::empty(), sort)
+                rty::Binder::with_sort(constr, sort)
             },
         }
     }
@@ -106,7 +106,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
-        Ok(rty::Binder::new(value, List::empty(), rty::Sort::unit()))
+        Ok(rty::Binder::with_sort(value, rty::Sort::unit()))
     }
 
     pub(crate) fn refine_poly_fn_sig(
@@ -121,8 +121,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
         let ret = self.refine_ty(fn_sig.output())?;
-        let output =
-            rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty(), rty::Sort::unit());
+        let output = rty::Binder::with_sort(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
         Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
     }
 
@@ -170,9 +169,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::new(
+                        return Ok(rty::Binder::with_sort(
                             rty::Ty::param(*param_ty),
-                            List::empty(),
                             rty::Sort::unit(),
                         ));
                     }
@@ -220,5 +218,5 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
-    rty::Binder::new(rty::Ty::indexed(bty, rty::Expr::nu()), List::empty(), sort)
+    rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort)
 }

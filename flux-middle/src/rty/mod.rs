@@ -312,7 +312,7 @@ impl Binder<FnTraitPredicate> {
         let fn_sig = FnSig::new(
             vec![],
             inputs,
-            Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty(), Sort::unit()),
+            Binder::with_sort(FnOutput::new(pred.output.clone(), vec![]), Sort::unit()),
         );
 
         let vars = self.vars.clone();
@@ -449,6 +449,10 @@ impl Qualifier {
 impl<T> Binder<T> {
     pub fn new(value: T, vars: List<BoundVariableKind>, sort: Sort) -> Binder<T> {
         Binder { vars, sort, value }
+    }
+
+    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
+        Binder { vars: List::empty(), sort, value }
     }
 
     pub fn sort(&self) -> &Sort {
@@ -748,7 +752,7 @@ impl EarlyBinder<PolyVariant> {
             .as_ref()
             .map(|variant| {
                 let ret = variant.ret.shift_in_escaping(1);
-                let output = Binder::new(FnOutput::new(ret, vec![]), List::empty(), Sort::unit());
+                let output = Binder::with_sort(FnOutput::new(ret, vec![]), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
             .skip_binder();
@@ -787,7 +791,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::new(Ty::constr(pred, ty), List::empty(), sort))
+        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -987,7 +991,7 @@ impl BaseTy {
         if sort.is_unit() {
             Ty::indexed(self, Index::unit())
         } else {
-            Ty::exists(Binder::new(Ty::indexed(self, Expr::nu()), List::empty(), sort))
+            Ty::exists(Binder::with_sort(Ty::indexed(self, Expr::nu()), sort))
         }
     }
 
@@ -1029,9 +1033,8 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant {
-            pred: Binder::new(
+            pred: Binder::with_sort(
                 Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
-                List::empty(),
                 Sort::Int,
             ),
         }]
@@ -1043,16 +1046,14 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             .map(|uint_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::new(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
-                            List::empty(),
                             Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::new(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty)),
-                            List::empty(),
                             Sort::Int,
                         ),
                     },
@@ -1077,16 +1078,14 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             .map(|int_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::new(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty)),
-                            List::empty(),
                             Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::new(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty)),
-                            List::empty(),
                             Sort::Int,
                         ),
                     },

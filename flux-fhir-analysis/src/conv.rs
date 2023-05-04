@@ -81,7 +81,7 @@ pub(crate) fn expand_type_alias(
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
     let sort = env.pop_layer().into_sort();
-    Ok(rty::Binder::new(ty, List::empty(), sort))
+    Ok(rty::Binder::with_sort(ty, sort))
 }
 
 pub(crate) fn conv_generics(
@@ -161,7 +161,7 @@ pub(crate) fn conv_defn(
     let mut env = Env::new(genv, &[]);
     env.push_layer(Layer::list(&cx, &defn.args, false));
     let expr = cx.conv_expr(&env, &defn.expr);
-    let expr = rty::Binder::new(expr, List::empty(), env.pop_layer().into_sort());
+    let expr = rty::Binder::with_sort(expr, env.pop_layer().into_sort());
     rty::Defn { name: defn.name, expr }
 }
 
@@ -174,7 +174,7 @@ pub fn conv_qualifier(
     let mut env = Env::new(genv, &[]);
     env.push_layer(Layer::list(&cx, &qualifier.args, false));
     let body = cx.conv_expr(&env, &qualifier.expr);
-    let body = rty::Binder::new(body, List::empty(), env.pop_layer().into_sort());
+    let body = rty::Binder::with_sort(body, env.pop_layer().into_sort());
     rty::Qualifier { name: qualifier.name, body, global: qualifier.global }
 }
 
@@ -214,7 +214,7 @@ pub(crate) fn conv_ty(
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut env = Env::new(genv, &[]);
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
-    Ok(rty::Binder::new(ty, List::empty(), rty::Sort::unit()))
+    Ok(rty::Binder::with_sort(ty, rty::Sort::unit()))
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
@@ -239,7 +239,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         let sort = env.pop_layer().into_sort();
 
-        Ok(rty::Binder::new(output, List::empty(), sort))
+        Ok(rty::Binder::with_sort(output, sort))
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -274,7 +274,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let variant = rty::VariantDef::new(fields, ret);
 
         let sort = env.pop_layer().to_sort();
-        Ok(rty::Binder::new(variant, List::empty(), sort))
+        Ok(rty::Binder::with_sort(variant, sort))
     }
 
     pub(crate) fn conv_struct_def_variant(
@@ -317,7 +317,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::Expr::nu().eta_expand_tuple(&sort),
             );
             let variant = rty::VariantDef::new(fields, ret);
-            Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, List::empty(), sort)))
+            Ok(rty::Opaqueness::Transparent(rty::Binder::with_sort(variant, sort)))
         } else {
             Ok(rty::Opaqueness::Opaque)
         }
@@ -351,7 +351,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             let idx = rty::Index::from(rty::Expr::nu());
                             let ty = self.conv_base_ty(env, bty, idx)?;
                             env.pop_layer();
-                            Ok(rty::Ty::exists(rty::Binder::new(ty, List::empty(), sort)))
+                            Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
                         }
                     }
                     None => {
@@ -376,7 +376,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 if sort.is_unit() {
                     Ok(ty.shift_out_escaping(1))
                 } else {
-                    Ok(rty::Ty::exists(rty::Binder::new(ty, List::empty(), sort)))
+                    Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
                 }
             }
             fhir::TyKind::Ptr(_, loc) => {
@@ -432,7 +432,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let pred = self.conv_expr(env, body);
                 let sort = env.pop_layer().to_sort();
 
-                let body = rty::Binder::new(pred, List::empty(), sort);
+                let body = rty::Binder::with_sort(pred, sort);
                 let expr = self.add_coercions(rty::Expr::abs(body), *fhir_id);
                 (expr, rty::TupleTree::Leaf(false))
             }
@@ -649,11 +649,7 @@ impl ConvCtxt<'_, '_> {
 
     fn conv_invariant(&self, env: &Env, invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant {
-            pred: rty::Binder::new(
-                self.conv_expr(env, invariant),
-                List::empty(),
-                env.top_layer().to_sort(),
-            ),
+            pred: rty::Binder::with_sort(self.conv_expr(env, invariant), env.top_layer().to_sort()),
         }
     }
 

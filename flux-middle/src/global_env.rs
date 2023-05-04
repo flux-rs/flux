@@ -200,7 +200,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             if !sort.is_unit() {
                 ty = rty::Ty::constr(rty::Expr::hole(), ty);
             }
-            rty::Binder::new(ty, List::empty(), sort)
+            rty::Binder::with_sort(ty, sort)
         })
         .refine_generic_arg(param, arg)
     }
