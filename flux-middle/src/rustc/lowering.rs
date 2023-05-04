@@ -3,6 +3,7 @@ use std::collections::hash_map;
 use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
+use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -30,10 +31,10 @@ use super::{
 };
 use crate::{const_eval::scalar_int_to_constant, intern::List, rustc::ty::Region};
 
-pub struct LoweringCtxt<'a, 'tcx> {
+pub struct LoweringCtxt<'a, 'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    sess: &'a FluxSession,
-    rustc_mir: rustc_mir::Body<'tcx>,
+    sess: &'sess FluxSession,
+    rustc_mir: &'a rustc_mir::Body<'tcx>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,13 +42,13 @@ pub struct UnsupportedReason {
     pub(crate) descr: String,
 }
 
-impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
+impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
-        sess: &'a FluxSession,
-        rustc_mir: rustc_mir::Body<'tcx>,
+        sess: &'sess FluxSession,
+        body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let lower = Self { tcx, sess, rustc_mir };
+        let lower = LoweringCtxt { tcx, sess, rustc_mir: &body_with_facts.body };
 
         let basic_blocks = lower
             .rustc_mir
@@ -65,7 +66,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, fake_predecessors, rustc_mir: lower.rustc_mir })
+        Ok(Body { basic_blocks, local_decls, fake_predecessors, body_with_facts })
     }
 
     fn lower_basic_block_data(
@@ -187,7 +188,7 @@ impl<'a, 'tcx> LoweringCtxt<'a, 'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
-                let (func, substs) = match func.ty(&self.rustc_mir, self.tcx).kind() {
+                let (func, substs) = match func.ty(self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_substs(self.tcx, substs)
                             .map_err(|_err| errors::UnsupportedMir::from(terminator))

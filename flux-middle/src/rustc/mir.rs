@@ -5,6 +5,7 @@ use std::fmt;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
+use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
@@ -28,7 +29,7 @@ pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
     pub fake_predecessors: IndexVec<BasicBlock, usize>,
-    pub(crate) rustc_mir: mir::Body<'tcx>,
+    pub(crate) body_with_facts: BodyWithBorrowckFacts<'tcx>,
 }
 
 #[derive(Debug)]
@@ -239,17 +240,17 @@ impl Statement {
 
 impl<'tcx> Body<'tcx> {
     pub fn span(&self) -> Span {
-        self.rustc_mir.span
+        self.body_with_facts.body.span
     }
 
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.rustc_mir.arg_count + 1).map(Local::new)
+        (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.rustc_mir.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.body_with_facts.body.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
@@ -257,21 +258,21 @@ impl<'tcx> Body<'tcx> {
     where
         'a: 'tcx,
     {
-        mir::traversal::reverse_postorder(&self.rustc_mir).map(|(bb, _)| bb)
+        mir::traversal::reverse_postorder(&self.body_with_facts.body).map(|(bb, _)| bb)
     }
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        let real_preds =
-            self.rustc_mir.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
+        let real_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len()
+            - self.fake_predecessors[bb];
         real_preds > usize::from(bb != START_BLOCK)
     }
 
     #[inline]
     pub fn dominators(&self) -> Dominators<BasicBlock> {
-        self.rustc_mir.basic_blocks.dominators()
+        self.body_with_facts.body.basic_blocks.dominators()
     }
 
     #[inline]
