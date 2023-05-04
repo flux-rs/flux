@@ -8,7 +8,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
-use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
+use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -59,7 +59,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty, rty::Expr::nu());
                 let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
-                rty::Binder::new(constr, sort)
+                rty::Binder::new(constr, List::empty(), sort)
             },
         }
     }
@@ -72,17 +72,19 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .predicates
             .iter()
             .map(|pred| -> QueryResult<rty::Predicate> {
-                match pred.kind.as_ref().skip_binder() {
+                let vars = pred.kind.vars().clone();
+                let kind = match pred.kind.as_ref().skip_binder() {
                     rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
-                            bounded_ty: self.refine_ty(bounded_ty)?,
+                            self_ty: self.refine_ty(bounded_ty)?,
                             tupled_args: self.refine_ty(tupled_args)?,
                             output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        Ok(rty::Predicate::FnTrait(pred))
+                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars, rty::Sort::unit())
                     }
-                }
+                };
+                Ok(rty::Predicate { kind })
             })
             .try_collect()?;
 
@@ -104,18 +106,24 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
-        Ok(rty::Binder::new(value, rty::Sort::unit()))
+        Ok(rty::Binder::new(value, List::empty(), rty::Sort::unit()))
     }
 
-    pub(crate) fn refine_fn_sig(&self, fn_sig: &rustc::ty::FnSig) -> QueryResult<rty::PolyFnSig> {
+    pub(crate) fn refine_poly_fn_sig(
+        &self,
+        fn_sig: &rustc::ty::PolyFnSig,
+    ) -> QueryResult<rty::PolyFnSig> {
+        let vars = fn_sig.vars().clone();
+        let fn_sig = fn_sig.as_ref().skip_binder();
         let args = fn_sig
             .inputs()
             .iter()
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
         let ret = self.refine_ty(fn_sig.output())?;
-        let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
-        Ok(rty::PolyFnSig::new([], rty::FnSig::new(vec![], args, output)))
+        let output =
+            rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty(), rty::Sort::unit());
+        Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -162,7 +170,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::new(rty::Ty::param(*param_ty), rty::Sort::unit()));
+                        return Ok(rty::Binder::new(
+                            rty::Ty::param(*param_ty),
+                            List::empty(),
+                            rty::Sort::unit(),
+                        ));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime => bug!(),
@@ -208,5 +220,5 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
-    rty::Binder::new(rty::Ty::indexed(bty, rty::Expr::nu()), sort)
+    rty::Binder::new(rty::Ty::indexed(bty, rty::Expr::nu()), List::empty(), sort)
 }

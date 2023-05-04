@@ -37,7 +37,10 @@ use crate::{
     queries::QueryResult,
     rustc::mir::Place,
 };
-pub use crate::{fhir::InferMode, rustc::ty::Const};
+pub use crate::{
+    fhir::InferMode,
+    rustc::ty::{BoundVariableKind, Const},
+};
 
 #[derive(Debug, Clone)]
 pub struct Generics {
@@ -68,13 +71,18 @@ pub struct GenericPredicates {
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub enum Predicate {
+pub struct Predicate {
+    kind: Binder<PredicateKind>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum PredicateKind {
     FnTrait(FnTraitPredicate),
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct FnTraitPredicate {
-    pub bounded_ty: Ty,
+    pub self_ty: Ty,
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
@@ -140,6 +148,7 @@ pub struct VariantDef {
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Binder<T> {
+    vars: List<BoundVariableKind>,
     sort: Sort,
     value: T,
 }
@@ -275,24 +284,44 @@ pub enum GenericArg {
     Lifetime,
 }
 
-impl FnTraitPredicate {
-    pub fn to_poly_sig(&self, closure_id: DefId) -> PolyFnSig {
+impl Predicate {
+    pub fn kind(&self) -> Binder<PredicateKind> {
+        self.kind.clone()
+    }
+}
+
+impl Binder<FnTraitPredicate> {
+    pub fn self_ty(&self) -> Binder<Ty> {
+        self.as_ref()
+            .map(|fn_trait_pred| fn_trait_pred.self_ty.clone())
+    }
+
+    pub fn to_closure_sig(&self, closure_id: DefId) -> PolyFnSig {
+        let pred = self.as_ref().skip_binder();
+
         let closure_ty = Ty::closure(closure_id);
-        let env_ty = match self.kind {
+        let env_ty = match pred.kind {
             ClosureKind::Fn => Ty::mk_ref(closure_ty, Mutability::Not),
             ClosureKind::FnMut => Ty::mk_ref(closure_ty, Mutability::Mut),
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
-            .chain(self.tupled_args.expect_tuple().iter().cloned())
+            .chain(pred.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
 
         let fn_sig = FnSig::new(
             vec![],
             inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), Sort::unit()),
+            Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty(), Sort::unit()),
         );
-        PolyFnSig::new(vec![], fn_sig)
+
+        let vars = self.vars.clone();
+        let params = self
+            .sort()
+            .expect_tuple()
+            .iter()
+            .map(|sort| (sort.clone(), sort.default_infer_mode()));
+        PolyFnSig::new(vars, params, fn_sig)
     }
 }
 
@@ -418,8 +447,8 @@ impl Qualifier {
 }
 
 impl<T> Binder<T> {
-    pub fn new(value: T, sort: Sort) -> Binder<T> {
-        Binder { sort, value }
+    pub fn new(value: T, vars: List<BoundVariableKind>, sort: Sort) -> Binder<T> {
+        Binder { vars, sort, value }
     }
 
     pub fn sort(&self) -> &Sort {
@@ -427,15 +456,19 @@ impl<T> Binder<T> {
     }
 
     pub fn as_ref(&self) -> Binder<&T> {
-        Binder { sort: self.sort.clone(), value: &self.value }
+        Binder { vars: self.vars.clone(), sort: self.sort.clone(), value: &self.value }
     }
 
     pub fn skip_binder(self) -> T {
         self.value
     }
 
-    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Binder<S> {
-        Binder { sort: self.sort, value: f(self.value) }
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
+        Binder { vars: self.vars, sort: self.sort, value: f(self.value) }
+    }
+
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
+        Ok(Binder { vars: self.vars, sort: self.sort, value: f(self.value)? })
     }
 }
 
@@ -553,9 +586,13 @@ impl From<(Expr, TupleTree<bool>)> for Index {
 }
 
 impl PolyFnSig {
-    pub fn new(params: impl IntoIterator<Item = (Sort, InferMode)>, fn_sig: FnSig) -> PolyFnSig {
+    pub fn new(
+        vars: List<BoundVariableKind>,
+        params: impl IntoIterator<Item = (Sort, InferMode)>,
+        fn_sig: FnSig,
+    ) -> PolyFnSig {
         let (sorts, modes) = params.into_iter().unzip();
-        let fn_sig = Binder::new(fn_sig, Sort::Tuple(List::from_vec(sorts)));
+        let fn_sig = Binder::new(fn_sig, vars, Sort::Tuple(List::from_vec(sorts)));
         PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
@@ -711,7 +748,7 @@ impl EarlyBinder<PolyVariant> {
             .as_ref()
             .map(|variant| {
                 let ret = variant.ret.shift_in_escaping(1);
-                let output = Binder::new(FnOutput::new(ret, vec![]), Sort::unit());
+                let output = Binder::new(FnOutput::new(ret, vec![]), List::empty(), Sort::unit());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
             .skip_binder();
@@ -722,7 +759,7 @@ impl EarlyBinder<PolyVariant> {
             .iter()
             .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
             .collect_vec();
-        EarlyBinder(PolyFnSig::new(params, fn_sig))
+        EarlyBinder(PolyFnSig::new(List::empty(), params, fn_sig))
     }
 }
 
@@ -750,7 +787,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::new(Ty::constr(pred, ty), sort))
+        Ty::exists(Binder::new(Ty::constr(pred, ty), List::empty(), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -866,14 +903,14 @@ impl TyS {
 
     /// Whether the type is an `int` or a `uint`
     pub fn is_integral(&self) -> bool {
-        self.as_bty_skipping_binders()
+        self.as_bty_skipping_existentials()
             .map(BaseTy::is_integral)
             .unwrap_or_default()
     }
 
     /// Whether the type is a `bool`
     pub fn is_bool(&self) -> bool {
-        self.as_bty_skipping_binders()
+        self.as_bty_skipping_existentials()
             .map(BaseTy::is_bool)
             .unwrap_or_default()
     }
@@ -882,11 +919,11 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit)
     }
 
-    pub fn as_bty_skipping_binders(&self) -> Option<&BaseTy> {
+    pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_binders()?),
-            TyKind::Constr(_, ty) => ty.as_bty_skipping_binders(),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_existentials()?),
+            TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
             _ => None,
         }
     }
@@ -950,7 +987,7 @@ impl BaseTy {
         if sort.is_unit() {
             Ty::indexed(self, Index::unit())
         } else {
-            Ty::exists(Binder::new(Ty::indexed(self, Expr::nu()), sort))
+            Ty::exists(Binder::new(Ty::indexed(self, Expr::nu()), List::empty(), sort))
         }
     }
 
@@ -992,7 +1029,11 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant {
-            pred: Binder::new(Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()), Sort::Int),
+            pred: Binder::new(
+                Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
+                List::empty(),
+                Sort::Int,
+            ),
         }]
     });
 
@@ -1004,12 +1045,14 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
                     Invariant {
                         pred: Binder::new(
                             Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
+                            List::empty(),
                             Sort::Int,
                         ),
                     },
                     Invariant {
                         pred: Binder::new(
                             Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty)),
+                            List::empty(),
                             Sort::Int,
                         ),
                     },
@@ -1036,12 +1079,14 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
                     Invariant {
                         pred: Binder::new(
                             Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty)),
+                            List::empty(),
                             Sort::Int,
                         ),
                     },
                     Invariant {
                         pred: Binder::new(
                             Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty)),
+                            List::empty(),
                             Sort::Int,
                         ),
                     },
@@ -1244,7 +1289,7 @@ mod pretty {
                     }
                     Ok(())
                 }
-                TyKind::Exists(Binder { sort, value: ty }) => {
+                TyKind::Exists(Binder { sort, value: ty, .. }) => {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {

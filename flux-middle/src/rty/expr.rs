@@ -475,7 +475,7 @@ impl Expr {
     }
 
     pub fn eta_expand_abs(&self, sort: &Sort) -> Binder<Expr> {
-        Binder::new(Expr::app(self, Expr::nu()), sort.clone())
+        Binder::new(Expr::app(self, Expr::nu()), List::empty(), sort.clone())
     }
 
     pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {

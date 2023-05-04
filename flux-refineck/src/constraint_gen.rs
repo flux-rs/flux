@@ -373,6 +373,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let input = fsort.input();
                 Expr::abs(Binder::new(
                     self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
+                    List::empty(),
                     input.clone(),
                 ))
             }

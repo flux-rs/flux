@@ -477,24 +477,26 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
         for predicate in &obligs.predicates {
-            match predicate {
-                rty::Predicate::FnTrait(fn_pred) => {
-                    if let Some(BaseTy::Closure(def_id)) =
-                        fn_pred.bounded_ty.as_bty_skipping_binders()
-                    {
-                        let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
-                        Checker::run(
-                            self.genv,
-                            refine_tree,
-                            *def_id,
-                            self.mode,
-                            fn_pred.to_poly_sig(*def_id),
-                            self.config,
-                        )?;
-                    } else {
-                        todo!("report error")
-                    }
-                }
+            let fn_trait_pred = predicate.kind().map(|kind| {
+                let rty::PredicateKind::FnTrait(fn_trait_pred) = kind;
+                fn_trait_pred
+            });
+            if let Some(BaseTy::Closure(def_id)) = fn_trait_pred
+                .self_ty()
+                .skip_binder()
+                .as_bty_skipping_existentials()
+            {
+                let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
+                Checker::run(
+                    self.genv,
+                    refine_tree,
+                    *def_id,
+                    self.mode,
+                    fn_trait_pred.to_closure_sig(*def_id),
+                    self.config,
+                )?;
+            } else {
+                bug!("`Fn*` bounds on a non-closure type are not supported. This should be an error an not an ICE.");
             }
         }
         Ok(())

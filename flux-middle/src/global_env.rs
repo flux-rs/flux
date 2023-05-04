@@ -12,6 +12,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, FluxLocalDefId, VariantIdx},
+    intern::List,
     queries::{Providers, Queries, QueryResult},
     rty::{self, normalize::Defns, refining::Refiner},
     rustc,
@@ -159,6 +160,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .map(|variants| rty::EarlyBinder(variants[variant_idx.as_usize()].clone())))
     }
 
+    pub fn late_bound_vars(&self, def_id: LocalDefId) -> QueryResult<List<rty::BoundVariableKind>> {
+        self.queries.late_bound_vars(self, def_id)
+    }
+
     pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {
         self.early_cx.index_sorts_of(def_id.into())
     }
@@ -195,7 +200,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             if !sort.is_unit() {
                 ty = rty::Ty::constr(rty::Expr::hole(), ty);
             }
-            rty::Binder::new(ty, sort)
+            rty::Binder::new(ty, List::empty(), sort)
         })
         .refine_generic_arg(param, arg)
     }
