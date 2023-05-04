@@ -24,6 +24,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_span::Span;
+use rustc_type_ir::DebruijnIndex;
 
 use crate::CheckerConfig;
 
@@ -472,7 +473,7 @@ impl KVarStore {
         }
         let args = itertools::chain(
             bound.iter().rev().enumerate().map(|(level, sort)| {
-                (rty::Var::LateBound(rty::DebruijnIndex::new(level as u32)), sort.clone())
+                (rty::Var::LateBound(DebruijnIndex::from_usize(level)), sort.clone())
             }),
             scope
                 .into_iter()

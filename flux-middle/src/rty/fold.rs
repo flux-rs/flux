@@ -4,14 +4,15 @@
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, Constraint, DebruijnIndex, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate,
-    FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate,
-    PredicateKind, Qualifier, Sort, Ty, TyKind, INNERMOST,
+    BaseTy, Binder, Constraint, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
+    GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate, PredicateKind,
+    Qualifier, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},

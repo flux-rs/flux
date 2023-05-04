@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty, TyKind, Var, INNERMOST,
+        ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Local, Place, PlaceElem},
 };
@@ -661,7 +661,7 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::tuple_proj(Expr::late_bvar(INNERMOST), (bound_sorts.len() - 1) as u32)
+                    Expr::tuple_proj(Expr::nu(), (bound_sorts.len() - 1) as u32)
                 }
             }
         }
