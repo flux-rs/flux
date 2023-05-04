@@ -8,9 +8,9 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Sort, Ty,
-        TyKind, Uint, UintTy, VariantIdx,
+        self, subst::RegionSubst, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr,
+        Float, FnOutput, FnSig, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
+        Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -187,7 +187,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
         mode: &'a mut M,
-        fn_sig: PolyFnSig,
+        poly_sig: PolyFnSig,
         config: CheckerConfig,
     ) -> Result<(), CheckerError> {
         let body = genv
@@ -196,7 +196,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let fn_sig = fn_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
+        let fn_sig = poly_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 

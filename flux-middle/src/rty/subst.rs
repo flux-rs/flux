@@ -1,6 +1,7 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::bug;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -8,7 +9,7 @@ use super::{
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder},
 };
-use crate::rty::*;
+use crate::{rty::*, rustc};
 
 /// A substitution for [free variables]
 ///
@@ -84,6 +85,79 @@ impl TypeFolder for FVarSubstFolder<'_> {
                 .unwrap_or_else(|| expr.clone())
         } else {
             expr.super_fold_with(self)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RegionSubst {
+    map: UnordMap<Region, Region>,
+}
+
+impl RegionSubst {
+    pub fn empty() -> Self {
+        RegionSubst { map: UnordMap::default() }
+    }
+
+    pub fn infer_from_ty(&mut self, ty1: &Ty, ty2: &rustc::ty::Ty) {
+        use rustc::ty;
+        match (ty1.kind(), ty2.kind()) {
+            (TyKind::Exists(ty1), _) => {
+                self.infer_from_ty(ty1.as_ref().skip_binder(), ty2);
+            }
+            (TyKind::Constr(_, ty1), _) => {
+                self.infer_from_ty(ty1, ty2);
+            }
+            (TyKind::Indexed(bty, _), _) => {
+                self.infer_from_bty(bty, ty2);
+            }
+            (TyKind::Ptr(PtrKind::Shr(r1), _), ty::TyKind::Ref(r2, _, Mutability::Not))
+            | (TyKind::Ptr(PtrKind::Mut(r1), _), ty::TyKind::Ref(r2, _, Mutability::Mut)) => {
+                self.insert(*r1, *r2);
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_bty(&mut self, bty: &BaseTy, ty: &rustc::ty::Ty) {
+        use rustc::ty;
+        match (bty, ty.kind()) {
+            (BaseTy::Ref(r1, ..), ty::TyKind::Ref(r2, _, _)) => {
+                self.insert(*r1, *r2);
+            }
+            (BaseTy::Adt(_, substs1), ty::TyKind::Adt(_, substs2)) => {
+                debug_assert_eq!(substs1.len(), substs2.len());
+                iter::zip(substs1, substs2).for_each(|(arg1, arg2)| {
+                    match (arg1, arg2) {
+                        (GenericArg::BaseTy(ty_con), ty::GenericArg::Ty(ty2)) => {
+                            self.infer_from_ty(ty_con.as_ref().skip_binder(), ty2);
+                        }
+                        (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) => {
+                            self.infer_from_ty(ty1, ty2);
+                        }
+                        _ => {}
+                    }
+                });
+            }
+            _ => {}
+        }
+    }
+
+    fn insert(&mut self, from: Region, to: Region) {
+        match self.map.entry(from) {
+            hash_map::Entry::Occupied(entry) => {
+                if entry.get() != &to {
+                    bug!(
+                        "ambiguous region substitution: {:?} -> [{:?}, {:?}]",
+                        from,
+                        entry.get(),
+                        to
+                    );
+                }
+            }
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(to);
+            }
         }
     }
 }
