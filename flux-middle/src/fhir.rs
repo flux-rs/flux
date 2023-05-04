@@ -359,9 +359,15 @@ pub enum BaseTyKind {
 #[derive(Clone)]
 pub struct Path {
     pub res: Res,
-    pub generics: Vec<Ty>,
+    pub generics: Vec<GenericArg>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
+}
+
+#[derive(Clone)]
+pub enum GenericArg {
+    Lifetime(Lifetime),
+    Type(Ty),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -1166,6 +1172,15 @@ impl fmt::Debug for Path {
             write!(f, "({:?})", self.refine.iter().format(", "))?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for GenericArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GenericArg::Type(ty) => write!(f, "{ty:?}"),
+            GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
+        }
     }
 }
 
