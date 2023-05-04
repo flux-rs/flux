@@ -28,6 +28,7 @@ pub use rustc_middle::{
 };
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
+use rustc_type_ir::INNERMOST;
 
 use self::{fold::TypeFoldable, subst::BVarSubstFolder};
 use crate::{
@@ -40,7 +41,7 @@ use crate::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVariableKind, Const, EarlyBoundRegion,
+        BoundRegion, BoundRegionKind, BoundVar, BoundVariableKind, Const, EarlyBoundRegion,
         Region::{self, *},
     },
 };
@@ -300,7 +301,7 @@ impl Binder<FnTraitPredicate> {
     }
 
     pub fn to_closure_sig(&self, closure_id: DefId) -> PolyFnSig {
-        let bound_vars = self
+        let bound_vars: List<BoundVariableKind> = self
             .vars
             .iter()
             .copied()
@@ -311,8 +312,20 @@ impl Binder<FnTraitPredicate> {
 
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match pred.kind {
-            ClosureKind::Fn => Ty::mk_ref(ReErased, closure_ty, Mutability::Not),
-            ClosureKind::FnMut => Ty::mk_ref(ReErased, closure_ty, Mutability::Mut),
+            ClosureKind::Fn => {
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(bound_vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
+            }
+            ClosureKind::FnMut => {
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(bound_vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
+            }
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
