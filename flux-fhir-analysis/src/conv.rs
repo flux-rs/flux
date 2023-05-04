@@ -545,7 +545,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &self,
         env: &mut Env,
         def_id: DefId,
-        args: &[fhir::Ty],
+        args: &[fhir::GenericArg],
     ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut i = 0;
         self.genv
@@ -553,25 +553,24 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .params
             .iter()
             .map(|param| {
-                match param.kind {
-                    rty::GenericParamDefKind::Type { has_default } => {
-                        if i < args.len() {
-                            i += 1;
-                            Ok(rty::GenericArg::Ty(self.conv_ty(env, &args[i - 1])?))
-                        } else {
-                            debug_assert!(has_default);
-                            let ty = self
-                                .genv
-                                .type_of(param.def_id)?
-                                .subst_generics(&[])
-                                .replace_bvar(&rty::Expr::unit());
-                            Ok(rty::GenericArg::Ty(ty))
+                if i < args.len() {
+                    i += 1;
+                    match &args[i - 1] {
+                        fhir::GenericArg::Lifetime(_) => Ok(rty::GenericArg::Lifetime),
+                        fhir::GenericArg::Type(ty) => {
+                            Ok(rty::GenericArg::Ty(self.conv_ty(env, ty)?))
                         }
                     }
-                    rty::GenericParamDefKind::BaseTy => {
-                        bug!("generic base type arguments not supported yet")
-                    }
-                    rty::GenericParamDefKind::Lifetime => Ok(rty::GenericArg::Lifetime),
+                } else if let rty::GenericParamDefKind::Type { has_default } = param.kind {
+                    debug_assert!(has_default);
+                    let ty = self
+                        .genv
+                        .type_of(param.def_id)?
+                        .subst_generics(&[])
+                        .replace_bvar(&rty::Expr::unit());
+                    Ok(rty::GenericArg::Ty(ty))
+                } else {
+                    bug!("unexpected generic param: {param:?}");
                 }
             })
             .try_collect()

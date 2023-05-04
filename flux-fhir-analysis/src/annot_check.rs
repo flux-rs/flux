@@ -6,7 +6,7 @@
 //! [`lift`]: flux_middle::fhir::lift
 use std::iter;
 
-use flux_common::iter::IterExt;
+use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -159,9 +159,7 @@ impl<'zip> Zipper<'zip> {
             ) => self.zip_bty(bty, expected_bty),
             (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
                 if expected_mut_ty.mutbl.is_mut() {
-                    self.wfckresults
-                        .lifetime_holes_mut()
-                        .insert(lft.fhir_id, *expected_lft);
+                    self.zip_lifetime(lft, expected_lft);
                     self.locs.insert(loc.name, &expected_mut_ty.ty);
                     Ok(())
                 } else {
@@ -179,9 +177,7 @@ impl<'zip> Zipper<'zip> {
                             .with_note("types differ in mutability"),
                     ));
                 }
-                self.wfckresults
-                    .lifetime_holes_mut()
-                    .insert(lft.fhir_id, *expected_lft);
+                self.zip_lifetime(lft, expected_lft);
                 self.zip_ty(&mut_ty.ty, &expected_mut_ty.ty)
             }
             (fhir::TyKind::Tuple(tys), fhir::TyKind::Tuple(expected_tys)) => {
@@ -222,6 +218,28 @@ impl<'zip> Zipper<'zip> {
         }
     }
 
+    fn zip_generic_arg(
+        &mut self,
+        arg1: &fhir::GenericArg,
+        arg2: &'zip fhir::GenericArg,
+    ) -> Result<(), ErrorGuaranteed> {
+        match (arg1, arg2) {
+            (fhir::GenericArg::Type(ty1), fhir::GenericArg::Type(ty2)) => self.zip_ty(ty1, ty2),
+            (fhir::GenericArg::Lifetime(lft1), fhir::GenericArg::Lifetime(lft2)) => {
+                self.zip_lifetime(lft1, lft2);
+                Ok(())
+            }
+            _ => bug!(),
+        }
+    }
+
+    fn zip_lifetime(&mut self, lft: &fhir::Lifetime, expected_lft: &fhir::Lifetime) {
+        assert!(matches!(lft.res, fhir::LifetimeRes::Hole));
+        self.wfckresults
+            .lifetime_holes_mut()
+            .insert(lft.fhir_id, *expected_lft);
+    }
+
     fn zip_bty(
         &mut self,
         bty: &fhir::BaseTy,
@@ -251,7 +269,7 @@ impl<'zip> Zipper<'zip> {
         }
 
         iter::zip(&path.generics, &expected_path.generics)
-            .try_for_each_exhaust(|(arg, expected)| self.zip_ty(arg, expected))
+            .try_for_each_exhaust(|(arg, expected)| self.zip_generic_arg(arg, expected))
     }
 
     fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {

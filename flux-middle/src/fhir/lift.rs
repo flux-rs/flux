@@ -308,13 +308,19 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn lift_generic_args(
         &self,
         args: Option<&hir::GenericArgs>,
-    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
-        let mut filtered = vec![];
+    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
+        let mut lifted = vec![];
         if let Some(args) = args {
             for arg in args.args {
                 match arg {
-                    hir::GenericArg::Lifetime(_) => {}
-                    hir::GenericArg::Type(ty) => filtered.push(self.lift_ty(ty)?),
+                    hir::GenericArg::Lifetime(lft) => {
+                        let lft = self.lift_lifetime(lft)?;
+                        lifted.push(fhir::GenericArg::Lifetime(lft));
+                    }
+                    hir::GenericArg::Type(ty) => {
+                        let ty = self.lift_ty(ty)?;
+                        lifted.push(fhir::GenericArg::Type(ty));
+                    }
                     hir::GenericArg::Const(_) => {
                         return self.emit_unsupported("const generics are not supported")
                     }
@@ -324,7 +330,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 }
             }
         }
-        Ok(filtered)
+        Ok(lifted)
     }
 
     fn lift_array_len(&self, len: &hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
@@ -344,7 +350,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn generic_params_into_args(
         &self,
         generics: &hir::Generics,
-    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
+    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut args = vec![];
         for param in generics.params.iter() {
             match param.kind {
@@ -353,13 +359,21 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                     let path =
                         fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
                     let bty = fhir::BaseTy::from(path);
-                    args.push(fhir::Ty {
+                    let ty = fhir::Ty {
                         kind: fhir::TyKind::BaseTy(bty),
                         fhir_id: self.next_fhir_id(),
                         span: param.span,
-                    });
+                    };
+                    args.push(fhir::GenericArg::Type(ty));
                 }
-                hir::GenericParamKind::Lifetime { .. } => {}
+                hir::GenericParamKind::Lifetime { .. } => {
+                    let lft = fhir::Lifetime {
+                        fhir_id: self.next_fhir_id(),
+                        ident: param.name.ident(),
+                        res: fhir::LifetimeRes::Param(param.def_id),
+                    };
+                    args.push(fhir::GenericArg::Lifetime(lft));
+                }
                 hir::GenericParamKind::Const { .. } => {
                     return self.emit_unsupported("const generics are not supported");
                 }

@@ -346,10 +346,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::Param(_) => {}
         }
         let snapshot = self.xi.snapshot();
-        let res = path
-            .generics
-            .iter()
-            .try_for_each_exhaust(|ty| self.check_type(env, ty));
+        let res = path.generics.iter().try_for_each_exhaust(|arg| {
+            if let fhir::GenericArg::Type(ty) = arg {
+                self.check_type(env, ty)
+            } else {
+                Ok(())
+            }
+        });
         if !self.early_cx.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }
