@@ -57,7 +57,7 @@ pub struct Queries<'tcx> {
     providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
-    lower_fn_sig: Cache<DefId, QueryResult<ty::PolyFnSig>>,
+    lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
@@ -120,7 +120,7 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<ty::PolyFnSig> {
+    ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
             let fn_sig = genv.tcx.fn_sig(def_id);
             let param_env = genv.tcx.param_env(def_id);
@@ -130,8 +130,10 @@ impl<'tcx> Queries<'tcx> {
                 .build()
                 .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
                 .normalize(fn_sig.subst_identity());
-            lowering::lower_fn_sig(genv.tcx, result.value)
-                .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))
+            Ok(ty::EarlyBinder(
+                lowering::lower_fn_sig(genv.tcx, result.value)
+                    .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,
+            ))
         })
     }
 
@@ -271,7 +273,7 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(fn_sig) = genv.early_cx().cstore.fn_sig(def_id) {
                 Ok(fn_sig)
             } else {
-                let fn_sig = genv.lower_fn_sig(def_id)?;
+                let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
                 let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_poly_fn_sig(&fn_sig)?;
                 Ok(rty::EarlyBinder(fn_sig))

@@ -112,7 +112,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.lower_type_of(self, def_id)
     }
 
-    pub fn lower_fn_sig(&self, def_id: DefId) -> QueryResult<ty::PolyFnSig> {
+    pub fn lower_fn_sig(&self, def_id: DefId) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         self.queries.lower_fn_sig(self, def_id)
     }
 
