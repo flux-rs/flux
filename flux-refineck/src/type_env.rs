@@ -2,7 +2,7 @@ pub mod paths_tree;
 
 use std::iter;
 
-use flux_common::{index::IndexGen, tracked_span_bug};
+use flux_common::{bug, index::IndexGen, tracked_span_bug};
 use flux_middle::{
     fhir::WeakKind,
     global_env::GlobalEnv,
@@ -143,9 +143,8 @@ impl TypeEnv<'_> {
         mut new_ty: Ty,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        if place.projection.is_empty() {
-            new_ty = RegionSubst::new(&new_ty, &self.local_decls[place.local].ty).apply(&new_ty);
-        }
+        let rustc_ty = self.lookup_rust_type(gen.genv, place)?;
+        new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
         match self
             .bindings
             .lookup(gen.genv, rcx, place, checker_config)?
@@ -402,6 +401,33 @@ impl TypeEnv<'_> {
 
     fn update(&mut self, path: &Path, ty: Ty) {
         self.bindings.update(path, ty);
+    }
+
+    pub fn lookup_rust_type(
+        &self,
+        genv: &GlobalEnv,
+        place: &Place,
+    ) -> Result<flux_middle::rustc::ty::Ty, CheckerErrKind> {
+        use flux_middle::rustc::ty;
+        let mut curr = self.local_decls[place.local].ty.clone();
+        for elem in &place.projection {
+            match (elem, curr.kind()) {
+                (PlaceElem::Deref, ty::TyKind::Ref(_, ty, _)) => curr = ty.clone(),
+                (PlaceElem::Deref, ty::TyKind::Adt(def_id, substs)) => {
+                    debug_assert!(genv.adt_def(*def_id)?.is_box());
+                    curr = substs[0].expect_type().clone();
+                }
+                (PlaceElem::Field(fld), ty::TyKind::Tuple(tys)) => {
+                    curr = tys[fld.as_usize()].clone();
+                }
+                (PlaceElem::Downcast(_), ty::TyKind::Adt(_, _)) => todo!(),
+                (PlaceElem::Index(_), ty::TyKind::Array(ty, _) | ty::TyKind::Slice(ty)) => {
+                    curr = ty.clone();
+                }
+                _ => bug!("invalid projection `{elem:?}` applied to `{curr:?}`"),
+            }
+        }
+        Ok(curr)
     }
 }
 

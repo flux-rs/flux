@@ -2,7 +2,10 @@
 
 use std::fmt;
 
-use flux_common::index::{Idx, IndexVec};
+use flux_common::{
+    bug,
+    index::{Idx, IndexVec},
+};
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
 use rustc_borrowck::BodyWithBorrowckFacts;
@@ -23,8 +26,10 @@ pub use rustc_middle::{
 use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
-use super::ty::{GenericArg, Region, Ty};
-use crate::{intern::List, rustc::ty::region_to_string};
+use super::ty::{GenericArg, Region, Ty, TyKind};
+use crate::{
+    global_env::GlobalEnv, intern::List, queries::QueryResult, rustc::ty::region_to_string,
+};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -205,6 +210,13 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
+#[derive(Debug)]
+pub struct PlaceTy {
+    pub ty: Ty,
+    /// Downcast to a particular variant of an enum or a generator, if included.
+    pub variant_index: Option<VariantIdx>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PlaceElem {
     Deref,
@@ -295,6 +307,27 @@ impl Place {
 
     pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
         Place { local, projection }
+    }
+}
+
+impl PlaceTy {
+    pub fn field_ty(&self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
+        match self.ty.kind() {
+            TyKind::Adt(def_id, substs) => {
+                let adt_def = genv.tcx.adt_def(*def_id);
+                let variant_def = match self.variant_index {
+                    None => adt_def.non_enum_variant(),
+                    Some(variant_index) => {
+                        assert!(adt_def.is_enum());
+                        adt_def.variant(variant_index)
+                    }
+                };
+                let field_def = &variant_def.fields[f];
+                genv.lower_type_of(field_def.did)
+            }
+            TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
+            _ => bug!("extracting field of non-tuple non-adt: {self:?}"),
+        }
     }
 }
 

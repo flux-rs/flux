@@ -1,5 +1,6 @@
 //! A simplified version of rust types.
 
+use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -163,6 +164,16 @@ impl FnSig {
 
     pub fn output(&self) -> &Ty {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    }
+}
+
+impl GenericArg {
+    pub fn expect_type(&self) -> &Ty {
+        if let GenericArg::Ty(ty) = self {
+            ty
+        } else {
+            bug!("expected type, found {:?}", self)
+        }
     }
 }
 
