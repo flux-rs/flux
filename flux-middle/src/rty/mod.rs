@@ -30,7 +30,10 @@ use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
 use rustc_type_ir::INNERMOST;
 
-use self::{fold::TypeFoldable, subst::BoundVarReplacer};
+use self::{
+    fold::TypeFoldable,
+    subst::{BoundVarReplacer, FnMutDelegate},
+};
 use crate::{
     fhir::FuncKind,
     global_env::GlobalEnv,
@@ -458,12 +461,13 @@ impl Qualifier {
     pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
         let name_gen = IndexGen::new();
         let mut params = vec![];
-        let arg = Expr::fold_sort(self.body.sort(), |sort| {
-            let fresh = name_gen.fresh();
-            params.push((fresh, sort.clone()));
-            Expr::fvar(fresh)
+        let body = self.body.replace_bound_expr(|sort| {
+            Expr::fold_sort(sort, |s| {
+                let fresh = name_gen.fresh();
+                params.push((fresh, s.clone()));
+                Expr::fvar(fresh)
+            })
         });
-        let body = self.body.replace_bvar(&arg);
         (params, body)
     }
 }
@@ -523,25 +527,32 @@ impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvar(&self, expr: &Expr) -> T {
-        struct ExprDelegate<'a>(&'a Expr);
-        impl BoundVarReplacerDelegate for ExprDelegate<'_> {
-            fn replace_expr(&mut self) -> Expr {
-                self.0.clone()
-            }
+    // pub fn replace_bvar(&self, expr: &Expr) -> T {
+    //     struct ExprDelegate<'a>(&'a Expr);
+    //     impl BoundVarReplacerDelegate for ExprDelegate<'_> {
+    //         fn replace_expr(&mut self) -> Expr {
+    //             self.0.clone()
+    //         }
 
-            fn replace_region(&mut self, _: BoundRegion) -> Region {
-                bug!("unexpected escaping region")
-            }
-        }
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(ExprDelegate(expr)))
-            .normalize(&Default::default())
-    }
+    //         fn replace_region(&mut self, _: BoundRegion) -> Region {
+    //             bug!("unexpected escaping region")
+    //         }
+    //     }
+    //     self.value
+    //         .fold_with(&mut BoundVarReplacer::new(ExprDelegate(expr)))
+    //         .normalize(&Default::default())
+    // }
 
-    pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
+    pub fn replace_bound_expr(&self, f: impl FnOnce(&Sort) -> Expr) -> T {
+        debug_assert!(self.vars.is_empty());
         let expr = f(&self.sort);
-        self.replace_bvar(&expr)
+        let delegate = FnMutDelegate {
+            expr: || expr.clone(),
+            regions: |_| bug!("unexpected escaping region"),
+        };
+        self.value
+            .fold_with(&mut BoundVarReplacer::new(delegate))
+            .normalize(&Default::default())
     }
 }
 
@@ -643,10 +654,10 @@ impl PolyFnSig {
         PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
-    pub fn replace_bvars_with(
+    pub fn replace_bound_vars(
         &self,
-        f2: impl FnMut(BoundRegion) -> Region,
-        mut f1: impl FnMut(&Sort, InferMode) -> Expr,
+        replace_region: impl FnMut(BoundRegion) -> Region,
+        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> FnSig {
         struct Delegate<F> {
             expr: Expr,
@@ -667,10 +678,10 @@ impl PolyFnSig {
         }
 
         let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
-            .map(|(sort, kind)| f1(sort, *kind))
+            .map(|(sort, kind)| replace_expr(sort, *kind))
             .collect_vec();
 
-        let delegate = Delegate { expr: Expr::tuple(exprs), replace_region: f2 };
+        let delegate = Delegate { expr: Expr::tuple(exprs), replace_region };
 
         self.fn_sig
             .value

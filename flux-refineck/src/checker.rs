@@ -180,7 +180,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let rvid_gen = IndexGen::new();
-        let fn_sig = poly_sig.replace_bvars_with(
+        let fn_sig = poly_sig.replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
             |sort, _| rcx.define_vars(sort),
         );
@@ -458,7 +458,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
             .with_span(terminator_span)?;
 
-        let output = output.replace_bvar_with(|sort| rcx.define_vars(sort));
+        let output = output.replace_bound_expr(|sort| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {

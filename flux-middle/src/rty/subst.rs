@@ -197,6 +197,25 @@ pub trait BoundVarReplacerDelegate {
     fn replace_region(&mut self, br: BoundRegion) -> Region;
 }
 
+pub(crate) struct FnMutDelegate<F1, F2> {
+    pub expr: F1,
+    pub regions: F2,
+}
+
+impl<F1, F2> BoundVarReplacerDelegate for FnMutDelegate<F1, F2>
+where
+    F1: FnMut() -> Expr,
+    F2: FnMut(BoundRegion) -> Region,
+{
+    fn replace_expr(&mut self) -> Expr {
+        (self.expr)()
+    }
+
+    fn replace_region(&mut self, br: BoundRegion) -> Region {
+        (self.regions)(br)
+    }
+}
+
 impl<D> BoundVarReplacer<D> {
     pub(super) fn new(delegate: D) -> BoundVarReplacer<D> {
         BoundVarReplacer { delegate, current_index: INNERMOST }
@@ -354,7 +373,7 @@ impl GenericsSubstFolder<'_> {
 
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
         match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_expr(|_| idx.expr.clone()),
             Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
             None => bug!("type parameter out of range"),
         }

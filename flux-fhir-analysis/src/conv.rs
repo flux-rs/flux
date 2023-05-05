@@ -543,7 +543,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .genv
                     .type_of(*def_id)?
                     .subst(&generics, &refine)
-                    .replace_bvar(&idx));
+                    .replace_bound_expr(|_| idx));
             }
         };
         Ok(rty::Ty::indexed(bty, idx))
@@ -577,7 +577,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         .genv
                         .type_of(param.def_id)?
                         .subst_generics(&[])
-                        .replace_bvar(&rty::Expr::unit());
+                        .replace_bound_expr(|_| rty::Expr::unit());
                     Ok(rty::GenericArg::Ty(ty))
                 } else {
                     bug!("unexpected generic param: {param:?}");

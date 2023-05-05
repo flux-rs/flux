@@ -148,7 +148,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
         let ty = self.refine_poly_ty(ty)?;
         if ty.sort().is_unit() {
-            Ok(ty.replace_bvar(&rty::Expr::unit()))
+            Ok(ty.replace_bound_expr(|_| rty::Expr::unit()))
         } else {
             Ok(rty::Ty::exists(ty))
         }

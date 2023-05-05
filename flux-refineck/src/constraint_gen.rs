@@ -167,7 +167,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
-        let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bvars_with(
+        let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
             |sort, kind| infcx.fresh_evars_or_kvar(sort, kind),
         );
@@ -244,7 +244,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output = output
-            .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bound_expr(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -277,7 +277,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .subst_generics(&substs)
-            .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bound_expr(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -438,7 +438,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bvar_with(|sort| rcx.define_vars(sort));
+                let ty1 = ty1.replace_bound_expr(|sort| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
@@ -447,7 +447,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2.replace_bvar_with(|sort| self.fresh_evars(sort));
+                let ty2 = ty2.replace_bound_expr(|sort| self.fresh_evars(sort));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
@@ -592,8 +592,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Binder<Expr>, p2: &Binder<Expr>) {
         debug_assert_eq!(p1.sort(), p2.sort());
         let vars = rcx.define_vars(p1.sort());
-        let p1 = p1.replace_bvar(&vars);
-        let p2 = p2.replace_bvar(&vars);
+        let p1 = p1.replace_bound_expr(|_| vars.clone());
+        let p2 = p2.replace_bound_expr(|_| vars);
         rcx.check_impl(&p1, &p2, self.tag);
         rcx.check_impl(&p2, &p1, self.tag);
     }
