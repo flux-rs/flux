@@ -121,7 +121,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .iter()
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
-        let ret = self.refine_ty(fn_sig.output())?;
+        let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
         let output = rty::Binder::with_sort(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
         Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
     }
