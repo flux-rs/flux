@@ -308,10 +308,53 @@ impl Place {
     pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
         Place { local, projection }
     }
+
+    pub fn ty(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<PlaceTy> {
+        self.projection
+            .iter()
+            .try_fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
+                place_ty.projection_ty(genv, *elem)
+            })
+    }
 }
 
 impl PlaceTy {
-    pub fn field_ty(&self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
+    fn from_ty(ty: Ty) -> PlaceTy {
+        PlaceTy { ty, variant_index: None }
+    }
+
+    fn projection_ty(&self, genv: &GlobalEnv, elem: PlaceElem) -> QueryResult<PlaceTy> {
+        if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
+            bug!("cannot use non field projection on downcasted place");
+        }
+        let tcx = genv.tcx;
+        let place_ty = match elem {
+            PlaceElem::Deref => {
+                let ty = match self.ty.kind() {
+                    TyKind::Adt(def_id, substs) if tcx.adt_def(def_id).is_box() => {
+                        substs[0].expect_type()
+                    }
+                    TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty,
+                    _ => bug!("deref projection of non-dereferenceable ty {self:?}"),
+                };
+                PlaceTy::from_ty(ty.clone())
+            }
+            PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
+            PlaceElem::Downcast(variant_idx) => {
+                PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
+            }
+            PlaceElem::Index(_) => {
+                if let TyKind::Array(ty, _) | TyKind::Slice(ty) = self.ty.kind() {
+                    PlaceTy::from_ty(ty.clone())
+                } else {
+                    bug!("index of no-array non-slice {self:?}")
+                }
+            }
+        };
+        Ok(place_ty)
+    }
+
+    fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
         match self.ty.kind() {
             TyKind::Adt(def_id, substs) => {
                 let adt_def = genv.tcx.adt_def(*def_id);
@@ -323,7 +366,8 @@ impl PlaceTy {
                     }
                 };
                 let field_def = &variant_def.fields[f];
-                genv.lower_type_of(field_def.did)
+                let ty = genv.lower_type_of(field_def.did)?;
+                Ok(ty.subst(substs))
             }
             TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
             _ => bug!("extracting field of non-tuple non-adt: {self:?}"),

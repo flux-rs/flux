@@ -1,5 +1,7 @@
 //! A simplified version of rust types.
 
+mod subst;
+
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -14,6 +16,7 @@ pub use rustc_middle::{
 };
 use rustc_span::{symbol::kw, Symbol};
 
+use self::subst::Subst;
 use crate::intern::{impl_internable, Interned, List};
 
 pub struct Generics<'tcx> {
@@ -148,6 +151,12 @@ impl<T> EarlyBinder<T> {
     }
 }
 
+impl EarlyBinder<Ty> {
+    pub fn subst(&self, substs: &[GenericArg]) -> Ty {
+        self.0.subst(substs)
+    }
+}
+
 impl<T> Binder<T> {
     pub fn bind_with_vars(value: T, vars: impl Into<List<BoundVariableKind>>) -> Binder<T> {
         Binder(value, vars.into())
@@ -180,6 +189,14 @@ impl GenericArg {
     pub fn expect_type(&self) -> &Ty {
         if let GenericArg::Ty(ty) = self {
             ty
+        } else {
+            bug!("expected type, found {:?}", self)
+        }
+    }
+
+    fn expect_lifetime(&self) -> Region {
+        if let GenericArg::Lifetime(re) = self {
+            *re
         } else {
             bug!("expected type, found {:?}", self)
         }

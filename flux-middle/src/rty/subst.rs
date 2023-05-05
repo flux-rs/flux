@@ -318,6 +318,14 @@ impl TypeFolder for GenericsSubstFolder<'_> {
         }
     }
 
+    fn fold_region(&mut self, re: &Region) -> Region {
+        if let ReEarlyBound(ebr) = *re {
+            self.region_for_param(ebr)
+        } else {
+            *re
+        }
+    }
+
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         if let ExprKind::Var(Var::EarlyBound(idx)) = expr.kind() {
             self.expr_for_param(*idx)
@@ -331,10 +339,7 @@ impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
         match self.generics.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => arg.sort().clone(),
-            Some(GenericArg::Ty(arg)) => {
-                bug!("expected base type for generic parameter, found `{:?}`", arg)
-            }
-            Some(GenericArg::Lifetime(_)) => bug!("substitution for lifetimes is not supported"),
+            Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
             None => bug!("type parameter out of range {param_ty:?}"),
         }
     }
@@ -352,6 +357,14 @@ impl GenericsSubstFolder<'_> {
             Some(GenericArg::BaseTy(arg)) => arg.replace_bvar(&idx.expr),
             Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
             None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn region_for_param(&self, ebr: EarlyBoundRegion) -> Region {
+        match self.generics.get(ebr.index as usize) {
+            Some(GenericArg::Lifetime(re)) => *re,
+            Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
+            None => bug!("region parameter out of range"),
         }
     }
 
