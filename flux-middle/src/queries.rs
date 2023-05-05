@@ -25,6 +25,7 @@ use crate::{
     rustc::{
         self,
         lowering::{self, UnsupportedReason},
+        ty,
     },
 };
 
@@ -44,7 +45,10 @@ pub struct Providers {
     pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<fhir::WfckResults>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
-    pub variants_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::PolyVariants>,
+    pub variants_of: fn(
+        &GlobalEnv,
+        LocalDefId,
+    ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
 }
@@ -52,8 +56,8 @@ pub struct Providers {
 pub struct Queries<'tcx> {
     providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
-    lower_type_of: Cache<DefId, QueryResult<rustc::ty::Ty>>,
-    lower_fn_sig: Cache<DefId, QueryResult<rustc::ty::PolyFnSig>>,
+    lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
+    lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
@@ -61,7 +65,7 @@ pub struct Queries<'tcx> {
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
-    variants_of: Cache<DefId, QueryResult<rty::PolyVariants>>,
+    variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     late_bound_vars: Cache<LocalDefId, QueryResult<List<rty::BoundVariableKind>>>,
 }
@@ -102,11 +106,13 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rustc::ty::Ty> {
+    ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
         run_with_cache(&self.lower_type_of, def_id, || {
             let ty = genv.tcx.type_of(def_id).subst_identity();
-            lowering::lower_ty(genv.tcx, ty)
-                .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))
+            Ok(ty::EarlyBinder(
+                lowering::lower_ty(genv.tcx, ty)
+                    .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,
+            ))
         })
     }
 
@@ -114,7 +120,7 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rustc::ty::PolyFnSig> {
+    ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
             let fn_sig = genv.tcx.fn_sig(def_id);
             let param_env = genv.tcx.param_env(def_id);
@@ -124,8 +130,10 @@ impl<'tcx> Queries<'tcx> {
                 .build()
                 .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
                 .normalize(fn_sig.subst_identity());
-            lowering::lower_fn_sig(genv.tcx, result.value)
-                .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))
+            Ok(ty::EarlyBinder(
+                lowering::lower_fn_sig(genv.tcx, result.value)
+                    .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,
+            ))
         })
     }
 
@@ -212,7 +220,7 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(ty) = genv.early_cx().cstore.type_of(def_id) {
                 Ok(ty.clone())
             } else {
-                let rustc_ty = genv.lower_type_of(def_id)?;
+                let rustc_ty = genv.lower_type_of(def_id)?.skip_binder();
                 let ty = genv.refine_default(&genv.generics_of(def_id)?, &rustc_ty)?;
                 Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
             }
@@ -223,12 +231,12 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::PolyVariants> {
+    ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         run_with_cache(&self.variants_of, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.variants_of)(genv, local_id)
             } else if let Some(variants) = genv.early_cx().cstore.variants(def_id) {
-                Ok(variants.map(List::from))
+                Ok(variants.map(|variants| variants.map(List::from)))
             } else {
                 let variants = genv
                     .tcx
@@ -239,14 +247,14 @@ impl<'tcx> Queries<'tcx> {
                         let fields = variant_def
                             .fields
                             .iter()
-                            .map(|field| genv.lower_type_of(field.did))
-                            .try_collect_vec()?;
-                        let ret = genv.lower_type_of(def_id)?;
+                            .map(|field| Ok(genv.lower_type_of(field.did)?.skip_binder()))
+                            .try_collect_vec::<_, QueryErr>()?;
+                        let ret = genv.lower_type_of(def_id)?.skip_binder();
                         Refiner::default(genv, &genv.generics_of(def_id)?)
                             .refine_variant_def(&fields, &ret)
                     })
                     .try_collect()?;
-                Ok(rty::Opaqueness::Transparent(variants))
+                Ok(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))
             }
         })
     }
@@ -265,7 +273,7 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(fn_sig) = genv.early_cx().cstore.fn_sig(def_id) {
                 Ok(fn_sig)
             } else {
-                let fn_sig = genv.lower_fn_sig(def_id)?;
+                let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
                 let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_poly_fn_sig(&fn_sig)?;
                 Ok(rty::EarlyBinder(fn_sig))

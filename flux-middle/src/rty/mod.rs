@@ -142,7 +142,7 @@ pub struct Invariant {
     pub pred: Binder<Expr>,
 }
 
-pub type PolyVariants = Opaqueness<List<Binder<VariantDef>>>;
+pub type PolyVariants = List<Binder<VariantDef>>;
 pub type PolyVariant = Binder<VariantDef>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -158,7 +158,7 @@ pub struct Binder<T> {
     value: T,
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct EarlyBinder<T>(pub T);
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -501,6 +501,17 @@ impl<T> Binder<T> {
 impl<T> EarlyBinder<T> {
     pub fn as_ref(&self) -> EarlyBinder<&T> {
         EarlyBinder(&self.0)
+    }
+
+    pub fn as_deref(&self) -> EarlyBinder<&T::Target>
+    where
+        T: std::ops::Deref,
+    {
+        EarlyBinder(self.0.deref())
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EarlyBinder<U> {
+        EarlyBinder(f(self.0))
     }
 
     pub fn skip_binder(self) -> T {

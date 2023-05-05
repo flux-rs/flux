@@ -154,7 +154,10 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
     Ok(rty::EarlyBinder(ty))
 }
 
-fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVariants> {
+fn variants_of(
+    genv: &GlobalEnv,
+    def_id: LocalDefId,
+) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
     let variants = match genv.tcx.def_kind(def_id) {
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
@@ -163,14 +166,14 @@ fn variants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::PolyVar
                 .into_iter()
                 .map(|variant| normalize(genv, variant))
                 .try_collect()?;
-            rty::Opaqueness::Transparent(variants)
+            rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
             let wfckresults = genv.check_wf(def_id)?;
             conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfckresults)?
                 .normalize(genv.defns()?)
-                .map(|variant| List::from(vec![variant]))
+                .map(|variant| rty::EarlyBinder(List::from(vec![variant])))
         }
         kind => {
             bug!("expected struct or enum found `{kind:?}`")
