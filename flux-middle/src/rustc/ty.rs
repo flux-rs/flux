@@ -120,7 +120,7 @@ pub enum Region {
     ReErased,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable, Debug)]
 pub struct RegionVar {
     pub rvid: RegionVid,
     pub is_nll: bool,
@@ -337,7 +337,7 @@ pub(crate) fn region_to_string(region: Region) -> String {
             if var.is_nll {
                 format!("{:?}", var.rvid)
             } else {
-                format!("{:?}?", var.rvid)
+                format!("{:?}#", var.rvid)
             }
         }
         Region::ReErased => "'<erased>".to_string(),

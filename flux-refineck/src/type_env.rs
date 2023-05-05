@@ -8,8 +8,12 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args, evars::EVarSol, fold::TypeFoldable, subst::FVarSubst, BaseTy, Binder, Expr,
-        ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty, TyKind, Var,
+        box_args,
+        evars::EVarSol,
+        fold::TypeFoldable,
+        subst::{FVarSubst, RegionSubst},
+        BaseTy, Binder, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty,
+        TyKind, Var,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -57,6 +61,7 @@ impl TypeEnv<'_> {
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
+        let ty = RegionSubst::new(&ty, &self.local_decls[local].ty).apply(&ty);
         self.bindings.insert(local.into(), ty, LocKind::Local);
     }
 
@@ -135,9 +140,12 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-        new_ty: Ty,
+        mut new_ty: Ty,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
+        if place.projection.is_empty() {
+            new_ty = RegionSubst::new(&new_ty, &self.local_decls[place.local].ty).apply(&new_ty);
+        }
         match self
             .bindings
             .lookup(gen.genv, rcx, place, checker_config)?

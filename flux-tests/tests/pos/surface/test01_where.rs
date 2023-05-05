@@ -6,8 +6,8 @@ mod rvec;
 use rvec::RVec;
 
 #[flux::sig(
-fn(&mut RVec<i32>[@n], b:bool) -> i32[0]
-requires 2 <= n
+    fn(&mut RVec<i32>[@n], b:bool) -> i32[0]
+    requires 2 <= n
 )]
 pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     let r;

@@ -9,7 +9,10 @@ use super::{
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder},
 };
-use crate::{rty::*, rustc};
+use crate::{
+    rty::*,
+    rustc::{self, ty::RegionVar},
+};
 
 /// A substitution for [free variables]
 ///
@@ -91,16 +94,31 @@ impl TypeFolder for FVarSubstFolder<'_> {
 
 #[derive(Debug)]
 pub struct RegionSubst {
-    map: UnordMap<Region, Region>,
+    map: UnordMap<RegionVar, Region>,
 }
 
 impl RegionSubst {
-    pub fn empty() -> Self {
-        RegionSubst { map: UnordMap::default() }
+    pub fn new(ty1: &Ty, ty2: &rustc::ty::Ty) -> Self {
+        let mut subst = RegionSubst { map: UnordMap::default() };
+        subst.infer_from_ty(ty1, ty2);
+        subst
     }
 
-    pub fn infer_from_ty(&mut self, ty1: &Ty, ty2: &rustc::ty::Ty) {
-        println!("{ty1:?} {ty2:?}");
+    pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
+        struct Folder<'a>(&'a RegionSubst);
+        impl TypeFolder for Folder<'_> {
+            fn fold_region(&mut self, re: &Region) -> Region {
+                if let ReVar(var) = re && let Some(region) = self.0.map.get(var) {
+                    *region
+                } else {
+                    *re
+                }
+            }
+        }
+        t.fold_with(&mut Folder(self))
+    }
+
+    fn infer_from_ty(&mut self, ty1: &Ty, ty2: &rustc::ty::Ty) {
         use rustc::ty;
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
@@ -114,7 +132,7 @@ impl RegionSubst {
             }
             (TyKind::Ptr(PtrKind::Shr(r1), _), ty::TyKind::Ref(r2, _, Mutability::Not))
             | (TyKind::Ptr(PtrKind::Mut(r1), _), ty::TyKind::Ref(r2, _, Mutability::Mut)) => {
-                self.insert(*r1, *r2);
+                self.infer_from_region(*r1, *r2);
             }
             _ => {}
         }
@@ -124,7 +142,7 @@ impl RegionSubst {
         use rustc::ty;
         match (bty, ty.kind()) {
             (BaseTy::Ref(r1, ty1, _), ty::TyKind::Ref(r2, ty2, _)) => {
-                self.insert(*r1, *r2);
+                self.infer_from_region(*r1, *r2);
                 self.infer_from_ty(ty1, ty2);
             }
             (BaseTy::Adt(_, substs1), ty::TyKind::Adt(_, substs2)) => {
@@ -138,7 +156,7 @@ impl RegionSubst {
                             self.infer_from_ty(ty1, ty2);
                         }
                         (GenericArg::Lifetime(re1), ty::GenericArg::Lifetime(re2)) => {
-                            self.insert(*re1, *re2);
+                            self.infer_from_region(*re1, *re2);
                         }
                         _ => {}
                     }
@@ -148,20 +166,21 @@ impl RegionSubst {
         }
     }
 
-    fn insert(&mut self, from: Region, to: Region) {
-        match self.map.entry(from) {
+    fn infer_from_region(&mut self, re1: Region, re2: Region) {
+        let ReVar(var) = re1 else { return };
+        match self.map.entry(var) {
             hash_map::Entry::Occupied(entry) => {
-                if entry.get() != &to {
+                if entry.get() != &re2 {
                     bug!(
                         "ambiguous region substitution: {:?} -> [{:?}, {:?}]",
-                        from,
+                        re1,
                         entry.get(),
-                        to
+                        re2
                     );
                 }
             }
             hash_map::Entry::Vacant(entry) => {
-                entry.insert(to);
+                entry.insert(re2);
             }
         }
     }
