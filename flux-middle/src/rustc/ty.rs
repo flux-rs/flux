@@ -7,8 +7,8 @@ use rustc_middle::ty::ClosureKind;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundVar, DebruijnIndex, EarlyBinder, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid,
-        ScalarInt, UintTy,
+        BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt,
+        UintTy,
     },
 };
 use rustc_span::Symbol;
@@ -19,6 +19,9 @@ pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
     pub orig: &'tcx rustc_middle::ty::Generics,
 }
+
+#[derive(Clone)]
+pub struct EarlyBinder<T>(pub T);
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
@@ -128,6 +131,12 @@ pub struct BoundRegion {
 impl Predicate {
     pub(crate) fn new(kind: Binder<PredicateKind>) -> Predicate {
         Predicate { kind }
+    }
+}
+
+impl<T> EarlyBinder<T> {
+    pub fn skip_binder(self) -> T {
+        self.0
     }
 }
 
