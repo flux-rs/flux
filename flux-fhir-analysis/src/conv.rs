@@ -24,7 +24,7 @@ use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
-    OwnerId, PrimTy,
+    PrimTy,
 };
 use rustc_middle::ty::{BoundVar, TyCtxt};
 use rustc_type_ir::DebruijnIndex;
@@ -224,11 +224,7 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a fhir::WfckResults) -> Self {
-        let late_bound_vars_map = if let FluxOwnerId::Rust(owner_id) = wfckresults.owner {
-            mk_late_bound_vars_map(genv.tcx, owner_id)
-        } else {
-            FxHashMap::default()
-        };
+        let late_bound_vars_map = mk_late_bound_vars_map(genv.tcx, wfckresults.owner);
         Self { genv, late_bound_vars_map, wfckresults }
     }
 
@@ -939,7 +935,11 @@ fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
     generics.param_def_id_to_index[&def_id.to_def_id()]
 }
 
-fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: OwnerId) -> FxHashMap<DefId, BoundVar> {
+fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId, BoundVar> {
+    let FluxOwnerId::Rust(owner_id) = owner_id else {
+        return FxHashMap::default()
+    };
+
     // We use the rustc_middle bound vars instead of rustc::ty to avoid making this fallible
     let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
     tcx.late_bound_vars(hir_id)

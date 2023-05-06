@@ -70,8 +70,6 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        println!("{:#?}", body_with_facts.input_facts);
-
         Ok(Body { basic_blocks, local_decls, fake_predecessors, body_with_facts })
     }
 
@@ -628,7 +626,7 @@ pub(crate) fn lower_ty<'tcx>(
         }
         rustc_ty::FnPtr(fn_sig) => {
             let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
-            Ok(Ty::mk_fn_sig(fn_sig))
+            Ok(Ty::mk_fn_ptr(fn_sig))
         }
         rustc_ty::Closure(did, substs) => {
             let substs = lower_substs(tcx, substs)?;

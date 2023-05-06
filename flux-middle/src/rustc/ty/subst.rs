@@ -33,7 +33,7 @@ impl Subst for Ty {
             }
             TyKind::RawPtr(ty, mutbl) => Ty::mk_raw_ptr(ty.subst(substs), *mutbl),
             TyKind::Param(param_ty) => substs[param_ty.index as usize].expect_type().clone(),
-            TyKind::FnSig(fn_sig) => Ty::mk_fn_sig(fn_sig.subst(substs)),
+            TyKind::FnPtr(fn_sig) => Ty::mk_fn_ptr(fn_sig.subst(substs)),
             TyKind::Bool
             | TyKind::Uint(_)
             | TyKind::Str

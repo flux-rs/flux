@@ -194,7 +194,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)?),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
+            rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }

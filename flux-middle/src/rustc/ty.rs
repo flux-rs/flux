@@ -102,7 +102,7 @@ pub enum TyKind {
     Tuple(List<Ty>),
     Uint(UintTy),
     Slice(Ty),
-    FnSig(PolyFnSig),
+    FnPtr(PolyFnSig),
     Closure(DefId, List<GenericArg>),
     RawPtr(Ty, Mutability),
 }
@@ -257,8 +257,8 @@ impl Ty {
         TyKind::Slice(ty).intern()
     }
 
-    pub fn mk_fn_sig(fn_sig: PolyFnSig) -> Ty {
-        TyKind::FnSig(fn_sig).intern()
+    pub fn mk_fn_ptr(fn_sig: PolyFnSig) -> Ty {
+        TyKind::FnPtr(fn_sig).intern()
     }
 
     pub fn mk_raw_ptr(ty: Ty, mutbl: Mutability) -> Ty {
@@ -366,7 +366,7 @@ impl std::fmt::Debug for Ty {
             TyKind::Slice(ty) => write!(f, "[{ty:?}]"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
-            TyKind::FnSig(fn_sig) => write!(f, "{fn_sig:?}"),
+            TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, substs) => {
                 write!(f, "Closure {did:?}")?;
                 if !substs.is_empty() {
