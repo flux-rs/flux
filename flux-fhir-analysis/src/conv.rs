@@ -31,6 +31,8 @@ use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
+    /// Mapping between the `DefId` of a late-bound lifetime variable and its index (`BoundVar`) in
+    /// the binder.
     late_bound_vars_map: FxHashMap<DefId, BoundVar>,
     wfckresults: &'a fhir::WfckResults,
 }

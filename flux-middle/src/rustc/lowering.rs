@@ -70,6 +70,8 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
+        println!("{:#?}", body_with_facts.input_facts);
+
         Ok(Body { basic_blocks, local_decls, fake_predecessors, body_with_facts })
     }
 

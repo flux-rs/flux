@@ -197,18 +197,17 @@ pub trait BoundVarReplacerDelegate {
     fn replace_region(&mut self, br: BoundRegion) -> Region;
 }
 
-pub(crate) struct FnMutDelegate<F1, F2> {
-    pub expr: F1,
-    pub regions: F2,
+pub(crate) struct FnMutDelegate<F> {
+    pub expr: Expr,
+    pub regions: F,
 }
 
-impl<F1, F2> BoundVarReplacerDelegate for FnMutDelegate<F1, F2>
+impl<F> BoundVarReplacerDelegate for FnMutDelegate<F>
 where
-    F1: FnMut() -> Expr,
-    F2: FnMut(BoundRegion) -> Region,
+    F: FnMut(BoundRegion) -> Region,
 {
     fn replace_expr(&mut self) -> Expr {
-        (self.expr)()
+        self.expr.clone()
     }
 
     fn replace_region(&mut self, br: BoundRegion) -> Region {

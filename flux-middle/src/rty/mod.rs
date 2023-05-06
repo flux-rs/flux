@@ -39,7 +39,6 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, Internable, Interned, List},
     queries::QueryResult,
-    rty::subst::BoundVarReplacerDelegate,
     rustc::mir::Place,
 };
 pub use crate::{
@@ -527,29 +526,10 @@ impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
-    // pub fn replace_bvar(&self, expr: &Expr) -> T {
-    //     struct ExprDelegate<'a>(&'a Expr);
-    //     impl BoundVarReplacerDelegate for ExprDelegate<'_> {
-    //         fn replace_expr(&mut self) -> Expr {
-    //             self.0.clone()
-    //         }
-
-    //         fn replace_region(&mut self, _: BoundRegion) -> Region {
-    //             bug!("unexpected escaping region")
-    //         }
-    //     }
-    //     self.value
-    //         .fold_with(&mut BoundVarReplacer::new(ExprDelegate(expr)))
-    //         .normalize(&Default::default())
-    // }
-
     pub fn replace_bound_expr(&self, f: impl FnOnce(&Sort) -> Expr) -> T {
         debug_assert!(self.vars.is_empty());
         let expr = f(&self.sort);
-        let delegate = FnMutDelegate {
-            expr: || expr.clone(),
-            regions: |_| bug!("unexpected escaping region"),
-        };
+        let delegate = FnMutDelegate { expr, regions: |_| bug!("unexpected escaping region") };
         self.value
             .fold_with(&mut BoundVarReplacer::new(delegate))
             .normalize(&Default::default())
@@ -659,29 +639,11 @@ impl PolyFnSig {
         replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> FnSig {
-        struct Delegate<F> {
-            expr: Expr,
-            replace_region: F,
-        }
-
-        impl<F> BoundVarReplacerDelegate for Delegate<F>
-        where
-            F: FnMut(BoundRegion) -> Region,
-        {
-            fn replace_expr(&mut self) -> Expr {
-                self.expr.clone()
-            }
-
-            fn replace_region(&mut self, br: BoundRegion) -> Region {
-                (self.replace_region)(br)
-            }
-        }
-
         let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
             .map(|(sort, kind)| replace_expr(sort, *kind))
             .collect_vec();
 
-        let delegate = Delegate { expr: Expr::tuple(exprs), replace_region };
+        let delegate = FnMutDelegate { expr: Expr::tuple(exprs), regions: replace_region };
 
         self.fn_sig
             .value

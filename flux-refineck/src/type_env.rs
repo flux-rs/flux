@@ -111,11 +111,14 @@ impl TypeEnv<'_> {
         self.bindings.update(path, new_ty);
     }
 
+    /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
+    /// annotated region `'?n` in the type of the result. This region will only be used temporarily
+    /// and then replaced by the region in the type of the `x` after the assignment.
     pub(crate) fn borrow(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
-        region: Region,
+        re: Region,
         mutbl: Mutability,
         place: &Place,
         checker_config: CheckerConfig,
@@ -125,36 +128,36 @@ impl TypeEnv<'_> {
             .lookup(gen.genv, rcx, place, checker_config)?
             .fold(rcx, gen, true)?
         {
-            FoldResult::Strg(path, _) => Ty::ptr(PtrKind::from_ref(region, mutbl), path),
+            FoldResult::Strg(path, _) => Ty::ptr(PtrKind::from_ref(re, mutbl), path),
             FoldResult::Weak(result_rk, ty) => {
                 debug_assert!(WeakKind::from(mutbl) <= result_rk);
-                Ty::mk_ref(region, ty, mutbl)
+                Ty::mk_ref(re, ty, mutbl)
             }
-            FoldResult::Raw(ty) => Ty::mk_ref(region, ty, mutbl), // TODO(RJ): is this legit?
+            FoldResult::Raw(ty) => Ty::mk_ref(re, ty, mutbl), // TODO(RJ): is this legit?
         };
         Ok(ty)
     }
 
-    pub(crate) fn write_place(
+    pub(crate) fn assign(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-        mut new_ty: Ty,
+        ty: Ty,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
-        new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
+        let ty = RegionSubst::new(&ty, &rustc_ty).apply(&ty);
         match self
             .bindings
             .lookup(gen.genv, rcx, place, checker_config)?
             .fold(rcx, gen, true)?
         {
             FoldResult::Strg(path, _) => {
-                self.bindings.update(&path, new_ty);
+                self.bindings.update(&path, ty);
             }
             FoldResult::Weak(WeakKind::Mut | WeakKind::Arr, ty) => {
-                gen.subtyping(rcx, &new_ty, &ty, ConstrReason::Assign);
+                gen.subtyping(rcx, &ty, &ty, ConstrReason::Assign);
             }
             FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");

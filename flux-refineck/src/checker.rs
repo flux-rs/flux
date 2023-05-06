@@ -303,12 +303,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let stmt_span = stmt.source_info.span;
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                // println!("TRACE: check_statement {stmt:?}");
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
                 let checker_config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.write_place(rcx, gen, place, ty, checker_config)
+                env.assign(rcx, gen, place, ty, checker_config)
                     .with_src_info(stmt.source_info)?;
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -411,7 +410,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 rcx.assume_invariants(&ret, self.config.check_overflow);
                 let config = self.config;
                 let mut gen = self.constr_gen(rcx, terminator_span);
-                env.write_place(rcx, &mut gen, destination, ret, config)
+                env.assign(rcx, &mut gen, destination, ret, config)
                     .with_span(terminator_span)?;
 
                 if let Some(target) = target {
