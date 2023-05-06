@@ -537,13 +537,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg).0)
                     .collect_vec();
-                let index_sorts = conv_sorts(self.early_cx(), self.genv.index_sorts_of(*def_id));
-                let idx = idx.expr.eta_expand_tuple(&rty::Sort::tuple(index_sorts));
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
                     .subst(&generics, &refine)
-                    .replace_bound_expr(|_| idx));
+                    .replace_bound_expr(|sort| idx.expr.eta_expand_tuple(sort)));
             }
         };
         Ok(rty::Ty::indexed(bty, idx))
