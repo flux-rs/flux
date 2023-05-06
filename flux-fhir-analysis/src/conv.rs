@@ -31,8 +31,6 @@ use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    /// Mapping between the `DefId` of a late-bound lifetime variable and its index (`BoundVar`) in
-    /// the binder.
     late_bound_vars_map: FxHashMap<DefId, BoundVar>,
     wfckresults: &'a fhir::WfckResults,
 }
@@ -940,7 +938,6 @@ fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId
         return FxHashMap::default()
     };
 
-    // We use the rustc_middle bound vars instead of rustc::ty to avoid making this fallible
     let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
     tcx.late_bound_vars(hir_id)
         .iter()

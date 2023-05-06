@@ -143,21 +143,21 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-        ty: Ty,
+        new_ty: Ty,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
-        let ty = RegionSubst::new(&ty, &rustc_ty).apply(&ty);
+        let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
         match self
             .bindings
             .lookup(gen.genv, rcx, place, checker_config)?
             .fold(rcx, gen, true)?
         {
             FoldResult::Strg(path, _) => {
-                self.bindings.update(&path, ty);
+                self.bindings.update(&path, new_ty);
             }
             FoldResult::Weak(WeakKind::Mut | WeakKind::Arr, ty) => {
-                gen.subtyping(rcx, &ty, &ty, ConstrReason::Assign);
+                gen.subtyping(rcx, &new_ty, &ty, ConstrReason::Assign);
             }
             FoldResult::Weak(WeakKind::Shr, _) => {
                 tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");
