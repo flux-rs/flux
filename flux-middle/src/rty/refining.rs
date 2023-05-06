@@ -8,6 +8,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
+use super::fold::TypeFoldable;
 use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
@@ -57,7 +58,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             generics,
             refine: |bty| {
                 let sort = bty.sort();
-                let indexed = rty::Ty::indexed(bty, rty::Expr::nu());
+                let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
                 let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
                 rty::Binder::with_sort(constr, sort)
             },
@@ -120,7 +121,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .iter()
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
-        let ret = self.refine_ty(fn_sig.output())?;
+        let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
         let output = rty::Binder::with_sort(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
         Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
     }
@@ -137,8 +138,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::BaseTy(self.refine_poly_ty(ty)?))
             }
-            (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(_)) => {
-                Ok(rty::GenericArg::Lifetime)
+            (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) => {
+                Ok(rty::GenericArg::Lifetime(*re))
             }
             _ => bug!("mismatched generic arg `{arg:?}` `{param:?}`"),
         }
@@ -147,7 +148,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
         let ty = self.refine_poly_ty(ty)?;
         if ty.sort().is_unit() {
-            Ok(ty.replace_bvar(&rty::Expr::unit()))
+            Ok(ty.replace_bound_expr(|_| rty::Expr::unit()))
         } else {
             Ok(rty::Ty::exists(ty))
         }
@@ -157,7 +158,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
-            rustc::ty::TyKind::Ref(_, ty, mutbl) => rty::BaseTy::Ref(self.refine_ty(ty)?, *mutbl),
+            rustc::ty::TyKind::Ref(r, ty, mutbl) => {
+                rty::BaseTy::Ref(*r, self.refine_ty(ty)?, *mutbl)
+            }
             rustc::ty::TyKind::Float(float_ty) => rty::BaseTy::Float(*float_ty),
             rustc::ty::TyKind::Tuple(tys) => {
                 let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
@@ -191,7 +194,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)?),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::FnSig(_) => todo!("refine_ty: FnSig"),
+            rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
@@ -218,5 +221,5 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
-    rty::Binder::with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort)
+    rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
 }

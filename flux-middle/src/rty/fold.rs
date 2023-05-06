@@ -12,7 +12,7 @@ use super::{
     subst::EVarSubstFolder,
     BaseTy, Binder, Constraint, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate, PredicateKind,
-    Qualifier, Sort, Ty, TyKind,
+    PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -54,6 +54,10 @@ pub trait TypeFolder: Sized {
 
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         bty.super_fold_with(self)
+    }
+
+    fn fold_region(&mut self, re: &Region) -> Region {
+        re.super_fold_with(self)
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
@@ -180,6 +184,14 @@ pub trait TypeFoldable: Sized {
                 r
             }
 
+            fn fold_region(&mut self, re: &Region) -> Region {
+                if let ReLateBound(debruijn, br) = *re && debruijn >= self.current_index {
+                    ReLateBound(debruijn.shifted_in(self.amount), br)
+                } else {
+                    *re
+                }
+            }
+
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind()
                     && *debruijn >= self.current_index
@@ -205,6 +217,14 @@ pub trait TypeFoldable: Sized {
                 let t = t.super_fold_with(self);
                 self.current_index.shift_out(1);
                 t
+            }
+
+            fn fold_region(&mut self, re: &Region) -> Region {
+                if let ReLateBound(debruijn, br) = *re && debruijn >= self.current_index {
+                    ReLateBound(debruijn.shifted_out(self.amount), br)
+                } else {
+                    *re
+                }
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
@@ -455,8 +475,13 @@ impl TypeFoldable for Ty {
             }
             TyKind::Exists(exists) => TyKind::Exists(exists.fold_with(folder)).intern(),
             TyKind::Ptr(pk, path) => {
+                let pk = match pk {
+                    PtrKind::Shr(re) => PtrKind::Shr(re.fold_with(folder)),
+                    PtrKind::Mut(re) => PtrKind::Mut(re.fold_with(folder)),
+                    PtrKind::Box => PtrKind::Box,
+                };
                 Ty::ptr(
-                    *pk,
+                    pk,
                     path.to_expr()
                         .fold_with(folder)
                         .normalize(&Default::default())
@@ -496,6 +521,18 @@ impl TypeFoldable for Ty {
     }
 }
 
+impl TypeFoldable for Region {
+    fn super_fold_with<F: TypeFolder>(&self, _folder: &mut F) -> Self {
+        *self
+    }
+
+    fn super_visit_with<V: TypeVisitor>(&self, _visitor: &mut V) {}
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_region(self)
+    }
+}
+
 impl TypeFoldable for Index {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         Index { expr: self.expr.fold_with(folder), is_binder: self.is_binder.clone() }
@@ -512,7 +549,9 @@ impl TypeFoldable for BaseTy {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
-            BaseTy::Ref(ty, mutbl) => BaseTy::Ref(ty.fold_with(folder), *mutbl),
+            BaseTy::Ref(re, ty, mutbl) => {
+                BaseTy::Ref(re.fold_with(folder), ty.fold_with(folder), *mutbl)
+            }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.fold_with(folder)),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
             BaseTy::Int(_)
@@ -532,7 +571,7 @@ impl TypeFoldable for BaseTy {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
-            BaseTy::Ref(ty, _) => ty.visit_with(visitor),
+            BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.iter().for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Int(_)
@@ -561,7 +600,7 @@ impl TypeFoldable for GenericArg {
         match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
             GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.fold_with(folder)),
-            GenericArg::Lifetime => GenericArg::Lifetime,
+            GenericArg::Lifetime(re) => GenericArg::Lifetime(re.fold_with(folder)),
         }
     }
 
@@ -569,7 +608,7 @@ impl TypeFoldable for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
             GenericArg::BaseTy(ty) => ty.visit_with(visitor),
-            GenericArg::Lifetime => {}
+            GenericArg::Lifetime(_) => {}
         }
     }
 }

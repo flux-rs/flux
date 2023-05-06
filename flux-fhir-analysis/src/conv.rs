@@ -12,7 +12,7 @@ use std::borrow::Borrow;
 use flux_common::{bug, span_bug};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, FhirId, SurfaceIdent},
+    fhir::{self, FhirId, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -21,15 +21,17 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
     PrimTy,
 };
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{BoundVar, TyCtxt};
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
+    late_bound_vars_map: FxHashMap<DefId, BoundVar>,
     wfckresults: &'a fhir::WfckResults,
 }
 
@@ -220,7 +222,8 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a fhir::WfckResults) -> Self {
-        Self { genv, wfckresults }
+        let late_bound_vars_map = mk_late_bound_vars_map(genv.tcx, wfckresults.owner);
+        Self { genv, late_bound_vars_map, wfckresults }
     }
 
     fn conv_fn_output(
@@ -307,7 +310,16 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         rty::GenericParamDefKind::BaseTy => {
                             bug!("generic base type in struct definition not suported")
                         }
-                        rty::GenericParamDefKind::Lifetime => rty::GenericArg::Lifetime,
+                        rty::GenericParamDefKind::Lifetime => {
+                            let def_id = param.def_id;
+                            let index = def_id_to_param_index(genv.tcx, def_id.expect_local());
+                            let re = rty::ReEarlyBound(rty::EarlyBoundRegion {
+                                def_id,
+                                index,
+                                name: param.name,
+                            });
+                            rty::GenericArg::Lifetime(re)
+                        }
                     }
                 })
                 .collect_vec();
@@ -380,11 +392,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
                 }
             }
-            fhir::TyKind::Ptr(_, loc) => {
-                Ok(rty::Ty::ptr(rty::Mutability::Mut, env.lookup(*loc).to_path()))
+            fhir::TyKind::Ptr(lft, loc) => {
+                let region = self.conv_lifetime(env, *lft);
+                Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(*loc).to_path()))
             }
-            fhir::TyKind::Ref(_, fhir::MutTy { ty, mutbl }) => {
-                Ok(rty::Ty::mk_ref(self.conv_ty(env, ty)?, *mutbl))
+            fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
+                let region = self.conv_lifetime(env, *lft);
+                Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty)?, *mutbl))
             }
             fhir::TyKind::Tuple(tys) => {
                 let tys: List<rty::Ty> =
@@ -406,13 +420,38 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 ))
             }
             fhir::TyKind::Hole => {
-                self.conv_ty(
-                    env,
-                    self.wfckresults
-                        .type_holes()
-                        .get(ty.fhir_id)
-                        .unwrap_or_else(|| span_bug!(ty.span, "unfilled hole")),
-                )
+                let ty = self
+                    .wfckresults
+                    .type_holes()
+                    .get(ty.fhir_id)
+                    .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
+                self.conv_ty(env, ty)
+            }
+        }
+    }
+
+    fn conv_lifetime(&self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
+        match lft.res {
+            fhir::LifetimeRes::Param(local_def_id) => {
+                let def_id = local_def_id.to_def_id();
+                if let Some(&var) = self.late_bound_vars_map.get(&def_id) {
+                    let depth = env.depth().checked_sub(1).unwrap();
+                    let kind = rty::BoundRegionKind::BrNamed(def_id, lft.ident.name);
+                    let bound_region = rty::BoundRegion { var, kind };
+                    rty::ReLateBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
+                } else {
+                    let index = def_id_to_param_index(self.genv.tcx, local_def_id);
+                    rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name: lft.ident.name })
+                }
+            }
+            fhir::LifetimeRes::Static => rty::ReStatic,
+            fhir::LifetimeRes::Hole => {
+                let lft = *self
+                    .wfckresults
+                    .lifetime_holes()
+                    .get(lft.fhir_id)
+                    .unwrap_or_else(|| span_bug!(lft.ident.span, "unfilled lifetime hole"));
+                self.conv_lifetime(env, lft)
             }
         }
     }
@@ -494,13 +533,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg).0)
                     .collect_vec();
-                let index_sorts = conv_sorts(self.early_cx(), self.genv.index_sorts_of(*def_id));
-                let idx = idx.expr.eta_expand_tuple(&rty::Sort::tuple(index_sorts));
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
                     .subst(&generics, &refine)
-                    .replace_bvar(&idx));
+                    .replace_bound_expr(|sort| idx.expr.eta_expand_tuple(sort)));
             }
         };
         Ok(rty::Ty::indexed(bty, idx))
@@ -521,7 +558,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 if i < args.len() {
                     i += 1;
                     match &args[i - 1] {
-                        fhir::GenericArg::Lifetime(_) => Ok(rty::GenericArg::Lifetime),
+                        fhir::GenericArg::Lifetime(lft) => {
+                            Ok(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)))
+                        }
                         fhir::GenericArg::Type(ty) => {
                             Ok(rty::GenericArg::Ty(self.conv_ty(env, ty)?))
                         }
@@ -532,7 +571,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         .genv
                         .type_of(param.def_id)?
                         .subst_generics(&[])
-                        .replace_bvar(&rty::Expr::unit());
+                        .replace_bound_expr(|_| rty::Expr::unit());
                     Ok(rty::GenericArg::Ty(ty))
                 } else {
                     bug!("unexpected generic param: {param:?}");
@@ -568,6 +607,10 @@ impl Env {
             })
             .collect();
         Self { layers: vec![], early_bound }
+    }
+
+    fn depth(&self) -> usize {
+        self.layers.len()
     }
 
     fn push_layer(&mut self, layer: Layer) {
@@ -878,8 +921,35 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
 }
 
 fn def_id_to_param_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
+    rty::ParamTy {
+        index: def_id_to_param_index(tcx, def_id),
+        name: tcx.hir().ty_param_name(def_id),
+    }
+}
+
+fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
     let item_def_id = tcx.hir().ty_param_owner(def_id);
     let generics = tcx.generics_of(item_def_id);
-    let index = generics.param_def_id_to_index[&def_id.to_def_id()];
-    rty::ParamTy { index, name: tcx.hir().ty_param_name(def_id) }
+    generics.param_def_id_to_index[&def_id.to_def_id()]
+}
+
+fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId, BoundVar> {
+    let FluxOwnerId::Rust(owner_id) = owner_id else {
+        return FxHashMap::default()
+    };
+
+    let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
+    tcx.late_bound_vars(hir_id)
+        .iter()
+        .enumerate()
+        .flat_map(|(i, var)| {
+            if let rustc_middle::ty::BoundVariableKind::Region(region) = var
+                && let rustc_middle::ty::BoundRegionKind::BrNamed(def_id, _) = region
+            {
+                Some((def_id, BoundVar::from_usize(i)))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

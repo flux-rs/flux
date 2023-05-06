@@ -16,6 +16,8 @@ use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
+use crate::bug;
+
 thread_local! {
     pub static SHARED_STATE:
         RefCell<HashMap<LocalDefId, BodyWithBorrowckFacts<'static>>> =
@@ -49,7 +51,7 @@ pub unsafe fn retrieve_mir_body<'tcx>(
     let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
         match state.borrow_mut().remove(&def_id) {
             Some(body) => body,
-            None => panic!("retrieve_mir_body: panic on {def_id:?}"),
+            None => bug!("retrieve_mir_body: panic on {def_id:?}"),
         }
     });
     // SAFETY: See the module level comment.

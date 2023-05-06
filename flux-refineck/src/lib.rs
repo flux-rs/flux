@@ -65,7 +65,7 @@ pub fn check_fn(
             return Ok(());
         }
 
-        // PHASE 1: infer shape of basic blocks
+        // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result = Checker::run_in_shape_mode(genv, def_id, config).emit(genv.sess)?;
         tracing::info!("check_fn::shape");
 
@@ -74,7 +74,7 @@ pub fn check_fn(
             Checker::run_in_refine_mode(genv, def_id, shape_result, config).emit(genv.sess)?;
         tracing::info!("check_fn::refine");
 
-        // PHASE 3: invoke fixpoint on the constraints
+        // PHASE 3: invoke fixpoint on the constraint
         refine_tree.simplify();
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();

@@ -28,8 +28,12 @@ pub use rustc_middle::{
 };
 use rustc_span::Symbol;
 pub use rustc_target::abi::VariantIdx;
+use rustc_type_ir::INNERMOST;
 
-use self::{fold::TypeFoldable, subst::BVarSubstFolder};
+use self::{
+    fold::TypeFoldable,
+    subst::{BoundVarReplacer, FnMutDelegate},
+};
 use crate::{
     fhir::FuncKind,
     global_env::GlobalEnv,
@@ -39,7 +43,10 @@ use crate::{
 };
 pub use crate::{
     fhir::InferMode,
-    rustc::ty::{BoundVariableKind, Const},
+    rustc::ty::{
+        BoundRegion, BoundRegionKind, BoundVar, BoundVariableKind, Const, EarlyBoundRegion,
+        Region::{self, *},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -244,8 +251,8 @@ pub enum TyKind {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PtrKind {
-    Shr,
-    Mut,
+    Shr(Region),
+    Mut(Region),
     Box,
 }
 
@@ -266,7 +273,7 @@ pub enum BaseTy {
     Adt(AdtDef, Substs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
-    Ref(Ty, Mutability),
+    Ref(Region, Ty, Mutability),
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
@@ -280,8 +287,7 @@ pub type Substs = List<GenericArg>;
 pub enum GenericArg {
     Ty(Ty),
     BaseTy(Binder<Ty>),
-    /// We treat lifetime opaquely
-    Lifetime,
+    Lifetime(Region),
 }
 
 impl Predicate {
@@ -297,12 +303,31 @@ impl Binder<FnTraitPredicate> {
     }
 
     pub fn to_closure_sig(&self, closure_id: DefId) -> PolyFnSig {
+        let bound_vars: List<BoundVariableKind> = self
+            .vars
+            .iter()
+            .copied()
+            .chain(std::iter::once(BoundVariableKind::Region(BoundRegionKind::BrEnv)))
+            .collect();
+
         let pred = self.as_ref().skip_binder();
 
         let closure_ty = Ty::closure(closure_id);
         let env_ty = match pred.kind {
-            ClosureKind::Fn => Ty::mk_ref(closure_ty, Mutability::Not),
-            ClosureKind::FnMut => Ty::mk_ref(closure_ty, Mutability::Mut),
+            ClosureKind::Fn => {
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(bound_vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
+            }
+            ClosureKind::FnMut => {
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(bound_vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
+            }
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
@@ -315,13 +340,12 @@ impl Binder<FnTraitPredicate> {
             Binder::with_sort(FnOutput::new(pred.output.clone(), vec![]), Sort::unit()),
         );
 
-        let vars = self.vars.clone();
         let params = self
             .sort()
             .expect_tuple()
             .iter()
             .map(|sort| (sort.clone(), sort.default_infer_mode()));
-        PolyFnSig::new(vars, params, fn_sig)
+        PolyFnSig::new(bound_vars, params, fn_sig)
     }
 }
 
@@ -436,12 +460,13 @@ impl Qualifier {
     pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
         let name_gen = IndexGen::new();
         let mut params = vec![];
-        let arg = Expr::fold_sort(self.body.sort(), |sort| {
-            let fresh = name_gen.fresh();
-            params.push((fresh, sort.clone()));
-            Expr::fvar(fresh)
+        let body = self.body.replace_bound_expr(|sort| {
+            Expr::fold_sort(sort, |s| {
+                let fresh = name_gen.fresh();
+                params.push((fresh, s.clone()));
+                Expr::fvar(fresh)
+            })
         });
-        let body = self.body.replace_bvar(&arg);
         (params, body)
     }
 }
@@ -501,15 +526,13 @@ impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
-    pub fn replace_bvar(&self, expr: &Expr) -> T {
-        self.value
-            .fold_with(&mut BVarSubstFolder::new(expr))
-            .normalize(&Default::default())
-    }
-
-    pub fn replace_bvar_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
+    pub fn replace_bound_expr(&self, f: impl FnOnce(&Sort) -> Expr) -> T {
+        debug_assert!(self.vars.is_empty());
         let expr = f(&self.sort);
-        self.replace_bvar(&expr)
+        let delegate = FnMutDelegate { expr, regions: |_| bug!("unexpected escaping region") };
+        self.value
+            .fold_with(&mut BoundVarReplacer::new(delegate))
+            .normalize(&Default::default())
     }
 }
 
@@ -611,11 +634,21 @@ impl PolyFnSig {
         PolyFnSig { fn_sig, modes: List::from_vec(modes) }
     }
 
-    pub fn replace_bvars_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> FnSig {
+    pub fn replace_bound_vars(
+        &self,
+        replace_region: impl FnMut(BoundRegion) -> Region,
+        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
+    ) -> FnSig {
         let exprs = iter::zip(self.fn_sig.sort.expect_tuple(), &self.modes)
-            .map(|(sort, kind)| f(sort, *kind))
+            .map(|(sort, kind)| replace_expr(sort, *kind))
             .collect_vec();
-        self.fn_sig.replace_bvar(&Expr::tuple(exprs))
+
+        let delegate = FnMutDelegate { expr: Expr::tuple(exprs), regions: replace_region };
+
+        self.fn_sig
+            .value
+            .fold_with(&mut BoundVarReplacer::new(delegate))
+            .normalize(&Default::default())
     }
 }
 
@@ -778,6 +811,15 @@ impl EarlyBinder<PolyVariant> {
     }
 }
 
+impl PtrKind {
+    pub fn from_ref(r: Region, m: Mutability) -> Self {
+        match m {
+            Mutability::Not => PtrKind::Shr(r),
+            Mutability::Mut => PtrKind::Mut(r),
+        }
+    }
+}
+
 impl Ty {
     pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
@@ -845,8 +887,8 @@ impl Ty {
         BaseTy::Float(float_ty).into_ty()
     }
 
-    pub fn mk_ref(ty: Ty, mutbl: Mutability) -> Ty {
-        BaseTy::Ref(ty, mutbl).into_ty()
+    pub fn mk_ref(region: Region, ty: Ty, mutbl: Mutability) -> Ty {
+        BaseTy::Ref(region, ty, mutbl).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
@@ -944,15 +986,6 @@ impl TyS {
     }
 }
 
-impl From<Mutability> for PtrKind {
-    fn from(mutbl: Mutability) -> Self {
-        match mutbl {
-            Mutability::Not => PtrKind::Shr,
-            Mutability::Mut => PtrKind::Mut,
-        }
-    }
-}
-
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
         BaseTy::Adt(adt_def, substs.into())
@@ -988,7 +1021,7 @@ impl BaseTy {
             | BaseTy::Slice(_)
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
-            | BaseTy::Ref(_, _)
+            | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_)
@@ -1161,17 +1194,18 @@ pub use crate::_Float as Float;
 
 #[macro_export]
 macro_rules! _Ref {
-    ($mutbl:pat, $ty:pat) => {
-        TyKind::Indexed(BaseTy::Ref($mutbl, $ty), _)
+    ($($pats:pat),+ $(,)?) => {
+        TyKind::Indexed(BaseTy::Ref($($pats),+), _)
     };
 }
 pub use crate::_Ref as Ref;
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
+    use rustc_type_ir::DebruijnIndex;
 
     use super::*;
-    use crate::pretty::*;
+    use crate::{pretty::*, rustc::ty::region_to_string};
 
     impl<T> Pretty for Binder<T>
     where
@@ -1326,11 +1360,11 @@ mod pretty {
     }
 
     impl Pretty for PtrKind {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                PtrKind::Shr => w!("shr"),
-                PtrKind::Mut => w!("mut"),
+                PtrKind::Shr(r) => w!("shr[{:?}]", r),
+                PtrKind::Mut(r) => w!("mut[{:?}]", r),
                 PtrKind::Box => w!("box"),
             }
         }
@@ -1384,8 +1418,9 @@ mod pretty {
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
-                BaseTy::Ref(ty, Mutability::Mut) => w!("&mut {:?}", ty),
-                BaseTy::Ref(ty, Mutability::Not) => w!("&{:?}", ty),
+                BaseTy::Ref(region, ty, mutbl) => {
+                    w!("&{:?} {}{:?}", region, ^mutbl.prefix_str(), ty)
+                }
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {
                         w!("({:?},)", ty)
@@ -1408,7 +1443,7 @@ mod pretty {
                 GenericArg::BaseTy(arg) => {
                     w!("λ{:?}. {:?}", arg.sort(), arg.as_ref().skip_binder())
                 }
-                GenericArg::Lifetime => w!("'_"),
+                GenericArg::Lifetime(re) => w!("{:?}", re),
             }
         }
     }
@@ -1416,7 +1451,21 @@ mod pretty {
     impl Pretty for VariantDef {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!(f, "({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+            w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+        }
+    }
+
+    impl Pretty for Region {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{}", ^region_to_string(*self))
+        }
+    }
+
+    impl Pretty for DebruijnIndex {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("^{}", ^self.as_usize())
         }
     }
 

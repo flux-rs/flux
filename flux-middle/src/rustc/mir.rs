@@ -2,12 +2,16 @@
 
 use std::fmt;
 
-use flux_common::index::{Idx, IndexVec};
+use flux_common::{
+    bug,
+    index::{Idx, IndexVec},
+};
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
 use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir,
@@ -22,8 +26,10 @@ pub use rustc_middle::{
 use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
-use super::ty::{GenericArg, Region, Ty};
-use crate::intern::List;
+use super::ty::{GenericArg, Region, Ty, TyKind};
+use crate::{
+    global_env::GlobalEnv, intern::List, queries::QueryResult, rustc::ty::region_to_string,
+};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
@@ -39,6 +45,9 @@ pub struct BasicBlockData<'tcx> {
     pub is_cleanup: bool,
 }
 
+pub type LocalDecls = IndexSlice<Local, LocalDecl>;
+
+#[derive(Clone)]
 pub struct LocalDecl {
     pub ty: Ty,
     pub source_info: SourceInfo,
@@ -201,6 +210,13 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
+#[derive(Debug)]
+pub struct PlaceTy {
+    pub ty: Ty,
+    /// Downcast to a particular variant of an enum or a generator, if included.
+    pub variant_index: Option<VariantIdx>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PlaceElem {
     Deref,
@@ -291,6 +307,71 @@ impl Place {
 
     pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
         Place { local, projection }
+    }
+
+    pub fn ty(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<PlaceTy> {
+        self.projection
+            .iter()
+            .try_fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
+                place_ty.projection_ty(genv, *elem)
+            })
+    }
+}
+
+impl PlaceTy {
+    fn from_ty(ty: Ty) -> PlaceTy {
+        PlaceTy { ty, variant_index: None }
+    }
+
+    fn projection_ty(&self, genv: &GlobalEnv, elem: PlaceElem) -> QueryResult<PlaceTy> {
+        if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
+            bug!("cannot use non field projection on downcasted place");
+        }
+        let tcx = genv.tcx;
+        let place_ty = match elem {
+            PlaceElem::Deref => {
+                let ty = match self.ty.kind() {
+                    TyKind::Adt(def_id, substs) if tcx.adt_def(def_id).is_box() => {
+                        substs[0].expect_type()
+                    }
+                    TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty,
+                    _ => bug!("deref projection of non-dereferenceable ty {self:?}"),
+                };
+                PlaceTy::from_ty(ty.clone())
+            }
+            PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
+            PlaceElem::Downcast(variant_idx) => {
+                PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
+            }
+            PlaceElem::Index(_) => {
+                if let TyKind::Array(ty, _) | TyKind::Slice(ty) = self.ty.kind() {
+                    PlaceTy::from_ty(ty.clone())
+                } else {
+                    bug!("index of no-array non-slice {self:?}")
+                }
+            }
+        };
+        Ok(place_ty)
+    }
+
+    fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
+        match self.ty.kind() {
+            TyKind::Adt(def_id, substs) => {
+                let adt_def = genv.tcx.adt_def(*def_id);
+                let variant_def = match self.variant_index {
+                    None => adt_def.non_enum_variant(),
+                    Some(variant_index) => {
+                        assert!(adt_def.is_enum());
+                        adt_def.variant(variant_index)
+                    }
+                };
+                let field_def = &variant_def.fields[f];
+                let ty = genv.lower_type_of(field_def.did)?;
+                Ok(ty.subst(substs))
+            }
+            TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
+            _ => bug!("extracting field of non-tuple non-adt: {self:?}"),
+        }
     }
 }
 
@@ -436,8 +517,12 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
-            Rvalue::Ref(_, BorrowKind::Mut { .. }, place) => write!(f, "&mut {place:?}"),
-            Rvalue::Ref(_, BorrowKind::Shared, place) => write!(f, "&{place:?}"),
+            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
+                write!(f, "&{} mut {place:?}", region_to_string(*r))
+            }
+            Rvalue::Ref(r, BorrowKind::Shared, place) => {
+                write!(f, "&{} {place:?}", region_to_string(*r))
+            }
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {

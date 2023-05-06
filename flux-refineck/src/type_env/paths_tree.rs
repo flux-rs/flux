@@ -260,7 +260,7 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            Ref!(ty, mutbl) => {
+                            Ref!(_, ty, mutbl) => {
                                 let (mutbl, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
@@ -343,7 +343,7 @@ impl PathsTree {
         for elem in proj.by_ref() {
             ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             match (elem, ty.kind()) {
-                (Deref, Ref!(ty2, mutbl2)) => {
+                (Deref, Ref!(_, ty2, mutbl2)) => {
                     rk = rk.min(WeakKind::from(*mutbl2));
                     ty = ty2.clone();
                 }
@@ -883,7 +883,7 @@ fn downcast_struct(
         .variant(def_id, variant_idx)?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
         .subst_generics(substs)
-        .replace_bvar(&idx.expr)
+        .replace_bound_expr(|_| idx.expr.clone())
         .fields
         .to_vec())
 }
@@ -908,7 +908,7 @@ fn downcast_enum(
         .variant(def_id, variant_idx)?
         .expect("enums cannot be opaque")
         .subst_generics(substs)
-        .replace_bvar_with(|sort| rcx.define_vars(sort));
+        .replace_bound_expr(|sort| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
     // FIXME(nilehmann) flatten indices
