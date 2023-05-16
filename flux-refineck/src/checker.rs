@@ -484,7 +484,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let rty::PredicateKind::FnTrait(fn_trait_pred) = kind;
                 fn_trait_pred
             });
-            if let Some(BaseTy::Closure(def_id)) = fn_trait_pred
+            if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
                 .self_ty()
                 .skip_binder()
                 .as_bty_skipping_existentials()
@@ -495,7 +495,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     refine_tree,
                     *def_id,
                     self.mode,
-                    fn_trait_pred.to_closure_sig(*def_id),
+                    fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
                     self.config,
                 )?;
             } else {
@@ -700,14 +700,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
-            Rvalue::Aggregate(AggregateKind::Closure(did, substs), args) => {
-                if args.is_empty() {
-                    // TODO (RJ): handle case where closure "moves" in values for "free variables"
-                    // let substs = substs.iter().map(|arg| *arg).collect_vec();
-                    Ok(Ty::closure(*did))
-                } else {
-                    panic!("TODO: check the closure defid = {did:?}, substs = {substs:?}, args = {args:?}")
-                }
+            Rvalue::Aggregate(AggregateKind::Closure(did, _substs), args) => {
+                // TODO(pack-closure): handle case where closure "moves" in values for "free variables"
+                let tys = self.check_operands(rcx, env, stmt_span, args)?;
+                let mut gen = self.constr_gen(rcx, stmt_span);
+                let tys = gen
+                    .pack_closure_operands(rcx, env, &tys)
+                    .with_span(stmt_span);
+
+                let res = Ty::closure(*did, tys?);
+                Ok(res)
             }
             Rvalue::Discriminant(place) => {
                 let config = self.config;

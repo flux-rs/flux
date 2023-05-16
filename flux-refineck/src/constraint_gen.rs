@@ -121,6 +121,28 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
+    pub(crate) fn pack_closure_operands(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        operands: &[Ty],
+    ) -> Result<Vec<Ty>, CheckerErrKind> {
+        let mut infcx = self.infcx(rcx, ConstrReason::Call);
+        let checker_config = infcx.checker_config;
+        let mut res = Vec::new();
+        for ty in operands {
+            let packed_ty = match ty.kind() {
+                TyKind::Ptr(PtrKind::Shr(region), path) => {
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
+                    rty::Ty::mk_ref(*region, ty, Mutability::Not)
+                }
+                _ => ty.clone(),
+            };
+            res.push(packed_ty)
+        }
+        Ok(res)
+    }
+
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -198,6 +220,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
+            // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
                     let bound = requires[path2];
@@ -320,6 +343,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
+                    // TODO(pack-closure): why is this not put into `infcx.subtyping`?
                     let checker_config = infcx.checker_config;
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
                     infcx.subtyping(rcx, &ty, bound);
@@ -520,7 +544,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
-            (BaseTy::Closure(did1), BaseTy::Closure(did2)) if did1 == did2 => {}
+            (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) if did1 == did2 => {
+                debug_assert_eq!(tys1.len(), tys2.len());
+                for (ty1, ty2) in iter::zip(tys1, tys2) {
+                    self.subtyping(rcx, ty1, ty2);
+                }
+            }
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
