@@ -52,6 +52,7 @@ impl<Tag> Hash for Task<Tag> {
         self.constraint.hash(state);
         self.qualifiers.hash(state);
         self.sorts.hash(state);
+        self.scrape_quals.hash(state);
     }
 }
 

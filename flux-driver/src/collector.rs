@@ -227,14 +227,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         field: &rustc_hir::FieldDef,
         opaque: bool,
-    ) -> Result<surface::FieldDef, ErrorGuaranteed> {
+    ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
         let attrs = self.tcx.hir().attrs(field.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         if opaque && let Some(span) = attrs.contains(attr_name!(Field)) {
             return Err(self.emit_err(errors::AttrOnOpaque::new(span, field)))
         }
-        Ok(surface::FieldDef { def_id: field.def_id, ty: attrs.field() })
+        Ok(attrs.field())
     }
 
     fn parse_enum_def(

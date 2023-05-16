@@ -3,22 +3,28 @@ use std::{
     iter,
 };
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{
+    bug, dbg,
+    index::{IndexGen, IndexVec},
+    iter::IterExt,
+    tracked_span_bug,
+};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, PolyFnSig, RefKind, Sort, Ty, TyKind, Uint,
-        UintTy, VariantIdx,
+        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Sort, Ty,
+        TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
         mir::{
-            self, AggregateKind, AssertKind, BasicBlock, Body, CastKind, Constant, Operand, Place,
-            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, RETURN_PLACE,
-            START_BLOCK,
+            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+            Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+            RETURN_PLACE, START_BLOCK,
         },
+        ty::RegionVar,
     },
 };
 use itertools::Itertools;
@@ -26,7 +32,7 @@ use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
-use rustc_middle::mir as rustc_mir;
+use rustc_middle::{mir as rustc_mir, ty::RegionVid};
 use rustc_span::Span;
 
 use self::errors::{CheckerError, ResultExt};
@@ -44,34 +50,40 @@ pub struct CheckerConfig {
     pub scrape_quals: bool,
 }
 
-pub(crate) struct Checker<'a, 'tcx, M> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+pub(crate) struct Checker<'ck, 'tcx, M> {
+    genv: &'ck GlobalEnv<'ck, 'tcx>,
+    rvid_gen: IndexGen<RegionVid>,
     config: CheckerConfig,
     /// [`DefId`] of the function being checked, either a closure or a regular function.
     def_id: DefId,
     /// [`Generics`] of the function being checked.
     generics: Generics,
-    body: &'a Body<'tcx>,
-    mode: &'a mut M,
+    body: &'ck Body<'tcx>,
+    mode: &'ck mut M,
     output: Binder<FnOutput>,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
-    dominators: &'a Dominators<BasicBlock>,
+    dominators: &'ck Dominators<BasicBlock>,
     visited: BitSet<BasicBlock>,
-    queue: WorkQueue<'a>,
+    queue: WorkQueue<'ck>,
 }
 
 pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
-    fn enter_basic_block(ck: &mut Checker<Self>, rcx: &mut RefineCtxt, bb: BasicBlock) -> TypeEnv;
+    fn enter_basic_block<'ck>(
+        ck: &mut Checker<'ck, '_, Self>,
+        rcx: &mut RefineCtxt,
+        bb: BasicBlock,
+    ) -> TypeEnv<'ck>;
 
     fn check_goto_join_point(
         ck: &mut Checker<Self>,
@@ -104,35 +116,6 @@ enum Guard {
     Pred(Expr),
     /// The corresponding place was found to be of a particular variant.
     Match(Place, VariantIdx),
-}
-
-impl<'a, 'tcx, M> Checker<'a, 'tcx, M> {
-    fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
-        def_id: DefId,
-        body: &'a Body<'tcx>,
-        output: Binder<FnOutput>,
-        dominators: &'a Dominators<BasicBlock>,
-        mode: &'a mut M,
-        config: CheckerConfig,
-    ) -> Self {
-        let generics = genv.generics_of(def_id).unwrap_or_else(|_| {
-            span_bug!(body.span(), "checking function with unsupported signature")
-        });
-        Checker {
-            def_id,
-            genv,
-            generics,
-            body,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
-            output,
-            mode,
-            snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            dominators,
-            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
-            config,
-        }
-    }
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
@@ -187,7 +170,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
         mode: &'a mut M,
-        fn_sig: PolyFnSig,
+        poly_sig: PolyFnSig,
         config: CheckerConfig,
     ) -> Result<(), CheckerError> {
         let body = genv
@@ -196,14 +179,30 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let fn_sig = fn_sig.replace_bvars_with(|sort, _| rcx.define_vars(sort));
+        let rvid_gen = IndexGen::new();
+        let fn_sig = poly_sig.replace_bound_vars(
+            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+            |sort, _| rcx.define_vars(sort),
+        );
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
         let dominators = body.dominators();
 
-        let mut ck =
-            Checker::new(genv, def_id, &body, fn_sig.output().clone(), &dominators, mode, config);
+        let mut ck = Checker {
+            def_id,
+            genv,
+            rvid_gen,
+            generics: genv.generics_of(def_id).unwrap(),
+            body: &body,
+            visited: BitSet::new_empty(body.basic_blocks.len()),
+            output: fn_sig.output().clone(),
+            mode,
+            snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
+            dominators: &dominators,
+            queue: WorkQueue::empty(body.basic_blocks.len(), &dominators),
+            config,
+        };
 
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -223,8 +222,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn init(rcx: &mut RefineCtxt, body: &Body, fn_sig: &FnSig, config: CheckerConfig) -> TypeEnv {
-        let mut env = TypeEnv::new();
+    fn init<'b>(
+        rcx: &mut RefineCtxt,
+        body: &'b Body,
+        fn_sig: &FnSig,
+        config: CheckerConfig,
+    ) -> TypeEnv<'b> {
+        let mut env = TypeEnv::new(&body.local_decls);
 
         for constr in fn_sig.requires() {
             match constr {
@@ -299,12 +303,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let stmt_span = stmt.source_info.span;
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                // println!("TRACE: check_statement {stmt:?}");
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
                 let checker_config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.write_place(rcx, gen, place, ty, checker_config)
+                env.assign(rcx, gen, place, ty, checker_config)
                     .with_src_info(stmt.source_info)?;
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -353,7 +356,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 self.mode
-                    .constr_gen(self.genv, rcx, self.config, span)
+                    .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 Ok(vec![])
@@ -407,7 +410,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 rcx.assume_invariants(&ret, self.config.check_overflow);
                 let config = self.config;
                 let mut gen = self.constr_gen(rcx, terminator_span);
-                env.write_place(rcx, &mut gen, destination, ret, config)
+                env.assign(rcx, &mut gen, destination, ret, config)
                     .with_span(terminator_span)?;
 
                 if let Some(target) = target {
@@ -454,7 +457,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
             .with_span(terminator_span)?;
 
-        let output = output.replace_bvar_with(|sort| rcx.define_vars(sort));
+        let output = output.replace_bound_expr(|sort| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {
@@ -477,24 +480,26 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
         for predicate in &obligs.predicates {
-            match predicate {
-                rty::Predicate::FnTrait(fn_pred) => {
-                    if let Some(BaseTy::Closure(def_id)) =
-                        fn_pred.bounded_ty.as_bty_skipping_binders()
-                    {
-                        let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
-                        Checker::run(
-                            self.genv,
-                            refine_tree,
-                            *def_id,
-                            self.mode,
-                            fn_pred.to_poly_sig(*def_id),
-                            self.config,
-                        )?;
-                    } else {
-                        todo!("report error")
-                    }
-                }
+            let fn_trait_pred = predicate.kind().map(|kind| {
+                let rty::PredicateKind::FnTrait(fn_trait_pred) = kind;
+                fn_trait_pred
+            });
+            if let Some(BaseTy::Closure(def_id)) = fn_trait_pred
+                .self_ty()
+                .skip_binder()
+                .as_bty_skipping_existentials()
+            {
+                let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
+                Checker::run(
+                    self.genv,
+                    refine_tree,
+                    *def_id,
+                    self.mode,
+                    fn_trait_pred.to_closure_sig(*def_id),
+                    self.config,
+                )?;
+            } else {
+                bug!("`Fn*` bounds on a non-closure type are not supported. This should be an error an not an ICE.");
             }
         }
         Ok(())
@@ -622,7 +627,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), CheckerError> {
         if self.is_exit_block(target) {
             self.mode
-                .constr_gen(self.genv, &rcx, self.config, source_span)
+                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, source_span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(source_span)
         } else if self.body.is_join_point(target) {
@@ -653,16 +658,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let ty = self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)?;
                 Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
-            Rvalue::MutRef(place) => {
+            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, RefKind::Mut, place, config)
+                env.borrow(rcx, gen, *r, Mutability::Mut, place, config)
                     .with_span(stmt_span)
             }
-            Rvalue::ShrRef(place) => {
+            Rvalue::Ref(r, BorrowKind::Shared, place) => {
                 let config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, RefKind::Shr, place, config)
+                env.borrow(rcx, gen, *r, Mutability::Not, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -671,7 +676,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .variant(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
-                    .to_fn_sig();
+                    .to_poly_sig();
                 let adt_generics = &genv.generics_of(*def_id).with_span(stmt_span)?;
                 let substs = iter::zip(&adt_generics.params, substs)
                     .map(|(param, arg)| {
@@ -912,13 +917,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Constant::Float(_, float_ty) => Ty::float(*float_ty),
             Constant::Unit => Ty::unit(),
-            Constant::Str => Ty::mk_ref(RefKind::Shr, Ty::str()),
+            Constant::Str => Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not),
             Constant::Char => Ty::char(),
         }
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.mode.constr_gen(self.genv, rcx, self.config, span)
+        self.mode
+            .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
     }
 
     #[track_caller]
@@ -994,19 +1000,20 @@ impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
         checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), checker_config, span)
+        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), rvid_gen, checker_config, span)
     }
 
-    fn enter_basic_block(
-        ck: &mut Checker<ShapeMode>,
+    fn enter_basic_block<'a>(
+        ck: &mut Checker<'a, '_, ShapeMode>,
         _rcx: &mut RefineCtxt,
         bb: BasicBlock,
-    ) -> TypeEnv {
-        ck.mode.bb_envs[&ck.def_id][&bb].enter()
+    ) -> TypeEnv<'a> {
+        ck.mode.bb_envs[&ck.def_id][&bb].enter(&ck.body.local_decls)
     }
 
     fn check_goto_join_point(
@@ -1022,8 +1029,13 @@ impl Mode for ShapeMode {
         let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
-        let mut gen =
-            ConstrGen::new(ck.genv, |_: &[Sort], _| Expr::hole(), ck.config, terminator_span);
+        let mut gen = ConstrGen::new(
+            ck.genv,
+            |_: &[Sort], _| Expr::hole(),
+            &ck.rvid_gen,
+            ck.config,
+            terminator_span,
+        );
 
         let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => {
@@ -1060,6 +1072,7 @@ impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         checker_config: CheckerConfig,
         span: Span,
@@ -1068,17 +1081,18 @@ impl Mode for RefineMode {
         ConstrGen::new(
             genv,
             move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            rvid_gen,
             checker_config,
             span,
         )
     }
 
-    fn enter_basic_block(
-        ck: &mut Checker<RefineMode>,
+    fn enter_basic_block<'a>(
+        ck: &mut Checker<'a, '_, RefineMode>,
         rcx: &mut RefineCtxt,
         bb: BasicBlock,
-    ) -> TypeEnv {
-        ck.mode.bb_envs[&ck.def_id][&bb].enter(rcx)
+    ) -> TypeEnv<'a> {
+        ck.mode.bb_envs[&ck.def_id][&bb].enter(rcx, &ck.body.local_decls)
     }
 
     fn check_goto_join_point(
@@ -1100,6 +1114,7 @@ impl Mode for RefineMode {
                     .kvars
                     .fresh_bound(sorts, bb_env.scope().iter(), encoding)
             },
+            &ck.rvid_gen,
             ck.config,
             terminator_span,
         );

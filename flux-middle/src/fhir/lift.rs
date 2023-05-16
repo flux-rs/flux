@@ -1,6 +1,6 @@
 //! "Lift" HIR types into  FHIR types.
 //!
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use hir::{def::DefKind, def_id::DefId, OwnerId};
 use itertools::Itertools;
@@ -10,11 +10,13 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
+use super::{FhirId, FluxOwnerId};
 use crate::fhir;
 
 struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
+    local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
 
@@ -137,7 +139,7 @@ pub fn lift_enum_variant_def(
         .data
         .fields()
         .iter()
-        .map(|field| cx.lift_ty(field.ty))
+        .map(|field| cx.lift_field_def(field))
         .try_collect_exhaust()?;
 
     let path = fhir::Path {
@@ -192,30 +194,44 @@ pub fn lift_fn_sig(
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, owner: OwnerId) -> Self {
-        Self { tcx, sess, owner }
+        Self { tcx, sess, local_id_gen: IndexGen::new(), owner }
+    }
+
+    fn next_fhir_id(&self) -> FhirId {
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
         match ret_ty {
             hir::FnRetTy::DefaultReturn(_) => {
                 let kind = fhir::TyKind::Tuple(vec![]);
-                Ok(fhir::Ty { kind, span: ret_ty.span() })
+                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: ret_ty.span() })
             }
             hir::FnRetTy::Return(ty) => self.lift_ty(ty),
         }
+    }
+
+    fn lift_field_def(&self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef, ErrorGuaranteed> {
+        let ty = self.lift_ty(field_def.ty)?;
+        Ok(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: true })
     }
 
     fn lift_ty(&self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
         let kind = match &ty.kind {
             hir::TyKind::Slice(ty) => {
                 let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
-                return Ok(fhir::BaseTy { kind, span: ty.span }.into());
+                let bty = fhir::BaseTy { kind, span: ty.span };
+                return Ok(fhir::Ty {
+                    kind: fhir::TyKind::BaseTy(bty),
+                    fhir_id: self.next_fhir_id(),
+                    span: ty.span,
+                });
             }
             hir::TyKind::Array(ty, len) => {
                 fhir::TyKind::Array(Box::new(self.lift_ty(ty)?), self.lift_array_len(len)?)
             }
-            hir::TyKind::Ref(_, mut_ty) => {
-                fhir::TyKind::Ref(lift_mutability(mut_ty.mutbl), Box::new(self.lift_ty(mut_ty.ty)?))
+            hir::TyKind::Ref(lft, mut_ty) => {
+                fhir::TyKind::Ref(self.lift_lifetime(lft)?, self.lift_mut_ty(mut_ty)?)
             }
             hir::TyKind::Never => fhir::TyKind::Never,
             hir::TyKind::Tup(tys) => {
@@ -232,7 +248,24 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 ));
             }
         };
-        Ok(fhir::Ty { kind, span: ty.span })
+        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: ty.span })
+    }
+
+    fn lift_lifetime(&self, lft: &hir::Lifetime) -> Result<fhir::Lifetime, ErrorGuaranteed> {
+        let res = match lft.res {
+            hir::LifetimeName::Param(def_id) => fhir::LifetimeRes::Param(def_id),
+            hir::LifetimeName::Static => fhir::LifetimeRes::Static,
+            hir::LifetimeName::ImplicitObjectLifetimeDefault
+            | hir::LifetimeName::Error
+            | hir::LifetimeName::Infer => {
+                return self.emit_unsupported(&format!("unsupported lifetime: `{lft}`",));
+            }
+        };
+        Ok(fhir::Lifetime { fhir_id: self.next_fhir_id(), ident: lft.ident, res })
+    }
+
+    fn lift_mut_ty(&self, mut_ty: &hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
+        Ok(fhir::MutTy { ty: Box::new(self.lift_ty(mut_ty.ty)?), mutbl: mut_ty.mutbl })
     }
 
     fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -258,7 +291,9 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             refine: vec![],
             span: path.span,
         };
-        Ok(fhir::BaseTy::from(path).into())
+        let bty = fhir::BaseTy::from(path);
+        let span = bty.span;
+        Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), fhir_id: self.next_fhir_id(), span })
     }
 
     fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -266,20 +301,26 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let def_id = alias_to.expect_local();
         match hir.expect_item(def_id).kind {
             hir::ItemKind::Impl(parent_impl) => self.lift_ty(parent_impl.self_ty),
-            _ => bug!("self types for structs and enums is not yet implemented"),
+            _ => bug!("self types for structs and enums are not yet implemented"),
         }
     }
 
     fn lift_generic_args(
         &self,
         args: Option<&hir::GenericArgs>,
-    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
-        let mut filtered = vec![];
+    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
+        let mut lifted = vec![];
         if let Some(args) = args {
             for arg in args.args {
                 match arg {
-                    hir::GenericArg::Lifetime(_) => {}
-                    hir::GenericArg::Type(ty) => filtered.push(self.lift_ty(ty)?),
+                    hir::GenericArg::Lifetime(lft) => {
+                        let lft = self.lift_lifetime(lft)?;
+                        lifted.push(fhir::GenericArg::Lifetime(lft));
+                    }
+                    hir::GenericArg::Type(ty) => {
+                        let ty = self.lift_ty(ty)?;
+                        lifted.push(fhir::GenericArg::Type(ty));
+                    }
                     hir::GenericArg::Const(_) => {
                         return self.emit_unsupported("const generics are not supported")
                     }
@@ -289,7 +330,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 }
             }
         }
-        Ok(filtered)
+        Ok(lifted)
     }
 
     fn lift_array_len(&self, len: &hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
@@ -309,7 +350,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn generic_params_into_args(
         &self,
         generics: &hir::Generics,
-    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
+    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut args = vec![];
         for param in generics.params.iter() {
             match param.kind {
@@ -317,9 +358,22 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                     let res = fhir::Res::Param(param.def_id.to_def_id());
                     let path =
                         fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
-                    args.push(fhir::BaseTy::from(path).into());
+                    let bty = fhir::BaseTy::from(path);
+                    let ty = fhir::Ty {
+                        kind: fhir::TyKind::BaseTy(bty),
+                        fhir_id: self.next_fhir_id(),
+                        span: param.span,
+                    };
+                    args.push(fhir::GenericArg::Type(ty));
                 }
-                hir::GenericParamKind::Lifetime { .. } => {}
+                hir::GenericParamKind::Lifetime { .. } => {
+                    let lft = fhir::Lifetime {
+                        fhir_id: self.next_fhir_id(),
+                        ident: param.name.ident(),
+                        res: fhir::LifetimeRes::Param(param.def_id),
+                    };
+                    args.push(fhir::GenericArg::Lifetime(lft));
+                }
                 hir::GenericParamKind::Const { .. } => {
                     return self.emit_unsupported("const generics are not supported");
                 }
@@ -334,13 +388,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
-    }
-}
-
-fn lift_mutability(mtbl: hir::Mutability) -> fhir::RefKind {
-    match mtbl {
-        hir::Mutability::Mut => fhir::RefKind::Mut,
-        hir::Mutability::Not => fhir::RefKind::Shr,
     }
 }
 

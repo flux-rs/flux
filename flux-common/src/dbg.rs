@@ -1,4 +1,4 @@
-///! This file contains functions and macros to log debugging information meant for developers.
+//! This file contains functions and macros to log debugging information meant for developers.
 use std::{
     fmt, fs,
     io::{self, Write},

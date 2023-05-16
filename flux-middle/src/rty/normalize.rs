@@ -110,9 +110,9 @@ impl<'a> Normalizer<'a> {
     fn app(&self, func: &Expr, arg: &Expr) -> Expr {
         match func.kind() {
             ExprKind::GlobalFunc(sym, FuncKind::Def) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bvar(arg)
+                defn.expr.replace_bound_expr(|_| arg.clone())
             }
-            ExprKind::Abs(body) => body.replace_bvar(arg),
+            ExprKind::Abs(body) => body.replace_bound_expr(|_| arg.clone()),
             _ => Expr::app(func.clone(), arg),
         }
     }

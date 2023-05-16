@@ -10,7 +10,7 @@ use flux_middle::rty::{
     box_args,
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder, TypeVisitor},
-    BaseTy, Expr, GenericArg, Name, RefKind, Sort, Ty, TyKind,
+    BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -230,7 +230,7 @@ impl RefineCtxt<'_> {
                         // opening of mutable references. See also `ConstrGen::check_fn_call`.
                         if !self.in_mut_ref || self.flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
                             bound_ty
-                                .replace_bvar_with(|sort| self.rcx.define_vars(sort))
+                                .replace_bound_expr(|sort| self.rcx.define_vars(sort))
                                 .fold_with(self)
                         } else {
                             ty.clone()
@@ -257,12 +257,12 @@ impl RefineCtxt<'_> {
                             vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
                         )
                     }
-                    BaseTy::Ref(rk, ty) => {
+                    BaseTy::Ref(r, ty, mutbl) => {
                         let in_mut_ref = self.in_mut_ref;
-                        self.in_mut_ref = matches!(rk, RefKind::Mut);
+                        self.in_mut_ref = matches!(mutbl, Mutability::Mut);
                         let ty = ty.fold_with(self);
                         self.in_mut_ref = in_mut_ref;
-                        BaseTy::Ref(*rk, ty)
+                        BaseTy::Ref(*r, ty, *mutbl)
                     }
                     BaseTy::Tuple(_) => bty.super_fold_with(self),
                     _ => bty.clone(),
@@ -287,7 +287,7 @@ impl RefineCtxt<'_> {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
                         substs.visit_with(self);
                     }
-                    BaseTy::Ref(_, ty) => ty.visit_with(self),
+                    BaseTy::Ref(_, ty, _) => ty.visit_with(self),
                     BaseTy::Tuple(tys) => tys.visit_with(self),
                     _ => {}
                 }
@@ -296,7 +296,7 @@ impl RefineCtxt<'_> {
             fn visit_ty(&mut self, ty: &Ty) {
                 if let TyKind::Indexed(bty, idx) = ty.kind() {
                     for invariant in bty.invariants(self.overflow_checking) {
-                        let invariant = invariant.pred.replace_bvar(&idx.expr);
+                        let invariant = invariant.pred.replace_bound_expr(|_| idx.expr.clone());
                         self.rcx.assume_pred(invariant);
                     }
                 }

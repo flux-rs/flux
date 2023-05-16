@@ -70,12 +70,7 @@ impl<'sess> Resolver<'sess> {
         let fields = struct_def
             .fields
             .into_iter()
-            .map(|field| {
-                Ok(surface::FieldDef {
-                    def_id: field.def_id,
-                    ty: field.ty.map(|ty| self.resolve_ty(ty)).transpose()?,
-                })
-            })
+            .map(|ty| ty.map(|ty| self.resolve_ty(ty)).transpose())
             .try_collect_exhaust()?;
 
         Ok(surface::StructDef {
@@ -172,7 +167,13 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_ty(&self, ty: Ty) -> Result<Ty<Res>, ErrorGuaranteed> {
         let kind = match ty.kind {
-            surface::TyKind::Base(bty) => surface::TyKind::Base(self.resolve_bty(bty)?),
+            surface::TyKind::Base(bty) => {
+                if let BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                    surface::TyKind::Hole
+                } else {
+                    surface::TyKind::Base(self.resolve_bty(bty)?)
+                }
+            },
             surface::TyKind::Indexed { bty, indices } => {
                 let bty = self.resolve_bty(bty)?;
                 surface::TyKind::Indexed { bty, indices }
@@ -185,9 +186,9 @@ impl<'sess> Resolver<'sess> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
             }
-            surface::TyKind::Ref(rk, ty) => {
+            surface::TyKind::Ref(mutbl, ty) => {
                 let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::Ref(rk, Box::new(ty))
+                surface::TyKind::Ref(mutbl, Box::new(ty))
             }
             surface::TyKind::Constr(pred, ty) => {
                 let ty = self.resolve_ty(*ty)?;
@@ -204,8 +205,20 @@ impl<'sess> Resolver<'sess> {
                 let ty = self.resolve_ty(*ty)?;
                 surface::TyKind::Array(Box::new(ty), len)
             }
+            surface::TyKind::Hole => surface::TyKind::Hole,
         };
         Ok(surface::Ty { kind, span: ty.span })
+    }
+
+    fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
+        let kind = match bty.kind {
+            BaseTyKind::Path(path) => BaseTyKind::Path(self.resolve_path(path)?),
+            BaseTyKind::Slice(ty) => {
+                let ty = self.resolve_ty(*ty)?;
+                BaseTyKind::Slice(Box::new(ty))
+            }
+        };
+        Ok(BaseTy { kind, span: bty.span })
     }
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
@@ -233,17 +246,6 @@ impl<'sess> Resolver<'sess> {
                     .emit_err(errors::UnsupportedSignature::new(*span, reason)))
             }
         }
-    }
-
-    fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
-        let kind = match bty.kind {
-            BaseTyKind::Path(path) => BaseTyKind::Path(self.resolve_path(path)?),
-            BaseTyKind::Slice(ty) => {
-                let ty = self.resolve_ty(*ty)?;
-                BaseTyKind::Slice(Box::new(ty))
-            }
-        };
-        Ok(BaseTy { kind, span: bty.span })
     }
 }
 

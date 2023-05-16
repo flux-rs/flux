@@ -1,11 +1,14 @@
 use std::fmt;
 
-pub use rustc_ast::token::{Lit, LitKind};
+pub use rustc_ast::{
+    token::{Lit, LitKind},
+    Mutability,
+};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{def_id::LocalDefId, OwnerId};
 pub use rustc_middle::ty::{FloatTy, IntTy, ParamTy, TyCtxt, UintTy};
 pub use rustc_span::symbol::Ident;
-use rustc_span::Span;
+use rustc_span::{symbol::kw, Span};
 
 #[derive(Debug)]
 pub struct SortDecl {
@@ -52,15 +55,9 @@ pub struct TyAlias<R = ()> {
 pub struct StructDef<R = ()> {
     pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
-    pub fields: Vec<FieldDef<R>>,
+    pub fields: Vec<Option<Ty<R>>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
-}
-
-#[derive(Debug)]
-pub struct FieldDef<R = ()> {
-    pub def_id: LocalDefId,
-    pub ty: Option<Ty<R>>,
 }
 
 #[derive(Debug)]
@@ -190,11 +187,12 @@ pub enum TyKind<R = ()> {
         pred: Option<Expr>,
     },
     /// Mutable or shared reference
-    Ref(RefKind, Box<Ty<R>>),
+    Ref(Mutability, Box<Ty<R>>),
     /// Constrained type: an exists without binder
     Constr(Expr, Box<Ty<R>>),
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
+    Hole,
 }
 
 #[derive(Debug)]
@@ -244,12 +242,6 @@ pub struct Path<R = ()> {
     pub res: R,
 }
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub enum RefKind {
-    Mut,
-    Shr,
-}
-
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -296,6 +288,16 @@ pub enum BinOp {
 pub enum UnOp {
     Not,
     Neg,
+}
+
+impl Path {
+    pub fn is_hole(&self) -> bool {
+        if let [segment] = &self.segments[..] && segment.name == kw::Underscore {
+            self.refine.is_empty() && self.generics.is_empty()
+        } else {
+            false
+        }
+    }
 }
 
 impl BindKind {

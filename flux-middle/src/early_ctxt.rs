@@ -1,5 +1,6 @@
-///! The context used before refinement checking while building the [`fhir::Map`] and for
-///! well-formedness checking.
+//! The context used before refinement checking while building the [`fhir::Map`] and for
+//! well-formedness checking.
+
 use std::borrow::Borrow;
 
 use flux_errors::{ErrorGuaranteed, FluxSession};

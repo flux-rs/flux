@@ -1,8 +1,11 @@
+//! Refinement type checking
+
 #![warn(unused_extern_crates)]
 #![feature(
     box_patterns,
     drain_filter,
     if_let_guard,
+    impl_trait_in_assoc_type,
     lazy_cell,
     let_chains,
     min_specialization,
@@ -10,7 +13,7 @@
     rustc_private,
     type_alias_impl_trait
 )]
-///! Refinement type checking
+
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -19,6 +22,7 @@ extern crate rustc_index;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_span;
+extern crate rustc_type_ir;
 
 mod checker;
 mod constraint_gen;
@@ -61,7 +65,7 @@ pub fn check_fn(
             return Ok(());
         }
 
-        // PHASE 1: infer shape of basic blocks
+        // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result = Checker::run_in_shape_mode(genv, def_id, config).emit(genv.sess)?;
         tracing::info!("check_fn::shape");
 
@@ -70,7 +74,7 @@ pub fn check_fn(
             Checker::run_in_refine_mode(genv, def_id, shape_result, config).emit(genv.sess)?;
         tracing::info!("check_fn::refine");
 
-        // PHASE 3: invoke fixpoint on the constraints
+        // PHASE 3: invoke fixpoint on the constraint
         refine_tree.simplify();
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
