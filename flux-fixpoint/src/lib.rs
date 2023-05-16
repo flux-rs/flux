@@ -42,6 +42,7 @@ pub struct Task<Tag> {
     pub constraint: Constraint<Tag>,
     pub qualifiers: Vec<Qualifier>,
     pub sorts: Vec<String>,
+    pub scrape_quals: bool,
 }
 
 impl<Tag> Hash for Task<Tag> {
@@ -51,6 +52,7 @@ impl<Tag> Hash for Task<Tag> {
         self.constraint.hash(state);
         self.qualifiers.hash(state);
         self.sorts.hash(state);
+        self.scrape_quals.hash(state);
     }
 }
 
@@ -95,8 +97,9 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         constraint: Constraint<Tag>,
         qualifiers: Vec<Qualifier>,
         sorts: Vec<String>,
+        scrape_quals: bool,
     ) -> Self {
-        Task { comments, constants, kvars, constraint, qualifiers, sorts }
+        Task { comments, constants, kvars, constraint, qualifiers, sorts, scrape_quals }
     }
 
     pub fn hash_with_default(&self) -> u64 {
@@ -156,6 +159,9 @@ impl KVar {
 
 impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.scrape_quals {
+            writeln!(f, "(fixpoint \"--scrape=both\")")?;
+        }
         for line in &self.comments {
             writeln!(f, "// {line}")?;
         }

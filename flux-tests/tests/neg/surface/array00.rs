@@ -12,6 +12,7 @@ pub fn write() -> i32 {
     bytes[0] + bytes[1] //~ ERROR postcondition
 }
 
+#[allow(unconditional_panic)]
 #[flux::sig(fn() -> i32)]
 pub fn write2() -> i32 {
     let bytes: [i32; 2] = [10, 20];

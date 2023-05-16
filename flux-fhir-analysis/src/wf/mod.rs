@@ -207,7 +207,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let fields = variant
             .fields
             .iter()
-            .try_for_each_exhaust(|ty| self.check_type(infcx, ty));
+            .try_for_each_exhaust(|field| self.check_type(infcx, &field.ty));
         let expected = self.sort_of_bty(&variant.ret.bty);
         let indices = self.check_refine_arg(infcx, &variant.ret.idx, &expected);
         fields?;
@@ -291,7 +291,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 infcx.resolve_params_sorts(params)?;
                 self.check_params_determined(infcx, params)
             }
-            fhir::TyKind::Ptr(loc) => {
+            fhir::TyKind::Ptr(_, loc) => {
                 self.xi.insert(loc.name);
                 infcx.check_loc(*loc)
             }
@@ -299,13 +299,15 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 tys.iter()
                     .try_for_each_exhaust(|ty| self.check_type(infcx, ty))
             }
-            fhir::TyKind::Ref(_, ty) | fhir::TyKind::Array(ty, _) => self.check_type(infcx, ty),
+            fhir::TyKind::Ref(_, fhir::MutTy { ty, .. }) | fhir::TyKind::Array(ty, _) => {
+                self.check_type(infcx, ty)
+            }
             fhir::TyKind::Constr(pred, ty) => {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)
             }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
-            fhir::TyKind::Never => Ok(()),
+            fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
         }
     }
 
@@ -344,10 +346,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::Param(_) => {}
         }
         let snapshot = self.xi.snapshot();
-        let res = path
-            .generics
-            .iter()
-            .try_for_each_exhaust(|ty| self.check_type(env, ty));
+        let res = path.generics.iter().try_for_each_exhaust(|arg| {
+            if let fhir::GenericArg::Type(ty) = arg {
+                self.check_type(env, ty)
+            } else {
+                Ok(())
+            }
+        });
         if !self.early_cx.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }

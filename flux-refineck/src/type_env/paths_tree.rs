@@ -260,18 +260,18 @@ impl PathsTree {
                                 path = ptr_path.clone();
                                 continue 'outer;
                             }
-                            Ref!(rk, ty) => {
-                                let (rk, ty) = Self::lookup_ty(
+                            Ref!(_, ty, mutbl) => {
+                                let (mutbl, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
-                                    WeakKind::from(*rk),
+                                    WeakKind::from(*mutbl),
                                     ty,
                                     place_proj,
                                     checker_config,
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(rk, ty),
+                                    kind: LookupKind::Weak(mutbl, ty),
                                 });
                             }
                             TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
@@ -304,7 +304,7 @@ impl PathsTree {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                                let (rk, ty) = Self::lookup_ty(
+                                let (mutbl, ty) = Self::lookup_ty(
                                     genv,
                                     rcx,
                                     WeakKind::Arr,
@@ -314,7 +314,7 @@ impl PathsTree {
                                 )?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(rk, ty),
+                                    kind: LookupKind::Weak(mutbl, ty),
                                 });
                             }
                             _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
@@ -343,8 +343,8 @@ impl PathsTree {
         for elem in proj.by_ref() {
             ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             match (elem, ty.kind()) {
-                (Deref, Ref!(rk2, ty2)) => {
-                    rk = rk.min(WeakKind::from(*rk2));
+                (Deref, Ref!(_, ty2, mutbl2)) => {
+                    rk = rk.min(WeakKind::from(*mutbl2));
                     ty = ty2.clone();
                 }
                 (Deref, TyKind::Indexed(BaseTy::Adt(adt, substs), _)) if adt.is_box() => {
@@ -888,7 +888,7 @@ fn downcast_struct(
         .variant(def_id, variant_idx)?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
         .subst_generics(substs)
-        .replace_bvar(&idx.expr)
+        .replace_bound_expr(|_| idx.expr.clone())
         .fields
         .to_vec())
 }
@@ -913,7 +913,7 @@ fn downcast_enum(
         .variant(def_id, variant_idx)?
         .expect("enums cannot be opaque")
         .subst_generics(substs)
-        .replace_bvar_with(|sort| rcx.define_vars(sort));
+        .replace_bound_expr(|sort| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
     // FIXME(nilehmann) flatten indices

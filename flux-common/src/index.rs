@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, sync::atomic::AtomicUsize};
 
-pub use rustc_index::vec::{Idx, IndexVec};
+pub use rustc_index::{Idx, IndexVec};
 
 /// A generator of fresh indices.
 ///
