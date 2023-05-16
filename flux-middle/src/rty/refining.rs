@@ -156,7 +156,16 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
-            rustc::ty::TyKind::Closure(did, _substs) => rty::BaseTy::Closure(*did),
+            rustc::ty::TyKind::Closure(did, substs) => {
+                if let rustc::ty::GenericArg::Ty(ty) = &substs[substs.len() - 1] &&
+                   let rustc::ty::TyKind::Tuple(tys) = ty.kind()
+                {
+                   let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
+                   rty::BaseTy::Closure(*did, tys)
+                } else {
+                    bug!()
+                }
+            }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {
                 rty::BaseTy::Ref(*r, self.refine_ty(ty)?, *mutbl)

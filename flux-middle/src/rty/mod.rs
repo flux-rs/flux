@@ -277,7 +277,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
-    Closure(DefId),
+    Closure(DefId, List<Ty>),
     Param(ParamTy),
 }
 
@@ -290,6 +290,14 @@ pub enum GenericArg {
     Lifetime(Region),
 }
 
+// <<<<<<< HEAD
+// impl FnTraitPredicate {
+//     pub fn to_poly_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+//         let closure_ty = Ty::closure(closure_id, tys);
+//         let env_ty = match self.kind {
+//             ClosureKind::Fn => Ty::mk_ref(RefKind::Shr, closure_ty),
+//             ClosureKind::FnMut => Ty::mk_ref(RefKind::Mut, closure_ty),
+// =======
 impl Predicate {
     pub fn kind(&self) -> Binder<PredicateKind> {
         self.kind.clone()
@@ -302,7 +310,7 @@ impl Binder<FnTraitPredicate> {
             .map(|fn_trait_pred| fn_trait_pred.self_ty.clone())
     }
 
-    pub fn to_closure_sig(&self, closure_id: DefId) -> PolyFnSig {
+    pub fn to_closure_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
         let bound_vars: List<BoundVariableKind> = self
             .vars
             .iter()
@@ -312,7 +320,7 @@ impl Binder<FnTraitPredicate> {
 
         let pred = self.as_ref().skip_binder();
 
-        let closure_ty = Ty::closure(closure_id);
+        let closure_ty = Ty::closure(closure_id, tys);
         let env_ty = match pred.kind {
             ClosureKind::Fn => {
                 let br = BoundRegion {
@@ -899,8 +907,8 @@ impl Ty {
         BaseTy::Array(ty, c).into_ty()
     }
 
-    pub fn closure(did: DefId) -> Ty {
-        BaseTy::Closure(did).into_ty()
+    pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
+        BaseTy::Closure(did, tys.into()).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -1024,7 +1032,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Closure(_)
+            | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => &[],
         }
@@ -1052,7 +1060,7 @@ impl BaseTy {
             | BaseTy::Ref(..)
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
-            | BaseTy::Closure(_)
+            | BaseTy::Closure(_, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1430,7 +1438,13 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
-                BaseTy::Closure(did) => w!("{:?}", did),
+                BaseTy::Closure(did, substs) => {
+                    w!("{:?}", did)?;
+                    if !substs.is_empty() {
+                        w!("<{:?}>", join!(", ", substs))?;
+                    }
+                    Ok(())
+                }
             }
         }
     }

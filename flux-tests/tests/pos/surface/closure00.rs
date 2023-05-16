@@ -17,7 +17,7 @@ pub fn test2(c: Option<bool>) -> Option<i32> {
 }
 
 #[flux::sig(fn(n:usize) -> usize[n + 2])]
-fn test3(n: usize) -> usize {
+pub fn test3(n: usize) -> usize {
     checked_add(n, 1)
         .and_then(|m| Some(m + 1))
         .expect("overflow")
@@ -25,6 +25,6 @@ fn test3(n: usize) -> usize {
 
 #[flux::trusted]
 #[flux::sig(fn(n:usize, m:usize) -> Option<usize[n + m]>)]
-fn checked_add(n: usize, m: usize) -> Option<usize> {
+pub fn checked_add(n: usize, m: usize) -> Option<usize> {
     n.checked_add(m)
 }
