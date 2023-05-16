@@ -75,7 +75,9 @@ impl Defns {
             Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
             Err(mut scc) => {
                 let cycle = scc.pop().unwrap();
-                Err(cycle.iter().map(|i| i2s[*i]).collect())
+                let mut names: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
+                names.sort();
+                Err(names)
             }
         }
     }
