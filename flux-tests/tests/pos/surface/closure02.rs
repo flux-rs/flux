@@ -10,7 +10,6 @@ pub struct Foo {
     pub val: i32,
 }
 
-#[flux::sig(fn(c:Option<bool>) -> Option<Foo>)]
 pub fn test1(c: Option<bool>) -> Option<Foo> {
     let x = 6;
     let y = 10;
@@ -22,7 +21,6 @@ fn bob(vec: &RVec<i32>) -> Foo {
     Foo { val: vec[0] }
 }
 
-#[flux::sig(fn(c:Option<bool>) -> Option<Foo>)]
 pub fn test2(c: Option<bool>) -> Option<Foo> {
     let vec = rvec![100, 200, 300];
     c.map(|b| if b { bob(&vec) } else { Foo { val: 20 } })
@@ -33,7 +31,7 @@ fn frob(_vec: &RVec<RVec<i32>>) -> Foo {
     todo!()
 }
 
-pub fn test3(c: Option<bool>, mut vec: RVec<RVec<i32>>) -> Option<Foo> {
+pub fn test3(c: Option<bool>, vec: RVec<RVec<i32>>) -> Option<Foo> {
     // let mut vec = rvec![rvec![100, 200, 300]];
     c.map(|b| if b { frob(&vec) } else { Foo { val: 20 } })
 }
