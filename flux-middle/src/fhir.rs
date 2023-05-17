@@ -699,8 +699,8 @@ impl Sort {
         }
     }
 
-    pub fn set_int() -> Self {
-        Self::App(SortCtor::set(), vec![Sort::Int])
+    pub fn set(t: Sort) -> Self {
+        Self::App(SortCtor::set(), vec![t])
     }
 }
 
@@ -917,6 +917,7 @@ impl Map {
     }
 
     fn insert_theory_funcs(&mut self) {
+        // Bitvector operations
         self.insert_theory_func(
             Symbol::intern("bv_int_to_bv32"),
             vec![Sort::Int],
@@ -937,11 +938,29 @@ impl Map {
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
-        self.insert_theory_func(Symbol::intern("set_emp"), vec![], Sort::set_int());
-        // set_union : (Set<int>, Set<int>) -> Set<int>
-        // set_is_emp : (Set<int>) -> bool
-        // set_sng: (x:int) -> Set<int>
-        // set_is_elem : (int, Set<int>) -> bool
+
+        // Set operations
+        self.insert_theory_func(Symbol::intern("set_empty"), vec![], Sort::set(Sort::Int));
+        self.insert_theory_func(
+            Symbol::intern("set_singleton"),
+            vec![Sort::Int],
+            Sort::set(Sort::Int),
+        );
+        self.insert_theory_func(
+            Symbol::intern("set_union"),
+            vec![Sort::set(Sort::Int), Sort::set(Sort::Int)],
+            Sort::set(Sort::Int),
+        );
+        self.insert_theory_func(
+            Symbol::intern("set_is_empty"),
+            vec![Sort::set(Sort::Int)],
+            Sort::set(Sort::Bool),
+        );
+        self.insert_theory_func(
+            Symbol::intern("set_is_in"),
+            vec![Sort::Int, Sort::set(Sort::Int)],
+            Sort::set(Sort::Bool),
+        );
     }
 
     // UIF
