@@ -698,6 +698,10 @@ impl Sort {
             InferMode::EVar
         }
     }
+
+    pub fn set_int() -> Self {
+        Self::App(SortCtor::set(), vec![Sort::Int])
+    }
 }
 
 impl ena::unify::UnifyKey for SortVid {
@@ -913,18 +917,31 @@ impl Map {
     }
 
     fn insert_theory_funcs(&mut self) {
-        self.insert_theory_func(Symbol::intern("int_to_bv32"), vec![Sort::Int], Sort::BitVec(32));
-        self.insert_theory_func(Symbol::intern("bv32_to_int"), vec![Sort::BitVec(32)], Sort::Int);
         self.insert_theory_func(
-            Symbol::intern("bvsub"),
+            Symbol::intern("bv_int_to_bv32"),
+            vec![Sort::Int],
+            Sort::BitVec(32),
+        );
+        self.insert_theory_func(
+            Symbol::intern("bv_bv32_to_int"),
+            vec![Sort::BitVec(32)],
+            Sort::Int,
+        );
+        self.insert_theory_func(
+            Symbol::intern("bv_sub"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
         self.insert_theory_func(
-            Symbol::intern("bvand"),
+            Symbol::intern("bv_and"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
+        self.insert_theory_func(Symbol::intern("set_emp"), vec![], Sort::set_int());
+        // set_union : (Set<int>, Set<int>) -> Set<int>
+        // set_is_emp : (Set<int>) -> bool
+        // set_sng: (x:int) -> Set<int>
+        // set_is_elem : (int, Set<int>) -> bool
     }
 
     // UIF

@@ -10,7 +10,7 @@ pub fn never<T>(_: i32) -> T {
 
 #[flux::refined_by(elems: Set<int>)]
 pub enum List {
-    #[flux::variant(List[{}])]
+    #[flux::variant(List[set_emp()])]
     Nil,
     #[flux::variant((i32[@n], List[@elems]) -> List[set_add(n, elems)])]
     Cons(i32, Box<List>),

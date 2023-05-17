@@ -8,13 +8,13 @@ pub struct Bv32(u32);
 impl Bv32 {
     // Define "cast" functions
     #[flux::trusted]
-    #[flux::sig(fn (n:u32) -> Bv32[int_to_bv32(n)])]
+    #[flux::sig(fn (n:u32) -> Bv32[bv_int_to_bv32(n)])]
     pub fn to_bv(n: u32) -> Bv32 {
         Bv32(n)
     }
 
     #[flux::trusted]
-    #[flux::sig(fn (bv:Bv32) -> u32[bv32_to_int(bv)])]
+    #[flux::sig(fn (bv:Bv32) -> u32[bv_bv32_to_int(bv)])]
     pub fn from_bv(bv: Bv32) -> u32 {
         bv.0
     }
@@ -23,7 +23,7 @@ impl Bv32 {
 impl std::ops::Sub<Bv32> for Bv32 {
     type Output = Bv32;
     #[flux::trusted]
-    #[flux::sig(fn (x:Bv32, y:Bv32) -> Bv32[bvsub(x,y)])]
+    #[flux::sig(fn (x:Bv32, y:Bv32) -> Bv32[bv_sub(x,y)])]
     fn sub(self, other: Bv32) -> Bv32 {
         Bv32(self.0 - other.0)
     }
@@ -32,7 +32,7 @@ impl std::ops::Sub<Bv32> for Bv32 {
 impl std::ops::BitAnd<Bv32> for Bv32 {
     type Output = Bv32;
     #[flux::trusted]
-    #[flux::sig(fn (x:Bv32, y:Bv32) -> Bv32[bvand(x,y)])]
+    #[flux::sig(fn (x:Bv32, y:Bv32) -> Bv32[bv_and(x,y)])]
     fn bitand(self, other: Bv32) -> Bv32 {
         Bv32(self.0 & other.0)
     }
