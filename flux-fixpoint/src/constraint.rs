@@ -26,6 +26,13 @@ pub enum Sort {
     BitVec(usize),
     Pair(Box<Sort>, Box<Sort>),
     Func(FuncSort),
+    App(SortCtor, Vec<Sort>),
+}
+
+#[derive(Clone, Hash)]
+pub struct SortCtor {
+    pub name: Symbol,
+    pub arity: usize,
 }
 
 #[derive(Clone, Hash)]
@@ -279,6 +286,7 @@ impl fmt::Display for Sort {
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
+            Sort::App(ctor, ts) => write!(f, "{}<{}>", ctor.name, ts.iter().format(", ")),
         }
     }
 }

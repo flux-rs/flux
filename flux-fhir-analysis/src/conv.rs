@@ -898,12 +898,20 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Record(def_id) => {
             rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
         }
+        fhir::Sort::App(ctor, args) => {
+            let ctor = conv_sort_ctor(ctor);
+            let args = args.iter().map(|t| conv_sort(early_cx, t)).collect_vec();
+            rty::Sort::app(ctor, args)
+        }
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
         }
         fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
-        fhir::Sort::App(_, _) => todo!("TODO: conv_sort to rty::Sort"),
     }
+}
+
+fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
+    rty::SortCtor { name: ctor.name, arity: ctor.arity }
 }
 
 fn conv_func_sort(early_cx: &EarlyCtxt, fsort: &fhir::FuncSort) -> rty::FuncSort {

@@ -96,6 +96,12 @@ pub struct FnTraitPredicate {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct SortCtor {
+    pub name: Symbol,
+    pub arity: usize,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -106,6 +112,7 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(FuncSort),
     User(Symbol),
+    App(SortCtor, List<Sort>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -371,6 +378,10 @@ impl Generics {
 impl Sort {
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
+    }
+
+    pub fn app(ctor: SortCtor, sorts: impl Into<List<Sort>>) -> Self {
+        Sort::App(ctor, sorts.into())
     }
 
     pub fn unit() -> Self {
@@ -1240,6 +1251,13 @@ mod pretty {
                         w!("({:?},)", sort)
                     } else {
                         w!("({:?})", join!(", ", sorts))
+                    }
+                }
+                Sort::App(ctor, sorts) => {
+                    if let [sort] = &sorts[..] {
+                        w!("{}<{:?}>", ^ctor.name, sort)
+                    } else {
+                        w!("{}<{:?}>", ^ctor.name, join!(", ", sorts))
                     }
                 }
                 Sort::Param(param_ty) => w!("sortof({})", ^param_ty),

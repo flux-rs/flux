@@ -619,7 +619,7 @@ pub struct FuncDecl {
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum FuncKind {
     /// Theory symbols "interpreted" by the SMT solver
-    Thy,
+    Thy(Symbol),
     /// User-defined uninterpreted functions with no definition
     Uif,
     /// User-defined functions with a body definition
@@ -910,56 +910,75 @@ impl Map {
     }
 
     // Theory Symbols
-    fn insert_theory_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
+    fn insert_theory_func(
+        &mut self,
+        name: Symbol,
+        fixpoint_name: Symbol,
+        inputs: Vec<Sort>,
+        output: Sort,
+    ) {
         let sort = FuncSort::new(inputs, output);
         self.func_decls
-            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy });
+            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
     }
 
     fn insert_theory_funcs(&mut self) {
         // Bitvector operations
         self.insert_theory_func(
             Symbol::intern("bv_int_to_bv32"),
+            Symbol::intern("int_to_bv32"),
             vec![Sort::Int],
             Sort::BitVec(32),
         );
         self.insert_theory_func(
             Symbol::intern("bv_bv32_to_int"),
+            Symbol::intern("bv32_to_int"),
             vec![Sort::BitVec(32)],
             Sort::Int,
         );
         self.insert_theory_func(
             Symbol::intern("bv_sub"),
+            Symbol::intern("bvsub"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
         self.insert_theory_func(
             Symbol::intern("bv_and"),
+            Symbol::intern("bvand"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
 
         // Set operations
-        self.insert_theory_func(Symbol::intern("set_empty"), vec![], Sort::set(Sort::Int));
+        self.insert_theory_func(
+            Symbol::intern("set_empty"),
+            Symbol::intern("Set_empty"),
+            vec![Sort::Int],
+            Sort::set(Sort::Int),
+        );
         self.insert_theory_func(
             Symbol::intern("set_singleton"),
+            Symbol::intern("Set_sng"),
             vec![Sort::Int],
             Sort::set(Sort::Int),
         );
         self.insert_theory_func(
             Symbol::intern("set_union"),
+            Symbol::intern("Set_cup"),
             vec![Sort::set(Sort::Int), Sort::set(Sort::Int)],
             Sort::set(Sort::Int),
         );
-        self.insert_theory_func(
-            Symbol::intern("set_is_empty"),
-            vec![Sort::set(Sort::Int)],
-            Sort::set(Sort::Bool),
-        );
+        // self.insert_theory_func(
+        //     Symbol::intern("set_is_empty"),
+        //     Symbol::intern("Set_is_empty")
+        //     vec![Sort::set(Sort::Int)],
+        //     Sort::Bool,
+        // );
         self.insert_theory_func(
             Symbol::intern("set_is_in"),
+            Symbol::intern("Set_mem"),
             vec![Sort::Int, Sort::set(Sort::Int)],
-            Sort::set(Sort::Bool),
+            Sort::Bool,
         );
     }
 

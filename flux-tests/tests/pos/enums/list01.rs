@@ -3,6 +3,8 @@
 #![feature(custom_inner_attributes)]
 #![flux::defs {
     fn set_add(x: int, s: Set<int>) -> Set<int> { set_union(set_singleton(x), s) }
+    fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }
+    fn set_emp() -> Set<int> { set_empty(0) }
 }]
 
 #[flux::sig(fn(i32{v: false}) -> T)]
@@ -14,9 +16,9 @@ pub fn never<T>(_: i32) -> T {
 
 #[flux::refined_by(elems: Set<int>)]
 pub enum List {
-    #[flux::variant(List[set_empty()])]
+    #[flux::variant(List[set_emp()])]
     Nil,
-    #[flux::variant((i32[@n], List[@elems]) -> List[set_add(n, elems)])]
+    #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
     Cons(i32, Box<List>),
 }
 
