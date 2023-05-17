@@ -126,6 +126,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | fhir::ExprKind::Var(_)
             | fhir::ExprKind::Literal(_) => {
                 let found = self.synth_expr(expr)?;
+                if *expected != found {
+                    println!("TRACE: check_expr expr = {expr:?}, expected = {expected:?}, found = {found:?}");
+                }
                 if !self.is_coercible(&found, expected, expr.fhir_id) {
                     return Err(self.emit_sort_mismatch(expr.span, expected, &found));
                 }
@@ -238,6 +241,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 if !self.has_equality(&s) {
                     return Err(self.emit_err(errors::NoEquality::new(expr.span, &s)));
                 }
+                println!("TRACE: synth_binary_op: {op:?} {e1:?} {e2:?} {s:?}");
                 Ok(fhir::Sort::Bool)
             }
             fhir::BinOp::Mod => {
@@ -355,6 +359,8 @@ impl<'a> InferCtxt<'a, '_> {
         if self.try_equate(sort1, sort2).is_some() {
             return true;
         }
+
+        println!("TRACE: is_coercible0: {sort1:?} {sort2:?} not-equatable");
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
         let mut coercions = vec![];
@@ -366,6 +372,7 @@ impl<'a> InferCtxt<'a, '_> {
             coercions.push(fhir::Coercion::Inject);
             sort2 = sort.clone();
         }
+        println!("TRACE: is_coercible: {sort1:?} {sort2:?} {coercions:?}");
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
         self.try_equate(&sort1, &sort2).is_some()
     }

@@ -1,5 +1,9 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
+#![feature(custom_inner_attributes)]
+#![flux::defs {
+    fn is_zero(n:int) -> bool { n == 0 }
+}]
 
 #[flux::sig(fn(i32{v: false}) -> T)]
 pub fn never<T>(_: i32) -> T {
@@ -15,7 +19,7 @@ pub enum List {
     Cons(i32, Box<List>),
 }
 
-#[flux::sig(fn(&List[@n]) -> bool[n == 0])]
+#[flux::sig(fn(&List[@n]) -> bool[is_zero(n)])]
 pub fn empty(l: &List) -> bool {
     match l {
         List::Nil => true,

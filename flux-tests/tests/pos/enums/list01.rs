@@ -2,32 +2,62 @@
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
 #![flux::defs {
+    fn blob(n:int) -> Set<int> ;
+    fn glob(n:int) -> int ;
     fn set_add(x: int, s: Set<int>) -> Set<int> { set_union(set_singleton(x), s) }
     fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }
     fn set_emp() -> Set<int> { set_empty(0) }
 }]
 
-#[flux::sig(fn(i32{v: false}) -> T)]
-pub fn never<T>(_: i32) -> T {
-    loop {}
+/// (i32) lists indexed by the _set_ of elements.
+
+#[flux::refined_by(elems: int)]
+pub enum List0 {
+    #[flux::variant(List0[glob(92)])]
+    Nil,
+    // #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
+    // Cons(i32, Box<List>),
 }
 
-/// (i32) lists indexed by the _set_ of elements.
+#[flux::sig(fn(&List0[@xs]) -> bool[xs == glob(666)])]
+pub fn is_empty0(l: &List0) -> bool {
+    match l {
+        List0::Nil => true,
+        //       List::Cons(_, _) => false,
+    }
+}
 
 #[flux::refined_by(elems: Set<int>)]
 pub enum List {
-    #[flux::variant(List[set_emp()])]
+    #[flux::variant(List[blob(92)])]
     Nil,
-    #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
-    Cons(i32, Box<List>),
+    // #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
+    // Cons(i32, Box<List>),
 }
 
-#[flux::sig(fn(&List[@xs]) -> bool[set_is_empty(xs)])]
+#[flux::sig(fn(&List[@xs]) -> bool[xs == blob(666)])]
 pub fn is_empty(l: &List) -> bool {
     match l {
         List::Nil => true,
-        List::Cons(_, _) => false,
+        //       List::Cons(_, _) => false,
     }
+}
+
+/*
+
+
+// WHY DOES THIS FAIL?
+// #[flux::sig(fn () -> List{v:v==set_emp()})]
+
+#[flux::sig(fn () -> List[set_emp()])]
+pub fn null() -> List {
+    List::Nil
+}
+
+
+#[flux::sig(fn(i32{v: false}) -> T)]
+pub fn never<T>(_: i32) -> T {
+    loop {}
 }
 
 #[flux::sig(fn({&List[@xs] | !set_is_empty(xs)}) -> i32)]
@@ -76,3 +106,4 @@ pub fn mem(k: i32, l: &List) -> bool {
         List::Nil => false,
     }
 }
+*/

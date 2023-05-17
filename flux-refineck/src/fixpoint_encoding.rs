@@ -504,11 +504,9 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Bool => fixpoint::Sort::Bool,
         rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
         rty::Sort::App(ctor, sorts) => {
-            todo!("DEATH");
             let ctor = sort_ctor_to_fixpoint(ctor);
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             let res = fixpoint::Sort::App(ctor, sorts);
-            println!("TRACE: convert {res:?}");
             res
         }
         rty::Sort::Tuple(sorts) => {
@@ -516,6 +514,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 [] => fixpoint::Sort::Unit,
                 [_] => unreachable!("1-tuple"),
                 [sorts @ .., s1, s2] => {
+                    panic!("Yikes TUPLE");
                     let s1 = Box::new(sort_to_fixpoint(s1));
                     let s2 = Box::new(sort_to_fixpoint(s2));
                     sorts

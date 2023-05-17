@@ -1343,7 +1343,7 @@ impl fmt::Display for SortCtor {
 
 impl fmt::Debug for SortCtor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.name)
+        write!(f, "{}", self.name)
     }
 }
 
