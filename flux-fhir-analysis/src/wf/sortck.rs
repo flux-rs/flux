@@ -361,8 +361,10 @@ impl<'a> InferCtxt<'a, '_> {
         }
 
         println!("TRACE: is_coercible0: {sort1:?} {sort2:?} not-equatable");
+
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
+
         let mut coercions = vec![];
         if let Some(sort) = self.is_single_field_record(&sort1) {
             coercions.push(fhir::Coercion::Project);
@@ -372,7 +374,7 @@ impl<'a> InferCtxt<'a, '_> {
             coercions.push(fhir::Coercion::Inject);
             sort2 = sort.clone();
         }
-        println!("TRACE: is_coercible: {sort1:?} {sort2:?} {coercions:?}");
+        println!("TRACE: is_coercible1: {sort1:?} {sort2:?} {coercions:?}");
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
         self.try_equate(&sort1, &sort2).is_some()
     }
