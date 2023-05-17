@@ -13,7 +13,7 @@ pub enum List {
     #[flux::variant(List[{}])]
     Nil,
     #[flux::variant((i32[@n], List[@elems]) -> List[set_add(n, elems)])]
-    Cons(i32, Box<List>)
+    Cons(i32, Box<List>),
 }
 
 #[flux::sig(fn(&List[@xs]) -> bool[set_emp(xs)])]
@@ -23,7 +23,6 @@ pub fn is_empty(l: &List) -> bool {
         List::Cons(_, _) => false,
     }
 }
-
 
 #[flux::sig(fn({&List[@xs] | !set_emp(xs)}) -> i32)]
 pub fn head(l: &List) -> i32 {
@@ -59,10 +58,10 @@ pub fn append(l1: List, l2: List) -> List {
 }
 
 #[flux::sig(fn(k:i32, &List[@xs]) -> bool[set_mem(k, xs)])]
-pub fn mem(k:i32, l: &List) -> bool {
+pub fn mem(k: i32, l: &List) -> bool {
     match l {
         List::Cons(h, tl) => {
-            if k == h {
+            if k == *h {
                 true
             } else {
                 mem(k, tl)

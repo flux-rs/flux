@@ -408,6 +408,18 @@ newtype_index! {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct SortCtor {
+    pub name: Symbol,
+    pub arity: usize,
+}
+
+impl SortCtor {
+    pub fn set() -> Self {
+        Self { name: Symbol::intern("Set"), arity: 1 }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -415,6 +427,8 @@ pub enum Sort {
     Loc,
     Unit,
     BitVec(usize),
+    /// Sort constructor application (e.g. `Set<int>`)
+    App(SortCtor, Vec<Sort>),
     Func(FuncSort),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
@@ -1266,6 +1280,18 @@ impl fmt::Display for Sort {
     }
 }
 
+impl fmt::Display for SortCtor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl fmt::Debug for SortCtor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.name)
+    }
+}
+
 impl fmt::Debug for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1281,6 +1307,7 @@ impl fmt::Debug for Sort {
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),
+            Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
         }
     }
 }

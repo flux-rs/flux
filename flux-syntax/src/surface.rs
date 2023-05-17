@@ -120,12 +120,14 @@ pub enum Sort {
     Infer,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum BaseSort {
     /// a _base_ sort, e.g. `int` or `bool`
     Ident(Ident),
-    /// A bitvector sort, e.g., BitVec(32)
+    /// a bitvector sort, e.g., BitVec(32)
     BitVec(usize),
+    /// a sort-constructor application, e.g., `Set<int>`
+    App(Ident, Vec<BaseSort>),
 }
 
 #[derive(Debug)]
