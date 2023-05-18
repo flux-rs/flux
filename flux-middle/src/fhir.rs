@@ -413,6 +413,14 @@ pub enum SortCtor {
     User { name: Symbol, arity: usize },
 }
 
+impl SortCtor {
+    pub fn arity(&self) -> usize {
+        match self {
+            SortCtor::Set => 1,
+            SortCtor::User { arity, .. } => *arity,
+        }
+    }
+}
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
