@@ -25,7 +25,7 @@ pub fn test2_old(vs: Option<i32>) -> Option<i32> {
     let y = 1;
     let z = 2;
     vs.map(|x| x + y + z)
-
+}
 
 pub struct Foo {
     #[flux::field(i32{v: 10 <= v})]
