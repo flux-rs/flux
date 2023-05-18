@@ -115,7 +115,7 @@ impl<'a> Normalizer<'a> {
                 defn.expr.replace_bound_expr(|_| arg.clone())
             }
             ExprKind::Abs(body) => body.replace_bound_expr(|_| arg.clone()),
-            _ => Expr::app(func.clone(), arg),
+            _ => Expr::app(func.clone(), arg,None),
         }
     }
 
@@ -123,7 +123,7 @@ impl<'a> Normalizer<'a> {
         if let ExprKind::Tuple(exprs) = tup.kind() {
             exprs[proj as usize].clone()
         } else {
-            Expr::tuple_proj(tup, proj)
+            Expr::tuple_proj(tup, proj, None)
         }
     }
 }

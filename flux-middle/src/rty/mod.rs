@@ -1097,7 +1097,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant {
             pred: Binder::with_sort(
-                Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
+                Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero(), None),
                 Sort::Int,
             ),
         }]
@@ -1110,13 +1110,13 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
                 let invariants = [
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
+                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero(), None),
                             Sort::Int,
                         ),
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty)),
+                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty), None),
                             Sort::Int,
                         ),
                     },
@@ -1142,13 +1142,13 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
                 let invariants = [
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty)),
+                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty), None),
                             Sort::Int,
                         ),
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty)),
+                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty), None),
                             Sort::Int,
                         ),
                     },

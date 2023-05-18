@@ -672,7 +672,8 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::tuple_proj(Expr::nu(), (bound_sorts.len() - 1) as u32)
+                    let span = e2.span();
+                    Expr::tuple_proj(Expr::nu(), (bound_sorts.len() - 1) as u32, span)
                 }
             }
         }

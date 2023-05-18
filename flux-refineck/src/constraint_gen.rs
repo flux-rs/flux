@@ -613,7 +613,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             _ => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
+                let span = e2.span();
+                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2, span), self.tag);
             }
         }
     }

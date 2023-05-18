@@ -626,23 +626,26 @@ impl TypeFoldable for KVar {
 
 impl TypeFoldable for Expr {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        let span = self.span();
         match self.kind() {
-            ExprKind::Var(var) => Expr::var(*var),
-            ExprKind::Local(local) => Expr::local(*local),
-            ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
+            ExprKind::Var(var) => Expr::var(*var, span),
+            ExprKind::Local(local) => Expr::local(*local, span),
+            ExprKind::Constant(c) => Expr::constant_at(*c, span),
+            ExprKind::ConstDefId(did) => Expr::const_def_id(*did, span),
             ExprKind::BinaryOp(op, e1, e2) => {
-                Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder))
+                Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder), span)
             }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder)),
-            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.fold_with(folder), *proj),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder), span),
+            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.fold_with(folder), *proj, span),
             ExprKind::Tuple(exprs) => {
                 Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
-            ExprKind::App(func, arg) => Expr::app(func.fold_with(folder), arg.fold_with(folder)),
+            ExprKind::App(func, arg) => {
+                Expr::app(func.fold_with(folder), arg.fold_with(folder), span)
+            }
             ExprKind::IfThenElse(p, e1, e2) => {
-                Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder))
+                Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder), span)
             }
             ExprKind::Hole => Expr::hole(),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
