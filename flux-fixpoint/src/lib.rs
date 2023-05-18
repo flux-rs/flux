@@ -19,7 +19,7 @@ use std::{
 
 pub use constraint::{
     BinOp, Const, ConstName, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj,
-    Qualifier, Sign, Sort, UnOp,
+    Qualifier, Sign, Sort, SortCtor, UnOp,
 };
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;

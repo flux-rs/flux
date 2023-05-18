@@ -22,6 +22,21 @@ desugar_unexpected_literal =
 desugar_invalid_dot_var =
     unsupported field access in refinement
 
+desugar_sort_arity_mismatch =
+    this sort constructor takes {$expected ->
+        [0] 0 sort arguments
+        [one] 1 sort argument
+        *[other] 1 or {$expected} sort arguments
+    } but {$found ->
+        [one] {$found} was found
+        *[other] {$found} were found
+    }
+    .label = expected {$expected ->
+        [0] 0 sort arguments
+        [one] {$expected} argument
+        *[other] 1 or {$expected} arguments
+    }, found {$found}
+
 desugar_refine_arg_count_mismatch =
     this type takes {$expected ->
         [0] 0 refinement arguments
@@ -61,4 +76,3 @@ desugar_unsupported_signature =
 desugar_unresolved_path =
     cannot resolve `{$path}`
     .help = flux can only resolve a path if it is present in the definition being refined
-

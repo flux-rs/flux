@@ -95,6 +95,9 @@ BaseSort: surface::BaseSort = {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         }
     },
+    <ctor: Ident> "<" <lo:@L> <args:Comma<BaseSort>> <hi:@R> ">" => {
+        surface::BaseSort::App(ctor, args)
+    },
     <sort: Ident> => surface::BaseSort::Ident(sort),
 }
 

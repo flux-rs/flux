@@ -503,6 +503,11 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
         rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
+        rty::Sort::App(ctor, sorts) => {
+            let ctor = sort_ctor_to_fixpoint(ctor);
+            let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
+            fixpoint::Sort::App(ctor, sorts)
+        }
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,
@@ -526,6 +531,15 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::User(_) | rty::Sort::Param(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
+    }
+}
+
+fn sort_ctor_to_fixpoint(ctor: &rty::SortCtor) -> fixpoint::SortCtor {
+    match ctor {
+        rty::SortCtor::Set => fixpoint::SortCtor::Set,
+        rty::SortCtor::User { name, arity } => {
+            fixpoint::SortCtor::User { name: *name, arity: *arity }
+        }
     }
 }
 
@@ -627,7 +641,7 @@ impl<'a> ExprCtxt<'a> {
                 });
                 fixpoint::Func::Var(*name)
             }
-            rty::ExprKind::GlobalFunc(sym, FuncKind::Thy) => fixpoint::Func::Itf(*sym),
+            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Func::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(

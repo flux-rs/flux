@@ -849,7 +849,7 @@ fn resolve_sort(
     sort: &surface::Sort,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
     match sort {
-        surface::Sort::Base(sort) => resolve_base_sort(sess, sort_decls, *sort),
+        surface::Sort::Base(sort) => resolve_base_sort(sess, sort_decls, sort),
         surface::Sort::Func { inputs, output } => {
             Ok(resolve_func_sort(sess, sort_decls, inputs, output)?.into())
         }
@@ -865,27 +865,65 @@ fn resolve_func_sort(
 ) -> Result<fhir::FuncSort, ErrorGuaranteed> {
     let mut inputs_and_output: Vec<fhir::Sort> = inputs
         .iter()
-        .map(|sort| resolve_base_sort(sess, sort_decls, *sort))
+        .map(|sort| resolve_base_sort(sess, sort_decls, sort))
         .try_collect_exhaust()?;
-    inputs_and_output.push(resolve_base_sort(sess, sort_decls, *output)?);
+    inputs_and_output.push(resolve_base_sort(sess, sort_decls, output)?);
     Ok(fhir::FuncSort { inputs_and_output: List::from_vec(inputs_and_output) })
 }
 
 fn resolve_base_sort(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
-    base: surface::BaseSort,
+    base: &surface::BaseSort,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
     match base {
         surface::BaseSort::Ident(ident) => resolve_base_sort_ident(sess, sort_decls, ident),
-        surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(w)),
+        surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
+        surface::BaseSort::App(ident, args) => resolve_app_sort(sess, sort_decls, *ident, args),
+    }
+}
+
+fn resolve_sort_ctor(
+    sess: &FluxSession,
+    ident: surface::Ident,
+) -> Result<fhir::SortCtor, ErrorGuaranteed> {
+    if ident.name == SORTS.set {
+        Ok(fhir::SortCtor::Set)
+    } else {
+        Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
+    }
+}
+
+fn ctor_arity(ctor: &fhir::SortCtor) -> usize {
+    match ctor {
+        fhir::SortCtor::Set => 1,
+        fhir::SortCtor::User { arity, .. } => *arity,
+    }
+}
+
+fn resolve_app_sort(
+    sess: &FluxSession,
+    sort_decls: &fhir::SortDecls,
+    ident: surface::Ident,
+    args: &Vec<surface::BaseSort>,
+) -> Result<fhir::Sort, ErrorGuaranteed> {
+    let ctor = resolve_sort_ctor(sess, ident)?;
+    let arity = ctor_arity(&ctor);
+    if args.len() == arity {
+        let args = args
+            .iter()
+            .map(|arg| resolve_base_sort(sess, sort_decls, arg))
+            .try_collect_exhaust()?;
+        Ok(fhir::Sort::App(ctor, args))
+    } else {
+        Err(sess.emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
     }
 }
 
 fn resolve_base_sort_ident(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
-    ident: surface::Ident,
+    ident: &surface::Ident,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
     if ident.name == SORTS.int {
         Ok(fhir::Sort::Int)
@@ -896,7 +934,7 @@ fn resolve_base_sort_ident(
     } else if sort_decls.get(&ident.name).is_some() {
         Ok(fhir::Sort::User(ident.name))
     } else {
-        Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
+        Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
     }
 }
 
@@ -1345,10 +1383,12 @@ impl TypePos {
 struct Sorts {
     int: Symbol,
     real: Symbol,
+    set: Symbol,
 }
 
-static SORTS: std::sync::LazyLock<Sorts> =
-    std::sync::LazyLock::new(|| Sorts { int: Symbol::intern("int"), real: Symbol::intern("real") });
+static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
+    Sorts { int: Symbol::intern("int"), real: Symbol::intern("real"), set: Symbol::intern("Set") }
+});
 
 mod errors {
     use flux_macros::Diagnostic;
@@ -1430,6 +1470,22 @@ mod errors {
     pub(super) struct InvalidDotVar {
         #[primary_span]
         pub(super) span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_sort_arity_mismatch, code = "FLUX")]
+    pub(super) struct SortArityMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        expected: usize,
+        found: usize,
+    }
+
+    impl SortArityMismatch {
+        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
+            Self { span, expected, found }
+        }
     }
 
     #[derive(Diagnostic)]
