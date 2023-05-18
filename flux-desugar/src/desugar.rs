@@ -894,6 +894,13 @@ fn resolve_sort_ctor(
     }
 }
 
+fn ctor_arity(ctor: &fhir::SortCtor) -> usize {
+    match ctor {
+        fhir::SortCtor::Set => 1,
+        fhir::SortCtor::User { arity, .. } => *arity,
+    }
+}
+
 fn resolve_app_sort(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
@@ -901,14 +908,15 @@ fn resolve_app_sort(
     args: &Vec<surface::BaseSort>,
 ) -> Result<fhir::Sort, ErrorGuaranteed> {
     let ctor = resolve_sort_ctor(sess, ident)?;
-    if args.len() == ctor.arity {
+    let arity = ctor_arity(&ctor);
+    if args.len() == arity {
         let args = args
             .into_iter()
             .map(|arg| resolve_base_sort(sess, sort_decls, arg))
             .try_collect_exhaust()?;
         Ok(fhir::Sort::App(ctor, args))
     } else {
-        Err(sess.emit_err(errors::SortArityMismatch::new(ident.span, ctor.arity, args.len())))
+        Err(sess.emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
     }
 }
 

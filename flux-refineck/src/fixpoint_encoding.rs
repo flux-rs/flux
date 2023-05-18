@@ -536,7 +536,12 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
 }
 
 fn sort_ctor_to_fixpoint(ctor: &rty::SortCtor) -> fixpoint::SortCtor {
-    fixpoint::SortCtor { name: ctor.name, arity: ctor.arity }
+    match ctor {
+        rty::SortCtor::Set => fixpoint::SortCtor::Set,
+        rty::SortCtor::User { name, arity } => {
+            fixpoint::SortCtor::User { name: *name, arity: *arity }
+        }
+    }
 }
 
 fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {

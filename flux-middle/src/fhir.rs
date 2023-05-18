@@ -408,14 +408,14 @@ newtype_index! {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct SortCtor {
-    pub name: Symbol,
-    pub arity: usize,
+pub enum SortCtor {
+    Set,
+    User { name: Symbol, arity: usize },
 }
 
 impl SortCtor {
     pub fn set() -> Self {
-        Self { name: Symbol::intern("Set"), arity: 1 }
+        SortCtor::Set
     }
 }
 
@@ -1343,7 +1343,10 @@ impl fmt::Display for SortCtor {
 
 impl fmt::Debug for SortCtor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
+        match self {
+            SortCtor::Set => write!(f, "Set"),
+            SortCtor::User { name, .. } => write!(f, "{}", name),
+        }
     }
 }
 

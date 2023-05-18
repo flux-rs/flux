@@ -96,9 +96,9 @@ pub struct FnTraitPredicate {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct SortCtor {
-    pub name: Symbol,
-    pub arity: usize,
+pub enum SortCtor {
+    Set,
+    User { name: Symbol, arity: usize },
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1236,6 +1236,16 @@ mod pretty {
         }
     }
 
+    impl Pretty for SortCtor {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                SortCtor::Set => w!("Set"),
+                SortCtor::User { name, .. } => w!("{}", ^name),
+            }
+        }
+    }
+
     impl Pretty for Sort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1255,9 +1265,9 @@ mod pretty {
                 }
                 Sort::App(ctor, sorts) => {
                     if let [sort] = &sorts[..] {
-                        w!("{}<{:?}>", ^ctor.name, sort)
+                        w!("{:?}<{:?}>", ctor, sort)
                     } else {
-                        w!("{}<{:?}>", ^ctor.name, join!(", ", sorts))
+                        w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }
                 }
                 Sort::Param(param_ty) => w!("sortof({})", ^param_ty),

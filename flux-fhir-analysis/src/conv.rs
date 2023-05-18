@@ -912,7 +912,10 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
 }
 
 fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
-    rty::SortCtor { name: ctor.name, arity: ctor.arity }
+    match ctor {
+        fhir::SortCtor::Set => rty::SortCtor::Set,
+        fhir::SortCtor::User { name, arity } => rty::SortCtor::User { name: *name, arity: *arity },
+    }
 }
 
 fn conv_func_sort(early_cx: &EarlyCtxt, fsort: &fhir::FuncSort) -> rty::FuncSort {
