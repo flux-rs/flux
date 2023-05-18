@@ -25,23 +25,20 @@ pub fn is_empty(l: &List) -> bool {
     }
 }
 
-// WHY DOES THIS FAIL?
-#[flux::sig(fn () -> List{v:v==set_emp()})]
-
-// #[flux::sig(fn () -> List[set_emp()])]
+#[flux::sig(fn () -> List[set_emp()])]
 pub fn null() -> List {
     List::Nil
 }
 
-#[flux::sig(fn(i32{v: false}) -> T)]
-pub fn never<T>(_: i32) -> T {
-    loop {}
+#[flux::sig(fn() -> T requires false)]
+pub fn unreachable<T>() -> T {
+    unreachable!()
 }
 
 #[flux::sig(fn({&List[@xs] | !set_is_empty(xs)}) -> i32)]
 pub fn head(l: &List) -> i32 {
     match l {
-        List::Nil => never(0),
+        List::Nil => unreachable(),
         List::Cons(h, _) => *h,
     }
 }
@@ -49,7 +46,7 @@ pub fn head(l: &List) -> i32 {
 #[flux::sig(fn({&List[@xs] | !set_is_empty(xs)}) -> &List)]
 pub fn tail(l: &List) -> &List {
     match l {
-        List::Nil => never(0),
+        List::Nil => unreachable(),
         List::Cons(_, t) => t,
     }
 }

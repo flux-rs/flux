@@ -888,7 +888,7 @@ fn resolve_sort_ctor(
     ident: surface::Ident,
 ) -> Result<fhir::SortCtor, ErrorGuaranteed> {
     if ident.name == SORTS.set {
-        Ok(fhir::SortCtor::set())
+        Ok(fhir::SortCtor::Set)
     } else {
         Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
     }

@@ -413,12 +413,6 @@ pub enum SortCtor {
     User { name: Symbol, arity: usize },
 }
 
-impl SortCtor {
-    pub fn set() -> Self {
-        SortCtor::Set
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -618,7 +612,7 @@ pub struct FuncDecl {
 
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum FuncKind {
-    /// Theory symbols "interpreted" by the SMT solver
+    /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
     Thy(Symbol),
     /// User-defined uninterpreted functions with no definition
     Uif,
@@ -700,7 +694,7 @@ impl Sort {
     }
 
     pub fn set(t: Sort) -> Self {
-        Self::App(SortCtor::set(), vec![t])
+        Self::App(SortCtor::Set, vec![t])
     }
 }
 
@@ -968,12 +962,6 @@ impl Map {
             vec![Sort::set(Sort::Int), Sort::set(Sort::Int)],
             Sort::set(Sort::Int),
         );
-        // self.insert_theory_func(
-        //     Symbol::intern("set_is_empty"),
-        //     Symbol::intern("Set_is_empty")
-        //     vec![Sort::set(Sort::Int)],
-        //     Sort::Bool,
-        // );
         self.insert_theory_func(
             Symbol::intern("set_is_in"),
             Symbol::intern("Set_mem"),
