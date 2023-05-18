@@ -149,6 +149,26 @@ mod errors {
         pub span: Span,
     }
 
+    // TODO(RJ): do we have to use `first_use`? is it hardwired into the ftl thing?
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_call_goal_error, code = "FLUX")]
+    pub struct CallGoalError {
+        #[primary_span]
+        pub span: Span,
+        #[label(refineck_first_use)]
+        first_use: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_ret_goal_error, code = "FLUX")]
+    pub struct RetGoalError {
+        #[primary_span]
+        pub span: Span,
+        #[label(refineck_first_use)]
+        first_use: Span,
+    }
+
     #[derive(Diagnostic)]
     #[diag(refineck_div_error, code = "FLUX")]
     pub struct DivError {

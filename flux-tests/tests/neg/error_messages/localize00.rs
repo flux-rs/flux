@@ -13,4 +13,7 @@ pub fn test(n: i32) {
     if n < 15 {
         pre(n);
     }
+    // baz(10, 20);
 }
+
+// fn baz(x: i32, y: bool) {}

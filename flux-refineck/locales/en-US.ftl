@@ -12,6 +12,16 @@ refineck_assign_error =
 refineck_ret_error =
     postcondition might not hold
 
+refineck_call_goal_error =
+    precondition might not hold
+    .label = call site
+    .first_use = condition that might not hold
+
+refineck_ret_goal_error =
+    postcondition might not hold
+    .label = return site
+    .first_use = condition that might not hold
+
 refineck_div_error =
     possible division by zero
 
