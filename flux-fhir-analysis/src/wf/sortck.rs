@@ -355,8 +355,10 @@ impl<'a> InferCtxt<'a, '_> {
         if self.try_equate(sort1, sort2).is_some() {
             return true;
         }
+
         let mut sort1 = sort1.clone();
         let mut sort2 = sort2.clone();
+
         let mut coercions = vec![];
         if let Some(sort) = self.is_single_field_record(&sort1) {
             coercions.push(fhir::Coercion::Project);

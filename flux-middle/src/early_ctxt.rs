@@ -128,6 +128,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     .iter()
                     .all(|sort| self.has_equality(sort))
             }
+            fhir::Sort::App(_, sorts) => sorts.iter().all(|sort| self.has_equality(sort)),
             fhir::Sort::Loc
             | fhir::Sort::Func(_)
             | fhir::Sort::Param(_)

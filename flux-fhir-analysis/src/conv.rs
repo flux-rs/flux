@@ -207,7 +207,8 @@ pub(crate) fn conv_fn_sig(
     let params = env.pop_layer().into_fun_params();
     let late_bound_vars = genv.late_bound_vars(def_id)?;
 
-    Ok(rty::PolyFnSig::new(late_bound_vars, params, rty::FnSig::new(requires, args, output)))
+    let res = rty::PolyFnSig::new(late_bound_vars, params, rty::FnSig::new(requires, args, output));
+    Ok(res)
 }
 
 pub(crate) fn conv_ty(
@@ -898,10 +899,22 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Record(def_id) => {
             rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
         }
+        fhir::Sort::App(ctor, args) => {
+            let ctor = conv_sort_ctor(ctor);
+            let args = args.iter().map(|t| conv_sort(early_cx, t)).collect_vec();
+            rty::Sort::app(ctor, args)
+        }
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
         }
         fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
+    }
+}
+
+fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
+    match ctor {
+        fhir::SortCtor::Set => rty::SortCtor::Set,
+        fhir::SortCtor::User { name, arity } => rty::SortCtor::User { name: *name, arity: *arity },
     }
 }
 

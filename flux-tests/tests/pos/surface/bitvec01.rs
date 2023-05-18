@@ -2,8 +2,8 @@
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
 #![flux::defs(
-      fn pow2(x:int) -> bool { pow2bv(int_to_bv32(x)) }
-      fn pow2bv(x:bitvec<32>) -> bool { bvand(x, bvsub(x, int_to_bv32(1))) == int_to_bv32(0) }
+      fn pow2(x:int) -> bool { pow2bv(bv_int_to_bv32(x)) }
+      fn pow2bv(x:bitvec<32>) -> bool { bv_and(x, bv_sub(x, bv_int_to_bv32(1))) == bv_int_to_bv32(0) }
   )]
 
 #[path = "../../lib/rbitvec.rs"]

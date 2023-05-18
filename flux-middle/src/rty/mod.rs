@@ -95,6 +95,12 @@ pub struct FnTraitPredicate {
     pub kind: ClosureKind,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum SortCtor {
+    Set,
+    User { name: Symbol, arity: usize },
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -106,6 +112,7 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(FuncSort),
     User(Symbol),
+    App(SortCtor, List<Sort>),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -371,6 +378,10 @@ impl Generics {
 impl Sort {
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
+    }
+
+    pub fn app(ctor: SortCtor, sorts: impl Into<List<Sort>>) -> Self {
+        Sort::App(ctor, sorts.into())
     }
 
     pub fn unit() -> Self {
@@ -1225,6 +1236,16 @@ mod pretty {
         }
     }
 
+    impl Pretty for SortCtor {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                SortCtor::Set => w!("Set"),
+                SortCtor::User { name, .. } => w!("{}", ^name),
+            }
+        }
+    }
+
     impl Pretty for Sort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1240,6 +1261,13 @@ mod pretty {
                         w!("({:?},)", sort)
                     } else {
                         w!("({:?})", join!(", ", sorts))
+                    }
+                }
+                Sort::App(ctor, sorts) => {
+                    if let [sort] = &sorts[..] {
+                        w!("{:?}<{:?}>", ctor, sort)
+                    } else {
+                        w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }
                 }
                 Sort::Param(param_ty) => w!("sortof({})", ^param_ty),

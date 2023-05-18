@@ -408,6 +408,12 @@ newtype_index! {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum SortCtor {
+    Set,
+    User { name: Symbol, arity: usize },
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
@@ -415,6 +421,8 @@ pub enum Sort {
     Loc,
     Unit,
     BitVec(usize),
+    /// Sort constructor application (e.g. `Set<int>`)
+    App(SortCtor, Vec<Sort>),
     Func(FuncSort),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
@@ -604,8 +612,8 @@ pub struct FuncDecl {
 
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum FuncKind {
-    /// Theory symbols "interpreted" by the SMT solver
-    Thy,
+    /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
+    Thy(Symbol),
     /// User-defined uninterpreted functions with no definition
     Uif,
     /// User-defined functions with a body definition
@@ -683,6 +691,10 @@ impl Sort {
         } else {
             InferMode::EVar
         }
+    }
+
+    pub fn set(t: Sort) -> Self {
+        Self::App(SortCtor::Set, vec![t])
     }
 }
 
@@ -892,24 +904,69 @@ impl Map {
     }
 
     // Theory Symbols
-    fn insert_theory_func(&mut self, name: Symbol, inputs: Vec<Sort>, output: Sort) {
+    fn insert_theory_func(
+        &mut self,
+        name: Symbol,
+        fixpoint_name: Symbol,
+        inputs: Vec<Sort>,
+        output: Sort,
+    ) {
         let sort = FuncSort::new(inputs, output);
         self.func_decls
-            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy });
+            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
     }
 
     fn insert_theory_funcs(&mut self) {
-        self.insert_theory_func(Symbol::intern("int_to_bv32"), vec![Sort::Int], Sort::BitVec(32));
-        self.insert_theory_func(Symbol::intern("bv32_to_int"), vec![Sort::BitVec(32)], Sort::Int);
+        // Bitvector operations
         self.insert_theory_func(
+            Symbol::intern("bv_int_to_bv32"),
+            Symbol::intern("int_to_bv32"),
+            vec![Sort::Int],
+            Sort::BitVec(32),
+        );
+        self.insert_theory_func(
+            Symbol::intern("bv_bv32_to_int"),
+            Symbol::intern("bv32_to_int"),
+            vec![Sort::BitVec(32)],
+            Sort::Int,
+        );
+        self.insert_theory_func(
+            Symbol::intern("bv_sub"),
             Symbol::intern("bvsub"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
         self.insert_theory_func(
+            Symbol::intern("bv_and"),
             Symbol::intern("bvand"),
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
+        );
+
+        // Set operations
+        self.insert_theory_func(
+            Symbol::intern("set_empty"),
+            Symbol::intern("Set_empty"),
+            vec![Sort::Int],
+            Sort::set(Sort::Int),
+        );
+        self.insert_theory_func(
+            Symbol::intern("set_singleton"),
+            Symbol::intern("Set_sng"),
+            vec![Sort::Int],
+            Sort::set(Sort::Int),
+        );
+        self.insert_theory_func(
+            Symbol::intern("set_union"),
+            Symbol::intern("Set_cup"),
+            vec![Sort::set(Sort::Int), Sort::set(Sort::Int)],
+            Sort::set(Sort::Int),
+        );
+        self.insert_theory_func(
+            Symbol::intern("set_is_in"),
+            Symbol::intern("Set_mem"),
+            vec![Sort::Int, Sort::set(Sort::Int)],
+            Sort::Bool,
         );
     }
 
@@ -1266,6 +1323,21 @@ impl fmt::Display for Sort {
     }
 }
 
+impl fmt::Display for SortCtor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl fmt::Debug for SortCtor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SortCtor::Set => write!(f, "Set"),
+            SortCtor::User { name, .. } => write!(f, "{}", name),
+        }
+    }
+}
+
 impl fmt::Debug for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1281,6 +1353,7 @@ impl fmt::Debug for Sort {
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),
+            Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
         }
     }
 }
