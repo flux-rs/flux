@@ -64,6 +64,14 @@ pub fn append(l1: List, l2: List) -> List {
     }
 }
 
+#[flux::sig(fn(l1: &strg List[@n1], List[@n2]) ensures l1: List[n1+n2])]
+pub fn mappend(l1: &mut List, l2: List) {
+    match l1 {
+        List::Nil => *l1 = l2,
+        List::Cons(_, t1) => mappend(&mut *t1, l2),
+    }
+}
+
 #[flux::sig(fn(&List[@n], k:usize{k < n} ) -> i32)]
 pub fn get_nth(l: &List, k: usize) -> i32 {
     match l {
