@@ -2,8 +2,6 @@
 #![register_tool(flux)]
 #![feature(custom_inner_attributes)]
 #![flux::defs {
-    fn blob(n:int) -> Set<int> ;
-    fn glob(n:int) -> int ;
     fn set_add(x: int, s: Set<int>) -> Set<int> { set_union(set_singleton(x), s) }
     fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }
     fn set_emp() -> Set<int> { set_empty(0) }
