@@ -506,8 +506,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::App(ctor, sorts) => {
             let ctor = sort_ctor_to_fixpoint(ctor);
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
-            let res = fixpoint::Sort::App(ctor, sorts);
-            res
+            fixpoint::Sort::App(ctor, sorts)
         }
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {

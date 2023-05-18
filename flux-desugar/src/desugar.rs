@@ -911,7 +911,7 @@ fn resolve_app_sort(
     let arity = ctor_arity(&ctor);
     if args.len() == arity {
         let args = args
-            .into_iter()
+            .iter()
             .map(|arg| resolve_base_sort(sess, sort_decls, arg))
             .try_collect_exhaust()?;
         Ok(fhir::Sort::App(ctor, args))
