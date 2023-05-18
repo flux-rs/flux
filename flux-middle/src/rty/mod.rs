@@ -95,7 +95,7 @@ pub struct FnTraitPredicate {
     pub kind: ClosureKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct SortCtor {
     pub name: Symbol,
     pub arity: usize,

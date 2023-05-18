@@ -286,7 +286,7 @@ impl fmt::Display for Sort {
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::App(ctor, ts) => write!(f, "{}<{}>", ctor.name, ts.iter().format(", ")),
+            Sort::App(ctor, ts) => write!(f, "(Set_Set {})", ts[0]),
         }
     }
 }

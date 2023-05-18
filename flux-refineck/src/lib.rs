@@ -76,6 +76,7 @@ pub fn check_fn(
 
         // PHASE 3: invoke fixpoint on the constraint
         refine_tree.simplify();
+
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }

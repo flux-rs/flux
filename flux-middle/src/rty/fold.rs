@@ -316,7 +316,8 @@ impl TypeFoldable for FnTraitPredicate {
 impl TypeFoldable for Sort {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
-            Sort::Tuple(sorts) | Sort::App(_, sorts) => Sort::tuple(sorts.fold_with(folder)),
+            Sort::Tuple(sorts) => Sort::tuple(sorts.fold_with(folder)),
+            Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.fold_with(folder)),
             Sort::Func(fsort) => {
                 Sort::Func(FuncSort { input_and_output: fsort.input_and_output.fold_with(folder) })
             }

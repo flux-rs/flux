@@ -11,49 +11,29 @@
 
 /// (i32) lists indexed by the _set_ of elements.
 
-#[flux::refined_by(elems: int)]
-pub enum List0 {
-    #[flux::variant(List0[glob(92)])]
-    Nil,
-    // #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
-    // Cons(i32, Box<List>),
-}
-
-#[flux::sig(fn(&List0[@xs]) -> bool[xs == glob(666)])]
-pub fn is_empty0(l: &List0) -> bool {
-    match l {
-        List0::Nil => true,
-        //       List::Cons(_, _) => false,
-    }
-}
-
 #[flux::refined_by(elems: Set<int>)]
 pub enum List {
-    #[flux::variant(List[blob(92)])]
+    #[flux::variant(List[set_emp()])]
     Nil,
-    // #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
-    // Cons(i32, Box<List>),
+    #[flux::variant((i32[@n], Box<List[@elems]>) -> List[set_add(n, elems)])]
+    Cons(i32, Box<List>),
 }
 
-#[flux::sig(fn(&List[@xs]) -> bool[xs == blob(666)])]
+#[flux::sig(fn(&List[@xs]) -> bool[xs == set_emp()])]
 pub fn is_empty(l: &List) -> bool {
     match l {
         List::Nil => true,
-        //       List::Cons(_, _) => false,
+        List::Cons(_, _) => false,
     }
 }
 
-/*
-
-
 // WHY DOES THIS FAIL?
-// #[flux::sig(fn () -> List{v:v==set_emp()})]
+#[flux::sig(fn () -> List{v:v==set_emp()})]
 
-#[flux::sig(fn () -> List[set_emp()])]
+// #[flux::sig(fn () -> List[set_emp()])]
 pub fn null() -> List {
     List::Nil
 }
-
 
 #[flux::sig(fn(i32{v: false}) -> T)]
 pub fn never<T>(_: i32) -> T {
@@ -76,15 +56,6 @@ pub fn tail(l: &List) -> &List {
     }
 }
 
-#[flux::sig(fn(val: i32, n: usize) -> List[set_singleton(val)])]
-pub fn clone(val: i32, n: usize) -> List {
-    if n == 0 {
-        List::Nil
-    } else {
-        List::Cons(val, Box::new(clone(val, n - 1)))
-    }
-}
-
 #[flux::sig(fn(List[@xs1], List[@xs2]) -> List[set_union(xs1, xs2)])]
 pub fn append(l1: List, l2: List) -> List {
     match l1 {
@@ -93,17 +64,19 @@ pub fn append(l1: List, l2: List) -> List {
     }
 }
 
-#[flux::sig(fn(k:i32, &List[@xs]) -> bool[set_is_in(k, xs)])]
-pub fn mem(k: i32, l: &List) -> bool {
+// Silly function, but to get it working with &List we need to memoize the
+// unfolding, as other we get three unfoldings with different names which is
+// ok for int but not for Set.
+#[flux::sig(fn(k:i32, List[@xs]) -> bool[set_is_in(k, xs)])]
+pub fn mem(k: i32, l: List) -> bool {
     match l {
         List::Cons(h, tl) => {
-            if k == *h {
+            if k == h {
                 true
             } else {
-                mem(k, tl)
+                mem(k, *tl)
             }
         }
         List::Nil => false,
     }
 }
-*/

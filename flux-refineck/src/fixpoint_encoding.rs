@@ -514,7 +514,6 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 [] => fixpoint::Sort::Unit,
                 [_] => unreachable!("1-tuple"),
                 [sorts @ .., s1, s2] => {
-                    panic!("Yikes TUPLE");
                     let s1 = Box::new(sort_to_fixpoint(s1));
                     let s2 = Box::new(sort_to_fixpoint(s2));
                     sorts

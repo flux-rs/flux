@@ -140,9 +140,7 @@ pub(crate) fn adt_def_for_enum(
 ) -> rty::AdtDef {
     let sort =
         rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(enum_def.owner_id)));
-    let res = rty::AdtDef::new(genv.tcx.adt_def(enum_def.owner_id), sort, invariants, false);
-    println!("TRACE: adt_def_for_enum {res:?}");
-    res
+    rty::AdtDef::new(genv.tcx.adt_def(enum_def.owner_id), sort, invariants, false)
 }
 
 pub(crate) fn conv_invariants(
@@ -209,7 +207,8 @@ pub(crate) fn conv_fn_sig(
     let params = env.pop_layer().into_fun_params();
     let late_bound_vars = genv.late_bound_vars(def_id)?;
 
-    Ok(rty::PolyFnSig::new(late_bound_vars, params, rty::FnSig::new(requires, args, output)))
+    let res = rty::PolyFnSig::new(late_bound_vars, params, rty::FnSig::new(requires, args, output));
+    Ok(res)
 }
 
 pub(crate) fn conv_ty(
