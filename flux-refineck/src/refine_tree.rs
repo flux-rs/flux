@@ -202,6 +202,8 @@ impl RefineCtxt<'_> {
     pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
+            let span = pred.span();
+            println!("TRACE: check_pred {pred:?} at {span:?}");
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }

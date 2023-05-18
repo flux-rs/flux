@@ -376,7 +376,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::TyKind::Indexed(bty, idx) => {
                 let idxs = rty::Index::from(self.conv_refine_arg(env, idx));
-                println!("TRACE: conv_ty : Indexed: {bty:?} {idx:?} ==> {idxs:?}");
                 self.conv_base_ty(env, bty, idxs)
             }
             fhir::TyKind::Exists(params, ty) => {
@@ -412,9 +411,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
-                println!("TRACE: conv_ty : Constr: 0 : pred: {:?}", pred);
                 let pred = self.conv_expr(env, pred);
-                println!("TRACE: conv_ty : Constr: 0 : pred: {:?}", pred);
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
