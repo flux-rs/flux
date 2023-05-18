@@ -12,9 +12,10 @@ pub use rustc_span::{symbol::Ident, Symbol};
 use crate::{
     early_ctxt::EarlyCtxt,
     fhir::{self, FluxLocalDefId, VariantIdx},
+    intern::List,
     queries::{Providers, Queries, QueryResult},
-    rty::{self, normalize::Defns, refining::Refiner},
-    rustc,
+    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
+    rustc::{self, ty},
 };
 
 pub struct GlobalEnv<'sess, 'tcx> {
@@ -107,6 +108,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.mir(self, def_id)
     }
 
+    pub fn lower_type_of(&self, def_id: DefId) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
+        self.queries.lower_type_of(self, def_id)
+    }
+
+    pub fn lower_fn_sig(&self, def_id: DefId) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
+        self.queries.lower_fn_sig(self, def_id)
+    }
+
     pub fn adt_def(&self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
         self.queries.adt_def(self, def_id.into())
     }
@@ -137,7 +146,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.fn_sig(self, def_id)
     }
 
-    pub fn variants_of(&self, def_id: DefId) -> QueryResult<rty::PolyVariants> {
+    pub fn variants_of(
+        &self,
+        def_id: DefId,
+    ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         self.queries.variants_of(self, def_id)
     }
 
@@ -148,7 +160,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariant>>> {
         Ok(self
             .variants_of(def_id)?
-            .map(|variants| rty::EarlyBinder(variants[variant_idx.as_usize()].clone())))
+            .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
+    }
+
+    pub fn late_bound_vars(&self, def_id: LocalDefId) -> QueryResult<List<rty::BoundVariableKind>> {
+        self.queries.late_bound_vars(self, def_id)
     }
 
     pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {
@@ -162,7 +178,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn refine_default(
         &self,
         generics: &rty::Generics,
-        rustc_ty: &rustc::ty::Ty,
+        rustc_ty: &ty::Ty,
     ) -> QueryResult<rty::Ty> {
         Refiner::default(self, generics).refine_ty(rustc_ty)
     }
@@ -170,7 +186,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn refine_with_holes(
         &self,
         generics: &rty::Generics,
-        rustc_ty: &rustc::ty::Ty,
+        rustc_ty: &ty::Ty,
     ) -> QueryResult<rty::Ty> {
         Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
@@ -179,15 +195,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         generics: &rty::Generics,
         param: &rty::GenericParamDef,
-        arg: &rustc::ty::GenericArg,
+        arg: &ty::GenericArg,
     ) -> QueryResult<rty::GenericArg> {
         Refiner::new(self, generics, |bty| {
             let sort = bty.sort();
-            let mut ty = rty::Ty::indexed(bty, rty::Expr::nu());
+            let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
             if !sort.is_unit() {
                 ty = rty::Ty::constr(rty::Expr::hole(), ty);
             }
-            rty::Binder::new(ty, sort)
+            rty::Binder::with_sort(ty, sort)
         })
         .refine_generic_arg(param, arg)
     }
@@ -196,7 +212,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         generics: &rty::Generics,
         param: &rty::GenericParamDef,
-        arg: &rustc::ty::GenericArg,
+        arg: &ty::GenericArg,
     ) -> QueryResult<rty::GenericArg> {
         Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }

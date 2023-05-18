@@ -45,7 +45,7 @@ fn check_invariant(
             .emit(genv.sess)?
             .expect("cannot check opaque structs")
             .subst_identity()
-            .replace_bvar_with(|sort| rcx.define_vars(sort));
+            .replace_bound_expr(|sort| rcx.define_vars(sort));
 
         for ty in variant.fields() {
             let ty = rcx.unpack(ty);
@@ -53,13 +53,15 @@ fn check_invariant(
         }
         let (.., idx) = variant.ret.expect_adt();
         rcx.check_pred(
-            invariant.pred.replace_bvar(&idx.expr),
+            invariant.pred.replace_bound_expr(|_| idx.expr.clone()),
             Tag::new(ConstrReason::Other, DUMMY_SP),
         );
     }
     let mut fcx = FixpointCtxt::new(genv, adt_def.def_id(), KVarStore::default());
     let constraint = refine_tree.into_fixpoint(&mut fcx);
-    let errors = fcx.check(cache, constraint).emit(genv.sess)?;
+    let errors = fcx
+        .check(cache, constraint, &checker_config)
+        .emit(genv.sess)?;
     if errors.is_empty() {
         Ok(())
     } else {

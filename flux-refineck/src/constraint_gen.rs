@@ -1,6 +1,6 @@
 use std::{iter, slice};
 
-use flux_common::tracked_span_bug;
+use flux_common::{index::IndexGen, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -9,16 +9,19 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Path, PolyFnSig, PolyVariant, PtrKind, Ref, RefKind, Sort,
+        GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
         TupleTree, Ty, TyKind, Var,
     },
-    rustc::mir::{BasicBlock, Place},
+    rustc::{
+        mir::{BasicBlock, Place},
+        ty::RegionVar,
+    },
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::Variance;
+use rustc_middle::ty::{RegionVid, Variance};
 use rustc_span::Span;
 
 use crate::{
@@ -32,6 +35,7 @@ use crate::{
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
+    rvid_gen: &'a IndexGen<RegionVid>,
     checker_config: CheckerConfig,
     span: Span,
 }
@@ -50,6 +54,7 @@ struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
+    rvid_gen: &'a IndexGen<RegionVid>,
     tag: Tag,
     checker_config: CheckerConfig,
     scopes: FxIndexMap<EVarCxId, Scope>,
@@ -85,13 +90,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(
         genv: &'a GlobalEnv<'a, 'tcx>,
         kvar_gen: G,
+        rvid_gen: &'a IndexGen<RegionVid>,
         checker_config: CheckerConfig,
         span: Span,
     ) -> Self
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), checker_config, span }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), rvid_gen, checker_config, span }
     }
 
     pub(crate) fn check_pred(
@@ -113,6 +119,28 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, reason);
         infcx.subtyping(rcx, ty1, ty2);
         rcx.replace_evars(&infcx.solve().unwrap());
+    }
+
+    pub(crate) fn pack_closure_operands(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        operands: &[Ty],
+    ) -> Result<Vec<Ty>, CheckerErrKind> {
+        let mut infcx = self.infcx(rcx, ConstrReason::Call);
+        let checker_config = infcx.checker_config;
+        let mut res = Vec::new();
+        for ty in operands {
+            let packed_ty = match ty.kind() {
+                TyKind::Ptr(PtrKind::Shr(region), path) => {
+                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
+                    rty::Ty::mk_ref(*region, ty, Mutability::Not)
+                }
+                _ => ty.clone(),
+            };
+            res.push(packed_ty)
+        }
+        Ok(res)
     }
 
     pub(crate) fn check_fn_call(
@@ -139,7 +167,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 .args(),
         )
         .map(|(actual, formal)| {
-            if let (Ref!(RefKind::Mut, _), Ref!(RefKind::Mut, ty)) = (actual.kind(), formal.kind())
+            if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) = (actual.kind(), formal.kind())
                    && let TyKind::Indexed(..) = ty.kind() {
                     rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
                 } else {
@@ -160,9 +188,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
-        let inst_fn_sig = fn_sig
-            .subst_generics(&substs)
-            .replace_bvars_with(|sort, kind| infcx.fresh_evars_or_kvar(sort, kind));
+        let rvid_gen = infcx.rvid_gen;
+        let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bound_vars(
+            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+            |sort, kind| infcx.fresh_evars_or_kvar(sort, kind),
+        );
 
         // Check closure obligations
         let closure_obligs = if let Some(did) = did {
@@ -190,13 +220,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, pred);
+            // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut, path1), TyKind::Ptr(PtrKind::Mut, path2)) => {
+                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
                     let bound = requires[path2];
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
-                (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
+                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block_with(
                         rcx,
@@ -207,7 +238,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     )?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
-                (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
+                (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
                     infcx.subtyping(rcx, &ty, bound);
@@ -236,7 +267,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output = output
-            .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bound_expr(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -269,7 +300,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .subst_generics(&substs)
-            .replace_bvar_with(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bound_expr(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -300,7 +331,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut, path), Ref!(RefKind::Mut, bound)) => {
+                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let checker_config = infcx.checker_config;
                     let ty = env.block_with(
                         rcx,
@@ -311,7 +342,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     )?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
-                (TyKind::Ptr(PtrKind::Shr, path), Ref!(RefKind::Shr, bound)) => {
+                (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
+                    // TODO(pack-closure): why is this not put into `infcx.subtyping`?
                     let checker_config = infcx.checker_config;
                     let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
                     infcx.subtyping(rcx, &ty, bound);
@@ -329,6 +361,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             self.genv,
             rcx,
             &mut self.kvar_gen,
+            self.rvid_gen,
             self.checker_config,
             Tag::new(reason, self.span),
         )
@@ -340,13 +373,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
+        rvid_gen: &'a IndexGen<RegionVid>,
         checker_config: CheckerConfig,
         tag: Tag,
     ) -> Self {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen, evar_gen, tag, checker_config, scopes }
+        Self { genv, kvar_gen, evar_gen, rvid_gen, tag, checker_config, scopes }
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -371,7 +405,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
                 let input = fsort.input();
-                Expr::abs(Binder::new(
+                Expr::abs(Binder::with_sort(
                     self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
                     input.clone(),
                 ))
@@ -385,7 +419,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn as_constr_gen<'b>(&'b mut self) -> ConstrGen<'b, 'tcx> {
-        ConstrGen::new(self.genv, &mut *self.kvar_gen, self.checker_config, self.tag.span)
+        ConstrGen::new(
+            self.genv,
+            &mut *self.kvar_gen,
+            self.rvid_gen,
+            self.checker_config,
+            self.tag.span,
+        )
     }
 
     fn check_type_constr(
@@ -422,7 +462,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bvar_with(|sort| rcx.define_vars(sort));
+                let ty1 = ty1.replace_bound_expr(|sort| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
@@ -431,7 +471,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2.replace_bvar_with(|sort| self.fresh_evars(sort));
+                let ty2 = ty2.replace_bound_expr(|sort| self.fresh_evars(sort));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
@@ -480,11 +520,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
                 self.subtyping(rcx, ty1, ty2);
             }
-            (BaseTy::Ref(RefKind::Mut, ty1), BaseTy::Ref(RefKind::Mut, ty2)) => {
+            (BaseTy::Ref(_, ty1, Mutability::Mut), BaseTy::Ref(_, ty2, Mutability::Mut)) => {
                 self.subtyping(rcx, ty1, ty2);
                 self.subtyping(rcx, ty2, ty1);
             }
-            (BaseTy::Ref(RefKind::Shr, ty1), BaseTy::Ref(RefKind::Shr, ty2)) => {
+            (BaseTy::Ref(_, ty1, Mutability::Not), BaseTy::Ref(_, ty2, Mutability::Not)) => {
                 self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
@@ -504,7 +544,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
-            (BaseTy::Closure(did1), BaseTy::Closure(did2)) if did1 == did2 => {}
+            (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) if did1 == did2 => {
+                debug_assert_eq!(tys1.len(), tys2.len());
+                for (ty1, ty2) in iter::zip(tys1, tys2) {
+                    self.subtyping(rcx, ty1, ty2);
+                }
+            }
             _ => {
                 tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
@@ -533,7 +578,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
                 tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
             }
-            (GenericArg::Lifetime, GenericArg::Lifetime) => {}
+            (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => {}
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
         };
     }
@@ -576,8 +621,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Binder<Expr>, p2: &Binder<Expr>) {
         debug_assert_eq!(p1.sort(), p2.sort());
         let vars = rcx.define_vars(p1.sort());
-        let p1 = p1.replace_bvar(&vars);
-        let p2 = p2.replace_bvar(&vars);
+        let p1 = p1.replace_bound_expr(|_| vars.clone());
+        let p2 = p2.replace_bound_expr(|_| vars);
         rcx.check_impl(&p1, &p2, self.tag);
         rcx.check_impl(&p2, &p1, self.tag);
     }

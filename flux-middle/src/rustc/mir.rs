@@ -2,31 +2,40 @@
 
 use std::fmt;
 
-use flux_common::index::{Idx, IndexVec};
+use flux_common::{
+    bug,
+    index::{Idx, IndexVec},
+};
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
+use rustc_borrowck::BodyWithBorrowckFacts;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir,
     ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
-    mir::{BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, RETURN_PLACE, START_BLOCK},
+    mir::{
+        BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+    },
     ty::Variance,
 };
 use rustc_span::Span;
 use rustc_target::abi::VariantIdx;
 
-use super::ty::{GenericArg, Ty};
-use crate::intern::List;
+use super::ty::{GenericArg, Region, Ty, TyKind};
+use crate::{
+    global_env::GlobalEnv, intern::List, queries::QueryResult, rustc::ty::region_to_string,
+};
 
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
     pub fake_predecessors: IndexVec<BasicBlock, usize>,
-    pub(crate) rustc_mir: mir::Body<'tcx>,
+    pub(crate) body_with_facts: BodyWithBorrowckFacts<'tcx>,
 }
 
 #[derive(Debug)]
@@ -36,6 +45,9 @@ pub struct BasicBlockData<'tcx> {
     pub is_cleanup: bool,
 }
 
+pub type LocalDecls = IndexSlice<Local, LocalDecl>;
+
+#[derive(Clone)]
 pub struct LocalDecl {
     pub ty: Ty,
     pub source_info: SourceInfo,
@@ -68,7 +80,7 @@ pub enum TerminatorKind<'tcx> {
         args: Vec<Operand>,
         destination: Place,
         target: Option<BasicBlock>,
-        cleanup: Option<BasicBlock>,
+        unwind: UnwindAction,
         resolved_call: (DefId, CallSubsts<'tcx>),
     },
     SwitchInt {
@@ -81,7 +93,7 @@ pub enum TerminatorKind<'tcx> {
     Drop {
         place: Place,
         target: BasicBlock,
-        unwind: Option<BasicBlock>,
+        unwind: UnwindAction,
     },
     Assert {
         cond: Operand,
@@ -96,7 +108,7 @@ pub enum TerminatorKind<'tcx> {
     },
     FalseUnwind {
         real_target: BasicBlock,
-        unwind: Option<BasicBlock>,
+        unwind: UnwindAction,
     },
     Resume,
 }
@@ -129,8 +141,7 @@ pub enum StatementKind {
 
 pub enum Rvalue {
     Use(Operand),
-    MutRef(Place),
-    ShrRef(Place),
+    Ref(Region, BorrowKind, Place),
     BinaryOp(BinOp, Operand, Operand),
     CheckedBinaryOp(BinOp, Operand, Operand),
     UnaryOp(UnOp, Operand),
@@ -138,6 +149,11 @@ pub enum Rvalue {
     Discriminant(Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
+}
+
+pub enum BorrowKind {
+    Mut { allow_two_phase_borrow: bool },
+    Shared,
 }
 
 #[derive(Copy, Clone)]
@@ -194,6 +210,13 @@ pub struct Place {
     pub projection: Vec<PlaceElem>,
 }
 
+#[derive(Debug)]
+pub struct PlaceTy {
+    pub ty: Ty,
+    /// Downcast to a particular variant of an enum or a generator, if included.
+    pub variant_index: Option<VariantIdx>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum PlaceElem {
     Deref,
@@ -233,17 +256,17 @@ impl Statement {
 
 impl<'tcx> Body<'tcx> {
     pub fn span(&self) -> Span {
-        self.rustc_mir.span
+        self.body_with_facts.body.span
     }
 
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.rustc_mir.arg_count + 1).map(Local::new)
+        (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.rustc_mir.arg_count + 1..self.local_decls.len()).map(Local::new)
+        (self.body_with_facts.body.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 
     #[inline]
@@ -251,21 +274,21 @@ impl<'tcx> Body<'tcx> {
     where
         'a: 'tcx,
     {
-        mir::traversal::reverse_postorder(&self.rustc_mir).map(|(bb, _)| bb)
+        mir::traversal::reverse_postorder(&self.body_with_facts.body).map(|(bb, _)| bb)
     }
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        let real_preds =
-            self.rustc_mir.basic_blocks.predecessors()[bb].len() - self.fake_predecessors[bb];
+        let real_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len()
+            - self.fake_predecessors[bb];
         real_preds > usize::from(bb != START_BLOCK)
     }
 
     #[inline]
     pub fn dominators(&self) -> Dominators<BasicBlock> {
-        self.rustc_mir.basic_blocks.dominators()
+        self.body_with_facts.body.basic_blocks.dominators()
     }
 
     #[inline]
@@ -284,6 +307,71 @@ impl Place {
 
     pub fn new(local: Local, projection: Vec<PlaceElem>) -> Place {
         Place { local, projection }
+    }
+
+    pub fn ty(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<PlaceTy> {
+        self.projection
+            .iter()
+            .try_fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
+                place_ty.projection_ty(genv, *elem)
+            })
+    }
+}
+
+impl PlaceTy {
+    fn from_ty(ty: Ty) -> PlaceTy {
+        PlaceTy { ty, variant_index: None }
+    }
+
+    fn projection_ty(&self, genv: &GlobalEnv, elem: PlaceElem) -> QueryResult<PlaceTy> {
+        if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
+            bug!("cannot use non field projection on downcasted place");
+        }
+        let tcx = genv.tcx;
+        let place_ty = match elem {
+            PlaceElem::Deref => {
+                let ty = match self.ty.kind() {
+                    TyKind::Adt(def_id, substs) if tcx.adt_def(def_id).is_box() => {
+                        substs[0].expect_type()
+                    }
+                    TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty,
+                    _ => bug!("deref projection of non-dereferenceable ty {self:?}"),
+                };
+                PlaceTy::from_ty(ty.clone())
+            }
+            PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
+            PlaceElem::Downcast(variant_idx) => {
+                PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
+            }
+            PlaceElem::Index(_) => {
+                if let TyKind::Array(ty, _) | TyKind::Slice(ty) = self.ty.kind() {
+                    PlaceTy::from_ty(ty.clone())
+                } else {
+                    bug!("index of no-array non-slice {self:?}")
+                }
+            }
+        };
+        Ok(place_ty)
+    }
+
+    fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
+        match self.ty.kind() {
+            TyKind::Adt(def_id, substs) => {
+                let adt_def = genv.tcx.adt_def(*def_id);
+                let variant_def = match self.variant_index {
+                    None => adt_def.non_enum_variant(),
+                    Some(variant_index) => {
+                        assert!(adt_def.is_enum());
+                        adt_def.variant(variant_index)
+                    }
+                };
+                let field_def = &variant_def.fields[f];
+                let ty = genv.lower_type_of(field_def.did)?;
+                Ok(ty.subst(substs))
+            }
+            TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
+            _ => bug!("extracting field of non-tuple non-adt: {self:?}"),
+        }
     }
 }
 
@@ -342,7 +430,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { func, substs, args, destination, target, cleanup, .. } => {
+            TerminatorKind::Call { func, substs, args, destination, target, unwind, .. } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
@@ -355,10 +443,9 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
 
                 write!(
                     f,
-                    "({args:?}) -> [return: {target}, cleanup: {cleanup}]",
+                    "({args:?}) -> [return: {target}, unwind: {unwind:?}]",
                     args = args.iter().format(", "),
                     target = opt_bb_to_str(*target),
-                    cleanup = opt_bb_to_str(*cleanup),
                 )
             }
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -375,11 +462,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
                 write!(f, "goto -> {target:?}")
             }
             TerminatorKind::Drop { place, target, unwind } => {
-                write!(
-                    f,
-                    "drop({place:?}) -> [{target:?}, unwind: {unwind}]",
-                    unwind = opt_bb_to_str(*unwind)
-                )
+                write!(f, "drop({place:?}) -> [{target:?}, unwind: {unwind:?}]",)
             }
             TerminatorKind::Assert { cond, target, expected, msg } => {
                 write!(
@@ -434,8 +517,12 @@ impl fmt::Debug for Rvalue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
-            Rvalue::MutRef(place) => write!(f, "&mut {place:?}"),
-            Rvalue::ShrRef(place) => write!(f, "&{place:?}"),
+            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
+                write!(f, "&{} mut {place:?}", region_to_string(*r))
+            }
+            Rvalue::Ref(r, BorrowKind::Shared, place) => {
+                write!(f, "&{} {place:?}", region_to_string(*r))
+            }
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {

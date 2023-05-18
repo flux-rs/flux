@@ -75,7 +75,9 @@ impl Defns {
             Ok(is) => Ok(is.iter().map(|i| i2s[*i]).collect()),
             Err(mut scc) => {
                 let cycle = scc.pop().unwrap();
-                Err(cycle.iter().map(|i| i2s[*i]).collect())
+                let mut names: Vec<Symbol> = cycle.iter().map(|i| i2s[*i]).collect();
+                names.sort();
+                Err(names)
             }
         }
     }
@@ -110,9 +112,9 @@ impl<'a> Normalizer<'a> {
     fn app(&self, func: &Expr, arg: &Expr) -> Expr {
         match func.kind() {
             ExprKind::GlobalFunc(sym, FuncKind::Def) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bvar(arg)
+                defn.expr.replace_bound_expr(|_| arg.clone())
             }
-            ExprKind::Abs(body) => body.replace_bvar(arg),
+            ExprKind::Abs(body) => body.replace_bound_expr(|_| arg.clone()),
             _ => Expr::app(func.clone(), arg),
         }
     }

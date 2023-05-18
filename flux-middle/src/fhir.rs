@@ -25,7 +25,6 @@ use std::{
 
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_ast::Mutability;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
@@ -35,6 +34,7 @@ use rustc_hir::{
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+pub use rustc_middle::mir::Mutability;
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -160,7 +160,7 @@ pub struct EnumDef {
 pub struct VariantDef {
     pub def_id: LocalDefId,
     pub params: Vec<RefineParam>,
-    pub fields: Vec<Ty>,
+    pub fields: Vec<FieldDef>,
     pub ret: VariantRet,
     pub span: Span,
     /// Whether this variant was [lifted] from a hir variant
@@ -203,11 +203,14 @@ pub enum Constraint {
     Pred(Expr),
 }
 
+#[derive(Clone)]
 pub struct Ty {
     pub kind: TyKind,
+    pub fhir_id: FhirId,
     pub span: Span,
 }
 
+#[derive(Clone)]
 pub enum TyKind {
     /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
     /// technically need this variant, but we keep it around to simplify desugaring.
@@ -217,23 +220,39 @@ pub enum TyKind {
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr, Box<Ty>),
-    Ptr(Ident),
-    Ref(RefKind, Box<Ty>),
+    Ptr(Lifetime, Ident),
+    Ref(Lifetime, MutTy),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
     Never,
+    Hole,
 }
 
+#[derive(Clone)]
+pub struct MutTy {
+    pub ty: Box<Ty>,
+    pub mutbl: Mutability,
+}
+
+#[derive(Copy, Clone)]
+pub struct Lifetime {
+    pub fhir_id: FhirId,
+    pub ident: SurfaceIdent,
+    pub res: LifetimeRes,
+}
+
+#[derive(Copy, Clone)]
+pub enum LifetimeRes {
+    Param(LocalDefId),
+    Static,
+    Hole,
+}
+
+#[derive(Clone)]
 pub struct ArrayLen {
     pub val: usize,
     pub span: Span,
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Encodable, Decodable)]
-pub enum RefKind {
-    Shr,
-    Mut,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -244,9 +263,11 @@ pub enum WeakKind {
 }
 
 pub struct WfckResults {
-    owner: FluxOwnerId,
+    pub owner: FluxOwnerId,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
+    type_holes: ItemLocalMap<Ty>,
+    lifetime_holes: ItemLocalMap<Lifetime>,
 }
 
 #[derive(Debug)]
@@ -268,18 +289,11 @@ pub struct LocalTableInContextMut<'a, T> {
     data: &'a mut ItemLocalMap<T>,
 }
 
-impl From<BaseTy> for Ty {
-    fn from(bty: BaseTy) -> Ty {
-        let span = bty.span;
-        Ty { kind: TyKind::BaseTy(bty), span }
-    }
-}
-
-impl From<RefKind> for WeakKind {
-    fn from(rk: RefKind) -> WeakKind {
-        match rk {
-            RefKind::Shr => WeakKind::Shr,
-            RefKind::Mut => WeakKind::Mut,
+impl From<Mutability> for WeakKind {
+    fn from(mutbl: Mutability) -> WeakKind {
+        match mutbl {
+            Mutability::Not => WeakKind::Shr,
+            Mutability::Mut => WeakKind::Mut,
         }
     }
 }
@@ -317,6 +331,7 @@ newtype_index! {
     pub struct ItemLocalId {}
 }
 
+#[derive(Clone)]
 pub enum RefineArg {
     Expr {
         expr: Expr,
@@ -329,21 +344,30 @@ pub enum RefineArg {
 }
 
 /// These are types of things that may be refined with indices or existentials
+#[derive(Clone)]
 pub struct BaseTy {
     pub kind: BaseTyKind,
     pub span: Span,
 }
 
+#[derive(Clone)]
 pub enum BaseTyKind {
     Path(Path),
     Slice(Box<Ty>),
 }
 
+#[derive(Clone)]
 pub struct Path {
     pub res: Res,
-    pub generics: Vec<Ty>,
+    pub generics: Vec<GenericArg>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
+}
+
+#[derive(Clone)]
+pub enum GenericArg {
+    Lifetime(Lifetime),
+    Type(Ty),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -410,12 +434,14 @@ pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
 
+#[derive(Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
     pub fhir_id: FhirId,
 }
 
+#[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
     Var(Ident),
@@ -959,7 +985,13 @@ impl StructDef {
 
 impl WfckResults {
     pub fn new(owner: FluxOwnerId) -> Self {
-        Self { owner, node_sorts: ItemLocalMap::default(), coercions: ItemLocalMap::default() }
+        Self {
+            owner,
+            node_sorts: ItemLocalMap::default(),
+            coercions: ItemLocalMap::default(),
+            type_holes: ItemLocalMap::default(),
+            lifetime_holes: ItemLocalMap::default(),
+        }
     }
 
     pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
@@ -976,6 +1008,22 @@ impl WfckResults {
 
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
+    }
+
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
+    }
+
+    pub fn type_holes(&self) -> LocalTableInContext<Ty> {
+        LocalTableInContext { owner: self.owner, data: &self.type_holes }
+    }
+
+    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<Lifetime> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
+    }
+
+    pub fn lifetime_holes(&self) -> LocalTableInContext<Lifetime> {
+        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
     }
 }
 
@@ -1062,16 +1110,24 @@ impl fmt::Debug for Ty {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::Ptr(loc) => write!(f, "ref<{loc:?}>"),
-            TyKind::Ref(RefKind::Mut, ty) => write!(f, "&mut {ty:?}"),
-            TyKind::Ref(RefKind::Shr, ty) => write!(f, "&{ty:?}"),
+            TyKind::Ptr(lft, loc) => write!(f, "ref<{lft:?}, {loc:?}>"),
+            TyKind::Ref(lft, mut_ty) => {
+                write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
             TyKind::Never => write!(f, "!"),
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
+            TyKind::Hole => write!(f, "_"),
         }
+    }
+}
+
+impl fmt::Debug for Lifetime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.ident.name)
     }
 }
 
@@ -1119,6 +1175,15 @@ impl fmt::Debug for Path {
     }
 }
 
+impl fmt::Debug for GenericArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GenericArg::Type(ty) => write!(f, "{ty:?}"),
+            GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
+        }
+    }
+}
+
 impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1149,14 +1214,6 @@ impl fmt::Debug for RefineArg {
     }
 }
 
-impl fmt::Debug for RefKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RefKind::Shr => write!(f, "shr"),
-            RefKind::Mut => write!(f, "mut"),
-        }
-    }
-}
 impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {

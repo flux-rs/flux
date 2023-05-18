@@ -61,9 +61,14 @@ pub fn check_overflow() -> bool {
     CONFIG.check_overflow
 }
 
+pub fn scrape_quals() -> bool {
+    CONFIG.scrape_quals
+}
+
 #[derive(Debug)]
 pub struct CrateConfig {
     pub check_overflow: bool,
+    pub scrape_quals: bool,
 }
 
 #[derive(Deserialize)]
@@ -81,6 +86,7 @@ struct Config {
     cache: bool,
     cache_file: String,
     check_overflow: bool,
+    scrape_quals: bool,
 }
 
 #[derive(Copy, Clone, Deserialize)]
@@ -127,7 +133,8 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("check_def", "")?
             .set_default("cache", false)?
             .set_default("cache_file", "cache.json")?
-            .set_default("check_overflow", false)?;
+            .set_default("check_overflow", false)?
+            .set_default("scrape_quals", false)?;
         // Config comes first, enviroment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
             config_builder = config_builder.add_source(File::from(config_path.to_path_buf()));
@@ -173,6 +180,6 @@ pub static CONFIG_FILE: LazyLock<Value> = LazyLock::new(|| {
 
 impl Default for CrateConfig {
     fn default() -> Self {
-        Self { check_overflow: check_overflow() }
+        Self { check_overflow: check_overflow(), scrape_quals: scrape_quals() }
     }
 }

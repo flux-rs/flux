@@ -173,8 +173,8 @@ TyKind: surface::TyKind = {
     },
     "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
 
-    "&" <ty:Ty>                     => surface::TyKind::Ref(surface::RefKind::Shr, Box::new(ty)),
-    "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::RefKind::Mut, Box::new(ty)),
+    "&" <ty:Ty>                     => surface::TyKind::Ref(surface::Mutability::Not, Box::new(ty)),
+    "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::Mutability::Mut, Box::new(ty)),
 
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
         let span = mk_span(lo, hi);

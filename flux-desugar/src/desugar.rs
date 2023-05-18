@@ -1,7 +1,7 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter, slice};
 
-use flux_common::{index::IndexGen, iter::IterExt, span_bug};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -12,8 +12,9 @@ use flux_syntax::surface;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
+use rustc_hir as hir;
 use rustc_hir::OwnerId;
-use rustc_span::{sym, symbol::kw, Span, Symbol};
+use rustc_span::{sym, symbol::kw, BytePos, Span, Symbol, DUMMY_SP};
 
 pub fn desugar_qualifier(
     early_cx: &EarlyCtxt,
@@ -139,18 +140,19 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let fields = struct_def
-            .fields
-            .iter()
-            .map(|field| {
-                if let Some(ty) = &field.ty {
+        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(struct_def.owner_id.def_id).kind else {
+            bug!("expected struct")
+        };
+        let fields = iter::zip(&struct_def.fields, variant_data.fields())
+            .map(|(ty, hir_field)| {
+                if let Some(ty) = ty {
                     Ok(fhir::FieldDef {
                         ty: cx.desugar_ty(None, ty, &mut binders)?,
-                        def_id: field.def_id,
+                        def_id: hir_field.def_id,
                         lifted: false,
                     })
                 } else {
-                    fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)
+                    fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, hir_field.def_id)
                 }
             })
             .try_collect_exhaust()?;
@@ -227,7 +229,7 @@ pub fn desugar_fn_sig(
         None => {
             let kind = fhir::TyKind::Tuple(vec![]);
             let span = fn_sig.span.with_lo(fn_sig.span.hi());
-            Ok(fhir::Ty { kind, span })
+            Ok(fhir::Ty { kind, fhir_id: cx.next_fhir_id(), span })
         }
     };
     let ensures = fn_sig
@@ -326,10 +328,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.gather_params_variant(self.early_cx, variant_def)?;
 
         if let Some(data) = &variant_def.data {
-            let fields = data
-                .fields
-                .iter()
-                .map(|ty| self.desugar_ty(None, ty, &mut binders))
+            let hir_id = self
+                .early_cx
+                .hir()
+                .local_def_id_to_hir_id(variant_def.def_id);
+            let hir::Node::Variant(hir_variant) = &self.early_cx.hir().get(hir_id) else {
+                bug!("expected enum variant")
+            };
+
+            let fields = iter::zip(&data.fields, hir_variant.data.fields())
+                .map(|(ty, hir_field)| {
+                    Ok(fhir::FieldDef {
+                        ty: self.desugar_ty(None, ty, &mut binders)?,
+                        def_id: hir_field.def_id,
+                        lifted: false,
+                    })
+                })
                 .try_collect_exhaust()?;
 
             let ret = self.desugar_variant_ret(&data.ret, &mut binders)?;
@@ -362,22 +376,31 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let pred = self.as_expr_ctxt().desugar_expr(binders, pred)?;
 
                 let ty = if let Some(idx) = self.ident_into_refine_arg(*bind, binders)? {
-                    fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
+                    fhir::Ty {
+                        kind: fhir::TyKind::Indexed(bty, idx),
+                        fhir_id: self.next_fhir_id(),
+                        span: path.span,
+                    }
                 } else {
-                    fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
+                    fhir::Ty {
+                        kind: fhir::TyKind::BaseTy(bty),
+                        fhir_id: self.next_fhir_id(),
+                        span: path.span,
+                    }
                 };
 
                 let span = path.span.to(pred.span);
                 let kind = fhir::TyKind::Constr(pred, Box::new(ty));
-                Ok(fhir::Ty { kind, span })
+                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let span = loc.span;
                 let loc = self.as_expr_ctxt().resolve_loc(binders, *loc)?;
                 let ty = self.desugar_ty(None, ty, binders)?;
                 self.requires.push(fhir::Constraint::Type(loc, ty));
-                let kind = fhir::TyKind::Ptr(loc);
-                Ok(fhir::Ty { kind, span })
+                let lft = self.mk_lifetime_hole(DUMMY_SP);
+                let kind = fhir::TyKind::Ptr(lft, loc);
+                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
             }
             surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty, binders),
         }
@@ -422,9 +445,16 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     },
                     is_binder: false,
                 };
-                let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
-                let constr =
-                    fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
+                let indexed = fhir::Ty {
+                    kind: fhir::TyKind::Indexed(bty, idx),
+                    fhir_id: self.next_fhir_id(),
+                    span: bty_span,
+                };
+                let constr = fhir::Ty {
+                    kind: fhir::TyKind::Constr(pred, Box::new(indexed)),
+                    fhir_id: self.next_fhir_id(),
+                    span: ty_span,
+                };
                 fhir::TyKind::Exists(params, Box::new(constr))
             }
             surface::TyKind::GeneralExists { params, ty, pred } => {
@@ -441,7 +471,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 if let Some(pred) = pred {
                     let pred = self.as_expr_ctxt().desugar_expr(binders, pred)?;
                     let span = ty.span.to(pred.span);
-                    ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
+                    ty = fhir::Ty {
+                        kind: fhir::TyKind::Constr(pred, Box::new(ty)),
+                        fhir_id: self.next_fhir_id(),
+                        span,
+                    };
                 }
                 let params = binders.pop_layer().into_params(self);
 
@@ -452,11 +486,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty = self.desugar_ty(None, ty, binders)?;
                 fhir::TyKind::Constr(pred, Box::new(ty))
             }
-            surface::TyKind::Ref(rk, ty) => {
-                fhir::TyKind::Ref(
-                    desugar_ref_kind(*rk),
-                    Box::new(self.desugar_ty(None, ty, binders)?),
-                )
+            surface::TyKind::Ref(mutbl, ty) => {
+                let mut_ty = fhir::MutTy {
+                    ty: Box::new(self.desugar_ty(None, ty, binders)?),
+                    mutbl: *mutbl,
+                };
+                let lft_sp = span.with_lo(span.lo() + BytePos(1)).shrink_to_lo();
+                let lft = self.mk_lifetime_hole(lft_sp);
+                fhir::TyKind::Ref(lft, mut_ty)
             }
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
@@ -469,8 +506,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty = self.desugar_ty(None, ty, binders)?;
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
+            surface::TyKind::Hole => fhir::TyKind::Hole,
         };
-        Ok(fhir::Ty { kind, span })
+        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+    }
+
+    fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
+        let ident = surface::Ident { name: kw::UnderscoreLifetime, span };
+        fhir::Lifetime { fhir_id: self.next_fhir_id(), ident, res: fhir::LifetimeRes::Hole }
     }
 
     fn desugar_indices(
@@ -564,20 +607,31 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
-        let generics = self.desugar_generic_args(&path.generics, binders)?;
+        let generics = self.desugar_generic_args(path.res, &path.generics, binders)?;
         let refine = self.desugar_refine_args(&path.refine, binders)?;
         Ok(fhir::BaseTy::from(fhir::Path { res: path.res, generics, refine, span: path.span }))
     }
 
     fn desugar_generic_args(
         &mut self,
+        res: Res,
         substs: &[surface::Ty<Res>],
         binders: &mut Binders,
-    ) -> Result<Vec<fhir::Ty>, ErrorGuaranteed> {
-        substs
-            .iter()
-            .map(|ty| self.desugar_ty(None, ty, binders))
-            .try_collect_exhaust()
+    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
+        let mut args = vec![];
+        if let Res::Alias(def_id) | Res::Struct(def_id) | Res::Enum(def_id) = res {
+            let generics = self.early_cx.tcx.generics_of(def_id);
+            for param in &generics.params {
+                if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
+                    let lft = self.mk_lifetime_hole(DUMMY_SP);
+                    args.push(fhir::GenericArg::Lifetime(lft));
+                }
+            }
+        }
+        for ty in substs {
+            args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
+        }
+        Ok(args)
     }
 
     fn desugar_bty_bind(
@@ -593,7 +647,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         } else {
             fhir::TyKind::BaseTy(bty)
         };
-        Ok(fhir::Ty { kind, span })
+        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
     }
 
     fn desugar_variant_ret(
@@ -786,13 +840,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
         self.early_cx.emit_err(err)
-    }
-}
-
-fn desugar_ref_kind(rk: surface::RefKind) -> fhir::RefKind {
-    match rk {
-        surface::RefKind::Mut => fhir::RefKind::Mut,
-        surface::RefKind::Shr => fhir::RefKind::Shr,
     }
 }
 
@@ -1061,6 +1108,7 @@ impl Binders {
                 // allow it if we resolve the weird behavior by detecting shadowing.
                 self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
+            surface::TyKind::Hole => Ok(()),
         }
     }
 

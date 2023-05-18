@@ -54,7 +54,7 @@ pub struct CrateMetadata {
 #[derive(TyEncodable, TyDecodable)]
 struct AdtMetadata {
     adt_def: rty::AdtDef,
-    variants: rty::Opaqueness<List<rty::PolyVariant>>,
+    variants: rty::Opaqueness<rty::EarlyBinder<List<rty::PolyVariant>>>,
 }
 
 impl CStore {
@@ -93,8 +93,12 @@ impl CrateStore for CStore {
         self.adt(def_id).map(|adt| &adt.adt_def)
     }
 
-    fn variants(&self, def_id: DefId) -> Option<rty::Opaqueness<&[rty::PolyVariant]>> {
-        self.adt(def_id).map(|adt| adt.variants.as_deref())
+    fn variants(
+        &self,
+        def_id: DefId,
+    ) -> Option<rty::Opaqueness<rty::EarlyBinder<&[rty::PolyVariant]>>> {
+        self.adt(def_id)
+            .map(|adt| adt.variants.as_ref().map(rty::EarlyBinder::as_deref))
     }
 
     fn type_of(&self, def_id: DefId) -> Option<&rty::EarlyBinder<rty::PolyTy>> {
