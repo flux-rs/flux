@@ -9,7 +9,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::Local;
-use rustc_span::Symbol;
+use rustc_span::{BytePos, Span, SpanData, Symbol, SyntaxContext};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
@@ -25,6 +25,15 @@ pub type Expr = Interned<ExprS>;
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExprS {
     kind: ExprKind,
+    fspan: Option<FSpanData>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct FSpanData {
+    pub lo: BytePos,
+    pub hi: BytePos,
+    pub ctxt: SyntaxContext,
+    // pub parent: Option<LocalDefId>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
