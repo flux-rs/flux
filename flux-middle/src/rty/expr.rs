@@ -32,17 +32,16 @@ pub struct ExprS {
 pub struct FSpanData {
     pub lo: BytePos,
     pub hi: BytePos,
-    pub ctxt: SyntaxContext,
 }
 
 impl FSpanData {
     pub fn new(span: Span) -> Self {
         let data = span.data();
-        Self { lo: data.lo, hi: data.hi, ctxt: data.ctxt }
+        Self { lo: data.lo, hi: data.hi }
     }
 
     pub fn span(&self) -> Span {
-        Span::new(self.lo, self.hi, self.ctxt, None)
+        Span::new(self.lo, self.hi, SyntaxContext::root(), None)
     }
 }
 
