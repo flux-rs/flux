@@ -29,7 +29,9 @@ impl RMat {
 
     #[flux::sig(fn() -> RMat[10, 300])]
     pub fn empty() -> RMat {
-        Self { cols: 10, inner: RVec::new() } //~ ERROR postcondition might not hold
+        Self { cols: 10, inner: RVec::new() }
+        //~^ ERROR postcondition might not hold
+        //~^^ ERROR postcondition might not hold
     }
 
     #[flux::sig(fn(&RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &f32)]
