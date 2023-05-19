@@ -4,13 +4,13 @@ refineck_goto_error =
     error jumping to join point
 
 refineck_call_error =
-    precondition might not hold
+    precondition might not hold 0
 
 refineck_assign_error =
     assignment might be unsafe
 
 refineck_ret_error =
-    postcondition might not hold
+    postcondition might not hold 0
 
 refineck_condition_span_note =
     this is the condition that cannot be proved

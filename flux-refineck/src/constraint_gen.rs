@@ -476,8 +476,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2.replace_bound_expr(|sort| self.fresh_evars(sort));
-                self.subtyping(rcx, ty1, &ty2);
+                let ty2o = ty2.replace_bound_expr(|sort| self.fresh_evars(sort));
+                println!("TRACE: subtyping: {ty1:?}, {ty2:?}, {ty2o:?}");
+                self.subtyping(rcx, ty1, &ty2o);
                 self.pop_scope();
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
@@ -598,6 +599,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         if e1 == e2 {
             return;
         }
+
+        println!("TRACE: idx_subtyping: e1 = {e1:?}, e2 = {e2:?}");
         match (e1.kind(), e2.kind()) {
             (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2)) => {
                 debug_assert_eq!(tup1.len(), tup2.len());

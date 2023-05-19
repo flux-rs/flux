@@ -437,6 +437,7 @@ impl Node {
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
+                    println!("TRACE: simplify head: {pred:?} at {tag:?}");
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }

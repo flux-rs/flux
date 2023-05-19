@@ -430,12 +430,16 @@ impl Expr {
                 let span = expr.span();
                 match expr.kind() {
                     ExprKind::BinaryOp(op, e1, e2) => {
+                        let e1_span = e1.span();
+                        let e2_span = e2.span();
                         let e1 = e1.fold_with(self);
                         let e2 = e2.fold_with(self);
                         match (op, e1.kind(), e2.kind()) {
-                            (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _)
-                            | (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                Expr::constant(Constant::Bool(false))
+                            (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
+                                Expr::constant_at(Constant::Bool(false), e1_span)
+                            }
+                            (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
+                                Expr::constant_at(Constant::Bool(false), e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
