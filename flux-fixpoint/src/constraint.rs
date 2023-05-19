@@ -40,14 +40,14 @@ pub struct FuncSort {
     inputs_and_output: Vec<Sort>,
 }
 
-#[derive(Hash)]
+#[derive(Hash, Debug)]
 pub enum Pred {
     And(Vec<Self>),
     KVar(KVid, Vec<Name>),
     Expr(Expr),
 }
 
-#[derive(Hash)]
+#[derive(Hash, Debug)]
 pub enum Expr {
     Var(Name),
     ConstVar(ConstName),
@@ -70,7 +70,7 @@ pub enum Func {
     Itf(Symbol),
 }
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, Debug)]
 pub enum Proj {
     Fst,
     Snd,

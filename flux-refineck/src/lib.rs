@@ -44,6 +44,7 @@ use flux_middle::{global_env::GlobalEnv, rty};
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hir::def_id::LocalDefId;
+use rustc_span::Span;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -92,14 +93,34 @@ pub fn check_fn(
     })
 }
 
+fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<Span>) -> ErrorGuaranteed {
+    match dst_span {
+        Some(dst_span) => {
+            genv.sess
+                .emit_err(errors::CallGoalError { span, first_use: dst_span })
+        }
+        None => genv.sess.emit_err(errors::CallError { span }),
+    }
+}
+
+fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<Span>) -> ErrorGuaranteed {
+    match dst_span {
+        Some(dst_span) => {
+            genv.sess
+                .emit_err(errors::RetGoalError { span, first_use: dst_span })
+        }
+        None => genv.sess.emit_err(errors::RetError { span }),
+    }
+}
+
 fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
     let mut e = None;
     for err in errors {
-        let span = err.span;
+        let span = err.src_span;
         e = Some(match err.reason {
-            ConstrReason::Call => genv.sess.emit_err(errors::CallError { span }),
+            ConstrReason::Call => call_error(genv, span, err.dst_span),
             ConstrReason::Assign => genv.sess.emit_err(errors::AssignError { span }),
-            ConstrReason::Ret => genv.sess.emit_err(errors::RetError { span }),
+            ConstrReason::Ret => ret_error(genv, span, err.dst_span),
             ConstrReason::Div => genv.sess.emit_err(errors::DivError { span }),
             ConstrReason::Rem => genv.sess.emit_err(errors::RemError { span }),
             ConstrReason::Goto(_) => genv.sess.emit_err(errors::GotoError { span }),
@@ -150,14 +171,13 @@ mod errors {
     }
 
     // TODO(RJ): do we have to use `first_use`? is it hardwired into the ftl thing?
-
     #[derive(Diagnostic)]
     #[diag(refineck_call_goal_error, code = "FLUX")]
     pub struct CallGoalError {
         #[primary_span]
         pub span: Span,
         #[label(refineck_first_use)]
-        first_use: Span,
+        pub first_use: Span,
     }
 
     #[derive(Diagnostic)]
@@ -166,7 +186,7 @@ mod errors {
         #[primary_span]
         pub span: Span,
         #[label(refineck_first_use)]
-        first_use: Span,
+        pub first_use: Span,
     }
 
     #[derive(Diagnostic)]

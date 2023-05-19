@@ -63,12 +63,17 @@ struct InferCtxt<'a, 'tcx> {
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Tag {
     pub reason: ConstrReason,
-    pub span: Span,
+    pub src_span: Span,
+    pub dst_span: Option<Span>,
 }
 
 impl Tag {
     pub fn new(reason: ConstrReason, span: Span) -> Self {
-        Self { reason, span }
+        Self { reason, src_span: span, dst_span: None }
+    }
+
+    pub fn dst(self, dst_span: Option<Span>) -> Self {
+        Self { dst_span, ..self }
     }
 }
 
@@ -424,7 +429,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             &mut *self.kvar_gen,
             self.rvid_gen,
             self.checker_config,
-            self.tag.span,
+            self.tag.src_span,
         )
     }
 
@@ -687,7 +692,7 @@ mod pretty {
     impl Pretty for Tag {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?} at {:?}", ^self.reason, self.span)
+            w!("{:?} at {:?}", ^self.reason, self.src_span)
         }
     }
 
