@@ -55,7 +55,7 @@ impl<T> List<T> {
     } //~ ERROR postcondition
 
     #[flux::sig(
-      fn(self: &strg List<T>[@n]) -> Opt<T>[n > 0]
+      fn(self: &strg List<T>[@n]) -> Opt<T>
       ensures self: List<T>[if n > 0 { n - 1 } else { n }]
     )]
     pub fn pop(&mut self) -> Opt<T> {
