@@ -22,13 +22,13 @@ use crate::{
 
 pub type Expr = Interned<ExprS>;
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct ExprS {
     kind: ExprKind,
     fspan: Option<FSpanData>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct FSpanData {
     pub lo: BytePos,
     pub hi: BytePos,
@@ -46,7 +46,7 @@ impl FSpanData {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum ExprKind {
     Var(Var),
     Local(Local),
@@ -322,8 +322,12 @@ impl Expr {
         ExprKind::UnaryOp(op, e.into()).intern_at(span)
     }
 
+    pub fn eq_at(e1: impl Into<Expr>, e2: impl Into<Expr>, span: Option<Span>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern_at(span)
+    }
+
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+        Self::eq_at(e1, e2, None)
     }
 
     pub fn ne(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -437,8 +441,9 @@ impl Expr {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
+                                let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
-                                    Some(c) => Expr::constant(c),
+                                    Some(c) => Expr::constant_at(c, e2_span),
                                     None => Expr::binary_op(*op, e1, e2, None),
                                 }
                             }
@@ -916,5 +921,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar);
+    impl_debug_with_default_cx!(/* Expr, */ Loc, Path, Var, KVar);
 }

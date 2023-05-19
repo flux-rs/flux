@@ -95,20 +95,14 @@ pub fn check_fn(
 
 fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<Span>) -> ErrorGuaranteed {
     match dst_span {
-        Some(dst_span) => {
-            genv.sess
-                .emit_err(errors::CallGoalError { span, first_use: dst_span })
-        }
+        Some(dst_span) => genv.sess.emit_err(errors::GoalError::call(span, dst_span)),
         None => genv.sess.emit_err(errors::CallError { span }),
     }
 }
 
 fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<Span>) -> ErrorGuaranteed {
     match dst_span {
-        Some(dst_span) => {
-            genv.sess
-                .emit_err(errors::RetGoalError { span, first_use: dst_span })
-        }
+        Some(dst_span) => genv.sess.emit_err(errors::GoalError::ret(span, dst_span)),
         None => genv.sess.emit_err(errors::RetError { span }),
     }
 }
@@ -139,7 +133,7 @@ fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarante
 }
 
 mod errors {
-    use flux_macros::Diagnostic;
+    use flux_macros::{Diagnostic, Subdiagnostic};
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -170,23 +164,35 @@ mod errors {
         pub span: Span,
     }
 
-    // TODO(RJ): do we have to use `first_use`? is it hardwired into the ftl thing?
-    #[derive(Diagnostic)]
-    #[diag(refineck_call_goal_error, code = "FLUX")]
-    pub struct CallGoalError {
+    #[derive(Subdiagnostic)]
+    #[note(refineck_condition_span_note)]
+    pub(crate) struct ConditionSpanNote {
         #[primary_span]
         pub span: Span,
-        #[label(refineck_first_use)]
-        pub first_use: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_ret_goal_error, code = "FLUX")]
-    pub struct RetGoalError {
+    #[diag(refineck_goal_error, code = "FLUX")]
+    #[note]
+    pub struct GoalError {
         #[primary_span]
+        #[label]
         pub span: Span,
-        #[label(refineck_first_use)]
-        pub first_use: Span,
+        #[subdiagnostic]
+        span_note: ConditionSpanNote,
+        cond: &'static str,
+        origin: &'static str,
+    }
+
+    impl GoalError {
+        pub fn call(span: Span, dst_span: Span) -> Self {
+            let span_note = ConditionSpanNote { span: dst_span };
+            GoalError { span, cond: "precondition", origin: "call", span_note }
+        }
+        pub fn ret(span: Span, dst_span: Span) -> Self {
+            let span_note = ConditionSpanNote { span: dst_span };
+            GoalError { span, cond: "postcondition", origin: "return", span_note }
+        }
     }
 
     #[derive(Diagnostic)]

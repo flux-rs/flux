@@ -12,15 +12,13 @@ refineck_assign_error =
 refineck_ret_error =
     postcondition might not hold
 
-refineck_call_goal_error =
-    precondition might not hold
-    .label = call site
-    .first_use = condition that might not hold
+refineck_condition_span_note =
+    this is the condition that cannot be proved
 
-refineck_ret_goal_error =
-    postcondition might not hold
-    .label = return site
-    .first_use = condition that might not hold
+refineck_goal_error =
+    {$cond} might not hold
+    .label = {$origin} site
+    .note = a {$cond} cannot be proved at this {$origin} site
 
 refineck_div_error =
     possible division by zero

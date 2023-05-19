@@ -203,7 +203,6 @@ pub(crate) fn conv_fn_sig(
     }
 
     let output = cx.conv_fn_output(&mut env, &fn_sig.output)?;
-
     let params = env.pop_layer().into_fun_params();
     let late_bound_vars = genv.late_bound_vars(def_id)?;
 
@@ -650,7 +649,7 @@ impl ConvCtxt<'_, '_> {
         let expr = match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did, span),
             fhir::ExprKind::Var(var) => env.lookup(*var).to_expr(),
-            fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
+            fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), span),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2), span)
             }
