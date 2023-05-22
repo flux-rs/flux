@@ -67,7 +67,7 @@ pub struct Queries<'tcx> {
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
-    late_bound_vars: Cache<LocalDefId, QueryResult<List<rty::BoundVariableKind>>>,
+    lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<rustc::ty::BoundVariableKind>>>,
 }
 
 impl<'tcx> Queries<'tcx> {
@@ -86,7 +86,7 @@ impl<'tcx> Queries<'tcx> {
             type_of: Cache::default(),
             variants_of: Cache::default(),
             fn_sig: Cache::default(),
-            late_bound_vars: Cache::default(),
+            lower_late_bound_vars: Cache::default(),
         }
     }
 
@@ -281,12 +281,12 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-    pub(crate) fn late_bound_vars(
+    pub(crate) fn lower_late_bound_vars(
         &self,
         genv: &GlobalEnv,
         def_id: LocalDefId,
-    ) -> QueryResult<List<rty::BoundVariableKind>> {
-        run_with_cache(&self.late_bound_vars, def_id, || {
+    ) -> QueryResult<List<rustc::ty::BoundVariableKind>> {
+        run_with_cache(&self.lower_late_bound_vars, def_id, || {
             let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
             let bound_vars = genv.tcx.late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)

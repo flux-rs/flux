@@ -173,7 +173,7 @@ fn variants_of(
             let wfckresults = genv.check_wf(def_id)?;
             conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfckresults)?
                 .normalize(genv.defns()?)
-                .map(|variant| rty::EarlyBinder(List::from(vec![variant])))
+                .map(|variant| rty::EarlyBinder(List::singleton(variant)))
         }
         kind => {
             bug!("expected struct or enum found `{kind:?}`")

@@ -13,7 +13,7 @@ use flux_middle::{
         fold::TypeFoldable,
         subst::{FVarSubst, RegionSubst},
         BaseTy, Binder, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty,
-        TyKind, Var,
+        TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -637,7 +637,7 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idx)
                 } else {
                     let ty = Ty::constr(Expr::hole(), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::with_sort(ty, Sort::tuple(sorts)))
+                    Ty::exists(Binder::with_sorts(ty, sorts))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {
@@ -672,7 +672,7 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::tuple_proj(Expr::nu(), (bound_sorts.len() - 1) as u32)
+                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - 1) as u32)
                 }
             }
         }
@@ -752,7 +752,7 @@ impl BasicBlockEnvShape {
         constrs.push(kvar);
 
         // Replace holes that weren't generalized by fresh kvars
-        let mut kvar_gen = |sorts: &[Sort]| {
+        let mut kvar_gen = |sorts: &[_]| {
             kvar_store.fresh_bound(
                 sorts,
                 self.scope.iter().chain(params.iter().cloned()),
@@ -790,7 +790,7 @@ impl Generalizer {
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(ty) => {
-                let ty = ty.replace_bound_expr(|sort| self.fresh_vars(sort));
+                let ty = ty.replace_bound_exprs_with(|sort| self.fresh_vars(sort));
                 self.generalize_ty(&ty)
             }
             TyKind::Constr(pred, ty) => {

@@ -15,6 +15,7 @@ use flux_fixpoint as fixpoint;
 use flux_middle::{
     fhir::FuncKind,
     global_env::GlobalEnv,
+    intern::List,
     queries::QueryResult,
     rty::{self, Constant},
 };
@@ -461,7 +462,7 @@ impl KVarStore {
 
     pub fn fresh_bound<S>(
         &mut self,
-        bound: &[rty::Sort],
+        bound: &[List<rty::Sort>],
         scope: S,
         encoding: KVarEncoding,
     ) -> rty::Expr
@@ -472,8 +473,13 @@ impl KVarStore {
             return self.fresh(0, [], encoding);
         }
         let args = itertools::chain(
-            bound.iter().rev().enumerate().map(|(level, sort)| {
-                (rty::Var::LateBound(DebruijnIndex::from_usize(level)), sort.clone())
+            bound.iter().rev().enumerate().flat_map(|(level, sorts)| {
+                sorts.iter().enumerate().map(move |(idx, sort)| {
+                    (
+                        rty::Var::LateBound(DebruijnIndex::from_usize(level), idx as u32),
+                        sort.clone(),
+                    )
+                })
             }),
             scope
                 .into_iter()
@@ -536,7 +542,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
 
 fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
     fixpoint::FuncSort::new(
-        fsort.input().as_tuple().iter().map(sort_to_fixpoint),
+        fsort.inputs().iter().map(sort_to_fixpoint),
         sort_to_fixpoint(fsort.output()),
     )
 }
@@ -578,10 +584,10 @@ impl<'a> ExprCtxt<'a> {
                 });
                 fixpoint::Expr::ConstVar(const_info.name)
             }
-            rty::ExprKind::App(func, arg) => {
+            rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func);
-                let arg = self.exprs_to_fixpoint(arg.as_tuple());
-                fixpoint::Expr::App(func, arg)
+                let args = self.exprs_to_fixpoint(args);
+                fixpoint::Expr::App(func, args)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([

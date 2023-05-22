@@ -163,8 +163,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             .map(|variants| variants.map(|variants| variants[variant_idx.as_usize()].clone())))
     }
 
-    pub fn late_bound_vars(&self, def_id: LocalDefId) -> QueryResult<List<rty::BoundVariableKind>> {
-        self.queries.late_bound_vars(self, def_id)
+    pub fn lower_late_bound_vars(
+        &self,
+        def_id: LocalDefId,
+    ) -> QueryResult<List<rustc::ty::BoundVariableKind>> {
+        self.queries.lower_late_bound_vars(self, def_id)
     }
 
     pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {

@@ -9,7 +9,7 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
 use super::fold::TypeFoldable;
-use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
+use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -73,7 +73,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .predicates
             .iter()
             .map(|pred| -> QueryResult<rty::Predicate> {
-                let vars = pred.kind.vars().clone();
+                let vars = refine_bound_variables(pred.kind.vars());
                 let kind = match pred.kind.as_ref().skip_binder() {
                     rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
@@ -82,7 +82,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                             output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars, rty::Sort::unit())
+                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars)
                     }
                 };
                 Ok(rty::Predicate { kind })
@@ -107,14 +107,14 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
-        Ok(rty::Binder::with_sort(value, rty::Sort::unit()))
+        Ok(rty::Binder::new(value, List::empty()))
     }
 
     pub(crate) fn refine_poly_fn_sig(
         &self,
         fn_sig: &rustc::ty::PolyFnSig,
     ) -> QueryResult<rty::PolyFnSig> {
-        let vars = fn_sig.vars().clone();
+        let vars = refine_bound_variables(fn_sig.vars());
         let fn_sig = fn_sig.as_ref().skip_binder();
         let args = fn_sig
             .inputs()
@@ -122,8 +122,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
         let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-        let output = rty::Binder::with_sort(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
-        Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
+        let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+        Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -147,10 +147,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
         let ty = self.refine_poly_ty(ty)?;
-        if ty.sort().is_unit() {
-            Ok(ty.replace_bound_expr(|_| rty::Expr::unit()))
-        } else {
-            Ok(rty::Ty::exists(ty))
+        match &ty.vars()[..] {
+            [] => Ok(ty.skip_binder().shift_out_escaping(1)),
+            [rty::BoundVariableKind::Refine(s, _)] if s.is_unit() => {
+                Ok(ty.replace_bound_exprs(&[rty::Expr::unit()]))
+            }
+            _ => Ok(rty::Ty::exists(ty)),
         }
     }
 
@@ -181,9 +183,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::with_sort(
+                        return Ok(rty::Binder::new(
                             rty::Ty::param(*param_ty),
-                            rty::Sort::unit(),
+                            List::empty(),
                         ));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
@@ -231,4 +233,16 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
     rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
+}
+
+pub fn refine_bound_variables(
+    vars: &[rustc::ty::BoundVariableKind],
+) -> List<rty::BoundVariableKind> {
+    vars.iter()
+        .map(|kind| {
+            match kind {
+                rustc::ty::BoundVariableKind::Region(kind) => rty::BoundVariableKind::Region(*kind),
+            }
+        })
+        .collect()
 }

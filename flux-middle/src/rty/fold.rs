@@ -10,9 +10,9 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, Constraint, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate, PredicateKind,
-    PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Constraint, Expr, ExprKind, FnOutput, FnSig,
+    FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, Predicate,
+    PredicateKind, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -104,15 +104,15 @@ pub trait TypeFoldable: Sized {
     /// closest to the hole.
     ///
     /// [`holes`]: ExprKind::Hole
-    fn replace_holes(&self, mk_pred: impl FnMut(&[Sort]) -> Expr) -> Self {
-        struct ReplaceHoles<F>(F, Vec<Sort>);
+    fn replace_holes(&self, mk_pred: impl FnMut(&[List<Sort>]) -> Expr) -> Self {
+        struct ReplaceHoles<F>(F, Vec<List<Sort>>);
 
         impl<F> TypeFolder for ReplaceHoles<F>
         where
-            F: FnMut(&[Sort]) -> Expr,
+            F: FnMut(&[List<Sort>]) -> Expr,
         {
             fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-                self.1.push(t.sort().clone());
+                self.1.push(t.vars().to_sort_list());
                 let t = t.super_fold_with(self);
                 self.1.pop();
                 t
@@ -193,10 +193,10 @@ pub trait TypeFoldable: Sized {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind()
+                if let ExprKind::Var(Var::LateBound(debruijn, idx)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::late_bvar(debruijn.shifted_in(self.amount))
+                    Expr::late_bvar(debruijn.shifted_in(self.amount), *idx)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -228,10 +228,10 @@ pub trait TypeFoldable: Sized {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind()
+                if let ExprKind::Var(Var::LateBound(debruijn, idx)) = expr.kind()
                     && debruijn >= &self.current_index
                 {
-                    Expr::late_bvar(debruijn.shifted_out(self.amount))
+                    Expr::late_bvar(debruijn.shifted_out(self.amount), *idx)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -257,7 +257,7 @@ pub trait TypeFoldable: Sized {
             // TODO(nilehmann) keep track of the outermost binder to optimize this, i.e.,
             // what rustc calls outer_exclusive_binder.
             fn visit_expr(&mut self, expr: &Expr) {
-                if let ExprKind::Var(Var::LateBound(debruijn)) = expr.kind() {
+                if let ExprKind::Var(Var::LateBound(debruijn, _)) = expr.kind() {
                     if *debruijn >= self.outer_index {
                         self.found = true;
                     }
@@ -319,7 +319,9 @@ impl TypeFoldable for Sort {
             Sort::Tuple(sorts) => Sort::tuple(sorts.fold_with(folder)),
             Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.fold_with(folder)),
             Sort::Func(fsort) => {
-                Sort::Func(FuncSort { input_and_output: fsort.input_and_output.fold_with(folder) })
+                Sort::Func(FuncSort {
+                    inputs_and_output: fsort.inputs_and_output.fold_with(folder),
+                })
             }
             Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::BitVec(_) | Sort::Param(_) => {
                 self.clone()
@@ -330,7 +332,7 @@ impl TypeFoldable for Sort {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
-            Sort::Func(fsort) => fsort.input_and_output.visit_with(visitor),
+            Sort::Func(fsort) => fsort.inputs_and_output.visit_with(visitor),
             Sort::Int | Sort::Bool | Sort::Real | Sort::BitVec(_) | Sort::Loc | Sort::Param(_) => {}
         }
     }
@@ -345,7 +347,7 @@ where
     T: TypeFoldable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binder::new(self.value.fold_with(folder), self.vars.clone(), self.sort.fold_with(folder))
+        Binder::new(self.value.fold_with(folder), self.vars.fold_with(folder))
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -361,14 +363,17 @@ where
     }
 }
 
-impl TypeFoldable for PolyFnSig {
+impl TypeFoldable for BoundVariableKind {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        PolyFnSig { fn_sig: self.fn_sig.fold_with(folder), modes: self.modes.clone() }
+        match self {
+            BoundVariableKind::Region(re) => BoundVariableKind::Region(*re),
+            BoundVariableKind::Refine(sort, mode) => {
+                BoundVariableKind::Refine(sort.fold_with(folder), *mode)
+            }
+        }
     }
 
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.fn_sig.visit_with(visitor);
-    }
+    fn super_visit_with<V: TypeVisitor>(&self, _: &mut V) {}
 }
 
 impl TypeFoldable for VariantDef {

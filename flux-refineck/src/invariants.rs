@@ -1,4 +1,5 @@
-use flux_common::{cache::QueryCache, iter::IterExt};
+use flux_common::{cache::QueryCache, dbg, iter::IterExt};
+use flux_config as config;
 use flux_errors::{ErrorGuaranteed, ResultExt};
 use flux_middle::{fhir, global_env::GlobalEnv, rty};
 use rustc_span::{Span, DUMMY_SP};
@@ -45,19 +46,22 @@ fn check_invariant(
             .emit(genv.sess)?
             .expect("cannot check opaque structs")
             .subst_identity()
-            .replace_bound_expr(|sort| rcx.define_vars(sort));
+            .replace_bound_exprs_with(|sort| rcx.define_vars(sort));
 
         for ty in variant.fields() {
             let ty = rcx.unpack(ty);
             rcx.assume_invariants(&ty, checker_config.check_overflow);
         }
         let (.., idx) = variant.ret.expect_adt();
-        rcx.check_pred(
-            invariant.pred.replace_bound_expr(|_| idx.expr.clone()),
-            Tag::new(ConstrReason::Other, DUMMY_SP),
-        );
+        let pred = invariant.pred.replace_bound_expr(&idx.expr);
+        rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let mut fcx = FixpointCtxt::new(genv, adt_def.def_id(), KVarStore::default());
+    let def_id = adt_def.def_id();
+    let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
+    if config::dump_constraint() {
+        dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
+    }
+
     let constraint = refine_tree.into_fixpoint(&mut fcx);
     let errors = fcx
         .check(cache, constraint, &checker_config)
