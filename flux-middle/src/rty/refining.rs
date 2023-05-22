@@ -73,7 +73,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .predicates
             .iter()
             .map(|pred| -> QueryResult<rty::Predicate> {
-                let vars = refine_bound_variable_kinds(pred.kind.vars());
+                let vars = refine_bound_variables(pred.kind.vars());
                 let kind = match pred.kind.as_ref().skip_binder() {
                     rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
@@ -114,7 +114,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         &self,
         fn_sig: &rustc::ty::PolyFnSig,
     ) -> QueryResult<rty::PolyFnSig> {
-        let vars = refine_bound_variable_kinds(fn_sig.vars());
+        let vars = refine_bound_variables(fn_sig.vars());
         let fn_sig = fn_sig.as_ref().skip_binder();
         let args = fn_sig
             .inputs()
@@ -235,7 +235,7 @@ fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
 }
 
-pub(crate) fn refine_bound_variable_kinds(
+pub fn refine_bound_variables(
     vars: &[rustc::ty::BoundVariableKind],
 ) -> List<rty::BoundVariableKind> {
     vars.iter()

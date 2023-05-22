@@ -16,7 +16,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, fold::TypeFoldable, INNERMOST},
+    rty::{self, fold::TypeFoldable, refining, INNERMOST},
     rustc,
 };
 use itertools::Itertools;
@@ -192,7 +192,7 @@ pub(crate) fn conv_fn_sig(
 ) -> QueryResult<rty::PolyFnSig> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let late_bound_regions = genv.late_bound_vars(def_id)?;
+    let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
     let mut env = Env::new(&[]);
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &fn_sig.params, true));
