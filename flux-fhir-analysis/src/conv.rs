@@ -43,6 +43,7 @@ struct Env {
 #[derive(Debug, Clone)]
 struct Layer {
     map: FxIndexMap<fhir::Name, Entry>,
+    filter_unit: bool,
     collapse: bool,
 }
 
@@ -82,7 +83,7 @@ pub(crate) fn expand_type_alias(
     env.push_layer(Layer::collapse(&cx, &alias.index_params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
-    Ok(rty::Binder::with_sort(ty, env.pop_layer().into_tuple_sort()))
+    Ok(rty::Binder::new(ty, env.pop_layer().into_bound_var_kinds()))
 }
 
 pub(crate) fn conv_generics(
@@ -689,9 +690,9 @@ impl ConvCtxt<'_, '_> {
 
     fn conv_invariant(&self, env: &Env, invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant {
-            pred: rty::Binder::with_sort(
+            pred: rty::Binder::new(
                 self.conv_expr(env, invariant),
-                env.top_layer().to_tuple_sort(),
+                env.top_layer().to_bound_var_kinds(),
             ),
         }
     }
@@ -729,7 +730,7 @@ impl Layer {
                 (param.name(), entry)
             })
             .collect();
-        Self { map, collapse }
+        Self { map, filter_unit, collapse }
     }
 
     fn list(
@@ -746,7 +747,7 @@ impl Layer {
     }
 
     fn empty() -> Self {
-        Self { map: FxIndexMap::default(), collapse: false }
+        Self { map: FxIndexMap::default(), filter_unit: false, collapse: false }
     }
 
     fn get(&self, name: impl Borrow<fhir::Name>, level: u32) -> Option<LookupResultKind> {
@@ -758,42 +759,37 @@ impl Layer {
     }
 
     fn into_bound_var_kinds(self) -> List<rty::BoundVariableKind> {
-        self.map
-            .into_values()
-            .filter_map(|entry| {
-                if let Entry::Sort { infer_mode, conv, .. } = entry {
-                    Some(rty::BoundVariableKind::Refine(conv, infer_mode))
-                } else {
-                    None
-                }
-            })
-            .collect()
+        if self.collapse {
+            let sorts = self.into_iter().map(|(s, _)| s).collect();
+            let tuple = rty::Sort::Tuple(sorts);
+            let mode = tuple.default_infer_mode();
+            List::singleton(rty::BoundVariableKind::Refine(tuple, mode))
+        } else {
+            self.into_iter()
+                .map(|(sort, mode)| rty::BoundVariableKind::Refine(sort, mode))
+                .collect()
+        }
     }
 
-    fn into_sorts(self) -> List<rty::Sort> {
-        let sorts = self
-            .map
-            .into_values()
-            .filter_map(
-                |entry| {
-                    if let Entry::Sort { conv, .. } = entry {
-                        Some(conv)
-                    } else {
+    fn to_bound_var_kinds(&self) -> List<rty::BoundVariableKind> {
+        self.clone().into_bound_var_kinds()
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
+        self.map.into_values().filter_map(move |entry| {
+            match entry {
+                Entry::Sort { infer_mode, conv, .. } => Some((conv, infer_mode)),
+                Entry::Unit => {
+                    if self.filter_unit {
                         None
+                    } else {
+                        let sort = rty::Sort::unit();
+                        let mode = sort.default_infer_mode();
+                        Some((sort, mode))
                     }
-                },
-            )
-            .collect_vec();
-        List::from(sorts)
-    }
-
-    fn into_tuple_sort(self) -> rty::Sort {
-        debug_assert!(self.collapse);
-        rty::Sort::Tuple(self.into_sorts())
-    }
-
-    fn to_tuple_sort(&self) -> rty::Sort {
-        self.clone().into_tuple_sort()
+                }
+            }
+        })
     }
 }
 
