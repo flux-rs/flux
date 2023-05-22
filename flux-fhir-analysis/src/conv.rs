@@ -51,7 +51,7 @@ struct Layer {
 enum Entry {
     Sort {
         sort: fhir::Sort,
-        infer_mode: rty::InferMode,
+        infer_mode: Option<rty::InferMode>,
         conv: rty::Sort,
         /// The index of the entry in the layer skipping all [`ListEntry::Unit`].
         idx: u32,
@@ -762,8 +762,7 @@ impl Layer {
         if self.collapse {
             let sorts = self.into_iter().map(|(s, _)| s).collect();
             let tuple = rty::Sort::Tuple(sorts);
-            let mode = tuple.default_infer_mode();
-            List::singleton(rty::BoundVariableKind::Refine(tuple, mode))
+            List::singleton(rty::BoundVariableKind::Refine(tuple, None))
         } else {
             self.into_iter()
                 .map(|(sort, mode)| rty::BoundVariableKind::Refine(sort, mode))
@@ -775,7 +774,7 @@ impl Layer {
         self.clone().into_bound_var_kinds()
     }
 
-    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
+    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, Option<rty::InferMode>)> {
         self.map.into_values().filter_map(move |entry| {
             match entry {
                 Entry::Sort { infer_mode, conv, .. } => Some((conv, infer_mode)),
@@ -783,9 +782,7 @@ impl Layer {
                     if self.filter_unit {
                         None
                     } else {
-                        let sort = rty::Sort::unit();
-                        let mode = sort.default_infer_mode();
-                        Some((sort, mode))
+                        Some((rty::Sort::unit(), None))
                     }
                 }
             }
@@ -804,7 +801,6 @@ impl Entry {
         if conv.is_unit() {
             Entry::Unit
         } else {
-            let infer_mode = infer_mode.unwrap_or_else(|| conv.default_infer_mode());
             Entry::Sort { sort, infer_mode, conv, idx }
         }
     }

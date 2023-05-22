@@ -162,7 +162,7 @@ pub struct VariantDef {
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
-    Refine(Sort, InferMode),
+    Refine(Sort, Option<InferMode>),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -462,7 +462,7 @@ impl Qualifier {
 }
 
 impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode) {
+    fn expect_refine(&self) -> (&Sort, Option<InferMode>) {
         if let BoundVariableKind::Refine(sort, mode) = self {
             (sort, *mode)
         } else {
@@ -479,10 +479,7 @@ impl<T> Binder<T> {
     pub fn with_sorts(value: T, sorts: impl IntoIterator<Item = Sort>) -> Binder<T> {
         let vars = sorts
             .into_iter()
-            .map(|s| {
-                let mode = s.default_infer_mode();
-                BoundVariableKind::Refine(s, mode)
-            })
+            .map(|s| BoundVariableKind::Refine(s, None))
             .collect();
         Binder { vars, value }
     }
@@ -555,7 +552,7 @@ where
     pub fn replace_bound_vars(
         &self,
         replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
+        mut replace_expr: impl FnMut(&Sort, Option<InferMode>) -> Expr,
     ) -> T {
         let mut exprs = FxHashMap::default();
         let delegate = FnMutDelegate {
@@ -1241,13 +1238,10 @@ mod pretty {
             match self {
                 BoundVariableKind::Region(re) => w!("{:?}", re),
                 BoundVariableKind::Refine(sort, mode) => {
-                    match mode {
-                        InferMode::EVar => {
-                            w!("{:?}", sort)
-                        }
-                        InferMode::KVar => {
-                            w!("${:?}", sort)
-                        }
+                    if let Some(InferMode::KVar) = mode {
+                        w!("${:?}", sort)
+                    } else {
+                        w!("{:?}", sort)
                     }
                 }
             }

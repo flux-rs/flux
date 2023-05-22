@@ -190,7 +190,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let rvid_gen = infcx.rvid_gen;
         let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
-            |sort, kind| infcx.fresh_evars_or_kvar(sort, kind),
+            |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
         // Check closure obligations
@@ -262,9 +262,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
-        let output = output.replace_bound_exprs_with(|sort| {
-            infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode())
-        });
+        let output = output.replace_bound_exprs_with(|sort| infcx.fresh_evars_or_kvar(sort, None));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -297,9 +295,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .subst_generics(&substs)
-            .replace_bound_exprs_with(|sort| {
-                infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode())
-            });
+            .replace_bound_exprs_with(|sort| infcx.fresh_evars_or_kvar(sort, None));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -399,7 +395,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: InferMode) -> Expr {
+    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: Option<InferMode>) -> Expr {
+        let mode = mode.unwrap_or_else(|| sort.default_infer_mode());
         match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
