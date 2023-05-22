@@ -890,7 +890,7 @@ fn downcast_struct(
         .variant(def_id, variant_idx)?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
         .subst_generics(substs)
-        .replace_bound_expr(|_| idx.expr.clone())
+        .replace_bound_exprs(idx.expr.expect_tuple())
         .fields
         .to_vec())
 }
@@ -915,19 +915,20 @@ fn downcast_enum(
         .variant(def_id, variant_idx)?
         .expect("enums cannot be opaque")
         .subst_generics(substs)
-        .replace_bound_expr(|sort| rcx.define_vars(sort));
+        .replace_bound_exprs_with(|sort| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
     // FIXME(nilehmann) flatten indices
-    debug_assert_eq!(idx2.expr.as_tuple().len(), idx1.expr.as_tuple().len());
-    let constr =
-        Expr::and(iter::zip(idx1.expr.as_tuple(), idx2.expr.as_tuple()).filter_map(|(e1, e2)| {
-            if !e1.is_abs() && !e2.is_abs() {
-                Some(Expr::eq(e1, e2))
-            } else {
-                None
-            }
-        }));
+    let exprs1 = idx1.expr.expect_tuple();
+    let exprs2 = idx2.expr.expect_tuple();
+    debug_assert_eq!(exprs1.len(), exprs2.len());
+    let constr = Expr::and(iter::zip(exprs1, exprs2).filter_map(|(e1, e2)| {
+        if !e1.is_abs() && !e2.is_abs() {
+            Some(Expr::eq(e1, e2))
+        } else {
+            None
+        }
+    }));
     rcx.assume_pred(constr);
 
     Ok(variant_def.fields.to_vec())

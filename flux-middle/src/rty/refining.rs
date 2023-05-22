@@ -9,7 +9,7 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
 use super::fold::TypeFoldable;
-use crate::{global_env::GlobalEnv, queries::QueryResult, rty, rustc};
+use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -60,7 +60,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
                 let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
-                rty::Binder::with_sort(constr, sort)
+                rty::Binder::with_sorts(constr, List::singleton(sort))
             },
         }
     }
@@ -82,7 +82,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                             output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars, rty::Sort::unit())
+                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars, List::empty())
                     }
                 };
                 Ok(rty::Predicate { kind })
@@ -107,7 +107,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
-        Ok(rty::Binder::with_sort(value, rty::Sort::unit()))
+        Ok(rty::Binder::with_sorts(value, List::empty()))
     }
 
     pub(crate) fn refine_poly_fn_sig(
@@ -122,7 +122,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
         let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-        let output = rty::Binder::with_sort(rty::FnOutput::new(ret, vec![]), rty::Sort::unit());
+        let output = rty::Binder::with_sorts(rty::FnOutput::new(ret, vec![]), List::empty());
         Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
     }
 
@@ -147,10 +147,10 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
         let ty = self.refine_poly_ty(ty)?;
-        if ty.sort().is_unit() {
-            Ok(ty.replace_bound_expr(|_| rty::Expr::unit()))
-        } else {
-            Ok(rty::Ty::exists(ty))
+        match &ty.sorts()[..] {
+            [] => Ok(ty.skip_binder().shift_out_escaping(1)),
+            [s] if s.is_unit() => Ok(ty.replace_bound_exprs(&[rty::Expr::unit()])),
+            _ => Ok(rty::Ty::exists(ty)),
         }
     }
 
@@ -181,9 +181,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::with_sort(
+                        return Ok(rty::Binder::with_sorts(
                             rty::Ty::param(*param_ty),
-                            rty::Sort::unit(),
+                            List::empty(),
                         ));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
@@ -230,5 +230,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
-    rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
+    rty::Binder::with_sorts(
+        rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()),
+        List::singleton(sort),
+    )
 }

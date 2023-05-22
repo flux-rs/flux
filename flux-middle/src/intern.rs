@@ -280,8 +280,8 @@ where
         Self::from_vec(vec![])
     }
 
-    pub fn singleton(elem: T) -> List<T> {
-        Self::from_vec(vec![elem])
+    pub fn singleton(x: T) -> List<T> {
+        Self::from_arr([x])
     }
 
     pub fn from_vec(vec: Vec<T>) -> List<T> {
@@ -289,6 +289,32 @@ where
             Ok(this) => this,
             Err(shard) => {
                 let arc = Arc::from(vec);
+                Self::alloc(arc, shard)
+            }
+        }
+    }
+
+    pub fn from_arr<const N: usize>(arr: [T; N]) -> List<T> {
+        match Interned::lookup(arr.as_slice()) {
+            Ok(this) => this,
+            Err(shard) => {
+                let arc = Arc::from(Box::new(arr) as Box<[T]>);
+                Self::alloc(arc, shard)
+            }
+        }
+    }
+}
+
+impl<T> List<T>
+where
+    T: Clone,
+    [T]: Internable,
+{
+    pub fn from_slice(slice: &[T]) -> List<T> {
+        match Interned::lookup(slice) {
+            Ok(this) => this,
+            Err(shard) => {
+                let arc = Arc::from(slice);
                 Self::alloc(arc, shard)
             }
         }

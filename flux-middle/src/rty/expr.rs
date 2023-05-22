@@ -34,7 +34,7 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Expr, Expr),
+    App(Expr, List<Expr>),
     GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
@@ -71,7 +71,7 @@ pub struct KVar {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    LateBound(DebruijnIndex),
+    LateBound(DebruijnIndex, u32),
     EarlyBound(u32),
     EVar(EVar),
 }
@@ -166,7 +166,7 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::late_bvar(INNERMOST)
+        Expr::late_bvar(INNERMOST, 0)
     }
 
     pub fn as_tuple(&self) -> &[Expr] {
@@ -201,8 +201,8 @@ impl Expr {
         Var::EVar(evar).to_expr()
     }
 
-    pub fn late_bvar(bvar: DebruijnIndex) -> Expr {
-        Var::LateBound(bvar).to_expr()
+    pub fn late_bvar(bvar: DebruijnIndex, idx: u32) -> Expr {
+        Var::LateBound(bvar, idx).to_expr()
     }
 
     pub fn early_bvar(idx: u32) -> Expr {
@@ -269,8 +269,8 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn app(func: impl Into<Expr>, arg: impl Into<Expr>) -> Expr {
-        ExprKind::App(func.into(), arg.into()).intern()
+    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
+        ExprKind::App(func.into(), args.into()).intern()
     }
 
     pub fn global_func(func: Symbol, kind: FuncKind) -> Expr {
@@ -468,8 +468,11 @@ impl Expr {
         matches!(self.kind(), ExprKind::Tuple(..))
     }
 
-    pub fn eta_expand_abs(&self, sort: &Sort) -> Binder<Expr> {
-        Binder::with_sort(Expr::app(self, Expr::nu()), sort.clone())
+    pub fn eta_expand_abs(&self, sorts: &[Sort]) -> Binder<Expr> {
+        let args = (0..sorts.len())
+            .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
+            .collect_vec();
+        Binder::with_sorts(Expr::app(self, args), List::from_slice(sorts))
     }
 
     pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
@@ -634,12 +637,6 @@ impl From<Name> for Expr {
     }
 }
 
-impl From<DebruijnIndex> for Expr {
-    fn from(bvar: DebruijnIndex) -> Self {
-        Expr::late_bvar(bvar)
-    }
-}
-
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])
@@ -759,8 +756,13 @@ mod pretty {
                         w!("{:?}.{:?}", e, field)
                     }
                 }
-                ExprKind::App(func, arg) => {
-                    w!("{:?}({:?})", func, arg)
+                ExprKind::App(func, args) => {
+                    w!("{:?}({})",
+                        func,
+                        ^args
+                            .iter()
+                            .format_with(", ", |arg, f| f(&format_args_cx!("{:?}", arg)))
+                    )
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
@@ -783,7 +785,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::LateBound(bvar) => w!("{:?}", bvar),
+                Var::LateBound(bvar, idx) => w!("{:?}#{}", bvar, ^idx),
                 Var::EarlyBound(idx) => w!("#{}", ^idx),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
