@@ -138,7 +138,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 }
                 _ => ty.clone(),
             };
-            res.push(packed_ty)
+            res.push(packed_ty);
         }
         Ok(res)
     }

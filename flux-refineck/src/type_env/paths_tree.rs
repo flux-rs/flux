@@ -368,7 +368,9 @@ impl PathsTree {
                 (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
 
                 _ => {
-                    tracked_span_bug!("unexpected type and projection elem = {elem:?}, ty = {ty:?}")
+                    tracked_span_bug!(
+                        "unexpected type and projection elem = {elem:?}, ty = {ty:?}"
+                    );
                 }
             }
         }

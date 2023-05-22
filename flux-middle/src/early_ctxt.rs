@@ -121,20 +121,25 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             | fhir::Sort::Bool
             | fhir::Sort::Real
             | fhir::Sort::Unit
-            | fhir::Sort::User(_)
             | fhir::Sort::BitVec(_) => true,
             fhir::Sort::Record(def_id) => {
                 self.index_sorts_of(*def_id)
                     .iter()
                     .all(|sort| self.has_equality(sort))
             }
-            fhir::Sort::App(_, sorts) => sorts.iter().all(|sort| self.has_equality(sort)),
+            fhir::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
             fhir::Sort::Loc
             | fhir::Sort::Func(_)
             | fhir::Sort::Param(_)
             | fhir::Sort::Wildcard
             | fhir::Sort::Infer(_) => false,
         }
+    }
+
+    // For now all sort constructors have equality if all the generic arguments do. In the
+    // future we may have a more fine-grained notion of equality for sort constructors.
+    fn ctor_has_equality(&self, _: &fhir::SortCtor, args: &[fhir::Sort]) -> bool {
+        args.iter().all(|sort| self.has_equality(sort))
     }
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {

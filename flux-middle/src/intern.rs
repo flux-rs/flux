@@ -280,6 +280,10 @@ where
         Self::from_vec(vec![])
     }
 
+    pub fn singleton(elem: T) -> List<T> {
+        Self::from_vec(vec![elem])
+    }
+
     pub fn from_vec(vec: Vec<T>) -> List<T> {
         match Interned::lookup(vec.as_slice()) {
             Ok(this) => this,

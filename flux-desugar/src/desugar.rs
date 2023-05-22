@@ -925,7 +925,8 @@ fn resolve_base_sort_ident(
     } else if ident.name == SORTS.real {
         Ok(fhir::Sort::Real)
     } else if sort_decls.get(&ident.name).is_some() {
-        Ok(fhir::Sort::User(ident.name))
+        let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
+        Ok(fhir::Sort::App(ctor, List::empty()))
     } else {
         Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
     }

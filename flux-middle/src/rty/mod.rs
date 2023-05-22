@@ -111,7 +111,6 @@ pub enum Sort {
     Param(ParamTy),
     Tuple(List<Sort>),
     Func(FuncSort),
-    User(Symbol),
     App(SortCtor, List<Sort>),
 }
 
@@ -1271,7 +1270,6 @@ mod pretty {
                     }
                 }
                 Sort::Param(param_ty) => w!("sortof({})", ^param_ty),
-                Sort::User(name) => w!("{}", ^name),
             }
         }
     }
