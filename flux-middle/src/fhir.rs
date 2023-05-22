@@ -410,7 +410,11 @@ newtype_index! {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
-    User { name: Symbol, arity: usize },
+    /// User defined opaque sort
+    User {
+        name: Symbol,
+        arity: usize,
+    },
 }
 
 impl SortCtor {
@@ -430,13 +434,11 @@ pub enum Sort {
     Unit,
     BitVec(usize),
     /// Sort constructor application (e.g. `Set<int>`)
-    App(SortCtor, Vec<Sort>),
+    App(SortCtor, List<Sort>),
     Func(FuncSort),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     Record(DefId),
-    /// User defined opaque sort
-    User(Symbol),
     /// The sort associated to a type variable
     Param(DefId),
     /// A sort that needs to be inferred
@@ -702,7 +704,7 @@ impl Sort {
     }
 
     pub fn set(t: Sort) -> Self {
-        Self::App(SortCtor::Set, vec![t])
+        Self::App(SortCtor::Set, List::singleton(t))
     }
 }
 
@@ -1357,7 +1359,6 @@ impl fmt::Debug for Sort {
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
             Sort::Record(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
-            Sort::User(name) => write!(f, "{name}"),
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),

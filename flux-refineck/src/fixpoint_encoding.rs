@@ -503,8 +503,12 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
         rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
-        rty::Sort::App(ctor, sorts) => {
-            let ctor = sort_ctor_to_fixpoint(ctor);
+        // There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
+        // user declared opaque sorts and type variable sorts as integers. Well-formedness should
+        // ensure values of these sorts are properly used.
+        rty::Sort::App(rty::SortCtor::User { .. }, _) | rty::Sort::Param(_) => fixpoint::Sort::Int,
+        rty::Sort::App(rty::SortCtor::Set, sorts) => {
+            let ctor = fixpoint::SortCtor::Set;
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(ctor, sorts)
         }
@@ -525,21 +529,8 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
-        // There's no way to declare sorts in the horn syntax in fixpoint so we encode
-        // user declared opaque sorts and type variable sorts as integers. Well-formedness
-        // should ensure values of these sorts are properly used.
-        rty::Sort::User(_) | rty::Sort::Param(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
-    }
-}
-
-fn sort_ctor_to_fixpoint(ctor: &rty::SortCtor) -> fixpoint::SortCtor {
-    match ctor {
-        rty::SortCtor::Set => fixpoint::SortCtor::Set,
-        rty::SortCtor::User { name, arity } => {
-            fixpoint::SortCtor::User { name: *name, arity: *arity }
-        }
     }
 }
 

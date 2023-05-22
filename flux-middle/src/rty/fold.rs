@@ -321,13 +321,9 @@ impl TypeFoldable for Sort {
             Sort::Func(fsort) => {
                 Sort::Func(FuncSort { input_and_output: fsort.input_and_output.fold_with(folder) })
             }
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::BitVec(_)
-            | Sort::Param(_)
-            | Sort::User(_) => self.clone(),
+            Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::BitVec(_) | Sort::Param(_) => {
+                self.clone()
+            }
         }
     }
 
@@ -335,13 +331,7 @@ impl TypeFoldable for Sort {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
             Sort::Func(fsort) => fsort.input_and_output.visit_with(visitor),
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::BitVec(_)
-            | Sort::Loc
-            | Sort::Param(_)
-            | Sort::User(_) => {}
+            Sort::Int | Sort::Bool | Sort::Real | Sort::BitVec(_) | Sort::Loc | Sort::Param(_) => {}
         }
     }
 
