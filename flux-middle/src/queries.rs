@@ -222,7 +222,7 @@ impl<'tcx> Queries<'tcx> {
             } else {
                 let rustc_ty = genv.lower_type_of(def_id)?.skip_binder();
                 let ty = genv.refine_default(&genv.generics_of(def_id)?, &rustc_ty)?;
-                Ok(rty::EarlyBinder(rty::Binder::new(ty, List::empty())))
+                Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
             }
         })
     }

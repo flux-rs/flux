@@ -583,24 +583,14 @@ where
             .normalize(&Default::default())
     }
 
-    pub fn replace_bound_expr(&self, expr: &Expr) -> T
-    where
-        Self: std::fmt::Debug,
-    {
-        debug_assert_eq!(self.vars.len(), 1);
-        debug_assert!(matches!(self.vars[0], BoundVariableKind::Refine(..)));
+    pub fn replace_bound_expr(&self, expr: &Expr) -> T {
+        debug_assert!(matches!(&self.vars[..], [BoundVariableKind::Refine(..)]));
         self.replace_bound_exprs(slice::from_ref(expr))
     }
 
-    pub fn replace_bound_exprs_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
-        let exprs = self
-            .vars
-            .iter()
-            .map(|kind| {
-                let (sort, _) = kind.expect_refine();
-                f(sort)
-            })
-            .collect_vec();
+    pub fn replace_bound_exprs_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
+        let sorts = self.vars.to_sort_list();
+        let exprs = sorts.iter().map(f).collect_vec();
         self.replace_bound_exprs(&exprs)
     }
 }
