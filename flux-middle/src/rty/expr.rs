@@ -645,7 +645,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::TupleProj(Var::Free(name), List::from(vec![]))
+        Loc::TupleProj(Var::Free(name), List::empty())
     }
 }
 

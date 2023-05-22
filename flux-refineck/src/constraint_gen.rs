@@ -194,11 +194,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         );
 
         // Check closure obligations
-        let closure_obligs = if let Some(did) = did {
-            mk_obligations(genv, did, &substs)?
-        } else {
-            List::from(vec![])
-        };
+        let closure_obligs =
+            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();

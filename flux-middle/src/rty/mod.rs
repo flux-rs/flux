@@ -644,7 +644,7 @@ where
     [TupleTree<T>]: Internable,
 {
     fn unit() -> Self {
-        TupleTree::Tuple(List::from_vec(vec![]))
+        TupleTree::Tuple(List::empty())
     }
 
     pub fn split(&self) -> impl Iterator<Item = &TupleTree<T>> {
