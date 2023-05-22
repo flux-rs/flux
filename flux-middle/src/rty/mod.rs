@@ -515,7 +515,7 @@ impl List<BoundVariableKind> {
             .map(|kind| {
                 match kind {
                     BoundVariableKind::Region(_) => {
-                        bug!("`into_sort_list` called on bound variable list with non-refinements")
+                        bug!("`to_sort_list` called on bound variable list with non-refinements")
                     }
                     BoundVariableKind::Refine(sort, _) => sort.clone(),
                 }
@@ -814,7 +814,7 @@ impl<T, E> Opaqueness<Result<T, E>> {
 }
 
 impl EarlyBinder<PolyVariant> {
-    pub fn to_poly_sig(&self) -> EarlyBinder<PolyFnSig> {
+    pub fn to_poly_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
         self.as_ref().map(|poly_fn_sig| {
             poly_fn_sig.as_ref().map(|variant| {
                 let ret = variant.ret.shift_in_escaping(1);
