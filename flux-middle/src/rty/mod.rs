@@ -44,7 +44,7 @@ use crate::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, BoundVariableKind, Const, EarlyBoundRegion,
+        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion,
         Region::{self, *},
     },
 };
@@ -157,6 +157,12 @@ pub type PolyVariant = Binder<VariantDef>;
 pub struct VariantDef {
     pub fields: List<Ty>,
     pub ret: Ty,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub enum BoundVariableKind {
+    Region(BoundRegionKind),
+    Refine(Sort),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -312,7 +318,7 @@ impl Binder<FnTraitPredicate> {
         let bound_vars: List<BoundVariableKind> = self
             .vars
             .iter()
-            .copied()
+            .cloned()
             .chain(std::iter::once(BoundVariableKind::Region(BoundRegionKind::BrEnv)))
             .collect();
 
@@ -1171,6 +1177,7 @@ impl_internable!(
     [Predicate],
     [PolyVariant],
     [Invariant],
+    [BoundVariableKind]
 );
 
 #[macro_export]

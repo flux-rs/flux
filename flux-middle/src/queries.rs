@@ -289,8 +289,9 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.late_bound_vars, def_id, || {
             let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
             let bound_vars = genv.tcx.late_bound_vars(hir_id);
-            lowering::lower_bound_vars(bound_vars)
-                .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id.to_def_id(), reason))
+            let bound_vars = lowering::lower_bound_vars(bound_vars)
+                .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id.to_def_id(), reason))?;
+            Ok(refining::refine_bound_variable_kinds(&bound_vars))
         })
     }
 }
