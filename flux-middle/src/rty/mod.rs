@@ -71,18 +71,18 @@ pub enum GenericParamDefKind {
     Lifetime,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Predicate>,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct Predicate {
     kind: Binder<PredicateKind>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum PredicateKind {
     FnTrait(FnTraitPredicate),
 }
@@ -162,13 +162,12 @@ pub struct VariantDef {
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
-    Refine(Sort),
+    Refine(Sort, InferMode),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Binder<T> {
     vars: List<BoundVariableKind>,
-    sorts: List<Sort>,
     value: T,
 }
 
@@ -184,11 +183,7 @@ where
     Leaf(T),
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
-pub struct PolyFnSig {
-    pub fn_sig: Binder<FnSig>,
-    pub modes: List<InferMode>,
-}
+pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
@@ -315,7 +310,7 @@ impl Binder<FnTraitPredicate> {
     }
 
     pub fn to_closure_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
-        let bound_vars: List<BoundVariableKind> = self
+        let vars: List<BoundVariableKind> = self
             .vars
             .iter()
             .cloned()
@@ -328,14 +323,14 @@ impl Binder<FnTraitPredicate> {
         let env_ty = match pred.kind {
             ClosureKind::Fn => {
                 let br = BoundRegion {
-                    var: BoundVar::from_usize(bound_vars.len() - 1),
+                    var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
                 Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
                 let br = BoundRegion {
-                    var: BoundVar::from_usize(bound_vars.len() - 1),
+                    var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
                 Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
@@ -349,14 +344,10 @@ impl Binder<FnTraitPredicate> {
         let fn_sig = FnSig::new(
             vec![],
             inputs,
-            Binder::with_sorts(FnOutput::new(pred.output.clone(), vec![]), List::empty()),
+            Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty()),
         );
 
-        let params = self
-            .sorts()
-            .iter()
-            .map(|sort| (sort.clone(), sort.default_infer_mode()));
-        PolyFnSig::new(bound_vars, params, fn_sig)
+        PolyFnSig::new(fn_sig, vars)
     }
 }
 
@@ -470,25 +461,42 @@ impl Qualifier {
     }
 }
 
+impl BoundVariableKind {
+    fn expect_refine(&self) -> (&Sort, InferMode) {
+        if let BoundVariableKind::Refine(sort, mode) = self {
+            (sort, *mode)
+        } else {
+            bug!("expected `BoundVariableKind::Refine`")
+        }
+    }
+}
+
 impl<T> Binder<T> {
-    pub fn new(value: T, vars: List<BoundVariableKind>, sorts: List<Sort>) -> Binder<T> {
-        Binder { vars, sorts, value }
+    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
+        Binder { vars, value }
     }
 
-    pub fn with_sorts(value: T, sorts: List<Sort>) -> Binder<T> {
-        Binder { vars: List::empty(), sorts, value }
+    pub fn with_sorts(value: T, sorts: impl IntoIterator<Item = Sort>) -> Binder<T> {
+        let vars = sorts
+            .into_iter()
+            .map(|s| {
+                let mode = s.default_infer_mode();
+                BoundVariableKind::Refine(s, mode)
+            })
+            .collect();
+        Binder { vars, value }
     }
 
     pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
-        Binder { vars: List::empty(), sorts: List::singleton(sort), value }
+        Binder::with_sorts(value, [sort])
     }
 
-    pub fn sorts(&self) -> &List<Sort> {
-        &self.sorts
+    pub fn vars(&self) -> &List<BoundVariableKind> {
+        &self.vars
     }
 
     pub fn as_ref(&self) -> Binder<&T> {
-        Binder { vars: self.vars.clone(), sorts: self.sorts.clone(), value: &self.value }
+        Binder { vars: self.vars.clone(), value: &self.value }
     }
 
     pub fn skip_binder(self) -> T {
@@ -496,11 +504,26 @@ impl<T> Binder<T> {
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
-        Binder { vars: self.vars, sorts: self.sorts, value: f(self.value) }
+        Binder { vars: self.vars, value: f(self.value) }
     }
 
     pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
-        Ok(Binder { vars: self.vars, sorts: self.sorts, value: f(self.value)? })
+        Ok(Binder { vars: self.vars, value: f(self.value)? })
+    }
+}
+
+impl List<BoundVariableKind> {
+    pub fn to_sort_list(&self) -> List<Sort> {
+        self.iter()
+            .map(|kind| {
+                match kind {
+                    BoundVariableKind::Region(_) => {
+                        bug!("`into_sort_list` called on bound variable list with non-refinements")
+                    }
+                    BoundVariableKind::Refine(sort, _) => sort.clone(),
+                }
+            })
+            .collect()
     }
 }
 
@@ -529,8 +552,31 @@ impl<T> Binder<T>
 where
     T: TypeFoldable,
 {
+    pub fn replace_bound_vars(
+        &self,
+        replace_region: impl FnMut(BoundRegion) -> Region,
+        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
+    ) -> T {
+        let mut exprs = FxHashMap::default();
+        let delegate = FnMutDelegate {
+            exprs: |idx| {
+                exprs
+                    .entry(idx)
+                    .or_insert_with(|| {
+                        let (sort, mode) = self.vars[idx as usize].expect_refine();
+                        replace_expr(sort, mode)
+                    })
+                    .clone()
+            },
+            regions: replace_region,
+        };
+
+        self.value
+            .fold_with(&mut BoundVarReplacer::new(delegate))
+            .normalize(&Default::default())
+    }
+
     pub fn replace_bound_exprs(&self, exprs: &[Expr]) -> T {
-        debug_assert!(self.vars.is_empty());
         let delegate = FnMutDelegate {
             exprs: |idx| exprs[idx as usize].clone(),
             regions: |_| bug!("unexpected escaping region"),
@@ -544,30 +590,31 @@ where
     where
         Self: std::fmt::Debug,
     {
-        debug_assert_eq!(self.sorts.len(), 1);
+        debug_assert_eq!(self.vars.len(), 1);
+        debug_assert!(matches!(self.vars[0], BoundVariableKind::Refine(..)));
         self.replace_bound_exprs(slice::from_ref(expr))
     }
 
-    pub fn replace_bound_exprs_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
-        debug_assert!(self.vars.is_empty());
-        let exprs = self.sorts.iter().map(f).collect_vec();
+    pub fn replace_bound_exprs_with(&self, mut f: impl FnMut(&Sort) -> Expr) -> T {
+        let exprs = self
+            .vars
+            .iter()
+            .map(|kind| {
+                let (sort, _) = kind.expect_refine();
+                f(sort)
+            })
+            .collect_vec();
         self.replace_bound_exprs(&exprs)
     }
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T
-    where
-        T: std::fmt::Debug,
-    {
+    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T {
         self.0
             .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
     }
 
-    pub fn subst_generics(self, generics: &[GenericArg]) -> T
-    where
-        T: std::fmt::Debug,
-    {
+    pub fn subst_generics(self, generics: &[GenericArg]) -> T {
         self.subst(generics, &[])
     }
 
@@ -639,36 +686,6 @@ impl From<Expr> for Index {
 impl From<(Expr, TupleTree<bool>)> for Index {
     fn from((expr, is_binder): (Expr, TupleTree<bool>)) -> Self {
         Self { expr, is_binder }
-    }
-}
-
-impl PolyFnSig {
-    pub fn new(
-        vars: List<BoundVariableKind>,
-        params: impl IntoIterator<Item = (Sort, InferMode)>,
-        fn_sig: FnSig,
-    ) -> PolyFnSig {
-        let (sorts, modes) = params.into_iter().unzip();
-        let fn_sig = Binder::new(fn_sig, vars, List::from_vec(sorts));
-        PolyFnSig { fn_sig, modes: List::from_vec(modes) }
-    }
-
-    pub fn replace_bound_vars(
-        &self,
-        replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
-    ) -> FnSig {
-        let exprs = iter::zip(self.fn_sig.sorts(), &self.modes)
-            .map(|(sort, kind)| replace_expr(sort, *kind))
-            .collect_vec();
-
-        let delegate =
-            FnMutDelegate { exprs: |idx| exprs[idx as usize].clone(), regions: replace_region };
-
-        self.fn_sig
-            .value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
     }
 }
 
@@ -811,22 +828,13 @@ impl<T, E> Opaqueness<Result<T, E>> {
 
 impl EarlyBinder<PolyVariant> {
     pub fn to_poly_sig(&self) -> EarlyBinder<PolyFnSig> {
-        let fn_sig = self
-            .0
-            .as_ref()
-            .map(|variant| {
+        self.as_ref().map(|poly_fn_sig| {
+            poly_fn_sig.as_ref().map(|variant| {
                 let ret = variant.ret.shift_in_escaping(1);
-                let output = Binder::with_sorts(FnOutput::new(ret, vec![]), List::empty());
+                let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
-            .skip_binder();
-        let params = self
-            .0
-            .sorts()
-            .iter()
-            .map(|sort| (sort.clone(), Sort::default_infer_mode(sort)))
-            .collect_vec();
-        EarlyBinder(PolyFnSig::new(List::empty(), params, fn_sig))
+        })
     }
 }
 
@@ -1227,6 +1235,36 @@ mod pretty {
     use super::*;
     use crate::{pretty::*, rustc::ty::region_to_string};
 
+    impl Pretty for BoundVariableKind {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                BoundVariableKind::Region(re) => w!("{:?}", re),
+                BoundVariableKind::Refine(sort, mode) => {
+                    match mode {
+                        InferMode::EVar => {
+                            w!("{:?}", sort)
+                        }
+                        InferMode::KVar => {
+                            w!("${:?}", sort)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    impl Pretty for BoundRegionKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                BoundRegionKind::BrAnon => w!("'<annon>"),
+                BoundRegionKind::BrNamed(_, sym) => w!("{sym}"),
+                BoundRegionKind::BrEnv => w!("'<env>"),
+            }
+        }
+    }
+
     impl<T> Pretty for Binder<T>
     where
         T: Pretty,
@@ -1235,11 +1273,46 @@ mod pretty {
             define_scoped!(cx, f);
             w!(
                 "for<{}> {:?}",
-                ^self.sorts
+                ^self.vars
                     .iter()
                     .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
                 &self.value
             )
+        }
+    }
+
+    impl Pretty for Binder<Expr> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!(
+                "|{}| {:?}",
+                ^self.vars
+                    .iter()
+                    .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
+                &self.value
+            )
+        }
+    }
+
+    impl<T: Pretty> std::fmt::Debug for Binder<T> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            pprint_with_default_cx(f, self, None)
+        }
+    }
+
+    impl Pretty for PolyFnSig {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            let vars = &self.vars;
+            if !vars.is_empty() {
+                w!(
+                    "for<{}> ",
+                    ^vars.iter().format_with(", ", |kind, f| {
+                        f(&format_args_cx!("{:?}", kind))
+                    })
+                )?;
+            }
+            w!("{:?}", &self.value)
         }
     }
 
@@ -1294,47 +1367,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for Binder<Expr> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(
-                "|{}| {:?}",
-                ^self.sorts
-                    .iter()
-                    .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
-                &self.value
-            )
-        }
-    }
-
-    impl<T> std::fmt::Debug for Binder<T>
-    where
-        T: std::fmt::Debug,
-    {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "for<{:?}> {:?}", self.sorts, self.value)
-        }
-    }
-
-    impl Pretty for PolyFnSig {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            let sorts = self.fn_sig.sorts();
-            if !sorts.is_empty() {
-                w!(
-                    "forall<{}> ",
-                    ^sorts.iter().enumerate().format_with(", ", |(i, sort), f| {
-                        match self.modes[i] {
-                            InferMode::KVar => f(&format_args_cx!("${:?}", sort)),
-                            InferMode::EVar => f(&format_args_cx!("?{:?}", sort)),
-                        }
-                    })
-                )?;
-            }
-            w!("{:?}", &self.fn_sig.value)
-        }
-    }
-
     impl Pretty for FnSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1355,8 +1387,8 @@ mod pretty {
     impl Pretty for Binder<FnOutput> {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            let sorts = self.sorts();
-            w!("exists<{:?}> {:?}", join!(", ", sorts), &self.value.ret)?;
+            let vars = &self.vars;
+            w!("exists<{:?}> {:?}", join!(", ", vars), &self.value.ret)?;
             if !self.value.ensures.is_empty() {
                 w!("; [{:?}]", join!(", ", &self.value.ensures))?;
             }
@@ -1385,12 +1417,12 @@ mod pretty {
                     }
                     Ok(())
                 }
-                TyKind::Exists(Binder { sorts, value: ty, .. }) => {
+                TyKind::Exists(Binder { vars, value: ty }) => {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
                         w!("∃{}. {:?}",
-                            ^sorts
+                            ^vars
                                 .iter()
                                 .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
                             ty
@@ -1505,7 +1537,7 @@ mod pretty {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
                 GenericArg::BaseTy(arg) => {
                     w!("λ{}. {:?}",
-                        ^arg.sorts()
+                        ^arg.vars
                             .iter()
                             .format_with(", ", |s, f| f(&format_args_cx!("{:?}", ^s))),
                         arg.as_ref().skip_binder()
@@ -1541,14 +1573,12 @@ mod pretty {
         Constraint,
         Sort,
         TyS => "ty",
-        PolyFnSig,
         BaseTy,
         FnSig,
         GenericArg,
         Index,
         VariantDef,
         PtrKind,
-        Binder<FnOutput>,
         FuncSort,
     );
 }

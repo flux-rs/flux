@@ -161,7 +161,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             fn_sig
                 .as_ref()
                 .skip_binder()
-                .fn_sig
                 .as_ref()
                 .skip_binder()
                 .args(),
@@ -403,14 +402,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    fn fresh_evars_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
-        match kind {
+    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: InferMode) -> Expr {
+        match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
                 let inputs = List::from_slice(fsort.inputs());
                 Expr::abs(Binder::with_sorts(
                     self.fresh_kvar(&[inputs.clone()], KVarEncoding::Single),
-                    inputs,
+                    inputs.iter().cloned(),
                 ))
             }
             InferMode::EVar => self.fresh_evars(sort),
@@ -608,11 +607,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.pred_subtyping(rcx, p1, p2);
             }
             (_, ExprKind::Abs(p)) => {
-                self.pred_subtyping(rcx, &e1.eta_expand_abs(p.sorts()), p);
+                self.pred_subtyping(rcx, &e1.eta_expand_abs(&p.vars().to_sort_list()), p);
             }
             (ExprKind::Abs(p), _) => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
-                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(p.sorts()));
+                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(&p.vars().to_sort_list()));
             }
             _ => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
@@ -622,8 +621,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Binder<Expr>, p2: &Binder<Expr>) {
-        debug_assert_eq!(p1.sorts(), p2.sorts());
-        let vars = p1.sorts().iter().map(|s| rcx.define_vars(s)).collect_vec();
+        debug_assert_eq!(p1.vars(), p2.vars());
+        let vars = p1
+            .vars()
+            .to_sort_list()
+            .iter()
+            .map(|s| rcx.define_vars(s))
+            .collect_vec();
         let p1 = p1.replace_bound_exprs(&vars);
         let p2 = p2.replace_bound_exprs(&vars);
         rcx.check_impl(&p1, &p2, self.tag);

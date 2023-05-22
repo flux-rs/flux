@@ -472,7 +472,7 @@ impl Expr {
         let args = (0..sorts.len())
             .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
             .collect_vec();
-        Binder::with_sorts(Expr::app(self, args), List::from_slice(sorts))
+        Binder::with_sorts(Expr::app(self, args), sorts.iter().cloned())
     }
 
     pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {

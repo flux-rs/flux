@@ -358,8 +358,11 @@ impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
         match self.generics.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => {
-                debug_assert_eq!(arg.sorts().len(), 1);
-                arg.sorts()[0].clone()
+                if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
+                    sort.clone()
+                } else {
+                    bug!("unexpected bound variable `{arg:?}`")
+                }
             }
             Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
             None => bug!("type parameter out of range {param_ty:?}"),

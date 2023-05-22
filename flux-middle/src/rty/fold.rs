@@ -10,9 +10,9 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, Constraint, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Index, Invariant, KVar, Name, Opaqueness, PolyFnSig, Predicate, PredicateKind,
-    PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Constraint, Expr, ExprKind, FnOutput, FnSig,
+    FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, Predicate,
+    PredicateKind, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -112,7 +112,7 @@ pub trait TypeFoldable: Sized {
             F: FnMut(&[List<Sort>]) -> Expr,
         {
             fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-                self.1.push(t.sorts().clone());
+                self.1.push(t.vars().to_sort_list());
                 let t = t.super_fold_with(self);
                 self.1.pop();
                 t
@@ -347,7 +347,7 @@ where
     T: TypeFoldable,
 {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binder::new(self.value.fold_with(folder), self.vars.clone(), self.sorts.fold_with(folder))
+        Binder::new(self.value.fold_with(folder), self.vars.fold_with(folder))
     }
 
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
@@ -363,14 +363,17 @@ where
     }
 }
 
-impl TypeFoldable for PolyFnSig {
+impl TypeFoldable for BoundVariableKind {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        PolyFnSig { fn_sig: self.fn_sig.fold_with(folder), modes: self.modes.clone() }
+        match self {
+            BoundVariableKind::Region(re) => BoundVariableKind::Region(*re),
+            BoundVariableKind::Refine(sort, mode) => {
+                BoundVariableKind::Refine(sort.fold_with(folder), *mode)
+            }
+        }
     }
 
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.fn_sig.visit_with(visitor);
-    }
+    fn super_visit_with<V: TypeVisitor>(&self, _: &mut V) {}
 }
 
 impl TypeFoldable for VariantDef {

@@ -160,9 +160,9 @@ pub(crate) fn conv_defn(
 ) -> rty::Defn {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[]);
-    env.push_layer(Layer::list(&cx, &defn.args, false));
+    env.push_layer(Layer::list(&cx, 0, &defn.args, false));
     let expr = cx.conv_expr(&env, &defn.expr);
-    let expr = rty::Binder::with_sorts(expr, env.pop_layer().into_sorts());
+    let expr = rty::Binder::new(expr, env.pop_layer().into_bound_var_kinds());
     rty::Defn { name: defn.name, expr }
 }
 
@@ -173,9 +173,9 @@ pub fn conv_qualifier(
 ) -> rty::Qualifier {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[]);
-    env.push_layer(Layer::list(&cx, &qualifier.args, false));
+    env.push_layer(Layer::list(&cx, 0, &qualifier.args, false));
     let body = cx.conv_expr(&env, &qualifier.expr);
-    let body = rty::Binder::with_sorts(body, env.pop_layer().into_sorts());
+    let body = rty::Binder::new(body, env.pop_layer().into_bound_var_kinds());
     rty::Qualifier { name: qualifier.name, body, global: qualifier.global }
 }
 
@@ -187,8 +187,10 @@ pub(crate) fn conv_fn_sig(
 ) -> QueryResult<rty::PolyFnSig> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
+    let late_bound_regions = genv.late_bound_vars(def_id)?;
+
     let mut env = Env::new(genv, &[]);
-    env.push_layer(Layer::list(&cx, &fn_sig.params, true));
+    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &fn_sig.params, true));
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
@@ -202,10 +204,13 @@ pub(crate) fn conv_fn_sig(
 
     let output = cx.conv_fn_output(&mut env, &fn_sig.output)?;
 
-    let params = env.pop_layer().into_fun_params();
-    let late_bound_vars = genv.late_bound_vars(def_id)?;
+    let vars = late_bound_regions
+        .iter()
+        .chain(env.pop_layer().into_bound_var_kinds().iter())
+        .cloned()
+        .collect();
 
-    let res = rty::PolyFnSig::new(late_bound_vars, params, rty::FnSig::new(requires, args, output));
+    let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
     Ok(res)
 }
 
@@ -216,7 +221,7 @@ pub(crate) fn conv_ty(
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut env = Env::new(genv, &[]);
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
-    Ok(rty::Binder::with_sorts(ty, List::empty()))
+    Ok(rty::Binder::new(ty, List::empty()))
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
@@ -230,7 +235,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         env: &mut Env,
         output: &fhir::FnOutput,
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
-        env.push_layer(Layer::list(self, &output.params, true));
+        env.push_layer(Layer::list(self, 0, &output.params, true));
 
         let ret = self.conv_ty(env, &output.ret)?;
         let ensures: List<rty::Constraint> = output
@@ -240,9 +245,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .try_collect()?;
         let output = rty::FnOutput::new(ret, ensures);
 
-        let sort = env.pop_layer().into_sorts();
+        let vars = env.pop_layer().into_bound_var_kinds();
 
-        Ok(rty::Binder::with_sorts(output, sort))
+        Ok(rty::Binder::new(output, vars))
     }
 
     pub(crate) fn conv_enum_def_variants(
@@ -265,7 +270,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
         let mut env = Env::new(genv, &[]);
-        env.push_layer(Layer::list(&cx, &variant.params, true));
+        env.push_layer(Layer::list(&cx, 0, &variant.params, true));
 
         let fields = variant
             .fields
@@ -276,7 +281,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let ret = cx.conv_base_ty(&mut env, &variant.ret.bty, args)?;
         let variant = rty::VariantDef::new(fields, ret);
 
-        Ok(rty::Binder::with_sorts(variant, env.pop_layer().into_sorts()))
+        Ok(rty::Binder::new(variant, env.pop_layer().into_bound_var_kinds()))
     }
 
     pub(crate) fn conv_struct_def_variant(
@@ -286,7 +291,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[]);
-        env.push_layer(Layer::list(&cx, &struct_def.params, false));
+        env.push_layer(Layer::list(&cx, 0, &struct_def.params, false));
 
         let def_id = struct_def.owner_id.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
@@ -322,15 +327,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 })
                 .collect_vec();
 
-            let sorts = env.pop_layer().into_sorts();
+            let vars = env.pop_layer().into_bound_var_kinds();
             let idx = rty::Expr::tuple(
-                (0..sorts.len())
+                (0..vars.len())
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
                     .collect_vec(),
             );
             let ret = rty::Ty::indexed(rty::BaseTy::adt(genv.adt_def(def_id)?, substs), idx);
             let variant = rty::VariantDef::new(fields, ret);
-            Ok(rty::Opaqueness::Transparent(rty::Binder::with_sorts(variant, sorts)))
+            Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, vars)))
         } else {
             Ok(rty::Opaqueness::Opaque)
         }
@@ -378,14 +383,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.conv_base_ty(env, bty, idxs)
             }
             fhir::TyKind::Exists(params, ty) => {
-                let layer = Layer::list(self, params, false);
+                let layer = Layer::list(self, 0, params, false);
                 env.push_layer(layer);
                 let ty = self.conv_ty(env, ty)?;
-                let sorts = env.pop_layer().into_sorts();
+                let sorts = env.pop_layer().into_bound_var_kinds();
                 if sorts.is_empty() {
                     Ok(ty.shift_out_escaping(1))
                 } else {
-                    Ok(rty::Ty::exists(rty::Binder::with_sorts(ty, sorts)))
+                    Ok(rty::Ty::exists(rty::Binder::new(ty, sorts)))
                 }
             }
             fhir::TyKind::Ptr(lft, loc) => {
@@ -462,13 +467,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 (self.conv_expr(env, expr), rty::TupleTree::Leaf(*is_binder))
             }
             fhir::RefineArg::Abs(params, body, _, fhir_id) => {
-                let layer = Layer::list(self, params, false);
+                let layer = Layer::list(self, 0, params, false);
 
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body);
-                let sorts = env.pop_layer().into_sorts();
-
-                let body = rty::Binder::with_sorts(pred, sorts);
+                let vars = env.pop_layer().into_bound_var_kinds();
+                let body = rty::Binder::new(pred, vars);
                 let expr = self.add_coercions(rty::Expr::abs(body), *fhir_id);
                 (expr, rty::TupleTree::Leaf(false))
             }
@@ -706,8 +710,14 @@ impl ConvCtxt<'_, '_> {
 }
 
 impl Layer {
-    fn new(cx: &ConvCtxt, params: &[fhir::RefineParam], filter_unit: bool, collapse: bool) -> Self {
-        let mut idx = 0;
+    fn new(
+        cx: &ConvCtxt,
+        late_bound_regions: u32,
+        params: &[fhir::RefineParam],
+        filter_unit: bool,
+        collapse: bool,
+    ) -> Self {
+        let mut idx = late_bound_regions;
         let map = params
             .iter()
             .map(|param| {
@@ -722,12 +732,17 @@ impl Layer {
         Self { map, collapse }
     }
 
-    fn list(cx: &ConvCtxt, params: &[fhir::RefineParam], filter_unit: bool) -> Self {
-        Self::new(cx, params, filter_unit, false)
+    fn list(
+        cx: &ConvCtxt,
+        late_bound_regions: u32,
+        params: &[fhir::RefineParam],
+        filter_unit: bool,
+    ) -> Self {
+        Self::new(cx, late_bound_regions, params, filter_unit, false)
     }
 
     fn collapse(cx: &ConvCtxt, params: &[fhir::RefineParam]) -> Self {
-        Self::new(cx, params, false, true)
+        Self::new(cx, 0, params, false, true)
     }
 
     fn empty() -> Self {
@@ -742,14 +757,17 @@ impl Layer {
         })
     }
 
-    fn into_fun_params(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
-        self.map.into_values().filter_map(|entry| {
-            if let Entry::Sort { infer_mode, conv, .. } = entry {
-                Some((conv, infer_mode))
-            } else {
-                None
-            }
-        })
+    fn into_bound_var_kinds(self) -> List<rty::BoundVariableKind> {
+        self.map
+            .into_values()
+            .filter_map(|entry| {
+                if let Entry::Sort { infer_mode, conv, .. } = entry {
+                    Some(rty::BoundVariableKind::Refine(conv, infer_mode))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn into_sorts(self) -> List<rty::Sort> {

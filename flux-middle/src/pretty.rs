@@ -98,23 +98,35 @@ macro_rules! _impl_debug_with_default_cx {
     ($($ty:ty $(=> $key:literal)?),* $(,)?) => {$(
         impl std::fmt::Debug for $ty  {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                rustc_middle::ty::tls::with(|tcx| {
-                    #[allow(unused_mut)]
-                    let mut cx = <$ty>::default_cx(tcx);
-                    $(
-                    if let Some(opts) = flux_config::CONFIG_FILE
-                        .get("dev")
-                        .and_then(|dev| dev.get("pprint"))
-                        .and_then(|pprint| pprint.get($key))
-                    {
-                        cx.merge(opts);
-                    }
-                    )?
-                    Pretty::fmt(self, &cx, f)
-                })
+                #[allow(unused_mut, unused_assignments)]
+                let mut key = None;
+                $(
+                    key = Some($key);
+                )?
+                pprint_with_default_cx(f, self, key)
             }
         }
     )*};
+}
+
+pub fn pprint_with_default_cx<T: Pretty>(
+    f: &mut std::fmt::Formatter<'_>,
+    t: &T,
+    cfg_key: Option<&'static str>,
+) -> std::fmt::Result {
+    rustc_middle::ty::tls::with(|tcx| {
+        #[allow(unused_mut)]
+        let mut cx = <T>::default_cx(tcx);
+        if let Some(key) = cfg_key
+           && let Some(opts) = flux_config::CONFIG_FILE
+                .get("dev")
+                .and_then(|dev| dev.get("pprint"))
+                .and_then(|pprint| pprint.get(key))
+        {
+            cx.merge(opts);
+        }
+        Pretty::fmt(t, &cx, f)
+    })
 }
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;

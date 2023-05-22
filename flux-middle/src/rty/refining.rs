@@ -82,7 +82,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                             output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars, List::empty())
+                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars)
                     }
                 };
                 Ok(rty::Predicate { kind })
@@ -107,7 +107,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
-        Ok(rty::Binder::with_sorts(value, List::empty()))
+        Ok(rty::Binder::new(value, List::empty()))
     }
 
     pub(crate) fn refine_poly_fn_sig(
@@ -122,8 +122,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .map(|ty| self.refine_ty(ty))
             .try_collect_vec()?;
         let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-        let output = rty::Binder::with_sorts(rty::FnOutput::new(ret, vec![]), List::empty());
-        Ok(rty::PolyFnSig::new(vars, [], rty::FnSig::new(vec![], args, output)))
+        let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+        Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -147,9 +147,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
         let ty = self.refine_poly_ty(ty)?;
-        match &ty.sorts()[..] {
+        match &ty.vars()[..] {
             [] => Ok(ty.skip_binder().shift_out_escaping(1)),
-            [s] if s.is_unit() => Ok(ty.replace_bound_exprs(&[rty::Expr::unit()])),
+            [rty::BoundVariableKind::Refine(s, _)] if s.is_unit() => {
+                Ok(ty.replace_bound_exprs(&[rty::Expr::unit()]))
+            }
             _ => Ok(rty::Ty::exists(ty)),
         }
     }
@@ -181,7 +183,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::with_sorts(
+                        return Ok(rty::Binder::new(
                             rty::Ty::param(*param_ty),
                             List::empty(),
                         ));
