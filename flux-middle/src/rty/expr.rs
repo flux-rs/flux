@@ -558,7 +558,6 @@ impl Path {
     pub fn to_expr(&self) -> Expr {
         self.projection
             .iter()
-            .rev()
             .fold(self.loc.to_expr(), |e, f| Expr::path_proj(e, *f))
     }
 
