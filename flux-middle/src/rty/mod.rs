@@ -473,6 +473,10 @@ impl<T> Binder<T> {
         Binder { vars: List::empty(), sorts, value }
     }
 
+    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
+        Binder { vars: List::empty(), sorts: List::singleton(sort), value }
+    }
+
     pub fn sorts(&self) -> &List<Sort> {
         &self.sorts
     }
@@ -853,7 +857,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sorts(Ty::constr(pred, ty), List::singleton(sort)))
+        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -1044,7 +1048,7 @@ impl BaseTy {
         if sort.is_unit() {
             Ty::indexed(self, Index::unit())
         } else {
-            Ty::exists(Binder::with_sorts(Ty::indexed(self, Expr::nu()), List::singleton(sort)))
+            Ty::exists(Binder::with_sort(Ty::indexed(self, Expr::nu()), sort))
         }
     }
 
@@ -1086,9 +1090,9 @@ pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant {
-            pred: Binder::with_sorts(
+            pred: Binder::with_sort(
                 Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
-                List::singleton(Sort::Int),
+                Sort::Int,
             ),
         }]
     });
@@ -1099,15 +1103,15 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             .map(|uint_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sorts(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero()),
-                            List::singleton(Sort::Int),
+                            Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::with_sorts(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty)),
-                            List::singleton(Sort::Int),
+                            Sort::Int,
                         ),
                     },
                 ];
@@ -1131,15 +1135,15 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             .map(|int_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sorts(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty)),
-                            List::singleton(Sort::Int),
+                            Sort::Int,
                         ),
                     },
                     Invariant {
-                        pred: Binder::with_sorts(
+                        pred: Binder::with_sort(
                             Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty)),
-                            List::singleton(Sort::Int),
+                            Sort::Int,
                         ),
                     },
                 ];

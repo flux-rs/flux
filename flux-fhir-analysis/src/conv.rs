@@ -82,7 +82,7 @@ pub(crate) fn expand_type_alias(
     env.push_layer(Layer::collapse(&cx, &alias.index_params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
-    Ok(rty::Binder::with_sorts(ty, List::singleton(env.pop_layer().into_tuple_sort())))
+    Ok(rty::Binder::with_sort(ty, env.pop_layer().into_tuple_sort()))
 }
 
 pub(crate) fn conv_generics(
@@ -364,7 +364,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                             let idx = rty::Index::from(rty::Expr::nu());
                             let ty = self.conv_base_ty(env, bty, idx)?;
                             env.pop_layer();
-                            Ok(rty::Ty::exists(rty::Binder::with_sorts(ty, List::singleton(sort))))
+                            Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
                         }
                     }
                     None => {
@@ -685,9 +685,9 @@ impl ConvCtxt<'_, '_> {
 
     fn conv_invariant(&self, env: &Env, invariant: &fhir::Expr) -> rty::Invariant {
         rty::Invariant {
-            pred: rty::Binder::with_sorts(
+            pred: rty::Binder::with_sort(
                 self.conv_expr(env, invariant),
-                List::singleton(env.top_layer().to_tuple_sort()),
+                env.top_layer().to_tuple_sort(),
             ),
         }
     }

@@ -60,7 +60,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
                 let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
-                rty::Binder::with_sorts(constr, List::singleton(sort))
+                rty::Binder::with_sort(constr, sort)
             },
         }
     }
@@ -230,8 +230,5 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
-    rty::Binder::with_sorts(
-        rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()),
-        List::singleton(sort),
-    )
+    rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
 }
