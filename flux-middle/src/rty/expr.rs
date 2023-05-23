@@ -28,7 +28,7 @@ pub struct ExprS {
     espan: Option<ESpan>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct ESpan {
     /// The top-level span information
     span: FSpanData,
@@ -41,10 +41,6 @@ impl ESpan {
         Self { span: FSpanData::new(span), base: None }
     }
 
-    pub fn with_base(self, base: Span) -> Self {
-        Self { span: self.span, base: Some(FSpanData::new(base)) }
-    }
-
     pub fn span(&self) -> Span {
         self.span.span()
     }
@@ -52,9 +48,18 @@ impl ESpan {
     pub fn base(&self) -> Option<Span> {
         self.base.as_ref().map(|fspan| fspan.span())
     }
+
+    pub fn with_base(&self, espan: ESpan) -> Self {
+        Self { span: self.span, base: espan.base }
+        // if self.base.is_none() {
+        //     Self { span: self.span, base: espan.base }
+        // } else {
+        //     *self
+        // }
+    }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct FSpanData {
     pub lo: BytePos,
     pub hi: BytePos,
@@ -143,8 +148,8 @@ newtype_index! {
 }
 
 impl ExprKind {
-    fn intern_at(self, span: Option<Span>) -> Expr {
-        Interned::new(ExprS { kind: self, espan: span.map(ESpan::new) })
+    fn intern_at(self, espan: Option<ESpan>) -> Expr {
+        Interned::new(ExprS { kind: self, espan })
     }
 
     fn intern(self) -> Expr {
@@ -153,8 +158,20 @@ impl ExprKind {
 }
 
 impl Expr {
-    pub fn span(&self) -> Option<Span> {
-        self.espan.as_ref().map(|fspan| fspan.span())
+    pub fn at_base(self, base: Option<ESpan>) -> Expr {
+        let kind = self.kind();
+        if let Some(span) = self.espan.as_ref() &&
+           let Some(base) = base
+        {
+            let espan = Some(span.with_base(base));
+            kind.clone().intern_at(espan)
+        } else {
+            self
+        }
+    }
+
+    pub fn span(&self) -> Option<ESpan> {
+        self.espan.as_ref().map(|espan| *espan)
     }
 
     pub fn tt() -> Expr {
@@ -241,8 +258,8 @@ impl Expr {
         Expr::tuple(vec![])
     }
 
-    pub fn var(var: Var, span: Option<Span>) -> Expr {
-        ExprKind::Var(var).intern_at(span)
+    pub fn var(var: Var, espan: Option<ESpan>) -> Expr {
+        ExprKind::Var(var).intern_at(espan)
     }
 
     pub fn fvar(name: Name) -> Expr {
@@ -261,20 +278,20 @@ impl Expr {
         Var::EarlyBound(idx).to_expr()
     }
 
-    pub fn local(local: Local, span: Option<Span>) -> Expr {
-        ExprKind::Local(local).intern_at(span)
+    pub fn local(local: Local, espan: Option<ESpan>) -> Expr {
+        ExprKind::Local(local).intern_at(espan)
     }
 
     pub fn constant(c: Constant) -> Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn constant_at(c: Constant, span: Option<Span>) -> Expr {
-        ExprKind::Constant(c).intern_at(span)
+    pub fn constant_at(c: Constant, espan: Option<ESpan>) -> Expr {
+        ExprKind::Constant(c).intern_at(espan)
     }
 
-    pub fn const_def_id(c: DefId, span: Option<Span>) -> Expr {
-        ExprKind::ConstDefId(c).intern_at(span)
+    pub fn const_def_id(c: DefId, espan: Option<ESpan>) -> Expr {
+        ExprKind::ConstDefId(c).intern_at(espan)
     }
 
     pub fn tuple(exprs: impl Into<List<Expr>>) -> Expr {
@@ -309,9 +326,9 @@ impl Expr {
         p: impl Into<Expr>,
         e1: impl Into<Expr>,
         e2: impl Into<Expr>,
-        span: Option<Span>,
+        espan: Option<ESpan>,
     ) -> Expr {
-        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(span)
+        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(espan)
     }
 
     pub fn abs(body: Binder<Expr>) -> Expr {
@@ -330,25 +347,25 @@ impl Expr {
         op: BinOp,
         e1: impl Into<Expr>,
         e2: impl Into<Expr>,
-        span: Option<Span>,
+        espan: Option<ESpan>,
     ) -> Expr {
-        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(span)
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
     }
 
-    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, span: Option<Span>) -> Expr {
-        ExprKind::App(func.into(), args.into()).intern_at(span)
+    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
+        ExprKind::App(func.into(), args.into()).intern_at(espan)
     }
 
     pub fn global_func(func: Symbol, kind: FuncKind) -> Expr {
         ExprKind::GlobalFunc(func, kind).intern()
     }
 
-    pub fn unary_op(op: UnOp, e: impl Into<Expr>, span: Option<Span>) -> Expr {
-        ExprKind::UnaryOp(op, e.into()).intern_at(span)
+    pub fn unary_op(op: UnOp, e: impl Into<Expr>, espan: Option<ESpan>) -> Expr {
+        ExprKind::UnaryOp(op, e.into()).intern_at(espan)
     }
 
-    pub fn eq_at(e1: impl Into<Expr>, e2: impl Into<Expr>, span: Option<Span>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern_at(span)
+    pub fn eq_at(e1: impl Into<Expr>, e2: impl Into<Expr>, espan: Option<ESpan>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern_at(espan)
     }
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -379,8 +396,8 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    pub fn tuple_proj(e: impl Into<Expr>, proj: u32, span: Option<Span>) -> Expr {
-        ExprKind::TupleProj(e.into(), proj).intern_at(span)
+    pub fn tuple_proj(e: impl Into<Expr>, proj: u32, espan: Option<ESpan>) -> Expr {
+        ExprKind::TupleProj(e.into(), proj).intern_at(espan)
     }
 
     pub fn tuple_projs(e: impl Into<Expr>, projs: &[u32]) -> Expr {

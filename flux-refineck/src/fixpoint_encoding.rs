@@ -17,7 +17,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, Constant},
+    rty::{self, Constant, ESpan},
 };
 use itertools::{self, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -110,7 +110,7 @@ type Bindings = Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>;
 
 /// An alias for a list of predicate (conjuncts) and their spans, used to give
 /// localized errors when refine checking fails.
-type PredSpans = Vec<(fixpoint::Pred, Option<Span>)>;
+type PredSpans = Vec<(fixpoint::Pred, Option<ESpan>)>;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where

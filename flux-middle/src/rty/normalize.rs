@@ -3,6 +3,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
+use super::ESpan;
 use crate::{
     fhir::FuncKind,
     rty::{
@@ -109,10 +110,11 @@ impl<'a> Normalizer<'a> {
         Self { defs }
     }
 
-    fn app(&self, func: &Expr, args: &[Expr]) -> Expr {
+    fn app(&self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
             ExprKind::GlobalFunc(sym, FuncKind::Def) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bound_exprs(args)
+                println!("TRACE: expanding defn for {sym:?} with {args:?}");
+                defn.expr.replace_bound_exprs(args).at_base(espan)
             }
             ExprKind::Abs(body) => body.replace_bound_exprs(args),
             _ => Expr::app(func.clone(), args, None),
@@ -131,8 +133,9 @@ impl<'a> Normalizer<'a> {
 impl TypeFolder for Normalizer<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         let expr = expr.super_fold_with(self);
+        let span = expr.span();
         match expr.kind() {
-            ExprKind::App(func, args) => self.app(func, args),
+            ExprKind::App(func, args) => self.app(func, args, span),
             ExprKind::TupleProj(tup, proj) => self.tuple_proj(tup, *proj),
             _ => expr,
         }

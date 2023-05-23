@@ -40,7 +40,10 @@ use flux_common::{cache::QueryCache, dbg};
 use flux_config as config;
 use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
-use flux_middle::{global_env::GlobalEnv, rty};
+use flux_middle::{
+    global_env::GlobalEnv,
+    rty::{self, ESpan},
+};
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hir::def_id::LocalDefId;
@@ -93,14 +96,14 @@ pub fn check_fn(
     })
 }
 
-fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<Span>) -> ErrorGuaranteed {
+fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
     match dst_span {
         Some(dst_span) => genv.sess.emit_err(errors::GoalError::call(span, dst_span)),
         None => genv.sess.emit_err(errors::CallError { span }),
     }
 }
 
-fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<Span>) -> ErrorGuaranteed {
+fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
     match dst_span {
         Some(dst_span) => genv.sess.emit_err(errors::GoalError::ret(span, dst_span)),
         None => genv.sess.emit_err(errors::RetError { span }),
@@ -134,6 +137,7 @@ fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarante
 
 mod errors {
     use flux_macros::{Diagnostic, Subdiagnostic};
+    use flux_middle::rty::ESpan;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -185,12 +189,12 @@ mod errors {
     }
 
     impl GoalError {
-        pub fn call(span: Span, dst_span: Span) -> Self {
-            let span_note = ConditionSpanNote { span: dst_span };
+        pub fn call(span: Span, dst_span: ESpan) -> Self {
+            let span_note = ConditionSpanNote { span: dst_span.span() };
             GoalError { span, cond: "precondition", origin: "call", span_note }
         }
-        pub fn ret(span: Span, dst_span: Span) -> Self {
-            let span_note = ConditionSpanNote { span: dst_span };
+        pub fn ret(span: Span, dst_span: ESpan) -> Self {
+            let span_note = ConditionSpanNote { span: dst_span.span() };
             GoalError { span, cond: "postcondition", origin: "return", span_note }
         }
     }

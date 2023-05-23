@@ -188,7 +188,12 @@ fn variants_of(
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let fn_sig = genv.map().get_fn_sig(def_id);
     let wfckresults = genv.check_wf(def_id)?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?.normalize(genv.defns()?);
+    // let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?.normalize(genv.defns()?);
+    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?;
+    println!("TRACE: normalize:0: fn_sig {fn_sig:?}");
+    let fn_sig = fn_sig.normalize(genv.defns()?);
+    println!("TRACE: normalize:1: fn_sig {fn_sig:?}");
+
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }

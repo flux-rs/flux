@@ -16,7 +16,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, fold::TypeFoldable, refining, INNERMOST},
+    rty::{self, fold::TypeFoldable, refining, ESpan, INNERMOST},
     rustc,
 };
 use itertools::Itertools;
@@ -644,26 +644,26 @@ impl Env {
 impl ConvCtxt<'_, '_> {
     fn conv_expr(&self, env: &Env, expr: &fhir::Expr) -> rty::Expr {
         let fhir_id = expr.fhir_id;
-        let span = Some(expr.span);
+        let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
-            fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did, span),
+            fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did, espan),
             fhir::ExprKind::Var(var) => env.lookup(*var).to_expr(),
-            fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), span),
+            fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
-                rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2), span)
+                rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2), espan)
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(*op, self.conv_expr(env, e), span)
+                rty::Expr::unary_op(*op, self.conv_expr(env, e), espan)
             }
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args), span)
+                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args), espan)
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(
                     self.conv_expr(env, p),
                     self.conv_expr(env, e1),
                     self.conv_expr(env, e2),
-                    span,
+                    espan,
                 )
             }
             fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv.early_cx(), *fld),

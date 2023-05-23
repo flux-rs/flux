@@ -8,9 +8,9 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        TupleTree, Ty, TyKind, Var,
+        BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
+        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
+        Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -64,7 +64,7 @@ struct InferCtxt<'a, 'tcx> {
 pub struct Tag {
     pub reason: ConstrReason,
     pub src_span: Span,
-    pub dst_span: Option<Span>,
+    pub dst_span: Option<ESpan>,
 }
 
 impl Tag {
@@ -72,7 +72,7 @@ impl Tag {
         Self { reason, src_span: span, dst_span: None }
     }
 
-    pub fn dst(self, dst_span: Option<Span>) -> Self {
+    pub fn dst(self, dst_span: Option<ESpan>) -> Self {
         Self { dst_span, ..self }
     }
 }
