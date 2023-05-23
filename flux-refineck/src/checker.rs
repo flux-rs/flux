@@ -14,7 +14,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Sort, Ty,
+        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
         TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
@@ -457,7 +457,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
             .with_span(terminator_span)?;
 
-        let output = output.replace_bound_expr(|sort| rcx.define_vars(sort));
+        let output = output.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {
@@ -676,7 +676,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .variant(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
-                    .to_poly_sig();
+                    .to_poly_fn_sig();
                 let adt_generics = &genv.generics_of(*def_id).with_span(stmt_span)?;
                 let substs = iter::zip(&adt_generics.params, substs)
                     .map(|(param, arg)| {
@@ -1007,7 +1007,7 @@ impl Mode for ShapeMode {
         checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_: &[Sort], _| Expr::hole(), rvid_gen, checker_config, span)
+        ConstrGen::new(genv, |_: &[_], _| Expr::hole(), rvid_gen, checker_config, span)
     }
 
     fn enter_basic_block<'a>(
@@ -1033,7 +1033,7 @@ impl Mode for ShapeMode {
 
         let mut gen = ConstrGen::new(
             ck.genv,
-            |_: &[Sort], _| Expr::hole(),
+            |_: &[_], _| Expr::hole(),
             &ck.rvid_gen,
             ck.config,
             terminator_span,
@@ -1082,7 +1082,7 @@ impl Mode for RefineMode {
         let scope = rcx.scope();
         ConstrGen::new(
             genv,
-            move |sorts: &[Sort], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
             rvid_gen,
             checker_config,
             span,
@@ -1111,7 +1111,7 @@ impl Mode for RefineMode {
 
         let gen = &mut ConstrGen::new(
             ck.genv,
-            |sorts: &[Sort], encoding| {
+            |sorts: &[_], encoding| {
                 ck.mode
                     .kvars
                     .fresh_bound(sorts, bb_env.scope().iter(), encoding)

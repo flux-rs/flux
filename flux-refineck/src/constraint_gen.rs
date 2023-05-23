@@ -1,4 +1,4 @@
-use std::{iter, slice};
+use std::iter;
 
 use flux_common::{index::IndexGen, tracked_span_bug};
 use flux_middle::{
@@ -47,7 +47,7 @@ pub(crate) struct Obligations {
 }
 
 pub trait KVarGen {
-    fn fresh(&mut self, args: &[Sort], kind: KVarEncoding) -> Expr;
+    fn fresh(&mut self, args: &[List<Sort>], kind: KVarEncoding) -> Expr;
 }
 
 struct InferCtxt<'a, 'tcx> {
@@ -143,7 +143,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 }
                 _ => ty.clone(),
             };
-            res.push(packed_ty)
+            res.push(packed_ty);
         }
         Ok(res)
     }
@@ -166,7 +166,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             fn_sig
                 .as_ref()
                 .skip_binder()
-                .fn_sig
                 .as_ref()
                 .skip_binder()
                 .args(),
@@ -196,15 +195,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let rvid_gen = infcx.rvid_gen;
         let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
-            |sort, kind| infcx.fresh_evars_or_kvar(sort, kind),
+            |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
         // Check closure obligations
-        let closure_obligs = if let Some(did) = did {
-            mk_obligations(genv, did, &substs)?
-        } else {
-            List::from(vec![])
-        };
+        let closure_obligs =
+            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -271,8 +267,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
-        let output = output
-            .replace_bound_expr(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
+        let output = output.replace_bound_exprs_with(|sort| infcx.fresh_evars_or_kvar(sort, None));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -305,7 +300,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .subst_generics(&substs)
-            .replace_bound_expr(|sort| infcx.fresh_evars_or_kvar(sort, sort.default_infer_mode()));
+            .replace_bound_exprs_with(|sort| infcx.fresh_evars_or_kvar(sort, None));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -396,7 +391,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn fresh_kvar(&mut self, sorts: &[Sort], encoding: KVarEncoding) -> Expr {
+    fn fresh_kvar(&mut self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
         self.kvar_gen.fresh(sorts, encoding)
     }
 
@@ -405,14 +400,15 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    fn fresh_evars_or_kvar(&mut self, sort: &Sort, kind: InferMode) -> Expr {
-        match kind {
+    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: Option<InferMode>) -> Expr {
+        let mode = mode.unwrap_or_else(|| sort.default_infer_mode());
+        match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
-                let input = fsort.input();
-                Expr::abs(Binder::with_sort(
-                    self.fresh_kvar(slice::from_ref(input), KVarEncoding::Single),
-                    input.clone(),
+                let inputs = List::from_slice(fsort.inputs());
+                Expr::abs(Binder::with_sorts(
+                    self.fresh_kvar(&[inputs.clone()], KVarEncoding::Single),
+                    inputs.iter().cloned(),
                 ))
             }
             InferMode::EVar => self.fresh_evars(sort),
@@ -467,7 +463,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bound_expr(|sort| rcx.define_vars(sort));
+                let ty1 = ty1.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
@@ -476,8 +472,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2o = ty2.replace_bound_expr(|sort| self.fresh_evars(sort));
-                self.subtyping(rcx, ty1, &ty2o);
+                let ty2 = ty2.replace_bound_exprs_with(|sort| self.fresh_evars(sort));
+                self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
@@ -611,11 +607,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.pred_subtyping(rcx, p1, p2);
             }
             (_, ExprKind::Abs(p)) => {
-                self.pred_subtyping(rcx, &e1.eta_expand_abs(p.sort()), p);
+                self.pred_subtyping(rcx, &e1.eta_expand_abs(&p.vars().to_sort_list()), p);
             }
             (ExprKind::Abs(p), _) => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
-                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(p.sort()));
+                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(&p.vars().to_sort_list()));
             }
             _ => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
@@ -626,10 +622,15 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Binder<Expr>, p2: &Binder<Expr>) {
-        debug_assert_eq!(p1.sort(), p2.sort());
-        let vars = rcx.define_vars(p1.sort());
-        let p1 = p1.replace_bound_expr(|_| vars.clone());
-        let p2 = p2.replace_bound_expr(|_| vars);
+        debug_assert_eq!(p1.vars(), p2.vars());
+        let vars = p1
+            .vars()
+            .to_sort_list()
+            .iter()
+            .map(|s| rcx.define_vars(s))
+            .collect_vec();
+        let p1 = p1.replace_bound_exprs(&vars);
+        let p2 = p2.replace_bound_exprs(&vars);
         rcx.check_impl(&p1, &p2, self.tag);
         rcx.check_impl(&p2, &p1, self.tag);
     }
@@ -664,21 +665,21 @@ fn mk_obligations(
 
 impl<F> KVarGen for F
 where
-    F: FnMut(&[Sort], KVarEncoding) -> Expr,
+    F: FnMut(&[List<Sort>], KVarEncoding) -> Expr,
 {
-    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+    fn fresh(&mut self, sorts: &[List<Sort>], kind: KVarEncoding) -> Expr {
         (self)(sorts, kind)
     }
 }
 
 impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+    fn fresh(&mut self, sorts: &[List<Sort>], kind: KVarEncoding) -> Expr {
         (**self).fresh(sorts, kind)
     }
 }
 
 impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sorts: &[Sort], kind: KVarEncoding) -> Expr {
+    fn fresh(&mut self, sorts: &[List<Sort>], kind: KVarEncoding) -> Expr {
         (**self).fresh(sorts, kind)
     }
 }

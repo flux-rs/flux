@@ -15,6 +15,7 @@ use flux_fixpoint as fixpoint;
 use flux_middle::{
     fhir::FuncKind,
     global_env::GlobalEnv,
+    intern::List,
     queries::QueryResult,
     rty::{self, Constant},
 };
@@ -464,7 +465,7 @@ impl KVarStore {
 
     pub fn fresh_bound<S>(
         &mut self,
-        bound: &[rty::Sort],
+        bound: &[List<rty::Sort>],
         scope: S,
         encoding: KVarEncoding,
     ) -> rty::Expr
@@ -475,8 +476,13 @@ impl KVarStore {
             return self.fresh(0, [], encoding);
         }
         let args = itertools::chain(
-            bound.iter().rev().enumerate().map(|(level, sort)| {
-                (rty::Var::LateBound(DebruijnIndex::from_usize(level)), sort.clone())
+            bound.iter().rev().enumerate().flat_map(|(level, sorts)| {
+                sorts.iter().enumerate().map(move |(idx, sort)| {
+                    (
+                        rty::Var::LateBound(DebruijnIndex::from_usize(level), idx as u32),
+                        sort.clone(),
+                    )
+                })
             }),
             scope
                 .into_iter()
@@ -506,8 +512,12 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
         rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
-        rty::Sort::App(ctor, sorts) => {
-            let ctor = sort_ctor_to_fixpoint(ctor);
+        // There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
+        // user declared opaque sorts and type variable sorts as integers. Well-formedness should
+        // ensure values of these sorts are properly used.
+        rty::Sort::App(rty::SortCtor::User { .. }, _) | rty::Sort::Param(_) => fixpoint::Sort::Int,
+        rty::Sort::App(rty::SortCtor::Set, sorts) => {
+            let ctor = fixpoint::SortCtor::Set;
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(ctor, sorts)
         }
@@ -528,27 +538,14 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
                 }
             }
         }
-        // There's no way to declare sorts in the horn syntax in fixpoint so we encode
-        // user declared opaque sorts and type variable sorts as integers. Well-formedness
-        // should ensure values of these sorts are properly used.
-        rty::Sort::User(_) | rty::Sort::Param(_) => fixpoint::Sort::Int,
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
     }
 }
 
-fn sort_ctor_to_fixpoint(ctor: &rty::SortCtor) -> fixpoint::SortCtor {
-    match ctor {
-        rty::SortCtor::Set => fixpoint::SortCtor::Set,
-        rty::SortCtor::User { name, arity } => {
-            fixpoint::SortCtor::User { name: *name, arity: *arity }
-        }
-    }
-}
-
 fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
     fixpoint::FuncSort::new(
-        fsort.input().as_tuple().iter().map(sort_to_fixpoint),
+        fsort.inputs().iter().map(sort_to_fixpoint),
         sort_to_fixpoint(fsort.output()),
     )
 }
@@ -590,10 +587,10 @@ impl<'a> ExprCtxt<'a> {
                 });
                 fixpoint::Expr::ConstVar(const_info.name)
             }
-            rty::ExprKind::App(func, arg) => {
+            rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func);
-                let arg = self.exprs_to_fixpoint(arg.as_tuple());
-                fixpoint::Expr::App(func, arg)
+                let args = self.exprs_to_fixpoint(args);
+                fixpoint::Expr::App(func, args)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([

@@ -230,7 +230,7 @@ impl RefineCtxt<'_> {
                         // opening of mutable references. See also `ConstrGen::check_fn_call`.
                         if !self.in_mut_ref || self.flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
                             bound_ty
-                                .replace_bound_expr(|sort| self.rcx.define_vars(sort))
+                                .replace_bound_exprs_with(|sort| self.rcx.define_vars(sort))
                                 .fold_with(self)
                         } else {
                             ty.clone()
@@ -296,7 +296,7 @@ impl RefineCtxt<'_> {
             fn visit_ty(&mut self, ty: &Ty) {
                 if let TyKind::Indexed(bty, idx) = ty.kind() {
                     for invariant in bty.invariants(self.overflow_checking) {
-                        let invariant = invariant.pred.replace_bound_expr(|_| idx.expr.clone());
+                        let invariant = invariant.pred.replace_bound_expr(&idx.expr);
                         self.rcx.assume_pred(invariant);
                     }
                 }
