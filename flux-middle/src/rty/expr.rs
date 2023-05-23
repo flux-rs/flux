@@ -25,7 +25,33 @@ pub type Expr = Interned<ExprS>;
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct ExprS {
     kind: ExprKind,
-    fspan: Option<FSpanData>,
+    espan: Option<ESpan>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub struct ESpan {
+    /// The top-level span information
+    span: FSpanData,
+    /// The span for the (base) call-site for def-expanded spans
+    base: Option<FSpanData>,
+}
+
+impl ESpan {
+    pub fn new(span: Span) -> Self {
+        Self { span: FSpanData::new(span), base: None }
+    }
+
+    pub fn with_base(self, base: Span) -> Self {
+        Self { span: self.span, base: Some(FSpanData::new(base)) }
+    }
+
+    pub fn span(&self) -> Span {
+        self.span.span()
+    }
+
+    pub fn base(&self) -> Option<Span> {
+        self.base.as_ref().map(|fspan| fspan.span())
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -118,17 +144,17 @@ newtype_index! {
 
 impl ExprKind {
     fn intern_at(self, span: Option<Span>) -> Expr {
-        Interned::new(ExprS { kind: self, fspan: span.map(FSpanData::new) })
+        Interned::new(ExprS { kind: self, espan: span.map(ESpan::new) })
     }
 
     fn intern(self) -> Expr {
-        Interned::new(ExprS { kind: self, fspan: None })
+        Interned::new(ExprS { kind: self, espan: None })
     }
 }
 
 impl Expr {
     pub fn span(&self) -> Option<Span> {
-        self.fspan.as_ref().map(|fspan| fspan.span())
+        self.espan.as_ref().map(|fspan| fspan.span())
     }
 
     pub fn tt() -> Expr {
@@ -430,10 +456,10 @@ impl Expr {
                 let span = expr.span();
                 match expr.kind() {
                     ExprKind::BinaryOp(op, e1, e2) => {
-                        let e1_span = e1.span();
-                        let e2_span = e2.span();
                         let e1 = e1.fold_with(self);
                         let e2 = e2.fold_with(self);
+                        let e1_span = e1.span();
+                        let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
                             (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
                                 Expr::constant_at(Constant::Bool(false), e1_span)
@@ -446,7 +472,7 @@ impl Expr {
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
-                                    Some(c) => Expr::constant_at(c, e2_span),
+                                    Some(c) => Expr::constant_at(c, span.or(e2_span)),
                                     None => Expr::binary_op(*op, e1, e2, None),
                                 }
                             }
