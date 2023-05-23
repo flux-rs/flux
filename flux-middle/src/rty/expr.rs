@@ -962,5 +962,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(/* Expr, */ Loc, Path, Var, KVar);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar);
 }
