@@ -10,6 +10,10 @@
     fn chunky(y:int) -> bool {
         funky(y) && 2 <= y
     }
+
+    fn inc1(x: int) -> int {
+        x + 1
+    }
 }]
 
 #[flux::sig(fn(x: i32{ chunky(x) }))] //~ NOTE inside this specifunction call
@@ -19,4 +23,9 @@ fn test() {
     assertp(12); //~ ERROR precondition
                  //~| NOTE call site
                  //~| NOTE a precondition cannot be proved
+}
+
+#[flux::sig(fn() -> i32[inc1(0)])]
+fn moo() -> i32 {
+    2
 }
