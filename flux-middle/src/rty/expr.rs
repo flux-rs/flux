@@ -160,8 +160,8 @@ impl ExprKind {
 impl Expr {
     pub fn at_base(self, base: Option<ESpan>) -> Expr {
         let kind = self.kind();
-        if let Some(espan) = self.espan.as_ref() &&
-           let Some(base) = base
+        if let Some(espan) = self.espan
+            && let Some(base) = base
         {
             kind.clone().intern_at(Some(espan.with_base(base)))
         } else {
