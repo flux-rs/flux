@@ -127,7 +127,7 @@ impl<'a> Normalizer<'a> {
                 let res = body.replace_bound_exprs(args);
                 Self::at_base(res, espan)
             }
-            _ => Expr::app(func.clone(), args, None),
+            _ => Expr::app(func.clone(), args, espan),
         }
     }
 
@@ -146,6 +146,7 @@ impl TypeFolder for Normalizer<'_> {
         let span = expr.span();
         match expr.kind() {
             ExprKind::App(func, args) => self.app(func, args, span),
+
             ExprKind::TupleProj(tup, proj) => self.tuple_proj(tup, *proj),
             _ => expr,
         }
