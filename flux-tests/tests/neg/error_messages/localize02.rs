@@ -12,7 +12,7 @@
     }
 
     fn inc1(x: int) -> int {
-        x + 1
+        x + 1   //~ NOTE this is the condition
     }
 }]
 
@@ -25,7 +25,9 @@ fn test() {
                  //~| NOTE a precondition cannot be proved
 }
 
-#[flux::sig(fn() -> i32[inc1(0)])]
+#[flux::sig(fn() -> i32[inc1(0)])] //~ NOTE inside this specifunction call
 fn moo() -> i32 {
-    2
+    2 //~ ERROR postcondition
+      //~| NOTE return site
+      //~| NOTE a postcondition cannot be proved
 }
