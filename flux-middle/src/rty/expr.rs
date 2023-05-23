@@ -51,11 +51,6 @@ impl ESpan {
 
     pub fn with_base(&self, espan: ESpan) -> Self {
         Self { span: self.span, base: Some(espan.span) }
-        // if self.base.is_none() {
-        //     Self { span: self.span, base: espan.base }
-        // } else {
-        //     *self
-        // }
     }
 }
 
