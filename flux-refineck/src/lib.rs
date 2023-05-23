@@ -99,14 +99,20 @@ pub fn check_fn(
 fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
     match dst_span {
         Some(dst_span) => genv.sess.emit_err(errors::GoalError::call(span, dst_span)),
-        None => genv.sess.emit_err(errors::CallError { span }),
+        None => {
+            genv.sess
+                .emit_err(errors::RefineError { span, cond: "precondition" })
+        }
     }
 }
 
 fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
     match dst_span {
         Some(dst_span) => genv.sess.emit_err(errors::GoalError::ret(span, dst_span)),
-        None => genv.sess.emit_err(errors::RetError { span }),
+        None => {
+            genv.sess
+                .emit_err(errors::RefineError { span, cond: "postcondition" })
+        }
     }
 }
 
@@ -148,22 +154,17 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_call_error, code = "FLUX")]
-    pub struct CallError {
+    #[diag(refineck_refine_error, code = "FLUX")]
+    pub struct RefineError {
         #[primary_span]
+        #[label]
         pub span: Span,
+        pub cond: &'static str,
     }
 
     #[derive(Diagnostic)]
     #[diag(refineck_assign_error, code = "FLUX")]
     pub struct AssignError {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_ret_error, code = "FLUX")]
-    pub struct RetError {
         #[primary_span]
         pub span: Span,
     }
