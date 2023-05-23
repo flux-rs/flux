@@ -22,7 +22,7 @@ use crate::{
 
 pub type Expr = Interned<ExprS>;
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExprS {
     kind: ExprKind,
     espan: Option<ESpan>,
