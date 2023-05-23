@@ -258,7 +258,6 @@ where
         let mut bindings = vec![];
         let mut preds = vec![];
         self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds);
-        // (bindings, fixpoint::Pred::And(preds))
         (bindings, preds)
     }
 
