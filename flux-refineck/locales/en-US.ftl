@@ -14,7 +14,7 @@ refineck_condition_span_note =
     this is the condition that cannot be proved
 
 refineck_call_span_note =
-    inside this specifunction call
+    inside this call
 
 refineck_goal_error =
     refinement type error

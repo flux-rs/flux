@@ -16,7 +16,7 @@
     }
 }]
 
-#[flux::sig(fn(x: i32{ chunky(x) }))] //~ NOTE inside this specifunction call
+#[flux::sig(fn(x: i32{ chunky(x) }))] //~ NOTE inside this call
 fn assertp(_x: i32) {}
 
 fn test() {
@@ -24,7 +24,7 @@ fn test() {
                  //~| NOTE a precondition cannot be proved
 }
 
-#[flux::sig(fn() -> i32[inc1(0)])] //~ NOTE inside this specifunction call
+#[flux::sig(fn() -> i32[inc1(0)])] //~ NOTE inside this call
 fn moo() -> i32 {
     2 //~ ERROR refinement type
       //~| NOTE a postcondition cannot be proved
