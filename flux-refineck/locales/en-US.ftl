@@ -3,10 +3,6 @@
 refineck_goto_error =
     error jumping to join point
 
-refineck_refine_error =
-    refinement type error
-    .label = a {$cond} cannot be proved
-
 refineck_assign_error =
     assignment might be unsafe
 
@@ -16,9 +12,13 @@ refineck_condition_span_note =
 refineck_call_span_note =
     inside this call
 
-refineck_goal_error =
+refineck_refine_error =
     refinement type error
-    .label = a {$cond} cannot be proved at this {$origin} site
+    .label = a {$cond} cannot be proved
+
+refineck_refine_goal_error =
+    refinement type error
+    .label = a {$cond} cannot be proved
 
 refineck_div_error =
     possible division by zero
