@@ -31,14 +31,14 @@ pub struct ExprS {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct ESpan {
     /// The top-level span information
-    span: FSpanData,
+    span: SpanData,
     /// The span for the (base) call-site for def-expanded spans
-    base: Option<FSpanData>,
+    base: Option<SpanData>,
 }
 
 impl ESpan {
     pub fn new(span: Span) -> Self {
-        Self { span: FSpanData::new(span), base: None }
+        Self { span: SpanData::new(span), base: None }
     }
 
     pub fn span(&self) -> Span {
@@ -54,13 +54,15 @@ impl ESpan {
     }
 }
 
+// NOTE: we make our own "version" of `rustc`'s SpanData as we cannot `TyEncode/Decode`
+// the original one...
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub struct FSpanData {
+pub struct SpanData {
     pub lo: BytePos,
     pub hi: BytePos,
 }
 
-impl FSpanData {
+impl SpanData {
     pub fn new(span: Span) -> Self {
         let data = span.data();
         Self { lo: data.lo, hi: data.hi }
