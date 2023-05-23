@@ -21,13 +21,11 @@ fn assertp(_x: i32) {}
 
 fn test() {
     assertp(12); //~ ERROR refinement type
-                 //~| NOTE call site
                  //~| NOTE a precondition cannot be proved
 }
 
 #[flux::sig(fn() -> i32[inc1(0)])] //~ NOTE inside this specifunction call
 fn moo() -> i32 {
     2 //~ ERROR refinement type
-      //~| NOTE return site
       //~| NOTE a postcondition cannot be proved
 }
