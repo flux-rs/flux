@@ -170,7 +170,7 @@ impl Expr {
     }
 
     pub fn span(&self) -> Option<ESpan> {
-        self.espan.as_ref().map(|espan| *espan)
+        self.espan.as_ref().copied()
     }
 
     pub fn tt() -> Expr {
