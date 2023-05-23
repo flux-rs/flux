@@ -11,5 +11,5 @@ pub enum E {
 
 #[flux::sig(fn(E[@n], i32[n]) -> i32{v: v > 0})]
 pub fn is_zero(_: E, x: i32) -> i32 {
-    x + 1 //~ ERROR postcondition
+    x + 1 //~ ERROR refinement type
 }

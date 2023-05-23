@@ -23,7 +23,7 @@ impl Rng {
         let hi = self.hi;
         if cur <= hi {
             self.cur = cur + 1; //~ ERROR assignment might be unsafe
-            Some(cur) //~ ERROR postcondition might not hold
+            Some(cur) //~ ERROR refinement type error
         } else {
             None
         }

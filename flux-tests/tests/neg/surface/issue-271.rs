@@ -8,7 +8,7 @@ pub fn test01(x: u32) -> Result<S, bool> {
     if x > 100 {
         return Err(false);
     }
-    Ok(S) //~ ERROR postcondition
+    Ok(S) //~ ERROR refinement type
 }
 
 #[flux::sig(fn(x: u32) -> Option<{S | x < 100}>)]
@@ -16,5 +16,5 @@ pub fn test02(x: u32) -> Option<S> {
     if x > 100 {
         return None;
     }
-    Some(S) //~ ERROR postcondition
+    Some(S) //~ ERROR refinement type
 }

@@ -16,7 +16,7 @@ fn take_strg(s: &mut Struct) {
 #[flux::sig(fn(s: &strg Struct{v : v >= 0}) ensures s: Struct{v : v > 0})]
 fn test00(s: &mut Struct) {
     loop {
-        take_mut(s); //~ ERROR precondition
+        take_mut(s); //~ ERROR refinement type
         take_strg(s);
     }
 }
@@ -24,6 +24,6 @@ fn test00(s: &mut Struct) {
 #[flux::sig(fn(s: &strg Struct) ensures s: Struct)]
 fn test01(s: &mut Struct) {
     loop {
-        take_mut(s); //~ ERROR precondition
+        take_mut(s); //~ ERROR refinement type
     }
 }

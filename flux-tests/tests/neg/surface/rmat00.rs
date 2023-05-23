@@ -14,8 +14,8 @@ pub fn test() -> i32 {
     let v1 = *m.get(3, 7);
     *m.get_mut(4, 8) = v1 + v1;
 
-    let v2 = *m.get(3, 17); //~ ERROR precondition might not hold
-    *m.get_mut(14, 8) = v2 + v2; //~ ERROR precondition might not hold
+    let v2 = *m.get(3, 17); //~ ERROR refinement type error
+    *m.get_mut(14, 8) = v2 + v2; //~ ERROR refinement type error
 
     0
 }

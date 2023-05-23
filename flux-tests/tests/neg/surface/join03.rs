@@ -15,7 +15,7 @@ fn test00(mut p: Pair, b: bool) -> i32 {
         // this is a function call so the `Pair` remains folded
         add_right(&mut p, 1);
     }
-    p.left //~ ERROR postcondition
+    p.left //~ ERROR refinement type
 }
 
 #[flux::sig(fn(p: Pair) -> i32[p.a + 1])]
@@ -26,7 +26,7 @@ fn test01(mut p: Pair) -> i32 {
         add_right(&mut p, 1);
         i += 1;
     }
-    p.left //~ ERROR postcondition
+    p.left //~ ERROR refinement type
 }
 
 #[flux::sig(fn(r: &strg Pair[@a, @b], n: i32) ensures r: Pair[a, b + n])]

@@ -14,5 +14,5 @@ pub fn test(mut k: i32) -> i32 {
     while k > 0 {
         k -= 1;
     }
-    k //~ ERROR postcondition might not hold
+    k //~ ERROR refinement type error
 }

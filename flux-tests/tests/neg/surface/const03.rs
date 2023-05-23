@@ -14,5 +14,5 @@ pub struct Silly {
 
 #[flux::sig(fn(Silly) -> usize{v: v > 45})]
 pub fn bk_silly(s: Silly) -> usize {
-    s.fld //~ ERROR postcondition
+    s.fld //~ ERROR refinement type
 }

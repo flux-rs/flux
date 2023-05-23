@@ -16,17 +16,17 @@ pub fn uint_sub(a: u32, b: u32) -> u32 {
 
 #[flux::sig(fn(i32{v: v != 0}, i32) -> i32{v: v != 0})]
 pub fn bitwise_or(a: i32, b: i32) -> i32 {
-    a | b //~ ERROR postcondition
+    a | b //~ ERROR refinement type
 }
 
 #[flux::sig(fn(a:i32, i32[0]) -> i32[a])]
 pub fn bitwise_shl(a: i32, b: i32) -> i32 {
-    a << b //~ ERROR postcondition
+    a << b //~ ERROR refinement type
 }
 
 #[flux::sig(fn(a:i32, i32[0]) -> i32[a])]
 pub fn bitwise_sh4(a: i32, b: i32) -> i32 {
-    a >> b //~ ERROR postcondition
+    a >> b //~ ERROR refinement type
 }
 
 // Logical BinOps
@@ -34,17 +34,17 @@ pub fn bitwise_sh4(a: i32, b: i32) -> i32 {
 // Should be {v: v == a || v == b}
 #[flux::sig(fn(a: bool, b: bool) -> bool[a])]
 pub fn logical_or(a: bool, b: bool) -> bool {
-    a | b //~ ERROR postcondition
+    a | b //~ ERROR refinement type
 }
 
 // Should be v == true
 #[flux::sig(fn(bool[false], bool[true]) -> bool[false])]
 pub fn logical_or_ft(a: bool, b: bool) -> bool {
-    a | b //~ ERROR postcondition
+    a | b //~ ERROR refinement type
 }
 
 // Should be v == false
 #[flux::sig(fn(bool[false], bool[false]) -> bool[true])]
 pub fn logical_or_ff(a: bool, b: bool) -> bool {
-    a | b //~ ERROR postcondition
+    a | b //~ ERROR refinement type
 }

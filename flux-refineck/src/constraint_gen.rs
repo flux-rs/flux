@@ -72,7 +72,7 @@ impl Tag {
         Self { reason, src_span: span, dst_span: None }
     }
 
-    pub fn dst(self, dst_span: Option<ESpan>) -> Self {
+    pub fn with_dst(self, dst_span: Option<ESpan>) -> Self {
         Self { dst_span, ..self }
     }
 }

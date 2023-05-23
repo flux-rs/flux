@@ -184,7 +184,6 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(refineck_goal_error, code = "FLUX")]
-    #[note]
     pub struct GoalError {
         #[primary_span]
         #[label]

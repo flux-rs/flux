@@ -8,7 +8,7 @@ pub fn pre(_n: i32) {}
 
 pub fn test(n: i32) {
     if n < 15 {
-        pre(n); //~ ERROR precondition
+        pre(n); //~ ERROR refinement type
                 //~| NOTE call site
                 //~| NOTE a precondition cannot be proved
     }
@@ -20,7 +20,7 @@ pub fn test(n: i32) {
 pub fn pre2(_n: i32, _m: i32) {}
 
 pub fn test2(n: i32) {
-    pre2(n, n + n); //~ ERROR precondition
+    pre2(n, n + n); //~ ERROR refinement type
                     //~| NOTE call site
                     //~| NOTE a precondition cannot be proved
 }
@@ -29,7 +29,7 @@ pub fn test2(n: i32) {
 
 #[flux::sig(fn(n:i32{0 <= n}) -> i32{v: 100 <= v && v <= 200})] //~ NOTE this is the condition
 pub fn post(n: i32) -> i32 {
-    n + 100 //~ ERROR postcondition
+    n + 100 //~ ERROR refinement type
             //~| NOTE return site
             //~| NOTE a postcondition cannot be proved
 }
@@ -39,7 +39,7 @@ pub fn post(n: i32) -> i32 {
 pub fn floo(_n: i32) {}
 
 pub fn test_floo() {
-    floo(1000); //~ ERROR precondition
+    floo(1000); //~ ERROR refinement type
                 //~| NOTE call site
                 //~| NOTE a precondition cannot be proved
 }

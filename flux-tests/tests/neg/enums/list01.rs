@@ -24,14 +24,14 @@ pub fn unreachable<T>() -> T {
 
 pub fn head(l: &List) -> i32 {
     match l {
-        List::Nil => unreachable(), //~ ERROR precondition
+        List::Nil => unreachable(), //~ ERROR refinement type
         List::Cons(h, _) => *h,
     }
 }
 
 pub fn tail(l: &List) -> &List {
     match l {
-        List::Nil => unreachable(), //~ ERROR precondition
+        List::Nil => unreachable(), //~ ERROR refinement type
         List::Cons(_, t) => t,
     }
 }

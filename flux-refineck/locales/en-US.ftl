@@ -4,13 +4,13 @@ refineck_goto_error =
     error jumping to join point
 
 refineck_call_error =
-    precondition might not hold 0
+    refinement type error
 
 refineck_assign_error =
     assignment might be unsafe
 
 refineck_ret_error =
-    postcondition might not hold 0
+    refinement type error
 
 refineck_condition_span_note =
     this is the condition that cannot be proved
@@ -19,9 +19,8 @@ refineck_call_span_note =
     inside this specifunction call
 
 refineck_goal_error =
-    {$cond} might not hold
-    .label = {$origin} site
-    .note = a {$cond} cannot be proved at this {$origin} site
+    refinement type error
+    .label = a {$cond} cannot be proved at this {$origin} site
 
 refineck_div_error =
     possible division by zero

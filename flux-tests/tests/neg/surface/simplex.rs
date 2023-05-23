@@ -130,7 +130,7 @@ fn row_op(m: usize, n: usize, arr2: &mut RMat<f32>, i: usize, j: usize) -> i32 {
     let mut i_ = 0;
     while i_ < m {
         if i_ != i {
-            let c_ = *arr2.get(i_, j); //~ ERROR precondition might not hold
+            let c_ = *arr2.get(i_, j); //~ ERROR refinement type error
             let mut j = 1;
             while j < n {
                 let cj = *arr2.get(i, j);

@@ -46,7 +46,7 @@ impl Pred {
                 }
             }
         }
-    } //~ ERROR postcondition
+    } //~ ERROR refinement type
 
     #[flux::sig(fn(Pred) -> Pred)]
     pub fn simplify(self) -> Pred {
@@ -73,9 +73,9 @@ impl Pred {
                     Pred::False => Pred::True,
                     Pred::True => Pred::False,
                     Pred::Var(x) => Pred::Not(Box::new(Pred::Var(x))),
-                    Pred::And(..) => unreachable(), //~ ERROR precondition
-                    Pred::Or(..) => unreachable(),  //~ ERROR precondition
-                    Pred::Not(..) => unreachable(), //~ ERROR precondition
+                    Pred::And(..) => unreachable(), //~ ERROR refinement type
+                    Pred::Or(..) => unreachable(),  //~ ERROR refinement type
+                    Pred::Not(..) => unreachable(), //~ ERROR refinement type
                 }
             }
         }

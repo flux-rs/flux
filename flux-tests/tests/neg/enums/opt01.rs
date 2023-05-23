@@ -15,7 +15,7 @@ pub fn is_some<T>(x: Opt<T>) -> bool {
         Opt::None => false,
         Opt::Some(_) => false,
     }
-} //~ ERROR postcondition
+} //~ ERROR refinement type
 
 #[flux::sig(fn(i32{v:false}) -> T)]
 pub fn never<T>(_x: i32) -> T {
@@ -25,6 +25,6 @@ pub fn never<T>(_x: i32) -> T {
 pub fn unwrap<T>(x: Opt<T>) -> T {
     match x {
         Opt::Some(v) => v,
-        Opt::None => never(0), //~ ERROR precondition
+        Opt::None => never(0), //~ ERROR refinement type
     }
 }

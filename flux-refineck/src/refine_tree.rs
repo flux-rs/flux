@@ -508,7 +508,7 @@ impl Node {
                 let cstr = preds
                     .into_iter()
                     .map(|(pred, span)| {
-                        fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(tag.dst(span))))
+                        fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(tag.with_dst(span))))
                     })
                     .collect_vec();
                 Some(stitch(bindings, fixpoint::Constraint::Conj(cstr)))

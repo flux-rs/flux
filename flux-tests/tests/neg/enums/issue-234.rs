@@ -18,7 +18,7 @@ impl List {
             len += 1;
             cur = tl;
         }
-        len //~ ERROR postcondition
+        len //~ ERROR refinement type
     }
 }
 
@@ -37,7 +37,7 @@ pub fn test1(l: &Thing) -> i32 {
     match l {
         Thing::Two => 2,
         Thing::Three => 3,
-        _ => 42, //~ ERROR postcondition
+        _ => 42, //~ ERROR refinement type
     }
 }
 
@@ -46,7 +46,7 @@ pub fn test2(l: &Thing) -> i32 {
     match l {
         Thing::One => 1,
         Thing::Three => 3,
-        _ => 42, //~ ERROR postcondition
+        _ => 42, //~ ERROR refinement type
     }
 }
 
@@ -55,6 +55,6 @@ pub fn test3(l: &Thing) -> i32 {
     match l {
         Thing::One => 1,
         Thing::Two => 2,
-        _ => 42, //~ ERROR postcondition
+        _ => 42, //~ ERROR refinement type
     }
 }

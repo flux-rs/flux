@@ -13,7 +13,7 @@ pub fn test(x: Enum<i32>) -> i32 {
         Enum::B(_, n) => n,
     };
     // test we correctly join branches with different variants
-    y //~ ERROR postcondition
+    y //~ ERROR refinement type
 }
 
 #[flux::sig(fn(Enum<Vec<i32{v: v >= 0}> >) -> Vec<i32{v : v >= 0}>)]
@@ -25,4 +25,4 @@ pub fn test2(x: Enum<Vec<i32>>) -> Vec<i32> {
     // test join of partially moved enum
     vec.push(-1);
     vec
-} //~ ERROR postcondition
+} //~ ERROR refinement type

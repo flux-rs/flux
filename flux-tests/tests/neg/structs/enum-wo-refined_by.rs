@@ -9,6 +9,6 @@ enum E {
 #[flux::sig(fn(E) -> i32{v : v > 0})]
 fn foo(e: E) -> i32 {
     match e {
-        E::A(x) => x, //~ ERROR postcondition
+        E::A(x) => x, //~ ERROR refinement type
     }
 }

@@ -25,22 +25,22 @@ impl RMat {
             i += 1;
         }
         Self { cols, inner }
-    } //~ ERROR postcondition might not hold
+    } //~ ERROR refinement type error
 
     #[flux::sig(fn() -> RMat[10, 300])]
     pub fn empty() -> RMat {
         Self { cols: 10, inner: RVec::new() }
-        //~^ ERROR postcondition might not hold
-        //~^^ ERROR postcondition might not hold
+        //~^ ERROR refinement type error
+        //~^^ ERROR refinement type error
     }
 
     #[flux::sig(fn(&RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &f32)]
     pub fn get(&self, i: usize, j: usize) -> &f32 {
-        &self.inner.get(i).get(j + 1) //~ ERROR precondition might not hold
+        &self.inner.get(i).get(j + 1) //~ ERROR refinement type error
     }
 
     #[flux::sig(fn(&mut RMat[@m, @n], usize{v: v < m}, usize{v: v < n}) -> &mut f32)]
     pub fn get_mut(&mut self, i: usize, j: usize) -> &mut f32 {
-        self.inner.get_mut(i + 1).get_mut(j) //~ ERROR precondition might not hold
+        self.inner.get_mut(i + 1).get_mut(j) //~ ERROR refinement type error
     }
 }

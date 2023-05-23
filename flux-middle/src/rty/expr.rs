@@ -484,7 +484,7 @@ impl Expr {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
                                     Some(c) => Expr::constant_at(c, span.or(e2_span)),
-                                    None => Expr::binary_op(*op, e1, e2, None),
+                                    None => Expr::binary_op(*op, e1, e2, span),
                                 }
                             }
                             _ => Expr::binary_op(*op, e1, e2, span),

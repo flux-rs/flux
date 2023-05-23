@@ -13,5 +13,5 @@ pub struct Bob {
 
 #[flux::sig(fn(Bob))]
 pub fn test(bob: Bob) {
-    let _x = bob.elems[0]; //~ ERROR precondition
+    let _x = bob.elems[0]; //~ ERROR refinement type
 }

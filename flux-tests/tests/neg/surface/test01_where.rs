@@ -14,7 +14,7 @@ pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
     if b {
         r = &mut vec[0];
     } else {
-        r = &mut vec[1]; //~ ERROR precondition might not hold
+        r = &mut vec[1]; //~ ERROR refinement type error
     }
     *r = 12;
     0

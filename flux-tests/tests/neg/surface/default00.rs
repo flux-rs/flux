@@ -10,7 +10,7 @@ fn silly(x: i32) -> i32 {
 pub fn inc(x: i32) -> i32 {
     let y = silly(x);
     if x <= y {
-        y //~ ERROR postcondition might not hold
+        y //~ ERROR refinement type error
     } else {
         x + 1
     }

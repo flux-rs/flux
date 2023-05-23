@@ -12,5 +12,5 @@ pub fn fib_loop(n: i32) -> i32 {
         i = tmp;
         k -= 1;
     }
-    i //~ ERROR postcondition might not hold
+    i //~ ERROR refinement type error
 }

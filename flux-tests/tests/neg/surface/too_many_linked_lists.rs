@@ -52,7 +52,7 @@ impl<T> List<T> {
     pub fn push(&mut self, elem: T) {
         let next = replace(&mut self.head, Link::Empty);
         self.head = next;
-    } //~ ERROR postcondition
+    } //~ ERROR refinement type
 
     #[flux::sig(
       fn(self: &strg List<T>[@n]) -> Opt<T>
@@ -66,7 +66,7 @@ impl<T> List<T> {
                 Opt::Some(node.elem)
             }
         }
-    } //~ ERROR postcondition
+    } //~ ERROR refinement type
 }
 
 impl<T> Drop for List<T> {

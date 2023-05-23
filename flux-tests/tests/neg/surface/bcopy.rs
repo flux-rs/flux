@@ -11,8 +11,8 @@ fn bcopy_aux(src: &RVec<i32>, dst: &mut RVec<i32>) -> i32 {
     let mut i = 0;
     let n = src.len();
     while i <= n {
-        let r = &mut dst[i]; //~ ERROR precondition might not hold
-        *r = src[i]; //~ ERROR precondition might not hold
+        let r = &mut dst[i]; //~ ERROR refinement type error
+        *r = src[i]; //~ ERROR refinement type error
         i += 1;
     }
     0

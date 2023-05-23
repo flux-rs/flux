@@ -12,5 +12,5 @@ fn is_foo(n: i32) -> bool {
 
 #[flux::sig(fn(n:i32) -> bool[bar(n)])]
 fn is_bar(n: i32) -> bool {
-    is_foo(n) //~ ERROR postcondition
+    is_foo(n) //~ ERROR refinement type
 }
