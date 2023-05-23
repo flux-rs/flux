@@ -50,7 +50,7 @@ impl ESpan {
     }
 
     pub fn with_base(&self, espan: ESpan) -> Self {
-        Self { span: self.span, base: espan.base }
+        Self { span: self.span, base: Some(espan.span) }
         // if self.base.is_none() {
         //     Self { span: self.span, base: espan.base }
         // } else {
@@ -160,11 +160,10 @@ impl ExprKind {
 impl Expr {
     pub fn at_base(self, base: Option<ESpan>) -> Expr {
         let kind = self.kind();
-        if let Some(span) = self.espan.as_ref() &&
+        if let Some(espan) = self.espan.as_ref() &&
            let Some(base) = base
         {
-            let espan = Some(span.with_base(base));
-            kind.clone().intern_at(espan)
+            kind.clone().intern_at(Some(espan.with_base(base)))
         } else {
             self
         }

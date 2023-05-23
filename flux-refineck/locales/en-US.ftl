@@ -15,6 +15,9 @@ refineck_ret_error =
 refineck_condition_span_note =
     this is the condition that cannot be proved
 
+refineck_call_span_note =
+    inside this specifunction call
+
 refineck_goal_error =
     {$cond} might not hold
     .label = {$origin} site

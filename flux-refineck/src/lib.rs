@@ -175,6 +175,13 @@ mod errors {
         pub span: Span,
     }
 
+    #[derive(Subdiagnostic)]
+    #[note(refineck_call_span_note)]
+    pub(crate) struct CallSpanNote {
+        #[primary_span]
+        pub span: Span,
+    }
+
     #[derive(Diagnostic)]
     #[diag(refineck_goal_error, code = "FLUX")]
     #[note]
@@ -186,16 +193,23 @@ mod errors {
         span_note: ConditionSpanNote,
         cond: &'static str,
         origin: &'static str,
+        #[subdiagnostic]
+        call_span_note: Option<CallSpanNote>,
     }
 
     impl GoalError {
         pub fn call(span: Span, dst_span: ESpan) -> Self {
-            let span_note = ConditionSpanNote { span: dst_span.span() };
-            GoalError { span, cond: "precondition", origin: "call", span_note }
+            GoalError::new("precondition", "call", dst_span, span)
         }
+
         pub fn ret(span: Span, dst_span: ESpan) -> Self {
+            GoalError::new("postcondition", "return", dst_span, span)
+        }
+
+        fn new(cond: &'static str, origin: &'static str, dst_span: ESpan, span: Span) -> GoalError {
             let span_note = ConditionSpanNote { span: dst_span.span() };
-            GoalError { span, cond: "postcondition", origin: "return", span_note }
+            let call_span_note = dst_span.base().map(|span| CallSpanNote { span });
+            GoalError { span, cond, origin, span_note, call_span_note }
         }
     }
 
