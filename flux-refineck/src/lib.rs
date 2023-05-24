@@ -163,15 +163,6 @@ mod errors {
         pub span: Span,
     }
 
-    // #[derive(Diagnostic)]
-    // #[diag(refineck_refine_error, code = "FLUX")]
-    // pub struct RefineError {
-    //     #[primary_span]
-    //     #[label]
-    //     pub span: Span,
-    //     pub cond: &'static str,
-    // }
-
     #[derive(Diagnostic)]
     #[diag(refineck_refine_error, code = "FLUX")]
     pub struct RefineError {
