@@ -16,10 +16,6 @@ refineck_refine_error =
     refinement type error
     .label = a {$cond} cannot be proved
 
-refineck_refine_goal_error =
-    refinement type error
-    .label = a {$cond} cannot be proved
-
 refineck_div_error =
     possible division by zero
 

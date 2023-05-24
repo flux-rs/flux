@@ -98,12 +98,11 @@ pub fn check_fn(
 
 fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
     genv.sess
-        .emit_err(errors::RefineGoalError::call(span, dst_span))
+        .emit_err(errors::RefineError::call(span, dst_span))
 }
 
 fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
-    genv.sess
-        .emit_err(errors::RefineGoalError::ret(span, dst_span))
+    genv.sess.emit_err(errors::RefineError::ret(span, dst_span))
 }
 
 fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
@@ -174,8 +173,8 @@ mod errors {
     // }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_refine_goal_error, code = "FLUX")]
-    pub struct RefineGoalError {
+    #[diag(refineck_refine_error, code = "FLUX")]
+    pub struct RefineError {
         #[primary_span]
         #[label]
         pub span: Span,
@@ -186,23 +185,23 @@ mod errors {
         call_span_note: Option<CallSpanNote>,
     }
 
-    impl RefineGoalError {
+    impl RefineError {
         pub fn call(span: Span, espan: Option<ESpan>) -> Self {
-            RefineGoalError::new("precondition", span, espan)
+            RefineError::new("precondition", span, espan)
         }
 
         pub fn ret(span: Span, espan: Option<ESpan>) -> Self {
-            RefineGoalError::new("postcondition", span, espan)
+            RefineError::new("postcondition", span, espan)
         }
 
-        fn new(cond: &'static str, span: Span, espan: Option<ESpan>) -> RefineGoalError {
+        fn new(cond: &'static str, span: Span, espan: Option<ESpan>) -> RefineError {
             match espan {
                 Some(dst_span) => {
                     let span_note = Some(ConditionSpanNote { span: dst_span.span() });
                     let call_span_note = dst_span.base().map(|span| CallSpanNote { span });
-                    RefineGoalError { span, cond, span_note, call_span_note }
+                    RefineError { span, cond, span_note, call_span_note }
                 }
-                None => RefineGoalError { span, cond, span_note: None, call_span_note: None },
+                None => RefineError { span, cond, span_note: None, call_span_note: None },
             }
         }
     }
