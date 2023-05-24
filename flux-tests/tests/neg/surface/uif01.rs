@@ -21,5 +21,5 @@ pub fn test() {
     let a = 10;
     let b = 30;
     let c = foo(a, b);
-    bar(c); //~ ERROR precondition
+    bar(c); //~ ERROR refinement type
 }

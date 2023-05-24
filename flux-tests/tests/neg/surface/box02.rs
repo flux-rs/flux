@@ -8,7 +8,7 @@ pub fn move_out_of_box() -> Vec<i32> {
     vec.push(1);
     // move out box
     *Box::new(vec)
-} //~ ERROR postcondition
+} //~ ERROR refinement type
 
 #[flux::sig(fn() -> Box<i32[1]>)]
 pub fn close_at_return() -> Box<i32> {
@@ -16,7 +16,7 @@ pub fn close_at_return() -> Box<i32> {
     // update through box to open it
     *x += 1;
     // we should close it before returning
-    x //~ ERROR postcondition
+    x //~ ERROR refinement type
 }
 
 #[flux::sig(fn(bool) -> Box<i32{v : v > 1}>)]
@@ -27,7 +27,7 @@ pub fn close_at_join(b: bool) -> Box<i32> {
         *x += 1;
     }
     // box should be closed here
-    x //~ ERROR postcondition
+    x //~ ERROR refinement type
 }
 
 #[flux::sig(fn(bool) -> i32{v : v > 3})]
@@ -41,7 +41,7 @@ pub fn no_close_join(b: bool) -> i32 {
     }
     // check if we handle the case where the box was open before
     // branching and stays open.
-    *x //~ ERROR postcondition
+    *x //~ ERROR refinement type
 }
 
 struct S {

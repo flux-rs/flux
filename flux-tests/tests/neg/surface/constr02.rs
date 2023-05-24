@@ -9,5 +9,5 @@ fn foo(_x: Option<i32>) {}
 
 #[flux::sig(fn(a:i32, Option<{i32[a] | 0 < a}>))]
 pub fn bar(_a: i32, y: Option<i32>) {
-    foo(y) //~ ERROR precondition
+    foo(y) //~ ERROR refinement type
 }

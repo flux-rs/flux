@@ -13,7 +13,7 @@ pub fn test() -> i32 {
     let v = GhostCell::new(42, &token);
     let p = (&v, &v);
     *p.0.borrow_mut(&mut token) += 1;
-    *p.1.borrow_mut(&mut token2) += 1; //~ ERROR precondition
+    *p.1.borrow_mut(&mut token2) += 1; //~ ERROR refinement type
 
     v.into_inner()
 }

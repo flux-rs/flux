@@ -22,11 +22,11 @@ fn test01(x: Real) {
     #[flux::sig(fn(x: Real, y: Real{y > x}))]
     fn assert(x: Real, y: Real) {}
 
-    assert(add1(x), x) //~ ERROR precondition
+    assert(add1(x), x) //~ ERROR refinement type
 }
 
 fn test02() {
     #[flux::sig(fn() requires 1real/2real != 1real/2real)]
     fn assert() {}
-    assert() //~ ERROR precondition
+    assert() //~ ERROR refinement type
 }

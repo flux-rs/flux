@@ -15,5 +15,5 @@ pub fn foo() {
     let mut x = S { a: 0, b: 1 };
     let r1 = &mut x.a;
     *r1 = 0;
-    assert(x.a > 0); //~ ERROR precondition might not hold
+    assert(x.a > 0); //~ ERROR refinement type error
 }

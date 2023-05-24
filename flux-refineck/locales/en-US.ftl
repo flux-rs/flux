@@ -3,14 +3,22 @@
 refineck_goto_error =
     error jumping to join point
 
-refineck_call_error =
-    precondition might not hold
-
 refineck_assign_error =
     assignment might be unsafe
 
-refineck_ret_error =
-    postcondition might not hold
+refineck_condition_span_note =
+    this is the condition that cannot be proved
+
+refineck_call_span_note =
+    inside this call
+
+refineck_refine_error =
+    refinement type error
+    .label = a {$cond} cannot be proved
+
+refineck_refine_goal_error =
+    refinement type error
+    .label = a {$cond} cannot be proved
 
 refineck_div_error =
     possible division by zero

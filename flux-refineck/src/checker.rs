@@ -552,7 +552,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     }
                 }
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
-                    Expr::binary_op(BinOp::Eq, idx.expr.clone(), Expr::from_bits(bty, bits))
+                    Expr::binary_op(BinOp::Eq, idx.expr.clone(), Expr::from_bits(bty, bits), None)
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -937,12 +937,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 }
 
 fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0);
+    let idx = Expr::ite(b, 1, 0, None);
     Ty::indexed(BaseTy::Int(int_ty), idx)
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0);
+    let idx = Expr::ite(b, 1, 0, None);
     Ty::indexed(BaseTy::Uint(uint_ty), idx)
 }
 

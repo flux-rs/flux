@@ -7,7 +7,7 @@ fn assert(_b: bool) {}
 #[flux::sig(fn(&i32[@a], { &i32[@b] | b <= a } ) -> i32[a-b])]
 fn sub(x: &i32, y: &i32) -> i32 {
     let res = *x - *y;
-    assert(0 < res); //~ ERROR precondition
+    assert(0 < res); //~ ERROR refinement type
     res
 }
 
@@ -15,5 +15,5 @@ fn sub(x: &i32, y: &i32) -> i32 {
 pub fn test() -> i32 {
     let a = 20;
     let b = 15;
-    sub(&a, &b) //~ ERROR postcondition
+    sub(&a, &b) //~ ERROR refinement type
 }

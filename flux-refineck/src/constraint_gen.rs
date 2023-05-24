@@ -8,9 +8,9 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        BaseTy, BinOp, Binder, Const, Constraint, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
-        GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        TupleTree, Ty, TyKind, Var,
+        BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
+        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
+        Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -63,12 +63,17 @@ struct InferCtxt<'a, 'tcx> {
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Tag {
     pub reason: ConstrReason,
-    pub span: Span,
+    pub src_span: Span,
+    pub dst_span: Option<ESpan>,
 }
 
 impl Tag {
     pub fn new(reason: ConstrReason, span: Span) -> Self {
-        Self { reason, span }
+        Self { reason, src_span: span, dst_span: None }
+    }
+
+    pub fn with_dst(self, dst_span: Option<ESpan>) -> Self {
+        Self { dst_span, ..self }
     }
 }
 
@@ -420,7 +425,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             &mut *self.kvar_gen,
             self.rvid_gen,
             self.checker_config,
-            self.tag.span,
+            self.tag.src_span,
         )
     }
 
@@ -589,6 +594,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         if e1 == e2 {
             return;
         }
+
         match (e1.kind(), e2.kind()) {
             (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2)) => {
                 debug_assert_eq!(tup1.len(), tup2.len());
@@ -609,7 +615,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             _ => {
                 self.unify_exprs(e1, e2, *is_binder.expect_leaf());
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2), self.tag);
+                let span = e2.span();
+                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2, span), self.tag);
             }
         }
     }
@@ -687,7 +694,7 @@ mod pretty {
     impl Pretty for Tag {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{:?} at {:?}", ^self.reason, self.span)
+            w!("{:?} at {:?}", ^self.reason, self.src_span)
         }
     }
 

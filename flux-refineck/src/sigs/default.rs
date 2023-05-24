@@ -56,7 +56,7 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Div, s!(fn(a: Uint, b: Uint) -> Uint[a / b]
                          requires E::ne(b, 0) => ConstrReason::Div),
                 ),
-                (Rem, s!(fn(a:Uint , b: Uint) -> Uint[E::binary_op(BinOp::Mod, a, b)]
+                (Rem, s!(fn(a:Uint , b: Uint) -> Uint[E::binary_op(BinOp::Mod, a, b, None)]
                          requires E::ne(b, 0) => ConstrReason::Rem),
                 ),
                 // BIT
@@ -93,7 +93,7 @@ fn mk_signed_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 ),
                 (Rem, s!(fn(a:Int , b: Int) -> Int{v: E::implies(
                                                           E::and([E::ge(&a, 0), E::ge(&b, 0)]),
-                                                          E::eq(v, E::binary_op(BinOp::Mod, a, b))) }
+                                                          E::eq(v, E::binary_op(BinOp::Mod, a, b, None))) }
                             requires E::ne(b, 0) => ConstrReason::Rem),
                 ),
                 // BIT

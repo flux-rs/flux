@@ -12,7 +12,7 @@ pub fn ref_join(b: bool, n: i32, m: i32) -> i32 {
         r = &mut y;
     }
     *r += 1;
-    *r - n //~ ERROR postcondition might not hold
+    *r - n //~ ERROR refinement type error
 }
 
 #[flux::sig(fn(x: &mut i32{v: 0 <= v}))]

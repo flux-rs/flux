@@ -17,5 +17,5 @@ pub fn test0(s: S, x: A) {}
 
 pub fn test1() {
     let s = S { f: 10 };
-    test0(s, 20); //~ ERROR precondition
+    test0(s, 20); //~ ERROR refinement type
 }

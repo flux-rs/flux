@@ -10,5 +10,5 @@ pub fn foo(r1: &mut i32, b: bool) -> i32 {
     } else {
         r = &mut x;
     }
-    *r //~ ERROR postcondition
+    *r //~ ERROR refinement type
 }

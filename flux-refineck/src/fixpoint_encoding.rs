@@ -17,7 +17,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, Constant},
+    rty::{self, Constant, ESpan},
 };
 use itertools::{self, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -103,6 +103,14 @@ struct ConstInfo {
     sort: fixpoint::Sort,
     val: Option<Constant>,
 }
+
+/// An alias for additional bindings introduced when ANF-ing index expressions
+/// in the course of conversion to fixpoint.
+type Bindings = Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>;
+
+/// An alias for a list of predicate (conjuncts) and their spans, used to give
+/// localized errors when refine checking fails.
+type PredSpans = Vec<(fixpoint::Pred, Option<ESpan>)>;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -246,21 +254,18 @@ where
         })
     }
 
-    pub fn pred_to_fixpoint(
-        &mut self,
-        pred: &rty::Expr,
-    ) -> (Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>, fixpoint::Pred) {
+    pub fn pred_to_fixpoint(&mut self, pred: &rty::Expr) -> (Bindings, PredSpans) {
         let mut bindings = vec![];
         let mut preds = vec![];
         self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds);
-        (bindings, fixpoint::Pred::And(preds))
+        (bindings, preds)
     }
 
     fn pred_to_fixpoint_internal(
         &mut self,
         expr: &rty::Expr,
-        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-        preds: &mut Vec<fixpoint::Pred>,
+        bindings: &mut Bindings,
+        preds: &mut PredSpans,
     ) {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
@@ -268,19 +273,16 @@ where
                 self.pred_to_fixpoint_internal(e2, bindings, preds);
             }
             rty::ExprKind::KVar(kvar) => {
-                preds.push(self.kvar_to_fixpoint(kvar, bindings));
+                preds.push((self.kvar_to_fixpoint(kvar, bindings), None));
             }
             _ => {
-                preds.push(fixpoint::Pred::Expr(self.as_expr_cx().expr_to_fixpoint(expr)));
+                let span = expr.span();
+                preds.push((fixpoint::Pred::Expr(self.as_expr_cx().expr_to_fixpoint(expr)), span));
             }
         }
     }
 
-    fn kvar_to_fixpoint(
-        &mut self,
-        kvar: &rty::KVar,
-        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    ) -> fixpoint::Pred {
+    fn kvar_to_fixpoint(&mut self, kvar: &rty::KVar, bindings: &mut Bindings) -> fixpoint::Pred {
         self.populate_kvid_map(kvar.kvid);
 
         let decl = self.kvars.get(kvar.kvid);

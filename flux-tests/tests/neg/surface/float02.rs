@@ -10,5 +10,5 @@ pub fn float02() -> f64 {
     let mut vec = RVec::new();
     vec.push(0.1);
     vec[0] += 0.2;
-    vec[1] //~ ERROR precondition might not hold
+    vec[1] //~ ERROR refinement type error
 }

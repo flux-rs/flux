@@ -16,6 +16,6 @@ pub fn ref_join(b: bool) -> i32 {
             r = &y;
         }
     }
-    assert(*r - 1 > 0); //~ ERROR precondition might not hold
+    assert(*r - 1 > 0); //~ ERROR refinement type error
     0
 }

@@ -14,6 +14,6 @@ pub fn assert(_b: bool) -> i32 {
 pub fn opaque_struct_01(p: Pair) -> i32 {
     let fst = p.fst();
     let snd = p.snd();
-    assert(snd - fst > 0); //~ ERROR precondition might not hold
+    assert(snd - fst > 0); //~ ERROR refinement type error
     0
 }

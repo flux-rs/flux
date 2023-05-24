@@ -4,7 +4,7 @@
 // Read through box under & ref
 #[flux::sig(fn(&Box<i32{v : v >= 0}>) -> i32{v : v > 1})]
 pub fn shared_ref_box(x: &Box<i32>) -> i32 {
-    **x + 1 //~ ERROR postcondition
+    **x + 1 //~ ERROR refinement type
 }
 
 // Mutate through box under &mut ref

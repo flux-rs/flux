@@ -11,10 +11,12 @@ use rvec::RVec;
     ensures x: i32[#m], y: i32[m]
 )]
 fn test00(x: &mut i32, y: &mut i32, b: bool) {
-    if b { //~ ERROR postcondition
+    if b {
+        //~^ ERROR refinement
         *x += 1;
         *y -= 1;
-    } else { //~ ERROR postcondition
+    } else {
+        //~^ ERROR refinement type
         *x -= 1;
         *y += 1;
     }
@@ -28,7 +30,8 @@ fn test01(x: &mut RVec<i32>, y: &mut RVec<i32>) {
     if x.len() == 10 {
         x.pop();
         y.pop();
-    } else { //~ ERROR postcondition
+    } else {
+        //~^ ERROR refinement type
         x.push(10);
     }
 }
@@ -42,7 +45,8 @@ fn random() -> bool {
     ensures x: i32[#m], y: i32[m]
 )]
 fn test02(x: &mut i32, y: &mut i32) {
-    while random() { //~ ERROR postcondition
+    while random() {
+        //~^ ERROR refinement type
         *x += 1;
     }
 }

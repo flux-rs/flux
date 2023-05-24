@@ -14,7 +14,7 @@ impl<'a, T> List<'a, T> {
     fn len(&mut self) -> usize {
         match self {
             List::Cons(_, tl) => tl.len() + 1,
-            List::Nil => 1, //~ ERROR postcondition
+            List::Nil => 1, //~ ERROR refinement type
         }
     }
 
@@ -25,7 +25,7 @@ impl<'a, T> List<'a, T> {
                 if idx == 0 {
                     h
                 } else {
-                    tl.get_mut(idx + 1) //~ ERROR precondition
+                    tl.get_mut(idx + 1) //~ ERROR refinement type
                 }
             }
             List::Nil => unreachable(),
@@ -41,7 +41,7 @@ fn test() -> i32 {
 
     *l2.get_mut(0) -= 1;
 
-    *l2.get_mut(1) //~ ERROR postcondition
+    *l2.get_mut(1) //~ ERROR refinement type
 }
 
 #[flux::sig(fn() -> T requires false)]

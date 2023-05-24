@@ -13,7 +13,7 @@ pub enum MyOpt<T> {
 #[flux::sig(fn (MyOpt<i32>) -> Nat)]
 pub fn test(x: MyOpt<i32>) -> Nat {
     match x {
-        MyOpt::Some(n) => n, //~ ERROR postcondition might not hold
+        MyOpt::Some(n) => n, //~ ERROR refinement type error
         MyOpt::None => 0,
     }
 }

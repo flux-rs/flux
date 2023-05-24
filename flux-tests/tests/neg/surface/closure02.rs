@@ -14,8 +14,7 @@ where
 pub fn test0(vs: Vec<i32>) -> Vec<i32> {
     let st = 1;
     smap(st, vs, |s, x| s + x)
-} //~ ERROR: postcondition
-
+} //~ ERROR refinement type
 
 pub struct Foo {
     #[flux::field(i32{v: 10 <= v})]
@@ -25,5 +24,5 @@ pub struct Foo {
 #[flux::sig(fn(c:Option<bool>) -> Option<Foo>)]
 pub fn test1(c: Option<bool>) -> Option<Foo> {
     let x = 6;
-    c.map(|b| if b { Foo { val: x } } else { Foo { val: 20 } }) //~ ERROR: precondition might not hold
+    c.map(|b| if b { Foo { val: x } } else { Foo { val: 20 } }) //~ ERROR refinement type
 }

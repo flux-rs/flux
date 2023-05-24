@@ -15,6 +15,6 @@ pub fn foo() -> i32 {
     let p = Pair::new(0, 0);
     let fst = p.fst();
     let snd = p.snd();
-    assert(snd - fst > 0); //~ ERROR precondition might not hold
+    assert(snd - fst > 0); //~ ERROR refinement type error
     0
 }

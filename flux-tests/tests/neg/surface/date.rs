@@ -25,7 +25,8 @@ pub struct Date {
 }
 
 pub fn test() {
-    let _bad_date = Date { //~ ERROR precondition
+    let _bad_date = Date {
+        //~^ ERROR refinement type
         day: 31,
         month: 6, // June has 30 days
         year: 1977,

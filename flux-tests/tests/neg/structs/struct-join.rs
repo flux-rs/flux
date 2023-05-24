@@ -15,7 +15,7 @@ pub fn test1(b: bool, mut s: S<i32>) -> i32 {
         s.f1 -= 1;
     }
     // test that the struct is not unnecessarily folded
-    s.f1 //~ ERROR postcondition
+    s.f1 //~ ERROR refinement type
 }
 
 #[flux::sig(fn(bool, S<i32>) -> i32{v: v > 0})]
@@ -27,7 +27,7 @@ pub fn test2(b: bool, s: S<i32>) -> i32 {
         s.f1
     };
     // test we correctly join the uninitialized branch
-    x //~ ERROR postcondition
+    x //~ ERROR refinement type
 }
 
 #[flux::sig(fn(bool, S<Vec<i32> >) -> i32{v: v > 0})]
@@ -39,5 +39,5 @@ pub fn test3(b: bool, s: S<Vec<i32>>) -> i32 {
         s.f1
     };
     // test we correctly join partially moved struct
-    x //~ ERROR postcondition
+    x //~ ERROR refinement type
 }

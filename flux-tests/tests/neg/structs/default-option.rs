@@ -11,5 +11,5 @@ fn some<T>(x: T) -> Option<T> {
 #[flux::sig(fn() -> i32{v:0 < v})]
 pub fn test2() -> i32 {
     let opt = some(0);
-    opt.unwrap() //~ ERROR postcondition might not hold
+    opt.unwrap() //~ ERROR refinement type error
 }

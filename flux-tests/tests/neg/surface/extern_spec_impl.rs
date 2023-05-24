@@ -30,7 +30,6 @@ impl String {
     fn as_bytes(s: &String) -> &[u8];
 }
 
-
 #[extern_spec]
 impl<T> [T] {
     #[flux::sig(fn(&[T][@n]) -> usize[n])]
@@ -41,8 +40,7 @@ impl<T> [T] {
 }
 
 #[flux::sig(fn(bool[@b]) requires b)]
-fn assert_true(_: bool) {
-}
+fn assert_true(_: bool) {}
 
 fn test_string() {
     let mut s = String::new();
@@ -51,6 +49,6 @@ fn test_string() {
     s.pop();
     s.pop();
     assert_true(s.as_bytes().is_empty());
-    assert_true(!s.as_bytes().is_empty()); //~ ERROR precondition
-    s.pop(); //~ ERROR precondition
+    assert_true(!s.as_bytes().is_empty()); //~ ERROR refinement type
+    s.pop(); //~ ERROR refinement type
 }

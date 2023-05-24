@@ -25,6 +25,6 @@ pub fn check(_: S, x: i32) {}
 
 pub fn test() {
     let s = or(gt(10), lt(0));
-    check(s, 10); //~ ERROR precondition
-    check(s, 5); //~ ERROR precondition
+    check(s, 10); //~ ERROR refinement type
+    check(s, 5); //~ ERROR refinement type
 }

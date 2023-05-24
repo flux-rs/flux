@@ -9,7 +9,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::Local;
-use rustc_span::Symbol;
+use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
@@ -25,6 +25,52 @@ pub type Expr = Interned<ExprS>;
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExprS {
     kind: ExprKind,
+    espan: Option<ESpan>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub struct ESpan {
+    /// The top-level span information
+    span: SpanData,
+    /// The span for the (base) call-site for def-expanded spans
+    base: Option<SpanData>,
+}
+
+impl ESpan {
+    pub fn new(span: Span) -> Self {
+        Self { span: SpanData::new(span), base: None }
+    }
+
+    pub fn span(&self) -> Span {
+        self.span.span()
+    }
+
+    pub fn base(&self) -> Option<Span> {
+        self.base.as_ref().map(|fspan| fspan.span())
+    }
+
+    pub fn with_base(&self, espan: ESpan) -> Self {
+        Self { span: self.span, base: Some(espan.span) }
+    }
+}
+
+// NOTE: we make our own "version" of `rustc`'s SpanData as we cannot `TyEncode/Decode`
+// the original one...
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub struct SpanData {
+    pub lo: BytePos,
+    pub hi: BytePos,
+}
+
+impl SpanData {
+    pub fn new(span: Span) -> Self {
+        let data = span.data();
+        Self { lo: data.lo, hi: data.hi }
+    }
+
+    pub fn span(&self) -> Span {
+        Span::new(self.lo, self.hi, SyntaxContext::root(), None)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -99,12 +145,31 @@ newtype_index! {
 }
 
 impl ExprKind {
+    fn intern_at(self, espan: Option<ESpan>) -> Expr {
+        Interned::new(ExprS { kind: self, espan })
+    }
+
     fn intern(self) -> Expr {
-        Interned::new(ExprS { kind: self })
+        Interned::new(ExprS { kind: self, espan: None })
     }
 }
 
 impl Expr {
+    pub fn at_base(self, base: Option<ESpan>) -> Expr {
+        let kind = self.kind();
+        if let Some(espan) = self.espan
+            && let Some(base) = base
+        {
+            kind.clone().intern_at(Some(espan.with_base(base)))
+        } else {
+            self
+        }
+    }
+
+    pub fn span(&self) -> Option<ESpan> {
+        self.espan.as_ref().copied()
+    }
+
     pub fn tt() -> Expr {
         static TRUE: OnceLock<Expr> = OnceLock::new();
         TRUE.get_or_init(|| ExprKind::Constant(Constant::Bool(true)).intern())
@@ -121,14 +186,14 @@ impl Expr {
     pub fn and(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e))
+            .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, None))
             .unwrap_or_else(Expr::tt)
     }
 
     pub fn or(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e))
+            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, None))
             .unwrap_or_else(Expr::ff)
     }
 
@@ -189,8 +254,8 @@ impl Expr {
         Expr::tuple(vec![])
     }
 
-    pub fn var(var: Var) -> Expr {
-        ExprKind::Var(var).intern()
+    pub fn var(var: Var, espan: Option<ESpan>) -> Expr {
+        ExprKind::Var(var).intern_at(espan)
     }
 
     pub fn fvar(name: Name) -> Expr {
@@ -209,16 +274,20 @@ impl Expr {
         Var::EarlyBound(idx).to_expr()
     }
 
-    pub fn local(local: Local) -> Expr {
-        ExprKind::Local(local).intern()
+    pub fn local(local: Local, espan: Option<ESpan>) -> Expr {
+        ExprKind::Local(local).intern_at(espan)
     }
 
     pub fn constant(c: Constant) -> Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn const_def_id(c: DefId) -> Expr {
-        ExprKind::ConstDefId(c).intern()
+    pub fn constant_at(c: Constant, espan: Option<ESpan>) -> Expr {
+        ExprKind::Constant(c).intern_at(espan)
+    }
+
+    pub fn const_def_id(c: DefId, espan: Option<ESpan>) -> Expr {
+        ExprKind::ConstDefId(c).intern_at(espan)
     }
 
     pub fn tuple(exprs: impl Into<List<Expr>>) -> Expr {
@@ -249,8 +318,13 @@ impl Expr {
         }
     }
 
-    pub fn ite(p: impl Into<Expr>, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
+    pub fn ite(
+        p: impl Into<Expr>,
+        e1: impl Into<Expr>,
+        e2: impl Into<Expr>,
+        espan: Option<ESpan>,
+    ) -> Expr {
+        ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(espan)
     }
 
     pub fn abs(body: Binder<Expr>) -> Expr {
@@ -265,24 +339,33 @@ impl Expr {
         ExprKind::KVar(kvar).intern()
     }
 
-    pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
+    pub fn binary_op(
+        op: BinOp,
+        e1: impl Into<Expr>,
+        e2: impl Into<Expr>,
+        espan: Option<ESpan>,
+    ) -> Expr {
+        ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
     }
 
-    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>) -> Expr {
-        ExprKind::App(func.into(), args.into()).intern()
+    pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
+        ExprKind::App(func.into(), args.into()).intern_at(espan)
     }
 
     pub fn global_func(func: Symbol, kind: FuncKind) -> Expr {
         ExprKind::GlobalFunc(func, kind).intern()
     }
 
-    pub fn unary_op(op: UnOp, e: impl Into<Expr>) -> Expr {
-        ExprKind::UnaryOp(op, e.into()).intern()
+    pub fn unary_op(op: UnOp, e: impl Into<Expr>, espan: Option<ESpan>) -> Expr {
+        ExprKind::UnaryOp(op, e.into()).intern_at(espan)
+    }
+
+    pub fn eq_at(e1: impl Into<Expr>, e2: impl Into<Expr>, espan: Option<ESpan>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern_at(espan)
     }
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Eq, e1.into(), e2.into()).intern()
+        Self::eq_at(e1, e2, None)
     }
 
     pub fn ne(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -309,12 +392,15 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    pub fn tuple_proj(e: impl Into<Expr>, proj: u32) -> Expr {
-        ExprKind::TupleProj(e.into(), proj).intern()
+    pub fn tuple_proj(e: impl Into<Expr>, proj: u32, espan: Option<ESpan>) -> Expr {
+        ExprKind::TupleProj(e.into(), proj).intern_at(espan)
     }
 
     pub fn tuple_projs(e: impl Into<Expr>, projs: &[u32]) -> Expr {
-        projs.iter().copied().fold(e.into(), Expr::tuple_proj)
+        projs
+            .iter()
+            .copied()
+            .fold(e.into(), |e, p| Expr::tuple_proj(e, p, None))
     }
 
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
@@ -380,24 +466,30 @@ impl Expr {
 
         impl TypeFolder for Simplify {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                let span = expr.span();
                 match expr.kind() {
                     ExprKind::BinaryOp(op, e1, e2) => {
                         let e1 = e1.fold_with(self);
                         let e2 = e2.fold_with(self);
+                        let e1_span = e1.span();
+                        let e2_span = e2.span();
                         match (op, e1.kind(), e2.kind()) {
-                            (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _)
-                            | (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
-                                Expr::constant(Constant::Bool(false))
+                            (BinOp::And, ExprKind::Constant(Constant::Bool(false)), _) => {
+                                Expr::constant_at(Constant::Bool(false), e1_span)
+                            }
+                            (BinOp::And, _, ExprKind::Constant(Constant::Bool(false))) => {
+                                Expr::constant_at(Constant::Bool(false), e2_span)
                             }
                             (BinOp::And, ExprKind::Constant(Constant::Bool(true)), _) => e2,
                             (BinOp::And, _, ExprKind::Constant(Constant::Bool(true))) => e1,
                             (op, ExprKind::Constant(c1), ExprKind::Constant(c2)) => {
+                                let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
-                                    Some(c) => Expr::constant(c),
-                                    None => Expr::binary_op(*op, e1, e2),
+                                    Some(c) => Expr::constant_at(c, span.or(e2_span)),
+                                    None => Expr::binary_op(*op, e1, e2, span),
                                 }
                             }
-                            _ => Expr::binary_op(*op, e1, e2),
+                            _ => Expr::binary_op(*op, e1, e2, span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -408,9 +500,9 @@ impl Expr {
                             }
                             ExprKind::UnaryOp(UnOp::Not, e) => e.clone(),
                             ExprKind::BinaryOp(BinOp::Eq, e1, e2) => {
-                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone())
+                                Expr::binary_op(BinOp::Ne, e1.clone(), e2.clone(), span)
                             }
-                            _ => Expr::unary_op(UnOp::Not, e),
+                            _ => Expr::unary_op(UnOp::Not, e, span),
                         }
                     }
                     _ => expr.super_fold_with(self),
@@ -472,7 +564,7 @@ impl Expr {
         let args = (0..sorts.len())
             .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
             .collect_vec();
-        Binder::with_sorts(Expr::app(self, args), sorts.iter().cloned())
+        Binder::with_sorts(Expr::app(self, args, None), sorts.iter().cloned())
     }
 
     pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
@@ -533,7 +625,7 @@ impl KVar {
 
 impl Var {
     pub fn to_expr(&self) -> Expr {
-        Expr::var(*self)
+        Expr::var(*self, None)
     }
 }
 
@@ -576,8 +668,12 @@ impl Path {
 impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
-            Loc::Local(local) => Expr::local(*local),
-            Loc::TupleProj(var, proj) => proj.iter().copied().fold(var.to_expr(), Expr::tuple_proj),
+            Loc::Local(local) => Expr::local(*local, None),
+            Loc::TupleProj(var, proj) => {
+                proj.iter()
+                    .copied()
+                    .fold(var.to_expr(), |e, p| Expr::tuple_proj(e, p, None))
+            }
         }
     }
 }
@@ -591,7 +687,7 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs)
+                Expr::binary_op(BinOp::$op, self, rhs, None)
             }
         }
 
@@ -602,7 +698,7 @@ macro_rules! impl_ops {
             type Output = Expr;
 
             fn $method(self, rhs: Rhs) -> Self::Output {
-                Expr::binary_op(BinOp::$op, self, rhs)
+                Expr::binary_op(BinOp::$op, self, rhs, None)
             }
         }
     )*};

@@ -20,6 +20,6 @@ fn bar(a: i32) -> i32 {
 pub fn test(n: i32) {
     let ok = valid(n);
     if ok {
-        bar(n + 1); //~ ERROR precondition
+        bar(n + 1); //~ ERROR refinement type
     }
 }

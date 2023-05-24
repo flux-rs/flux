@@ -10,6 +10,6 @@ pub fn assert(_b: bool) -> i32 {
 pub fn read_ref() -> i32 {
     let x = 0;
     let r = &x;
-    assert(*r > 0); //~ ERROR precondition might not hold
+    assert(*r > 0); //~ ERROR refinement type error
     0
 }

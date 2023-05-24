@@ -9,7 +9,7 @@ use rvec::{rslice::RSlice, RVec};
 fn test00<T>(vec: &mut RVec<T>) {
     let mut s = RSlice::from_vec(vec);
     let s1 = s.subslice(0, 3);
-    let s2 = s.subslice(2, 5); //~ ERROR precondition
+    let s2 = s.subslice(2, 5); //~ ERROR refinement type
 }
 
 #[flux::sig(fn(&mut {RVec<i32>[@n] | n % 2 == 0 && n > 0}))]
@@ -17,8 +17,8 @@ fn test01(vec: &mut RVec<i32>) {
     let n = vec.len();
     let mut s = RSlice::from_vec(vec);
     let mut s1 = s.subslice(0, n / 2);
-    let s2 = s.subslice(n / 2, n - 1); //~ ERROR precondition
-    add(s1.as_mut_slice(), s2.as_slice()) //~ ERROR precondition
+    let s2 = s.subslice(n / 2, n - 1); //~ ERROR refinement type
+    add(s1.as_mut_slice(), s2.as_slice()) //~ ERROR refinement type
 }
 
 #[flux::sig(fn(&mut [i32][@n], &[i32][n]))]

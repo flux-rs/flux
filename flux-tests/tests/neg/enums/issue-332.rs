@@ -18,5 +18,5 @@ impl List {
         if let List::Cons(tl) = self {
             tl.append(other)
         }
-    } //~ ERROR postcondition
+    } //~ ERROR refinement type
 }

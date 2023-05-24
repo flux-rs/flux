@@ -11,5 +11,5 @@ type Nat = i32;
 
 #[flux::sig(fn(x:Nat) -> Nat)]
 pub fn test2(x: Nat) -> Nat {
-    x - 1 //~ ERROR postcondition
+    x - 1 //~ ERROR refinement type
 }

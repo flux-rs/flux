@@ -30,5 +30,5 @@ impl Range {
 
 #[flux::sig(fn(Range) -> bool[true])]
 fn test(r: Range) -> bool {
-    r.snd() - r.fst() >= 0 //~ ERROR postcondition
+    r.snd() - r.fst() >= 0 //~ ERROR refinement type
 }

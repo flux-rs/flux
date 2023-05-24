@@ -7,7 +7,7 @@ pub fn assert(_b: bool) {}
 
 pub fn test(val: i32) {
     if 10 < val {
-        assert(100 < val) //~ ERROR precondition
+        assert(100 < val) //~ ERROR refinement type
     }
 }
 mod foo {

@@ -8,11 +8,9 @@ use flux_attrs_proc_macros::extern_spec;
 struct String;
 
 #[flux::sig(fn(String[@n]) requires n == 3)]
-fn expect_string_len_3(s: String) {
-
-}
+fn expect_string_len_3(s: String) {}
 
 #[flux::sig(fn(String[2]))]
 fn test_string_len_2(s: String) {
-    expect_string_len_3(s); //~ ERROR precondition
+    expect_string_len_3(s); //~ ERROR refinement type
 }

@@ -17,7 +17,8 @@ struct S2 {
 }
 
 #[flux::sig(fn(x: &strg S1[@n]) ensures x: S1[n] )]
-fn test(x: &mut S1) { //~ ERROR postcondition
+fn test(x: &mut S1) {
+    //~^ ERROR refinement type
     let r = &mut x.f2.f1;
     *r += 1;
 }

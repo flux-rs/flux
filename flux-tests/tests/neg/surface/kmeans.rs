@@ -54,7 +54,7 @@ fn init_centers(n: usize, k: usize) -> RVec<RVec<f32>> {
         res.push(RVec::from_elem_n(0.0, n));
         i += 1;
     }
-    res //~ ERROR postcondition might not hold
+    res //~ ERROR refinement type error
 }
 
 /// finding the nearest center to a point
@@ -117,7 +117,7 @@ pub fn kmeans(n: usize, cs: RVec<RVec<f32>>, ps: &RVec<RVec<f32>>, iters: i32) -
     let mut i = 0;
     let mut res = cs;
     while i < iters {
-        res = kmeans_step(n, res, ps); //~ ERROR precondition might not hold
+        res = kmeans_step(n, res, ps); //~ ERROR refinement type error
         i += 1;
     }
     res

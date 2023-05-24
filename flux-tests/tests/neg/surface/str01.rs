@@ -6,5 +6,5 @@
 #[flux::sig(fn() -> usize[3])]
 pub fn str01() -> usize {
     let x = "str";
-    x.len() //~ ERROR postcondition
+    x.len() //~ ERROR refinement type
 }

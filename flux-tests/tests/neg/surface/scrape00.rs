@@ -15,7 +15,7 @@ pub fn test_ix(lo: usize, hi: usize) -> usize {
         res += 1;
         i += 1;
     }
-    res //~ ERROR postcondition
+    res //~ ERROR refinement type
 }
 
 #[flux::sig(fn(lo: usize, hi:usize{lo<=hi}) -> usize{v: v == hi-lo} )]
@@ -27,5 +27,5 @@ pub fn test_ex(lo: usize, hi: usize) -> usize {
         res += 1;
         i += 1;
     }
-    res //~ ERROR postcondition
+    res //~ ERROR refinement type
 }

@@ -12,7 +12,7 @@ pub enum Opt {
 #[flux::sig(fn(Opt[@b]) -> bool[b])]
 pub fn is_some(x: Opt) -> bool {
     match x {
-        Opt::None => true, //~ ERROR postcondition
+        Opt::None => true, //~ ERROR refinement type
         Opt::Some => true,
     }
 }
@@ -20,7 +20,7 @@ pub fn is_some(x: Opt) -> bool {
 #[flux::sig(fn(Opt[@b]) -> bool[b])]
 pub fn is_some_flip(x: Opt) -> bool {
     match x {
-        Opt::Some => false, //~ ERROR postcondition
+        Opt::Some => false, //~ ERROR refinement type
         Opt::None => false,
     }
 }
@@ -33,6 +33,6 @@ pub fn never<T>(_x: i32) -> T {
 pub fn unwrap(x: Opt) -> i32 {
     match x {
         Opt::Some => 12,
-        Opt::None => never(0), //~ ERROR precondition
+        Opt::None => never(0), //~ ERROR refinement type
     }
 }

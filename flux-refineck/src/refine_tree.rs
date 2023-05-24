@@ -492,7 +492,9 @@ impl Node {
                 })
             }
             NodeKind::Guard(pred) => {
-                let (bindings, pred) = cx.pred_to_fixpoint(pred);
+                let (bindings, preds) = cx.pred_to_fixpoint(pred);
+                let preds = preds.into_iter().map(|(pred, _)| pred).collect_vec();
+                let pred = fixpoint::Pred::And(preds);
                 Some(stitch(
                     bindings,
                     fixpoint::Constraint::Guard(
@@ -502,8 +504,14 @@ impl Node {
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                let (bindings, pred) = cx.pred_to_fixpoint(pred);
-                Some(stitch(bindings, fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(*tag)))))
+                let (bindings, preds) = cx.pred_to_fixpoint(pred);
+                let cstr = preds
+                    .into_iter()
+                    .map(|(pred, span)| {
+                        fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(tag.with_dst(span))))
+                    })
+                    .collect_vec();
+                Some(stitch(bindings, fixpoint::Constraint::Conj(cstr)))
             }
             NodeKind::True => None,
         }

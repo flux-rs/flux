@@ -3,6 +3,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
+use super::ESpan;
 use crate::{
     fhir::FuncKind,
     rty::{
@@ -109,13 +110,24 @@ impl<'a> Normalizer<'a> {
         Self { defs }
     }
 
-    fn app(&self, func: &Expr, args: &[Expr]) -> Expr {
+    fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {
+        match espan {
+            Some(espan) => BaseSpanner::new(espan).fold_expr(&expr),
+            None => expr,
+        }
+    }
+
+    fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
             ExprKind::GlobalFunc(sym, FuncKind::Def) if let Some(defn) = self.defs.func_defn(sym) => {
-                defn.expr.replace_bound_exprs(args)
+                let res = defn.expr.replace_bound_exprs(args);
+                Self::at_base(res, espan)
             }
-            ExprKind::Abs(body) => body.replace_bound_exprs(args),
-            _ => Expr::app(func.clone(), args),
+            ExprKind::Abs(body) => {
+                let res = body.replace_bound_exprs(args);
+                Self::at_base(res, espan)
+            }
+            _ => Expr::app(func.clone(), args, espan),
         }
     }
 
@@ -123,7 +135,7 @@ impl<'a> Normalizer<'a> {
         if let ExprKind::Tuple(exprs) = tup.kind() {
             exprs[proj as usize].clone()
         } else {
-            Expr::tuple_proj(tup, proj)
+            Expr::tuple_proj(tup, proj, None)
         }
     }
 }
@@ -131,10 +143,28 @@ impl<'a> Normalizer<'a> {
 impl TypeFolder for Normalizer<'_> {
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         let expr = expr.super_fold_with(self);
+        let span = expr.span();
         match expr.kind() {
-            ExprKind::App(func, args) => self.app(func, args),
+            ExprKind::App(func, args) => self.app(func, args, span),
+
             ExprKind::TupleProj(tup, proj) => self.tuple_proj(tup, *proj),
             _ => expr,
         }
+    }
+}
+
+struct BaseSpanner {
+    espan: ESpan,
+}
+
+impl BaseSpanner {
+    fn new(espan: ESpan) -> Self {
+        Self { espan }
+    }
+}
+
+impl TypeFolder for BaseSpanner {
+    fn fold_expr(&mut self, expr: &Expr) -> Expr {
+        expr.super_fold_with(self).at_base(Some(self.espan))
     }
 }

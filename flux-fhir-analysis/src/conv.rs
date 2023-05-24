@@ -16,7 +16,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, fold::TypeFoldable, refining, INNERMOST},
+    rty::{self, fold::TypeFoldable, refining, ESpan, INNERMOST},
     rustc,
 };
 use itertools::Itertools;
@@ -644,22 +644,26 @@ impl Env {
 impl ConvCtxt<'_, '_> {
     fn conv_expr(&self, env: &Env, expr: &fhir::Expr) -> rty::Expr {
         let fhir_id = expr.fhir_id;
+        let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
-            fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did),
+            fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did, espan),
             fhir::ExprKind::Var(var) => env.lookup(*var).to_expr(),
-            fhir::ExprKind::Literal(lit) => rty::Expr::constant(conv_lit(*lit)),
+            fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
-                rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2))
+                rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2), espan)
             }
-            fhir::ExprKind::UnaryOp(op, e) => rty::Expr::unary_op(*op, self.conv_expr(env, e)),
+            fhir::ExprKind::UnaryOp(op, e) => {
+                rty::Expr::unary_op(*op, self.conv_expr(env, e), espan)
+            }
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args))
+                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args), espan)
             }
             fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 rty::Expr::ite(
                     self.conv_expr(env, p),
                     self.conv_expr(env, e1),
                     self.conv_expr(env, e2),
+                    espan,
                 )
             }
             fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv.early_cx(), *fld),
@@ -693,11 +697,12 @@ impl ConvCtxt<'_, '_> {
     }
 
     fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
+        let span = expr.span();
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
                 expr = match coercion {
                     fhir::Coercion::Inject => rty::Expr::tuple(vec![expr]),
-                    fhir::Coercion::Project => rty::Expr::tuple_proj(expr, 0),
+                    fhir::Coercion::Project => rty::Expr::tuple_proj(expr, 0, span),
                 };
             }
         }
@@ -806,7 +811,7 @@ impl LookupResult<'_> {
         match &self.kind {
             LookupResultKind::LateBoundList { level, entry: Entry::Sort { idx, .. }, collapse } => {
                 if *collapse {
-                    rty::Expr::tuple_proj(rty::Expr::nu(), *idx)
+                    rty::Expr::tuple_proj(rty::Expr::nu(), *idx, None)
                 } else {
                     rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), *idx)
                 }
@@ -838,7 +843,7 @@ impl LookupResult<'_> {
             let i = early_cx
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
-            rty::Expr::tuple_proj(self.to_expr(), i as u32)
+            rty::Expr::tuple_proj(self.to_expr(), i as u32, None)
         } else {
             span_bug!(fld.span, "expected record sort")
         }

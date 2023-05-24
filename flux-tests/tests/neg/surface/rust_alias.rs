@@ -10,12 +10,12 @@ type MyResult1<T> = Result<T, i32>;
 
 #[flux::sig(fn() -> MyResult1<i32{v: v > 0}>)]
 fn test01() -> MyResult1<i32> {
-    Ok(0) //~ ERROR postcondition
+    Ok(0) //~ ERROR refinement type
 }
 
 type MyResult2<T> = Result<i32, T>;
 
 #[flux::sig(fn() -> MyResult2<i32{v: v > 0}>)]
 fn test02() -> MyResult2<i32> {
-    Err(0) //~ ERROR postcondition
+    Err(0) //~ ERROR refinement type
 }

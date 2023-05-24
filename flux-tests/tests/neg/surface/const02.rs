@@ -14,5 +14,5 @@ pub struct Silly {
 
 #[flux::sig(fn() -> Silly[100])]
 pub fn mk_silly() -> Silly {
-    Silly { fld: 100 } //~ ERROR precondition
+    Silly { fld: 100 } //~ ERROR refinement type
 }

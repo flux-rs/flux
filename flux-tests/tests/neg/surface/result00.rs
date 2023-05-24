@@ -9,5 +9,5 @@ fn baz() -> Result<i32, ()> {
 #[flux::sig(fn() -> Result<i32[2], ()>)]
 pub fn baz_call() -> Result<i32, ()> {
     let r = baz()?;
-    Ok(r + 1) //~ ERROR: postcondition
+    Ok(r + 1) //~ ERROR refinement type
 }

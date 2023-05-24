@@ -15,15 +15,15 @@ type Lb = i32;
 
 #[flux::sig(fn(x: Nat) -> Nat)]
 pub fn test1(x: Nat) -> Nat {
-    x - 1 //~ ERROR postcondition
+    x - 1 //~ ERROR refinement type
 }
 
 #[flux::sig(fn(x: Lb(10)) -> Lb(10))]
 pub fn test2(x: Lb) -> Lb {
-    x - 1 //~ ERROR postcondition
+    x - 1 //~ ERROR refinement type
 }
 
 #[flux::sig(fn(x: i32) -> i32[inc(x)])]
 pub fn test3(x: i32) -> i32 {
-    x + 2 //~ ERROR postcondition
+    x + 2 //~ ERROR refinement type
 }

@@ -52,7 +52,7 @@ fn loop_a(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
                     // INV 0 <= i0 <= i1 <= i2 <= i3, 0 <= id
 
                     let r1 = px[i0] - px[i2];
-                    px[i0] = px[i0] + px[i2 + 2]; //~ ERROR precondition might not hold
+                    px[i0] = px[i0] + px[i2 + 2]; //~ ERROR refinement type error
                     let r2 = px[i1] - px[i3];
                     px[i1] = px[i1] + px[i3];
                     let s1 = py[i0] - py[i2];
@@ -127,12 +127,12 @@ fn loop_c(px: &mut RVec<f32>, py: &mut RVec<f32>) -> i32 {
     while i < n {
         // INV: 0 <= i, 0 <= j <= n
         if i < j {
-            let xt = px[j]; //~ ERROR precondition might not hold
-            px[j] = px[i]; //~ ERROR precondition might not hold
+            let xt = px[j]; //~ ERROR refinement type error
+            px[j] = px[i]; //~ ERROR refinement type error
             px[i] = xt;
 
-            let xt = py[j]; //~ ERROR precondition might not hold
-            py[j] = py[i]; //~ ERROR precondition might not hold
+            let xt = py[j]; //~ ERROR refinement type error
+            py[j] = py[i]; //~ ERROR refinement type error
             py[i] = xt;
         }
         i += 1;

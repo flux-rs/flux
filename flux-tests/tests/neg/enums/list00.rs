@@ -19,7 +19,7 @@ pub enum List {
 pub fn empty(l: &List) -> bool {
     match l {
         List::Nil => true,
-        List::Cons(_, _) => true, //~ ERROR postcondition
+        List::Cons(_, _) => true, //~ ERROR refinement type
     }
 }
 
@@ -27,14 +27,14 @@ pub fn empty(l: &List) -> bool {
 pub fn len(l: &List) -> i32 {
     match l {
         List::Nil => 0,
-        List::Cons(_, tl) => len(tl), //~ ERROR postcondition
+        List::Cons(_, tl) => len(tl), //~ ERROR refinement type
     }
 }
 
 #[flux::sig(fn(&List[@n]) -> i32)]
 pub fn head(l: &List) -> i32 {
     match l {
-        List::Nil => never(0), //~ ERROR precondition
+        List::Nil => never(0), //~ ERROR refinement type
         List::Cons(h, _) => *h,
     }
 }
@@ -45,7 +45,7 @@ pub fn append(l1: List, l2: List) -> List {
         List::Nil => l2,
         List::Cons(h1, t1) => List::Cons(h1, Box::new(append(*t1, l2))),
     }
-} //~ ERROR postcondition
+} //~ ERROR refinement type
 
 #[flux::sig(fn(&List[@n], k:usize{k <= n} ) -> i32)]
 pub fn get_nth(l: &List, k: usize) -> i32 {
@@ -57,6 +57,6 @@ pub fn get_nth(l: &List, k: usize) -> i32 {
                 get_nth(tl, k - 1)
             }
         }
-        List::Nil => never(0), //~ ERROR precondition
+        List::Nil => never(0), //~ ERROR refinement type
     }
 }

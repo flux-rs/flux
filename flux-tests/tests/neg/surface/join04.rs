@@ -9,5 +9,5 @@ fn ref_join(z: bool) -> i32 {
     let r = if z { &mut x } else { &mut y };
     *r = *r - 1;
 
-    x //~ ERROR postcondition
+    x //~ ERROR refinement type
 }

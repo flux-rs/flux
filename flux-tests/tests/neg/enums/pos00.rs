@@ -16,7 +16,7 @@ impl Pos {
     pub fn to_i32(&self) -> i32 {
         match self {
             Pos::XH => 1,
-            Pos::XI(rest) => 2 * rest.to_i32(), //~ ERROR postcondition
+            Pos::XI(rest) => 2 * rest.to_i32(), //~ ERROR refinement type
             Pos::XO(rest) => 2 * rest.to_i32(),
         }
     }
@@ -25,7 +25,7 @@ impl Pos {
     pub fn is_one(&self) -> bool {
         match self {
             Pos::XH => true,
-            Pos::XI(_) => false, //~ ERROR postcondition
+            Pos::XI(_) => false, //~ ERROR refinement type
             Pos::XO(_) => false,
         }
     }

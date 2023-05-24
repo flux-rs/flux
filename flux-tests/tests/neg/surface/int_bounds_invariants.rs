@@ -7,15 +7,15 @@
 fn assert(_: bool) {}
 
 fn test00(x: i32) {
-    assert(x <= i32::MAX); //~ ERROR precondition
+    assert(x <= i32::MAX); //~ ERROR refinement type
 }
 
 fn test01(x: i32) {
-    assert(x >= i32::MIN); //~ ERROR precondition
+    assert(x >= i32::MIN); //~ ERROR refinement type
 }
 
 fn test02(x: u32) {
-    assert(x <= u32::MAX); //~ ERROR precondition
+    assert(x <= u32::MAX); //~ ERROR refinement type
 }
 
 // Lower bound for unsigned integers is checked in default mode
