@@ -97,29 +97,12 @@ pub fn check_fn(
 }
 
 fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
-    match dst_span {
-        Some(dst_span) => {
-            genv.sess
-                .emit_err(errors::RefineGoalError::call(span, dst_span))
-        }
-        None => {
-            genv.sess
-                .emit_err(errors::RefineError { span, cond: "precondition" })
-        }
-    }
+    genv.sess
+        .emit_err(errors::RefineError::call(span, dst_span))
 }
 
 fn ret_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
-    match dst_span {
-        Some(dst_span) => {
-            genv.sess
-                .emit_err(errors::RefineGoalError::ret(span, dst_span))
-        }
-        None => {
-            genv.sess
-                .emit_err(errors::RefineError { span, cond: "postcondition" })
-        }
-    }
+    genv.sess.emit_err(errors::RefineError::ret(span, dst_span))
 }
 
 fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuaranteed> {
@@ -160,15 +143,6 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_refine_error, code = "FLUX")]
-    pub struct RefineError {
-        #[primary_span]
-        #[label]
-        pub span: Span,
-        pub cond: &'static str,
-    }
-
-    #[derive(Diagnostic)]
     #[diag(refineck_assign_error, code = "FLUX")]
     pub struct AssignError {
         #[primary_span]
@@ -190,31 +164,36 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_refine_goal_error, code = "FLUX")]
-    pub struct RefineGoalError {
+    #[diag(refineck_refine_error, code = "FLUX")]
+    pub struct RefineError {
         #[primary_span]
         #[label]
         pub span: Span,
-        #[subdiagnostic]
-        span_note: ConditionSpanNote,
         cond: &'static str,
+        #[subdiagnostic]
+        span_note: Option<ConditionSpanNote>,
         #[subdiagnostic]
         call_span_note: Option<CallSpanNote>,
     }
 
-    impl RefineGoalError {
-        pub fn call(span: Span, dst_span: ESpan) -> Self {
-            RefineGoalError::new("precondition", dst_span, span)
+    impl RefineError {
+        pub fn call(span: Span, espan: Option<ESpan>) -> Self {
+            RefineError::new("precondition", span, espan)
         }
 
-        pub fn ret(span: Span, dst_span: ESpan) -> Self {
-            RefineGoalError::new("postcondition", dst_span, span)
+        pub fn ret(span: Span, espan: Option<ESpan>) -> Self {
+            RefineError::new("postcondition", span, espan)
         }
 
-        fn new(cond: &'static str, dst_span: ESpan, span: Span) -> RefineGoalError {
-            let span_note = ConditionSpanNote { span: dst_span.span() };
-            let call_span_note = dst_span.base().map(|span| CallSpanNote { span });
-            RefineGoalError { span, cond, span_note, call_span_note }
+        fn new(cond: &'static str, span: Span, espan: Option<ESpan>) -> RefineError {
+            match espan {
+                Some(dst_span) => {
+                    let span_note = Some(ConditionSpanNote { span: dst_span.span() });
+                    let call_span_note = dst_span.base().map(|span| CallSpanNote { span });
+                    RefineError { span, cond, span_note, call_span_note }
+                }
+                None => RefineError { span, cond, span_note: None, call_span_note: None },
+            }
         }
     }
 
