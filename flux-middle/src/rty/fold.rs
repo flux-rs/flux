@@ -3,7 +3,7 @@
 
 use std::ops::ControlFlow;
 
-use flux_common::bug;
+use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
@@ -45,7 +45,38 @@ pub trait TypeVisitor: Sized {
     }
 }
 
-pub trait TypeFolder: Sized {
+pub trait FallibleTypeFolder: Sized {
+    type Error;
+
+    fn try_fold_binder<T: TypeFoldable>(
+        &mut self,
+        t: &Binder<T>,
+    ) -> Result<Binder<T>, Self::Error> {
+        t.try_super_fold_with(self)
+    }
+
+    fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
+        sort.try_super_fold_with(self)
+    }
+
+    fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
+        ty.try_super_fold_with(self)
+    }
+
+    fn try_fold_bty(&mut self, bty: &BaseTy) -> Result<BaseTy, Self::Error> {
+        bty.try_super_fold_with(self)
+    }
+
+    fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
+        Ok(*re)
+    }
+
+    fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
+        expr.try_super_fold_with(self)
+    }
+}
+
+pub trait TypeFolder: FallibleTypeFolder<Error = !> {
     fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
         t.super_fold_with(self)
     }
@@ -68,6 +99,40 @@ pub trait TypeFolder: Sized {
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
         expr.super_fold_with(self)
+    }
+}
+
+impl<F> FallibleTypeFolder for F
+where
+    F: TypeFolder,
+{
+    type Error = !;
+
+    fn try_fold_binder<T: TypeFoldable>(
+        &mut self,
+        t: &Binder<T>,
+    ) -> Result<Binder<T>, Self::Error> {
+        Ok(self.fold_binder(t))
+    }
+
+    fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
+        Ok(self.fold_sort(sort))
+    }
+
+    fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
+        Ok(self.fold_ty(ty))
+    }
+
+    fn try_fold_bty(&mut self, bty: &BaseTy) -> Result<BaseTy, Self::Error> {
+        Ok(self.fold_bty(bty))
+    }
+
+    fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
+        Ok(self.fold_region(re))
+    }
+
+    fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
+        Ok(self.fold_expr(expr))
     }
 }
 
@@ -131,7 +196,11 @@ pub trait TypeSuperVisitable: TypeVisitable {
 }
 
 pub trait TypeFoldable: TypeVisitable {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self;
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error>;
+
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        self.try_fold_with(folder).into_ok()
+    }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
     fn normalize(&self, defns: &Defns) -> Self {
@@ -282,7 +351,11 @@ pub trait TypeFoldable: TypeVisitable {
 }
 
 pub trait TypeSuperFoldable: TypeFoldable {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self;
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error>;
+
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        self.try_super_fold_with(folder).into_ok()
+    }
 }
 
 impl TypeVisitable for Predicate {
@@ -292,8 +365,8 @@ impl TypeVisitable for Predicate {
 }
 
 impl TypeFoldable for Predicate {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Predicate { kind: self.kind.fold_with(folder) }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(Predicate { kind: self.kind.try_fold_with(folder)? })
     }
 }
 
@@ -306,9 +379,9 @@ impl TypeVisitable for PredicateKind {
 }
 
 impl TypeFoldable for PredicateKind {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
-            PredicateKind::FnTrait(pred) => PredicateKind::FnTrait(pred.fold_with(folder)),
+            PredicateKind::FnTrait(pred) => Ok(PredicateKind::FnTrait(pred.try_fold_with(folder)?)),
         }
     }
 }
@@ -322,13 +395,13 @@ impl TypeVisitable for FnTraitPredicate {
 }
 
 impl TypeFoldable for FnTraitPredicate {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        FnTraitPredicate {
-            self_ty: self.self_ty.fold_with(folder),
-            tupled_args: self.tupled_args.fold_with(folder),
-            output: self.output.fold_with(folder),
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(FnTraitPredicate {
+            self_ty: self.self_ty.try_fold_with(folder)?,
+            tupled_args: self.tupled_args.try_fold_with(folder)?,
+            output: self.output.try_fold_with(folder)?,
             kind: self.kind,
-        }
+        })
     }
 }
 
@@ -345,25 +418,26 @@ impl TypeVisitable for Sort {
 }
 
 impl TypeFoldable for Sort {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_sort(self)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_sort(self)
     }
 }
 
 impl TypeSuperFoldable for Sort {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Sort::Tuple(sorts) => Sort::tuple(sorts.fold_with(folder)),
-            Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.fold_with(folder)),
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let sort = match self {
+            Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
+            Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => {
                 Sort::Func(FuncSort {
-                    inputs_and_output: fsort.inputs_and_output.fold_with(folder),
+                    inputs_and_output: fsort.inputs_and_output.try_fold_with(folder)?,
                 })
             }
             Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::BitVec(_) | Sort::Param(_) => {
                 self.clone()
             }
-        }
+        };
+        Ok(sort)
     }
 }
 
@@ -389,8 +463,8 @@ impl<T> TypeFoldable for Binder<T>
 where
     T: TypeFoldable,
 {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_binder(self)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_binder(self)
     }
 }
 
@@ -398,8 +472,8 @@ impl<T> TypeSuperFoldable for Binder<T>
 where
     T: TypeFoldable,
 {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binder::new(self.value.fold_with(folder), self.vars.fold_with(folder))
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(Binder::new(self.value.try_fold_with(folder)?, self.vars.try_fold_with(folder)?))
     }
 }
 
@@ -413,13 +487,14 @@ impl TypeVisitable for BoundVariableKind {
 }
 
 impl TypeFoldable for BoundVariableKind {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let re = match self {
             BoundVariableKind::Region(re) => BoundVariableKind::Region(*re),
             BoundVariableKind::Refine(sort, mode) => {
-                BoundVariableKind::Refine(sort.fold_with(folder), *mode)
+                BoundVariableKind::Refine(sort.try_fold_with(folder)?, *mode)
             }
-        }
+        };
+        Ok(re)
     }
 }
 
@@ -433,14 +508,14 @@ impl TypeVisitable for VariantDef {
 }
 
 impl TypeFoldable for VariantDef {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let fields = self
             .fields
             .iter()
-            .map(|ty| ty.fold_with(folder))
-            .collect_vec();
-        let ret = self.ret.fold_with(folder);
-        VariantDef::new(fields, ret)
+            .map(|ty| ty.try_fold_with(folder))
+            .try_collect()?;
+        let ret = self.ret.try_fold_with(folder)?;
+        Ok(VariantDef::new(fields, ret))
     }
 }
 
@@ -455,8 +530,8 @@ impl<T: TypeVisitable> TypeVisitable for Opaqueness<T> {
 }
 
 impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        self.as_ref().map(|t| t.fold_with(folder))
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        self.as_ref().map(|t| t.try_fold_with(folder)).transpose()
     }
 }
 
@@ -473,11 +548,11 @@ impl TypeVisitable for FnSig {
 }
 
 impl TypeFoldable for FnSig {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let requires = self.requires.fold_with(folder);
-        let args = self.args.fold_with(folder);
-        let output = self.output.fold_with(folder);
-        FnSig::new(requires, args, output)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let requires = self.requires.try_fold_with(folder)?;
+        let args = self.args.try_fold_with(folder)?;
+        let output = self.output.try_fold_with(folder)?;
+        Ok(FnSig::new(requires, args, output))
     }
 }
 
@@ -489,8 +564,8 @@ impl TypeVisitable for FnOutput {
 }
 
 impl TypeFoldable for FnOutput {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        FnOutput::new(self.ret.fold_with(folder), self.ensures.fold_with(folder))
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(FnOutput::new(self.ret.try_fold_with(folder)?, self.ensures.try_fold_with(folder)?))
     }
 }
 
@@ -507,22 +582,23 @@ impl TypeVisitable for Constraint {
 }
 
 impl TypeFoldable for Constraint {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let c = match self {
             Constraint::Type(path, ty) => {
                 let path_expr = path
                     .to_expr()
-                    .fold_with(folder)
+                    .try_fold_with(folder)?
                     .normalize(&Default::default());
                 Constraint::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
                     }),
-                    ty.fold_with(folder),
+                    ty.try_fold_with(folder)?,
                 )
             }
-            Constraint::Pred(e) => Constraint::Pred(e.fold_with(folder)),
-        }
+            Constraint::Pred(e) => Constraint::Pred(e.try_fold_with(folder)?),
+        };
+        Ok(c)
     }
 }
 
@@ -551,36 +627,39 @@ impl TypeSuperVisitable for Ty {
 }
 
 impl TypeFoldable for Ty {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_ty(self)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_ty(self)
     }
 }
 
 impl TypeSuperFoldable for Ty {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Ty {
-        match self.kind() {
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Ty, F::Error> {
+        let ty = match self.kind() {
             TyKind::Indexed(bty, idxs) => {
-                Ty::indexed(bty.fold_with(folder), idxs.fold_with(folder))
+                Ty::indexed(bty.try_fold_with(folder)?, idxs.try_fold_with(folder)?)
             }
-            TyKind::Exists(exists) => TyKind::Exists(exists.fold_with(folder)).intern(),
+            TyKind::Exists(exists) => TyKind::Exists(exists.try_fold_with(folder)?).intern(),
             TyKind::Ptr(pk, path) => {
                 let pk = match pk {
-                    PtrKind::Shr(re) => PtrKind::Shr(re.fold_with(folder)),
-                    PtrKind::Mut(re) => PtrKind::Mut(re.fold_with(folder)),
+                    PtrKind::Shr(re) => PtrKind::Shr(re.try_fold_with(folder)?),
+                    PtrKind::Mut(re) => PtrKind::Mut(re.try_fold_with(folder)?),
                     PtrKind::Box => PtrKind::Box,
                 };
                 Ty::ptr(
                     pk,
                     path.to_expr()
-                        .fold_with(folder)
+                        .try_fold_with(folder)?
                         .normalize(&Default::default())
                         .to_path()
                         .expect("folding produced an invalid path"),
                 )
             }
-            TyKind::Constr(pred, ty) => Ty::constr(pred.fold_with(folder), ty.fold_with(folder)),
+            TyKind::Constr(pred, ty) => {
+                Ty::constr(pred.try_fold_with(folder)?, ty.try_fold_with(folder)?)
+            }
             TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Discr(..) => self.clone(),
-        }
+        };
+        Ok(ty)
     }
 }
 
@@ -591,8 +670,8 @@ impl TypeVisitable for Region {
 }
 
 impl TypeFoldable for Region {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_region(self)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_region(self)
     }
 }
 
@@ -603,8 +682,8 @@ impl TypeVisitable for Index {
 }
 
 impl TypeFoldable for Index {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Index { expr: self.expr.fold_with(folder), is_binder: self.is_binder.clone() }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(Index { expr: self.expr.try_fold_with(folder)?, is_binder: self.is_binder.clone() })
     }
 }
 
@@ -637,22 +716,24 @@ impl TypeSuperVisitable for BaseTy {
 }
 
 impl TypeFoldable for BaseTy {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_bty(self)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_bty(self)
     }
 }
 
 impl TypeSuperFoldable for BaseTy {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
-            BaseTy::Slice(ty) => BaseTy::Slice(ty.fold_with(folder)),
-            BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.fold_with(folder), *mu),
-            BaseTy::Ref(re, ty, mutbl) => {
-                BaseTy::Ref(re.fold_with(folder), ty.fold_with(folder), *mutbl)
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let bty = match self {
+            BaseTy::Adt(adt_def, substs) => {
+                BaseTy::adt(adt_def.clone(), substs.try_fold_with(folder)?)
             }
-            BaseTy::Tuple(tys) => BaseTy::Tuple(tys.fold_with(folder)),
-            BaseTy::Array(ty, c) => BaseTy::Array(ty.fold_with(folder), c.clone()),
+            BaseTy::Slice(ty) => BaseTy::Slice(ty.try_fold_with(folder)?),
+            BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.try_fold_with(folder)?, *mu),
+            BaseTy::Ref(re, ty, mutbl) => {
+                BaseTy::Ref(re.try_fold_with(folder)?, ty.try_fold_with(folder)?, *mutbl)
+            }
+            BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
+            BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)
@@ -661,8 +742,9 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
-            BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.fold_with(folder)),
-        }
+            BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
+        };
+        Ok(bty)
     }
 }
 
@@ -677,12 +759,13 @@ impl TypeVisitable for GenericArg {
 }
 
 impl TypeFoldable for GenericArg {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
-            GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.fold_with(folder)),
-            GenericArg::Lifetime(re) => GenericArg::Lifetime(re.fold_with(folder)),
-        }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let arg = match self {
+            GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
+            GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.try_fold_with(folder)?),
+            GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
+        };
+        Ok(arg)
     }
 }
 
@@ -693,8 +776,12 @@ impl TypeVisitable for KVar {
 }
 
 impl TypeFoldable for KVar {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        KVar { kvid: self.kvid, self_args: self.self_args, args: self.args.fold_with(folder) }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(KVar {
+            kvid: self.kvid,
+            self_args: self.self_args,
+            args: self.args.try_fold_with(folder)?,
+        })
     }
 }
 
@@ -746,39 +833,49 @@ impl TypeVisitable for Var {
 }
 
 impl TypeFoldable for Expr {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_expr(self)
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_expr(self)
     }
 }
 
 impl TypeSuperFoldable for Expr {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let span = self.span();
-        match self.kind() {
+        let expr = match self.kind() {
             ExprKind::Var(var) => Expr::var(*var, span),
             ExprKind::Local(local) => Expr::local(*local, span),
             ExprKind::Constant(c) => Expr::constant_at(*c, span),
             ExprKind::ConstDefId(did) => Expr::const_def_id(*did, span),
             ExprKind::BinaryOp(op, e1, e2) => {
-                Expr::binary_op(*op, e1.fold_with(folder), e2.fold_with(folder), span)
+                Expr::binary_op(*op, e1.try_fold_with(folder)?, e2.try_fold_with(folder)?, span)
             }
-            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.fold_with(folder), span),
-            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.fold_with(folder), *proj, span),
+            ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
+            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.try_fold_with(folder)?, *proj, span),
             ExprKind::Tuple(exprs) => {
-                Expr::tuple(exprs.iter().map(|e| e.fold_with(folder)).collect_vec())
+                let exprs = exprs
+                    .iter()
+                    .map(|e| e.try_fold_with(folder))
+                    .try_collect_vec()?;
+                Expr::tuple(exprs)
             }
-            ExprKind::PathProj(e, field) => Expr::path_proj(e.fold_with(folder), *field),
+            ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
-                Expr::app(func.fold_with(folder), arg.fold_with(folder), span)
+                Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?, span)
             }
             ExprKind::IfThenElse(p, e1, e2) => {
-                Expr::ite(p.fold_with(folder), e1.fold_with(folder), e2.fold_with(folder), span)
+                Expr::ite(
+                    p.try_fold_with(folder)?,
+                    e1.try_fold_with(folder)?,
+                    e2.try_fold_with(folder)?,
+                    span,
+                )
             }
             ExprKind::Hole => Expr::hole(),
-            ExprKind::KVar(kvar) => Expr::kvar(kvar.fold_with(folder)),
-            ExprKind::Abs(body) => Expr::abs(body.fold_with(folder)),
+            ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
+            ExprKind::Abs(body) => Expr::abs(body.try_fold_with(folder)?),
             ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
-        }
+        };
+        Ok(expr)
     }
 }
 
@@ -797,8 +894,8 @@ where
     T: TypeFoldable,
     [T]: Internable,
 {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        List::from_iter(self.iter().map(|t| t.fold_with(folder)))
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        self.iter().map(|t| t.try_fold_with(folder)).try_collect()
     }
 }
 
@@ -809,8 +906,12 @@ impl TypeVisitable for Qualifier {
 }
 
 impl TypeFoldable for Qualifier {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Qualifier { name: self.name, body: self.body.fold_with(folder), global: self.global }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(Qualifier {
+            name: self.name,
+            body: self.body.try_fold_with(folder)?,
+            global: self.global,
+        })
     }
 }
 
@@ -821,8 +922,8 @@ impl TypeVisitable for Invariant {
 }
 
 impl TypeFoldable for Invariant {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        let pred = self.pred.fold_with(folder);
-        Invariant { pred }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let pred = self.pred.try_fold_with(folder)?;
+        Ok(Invariant { pred })
     }
 }

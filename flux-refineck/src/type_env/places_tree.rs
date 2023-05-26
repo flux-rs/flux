@@ -6,7 +6,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         box_args,
-        fold::{TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
         Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
     },
@@ -861,11 +861,12 @@ impl TypeVisitable for Binding {
 }
 
 impl TypeFoldable for Binding {
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Binding::Owned(ty) => Binding::Owned(ty.fold_with(folder)),
-            Binding::Blocked(ty) => Binding::Blocked(ty.fold_with(folder)),
-        }
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let binding = match self {
+            Binding::Owned(ty) => Binding::Owned(ty.try_fold_with(folder)?),
+            Binding::Blocked(ty) => Binding::Blocked(ty.try_fold_with(folder)?),
+        };
+        Ok(binding)
     }
 }
 
