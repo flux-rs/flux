@@ -597,6 +597,19 @@ pub trait Internable: Hash + Eq + 'static {
     fn storage() -> &'static InternStorage<Self>;
 }
 
+pub trait SliceInternable: Hash + Eq + 'static + Sized {
+    fn storage() -> &'static InternStorage<[Self]>;
+}
+
+impl<T> Internable for [T]
+where
+    T: SliceInternable,
+{
+    fn storage() -> &'static InternStorage<Self> {
+        <T as SliceInternable>::storage()
+    }
+}
+
 /// Implements `Internable` for a given list of types, making them usable with `Interned`.
 #[macro_export]
 #[doc(hidden)]
@@ -610,5 +623,19 @@ macro_rules! _impl_internable {
         }
     )+ };
 }
-
 pub use crate::_impl_internable as impl_internable;
+
+/// Implements `SliceInternable` for a given list of types, making them usable as `Interned<[T]>`.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! _impl_slice_internable {
+    ( $($t:ty),+ $(,)? ) => { $(
+        impl $crate::intern::SliceInternable for $t {
+            fn storage() -> &'static $crate::intern::InternStorage<[Self]> {
+                static STORAGE: $crate::intern::InternStorage<[$t]> = $crate::intern::InternStorage::new();
+                &STORAGE
+            }
+        }
+    )+ };
+}
+pub use crate::_impl_slice_internable as impl_slice_internable;

@@ -15,7 +15,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::FuncKind,
-    intern::{impl_internable, Interned, List},
+    intern::{impl_internable, impl_slice_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder},
     rustc::mir::{Place, PlaceElem},
 };
@@ -46,7 +46,7 @@ impl ESpan {
     }
 
     pub fn base(&self) -> Option<Span> {
-        self.base.as_ref().map(|fspan| fspan.span())
+        self.base.as_ref().map(SpanData::span)
     }
 
     pub fn with_base(&self, espan: ESpan) -> Self {
@@ -751,7 +751,8 @@ impl From<Local> for Loc {
     }
 }
 
-impl_internable!(ExprS, [Expr], [KVar], [u32], [FieldIdx]);
+impl_internable!(ExprS);
+impl_slice_internable!(Expr, KVar, u32, FieldIdx);
 
 mod pretty {
     use super::*;

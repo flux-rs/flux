@@ -17,7 +17,7 @@ pub use rustc_middle::{
 use rustc_span::{symbol::kw, Symbol};
 
 use self::subst::Subst;
-use crate::intern::{impl_internable, Interned, List};
+use crate::intern::{impl_internable, impl_slice_internable, Interned, List};
 
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
@@ -314,7 +314,8 @@ impl Ty {
     }
 }
 
-impl_internable!(TyS, [Ty], [GenericArg], [GenericParamDef], [BoundVariableKind], [Predicate]);
+impl_internable!(TyS,);
+impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Predicate);
 
 impl std::fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

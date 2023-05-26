@@ -37,7 +37,7 @@ use self::{
 use crate::{
     fhir::FuncKind,
     global_env::GlobalEnv,
-    intern::{impl_internable, Internable, Interned, List},
+    intern::{impl_internable, impl_slice_internable, Internable, Interned, List},
     queries::QueryResult,
     rustc::mir::Place,
 };
@@ -1159,20 +1159,19 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(
-    AdtDefData,
-    TyS,
-    [Ty],
-    [GenericArg],
-    [Constraint],
-    [InferMode],
-    [TupleTree<bool>],
-    [Sort],
-    [GenericParamDef],
-    [Predicate],
-    [PolyVariant],
-    [Invariant],
-    [BoundVariableKind]
+impl_internable!(AdtDefData, TyS,);
+impl_slice_internable!(
+    Ty,
+    GenericArg,
+    Constraint,
+    InferMode,
+    TupleTree<bool>,
+    Sort,
+    GenericParamDef,
+    Predicate,
+    PolyVariant,
+    Invariant,
+    BoundVariableKind
 );
 
 #[macro_export]
