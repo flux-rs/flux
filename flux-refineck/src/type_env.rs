@@ -12,8 +12,8 @@ use flux_middle::{
         evars::EVarSol,
         fold::TypeFoldable,
         subst::{FVarSubst, RegionSubst},
-        BaseTy, Binder, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty,
-        TyKind, Var, INNERMOST,
+        BaseTy, Binder, Expr, ExprKind, GenericArg, Layout, Mutability, Path, PtrKind, Ref, Region,
+        Ty, TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -66,8 +66,9 @@ impl TypeEnv<'_> {
     }
 
     pub fn alloc(&mut self, local: Local) {
+        let layout = Layout::from_rust_ty(&self.local_decls[local].ty);
         self.bindings
-            .insert(local.into(), Ty::uninit(), LocKind::Local);
+            .insert(local.into(), Ty::uninit(layout), LocKind::Local);
     }
 
     pub(crate) fn into_infer(
@@ -180,7 +181,7 @@ impl TypeEnv<'_> {
             .fold(rcx, gen, true)?
         {
             FoldResult::Strg(path, ty) => {
-                self.bindings.update(&path, Ty::uninit());
+                self.bindings.update(&path, Ty::uninit(ty.layout()));
                 Ok(ty)
             }
             FoldResult::Weak(WeakKind::Mut, _) => {
@@ -443,7 +444,7 @@ impl BasicBlockEnvShape {
             TyKind::Exists(_)
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
-            | TyKind::Uninit
+            | TyKind::Uninit(_)
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
         }
@@ -624,7 +625,7 @@ impl BasicBlockEnvShape {
 
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
+            (TyKind::Uninit(layout), _) | (_, TyKind::Uninit(layout)) => Ty::uninit(layout.clone()),
             (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binder(), ty2),
             (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binder()),
             (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
