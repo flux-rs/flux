@@ -1,5 +1,14 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private, lazy_cell, if_let_guard, min_specialization, box_patterns, let_chains)]
+#![feature(
+    rustc_private,
+    lazy_cell,
+    if_let_guard,
+    min_specialization,
+    box_patterns,
+    let_chains,
+    associated_type_defaults,
+    never_type
+)]
 
 //! This crate contains common type definitions that are used by other crates.
 

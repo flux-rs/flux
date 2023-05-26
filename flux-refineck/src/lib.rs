@@ -9,6 +9,7 @@
     lazy_cell,
     let_chains,
     min_specialization,
+    never_type,
     result_option_inspect,
     rustc_private,
     type_alias_impl_trait

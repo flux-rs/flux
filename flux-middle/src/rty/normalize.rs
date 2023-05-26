@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
@@ -30,13 +32,13 @@ impl Defns {
     fn defn_deps(&self, expr: &Binder<Expr>) -> FxHashSet<Symbol> {
         struct DepsVisitor(FxHashSet<Symbol>);
         impl TypeVisitor for DepsVisitor {
-            fn visit_expr(&mut self, expr: &Expr) {
+            fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!, ()> {
                 if let ExprKind::App(func, _) = expr.kind()
                     && let ExprKind::GlobalFunc(sym, FuncKind::Def) = func.kind()
                 {
                     self.0.insert(*sym);
                 }
-                expr.super_visit_with(self);
+                expr.super_visit_with(self)
             }
         }
         let mut visitor = DepsVisitor(FxHashSet::default());
