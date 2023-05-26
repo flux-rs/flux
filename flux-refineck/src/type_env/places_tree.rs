@@ -6,7 +6,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         box_args,
-        fold::{TypeFoldable, TypeFolder, TypeVisitor},
+        fold::{TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
         Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
     },
@@ -852,17 +852,19 @@ impl Binding {
     }
 }
 
+impl TypeVisitable for Binding {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        match self {
+            Binding::Owned(ty) | Binding::Blocked(ty) => ty.visit_with(visitor),
+        }
+    }
+}
+
 impl TypeFoldable for Binding {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             Binding::Owned(ty) => Binding::Owned(ty.fold_with(folder)),
             Binding::Blocked(ty) => Binding::Blocked(ty.fold_with(folder)),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        match self {
-            Binding::Owned(ty) | Binding::Blocked(ty) => ty.visit_with(visitor),
         }
     }
 }
