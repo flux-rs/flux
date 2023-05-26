@@ -66,11 +66,7 @@ pub trait TypeFolder: Sized {
 }
 
 pub trait TypeVisitable: Sized {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V);
-
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.super_visit_with(visitor);
-    }
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V);
 
     fn has_escaping_bvars(&self) -> bool {
         struct HasEscapingVars {
@@ -118,6 +114,10 @@ pub trait TypeVisitable: Sized {
         self.visit_with(&mut collector);
         collector.0
     }
+}
+
+pub trait TypeSuperVisitable: TypeVisitable {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V);
 }
 
 pub trait TypeFoldable: TypeVisitable {
@@ -276,7 +276,7 @@ pub trait TypeFoldable: TypeVisitable {
 }
 
 impl TypeVisitable for Predicate {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.kind.visit_with(visitor);
     }
 }
@@ -288,7 +288,7 @@ impl TypeFoldable for Predicate {
 }
 
 impl TypeVisitable for PredicateKind {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             PredicateKind::FnTrait(pred) => pred.visit_with(visitor),
         }
@@ -304,7 +304,7 @@ impl TypeFoldable for PredicateKind {
 }
 
 impl TypeVisitable for FnTraitPredicate {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.self_ty.visit_with(visitor);
         self.tupled_args.visit_with(visitor);
         self.output.visit_with(visitor);
@@ -323,7 +323,7 @@ impl TypeFoldable for FnTraitPredicate {
 }
 
 impl TypeVisitable for Sort {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
             Sort::Func(fsort) => fsort.inputs_and_output.visit_with(visitor),
@@ -357,12 +357,17 @@ impl<T> TypeVisitable for Binder<T>
 where
     T: TypeVisitable,
 {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        self.value.visit_with(visitor);
-    }
-
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         visitor.visit_binder(self);
+    }
+}
+
+impl<T> TypeSuperVisitable for Binder<T>
+where
+    T: TypeVisitable,
+{
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        self.value.visit_with(visitor);
     }
 }
 
@@ -380,7 +385,7 @@ where
 }
 
 impl TypeVisitable for BoundVariableKind {
-    fn super_visit_with<V: TypeVisitor>(&self, _: &mut V) {}
+    fn visit_with<V: TypeVisitor>(&self, _: &mut V) {}
 }
 
 impl TypeFoldable for BoundVariableKind {
@@ -395,7 +400,7 @@ impl TypeFoldable for BoundVariableKind {
 }
 
 impl TypeVisitable for VariantDef {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.fields.iter().for_each(|ty| ty.visit_with(visitor));
         self.ret.visit_with(visitor);
     }
@@ -414,7 +419,7 @@ impl TypeFoldable for VariantDef {
 }
 
 impl<T: TypeVisitable> TypeVisitable for Opaqueness<T> {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         if let Opaqueness::Transparent(t) = self {
             t.visit_with(visitor);
         }
@@ -428,7 +433,7 @@ impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
 }
 
 impl TypeVisitable for FnSig {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.requires
             .iter()
             .for_each(|constr| constr.visit_with(visitor));
@@ -447,7 +452,7 @@ impl TypeFoldable for FnSig {
 }
 
 impl TypeVisitable for FnOutput {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.ret.visit_with(visitor);
         self.ensures.visit_with(visitor);
     }
@@ -460,7 +465,7 @@ impl TypeFoldable for FnOutput {
 }
 
 impl TypeVisitable for Constraint {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Constraint::Type(path, ty) => {
                 path.to_expr().visit_with(visitor);
@@ -492,6 +497,12 @@ impl TypeFoldable for Constraint {
 }
 
 impl TypeVisitable for Ty {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_ty(self);
+    }
+}
+
+impl TypeSuperVisitable for Ty {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self.kind() {
             TyKind::Indexed(bty, idxs) => {
@@ -508,10 +519,6 @@ impl TypeVisitable for Ty {
             }
             TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit(_) => {}
         }
-    }
-
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        visitor.visit_ty(self);
     }
 }
 
@@ -548,7 +555,7 @@ impl TypeFoldable for Ty {
 }
 
 impl TypeVisitable for Region {
-    fn super_visit_with<V: TypeVisitor>(&self, _visitor: &mut V) {}
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) {}
 }
 
 impl TypeFoldable for Region {
@@ -562,7 +569,7 @@ impl TypeFoldable for Region {
 }
 
 impl TypeVisitable for Index {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.expr.visit_with(visitor);
     }
 }
@@ -574,6 +581,12 @@ impl TypeFoldable for Index {
 }
 
 impl TypeVisitable for BaseTy {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_bty(self);
+    }
+}
+
+impl TypeSuperVisitable for BaseTy {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().for_each(|ty| ty.visit_with(visitor)),
@@ -592,10 +605,6 @@ impl TypeVisitable for BaseTy {
             | BaseTy::Never
             | BaseTy::Param(_) => {}
         }
-    }
-
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        visitor.visit_bty(self);
     }
 }
 
@@ -628,7 +637,7 @@ impl TypeFoldable for BaseTy {
 }
 
 impl TypeVisitable for GenericArg {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
             GenericArg::BaseTy(ty) => ty.visit_with(visitor),
@@ -648,7 +657,7 @@ impl TypeFoldable for GenericArg {
 }
 
 impl TypeVisitable for KVar {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.args.visit_with(visitor);
     }
 }
@@ -660,9 +669,15 @@ impl TypeFoldable for KVar {
 }
 
 impl TypeVisitable for Expr {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+        visitor.visit_expr(self);
+    }
+}
+
+impl TypeSuperVisitable for Expr {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self.kind() {
-            ExprKind::Var(Var::Free(name)) => visitor.visit_fvar(*name),
+            ExprKind::Var(var) => var.visit_with(visitor),
             ExprKind::BinaryOp(_, e1, e2) => {
                 e1.visit_with(visitor);
                 e2.visit_with(visitor);
@@ -688,14 +703,21 @@ impl TypeVisitable for Expr {
             ExprKind::Abs(body) => body.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole
-            | ExprKind::Var(_)
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(_) => {}
         }
     }
+}
+
+impl TypeVisitable for Var {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
-        visitor.visit_expr(self);
+        match self {
+            Var::Free(name) => visitor.visit_fvar(*name),
+            Var::LateBound(_, _) => {}
+            Var::EarlyBound(_) => {}
+            Var::EVar(_) => {}
+        }
     }
 }
 
@@ -739,7 +761,7 @@ where
     T: TypeVisitable,
     [T]: Internable,
 {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.iter().for_each(|t| t.visit_with(visitor));
     }
 }
@@ -755,7 +777,7 @@ where
 }
 
 impl TypeVisitable for Qualifier {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.body.visit_with(visitor);
     }
 }
@@ -767,7 +789,7 @@ impl TypeFoldable for Qualifier {
 }
 
 impl TypeVisitable for Invariant {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         self.pred.visit_with(visitor);
     }
 }

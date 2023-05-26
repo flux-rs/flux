@@ -7,7 +7,7 @@ use super::ESpan;
 use crate::{
     fhir::FuncKind,
     rty::{
-        fold::{TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
         Binder, Defn, Expr, ExprKind,
     },
 };

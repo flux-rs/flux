@@ -853,7 +853,7 @@ impl Binding {
 }
 
 impl TypeVisitable for Binding {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
         match self {
             Binding::Owned(ty) | Binding::Blocked(ty) => ty.visit_with(visitor),
         }
