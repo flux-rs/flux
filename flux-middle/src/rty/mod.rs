@@ -256,6 +256,14 @@ pub enum TyKind {
     Param(ParamTy),
 }
 
+/// *Abstract* representation of a type's layout, i.e., a type that may contain type variables and
+/// it doesn't have an order defined for the fields in an ADT. It can be understood as a stripped down
+/// version of a [`Ty`] that doesn't distinguish between pointers and references. This is used to annotate
+/// [`TyKind::Uninit`] in a way that let's us split it into multiple "blocks" of uninitialized memory
+/// and then fold it back. In principle, this should let us construct some explicit "physical" layout
+/// after substituting type variables, but the current representation is a bit of a hack as it doesn't
+/// track enough information to do so, e.g., it doesn't track substitutions on ADTs and it lumps together
+/// many different types into a single [`LayoutKind::Block`] of unknown size.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct Layout {
     kind: Interned<LayoutKind>,
