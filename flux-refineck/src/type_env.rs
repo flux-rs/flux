@@ -10,7 +10,7 @@ use flux_middle::{
     rty::{
         box_args,
         evars::EVarSol,
-        fold::TypeFoldable,
+        fold::{TypeFoldable, TypeVisitable},
         subst::{FVarSubst, RegionSubst},
         BaseTy, Binder, Expr, ExprKind, GenericArg, Layout, Mutability, Path, PtrKind, Ref, Region,
         Ty, TyKind, Var, INNERMOST,

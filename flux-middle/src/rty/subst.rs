@@ -7,7 +7,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,
-    fold::{TypeFoldable, TypeFolder},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
 use crate::{
     rty::*,

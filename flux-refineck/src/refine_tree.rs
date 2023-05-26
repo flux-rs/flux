@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    ops::ControlFlow,
     rc::{Rc, Weak},
 };
 
@@ -9,7 +10,9 @@ use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
-    fold::{TypeFoldable, TypeFolder, TypeVisitor},
+    fold::{
+        TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+    },
     BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
@@ -282,18 +285,16 @@ impl RefineCtxt<'_> {
             overflow_checking: bool,
         }
         impl TypeVisitor for Visitor<'_, '_> {
-            fn visit_bty(&mut self, bty: &BaseTy) {
+            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!, ()> {
                 match bty {
-                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                        substs.visit_with(self);
-                    }
+                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
                     BaseTy::Ref(_, ty, _) => ty.visit_with(self),
                     BaseTy::Tuple(tys) => tys.visit_with(self),
-                    _ => {}
+                    _ => ControlFlow::Continue(()),
                 }
             }
 
-            fn visit_ty(&mut self, ty: &Ty) {
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!, ()> {
                 if let TyKind::Indexed(bty, idx) = ty.kind() {
                     for invariant in bty.invariants(self.overflow_checking) {
                         let invariant = invariant.pred.replace_bound_expr(&idx.expr);
@@ -301,7 +302,9 @@ impl RefineCtxt<'_> {
                     }
                 }
                 if !matches!(ty.kind(), TyKind::Exists(..)) {
-                    ty.super_visit_with(self);
+                    ty.super_visit_with(self)
+                } else {
+                    ControlFlow::Continue(())
                 }
             }
         }

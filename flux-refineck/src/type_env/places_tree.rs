@@ -1,4 +1,4 @@
-use std::{cell::RefCell, iter, rc::Rc};
+use std::{cell::RefCell, iter, ops::ControlFlow, rc::Rc};
 
 use flux_common::tracked_span_bug;
 use flux_middle::{
@@ -6,7 +6,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         box_args,
-        fold::{TypeFoldable, TypeFolder, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
         Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
     },
@@ -852,18 +852,21 @@ impl Binding {
     }
 }
 
-impl TypeFoldable for Binding {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        match self {
-            Binding::Owned(ty) => Binding::Owned(ty.fold_with(folder)),
-            Binding::Blocked(ty) => Binding::Blocked(ty.fold_with(folder)),
-        }
-    }
-
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) {
+impl TypeVisitable for Binding {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             Binding::Owned(ty) | Binding::Blocked(ty) => ty.visit_with(visitor),
         }
+    }
+}
+
+impl TypeFoldable for Binding {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let binding = match self {
+            Binding::Owned(ty) => Binding::Owned(ty.try_fold_with(folder)?),
+            Binding::Blocked(ty) => Binding::Blocked(ty.try_fold_with(folder)?),
+        };
+        Ok(binding)
     }
 }
 
