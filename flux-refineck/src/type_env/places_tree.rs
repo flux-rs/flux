@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[derive(Default, Eq, PartialEq, Clone)]
-pub(super) struct PathsTree {
+pub(super) struct PlacesTree {
     map: LocMap,
 }
 
@@ -50,7 +50,7 @@ impl Clone for Root {
 }
 
 pub(super) struct LookupResult<'a> {
-    tree: &'a mut PathsTree,
+    tree: &'a mut PlacesTree,
     kind: LookupKind,
 }
 
@@ -114,7 +114,7 @@ impl Root {
     }
 }
 
-impl PathsTree {
+impl PlacesTree {
     pub(super) fn get(&self, path: &Path) -> Binding {
         let ptr = self.get_node(path);
         let node = ptr.borrow();
@@ -204,7 +204,7 @@ impl PathsTree {
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
-        other: &mut PathsTree,
+        other: &mut PlacesTree,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         for (loc, root1) in &self.map {
@@ -401,7 +401,7 @@ impl PathsTree {
     }
 
     #[must_use]
-    pub fn fmap(&self, f: impl FnMut(&Binding) -> Binding) -> PathsTree {
+    pub fn fmap(&self, f: impl FnMut(&Binding) -> Binding) -> PlacesTree {
         let mut tree = self.clone();
         tree.fmap_mut(f);
         tree
@@ -943,7 +943,7 @@ mod pretty {
 
     use super::*;
 
-    impl Pretty for PathsTree {
+    impl Pretty for PlacesTree {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let bindings = self
@@ -984,5 +984,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(PathsTree);
+    impl_debug_with_default_cx!(PlacesTree);
 }

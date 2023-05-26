@@ -1,4 +1,4 @@
-pub mod paths_tree;
+pub mod places_tree;
 
 use std::iter;
 
@@ -21,7 +21,7 @@ use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
-use self::paths_tree::{Binding, FoldResult, LocKind, PathsTree};
+use self::places_tree::{Binding, FoldResult, LocKind, PlacesTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
     checker::errors::CheckerErrKind,
@@ -35,25 +35,25 @@ use crate::{
 
 #[derive(Clone, Default)]
 pub struct TypeEnv<'a> {
-    bindings: PathsTree,
+    bindings: PlacesTree,
     local_decls: &'a LocalDecls,
 }
 
 pub struct BasicBlockEnvShape {
     scope: Scope,
-    bindings: PathsTree,
+    bindings: PlacesTree,
 }
 
 pub struct BasicBlockEnv {
     params: Vec<(Name, Sort)>,
     constrs: Vec<Expr>,
     scope: Scope,
-    bindings: PathsTree,
+    bindings: PlacesTree,
 }
 
 impl TypeEnv<'_> {
     pub fn new(local_decls: &LocalDecls) -> TypeEnv {
-        TypeEnv { bindings: PathsTree::default(), local_decls }
+        TypeEnv { bindings: PlacesTree::default(), local_decls }
     }
 
     pub fn alloc_universal_loc(&mut self, loc: Loc, ty: Ty) {
