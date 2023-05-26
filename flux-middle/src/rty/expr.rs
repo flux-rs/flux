@@ -16,7 +16,7 @@ use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::FuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
-    rty::fold::{TypeFoldable, TypeFolder},
+    rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     rustc::mir::{Place, PlaceElem},
 };
 

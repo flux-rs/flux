@@ -10,7 +10,9 @@ use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
-    fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+    fold::{
+        TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+    },
     BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
 };
 use itertools::Itertools;

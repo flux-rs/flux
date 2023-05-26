@@ -63,7 +63,7 @@ pub trait TypeFolder: Sized {
     }
 
     fn fold_region(&mut self, re: &Region) -> Region {
-        re.super_fold_with(self)
+        *re
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
@@ -131,11 +131,7 @@ pub trait TypeSuperVisitable: TypeVisitable {
 }
 
 pub trait TypeFoldable: TypeVisitable {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self;
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        self.super_fold_with(folder)
-    }
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self;
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
     fn normalize(&self, defns: &Defns) -> Self {
@@ -285,6 +281,10 @@ pub trait TypeFoldable: TypeVisitable {
     }
 }
 
+pub trait TypeSuperFoldable: TypeFoldable {
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self;
+}
+
 impl TypeVisitable for Predicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.kind.visit_with(visitor)
@@ -292,7 +292,7 @@ impl TypeVisitable for Predicate {
 }
 
 impl TypeFoldable for Predicate {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         Predicate { kind: self.kind.fold_with(folder) }
     }
 }
@@ -306,7 +306,7 @@ impl TypeVisitable for PredicateKind {
 }
 
 impl TypeFoldable for PredicateKind {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             PredicateKind::FnTrait(pred) => PredicateKind::FnTrait(pred.fold_with(folder)),
         }
@@ -322,7 +322,7 @@ impl TypeVisitable for FnTraitPredicate {
 }
 
 impl TypeFoldable for FnTraitPredicate {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         FnTraitPredicate {
             self_ty: self.self_ty.fold_with(folder),
             tupled_args: self.tupled_args.fold_with(folder),
@@ -345,6 +345,12 @@ impl TypeVisitable for Sort {
 }
 
 impl TypeFoldable for Sort {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_sort(self)
+    }
+}
+
+impl TypeSuperFoldable for Sort {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             Sort::Tuple(sorts) => Sort::tuple(sorts.fold_with(folder)),
@@ -358,10 +364,6 @@ impl TypeFoldable for Sort {
                 self.clone()
             }
         }
-    }
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_sort(self)
     }
 }
 
@@ -387,12 +389,17 @@ impl<T> TypeFoldable for Binder<T>
 where
     T: TypeFoldable,
 {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        Binder::new(self.value.fold_with(folder), self.vars.fold_with(folder))
-    }
-
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_binder(self)
+    }
+}
+
+impl<T> TypeSuperFoldable for Binder<T>
+where
+    T: TypeFoldable,
+{
+    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        Binder::new(self.value.fold_with(folder), self.vars.fold_with(folder))
     }
 }
 
@@ -406,7 +413,7 @@ impl TypeVisitable for BoundVariableKind {
 }
 
 impl TypeFoldable for BoundVariableKind {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             BoundVariableKind::Region(re) => BoundVariableKind::Region(*re),
             BoundVariableKind::Refine(sort, mode) => {
@@ -426,7 +433,7 @@ impl TypeVisitable for VariantDef {
 }
 
 impl TypeFoldable for VariantDef {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let fields = self
             .fields
             .iter()
@@ -448,7 +455,7 @@ impl<T: TypeVisitable> TypeVisitable for Opaqueness<T> {
 }
 
 impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         self.as_ref().map(|t| t.fold_with(folder))
     }
 }
@@ -466,7 +473,7 @@ impl TypeVisitable for FnSig {
 }
 
 impl TypeFoldable for FnSig {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let requires = self.requires.fold_with(folder);
         let args = self.args.fold_with(folder);
         let output = self.output.fold_with(folder);
@@ -482,7 +489,7 @@ impl TypeVisitable for FnOutput {
 }
 
 impl TypeFoldable for FnOutput {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         FnOutput::new(self.ret.fold_with(folder), self.ensures.fold_with(folder))
     }
 }
@@ -500,7 +507,7 @@ impl TypeVisitable for Constraint {
 }
 
 impl TypeFoldable for Constraint {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             Constraint::Type(path, ty) => {
                 let path_expr = path
@@ -544,6 +551,12 @@ impl TypeSuperVisitable for Ty {
 }
 
 impl TypeFoldable for Ty {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_ty(self)
+    }
+}
+
+impl TypeSuperFoldable for Ty {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Ty {
         match self.kind() {
             TyKind::Indexed(bty, idxs) => {
@@ -569,10 +582,6 @@ impl TypeFoldable for Ty {
             TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Discr(..) => self.clone(),
         }
     }
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_ty(self)
-    }
 }
 
 impl TypeVisitable for Region {
@@ -582,10 +591,6 @@ impl TypeVisitable for Region {
 }
 
 impl TypeFoldable for Region {
-    fn super_fold_with<F: TypeFolder>(&self, _folder: &mut F) -> Self {
-        *self
-    }
-
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         folder.fold_region(self)
     }
@@ -598,7 +603,7 @@ impl TypeVisitable for Index {
 }
 
 impl TypeFoldable for Index {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         Index { expr: self.expr.fold_with(folder), is_binder: self.is_binder.clone() }
     }
 }
@@ -632,6 +637,12 @@ impl TypeSuperVisitable for BaseTy {
 }
 
 impl TypeFoldable for BaseTy {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_bty(self)
+    }
+}
+
+impl TypeSuperFoldable for BaseTy {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             BaseTy::Adt(adt_def, substs) => BaseTy::adt(adt_def.clone(), substs.fold_with(folder)),
@@ -653,10 +664,6 @@ impl TypeFoldable for BaseTy {
             BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.fold_with(folder)),
         }
     }
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_bty(self)
-    }
 }
 
 impl TypeVisitable for GenericArg {
@@ -670,7 +677,7 @@ impl TypeVisitable for GenericArg {
 }
 
 impl TypeFoldable for GenericArg {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.fold_with(folder)),
             GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.fold_with(folder)),
@@ -686,7 +693,7 @@ impl TypeVisitable for KVar {
 }
 
 impl TypeFoldable for KVar {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         KVar { kvid: self.kvid, self_args: self.self_args, args: self.args.fold_with(folder) }
     }
 }
@@ -739,6 +746,12 @@ impl TypeVisitable for Var {
 }
 
 impl TypeFoldable for Expr {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+        folder.fold_expr(self)
+    }
+}
+
+impl TypeSuperFoldable for Expr {
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let span = self.span();
         match self.kind() {
@@ -767,10 +780,6 @@ impl TypeFoldable for Expr {
             ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
         }
     }
-
-    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
-        folder.fold_expr(self)
-    }
 }
 
 impl<T> TypeVisitable for List<T>
@@ -788,7 +797,7 @@ where
     T: TypeFoldable,
     [T]: Internable,
 {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         List::from_iter(self.iter().map(|t| t.fold_with(folder)))
     }
 }
@@ -800,7 +809,7 @@ impl TypeVisitable for Qualifier {
 }
 
 impl TypeFoldable for Qualifier {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         Qualifier { name: self.name, body: self.body.fold_with(folder), global: self.global }
     }
 }
@@ -812,7 +821,7 @@ impl TypeVisitable for Invariant {
 }
 
 impl TypeFoldable for Invariant {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         let pred = self.pred.fold_with(folder);
         Invariant { pred }
     }

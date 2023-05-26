@@ -5,7 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
-use super::ESpan;
+use super::{fold::TypeSuperFoldable, ESpan};
 use crate::{
     fhir::FuncKind,
     rty::{

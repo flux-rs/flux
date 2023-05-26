@@ -861,7 +861,7 @@ impl TypeVisitable for Binding {
 }
 
 impl TypeFoldable for Binding {
-    fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
+    fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         match self {
             Binding::Owned(ty) => Binding::Owned(ty.fold_with(folder)),
             Binding::Blocked(ty) => Binding::Blocked(ty.fold_with(folder)),
