@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{TypeFoldable, TypeFolder, TypeVisitor},
-        AdtDef, BaseTy, Expr, GenericArg, Index, Loc, Path, PtrKind, Ref, Sort, Substs, Ty, TyKind,
-        Var, VariantIdx,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
+        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -433,7 +433,7 @@ pub enum Binding {
 enum NodeKind {
     Adt(AdtDef, VariantIdx, Substs),
     Tuple,
-    Uninit,
+    Uninit(Layout),
 }
 
 impl LookupResult<'_> {
@@ -570,15 +570,7 @@ impl Node {
                     other.fold(map, rcx, gen, false, false)?;
                 }
             }
-            (Node::Internal(kind1, children1), Node::Internal(kind2, children2)) => {
-                let max = usize::max(children1.len(), children2.len());
-                if let NodeKind::Uninit = kind1 {
-                    children1.resize_with(max, || Node::owned(Ty::uninit()).into_ptr());
-                }
-                if let NodeKind::Uninit = kind2 {
-                    children1.resize_with(max, || Node::owned(Ty::uninit()).into_ptr());
-                }
-
+            (Node::Internal(_, children1), Node::Internal(_, children2)) => {
                 for (ptr1, ptr2) in iter::zip(children1, children2) {
                     ptr1.borrow_mut().join_with(
                         gen,
@@ -603,13 +595,7 @@ impl Node {
             self.split(genv, rcx, checker_config)?;
         }
         match self {
-            Node::Internal(kind, children) => {
-                if let NodeKind::Uninit = kind {
-                    let max = usize::max(field.as_usize() + 1, children.len());
-                    children.resize_with(max, || Node::owned(Ty::uninit()).into_ptr());
-                }
-                Ok(&children[field.as_usize()])
-            }
+            Node::Internal(_, children) => Ok(&children[field.as_usize()]),
             Node::Leaf(..) => unreachable!(),
         }
     }
@@ -671,7 +657,29 @@ impl Node {
             TyKind::Indexed(BaseTy::Adt(def, ..), ..) if def.is_struct() => {
                 self.downcast(genv, rcx, VariantIdx::from_u32(0), checker_config)?;
             }
-            TyKind::Uninit => *self = Node::Internal(NodeKind::Uninit, vec![]),
+            TyKind::Uninit(layout) => {
+                let children = match layout.kind() {
+                    LayoutKind::Adt(def_id) => {
+                        struct_variant(genv, *def_id)?
+                            .skip_binder()
+                            .skip_binder()
+                            .fields()
+                            .iter()
+                            .map(|ty| Node::owned(Ty::uninit(ty.layout())).into_ptr())
+                            .collect()
+                    }
+                    LayoutKind::Tuple(layouts) => {
+                        layouts
+                            .iter()
+                            .map(|layout| Node::owned(Ty::uninit(layout.clone())).into_ptr())
+                            .collect()
+                    }
+                    LayoutKind::Block => {
+                        tracked_span_bug!("type cannot be split: `{ty:?}`");
+                    }
+                };
+                *self = Node::Internal(NodeKind::Uninit(layout.clone()), children);
+            }
             _ => tracked_span_bug!("type cannot be split: `{ty:?}`"),
         }
         Ok(())
@@ -716,7 +724,11 @@ impl Node {
                     .map(|node| node.fold(map, rcx, gen, unblock, close_boxes))
                     .try_collect()?;
                 let partially_moved = tys.iter().any(|ty| ty.is_uninit());
-                let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(tys) };
+                let ty = if partially_moved {
+                    Ty::uninit(Layout::tuple(tys.iter().map(|ty| ty.layout()).collect()))
+                } else {
+                    Ty::tuple(tys)
+                };
                 *self = Node::owned(ty.clone());
                 ty
             }
@@ -732,7 +744,7 @@ impl Node {
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
                 let ty = if partially_moved {
-                    Ty::uninit()
+                    Ty::uninit(Layout::adt(adt_def.def_id()))
                 } else {
                     gen.check_constructor(rcx, variant, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
@@ -740,9 +752,10 @@ impl Node {
                 *self = Node::owned(ty.clone());
                 ty
             }
-            Node::Internal(NodeKind::Uninit, _) => {
-                *self = Node::owned(Ty::uninit());
-                Ty::uninit()
+            Node::Internal(NodeKind::Uninit(layout), _) => {
+                let ty = Ty::uninit(layout.clone());
+                *self = Node::owned(ty.clone());
+                ty
             }
         };
         Ok(ty)
@@ -863,7 +876,8 @@ fn downcast(
     idx: &Index,
 ) -> Result<Vec<Ty>, CheckerErrKind> {
     if genv.tcx.adt_def(def_id).is_struct() {
-        downcast_struct(genv, def_id, variant_idx, substs, idx)
+        debug_assert_eq!(variant_idx.as_u32(), 0);
+        downcast_struct(genv, def_id, substs, idx)
     } else if genv.tcx.adt_def(def_id).is_enum() {
         downcast_enum(genv, rcx, def_id, variant_idx, substs, idx)
     } else {
@@ -882,17 +896,23 @@ fn downcast(
 fn downcast_struct(
     genv: &GlobalEnv,
     def_id: DefId,
-    variant_idx: VariantIdx,
     substs: &[GenericArg],
     idx: &Index,
 ) -> Result<Vec<Ty>, CheckerErrKind> {
-    Ok(genv
-        .variant(def_id, variant_idx)?
-        .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))?
+    Ok(struct_variant(genv, def_id)?
         .subst_generics(substs)
         .replace_bound_exprs(idx.expr.expect_tuple())
         .fields
         .to_vec())
+}
+
+fn struct_variant(
+    genv: &GlobalEnv,
+    def_id: DefId,
+) -> Result<EarlyBinder<Binder<VariantDef>>, CheckerErrKind> {
+    debug_assert!(genv.adt_def(def_id)?.is_struct());
+    genv.variant(def_id, VariantIdx::from_u32(0))?
+        .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
 }
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.

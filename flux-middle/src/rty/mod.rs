@@ -21,7 +21,7 @@ use itertools::Itertools;
 pub use normalize::Defns;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -39,7 +39,7 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Internable, Interned, List},
     queries::QueryResult,
-    rustc::mir::Place,
+    rustc::{self, mir::Place},
 };
 pub use crate::{
     fhir::InferMode,
@@ -244,7 +244,7 @@ pub enum TyKind {
     Indexed(BaseTy, Index),
     Exists(Binder<Ty>),
     Constr(Expr, Ty),
-    Uninit,
+    Uninit(Layout),
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
@@ -254,6 +254,26 @@ pub enum TyKind {
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
+}
+
+/// *Abstract* representation of a type's layout, i.e., a type that may contain type variables and
+/// it doesn't have an order defined for the fields in an ADT. It can be understood as a stripped down
+/// version of a [`Ty`] that doesn't distinguish between pointers and references. This is used to annotate
+/// [`TyKind::Uninit`] in a way that let's us split it into multiple "blocks" of uninitialized memory
+/// and then fold it back. In principle, this should let us construct some explicit "physical" layout
+/// after substituting type variables, but the current representation is a bit of a hack as it doesn't
+/// track enough information to do so, e.g., it doesn't track substitutions on ADTs and it lumps together
+/// many different types into a single [`LayoutKind::Block`] of unknown size.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct Layout {
+    kind: Interned<LayoutKind>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum LayoutKind {
+    Adt(DefId),
+    Tuple(List<Layout>),
+    Block,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -843,8 +863,8 @@ impl Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
 
-    pub fn uninit() -> Ty {
-        TyKind::Uninit.intern()
+    pub fn uninit(layout: Layout) -> Ty {
+        TyKind::Uninit(layout).intern()
     }
 
     pub fn indexed(bty: BaseTy, idx: impl Into<Index>) -> Ty {
@@ -987,7 +1007,7 @@ impl TyS {
     }
 
     pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit)
+        matches!(self.kind(), TyKind::Uninit(_))
     }
 
     pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
@@ -997,6 +1017,55 @@ impl TyS {
             TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
             _ => None,
         }
+    }
+
+    pub fn layout(&self) -> Layout {
+        match self.kind() {
+            TyKind::Indexed(BaseTy::Adt(adt_def, ..), _) => Layout::adt(adt_def.def_id()),
+            TyKind::Indexed(BaseTy::Tuple(tys), _) => {
+                let layouts = tys.iter().map(|ty| ty.layout()).collect();
+                Layout::tuple(layouts)
+            }
+            TyKind::Exists(ty) => ty.as_ref().skip_binder().layout(),
+            TyKind::Constr(_, ty) => ty.layout(),
+            TyKind::Uninit(layout) => layout.clone(),
+            _ => Layout::block(),
+        }
+    }
+}
+
+impl Layout {
+    pub fn kind(&self) -> &LayoutKind {
+        &self.kind
+    }
+
+    pub fn from_rust_ty(ty: &rustc::ty::Ty) -> Self {
+        match ty.kind() {
+            rustc::ty::TyKind::Adt(def_id, ..) => Layout::adt(*def_id),
+            rustc::ty::TyKind::Tuple(tys) => {
+                let layouts = tys.iter().map(Layout::from_rust_ty).collect();
+                Layout::tuple(layouts)
+            }
+            _ => Layout::block(),
+        }
+    }
+
+    pub fn adt(def_id: DefId) -> Self {
+        LayoutKind::Adt(def_id).intern()
+    }
+
+    pub fn block() -> Self {
+        LayoutKind::Block.intern()
+    }
+
+    pub fn tuple(layouts: List<Layout>) -> Self {
+        LayoutKind::Tuple(layouts).intern()
+    }
+}
+
+impl LayoutKind {
+    fn intern(self) -> Layout {
+        Layout { kind: Interned::new(self) }
     }
 }
 
@@ -1159,7 +1228,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, TyS,);
+impl_internable!(AdtDefData, TyS, LayoutKind);
 impl_slice_internable!(
     Ty,
     GenericArg,
@@ -1171,7 +1240,8 @@ impl_slice_internable!(
     Predicate,
     PolyVariant,
     Invariant,
-    BoundVariableKind
+    BoundVariableKind,
+    Layout
 );
 
 #[macro_export]
@@ -1412,7 +1482,7 @@ mod pretty {
                         )
                     }
                 }
-                TyKind::Uninit => w!("uninit"),
+                TyKind::Uninit(_) => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
                 TyKind::Constr(pred, ty) => {
