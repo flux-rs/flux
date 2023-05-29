@@ -239,20 +239,22 @@
 //! Eventually this should probably be replaced with salsa-based interning.
 
 use std::{
-    collections::HashMap,
     fmt::{self, Debug, Display},
     hash::{BuildHasherDefault, Hash, Hasher},
     ops::Deref,
     sync::{Arc, OnceLock},
 };
 
-use dashmap::{lock::RwLockWriteGuard, DashMap, SharedValue};
+use dashmap::{DashMap, SharedValue};
+use hashbrown::{hash_map::RawEntryMut, HashMap};
 use rustc_hash::FxHasher;
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 
 type InternMap<T> = DashMap<Arc<T>, (), BuildHasherDefault<FxHasher>>;
-type Guard<T> =
-    RwLockWriteGuard<'static, HashMap<Arc<T>, SharedValue<()>, BuildHasherDefault<FxHasher>>>;
+type Guard<T> = dashmap::RwLockWriteGuard<
+    'static,
+    HashMap<Arc<T>, SharedValue<()>, BuildHasherDefault<FxHasher>>,
+>;
 
 pub struct Interned<T: Internable + ?Sized> {
     arc: Arc<T>,
@@ -262,11 +264,16 @@ pub type List<T> = Interned<[T]>;
 
 impl<T: Internable> Interned<T> {
     pub fn new(obj: T) -> Self {
-        match Interned::lookup(&obj) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::new(obj);
-                Self::alloc(arc, shard)
+        let (mut shard, hash) = Self::select(&obj);
+        match shard.raw_entry_mut().from_key_hashed_nocheck(hash, &obj) {
+            RawEntryMut::Occupied(occ) => Self { arc: occ.key().clone() },
+            RawEntryMut::Vacant(vac) => {
+                Self {
+                    arc: vac
+                        .insert_hashed_nocheck(hash, Arc::new(obj), SharedValue::new(()))
+                        .0
+                        .clone(),
+                }
             }
         }
     }
@@ -276,32 +283,41 @@ impl<T> List<T>
 where
     [T]: Internable,
 {
+    fn list_with<S>(obj: S, to_arc: impl FnOnce(S) -> Arc<[T]>) -> List<T>
+    where
+        S: std::borrow::Borrow<[T]>,
+    {
+        let (mut shard, hash) = Self::select(obj.borrow());
+        match shard
+            .raw_entry_mut()
+            .from_key_hashed_nocheck(hash, obj.borrow())
+        {
+            RawEntryMut::Occupied(occ) => Self { arc: occ.key().clone() },
+            RawEntryMut::Vacant(vac) => {
+                Self {
+                    arc: vac
+                        .insert_hashed_nocheck(hash, to_arc(obj), SharedValue::new(()))
+                        .0
+                        .clone(),
+                }
+            }
+        }
+    }
+
+    pub fn from_vec(vec: Vec<T>) -> List<T> {
+        List::list_with(vec, Arc::from)
+    }
+
+    pub fn from_arr<const N: usize>(arr: [T; N]) -> List<T> {
+        List::list_with(arr, |arr| Arc::new(arr))
+    }
+
     pub fn empty() -> List<T> {
-        Self::from_vec(vec![])
+        Self::from_arr([])
     }
 
     pub fn singleton(x: T) -> List<T> {
         Self::from_arr([x])
-    }
-
-    pub fn from_vec(vec: Vec<T>) -> List<T> {
-        match Interned::lookup(vec.as_slice()) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::from(vec);
-                Self::alloc(arc, shard)
-            }
-        }
-    }
-
-    pub fn from_arr<const N: usize>(arr: [T; N]) -> List<T> {
-        match Interned::lookup(arr.as_slice()) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::from(Box::new(arr) as Box<[T]>);
-                Self::alloc(arc, shard)
-            }
-        }
     }
 }
 
@@ -311,13 +327,7 @@ where
     [T]: Internable,
 {
     pub fn from_slice(slice: &[T]) -> List<T> {
-        match Interned::lookup(slice) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::from(slice);
-                Self::alloc(arc, shard)
-            }
-        }
+        List::list_with(slice, Arc::from)
     }
 }
 
@@ -336,13 +346,7 @@ where
     T: Clone,
 {
     fn from(slice: &[T]) -> Self {
-        match Interned::lookup(slice) {
-            Ok(this) => this,
-            Err(shard) => {
-                let arc = Arc::from(slice);
-                Self::alloc(arc, shard)
-            }
-        }
+        List::from_slice(slice)
     }
 }
 
@@ -356,33 +360,17 @@ where
 }
 
 impl<T: Internable + ?Sized> Interned<T> {
-    fn lookup(obj: &T) -> Result<Self, Guard<T>> {
+    #[inline]
+    fn select(obj: &T) -> (Guard<T>, u64) {
         let storage = T::storage().get();
-        let shard_idx = storage.determine_map(obj);
+        let hash = {
+            let mut hasher = std::hash::BuildHasher::build_hasher(storage.hasher());
+            obj.hash(&mut hasher);
+            hasher.finish()
+        };
+        let shard_idx = storage.determine_shard(hash as usize);
         let shard = &storage.shards()[shard_idx];
-        let shard = shard.write();
-
-        // Atomically,
-        // - check if `obj` is already in the map
-        //   - if so, clone its `Arc` and return it
-        //   - if not, box it up, insert it, and return a clone
-        // This needs to be atomic (locking the shard) to avoid races with other thread, which could
-        // insert the same object between us looking it up and inserting it.
-
-        // FIXME: avoid double lookup/hashing by using raw entry API (once stable, or when
-        // hashbrown can be plugged into dashmap)
-        match shard.get_key_value(obj) {
-            Some((arc, _)) => Ok(Self { arc: arc.clone() }),
-            None => Err(shard),
-        }
-    }
-
-    fn alloc(arc: Arc<T>, mut shard: Guard<T>) -> Self {
-        let arc2 = arc.clone();
-
-        shard.insert(arc2, SharedValue::new(()));
-
-        Self { arc }
+        (shard.write(), hash)
     }
 }
 
@@ -392,7 +380,6 @@ impl<T: Internable + ?Sized> Drop for Interned<T> {
         // When the last `Ref` is dropped, remove the object from the global map.
         if Arc::strong_count(&self.arc) == 2 {
             // Only `self` and the global map point to the object.
-
             self.drop_slow();
         }
     }
@@ -401,22 +388,20 @@ impl<T: Internable + ?Sized> Drop for Interned<T> {
 impl<T: Internable + ?Sized> Interned<T> {
     #[cold]
     fn drop_slow(&mut self) {
-        let storage = T::storage().get();
-        let shard_idx = storage.determine_map(&self.arc);
-        let shard = &storage.shards()[shard_idx];
-        let mut shard = shard.write();
+        let (mut shard, hash) = Self::select(&self.arc);
 
-        // FIXME: avoid double lookup
-        let (arc, _) = shard
-            .get_key_value(&self.arc)
-            .expect("interned value removed prematurely");
-
-        if Arc::strong_count(arc) != 2 {
+        if Arc::strong_count(&self.arc) != 2 {
             // Another thread has interned another copy
             return;
         }
 
-        shard.remove(&self.arc);
+        match shard
+            .raw_entry_mut()
+            .from_key_hashed_nocheck(hash, &self.arc)
+        {
+            RawEntryMut::Occupied(occ) => occ.remove(),
+            RawEntryMut::Vacant(_) => unreachable!(),
+        };
 
         // Shrink the backing storage if the shard is less than 50% occupied.
         if shard.len() * 2 < shard.capacity() {

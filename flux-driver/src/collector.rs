@@ -884,7 +884,7 @@ mod errors {
         fn from(err: flux_syntax::ParseError) -> Self {
             use flux_syntax::ParseErrorKind;
             let msg = match err.kind {
-                ParseErrorKind::UnexpectedEOF => "type annotation ended unexpectedly",
+                ParseErrorKind::UnexpectedEof => "type annotation ended unexpectedly",
                 ParseErrorKind::UnexpectedToken => "unexpected token",
                 ParseErrorKind::IntTooLarge => "integer literal is too large",
             };

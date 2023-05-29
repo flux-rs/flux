@@ -11,10 +11,10 @@ test = false
 
 [dependencies]
 flux-errors = { path = "../flux-errors" }
-lalrpop-util = "0.19"
+lalrpop-util = "0.20"
 
 [build-dependencies]
-lalrpop = "0.19"
+lalrpop = "0.20"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

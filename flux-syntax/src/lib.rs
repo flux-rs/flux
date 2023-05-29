@@ -81,7 +81,7 @@ pub struct ParseError {
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
-    UnexpectedEOF,
+    UnexpectedEof,
     UnexpectedToken,
     IntTooLarge,
 }
@@ -110,8 +110,8 @@ fn map_err(
         LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } => {
             ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent)
         }
-        LalrpopError::UnrecognizedEOF { location, expected: _ } => {
-            ParseErrorKind::UnexpectedEOF.into_error(offset, location, location, ctx, parent)
+        LalrpopError::UnrecognizedEof { location, expected: _ } => {
+            ParseErrorKind::UnexpectedEof.into_error(offset, location, location, ctx, parent)
         }
         LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ }
         | LalrpopError::ExtraToken { token: (start, _, end) } => {
