@@ -91,18 +91,38 @@ only be called with non-empty vectors.
 
 ```rust
 #[flux::trusted]
-#[flux::sig(fn(self: &strg {RVec<T>[@n]:0 < n}) -> T
+#[flux::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
             ensures self: RVec<T>[n-1])]
 pub fn pop(&mut self) -> T {
   self.inner.pop().unwrap()
 }
 ```
 
-Now already flux can start checking some code, for example if you `push` two
+### Using the API
+
+Now already `flux` can start checking some code, for example if you `push` two
 elements, then you can `pop` twice, but flux will reject the third `pop` at
 compile-time
 
 <img src="../img/push_pop.gif" width="100%">
+
+In fact, the error message from `flux` will point to exact condition that
+does not hold
+
+```rust
+error[FLUX]: precondition might not hold
+  --> src/vectors.rs:24:5
+   |
+24 |     v.pop();
+   |     ^^^^^^^ call site
+   |
+   = note: a precondition cannot be proved at this call site
+note: this is the condition that cannot be proved
+  --> src/rvec.rs:78:47
+   |
+78 |     #[flux::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
+   |                                               ^^^^^
+```
 
 ### Querying the Size
 
@@ -251,23 +271,30 @@ Flux complains in *two* places
 
 ```rust
 error[FLUX]: precondition might not hold
-  --> src/vectors.rs:61:19
-   |
-61 |         let val = vec[mid];
-   |                   ^^^^^^^^
+   --> src/vectors.rs:152:19
+    |
+152 |         let val = vec[mid];
+    |                   ^^^^^^^^ call site
+    |
+    = note: a precondition cannot be proved at this call site
+note: this is the condition that cannot be proved
+   --> src/rvec.rs:189:44
+    |
+189 |     #[flux::sig(fn(&RVec<T>[@n], usize{v : v < n}) -> &T)]
+    |                                            ^^^^^
 
 error[FLUX]: arithmetic operation may overflow
-  --> src/vectors.rs:69:9
-   |
-69 |         size = right - left;
-   |         ^^^^^^^^^^^^^^^^^^^
+   --> src/vectors.rs:160:9
+    |
+160 |         size = right - left;
+    |         ^^^^^^^^^^^^^^^^^^^
 ```
 
 - The vector access may be *unsafe* as `mid` could be out of bounds!
 
 - The `size` variable may *underflow* as `left` may exceed `right`!
 
-Can you spot off-by-one and the fix?
+Can you the spot off-by-one and figure out a fix?
 
 
 ## Summary
