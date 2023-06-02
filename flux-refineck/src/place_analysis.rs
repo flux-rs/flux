@@ -34,6 +34,7 @@ pub(crate) struct PlaceAnalysis<'a, 'tcx, M> {
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
     queue: WorkQueue<'a>,
+    discriminants: FxHashMap<Place, Place>,
     location: Location,
     mode: M,
 }
@@ -98,16 +99,13 @@ impl Mode for Elaboration<'_> {
         match env.projection(analysis.genv, place)? {
             FoldUnfold::None => {}
             FoldUnfold::Fold => {
-                analysis
-                    .mode
-                    .data
-                    .insert_fold(analysis.location, place.clone());
+                let place = place.clone();
+                analysis.mode.data.insert_fold(analysis.location, place);
             }
             FoldUnfold::Unfold => {
-                analysis
-                    .mode
-                    .data
-                    .insert_unfold(analysis.location, place.clone());
+                let projection = place.projection[..place.projection.len() - 1].to_vec();
+                let place = Place::new(place.local, projection);
+                analysis.mode.data.insert_unfold(analysis.location, place);
             }
         }
         Ok(())
@@ -118,9 +116,10 @@ impl Mode for Elaboration<'_> {
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
-        let mut fold_unfolds =
-            FoldUnfoldsAt { location: analysis.location, data: analysis.mode.data };
-        env.check(&analysis.bb_envs[&target], &mut fold_unfolds);
+        // Insert fold and unfolds after the terminator.
+        let location = analysis.location.successor_within_block();
+        let mut fold_unfolds = FoldUnfoldsAt { location, data: analysis.mode.data };
+        env.collect_fold_unfolds(&analysis.bb_envs[&target], &mut fold_unfolds);
         Ok(false)
     }
 }
@@ -146,6 +145,7 @@ impl<'a, 'tcx, M> PlaceAnalysis<'a, 'tcx, M> {
             genv,
             body,
             bb_envs,
+            discriminants: FxHashMap::default(),
             location: Location::START,
             queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
             mode,
@@ -172,8 +172,6 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
         )
         .run()?;
 
-        println!("{fold_unfolds:#?}");
-
         Ok(())
     }
 }
@@ -182,25 +180,20 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
     fn run(mut self) -> QueryResult {
         self.goto(START_BLOCK, Env::new(self.body))?;
         while let Some(bb) = self.queue.pop() {
-            let mut env = self.bb_envs[&bb].clone();
-            self.basic_block(bb, &mut env)?;
+            self.basic_block(bb, self.bb_envs[&bb].clone())?;
         }
         Ok(())
     }
 
-    fn basic_block(&mut self, bb: BasicBlock, env: &mut Env) -> QueryResult {
+    fn basic_block(&mut self, bb: BasicBlock, mut env: Env) -> QueryResult {
         let data = &self.body.basic_blocks[bb];
         for (statement_index, stmt) in data.statements.iter().enumerate() {
             self.location = Location { block: bb, statement_index };
-            self.statement(stmt, env)?;
+            self.statement(stmt, &mut env)?;
         }
         if let Some(terminator) = &data.terminator {
             self.location = Location { block: bb, statement_index: data.statements.len() };
-            let successors = self.terminator(terminator, env)?;
-            for successor in successors {
-                let env = env.clone();
-                self.goto(successor, env)?;
-            }
+            self.terminator(terminator, env)?;
         }
         Ok(())
     }
@@ -208,7 +201,30 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
     fn statement(&mut self, stmt: &Statement, env: &mut Env) -> QueryResult {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
-                self.rvalue(rvalue, env)?;
+                match rvalue {
+                    Rvalue::Use(op) | Rvalue::Cast(_, op, _) | Rvalue::UnaryOp(_, op) => {
+                        self.operand(op, env)?;
+                    }
+                    Rvalue::Ref(.., place) => {
+                        M::projection(self, env, place)?;
+                    }
+                    Rvalue::CheckedBinaryOp(_, op1, op2) | Rvalue::BinaryOp(_, op1, op2) => {
+                        self.operand(op1, env)?;
+                        self.operand(op2, env)?;
+                    }
+                    Rvalue::Aggregate(_, args) => {
+                        for arg in args {
+                            self.operand(arg, env)?;
+                        }
+                    }
+                    Rvalue::Len(place) => {
+                        M::projection(self, env, place)?;
+                    }
+                    Rvalue::Discriminant(discr) => {
+                        M::projection(self, env, discr)?;
+                        self.discriminants.insert(place.clone(), discr.clone());
+                    }
+                }
                 M::projection(self, env, place)?;
             }
             StatementKind::SetDiscriminant(_, _)
@@ -216,30 +232,6 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
             | StatementKind::AscribeUserType(_, _)
             | StatementKind::PlaceMention(_)
             | StatementKind::Nop => {}
-        }
-        Ok(())
-    }
-
-    fn rvalue(&mut self, rvalue: &Rvalue, env: &mut Env) -> QueryResult {
-        match rvalue {
-            Rvalue::Use(op) | Rvalue::Cast(_, op, _) | Rvalue::UnaryOp(_, op) => {
-                self.operand(op, env)?;
-            }
-            Rvalue::Ref(.., place) => {
-                M::projection(self, env, place)?;
-            }
-            Rvalue::CheckedBinaryOp(_, op1, op2) | Rvalue::BinaryOp(_, op1, op2) => {
-                self.operand(op1, env)?;
-                self.operand(op2, env)?;
-            }
-            Rvalue::Aggregate(_, args) => {
-                for arg in args {
-                    self.operand(arg, env)?;
-                }
-            }
-            Rvalue::Len(place) | Rvalue::Discriminant(place) => {
-                M::projection(self, env, place)?;
-            }
         }
         Ok(())
     }
@@ -254,59 +246,78 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn terminator(
-        &mut self,
-        terminator: &Terminator,
-        env: &mut Env,
-    ) -> QueryResult<Vec<BasicBlock>> {
-        let mut successors = vec![];
+    fn terminator(&mut self, terminator: &Terminator, mut env: Env) -> QueryResult {
         match &terminator.kind {
             TerminatorKind::Return => {
-                M::projection(self, env, Place::RETURN)?;
+                M::projection(self, &mut env, Place::RETURN)?;
             }
             TerminatorKind::Call { args, destination, target, .. } => {
                 for arg in args {
-                    self.operand(arg, env)?;
+                    self.operand(arg, &mut env)?;
                 }
-                M::projection(self, env, destination)?;
+                M::projection(self, &mut env, destination)?;
                 if let Some(target) = target {
-                    successors.push(*target);
+                    self.goto(*target, env)?;
                 }
             }
             TerminatorKind::SwitchInt { discr, targets } => {
-                self.operand(discr, env)?;
-                successors.extend(targets.all_targets());
+                let is_match = match discr {
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        M::projection(self, &mut env, place)?;
+                        self.discriminants.remove(place)
+                    }
+                    Operand::Constant(_) => None,
+                };
+                if let Some(mut place) = is_match {
+                    for (bits, target) in targets.iter() {
+                        // We do not insert unfolds in match arms because they are explicit
+                        // unfold points, but we still need to project the place to mutate
+                        // env.
+                        let mut env = env.clone();
+                        let idx = VariantIdx::new(bits as usize);
+                        place.projection.push(PlaceElem::Downcast(None, idx));
+                        env.projection(self.genv, &place)?;
+                        place.projection.pop();
+
+                        self.goto(target, env)?;
+                    }
+                    self.goto(targets.otherwise(), env)?;
+                } else {
+                    for target in targets.all_targets() {
+                        self.goto(*target, env.clone())?;
+                    }
+                }
             }
             TerminatorKind::Goto { target } => {
-                successors.push(*target);
+                self.goto(*target, env)?;
             }
             TerminatorKind::Drop { place, target, .. } => {
-                M::projection(self, env, place)?;
-                successors.push(*target);
+                M::projection(self, &mut env, place)?;
+                self.goto(*target, env)?;
             }
             TerminatorKind::Assert { cond, target, .. } => {
-                self.operand(cond, env)?;
-                successors.push(*target);
+                self.operand(cond, &mut env)?;
+                self.goto(*target, env)?;
             }
             TerminatorKind::FalseEdge { real_target, .. } => {
-                successors.push(*real_target);
+                self.goto(*real_target, env)?;
             }
             TerminatorKind::FalseUnwind { real_target, .. } => {
-                successors.push(*real_target);
+                self.goto(*real_target, env)?;
             }
             TerminatorKind::Unreachable | TerminatorKind::Resume => {}
-        };
-        Ok(successors)
+        }
+        Ok(())
     }
 
-    fn goto(&mut self, target: BasicBlock, mut env: Env) -> QueryResult {
+    fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {
         if self.body.is_join_point(target) {
             if M::goto_join_point(self, target, env)? {
                 self.queue.insert(target);
             }
             Ok(())
         } else {
-            self.basic_block(target, &mut env)
+            self.basic_block(target, env)
         }
     }
 }
@@ -351,7 +362,7 @@ impl Env {
         Ok(modified)
     }
 
-    fn check(&self, other: &Env, fold_unfolds: &mut FoldUnfoldsAt) {
+    fn collect_fold_unfolds(&self, other: &Env, fold_unfolds: &mut FoldUnfoldsAt) {
         for (local, node) in self.map.iter_enumerated() {
             node.collect_fold_unfolds(
                 &other.map[local],
@@ -490,10 +501,10 @@ impl PlaceNode {
                 (fields1, fields2)
             }
             (
-                PlaceNode::Downcast(did1, .., idx1, fields1),
-                PlaceNode::Downcast(did2, .., idx2, fields2),
+                PlaceNode::Downcast(adt1, .., idx1, fields1),
+                PlaceNode::Downcast(adt2, .., idx2, fields2),
             ) => {
-                debug_assert_eq!(did1, did2);
+                debug_assert_eq!(adt1.did(), adt2.did());
                 if idx1 == idx2 {
                     (fields1, fields2)
                 } else {
@@ -529,8 +540,10 @@ impl PlaceNode {
                 place.projection.pop();
                 return false;
             }
-            PlaceNode::Downcast(_, _, name, idx, fields) => {
-                place.projection.push(PlaceElem::Downcast(*name, *idx));
+            PlaceNode::Downcast(adt, _, name, idx, fields) => {
+                if adt.is_enum() {
+                    place.projection.push(PlaceElem::Downcast(*name, *idx));
+                }
                 fields
             }
             PlaceNode::Closure(_, _, fields) => fields,
@@ -545,7 +558,7 @@ impl PlaceNode {
         if all_leafs {
             fold_unfolds.insert_unfold(place.clone());
         }
-        if let PlaceNode::Downcast(..) = self {
+        if let PlaceNode::Downcast(adt, ..) = self && adt.is_enum() {
             place.projection.pop();
         }
 
