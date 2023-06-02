@@ -177,7 +177,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .with_span(genv.tcx.def_span(def_id))?;
         let dominators = body.dominators();
 
-        PlaceAnalysis::new(genv, &body, &dominators).run();
+        PlaceAnalysis::run(genv, &body, &dominators).with_span(genv.tcx.def_span(def_id))?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 

@@ -250,7 +250,7 @@ impl PlacesTree {
                         path_proj.push(field);
                         ptr = ptr.proj(genv, rcx, field, checker_config)?;
                     }
-                    PlaceElem::Downcast(variant_idx) => {
+                    PlaceElem::Downcast(_, variant_idx) => {
                         ptr.downcast(genv, rcx, variant_idx, checker_config)?;
                     }
                     PlaceElem::Deref => {
@@ -360,7 +360,7 @@ impl PlacesTree {
                         downcast(genv, rcx, adt.def_id(), VariantIdx::from_u32(0), substs, idx)?;
                     ty = fields[field.as_usize()].clone();
                 }
-                (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
+                (Downcast(_, variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
                     let tys = downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?;
                     ty = Ty::tuple(tys);
                     rcx.assume_invariants(&ty, checker_config.check_overflow);

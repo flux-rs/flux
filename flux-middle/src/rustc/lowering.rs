@@ -453,8 +453,8 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             match elem {
                 rustc_mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
                 rustc_mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
-                rustc_mir::PlaceElem::Downcast(_, variant_idx) => {
-                    projection.push(PlaceElem::Downcast(variant_idx));
+                rustc_mir::PlaceElem::Downcast(name, idx) => {
+                    projection.push(PlaceElem::Downcast(name, idx));
                 }
                 rustc_mir::PlaceElem::Index(v) => projection.push(PlaceElem::Index(v)),
                 _ => {

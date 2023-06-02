@@ -392,7 +392,9 @@ impl TypeEnv<'_> {
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let mut down_place = place.clone();
-        down_place.projection.push(PlaceElem::Downcast(variant_idx));
+        down_place
+            .projection
+            .push(PlaceElem::Downcast(None, variant_idx));
         self.bindings
             .lookup(genv, rcx, &down_place, checker_config)?;
         Ok(())

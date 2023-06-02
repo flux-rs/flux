@@ -19,11 +19,12 @@ use rustc_middle::{
 };
 pub use rustc_middle::{
     mir::{
-        BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+        BasicBlock, Local, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE,
+        START_BLOCK,
     },
     ty::Variance,
 };
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 
 use super::ty::{GenericArg, Region, Ty, TyKind};
@@ -221,7 +222,7 @@ pub struct PlaceTy {
 pub enum PlaceElem {
     Deref,
     Field(FieldIdx),
-    Downcast(VariantIdx),
+    Downcast(Option<Symbol>, VariantIdx),
     Index(Local),
 }
 
@@ -279,10 +280,10 @@ impl<'tcx> Body<'tcx> {
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
+        let total_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len();
+        let real_preds = total_preds - self.fake_predecessors[bb];
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        let real_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len()
-            - self.fake_predecessors[bb];
         real_preds > usize::from(bb != START_BLOCK)
     }
 
@@ -330,7 +331,7 @@ impl PlaceTy {
         let place_ty = match elem {
             PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref(genv)),
             PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
-            PlaceElem::Downcast(variant_idx) => {
+            PlaceElem::Downcast(_, variant_idx) => {
                 PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
             }
             PlaceElem::Index(_) => {
@@ -489,8 +490,12 @@ impl fmt::Debug for Place {
                     p = format!("*{p}");
                     need_parens = true;
                 }
-                PlaceElem::Downcast(variant_idx) => {
-                    p = format!("{p} as {variant_idx:?}");
+                PlaceElem::Downcast(variant_name, variant_idx) => {
+                    if let Some(variant_name) = variant_name {
+                        p = format!("{p} as {variant_name}");
+                    } else {
+                        p = format!("{p} as {variant_idx:?}");
+                    }
                     need_parens = true;
                 }
                 PlaceElem::Index(v) => {
