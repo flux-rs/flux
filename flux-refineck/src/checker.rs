@@ -30,7 +30,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir as rustc_mir, ty::RegionVid};
-use rustc_span::Span;
+use rustc_span::{Span, DUMMY_SP};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
@@ -273,21 +273,23 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut last_stmt_span = None;
         let mut location = Location { block: bb, statement_index: 0 };
         for stmt in &data.statements {
-            bug::track_span(stmt.source_info.span, || {
-                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location);
+            let span = stmt.source_info.span;
+            bug::track_span(span, || {
+                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
                 dbg::statement!("start", stmt, rcx, env);
                 self.check_statement(&mut rcx, &mut env, stmt)
             })?;
             dbg::statement!("end", stmt, rcx, env);
             if !stmt.is_nop() {
-                last_stmt_span = Some(stmt.source_info.span);
+                last_stmt_span = Some(span);
             }
             location = location.successor_within_block();
         }
 
         if let Some(terminator) = &data.terminator {
-            bug::track_span(terminator.source_info.span, || {
-                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location);
+            let span = terminator.source_info.span;
+            bug::track_span(span, || {
+                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
 
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
@@ -295,7 +297,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 dbg::terminator!("end", terminator, rcx, env);
 
                 self.snapshots[bb] = Some(rcx.snapshot());
-                let term_span = last_stmt_span.unwrap_or(terminator.source_info.span);
+                let term_span = last_stmt_span.unwrap_or(span);
                 self.check_successors(rcx, env, bb, term_span, successors)
             })?;
         }
@@ -632,17 +634,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
         from: BasicBlock,
-        source_span: Span,
+        span: Span,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
-        self.apply_fold_unfolds_at_edge(&mut rcx, &mut env, from, target);
+        self.apply_fold_unfolds_at_edge(&mut rcx, &mut env, from, target, span)?;
         if self.is_exit_block(target) {
             self.mode
-                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, source_span)
+                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
-                .with_span(source_span)
+                .with_span(span)
         } else if self.body.is_join_point(target) {
-            if M::check_goto_join_point(self, rcx, env, source_span, target)? {
+            if M::check_goto_join_point(self, rcx, env, span, target)? {
                 self.queue.insert(target);
             }
             Ok(())
@@ -940,10 +942,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         location: Location,
-    ) {
+        span: Span,
+    ) -> Result<(), CheckerError> {
+        let mut gen = self
+            .mode
+            .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span);
         for fold_unfold in self.fold_unfolds.fold_unfolds_at_location(location) {
-            self.appy_fold_unfold(rcx, env, fold_unfold);
+            Self::appy_fold_unfold(rcx, env, &mut gen, fold_unfold, self.config)?;
         }
+        Ok(())
     }
 
     fn apply_fold_unfolds_at_edge(
@@ -952,15 +959,32 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         from: BasicBlock,
         target: BasicBlock,
-    ) {
+        span: Span,
+    ) -> Result<(), CheckerError> {
+        let mut gen = self
+            .mode
+            .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span);
         for fold_unfold in self.fold_unfolds.fold_unfolds_at_edge(from, target) {
-            self.appy_fold_unfold(rcx, env, fold_unfold);
+            Self::appy_fold_unfold(rcx, env, &mut gen, fold_unfold, self.config)?;
         }
+        Ok(())
     }
 
-    fn appy_fold_unfold(&self, rcx: &mut RefineCtxt, env: &mut TypeEnv, fold_unfold: &FoldUnfold) {
+    fn appy_fold_unfold(
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        gen: &mut ConstrGen,
+        fold_unfold: &FoldUnfold,
+        conf: CheckerConfig,
+    ) -> Result<(), CheckerError> {
         dbg::statement!("start", fold_unfold, rcx, env);
+        match fold_unfold {
+            FoldUnfold::Fold(place) => env.fold(rcx, gen, place, conf),
+            FoldUnfold::Unfold(place) => env.unfold(gen.genv, rcx, place, conf),
+        }
+        .with_span(DUMMY_SP)?;
         dbg::statement!("end", fold_unfold, rcx, env);
+        Ok(())
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {

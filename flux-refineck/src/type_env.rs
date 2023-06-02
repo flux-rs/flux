@@ -383,6 +383,30 @@ impl TypeEnv<'_> {
         Ok(())
     }
 
+    pub(crate) fn fold(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+        checker_config: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        self.bindings
+            .lookup(gen.genv, rcx, place, checker_config)?
+            .fold(rcx, gen, true)?;
+        Ok(())
+    }
+
+    pub(crate) fn unfold(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        place: &Place,
+        checker_config: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        self.bindings.lookup(genv, rcx, place, checker_config)?;
+        Ok(())
+    }
+
     pub(crate) fn downcast(
         &mut self,
         genv: &GlobalEnv,

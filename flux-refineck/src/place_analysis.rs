@@ -351,7 +351,7 @@ impl Env {
                 PlaceElem::Deref => (node, unfolded) = node.deref(),
                 PlaceElem::Field(f) => (node, unfolded) = node.field(genv, f)?,
                 PlaceElem::Downcast(_, idx) => unfolded = node.downcast(genv, idx)?,
-                PlaceElem::Index(_) => todo!(),
+                PlaceElem::Index(_) => break,
             }
         }
         if unfolded {
@@ -599,10 +599,9 @@ impl PlaceNode {
                 let (m1, m2) = other.join(genv, self)?;
                 return Ok((m2, m1));
             }
-            (PlaceNode::Deref(_, node1), _) => {
-                let (other, m) = other.deref();
-                let (m1, m2) = node1.join(genv, other)?;
-                return Ok((m1, m2 | m));
+            (PlaceNode::Deref(ty, _), _) => {
+                *self = PlaceNode::Ty(ty.clone());
+                return Ok((true, false));
             }
             (PlaceNode::Tuple(_, fields1), _) => {
                 let (fields2, m) = other.fields(genv)?;
@@ -768,7 +767,7 @@ impl fmt::Debug for FoldUnfold {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FoldUnfold::Fold(place) => write!(f, "fold({place:?})"),
-            FoldUnfold::Unfold(place) => write!(f, "unfold({place:?}"),
+            FoldUnfold::Unfold(place) => write!(f, "unfold({place:?})"),
         }
     }
 }
