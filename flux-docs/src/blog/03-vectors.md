@@ -123,6 +123,12 @@ note: this is the condition that cannot be proved
 78 |     #[flux::sig(fn(self: &strg {RVec<T>[@n] | 0 < n}) -> T
    |                                               ^^^^^
 ```
+<!--
+We can use `push` to implement an `rvec!` macro for constructing vectors
+and then test that lengths are tracked correctly
+
+<img src="../img/test_macro_pop.gif" width="100%"> -->
+
 
 ### Querying the Size
 
