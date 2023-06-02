@@ -329,7 +329,7 @@ impl PlaceTy {
             bug!("cannot use non field projection on downcasted place");
         }
         let place_ty = match elem {
-            PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref(genv)),
+            PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref()),
             PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
             PlaceElem::Downcast(_, variant_idx) => {
                 PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
@@ -347,8 +347,7 @@ impl PlaceTy {
 
     fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
         match self.ty.kind() {
-            TyKind::Adt(def_id, substs) => {
-                let adt_def = genv.tcx.adt_def(*def_id);
+            TyKind::Adt(adt_def, substs) => {
                 let variant_def = match self.variant_index {
                     None => adt_def.non_enum_variant(),
                     Some(variant_index) => {

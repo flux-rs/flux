@@ -24,9 +24,9 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const, FnSig, GenericArg,
-        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, Predicate,
-        PredicateKind, Ty,
+        AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const,
+        FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, GenericPredicates,
+        Generics, PolyFnSig, Predicate, PredicateKind, Ty, VariantDef,
     },
 };
 use crate::{
@@ -602,7 +602,7 @@ pub(crate) fn lower_ty<'tcx>(
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
         rustc_ty::Adt(adt_def, substs) => {
             let substs = lower_substs(tcx, substs)?;
-            Ok(Ty::mk_adt(adt_def.did(), substs))
+            Ok(Ty::mk_adt(lower_adt_def(adt_def), substs))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
@@ -634,6 +634,26 @@ pub(crate) fn lower_ty<'tcx>(
         }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
+}
+
+fn lower_adt_def(adt_def: &rustc_ty::AdtDef) -> AdtDef {
+    AdtDef::new(AdtDefData::new(
+        adt_def.did(),
+        adt_def.variants().iter().map(lower_variant).collect(),
+        adt_def.flags(),
+    ))
+}
+
+fn lower_variant(variant: &rustc_ty::VariantDef) -> VariantDef {
+    VariantDef {
+        def_id: variant.def_id,
+        name: variant.name,
+        fields: variant.fields.iter().map(lower_field).collect(),
+    }
+}
+
+fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
+    FieldDef { did: f.did, name: f.name }
 }
 
 fn lower_substs<'tcx>(

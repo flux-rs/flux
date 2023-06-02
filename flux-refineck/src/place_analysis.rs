@@ -11,7 +11,7 @@ use flux_middle::{
             BasicBlock, Body, FieldIdx, Local, Location, Operand, Place, PlaceElem, Rvalue,
             Statement, StatementKind, Terminator, TerminatorKind, VariantIdx, FIRST_VARIANT,
         },
-        ty::{Substs, Ty, TyKind},
+        ty::{AdtDef, Substs, Ty, TyKind},
     },
 };
 use itertools::Itertools;
@@ -128,7 +128,7 @@ impl Mode for Elaboration<'_> {
 #[derive(Clone)]
 enum PlaceNode {
     Deref(Ty, Box<PlaceNode>),
-    Downcast(DefId, Substs, Option<Symbol>, VariantIdx, Vec<PlaceNode>),
+    Downcast(AdtDef, Substs, Option<Symbol>, VariantIdx, Vec<PlaceNode>),
     Closure(DefId, Substs, Vec<PlaceNode>),
     Tuple(List<Ty>, Vec<PlaceNode>),
     Ty(Ty),
@@ -327,7 +327,7 @@ impl Env {
         let mut unfolded = false;
         for elem in &place.projection {
             match *elem {
-                PlaceElem::Deref => (node, unfolded) = node.deref(genv),
+                PlaceElem::Deref => (node, unfolded) = node.deref(),
                 PlaceElem::Field(f) => (node, unfolded) = node.field(genv, f)?,
                 PlaceElem::Downcast(name, idx) => unfolded = node.downcast(genv, name, idx)?,
                 PlaceElem::Index(_) => todo!(),
@@ -363,11 +363,11 @@ impl Env {
 }
 
 impl PlaceNode {
-    fn deref(&mut self, genv: &GlobalEnv) -> (&mut PlaceNode, bool) {
+    fn deref(&mut self) -> (&mut PlaceNode, bool) {
         match self {
             PlaceNode::Deref(_, node) => (node, false),
             PlaceNode::Ty(ty) => {
-                *self = PlaceNode::Deref(ty.clone(), Box::new(PlaceNode::Ty(ty.deref(genv))));
+                *self = PlaceNode::Deref(ty.clone(), Box::new(PlaceNode::Ty(ty.deref())));
                 let PlaceNode::Deref(_, node) = self else { unreachable!() };
                 (node, true)
             }
@@ -387,9 +387,9 @@ impl PlaceNode {
                 Ok(false)
             }
             PlaceNode::Ty(ty) => {
-                if let TyKind::Adt(def_id, substs) = ty.kind() {
-                    let fields = downcast(genv, *def_id, substs, idx)?;
-                    *self = PlaceNode::Downcast(*def_id, substs.clone(), name, idx, fields);
+                if let TyKind::Adt(adt_def, substs) = ty.kind() {
+                    let fields = downcast(genv, adt_def, substs, idx)?;
+                    *self = PlaceNode::Downcast(adt_def.clone(), substs.clone(), name, idx, fields);
                     Ok(true)
                 } else {
                     tracked_span_bug!("invalid downcast `{self:?}`");
@@ -408,10 +408,10 @@ impl PlaceNode {
         match self {
             PlaceNode::Ty(ty) => {
                 let fields = match ty.kind() {
-                    TyKind::Adt(def_id, substs) => {
-                        let fields = downcast_struct(genv, *def_id, substs)?;
+                    TyKind::Adt(adt_def, substs) => {
+                        let fields = downcast_struct(genv, adt_def, substs)?;
                         *self = PlaceNode::Downcast(
-                            *def_id,
+                            adt_def.clone(),
                             substs.clone(),
                             None,
                             FIRST_VARIANT,
@@ -456,8 +456,8 @@ impl PlaceNode {
                 *self = PlaceNode::Ty(ty.clone());
                 true
             }
-            PlaceNode::Downcast(did, substs, ..) => {
-                *self = PlaceNode::Ty(Ty::mk_adt(*did, substs.clone()));
+            PlaceNode::Downcast(adt, substs, ..) => {
+                *self = PlaceNode::Ty(Ty::mk_adt(adt.clone(), substs.clone()));
                 true
             }
             PlaceNode::Closure(did, substs, _) => {
@@ -565,15 +565,15 @@ impl PlaceNode {
                 (fields1, fields2)
             }
             (
-                PlaceNode::Downcast(did1, substs1, _, idx1, fields1),
-                PlaceNode::Downcast(did2, substs2, _, idx2, fields2),
+                PlaceNode::Downcast(adt1, substs1, _, idx1, fields1),
+                PlaceNode::Downcast(adt2, substs2, _, idx2, fields2),
             ) => {
-                debug_assert_eq!(did1, did2);
+                debug_assert_eq!(adt1, adt2);
                 if idx1 == idx2 {
                     (fields1, fields2)
                 } else {
-                    *self = PlaceNode::Ty(Ty::mk_adt(*did1, substs1.clone()));
-                    *other = PlaceNode::Ty(Ty::mk_adt(*did2, substs2.clone()));
+                    *self = PlaceNode::Ty(Ty::mk_adt(adt1.clone(), substs1.clone()));
+                    *other = PlaceNode::Ty(Ty::mk_adt(adt2.clone(), substs2.clone()));
                     return Ok((true, true));
                 }
             }
@@ -583,7 +583,7 @@ impl PlaceNode {
                 return Ok((m2, m1));
             }
             (PlaceNode::Deref(_, node1), _) => {
-                let (other, m) = other.deref(genv);
+                let (other, m) = other.deref();
                 let (m1, m2) = node1.join(genv, other)?;
                 return Ok((m1, m2 | m));
             }
@@ -597,13 +597,13 @@ impl PlaceNode {
                 modified2 |= m;
                 (fields1, fields2)
             }
-            (PlaceNode::Downcast(did, substs, .., fields1), _) => {
-                if genv.tcx.adt_def(*did).is_struct() {
+            (PlaceNode::Downcast(adt, substs, .., fields1), _) => {
+                if adt.is_struct() {
                     let (fields2, m) = other.fields(genv)?;
                     modified2 |= m;
                     (fields1, fields2)
                 } else {
-                    *self = PlaceNode::Ty(Ty::mk_adt(*did, substs.clone()));
+                    *self = PlaceNode::Ty(Ty::mk_adt(adt.clone(), substs.clone()));
                     return Ok((true, false));
                 }
             }
@@ -639,11 +639,10 @@ impl FoldUnfoldsAt<'_> {
 
 fn downcast(
     genv: &GlobalEnv,
-    def_id: DefId,
+    adt_def: &AdtDef,
     substs: &Substs,
     variant: VariantIdx,
 ) -> QueryResult<Vec<PlaceNode>> {
-    let adt_def = genv.tcx.adt_def(def_id);
     adt_def
         .variant(variant)
         .fields
@@ -657,10 +656,9 @@ fn downcast(
 
 fn downcast_struct(
     genv: &GlobalEnv,
-    def_id: DefId,
+    adt_def: &AdtDef,
     substs: &Substs,
 ) -> QueryResult<Vec<PlaceNode>> {
-    let adt_def = genv.tcx.adt_def(def_id);
     adt_def
         .non_enum_variant()
         .fields
@@ -688,12 +686,12 @@ impl fmt::Debug for PlaceNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PlaceNode::Deref(_, node) => write!(f, "*({:?})", node),
-            PlaceNode::Downcast(did, substs, _, idx, fields) => {
-                write!(f, "{}", def_id_to_string(*did))?;
+            PlaceNode::Downcast(adt, substs, _, idx, fields) => {
+                write!(f, "{}", def_id_to_string(adt.did()))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "),)?;
                 }
-                write!(f, "::{}", pretty::variant_name(*did, *idx))?;
+                write!(f, "::{}", pretty::variant_name(adt.did(), *idx))?;
                 if !fields.is_empty() {
                     write!(f, "({:?})", fields.iter().format(", "),)?;
                 }

@@ -741,7 +741,7 @@ impl AdtDef {
         }))
     }
 
-    pub fn def_id(&self) -> DefId {
+    pub fn did(&self) -> DefId {
         self.0.def_id
     }
 
@@ -1021,7 +1021,7 @@ impl TyS {
 
     pub fn layout(&self) -> Layout {
         match self.kind() {
-            TyKind::Indexed(BaseTy::Adt(adt_def, ..), _) => Layout::adt(adt_def.def_id()),
+            TyKind::Indexed(BaseTy::Adt(adt_def, ..), _) => Layout::adt(adt_def.did()),
             TyKind::Indexed(BaseTy::Tuple(tys), _) => {
                 let layouts = tys.iter().map(|ty| ty.layout()).collect();
                 Layout::tuple(layouts)
@@ -1041,7 +1041,7 @@ impl Layout {
 
     pub fn from_rust_ty(ty: &rustc::ty::Ty) -> Self {
         match ty.kind() {
-            rustc::ty::TyKind::Adt(def_id, ..) => Layout::adt(*def_id),
+            rustc::ty::TyKind::Adt(adt_def, ..) => Layout::adt(adt_def.did()),
             rustc::ty::TyKind::Tuple(tys) => {
                 let layouts = tys.iter().map(Layout::from_rust_ty).collect();
                 Layout::tuple(layouts)
@@ -1484,7 +1484,7 @@ mod pretty {
                 }
                 TyKind::Uninit(_) => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
-                TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.def_id(), ^place),
+                TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.did(), ^place),
                 TyKind::Constr(pred, ty) => {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
@@ -1549,7 +1549,7 @@ mod pretty {
                 BaseTy::Str => w!("str"),
                 BaseTy::Char => w!("char"),
                 BaseTy::Adt(adt_def, substs) => {
-                    w!("{:?}", adt_def.def_id())?;
+                    w!("{:?}", adt_def.did())?;
                     if !substs.is_empty() {
                         w!("<{:?}>", join!(", ", substs))?;
                     }

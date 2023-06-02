@@ -684,7 +684,7 @@ impl BasicBlockEnvShape {
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
-                debug_assert_eq!(def1.def_id(), def2.def_id());
+                debug_assert_eq!(def1.did(), def2.did());
                 let substs = iter::zip(substs1, substs2)
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();

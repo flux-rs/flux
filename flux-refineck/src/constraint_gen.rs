@@ -507,9 +507,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(uint_ty1, uint_ty2);
             }
             (BaseTy::Adt(adt1, substs1), BaseTy::Adt(adt2, substs2)) => {
-                debug_assert_eq!(adt1.def_id(), adt2.def_id());
+                debug_assert_eq!(adt1.did(), adt2.did());
                 debug_assert_eq!(substs1.len(), substs2.len());
-                let variances = self.genv.variances_of(adt1.def_id());
+                let variances = self.genv.variances_of(adt1.did());
                 for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
                     self.generic_arg_subtyping(rcx, *variance, ty1, ty2);
                 }

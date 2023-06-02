@@ -98,13 +98,13 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         ret: &rustc::ty::Ty,
     ) -> QueryResult<rty::PolyVariant> {
         let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
-        let rustc::ty::TyKind::Adt(def_id, substs) = ret.kind() else {
+        let rustc::ty::TyKind::Adt(adt_def, substs) = ret.kind() else {
             bug!();
         };
         let substs = iter::zip(&self.generics.params, substs)
             .map(|(param, arg)| self.refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        let bty = rty::BaseTy::adt(self.adt_def(*def_id)?, substs);
+        let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantDef::new(fields, ret);
         Ok(rty::Binder::new(value, List::empty()))
@@ -192,9 +192,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     rty::GenericParamDefKind::Lifetime => bug!(),
                 }
             }
-            rustc::ty::TyKind::Adt(def_id, substs) => {
-                let adt_def = self.genv.adt_def(*def_id)?;
-                let substs = iter::zip(&self.generics_of(*def_id)?.params, substs)
+            rustc::ty::TyKind::Adt(adt_def, substs) => {
+                let adt_def = self.genv.adt_def(adt_def.did())?;
+                let substs = iter::zip(&self.generics_of(adt_def.did())?.params, substs)
                     .map(|(param, arg)| self.refine_generic_arg(param, arg))
                     .try_collect_vec()?;
                 rty::BaseTy::adt(adt_def, substs)

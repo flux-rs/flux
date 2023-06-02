@@ -357,11 +357,11 @@ impl PlacesTree {
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idx)) => {
                     let fields =
-                        downcast(genv, rcx, adt.def_id(), VariantIdx::from_u32(0), substs, idx)?;
+                        downcast(genv, rcx, adt.did(), VariantIdx::from_u32(0), substs, idx)?;
                     ty = fields[field.as_usize()].clone();
                 }
                 (Downcast(_, variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
-                    let tys = downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?;
+                    let tys = downcast(genv, rcx, adt_def.did(), variant_idx, substs, idx)?;
                     ty = Ty::tuple(tys);
                     rcx.assume_invariants(&ty, checker_config.check_overflow);
                 }
@@ -611,15 +611,14 @@ impl Node {
             Node::Leaf(Binding::Owned(ty)) => {
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) => {
-                        let fields =
-                            downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?
-                                .into_iter()
-                                .map(|ty| {
-                                    let ty = rcx.unpack(&ty);
-                                    rcx.assume_invariants(&ty, checker_config.check_overflow);
-                                    Node::owned(ty).into_ptr()
-                                })
-                                .collect();
+                        let fields = downcast(genv, rcx, adt_def.did(), variant_idx, substs, idx)?
+                            .into_iter()
+                            .map(|ty| {
+                                let ty = rcx.unpack(&ty);
+                                rcx.assume_invariants(&ty, checker_config.check_overflow);
+                                Node::owned(ty).into_ptr()
+                            })
+                            .collect();
                         *self = Node::Internal(
                             NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
                             fields,
@@ -733,7 +732,7 @@ impl Node {
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx)?.expect("unexpected opaque struct");
+                let variant = gen.genv.variant(adt_def.did(), *variant_idx)?.expect("unexpected opaque struct");
                 let fields: Vec<Ty> = children
                     .iter_mut()
                     .map(|node| {
@@ -744,7 +743,7 @@ impl Node {
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
                 let ty = if partially_moved {
-                    Ty::uninit(Layout::adt(adt_def.def_id()))
+                    Ty::uninit(Layout::adt(adt_def.did()))
                 } else {
                     gen.check_constructor(rcx, variant, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))

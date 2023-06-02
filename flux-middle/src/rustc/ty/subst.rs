@@ -23,7 +23,7 @@ impl Subst for FnSig {
 impl Subst for Ty {
     fn subst(&self, substs: &[GenericArg]) -> Ty {
         match self.kind() {
-            TyKind::Adt(def_id, adt_substs) => Ty::mk_adt(*def_id, adt_substs.subst(substs)),
+            TyKind::Adt(adt_def, substs) => Ty::mk_adt(adt_def.clone(), substs.subst(substs)),
             TyKind::Array(ty, len) => Ty::mk_array(ty.subst(substs), len.clone()),
             TyKind::Ref(re, ty, mutbl) => Ty::mk_ref(*re, ty.subst(substs), *mutbl),
             TyKind::Tuple(tys) => Ty::mk_tuple(tys.subst(substs)),
