@@ -55,17 +55,22 @@ struct Elaboration<'a> {
 }
 
 #[derive(Debug, Default)]
-struct FoldUnfolds {
-    folds_at: FxHashMap<Location, Place>,
-    unfolds_at: FxHashMap<Location, Place>,
+pub(crate) struct FoldUnfolds {
+    at_location: FxHashMap<Location, Vec<FoldUnfold>>,
+    at_edge: FxHashMap<(BasicBlock, BasicBlock), Vec<FoldUnfold>>,
 }
 
-struct FoldUnfoldsAt<'a> {
+struct FoldUnfoldsAtEdge<'a> {
     data: &'a mut FoldUnfolds,
-    location: Location,
+    edge: (BasicBlock, BasicBlock),
 }
 
-enum FoldUnfold {
+pub(crate) enum FoldUnfold {
+    Fold(Place),
+    Unfold(Place),
+}
+
+enum ProjResult {
     None,
     Fold,
     Unfold,
@@ -96,15 +101,21 @@ impl Mode for Infer {
 impl Mode for Elaboration<'_> {
     fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
         match env.projection(analysis.genv, place)? {
-            FoldUnfold::None => {}
-            FoldUnfold::Fold => {
+            ProjResult::None => {}
+            ProjResult::Fold => {
                 let place = place.clone();
-                analysis.mode.data.insert_fold(analysis.location, place);
+                analysis
+                    .mode
+                    .data
+                    .insert_fold_at_location(analysis.location, place);
             }
-            FoldUnfold::Unfold => {
+            ProjResult::Unfold => {
                 let projection = place.projection[..place.projection.len() - 1].to_vec();
                 let place = Place::new(place.local, projection);
-                analysis.mode.data.insert_unfold(analysis.location, place);
+                analysis
+                    .mode
+                    .data
+                    .insert_unfold_at_location(analysis.location, place);
             }
         }
         Ok(())
@@ -115,9 +126,9 @@ impl Mode for Elaboration<'_> {
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
-        // Insert fold and unfolds after the terminator.
-        let location = analysis.location.successor_within_block();
-        let mut fold_unfolds = FoldUnfoldsAt { location, data: analysis.mode.data };
+        // Insert fold and unfolds
+        let from = analysis.location.block;
+        let mut fold_unfolds = FoldUnfoldsAtEdge { edge: (from, target), data: analysis.mode.data };
         env.collect_fold_unfolds(&analysis.bb_envs[&target], &mut fold_unfolds);
         Ok(false)
     }
@@ -157,7 +168,7 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
         dominators: &'a Dominators<BasicBlock>,
-    ) -> QueryResult {
+    ) -> QueryResult<FoldUnfolds> {
         let mut bb_envs = FxHashMap::default();
         PlaceAnalysis::new(genv, body, dominators, &mut bb_envs, Infer).run()?;
 
@@ -171,7 +182,7 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
         )
         .run()?;
 
-        Ok(())
+        Ok(fold_unfolds)
     }
 }
 
@@ -332,7 +343,7 @@ impl Env {
         }
     }
 
-    fn projection(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<FoldUnfold> {
+    fn projection(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<ProjResult> {
         let mut node = &mut self.map[place.local];
         let mut unfolded = false;
         for elem in &place.projection {
@@ -344,11 +355,11 @@ impl Env {
             }
         }
         if unfolded {
-            Ok(FoldUnfold::Unfold)
+            Ok(ProjResult::Unfold)
         } else if node.fold() {
-            Ok(FoldUnfold::Fold)
+            Ok(ProjResult::Fold)
         } else {
-            Ok(FoldUnfold::None)
+            Ok(ProjResult::None)
         }
     }
 
@@ -361,7 +372,7 @@ impl Env {
         Ok(modified)
     }
 
-    fn collect_fold_unfolds(&self, other: &Env, fold_unfolds: &mut FoldUnfoldsAt) {
+    fn collect_fold_unfolds(&self, other: &Env, fold_unfolds: &mut FoldUnfoldsAtEdge) {
         for (local, node) in self.map.iter_enumerated() {
             node.collect_fold_unfolds(
                 &other.map[local],
@@ -480,7 +491,7 @@ impl PlaceNode {
         &self,
         other: &PlaceNode,
         place: &mut Place,
-        fold_unfolds: &mut FoldUnfoldsAt,
+        fold_unfolds: &mut FoldUnfoldsAtEdge,
     ) {
         let (fields1, fields2) = match (self, other) {
             (PlaceNode::Deref(_, node1), PlaceNode::Deref(_, node2)) => {
@@ -522,7 +533,7 @@ impl PlaceNode {
         }
     }
 
-    fn collect_unfolds(&self, place: &mut Place, fold_unfolds: &mut FoldUnfoldsAt) -> bool {
+    fn collect_unfolds(&self, place: &mut Place, fold_unfolds: &mut FoldUnfoldsAtEdge) -> bool {
         let fields = match self {
             PlaceNode::Ty(_) => {
                 return true;
@@ -624,22 +635,57 @@ impl PlaceNode {
 }
 
 impl FoldUnfolds {
-    fn insert_fold(&mut self, location: Location, place: Place) {
-        self.folds_at.insert(location, place);
+    fn insert_fold_at_location(&mut self, location: Location, place: Place) {
+        self.at_location
+            .entry(location)
+            .or_default()
+            .push(FoldUnfold::Fold(place));
     }
 
-    fn insert_unfold(&mut self, location: Location, place: Place) {
-        self.unfolds_at.insert(location, place);
+    fn insert_unfold_at_location(&mut self, location: Location, place: Place) {
+        self.at_location
+            .entry(location)
+            .or_default()
+            .push(FoldUnfold::Fold(place));
+    }
+
+    fn insert_fold_at_edge(&mut self, edge: (BasicBlock, BasicBlock), place: Place) {
+        self.at_edge
+            .entry(edge)
+            .or_default()
+            .push(FoldUnfold::Fold(place));
+    }
+
+    fn insert_unfold_at_edge(&mut self, edge: (BasicBlock, BasicBlock), place: Place) {
+        self.at_edge
+            .entry(edge)
+            .or_default()
+            .push(FoldUnfold::Unfold(place));
+    }
+
+    pub(crate) fn fold_unfolds_at_location(
+        &self,
+        location: Location,
+    ) -> impl Iterator<Item = &FoldUnfold> + '_ {
+        self.at_location.get(&location).into_iter().flatten()
+    }
+
+    pub(crate) fn fold_unfolds_at_edge(
+        &self,
+        from: BasicBlock,
+        target: BasicBlock,
+    ) -> impl Iterator<Item = &FoldUnfold> + '_ {
+        self.at_edge.get(&(from, target)).into_iter().flatten()
     }
 }
 
-impl FoldUnfoldsAt<'_> {
+impl FoldUnfoldsAtEdge<'_> {
     fn insert_fold(&mut self, place: Place) {
-        self.data.insert_fold(self.location, place);
+        self.data.insert_fold_at_edge(self.edge, place);
     }
 
     fn insert_unfold(&mut self, place: Place) {
-        self.data.insert_unfold(self.location, place);
+        self.data.insert_unfold_at_edge(self.edge, place);
     }
 }
 
@@ -715,6 +761,14 @@ impl fmt::Debug for PlaceNode {
             }
             PlaceNode::Tuple(_, fields) => write!(f, "({:?})", fields.iter().format(", ")),
             PlaceNode::Ty(ty) => write!(f, "•{ty:?}"),
+        }
+    }
+}
+impl fmt::Debug for FoldUnfold {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FoldUnfold::Fold(place) => write!(f, "fold({place:?})"),
+            FoldUnfold::Unfold(place) => write!(f, "unfold({place:?}"),
         }
     }
 }

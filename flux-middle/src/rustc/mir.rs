@@ -301,6 +301,10 @@ impl<'tcx> Body<'tcx> {
             .indices()
             .filter(|bb| self.is_join_point(*bb))
     }
+
+    pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
+        Location { block: bb, statement_index: self.basic_blocks[bb].statements.len() }
+    }
 }
 
 impl Place {
