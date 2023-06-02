@@ -14,7 +14,7 @@
 
 - [Introducing Flux](blog/01-introducing-flux.md)
 - [Ownership in Flux](blog/02-ownership.md)
-- [Refined Vectors]()
+- [Refined Vectors](blog/03-vectors.md)
 - [Iterators]()
 - [Structs]()
 - [Enums]()
