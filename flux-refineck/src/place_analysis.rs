@@ -4,7 +4,7 @@ use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
-    pretty::{self, def_id_to_string},
+    pretty::def_id_to_string,
     queries::QueryResult,
     rustc::{
         mir::{
@@ -20,7 +20,6 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{Idx, IndexVec};
 use rustc_middle::mir::START_BLOCK;
-use rustc_span::Symbol;
 
 use crate::queue::WorkQueue;
 
@@ -127,7 +126,7 @@ impl Mode for Elaboration<'_> {
 #[derive(Clone)]
 enum PlaceNode {
     Deref(Ty, Box<PlaceNode>),
-    Downcast(AdtDef, Substs, Option<Symbol>, VariantIdx, Vec<PlaceNode>),
+    Downcast(AdtDef, Substs, VariantIdx, Vec<PlaceNode>),
     Closure(DefId, Substs, Vec<PlaceNode>),
     Tuple(List<Ty>, Vec<PlaceNode>),
     Ty(Ty),
@@ -340,7 +339,7 @@ impl Env {
             match *elem {
                 PlaceElem::Deref => (node, unfolded) = node.deref(),
                 PlaceElem::Field(f) => (node, unfolded) = node.field(genv, f)?,
-                PlaceElem::Downcast(name, idx) => unfolded = node.downcast(genv, name, idx)?,
+                PlaceElem::Downcast(_, idx) => unfolded = node.downcast(genv, idx)?,
                 PlaceElem::Index(_) => todo!(),
             }
         }
@@ -386,12 +385,7 @@ impl PlaceNode {
         }
     }
 
-    fn downcast(
-        &mut self,
-        genv: &GlobalEnv,
-        name: Option<Symbol>,
-        idx: VariantIdx,
-    ) -> QueryResult<bool> {
+    fn downcast(&mut self, genv: &GlobalEnv, idx: VariantIdx) -> QueryResult<bool> {
         match self {
             PlaceNode::Downcast(.., idx2, _) => {
                 debug_assert_eq!(idx, *idx2);
@@ -400,7 +394,7 @@ impl PlaceNode {
             PlaceNode::Ty(ty) => {
                 if let TyKind::Adt(adt_def, substs) = ty.kind() {
                     let fields = downcast(genv, adt_def, substs, idx)?;
-                    *self = PlaceNode::Downcast(adt_def.clone(), substs.clone(), name, idx, fields);
+                    *self = PlaceNode::Downcast(adt_def.clone(), substs.clone(), idx, fields);
                     Ok(true)
                 } else {
                     tracked_span_bug!("invalid downcast `{self:?}`");
@@ -424,7 +418,6 @@ impl PlaceNode {
                         *self = PlaceNode::Downcast(
                             adt_def.clone(),
                             substs.clone(),
-                            None,
                             FIRST_VARIANT,
                             fields,
                         );
@@ -540,9 +533,9 @@ impl PlaceNode {
                 place.projection.pop();
                 return false;
             }
-            PlaceNode::Downcast(adt, _, name, idx, fields) => {
+            PlaceNode::Downcast(adt, _, idx, fields) => {
                 if adt.is_enum() {
-                    place.projection.push(PlaceElem::Downcast(*name, *idx));
+                    place.projection.push(PlaceElem::Downcast(None, *idx));
                 }
                 fields
             }
@@ -578,11 +571,11 @@ impl PlaceNode {
                 (fields1, fields2)
             }
             (
-                PlaceNode::Downcast(adt1, substs1, _, idx1, fields1),
-                PlaceNode::Downcast(adt2, substs2, _, idx2, fields2),
+                PlaceNode::Downcast(adt1, substs1, variant1, fields1),
+                PlaceNode::Downcast(adt2, substs2, variant2, fields2),
             ) => {
                 debug_assert_eq!(adt1, adt2);
-                if idx1 == idx2 {
+                if variant1 == variant2 {
                     (fields1, fields2)
                 } else {
                     *self = PlaceNode::Ty(Ty::mk_adt(adt1.clone(), substs1.clone()));
@@ -699,12 +692,12 @@ impl fmt::Debug for PlaceNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PlaceNode::Deref(_, node) => write!(f, "*({:?})", node),
-            PlaceNode::Downcast(adt, substs, _, idx, fields) => {
+            PlaceNode::Downcast(adt, substs, variant, fields) => {
                 write!(f, "{}", def_id_to_string(adt.did()))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "),)?;
                 }
-                write!(f, "::{}", pretty::variant_name(adt.did(), *idx))?;
+                write!(f, "::{}", adt.variant(*variant).name)?;
                 if !fields.is_empty() {
                     write!(f, "({:?})", fields.iter().format(", "),)?;
                 }

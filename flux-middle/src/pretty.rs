@@ -1,10 +1,10 @@
 use std::{cell::RefCell, fmt};
 
 use flux_config as config;
-use rustc_abi::{FieldIdx, VariantIdx};
+use rustc_abi::FieldIdx;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{Pos, Span, Symbol};
+use rustc_span::{Pos, Span};
 
 use crate::intern::{Internable, Interned};
 
@@ -334,10 +334,6 @@ impl Pretty for DefId {
             w!("{}", ^path.data.last().unwrap())
         }
     }
-}
-
-pub fn variant_name(def_id: DefId, variant: VariantIdx) -> Symbol {
-    rustc_middle::ty::tls::with(|tcx| tcx.adt_def(def_id).variant(variant).name)
 }
 
 pub fn def_id_to_string(def_id: DefId) -> String {
