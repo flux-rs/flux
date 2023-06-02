@@ -1,7 +1,4 @@
-use std::{
-    collections::{hash_map::Entry, BinaryHeap},
-    iter,
-};
+use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{
     bug, dbg,
@@ -39,6 +36,8 @@ use self::errors::{CheckerError, ResultExt};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
+    place_analysis::PlaceAnalysis,
+    queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
@@ -176,6 +175,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let body = genv
             .mir(def_id.expect_local())
             .with_span(genv.tcx.def_span(def_id))?;
+        let dominators = body.dominators();
+
+        PlaceAnalysis::new(genv, &body, &dominators).run();
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -186,8 +188,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         );
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
-
-        let dominators = body.dominators();
 
         let mut ck = Checker {
             def_id,
@@ -1128,61 +1128,6 @@ impl Mode for RefineMode {
 
     fn clear(_ck: &mut Checker<RefineMode>, _bb: BasicBlock) {
         bug!();
-    }
-}
-
-struct Item<'a> {
-    bb: BasicBlock,
-    dominators: &'a Dominators<BasicBlock>,
-}
-
-struct WorkQueue<'a> {
-    heap: BinaryHeap<Item<'a>>,
-    set: BitSet<BasicBlock>,
-    dominators: &'a Dominators<BasicBlock>,
-}
-
-impl<'a> WorkQueue<'a> {
-    fn empty(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
-        Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
-    }
-
-    fn insert(&mut self, bb: BasicBlock) -> bool {
-        if self.set.insert(bb) {
-            self.heap.push(Item { bb, dominators: self.dominators });
-            true
-        } else {
-            false
-        }
-    }
-
-    fn pop(&mut self) -> Option<BasicBlock> {
-        if let Some(Item { bb, .. }) = self.heap.pop() {
-            self.set.remove(bb);
-            Some(bb)
-        } else {
-            None
-        }
-    }
-}
-
-impl PartialEq for Item<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.bb == other.bb
-    }
-}
-
-impl PartialOrd for Item<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.dominators.rank_partial_cmp(other.bb, self.bb)
-    }
-}
-
-impl Eq for Item<'_> {}
-
-impl Ord for Item<'_> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
     }
 }
 

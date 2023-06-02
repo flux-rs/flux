@@ -24,7 +24,7 @@ pub use rustc_middle::{
     ty::Variance,
 };
 use rustc_span::Span;
-use rustc_target::abi::VariantIdx;
+pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 
 use super::ty::{GenericArg, Region, Ty, TyKind};
 use crate::{
@@ -327,18 +327,8 @@ impl PlaceTy {
         if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
             bug!("cannot use non field projection on downcasted place");
         }
-        let tcx = genv.tcx;
         let place_ty = match elem {
-            PlaceElem::Deref => {
-                let ty = match self.ty.kind() {
-                    TyKind::Adt(def_id, substs) if tcx.adt_def(def_id).is_box() => {
-                        substs[0].expect_type()
-                    }
-                    TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty,
-                    _ => bug!("deref projection of non-dereferenceable ty {self:?}"),
-                };
-                PlaceTy::from_ty(ty.clone())
-            }
+            PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref(genv)),
             PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
             PlaceElem::Downcast(variant_idx) => {
                 PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }

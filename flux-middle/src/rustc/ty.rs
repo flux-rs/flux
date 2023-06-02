@@ -17,7 +17,10 @@ pub use rustc_middle::{
 use rustc_span::{symbol::kw, Symbol};
 
 use self::subst::Subst;
-use crate::intern::{impl_internable, impl_slice_internable, Interned, List};
+use crate::{
+    global_env::GlobalEnv,
+    intern::{impl_internable, impl_slice_internable, Interned, List},
+};
 
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
@@ -89,7 +92,7 @@ struct TyS {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Adt(DefId, List<GenericArg>),
+    Adt(DefId, Substs),
     Array(Ty, Const),
     Bool,
     Str,
@@ -103,7 +106,7 @@ pub enum TyKind {
     Uint(UintTy),
     Slice(Ty),
     FnPtr(PolyFnSig),
-    Closure(DefId, List<GenericArg>),
+    Closure(DefId, Substs),
     RawPtr(Ty, Mutability),
 }
 
@@ -116,6 +119,26 @@ pub struct Const {
 pub enum GenericArg {
     Ty(Ty),
     Lifetime(Region),
+}
+
+pub type Substs = List<GenericArg>;
+
+impl Substs {
+    pub fn as_closure(&self) -> ClosureSubsts {
+        ClosureSubsts { substs: self.clone() }
+    }
+}
+
+pub struct ClosureSubsts {
+    pub substs: Substs,
+}
+
+#[allow(unused)]
+pub struct ClosureSubstsParts<'a, T> {
+    parent_substs: &'a [T],
+    closure_kind_ty: &'a T,
+    closure_sig_as_fn_ptr_ty: &'a T,
+    tupled_upvars_ty: &'a T,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -221,7 +244,7 @@ impl GenericArg {
         if let GenericArg::Ty(ty) = self {
             ty
         } else {
-            bug!("expected type, found {:?}", self)
+            bug!("expected `GenericArg::Ty`, found {:?}", self)
         }
     }
 
@@ -229,7 +252,31 @@ impl GenericArg {
         if let GenericArg::Lifetime(re) = self {
             *re
         } else {
-            bug!("expected type, found {:?}", self)
+            bug!("expected `GenericArg::Lifetime`, found {:?}", self)
+        }
+    }
+}
+
+impl ClosureSubsts {
+    pub fn tupled_upvars_ty(&self) -> &Ty {
+        self.split().tupled_upvars_ty.expect_type()
+    }
+
+    pub fn upvar_tys(&self) -> impl Iterator<Item = &Ty> {
+        self.tupled_upvars_ty().tuple_fields().iter()
+    }
+
+    pub fn split(&self) -> ClosureSubstsParts<GenericArg> {
+        match &self.substs[..] {
+            [parent_substs @ .., closure_kind_ty, closure_sig_as_fn_ptr_ty, tupled_upvars_ty] => {
+                ClosureSubstsParts {
+                    parent_substs,
+                    closure_kind_ty,
+                    closure_sig_as_fn_ptr_ty,
+                    tupled_upvars_ty,
+                }
+            }
+            _ => bug!("closure substs missing synthetics"),
         }
     }
 }
@@ -309,8 +356,25 @@ impl Ty {
         TyKind::Uint(UintTy::Usize).intern()
     }
 
+    pub fn deref(&self, genv: &GlobalEnv) -> Ty {
+        match self.kind() {
+            TyKind::Adt(def_id, substs) if genv.tcx.adt_def(def_id).is_box() => {
+                substs[0].expect_type().clone()
+            }
+            TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty.clone(),
+            _ => bug!("deref projection of non-dereferenceable ty `{self:?}`"),
+        }
+    }
+
     pub fn kind(&self) -> &TyKind {
         &self.0.kind
+    }
+
+    pub fn tuple_fields(&self) -> &List<Ty> {
+        match self.kind() {
+            TyKind::Tuple(tys) => tys,
+            _ => bug!("tuple_fields called on non-tuple"),
+        }
     }
 }
 

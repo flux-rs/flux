@@ -30,6 +30,8 @@ mod constraint_gen;
 mod fixpoint_encoding;
 pub mod invariants;
 mod param_infer;
+mod place_analysis;
+mod queue;
 mod refine_tree;
 mod sigs;
 mod type_env;
