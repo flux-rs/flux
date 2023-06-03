@@ -192,7 +192,6 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
             Elaboration { data: &mut fold_unfolds },
         )
         .run()?;
-        // println!("{fold_unfolds:#?}");
 
         Ok(fold_unfolds)
     }
@@ -292,18 +291,24 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
                     }
                     Operand::Constant(_) => None,
                 };
-                if let Some(mut place) = is_match {
-                    for (bits, target) in targets.iter() {
-                        // We do not insert unfolds in match arms because they are explicit
-                        // unfold points, but we still need to project the place to mutate
-                        // env.
-                        let mut env = env.clone();
-                        let idx = VariantIdx::new(bits as usize);
-                        place.projection.push(PlaceElem::Downcast(None, idx));
-                        env.projection(self.genv, &place)?;
-                        place.projection.pop();
+                if let Some(place) = is_match {
+                    let discr_ty = place.ty(self.genv, &self.body.local_decls)?.ty;
+                    let (adt, _) = discr_ty.expect_adt();
 
+                    let mut remaining = BitSet::new_filled(adt.variants().len());
+                    for (bits, target) in targets.iter() {
+                        let i = bits as usize;
+                        remaining.remove(i);
+
+                        // We do not insert unfolds in match arms because they are explicit
+                        // unfold points.
+                        let mut env = env.clone();
+                        env.downcast(self.genv, &place, VariantIdx::new(i))?;
                         self.goto(bb, target, env)?;
+                    }
+                    if remaining.count() == 1 {
+                        let i = remaining.iter().next().unwrap();
+                        env.downcast(self.genv, &place, VariantIdx::new(i))?;
                     }
                     self.goto(bb, targets.otherwise(), env)?;
                 } else {
@@ -358,6 +363,32 @@ impl Env {
     }
 
     fn projection(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<ProjResult> {
+        let (node, unfolded) = self.unfold_proj(genv, place)?;
+        if unfolded {
+            Ok(ProjResult::Unfold)
+        } else if node.fold() {
+            Ok(ProjResult::Fold)
+        } else {
+            Ok(ProjResult::None)
+        }
+    }
+
+    fn downcast(
+        &mut self,
+        genv: &GlobalEnv,
+        place: &Place,
+        variant_idx: VariantIdx,
+    ) -> QueryResult {
+        let (node, _) = self.unfold_proj(genv, place)?;
+        node.downcast(genv, variant_idx)?;
+        Ok(())
+    }
+
+    fn unfold_proj(
+        &mut self,
+        genv: &GlobalEnv,
+        place: &Place,
+    ) -> QueryResult<(&mut PlaceNode, bool)> {
         let mut node = &mut self.map[place.local];
         let mut unfolded = false;
         for elem in &place.projection {
@@ -368,13 +399,7 @@ impl Env {
                 PlaceElem::Index(_) => break,
             }
         }
-        if unfolded {
-            Ok(ProjResult::Unfold)
-        } else if node.fold() {
-            Ok(ProjResult::Fold)
-        } else {
-            Ok(ProjResult::None)
-        }
+        Ok((node, unfolded))
     }
 
     fn join(&mut self, genv: &GlobalEnv, mut other: Env) -> QueryResult<bool> {

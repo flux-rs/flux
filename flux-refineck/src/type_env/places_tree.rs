@@ -1015,9 +1015,9 @@ mod pretty {
             let bindings = self
                 .flatten()
                 .into_iter()
-                // .filter(|(_, path, ty)| {
-                //     !path.projection().is_empty() || !cx.hide_uninit || !ty.is_uninit()
-                // })
+                .filter(|(_, path, ty)| {
+                    !path.projection().is_empty() || !cx.hide_uninit || !ty.is_uninit()
+                })
                 .sorted_by(|(_, path1, _), (_, path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",

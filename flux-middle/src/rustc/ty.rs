@@ -6,7 +6,7 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 use rustc_hir::def_id::DefId;
-use rustc_index::IndexVec;
+use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{AdtFlags, ClosureKind};
 pub use rustc_middle::{
@@ -336,6 +336,10 @@ impl AdtDef {
         &self.0.variants[idx]
     }
 
+    pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
+        &self.0.variants
+    }
+
     pub fn non_enum_variant(&self) -> &VariantDef {
         assert!(self.is_struct() || self.is_union());
         self.variant(FIRST_VARIANT)
@@ -443,6 +447,13 @@ impl Ty {
         match self.kind() {
             TyKind::Tuple(tys) => tys,
             _ => bug!("tuple_fields called on non-tuple"),
+        }
+    }
+
+    pub fn expect_adt(&self) -> (&AdtDef, &Substs) {
+        match self.kind() {
+            TyKind::Adt(adt_def, substs) => (adt_def, substs),
+            _ => bug!("expect_adt called on non-adt"),
         }
     }
 }

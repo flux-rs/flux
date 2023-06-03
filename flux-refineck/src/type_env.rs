@@ -568,12 +568,8 @@ impl BasicBlockEnvShape {
 
         let paths = self.bindings.paths();
 
-        println!("\n{self:?}");
-        println!("{other:?}");
-
         // Convert pointers to borrows
         for path in &paths {
-            println!("{path:?}");
             let binding1 = self.bindings.get(path);
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
