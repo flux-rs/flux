@@ -43,6 +43,7 @@ pub(crate) trait Mode: Sized {
 
     fn goto_join_point(
         analysis: &mut PlaceAnalysis<Self>,
+        from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool>;
@@ -84,6 +85,7 @@ impl Mode for Infer {
 
     fn goto_join_point(
         analysis: &mut PlaceAnalysis<Self>,
+        _from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
@@ -123,11 +125,10 @@ impl Mode for Elaboration<'_> {
 
     fn goto_join_point(
         analysis: &mut PlaceAnalysis<Self>,
+        from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
-        // Insert fold and unfolds
-        let from = analysis.location.block;
         let mut fold_unfolds = FoldUnfoldsAtEdge { edge: (from, target), data: analysis.mode.data };
         env.collect_fold_unfolds(&analysis.bb_envs[&target], &mut fold_unfolds);
         Ok(false)
@@ -188,7 +189,7 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
 
 impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
     fn run(mut self) -> QueryResult {
-        self.goto(START_BLOCK, Env::new(self.body))?;
+        self.goto(START_BLOCK, START_BLOCK, Env::new(self.body))?;
         while let Some(bb) = self.queue.pop() {
             self.basic_block(bb, self.bb_envs[&bb].clone())?;
         }
@@ -257,6 +258,7 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
     }
 
     fn terminator(&mut self, terminator: &Terminator, mut env: Env) -> QueryResult {
+        let bb = self.location.block;
         match &terminator.kind {
             TerminatorKind::Return => {
                 M::projection(self, &mut env, Place::RETURN)?;
@@ -267,7 +269,7 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
                 }
                 M::projection(self, &mut env, destination)?;
                 if let Some(target) = target {
-                    self.goto(*target, env)?;
+                    self.goto(bb, *target, env)?;
                 }
             }
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -289,40 +291,40 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
                         env.projection(self.genv, &place)?;
                         place.projection.pop();
 
-                        self.goto(target, env)?;
+                        self.goto(bb, target, env)?;
                     }
-                    self.goto(targets.otherwise(), env)?;
+                    self.goto(bb, targets.otherwise(), env)?;
                 } else {
                     for target in targets.all_targets() {
-                        self.goto(*target, env.clone())?;
+                        self.goto(bb, *target, env.clone())?;
                     }
                 }
             }
             TerminatorKind::Goto { target } => {
-                self.goto(*target, env)?;
+                self.goto(bb, *target, env)?;
             }
             TerminatorKind::Drop { place, target, .. } => {
                 M::projection(self, &mut env, place)?;
-                self.goto(*target, env)?;
+                self.goto(bb, *target, env)?;
             }
             TerminatorKind::Assert { cond, target, .. } => {
                 self.operand(cond, &mut env)?;
-                self.goto(*target, env)?;
+                self.goto(bb, *target, env)?;
             }
             TerminatorKind::FalseEdge { real_target, .. } => {
-                self.goto(*real_target, env)?;
+                self.goto(bb, *real_target, env)?;
             }
             TerminatorKind::FalseUnwind { real_target, .. } => {
-                self.goto(*real_target, env)?;
+                self.goto(bb, *real_target, env)?;
             }
             TerminatorKind::Unreachable | TerminatorKind::Resume => {}
         }
         Ok(())
     }
 
-    fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {
+    fn goto(&mut self, from: BasicBlock, target: BasicBlock, env: Env) -> QueryResult {
         if self.body.is_join_point(target) {
-            if M::goto_join_point(self, target, env)? {
+            if M::goto_join_point(self, from, target, env)? {
                 self.queue.insert(target);
             }
             Ok(())
