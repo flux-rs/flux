@@ -30,7 +30,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir as rustc_mir, ty::RegionVid};
-use rustc_span::{Span, DUMMY_SP};
+use rustc_span::Span;
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{

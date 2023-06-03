@@ -8,7 +8,7 @@ use flux_middle::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
-        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx, FIRST_VARIANT,
+        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -198,23 +198,6 @@ impl PlacesTree {
         let mut bindings = vec![];
         self.iter(|kind, path, binding| bindings.push((kind.clone(), path, binding.clone())));
         bindings
-    }
-
-    pub(super) fn join_with(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        other: &mut PlacesTree,
-        checker_config: CheckerConfig,
-    ) -> Result<(), CheckerErrKind> {
-        for (loc, root1) in &self.map {
-            let node2 = &mut *other.map[loc].ptr.borrow_mut();
-            root1
-                .ptr
-                .borrow_mut()
-                .join_with(gen, rcx, node2, checker_config)?;
-        }
-        Ok(())
     }
 
     pub(super) fn lookup<'a>(
@@ -543,58 +526,6 @@ impl Node {
             Node::Leaf(Binding::Owned(ty)) => ty,
             _ => tracked_span_bug!("expected `Binding::Owned`"),
         }
-    }
-
-    fn join_with(
-        &mut self,
-        gen: &mut ConstrGen,
-        rcx: &mut RefineCtxt,
-        other: &mut Node,
-        checker_config: CheckerConfig,
-    ) -> Result<(), CheckerErrKind> {
-        let map = &mut FxHashMap::default();
-        match (&mut *self, &mut *other) {
-            (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self, checker_config)?;
-            }
-            (Node::Leaf(_), Node::Leaf(_)) => {}
-            (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
-                other.fold(map, rcx, gen, false, false)?;
-            }
-            (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx, checker_config)?;
-                self.join_with(gen, rcx, other, checker_config)?;
-            }
-            (
-                Node::Internal(NodeKind::Adt(_, variant1, _), children1),
-                Node::Internal(NodeKind::Adt(_, variant2, _), children2),
-            ) => {
-                if variant1 == variant2 {
-                    for (ptr1, ptr2) in iter::zip(children1, children2) {
-                        ptr1.borrow_mut().join_with(
-                            gen,
-                            rcx,
-                            &mut ptr2.borrow_mut(),
-                            checker_config,
-                        )?;
-                    }
-                } else {
-                    self.fold(map, rcx, gen, false, false)?;
-                    other.fold(map, rcx, gen, false, false)?;
-                }
-            }
-            (Node::Internal(_, children1), Node::Internal(_, children2)) => {
-                for (ptr1, ptr2) in iter::zip(children1, children2) {
-                    ptr1.borrow_mut().join_with(
-                        gen,
-                        rcx,
-                        &mut ptr2.borrow_mut(),
-                        checker_config,
-                    )?;
-                }
-            }
-        };
-        Ok(())
     }
 
     fn proj(

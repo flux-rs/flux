@@ -319,16 +319,7 @@ impl TypeEnv<'_> {
         target: BasicBlock,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        // self.bindings.close_boxes(rcx, gen, &bb_env.scope)?;
-
         let reason = ConstrReason::Goto(target);
-
-        // Look up paths to make sure they are properly folded/unfolded
-        for path in bb_env.bindings.paths() {
-            self.bindings
-                .lookup(gen.genv, rcx, &path, checker_config)?
-                .fold(rcx, gen, false)?;
-        }
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
@@ -560,12 +551,6 @@ impl BasicBlockEnvShape {
         mut other: TypeEnv,
         checker_config: CheckerConfig,
     ) -> Result<bool, CheckerErrKind> {
-        // other.bindings.close_boxes(rcx, gen, &self.scope)?;
-
-        // Unfold
-        // self.bindings
-        //     .join_with(rcx, gen, &mut other.bindings, checker_config)?;
-
         let paths = self.bindings.paths();
 
         // Convert pointers to borrows
