@@ -1010,6 +1010,30 @@ impl TyS {
         matches!(self.kind(), TyKind::Uninit(_))
     }
 
+    pub fn is_box(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_box)
+            .unwrap_or_default()
+    }
+
+    pub fn is_struct(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_struct)
+            .unwrap_or_default()
+    }
+
+    pub fn is_closure(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_closure)
+            .unwrap_or_default()
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_tuple)
+            .unwrap_or_default()
+    }
+
     pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
@@ -1086,11 +1110,20 @@ impl BaseTy {
         matches!(self, BaseTy::Bool)
     }
 
+    fn is_struct(&self) -> bool {
+        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_struct())
+    }
+
+    fn is_closure(&self) -> bool {
+        matches!(self, BaseTy::Closure(..))
+    }
+
+    fn is_tuple(&self) -> bool {
+        matches!(self, BaseTy::Tuple(..))
+    }
+
     pub fn is_box(&self) -> bool {
-        match self {
-            BaseTy::Adt(adt_def, _) => adt_def.is_box(),
-            _ => false,
-        }
+        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
     }
 
     pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {

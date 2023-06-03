@@ -781,11 +781,8 @@ impl Node {
     ) -> Result<(), CheckerErrKind> {
         match self {
             Node::Leaf(Binding::Blocked(ty) | Binding::Owned(ty)) => {
-                if matches!(
-                    ty.kind(),
-                    TyKind::Indexed(BaseTy::Tuple(..) | BaseTy::Closure(..) | BaseTy::Adt(..), _,)
-                        | TyKind::Uninit(_)
-                ) {
+                if ty.is_box() {
+                } else if ty.is_tuple() | ty.is_closure() | ty.is_struct() | ty.is_uninit() {
                     self.split(genv, rcx, checker_conf)?;
                 }
 

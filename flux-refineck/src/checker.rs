@@ -948,7 +948,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .mode
             .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span);
         for fold_unfold in self.fold_unfolds.fold_unfolds_at_location(location) {
-            Self::appy_fold_unfold(rcx, env, &mut gen, fold_unfold, self.config)?;
+            Self::appy_fold_unfold(rcx, env, &mut gen, fold_unfold, span, self.config)?;
         }
         Ok(())
     }
@@ -965,7 +965,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .mode
             .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span);
         for fold_unfold in self.fold_unfolds.fold_unfolds_at_edge(from, target) {
-            Self::appy_fold_unfold(rcx, env, &mut gen, fold_unfold, self.config)?;
+            Self::appy_fold_unfold(rcx, env, &mut gen, fold_unfold, span, self.config)?;
         }
         Ok(())
     }
@@ -975,6 +975,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         gen: &mut ConstrGen,
         fold_unfold: &FoldUnfold,
+        span: Span,
         conf: CheckerConfig,
     ) -> Result<(), CheckerError> {
         dbg::statement!("start", fold_unfold, rcx, env);
@@ -982,7 +983,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             FoldUnfold::Fold(place) => env.fold(rcx, gen, place, conf),
             FoldUnfold::Unfold(place) => env.unfold(gen.genv, rcx, place, conf),
         }
-        .with_span(DUMMY_SP)?;
+        .with_span(span)?;
         dbg::statement!("end", fold_unfold, rcx, env);
         Ok(())
     }
