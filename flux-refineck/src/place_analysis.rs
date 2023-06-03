@@ -110,8 +110,7 @@ impl Mode for Elaboration<'_> {
     const NAME: &'static str = "elaboration";
 
     fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
-        let proj_result = env.projection(analysis.genv, place)?;
-        match proj_result {
+        match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
             ProjResult::Fold => {
                 let place = place.clone();
@@ -363,7 +362,7 @@ impl Env {
     }
 
     fn projection(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<ProjResult> {
-        let (node, unfolded) = self.unfold_proj(genv, place)?;
+        let (node, unfolded) = self.unfold(genv, place)?;
         if unfolded {
             Ok(ProjResult::Unfold)
         } else if node.fold() {
@@ -379,25 +378,23 @@ impl Env {
         place: &Place,
         variant_idx: VariantIdx,
     ) -> QueryResult {
-        let (node, _) = self.unfold_proj(genv, place)?;
+        let (node, _) = self.unfold(genv, place)?;
         node.downcast(genv, variant_idx)?;
         Ok(())
     }
 
-    fn unfold_proj(
-        &mut self,
-        genv: &GlobalEnv,
-        place: &Place,
-    ) -> QueryResult<(&mut PlaceNode, bool)> {
+    fn unfold(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<(&mut PlaceNode, bool)> {
         let mut node = &mut self.map[place.local];
         let mut unfolded = false;
         for elem in &place.projection {
-            match *elem {
-                PlaceElem::Deref => (node, unfolded) = node.deref(),
-                PlaceElem::Field(f) => (node, unfolded) = node.field(genv, f)?,
-                PlaceElem::Downcast(_, idx) => unfolded = node.downcast(genv, idx)?,
+            let (n, u) = match *elem {
+                PlaceElem::Deref => node.deref(),
+                PlaceElem::Field(f) => node.field(genv, f)?,
+                PlaceElem::Downcast(_, idx) => node.downcast(genv, idx)?,
                 PlaceElem::Index(_) => break,
-            }
+            };
+            node = n;
+            unfolded |= u;
         }
         Ok((node, unfolded))
     }
@@ -435,17 +432,21 @@ impl PlaceNode {
         }
     }
 
-    fn downcast(&mut self, genv: &GlobalEnv, idx: VariantIdx) -> QueryResult<bool> {
+    fn downcast(
+        &mut self,
+        genv: &GlobalEnv,
+        idx: VariantIdx,
+    ) -> QueryResult<(&mut PlaceNode, bool)> {
         match self {
             PlaceNode::Downcast(.., idx2, _) => {
                 debug_assert_eq!(idx, *idx2);
-                Ok(false)
+                Ok((self, false))
             }
             PlaceNode::Ty(ty) => {
                 if let TyKind::Adt(adt_def, substs) = ty.kind() {
                     let fields = downcast(genv, adt_def, substs, idx)?;
                     *self = PlaceNode::Downcast(adt_def.clone(), substs.clone(), idx, fields);
-                    Ok(true)
+                    Ok((self, true))
                 } else {
                     tracked_span_bug!("invalid downcast `{self:?}`");
                 }
