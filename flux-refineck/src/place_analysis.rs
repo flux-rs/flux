@@ -192,6 +192,7 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
             Elaboration { data: &mut fold_unfolds },
         )
         .run()?;
+        // println!("{fold_unfolds:#?}");
 
         Ok(fold_unfolds)
     }

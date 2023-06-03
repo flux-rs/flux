@@ -27,7 +27,7 @@ pub use rustc_middle::{
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::Symbol;
-pub use rustc_target::abi::VariantIdx;
+pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
 
 use self::{

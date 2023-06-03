@@ -8,7 +8,7 @@ use flux_middle::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
-        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
+        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -455,6 +455,19 @@ impl LookupResult<'_> {
         }
     }
 
+    pub(super) fn unfold(
+        self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_conf: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        match self.kind {
+            LookupKind::Strg(_, ptr) => ptr.unfold(genv, rcx, checker_conf)?,
+            LookupKind::Weak(..) | LookupKind::Raw(..) => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn block(
         self,
         rcx: &mut RefineCtxt,
@@ -760,6 +773,28 @@ impl Node {
         Ok(ty)
     }
 
+    fn unfold(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_conf: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        match self {
+            Node::Leaf(Binding::Blocked(ty) | Binding::Owned(ty)) => {
+                if matches!(
+                    ty.kind(),
+                    TyKind::Indexed(BaseTy::Tuple(..) | BaseTy::Closure(..) | BaseTy::Adt(..), _,)
+                        | TyKind::Uninit(_)
+                ) {
+                    self.split(genv, rcx, checker_conf)?;
+                }
+
+                Ok(())
+            }
+            Node::Internal(_, _) => Ok(()),
+        }
+    }
+
     fn fmap_mut(&mut self, f: &mut impl FnMut(&Binding) -> Binding) {
         match self {
             Node::Leaf(binding) => *binding = f(binding),
@@ -794,6 +829,15 @@ impl NodePtr {
         close_boxes: bool,
     ) -> Result<Ty, CheckerErrKind> {
         self.borrow_mut().fold(map, rcx, gen, unblock, close_boxes)
+    }
+
+    fn unfold(
+        &self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_conf: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        self.borrow_mut().unfold(genv, rcx, checker_conf)
     }
 
     fn proj(
@@ -971,9 +1015,9 @@ mod pretty {
             let bindings = self
                 .flatten()
                 .into_iter()
-                .filter(|(_, path, ty)| {
-                    !path.projection().is_empty() || !cx.hide_uninit || !ty.is_uninit()
-                })
+                // .filter(|(_, path, ty)| {
+                //     !path.projection().is_empty() || !cx.hide_uninit || !ty.is_uninit()
+                // })
                 .sorted_by(|(_, path1, _), (_, path2, _)| path1.cmp(path2));
             w!(
                 "{{{}}}",

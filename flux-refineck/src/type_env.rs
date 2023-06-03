@@ -401,10 +401,11 @@ impl TypeEnv<'_> {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-        checker_config: CheckerConfig,
+        checker_conf: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.lookup(genv, rcx, place, checker_config)?;
-        Ok(())
+        self.bindings
+            .lookup(genv, rcx, place, checker_conf)?
+            .unfold(genv, rcx, checker_conf)
     }
 
     pub(crate) fn downcast(
@@ -567,8 +568,12 @@ impl BasicBlockEnvShape {
 
         let paths = self.bindings.paths();
 
+        println!("\n{self:?}");
+        println!("{other:?}");
+
         // Convert pointers to borrows
         for path in &paths {
+            println!("{path:?}");
             let binding1 = self.bindings.get(path);
             let binding2 = other.bindings.get(path);
             if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
