@@ -120,7 +120,7 @@ impl PlacesTree {
         let node = ptr.borrow();
         match &*node {
             Node::Leaf(binding) => binding.clone(),
-            Node::Internal(..) => tracked_span_bug!("expected `Node::Leaf`"),
+            Node::Internal(..) => tracked_span_bug!("expected `Node::Leaf`, got {node:?}"),
         }
     }
 
@@ -521,7 +521,7 @@ impl Node {
     fn expect_leaf_mut(&mut self) -> &mut Binding {
         match self {
             Node::Leaf(binding) => binding,
-            Node::Internal(_, _) => tracked_span_bug!("expected `Node::Leaf`"),
+            Node::Internal(_, _) => tracked_span_bug!("expected `Node::Leaf`, got {self:?}"),
         }
     }
 

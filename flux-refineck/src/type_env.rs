@@ -562,8 +562,8 @@ impl BasicBlockEnvShape {
         // other.bindings.close_boxes(rcx, gen, &self.scope)?;
 
         // Unfold
-        self.bindings
-            .join_with(rcx, gen, &mut other.bindings, checker_config)?;
+        // self.bindings
+        //     .join_with(rcx, gen, &mut other.bindings, checker_config)?;
 
         let paths = self.bindings.paths();
 

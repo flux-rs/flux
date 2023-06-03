@@ -18,7 +18,7 @@ use itertools::Itertools;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::{Idx, IndexVec};
+use rustc_index::{bit_set::BitSet, Idx, IndexVec};
 use rustc_middle::mir::START_BLOCK;
 
 use crate::queue::WorkQueue;
@@ -32,6 +32,7 @@ pub(crate) struct PlaceAnalysis<'a, 'tcx, M> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
+    visited: BitSet<BasicBlock>,
     queue: WorkQueue<'a>,
     discriminants: FxHashMap<Place, Place>,
     location: Location,
@@ -39,6 +40,8 @@ pub(crate) struct PlaceAnalysis<'a, 'tcx, M> {
 }
 
 pub(crate) trait Mode: Sized {
+    const NAME: &'static str;
+
     fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult;
 
     fn goto_join_point(
@@ -71,6 +74,7 @@ pub(crate) enum FoldUnfold {
     Unfold(Place),
 }
 
+#[derive(Debug)]
 enum ProjResult {
     None,
     Fold,
@@ -78,6 +82,8 @@ enum ProjResult {
 }
 
 impl Mode for Infer {
+    const NAME: &'static str = "infer";
+
     fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
         env.projection(analysis.genv, place)?;
         Ok(())
@@ -101,8 +107,11 @@ impl Mode for Infer {
 }
 
 impl Mode for Elaboration<'_> {
+    const NAME: &'static str = "elaboration";
+
     fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
-        match env.projection(analysis.genv, place)? {
+        let proj_result = env.projection(analysis.genv, place)?;
+        match proj_result {
             ProjResult::None => {}
             ProjResult::Fold => {
                 let place = place.clone();
@@ -131,7 +140,7 @@ impl Mode for Elaboration<'_> {
     ) -> QueryResult<bool> {
         let mut fold_unfolds = FoldUnfoldsAtEdge { edge: (from, target), data: analysis.mode.data };
         env.collect_fold_unfolds(&analysis.bb_envs[&target], &mut fold_unfolds);
-        Ok(false)
+        Ok(!analysis.visited.contains(target))
     }
 }
 
@@ -158,6 +167,7 @@ impl<'a, 'tcx, M> PlaceAnalysis<'a, 'tcx, M> {
             bb_envs,
             discriminants: FxHashMap::default(),
             location: Location::START,
+            visited: BitSet::new_empty(body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
             mode,
         }
@@ -197,6 +207,7 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
     }
 
     fn basic_block(&mut self, bb: BasicBlock, mut env: Env) -> QueryResult {
+        self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
         for (statement_index, stmt) in data.statements.iter().enumerate() {
             self.location = Location { block: bb, statement_index };
@@ -647,7 +658,7 @@ impl FoldUnfolds {
         self.at_location
             .entry(location)
             .or_default()
-            .push(FoldUnfold::Fold(place));
+            .push(FoldUnfold::Unfold(place));
     }
 
     fn insert_fold_at_edge(&mut self, edge: (BasicBlock, BasicBlock), place: Place) {
