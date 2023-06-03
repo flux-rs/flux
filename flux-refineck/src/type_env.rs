@@ -319,7 +319,7 @@ impl TypeEnv<'_> {
         target: BasicBlock,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.close_boxes(rcx, gen, &bb_env.scope)?;
+        // self.bindings.close_boxes(rcx, gen, &bb_env.scope)?;
 
         let reason = ConstrReason::Goto(target);
 
@@ -559,7 +559,7 @@ impl BasicBlockEnvShape {
         mut other: TypeEnv,
         checker_config: CheckerConfig,
     ) -> Result<bool, CheckerErrKind> {
-        other.bindings.close_boxes(rcx, gen, &self.scope)?;
+        // other.bindings.close_boxes(rcx, gen, &self.scope)?;
 
         // Unfold
         self.bindings

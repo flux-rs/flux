@@ -528,20 +528,19 @@ impl fmt::Debug for Rvalue {
             }
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
-                let fname = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*def_id);
-                    path.data.iter().join("::")
+                let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
+                    let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
+                    let fname = tcx.def_path(*def_id).data.iter().join("::");
+                    (fname, variant_name)
                 });
-                if substs.is_empty() {
-                    write!(f, "{fname}::{variant_idx:?}({:?})", args.iter().format(", "))
-                } else {
-                    write!(
-                        f,
-                        "{fname}::{variant_idx:?}::<{:?}>({:?})",
-                        substs.iter().format(", "),
-                        args.iter().format(", ")
-                    )
+                write!(f, "{fname}::{variant_name}")?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
                 }
+                if !args.is_empty() {
+                    write!(f, "({:?})", args.iter().format(", "))?;
+                }
+                Ok(())
             }
             Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
                 write!(f, "closure({def_id:?}, {substs:?}, {:?})", args.iter().format(", "))
