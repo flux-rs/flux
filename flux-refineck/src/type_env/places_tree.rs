@@ -257,16 +257,8 @@ impl PlacesTree {
                                     kind: LookupKind::Weak(mutbl, ty),
                                 });
                             }
-                            TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
-                                let (boxed, alloc) = box_args(substs);
-                                let fresh = rcx.define_var(&Sort::Loc);
-                                let loc = Loc::from(fresh);
-                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc.clone()));
-                                self.insert(
-                                    loc.clone(),
-                                    boxed.clone(),
-                                    LocKind::Box(alloc.clone()),
-                                );
+                            TyKind::Indexed(BaseTy::Adt(adt, _), _) if adt.is_box() => {
+                                let loc = ptr.borrow_mut().unfold_box(rcx, self);
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -445,7 +437,7 @@ impl LookupResult<'_> {
         checker_conf: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         match self.kind {
-            LookupKind::Strg(_, ptr) => ptr.unfold(genv, rcx, checker_conf)?,
+            LookupKind::Strg(_, ptr) => ptr.unfold(genv, rcx, checker_conf, self.tree)?,
             LookupKind::Weak(..) | LookupKind::Raw(..) => {}
         }
         Ok(())
@@ -709,10 +701,12 @@ impl Node {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         checker_conf: CheckerConfig,
+        map: &mut PlacesTree,
     ) -> Result<(), CheckerErrKind> {
         match self {
             Node::Leaf(Binding::Blocked(ty) | Binding::Owned(ty)) => {
                 if ty.is_box() {
+                    self.unfold_box(rcx, map);
                 } else if ty.is_tuple() | ty.is_closure() | ty.is_struct() | ty.is_uninit() {
                     self.split(genv, rcx, checker_conf)?;
                 }
@@ -720,6 +714,24 @@ impl Node {
                 Ok(())
             }
             Node::Internal(_, _) => Ok(()),
+        }
+    }
+
+    fn unfold_box(&mut self, rcx: &mut RefineCtxt, map: &mut PlacesTree) -> Loc {
+        let ty = self.expect_owned();
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Adt(adt, substs), _) => {
+                debug_assert!(adt.is_box());
+                let (boxed, alloc) = box_args(substs);
+                let fresh = rcx.define_var(&Sort::Loc);
+                let loc = Loc::from(fresh);
+                *self = Node::owned(Ty::ptr(PtrKind::Box, loc.clone()));
+                map.insert(loc.clone(), boxed.clone(), LocKind::Box(alloc.clone()));
+                loc
+            }
+            _ => {
+                tracked_span_bug!()
+            }
         }
     }
 
@@ -764,8 +776,9 @@ impl NodePtr {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         checker_conf: CheckerConfig,
+        map: &mut PlacesTree,
     ) -> Result<(), CheckerErrKind> {
-        self.borrow_mut().unfold(genv, rcx, checker_conf)
+        self.borrow_mut().unfold(genv, rcx, checker_conf, map)
     }
 
     fn proj(
