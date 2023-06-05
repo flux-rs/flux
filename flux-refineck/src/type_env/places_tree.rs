@@ -200,7 +200,100 @@ impl PlacesTree {
         bindings
     }
 
-    pub(super) fn lookup<'a>(
+    pub(super) fn lookup(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        key: &impl LookupKey,
+        checker_conf: CheckerConfig,
+    ) -> Result<LookupResult, CheckerErrKind> {
+        let mut path = Path::from(key.loc());
+        let place_proj = &mut key.proj();
+        'outer: loop {
+            let loc = path.loc.clone();
+            let mut ptr = self.get_loc(&loc);
+            let mut path_proj = vec![];
+
+            for f in path.projection() {
+                let next = NodePtr::clone(&ptr.borrow().expect_internal()[f.as_usize()]);
+                ptr = next;
+                path_proj.push(*f);
+            }
+
+            for elem in place_proj.by_ref() {
+                match elem {
+                    PlaceElem::Deref => {
+                        let ty = ptr.borrow().expect_owned();
+                        match ty.kind() {
+                            TyKind::Ptr(_, ptr_path) => {
+                                path = ptr_path.clone();
+                                continue 'outer;
+                            }
+                            Ref!(_, ty, mutbl) => {
+                                let (mutbl, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::from(*mutbl),
+                                    ty,
+                                    place_proj,
+                                    checker_conf,
+                                )?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Weak(mutbl, ty),
+                                });
+                            }
+                            TyKind::Indexed(BaseTy::RawPtr(ty, _), _) => {
+                                assert!(place_proj.next().is_none());
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Raw(ty.clone()),
+                                });
+                            }
+                            _ => {
+                                todo!("{ty:?}")
+                            }
+                        }
+                    }
+                    PlaceElem::Field(f) => {
+                        let next = NodePtr::clone(&ptr.borrow().expect_internal()[f.as_usize()]);
+                        ptr = next;
+                        path_proj.push(f);
+                    }
+                    PlaceElem::Downcast(_, _) => {}
+                    PlaceElem::Index(_) => {
+                        let ty = ptr.borrow().expect_owned();
+                        match ty.kind() {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
+                                let (mutbl, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::Arr,
+                                    arr_ty,
+                                    place_proj,
+                                    checker_conf,
+                                )?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Weak(mutbl, ty),
+                                });
+                            }
+                            _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
+                        }
+                    }
+                }
+            }
+
+            return Ok(LookupResult {
+                tree: self,
+                kind: LookupKind::Strg(Path::new(loc, path_proj), ptr),
+            });
+
+            // return Ok(ptr.borrow_mut().expect_leaf_mut().unblock(rcx));
+        }
+    }
+
+    pub(super) fn unfold<'a>(
         &'a mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
@@ -214,13 +307,7 @@ impl PlacesTree {
             let loc = path.loc.clone();
             let mut path_proj = vec![];
 
-            let mut ptr = NodePtr::clone(
-                &self
-                    .map
-                    .get(&loc)
-                    .unwrap_or_else(|| tracked_span_bug!("PANIC: {loc:?}"))
-                    .ptr,
-            );
+            let mut ptr = self.get_loc(&loc);
 
             for field in path.projection() {
                 ptr = ptr.proj(genv, rcx, *field, checker_config)?;
@@ -375,6 +462,16 @@ impl PlacesTree {
         Ok(())
     }
 
+    fn get_loc(&self, loc: &Loc) -> NodePtr {
+        NodePtr::clone(
+            &self
+                .map
+                .get(loc)
+                .unwrap_or_else(|| tracked_span_bug!("loc not found `{loc:?}`"))
+                .ptr,
+        )
+    }
+
     #[must_use]
     pub fn fmap(&self, f: impl FnMut(&Binding) -> Binding) -> PlacesTree {
         let mut tree = self.clone();
@@ -427,6 +524,16 @@ impl LookupResult<'_> {
             }
             LookupKind::Weak(rk, ty) => Ok(FoldResult::Weak(rk, ty)),
             LookupKind::Raw(ty) => Ok(FoldResult::Raw(ty)),
+        }
+    }
+
+    pub(super) fn unblock(self, rcx: &mut RefineCtxt) -> FoldResult {
+        match self.kind {
+            LookupKind::Strg(path, ptr) => {
+                FoldResult::Strg(path, ptr.borrow_mut().expect_leaf_mut().unblock(rcx))
+            }
+            LookupKind::Weak(wk, ty) => FoldResult::Weak(wk, ty),
+            LookupKind::Raw(ty) => FoldResult::Raw(ty),
         }
     }
 
@@ -495,6 +602,14 @@ impl Node {
 
     fn owned(ty: Ty) -> Node {
         Node::Leaf(Binding::Owned(ty))
+    }
+
+    #[track_caller]
+    fn expect_internal(&self) -> &[NodePtr] {
+        match self {
+            Node::Internal(_, children) => children,
+            _ => tracked_span_bug!("expected `Node::Internal`, got `{self:?}`"),
+        }
     }
 
     #[track_caller]

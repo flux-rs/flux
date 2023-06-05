@@ -263,7 +263,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         output: &Binder<FnOutput>,
     ) -> Result<(), CheckerErrKind> {
-        let ret_place_ty = env.lookup_place(rcx, self, Place::RETURN, self.checker_config)?;
+        let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN, self.checker_config)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -437,7 +437,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         ty: &Ty,
     ) -> Result<(), CheckerErrKind> {
         let checker_config = self.checker_config;
-        let actual_ty = env.lookup_path(rcx, &mut self.as_constr_gen(), path, checker_config)?;
+        let actual_ty = env.lookup_path(self.genv, rcx, path, checker_config)?;
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
     }

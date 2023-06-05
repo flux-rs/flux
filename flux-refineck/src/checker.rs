@@ -437,8 +437,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let config = self.config;
-                let mut gen = self.constr_gen(rcx, terminator_span);
-                let _ = env.move_place(rcx, &mut gen, place, config);
+                let _ = env.move_place(self.genv, rcx, place, config);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -675,14 +674,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, *r, Mutability::Mut, place, config)
+                env.borrow(self.genv, rcx, *r, Mutability::Mut, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared, place) => {
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, *r, Mutability::Not, place, config)
+                env.borrow(self.genv, rcx, *r, Mutability::Not, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -728,9 +725,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::Discriminant(place) => {
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, stmt_span);
                 let ty = env
-                    .lookup_place(rcx, gen, place, config)
+                    .lookup_place(self.genv, rcx, place, config)
                     .with_span(stmt_span)?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -751,9 +747,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         place: &Place,
     ) -> Result<Ty, CheckerError> {
         let config = self.config;
-        let gen = &mut self.constr_gen(rcx, source_span);
         let ty = env
-            .lookup_place(rcx, gen, place, config)
+            .lookup_place(self.genv, rcx, place, config)
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
@@ -903,15 +898,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, source_span);
-                env.lookup_place(rcx, gen, p, config)
+                env.lookup_place(self.genv, rcx, p, config)
                     .with_span(source_span)?
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, source_span);
-                env.move_place(rcx, gen, p, config).with_span(source_span)?
+                env.move_place(self.genv, rcx, p, config)
+                    .with_span(source_span)?
             }
             Operand::Constant(c) => Self::check_constant(c),
         };
