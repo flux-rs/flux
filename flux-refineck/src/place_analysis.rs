@@ -50,6 +50,8 @@ pub(crate) trait Mode: Sized {
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool>;
+
+    fn ret(analysis: &mut PlaceAnalysis<Self>, bb: BasicBlock, env: Env);
 }
 
 struct Infer;
@@ -64,9 +66,15 @@ pub(crate) struct FoldUnfolds {
     at_edge: FxHashMap<(BasicBlock, BasicBlock), Vec<FoldUnfold>>,
 }
 
-struct FoldUnfoldsAtEdge<'a> {
+struct FoldUnfoldsAt<'a> {
     data: &'a mut FoldUnfolds,
-    edge: (BasicBlock, BasicBlock),
+    point: Point,
+}
+
+#[derive(Clone, Copy)]
+enum Point {
+    Location(Location),
+    Edge(BasicBlock, BasicBlock),
 }
 
 pub(crate) enum FoldUnfold {
@@ -104,28 +112,25 @@ impl Mode for Infer {
         };
         Ok(modified)
     }
+
+    fn ret(_: &mut PlaceAnalysis<Self>, _: BasicBlock, _: Env) {}
 }
 
 impl Mode for Elaboration<'_> {
     const NAME: &'static str = "elaboration";
 
     fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
+        let point = Point::Location(analysis.location);
         match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
             ProjResult::Fold => {
                 let place = place.clone();
-                analysis
-                    .mode
-                    .data
-                    .insert_fold_at_location(analysis.location, place);
+                analysis.mode.data.insert_fold_at(point, place);
             }
             ProjResult::Unfold => {
                 let projection = place.projection[..place.projection.len() - 1].to_vec();
                 let place = Place::new(place.local, projection);
-                analysis
-                    .mode
-                    .data
-                    .insert_unfold_at_location(analysis.location, place);
+                analysis.mode.data.insert_unfold_at(point, place);
             }
         }
         Ok(())
@@ -137,9 +142,16 @@ impl Mode for Elaboration<'_> {
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
-        let mut fold_unfolds = FoldUnfoldsAtEdge { edge: (from, target), data: analysis.mode.data };
-        env.collect_fold_unfolds(&analysis.bb_envs[&target], &mut fold_unfolds);
+        let mut fold_unfolds =
+            FoldUnfoldsAt { point: Point::Edge(from, target), data: analysis.mode.data };
+        env.collect_fold_unfolds_at_goto(&analysis.bb_envs[&target], &mut fold_unfolds);
         Ok(!analysis.visited.contains(target))
+    }
+
+    fn ret(analysis: &mut PlaceAnalysis<Self>, bb: BasicBlock, env: Env) {
+        let point = Point::Location(analysis.body.terminator_loc(bb));
+        let mut fold_unfolds = FoldUnfoldsAt { point, data: analysis.mode.data };
+        env.collect_folds_at_ret(analysis.body, &mut fold_unfolds);
     }
 }
 
@@ -271,7 +283,7 @@ impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
         let bb = self.location.block;
         match &terminator.kind {
             TerminatorKind::Return => {
-                M::projection(self, &mut env, Place::RETURN)?;
+                M::ret(self, bb, env);
             }
             TerminatorKind::Call { args, destination, target, .. } => {
                 for arg in args {
@@ -408,13 +420,19 @@ impl Env {
         Ok(modified)
     }
 
-    fn collect_fold_unfolds(&self, other: &Env, fold_unfolds: &mut FoldUnfoldsAtEdge) {
+    fn collect_fold_unfolds_at_goto(&self, other: &Env, fold_unfolds: &mut FoldUnfoldsAt) {
         for (local, node) in self.map.iter_enumerated() {
             node.collect_fold_unfolds(
                 &other.map[local],
                 &mut Place::new(local, vec![]),
                 fold_unfolds,
             );
+        }
+    }
+
+    fn collect_folds_at_ret(&self, body: &Body, fold_unfolds: &mut FoldUnfoldsAt) {
+        for local in body.args_iter() {
+            self.map[local].collect_folds_at_ret(&mut Place::new(local, vec![]), fold_unfolds);
         }
     }
 }
@@ -527,88 +545,6 @@ impl PlaceNode {
         }
     }
 
-    fn collect_fold_unfolds(
-        &self,
-        other: &PlaceNode,
-        place: &mut Place,
-        fold_unfolds: &mut FoldUnfoldsAtEdge,
-    ) {
-        let (fields1, fields2) = match (self, other) {
-            (PlaceNode::Deref(_, node1), PlaceNode::Deref(_, node2)) => {
-                place.projection.push(PlaceElem::Deref);
-                node1.collect_fold_unfolds(node2, place, fold_unfolds);
-                place.projection.pop();
-                return;
-            }
-            (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
-            (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
-                (fields1, fields2)
-            }
-            (
-                PlaceNode::Downcast(adt1, .., idx1, fields1),
-                PlaceNode::Downcast(adt2, .., idx2, fields2),
-            ) => {
-                debug_assert_eq!(adt1.did(), adt2.did());
-                if idx1 == idx2 {
-                    (fields1, fields2)
-                } else {
-                    tracked_span_bug!();
-                }
-            }
-            (PlaceNode::Ty(_), PlaceNode::Ty(_)) => return,
-            (PlaceNode::Ty(_), _) => {
-                other.collect_unfolds(place, fold_unfolds);
-                return;
-            }
-            (_, PlaceNode::Ty(_)) => {
-                fold_unfolds.insert_fold(place.clone());
-                return;
-            }
-            _ => tracked_span_bug!("{self:?} {other:?}"),
-        };
-        for (i, (node1, node2)) in iter::zip(fields1, fields2).enumerate() {
-            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            node1.collect_fold_unfolds(node2, place, fold_unfolds);
-            place.projection.pop();
-        }
-    }
-
-    fn collect_unfolds(&self, place: &mut Place, fold_unfolds: &mut FoldUnfoldsAtEdge) -> bool {
-        let fields = match self {
-            PlaceNode::Ty(_) => {
-                return true;
-            }
-            PlaceNode::Deref(_, node) => {
-                place.projection.push(PlaceElem::Deref);
-                node.collect_unfolds(place, fold_unfolds);
-                place.projection.pop();
-                return false;
-            }
-            PlaceNode::Downcast(adt, _, idx, fields) => {
-                if adt.is_enum() {
-                    place.projection.push(PlaceElem::Downcast(None, *idx));
-                }
-                fields
-            }
-            PlaceNode::Closure(_, _, fields) => fields,
-            PlaceNode::Tuple(_, fields) => fields,
-        };
-        let mut all_leafs = true;
-        for (i, node) in fields.iter().enumerate() {
-            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leafs &= node.collect_unfolds(place, fold_unfolds);
-            place.projection.pop();
-        }
-        if all_leafs {
-            fold_unfolds.insert_unfold(place.clone());
-        }
-        if let PlaceNode::Downcast(adt, ..) = self && adt.is_enum() {
-            place.projection.pop();
-        }
-
-        true
-    }
-
     fn join(&mut self, genv: &GlobalEnv, other: &mut PlaceNode) -> QueryResult<(bool, bool)> {
         let mut modified1 = false;
         let mut modified2 = false;
@@ -671,35 +607,155 @@ impl PlaceNode {
         }
         Ok((modified1, modified2))
     }
+
+    fn collect_fold_unfolds(
+        &self,
+        other: &PlaceNode,
+        place: &mut Place,
+        fold_unfolds: &mut FoldUnfoldsAt,
+    ) {
+        let (fields1, fields2) = match (self, other) {
+            (PlaceNode::Deref(_, node1), PlaceNode::Deref(_, node2)) => {
+                place.projection.push(PlaceElem::Deref);
+                node1.collect_fold_unfolds(node2, place, fold_unfolds);
+                place.projection.pop();
+                return;
+            }
+            (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
+            (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
+                (fields1, fields2)
+            }
+            (
+                PlaceNode::Downcast(adt1, .., idx1, fields1),
+                PlaceNode::Downcast(adt2, .., idx2, fields2),
+            ) => {
+                debug_assert_eq!(adt1.did(), adt2.did());
+                if idx1 == idx2 {
+                    (fields1, fields2)
+                } else {
+                    tracked_span_bug!();
+                }
+            }
+            (PlaceNode::Ty(_), PlaceNode::Ty(_)) => return,
+            (PlaceNode::Ty(_), _) => {
+                other.collect_unfolds(place, fold_unfolds);
+                return;
+            }
+            (_, PlaceNode::Ty(_)) => {
+                fold_unfolds.insert_fold(place.clone());
+                return;
+            }
+            _ => tracked_span_bug!("{self:?} {other:?}"),
+        };
+        for (i, (node1, node2)) in iter::zip(fields1, fields2).enumerate() {
+            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
+            node1.collect_fold_unfolds(node2, place, fold_unfolds);
+            place.projection.pop();
+        }
+    }
+
+    fn collect_unfolds(&self, place: &mut Place, fold_unfolds: &mut FoldUnfoldsAt) -> bool {
+        let fields = match self {
+            PlaceNode::Ty(_) => {
+                return true;
+            }
+            PlaceNode::Deref(_, node) => {
+                place.projection.push(PlaceElem::Deref);
+                node.collect_unfolds(place, fold_unfolds);
+                place.projection.pop();
+                return false;
+            }
+            PlaceNode::Downcast(adt, _, idx, fields) => {
+                if adt.is_enum() {
+                    place.projection.push(PlaceElem::Downcast(None, *idx));
+                }
+                fields
+            }
+            PlaceNode::Closure(_, _, fields) => fields,
+            PlaceNode::Tuple(_, fields) => fields,
+        };
+        let mut all_leafs = true;
+        for (i, node) in fields.iter().enumerate() {
+            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
+            all_leafs &= node.collect_unfolds(place, fold_unfolds);
+            place.projection.pop();
+        }
+        if all_leafs {
+            fold_unfolds.insert_unfold(place.clone());
+        }
+        if let PlaceNode::Downcast(adt, ..) = self && adt.is_enum() {
+            place.projection.pop();
+        }
+
+        true
+    }
+
+    fn collect_folds_at_ret(&self, place: &mut Place, fold_unfolds: &mut FoldUnfoldsAt) {
+        let fields = match self {
+            PlaceNode::Deref(ty, deref) => {
+                place.projection.push(PlaceElem::Deref);
+                if ty.is_mut_ref() {
+                    fold_unfolds.insert_fold(place.clone());
+                } else if ty.is_box() {
+                    deref.collect_folds_at_ret(place, fold_unfolds);
+                }
+                place.projection.pop();
+                return;
+            }
+            PlaceNode::Downcast(adt, _, idx, fields) => {
+                if adt.is_enum() {
+                    place.projection.push(PlaceElem::Downcast(None, *idx));
+                }
+                fields
+            }
+            PlaceNode::Closure(_, _, fields) => fields,
+            PlaceNode::Tuple(_, fields) => fields,
+            PlaceNode::Ty(_) => return,
+        };
+        for (i, node) in fields.iter().enumerate() {
+            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
+            node.collect_folds_at_ret(place, fold_unfolds);
+            place.projection.pop();
+        }
+        if let PlaceNode::Downcast(adt, ..) = self && adt.is_enum() {
+            place.projection.pop();
+        }
+    }
 }
 
 impl FoldUnfolds {
-    fn insert_fold_at_location(&mut self, location: Location, place: Place) {
-        self.at_location
-            .entry(location)
-            .or_default()
-            .push(FoldUnfold::Fold(place));
+    fn insert_fold_at(&mut self, point: Point, place: Place) {
+        match point {
+            Point::Location(location) => {
+                self.at_location
+                    .entry(location)
+                    .or_default()
+                    .push(FoldUnfold::Fold(place));
+            }
+            Point::Edge(from, to) => {
+                self.at_edge
+                    .entry((from, to))
+                    .or_default()
+                    .push(FoldUnfold::Fold(place));
+            }
+        }
     }
 
-    fn insert_unfold_at_location(&mut self, location: Location, place: Place) {
-        self.at_location
-            .entry(location)
-            .or_default()
-            .push(FoldUnfold::Unfold(place));
-    }
-
-    fn insert_fold_at_edge(&mut self, edge: (BasicBlock, BasicBlock), place: Place) {
-        self.at_edge
-            .entry(edge)
-            .or_default()
-            .push(FoldUnfold::Fold(place));
-    }
-
-    fn insert_unfold_at_edge(&mut self, edge: (BasicBlock, BasicBlock), place: Place) {
-        self.at_edge
-            .entry(edge)
-            .or_default()
-            .push(FoldUnfold::Unfold(place));
+    fn insert_unfold_at(&mut self, point: Point, place: Place) {
+        match point {
+            Point::Location(location) => {
+                self.at_location
+                    .entry(location)
+                    .or_default()
+                    .push(FoldUnfold::Unfold(place));
+            }
+            Point::Edge(from, to) => {
+                self.at_edge
+                    .entry((from, to))
+                    .or_default()
+                    .push(FoldUnfold::Unfold(place));
+            }
+        }
     }
 
     pub(crate) fn fold_unfolds_at_location(
@@ -718,13 +774,13 @@ impl FoldUnfolds {
     }
 }
 
-impl FoldUnfoldsAtEdge<'_> {
+impl FoldUnfoldsAt<'_> {
     fn insert_fold(&mut self, place: Place) {
-        self.data.insert_fold_at_edge(self.edge, place);
+        self.data.insert_fold_at(self.point, place);
     }
 
     fn insert_unfold(&mut self, place: Place) {
-        self.data.insert_unfold_at_edge(self.edge, place);
+        self.data.insert_unfold_at(self.point, place);
     }
 }
 

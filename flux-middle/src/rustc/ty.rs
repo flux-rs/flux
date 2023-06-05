@@ -456,6 +456,14 @@ impl Ty {
             _ => bug!("expect_adt called on non-adt"),
         }
     }
+
+    pub fn is_mut_ref(&self) -> bool {
+        matches!(self.kind(), TyKind::Ref(.., Mutability::Mut))
+    }
+
+    pub fn is_box(&self) -> bool {
+        matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
+    }
 }
 
 impl_internable!(TyS, AdtDefData);
