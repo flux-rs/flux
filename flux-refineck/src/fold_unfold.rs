@@ -28,7 +28,7 @@ pub(crate) struct Env {
     map: IndexVec<Local, PlaceNode>,
 }
 
-pub(crate) struct PlaceAnalysis<'a, 'tcx, M> {
+pub(crate) struct FoldUnfoldAnalysis<'a, 'tcx, M> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
@@ -42,16 +42,20 @@ pub(crate) struct PlaceAnalysis<'a, 'tcx, M> {
 pub(crate) trait Mode: Sized {
     const NAME: &'static str;
 
-    fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult;
+    fn projection(
+        analysis: &mut FoldUnfoldAnalysis<Self>,
+        env: &mut Env,
+        place: &Place,
+    ) -> QueryResult;
 
     fn goto_join_point(
-        analysis: &mut PlaceAnalysis<Self>,
+        analysis: &mut FoldUnfoldAnalysis<Self>,
         from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool>;
 
-    fn ret(analysis: &mut PlaceAnalysis<Self>, bb: BasicBlock, env: Env);
+    fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, bb: BasicBlock, env: Env);
 }
 
 struct Infer;
@@ -92,13 +96,17 @@ enum ProjResult {
 impl Mode for Infer {
     const NAME: &'static str = "infer";
 
-    fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
+    fn projection(
+        analysis: &mut FoldUnfoldAnalysis<Self>,
+        env: &mut Env,
+        place: &Place,
+    ) -> QueryResult {
         env.projection(analysis.genv, place)?;
         Ok(())
     }
 
     fn goto_join_point(
-        analysis: &mut PlaceAnalysis<Self>,
+        analysis: &mut FoldUnfoldAnalysis<Self>,
         _from: BasicBlock,
         target: BasicBlock,
         env: Env,
@@ -113,13 +121,17 @@ impl Mode for Infer {
         Ok(modified)
     }
 
-    fn ret(_: &mut PlaceAnalysis<Self>, _: BasicBlock, _: Env) {}
+    fn ret(_: &mut FoldUnfoldAnalysis<Self>, _: BasicBlock, _: Env) {}
 }
 
 impl Mode for Elaboration<'_> {
     const NAME: &'static str = "elaboration";
 
-    fn projection(analysis: &mut PlaceAnalysis<Self>, env: &mut Env, place: &Place) -> QueryResult {
+    fn projection(
+        analysis: &mut FoldUnfoldAnalysis<Self>,
+        env: &mut Env,
+        place: &Place,
+    ) -> QueryResult {
         let point = Point::Location(analysis.location);
         match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
@@ -137,7 +149,7 @@ impl Mode for Elaboration<'_> {
     }
 
     fn goto_join_point(
-        analysis: &mut PlaceAnalysis<Self>,
+        analysis: &mut FoldUnfoldAnalysis<Self>,
         from: BasicBlock,
         target: BasicBlock,
         env: Env,
@@ -148,7 +160,7 @@ impl Mode for Elaboration<'_> {
         Ok(!analysis.visited.contains(target))
     }
 
-    fn ret(analysis: &mut PlaceAnalysis<Self>, bb: BasicBlock, env: Env) {
+    fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, bb: BasicBlock, env: Env) {
         let point = Point::Location(analysis.body.terminator_loc(bb));
         let mut fold_unfolds = FoldUnfoldsAt { point, data: analysis.mode.data };
         env.collect_folds_at_ret(analysis.body, &mut fold_unfolds);
@@ -164,7 +176,7 @@ enum PlaceNode {
     Ty(Ty),
 }
 
-impl<'a, 'tcx, M> PlaceAnalysis<'a, 'tcx, M> {
+impl<'a, 'tcx, M> FoldUnfoldAnalysis<'a, 'tcx, M> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
@@ -185,17 +197,17 @@ impl<'a, 'tcx, M> PlaceAnalysis<'a, 'tcx, M> {
     }
 }
 
-impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
+impl<'a, 'tcx> FoldUnfoldAnalysis<'a, 'tcx, ()> {
     pub(crate) fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
         dominators: &'a Dominators<BasicBlock>,
     ) -> QueryResult<FoldUnfolds> {
         let mut bb_envs = FxHashMap::default();
-        PlaceAnalysis::new(genv, body, dominators, &mut bb_envs, Infer).run()?;
+        FoldUnfoldAnalysis::new(genv, body, dominators, &mut bb_envs, Infer).run()?;
 
         let mut fold_unfolds = FoldUnfolds::default();
-        PlaceAnalysis::new(
+        FoldUnfoldAnalysis::new(
             genv,
             body,
             dominators,
@@ -208,7 +220,7 @@ impl<'a, 'tcx> PlaceAnalysis<'a, 'tcx, ()> {
     }
 }
 
-impl<'a, 'tcx, M: Mode> PlaceAnalysis<'a, 'tcx, M> {
+impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
     fn run(mut self) -> QueryResult {
         self.goto(START_BLOCK, START_BLOCK, Env::new(self.body))?;
         while let Some(bb) = self.queue.pop() {
@@ -765,7 +777,7 @@ impl FoldUnfolds {
         self.at_location.get(&location).into_iter().flatten()
     }
 
-    pub(crate) fn fold_unfolds_at_edge(
+    pub(crate) fn fold_unfolds_at_goto(
         &self,
         from: BasicBlock,
         target: BasicBlock,

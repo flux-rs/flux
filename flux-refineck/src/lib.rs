@@ -28,9 +28,9 @@ extern crate rustc_type_ir;
 mod checker;
 mod constraint_gen;
 mod fixpoint_encoding;
+mod fold_unfold;
 pub mod invariants;
 mod param_infer;
-mod place_analysis;
 mod queue;
 mod refine_tree;
 mod sigs;
@@ -48,8 +48,8 @@ use flux_middle::{
     rty::{self, ESpan},
     rustc::mir::BasicBlock,
 };
+use fold_unfold::{FoldUnfoldAnalysis, FoldUnfolds};
 use itertools::Itertools;
-use place_analysis::{FoldUnfolds, PlaceAnalysis};
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -120,7 +120,7 @@ fn compute_extra_data(
     for def_id in bodies {
         let body = genv.mir(def_id).emit(genv.sess)?;
         let dominators = body.dominators();
-        let fold_unfolds = PlaceAnalysis::run(genv, &body, &dominators).emit(genv.sess)?;
+        let fold_unfolds = FoldUnfoldAnalysis::run(genv, &body, &dominators).emit(genv.sess)?;
         data.insert(def_id.to_def_id(), ExtraBodyData { dominators, fold_unfolds });
     }
     Ok(data)

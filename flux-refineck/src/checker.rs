@@ -36,7 +36,7 @@ use self::errors::{CheckerError, ResultExt};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
-    place_analysis::{FoldUnfold, FoldUnfolds, PlaceAnalysis},
+    fold_unfold::{FoldUnfold, FoldUnfolds},
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
@@ -970,7 +970,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         target: BasicBlock,
         span: Span,
     ) -> Result<(), CheckerError> {
-        for fold_unfold in self.fold_unfolds().fold_unfolds_at_edge(from, target) {
+        for fold_unfold in self.fold_unfolds().fold_unfolds_at_goto(from, target) {
             self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
         }
         Ok(())
