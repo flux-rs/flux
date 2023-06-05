@@ -53,8 +53,30 @@ pub struct Providers {
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
 }
 
+macro_rules! empty_query {
+    () => {
+        flux_common::bug!("query not provided")
+    };
+}
+
+impl Default for Providers {
+    fn default() -> Self {
+        Self {
+            defns: |_| empty_query!(),
+            qualifiers: |_| empty_query!(),
+            check_wf: |_, _| empty_query!(),
+            adt_def: |_, _| empty_query!(),
+            type_of: |_, _| empty_query!(),
+            variants_of: |_, _| empty_query!(),
+            fn_sig: |_, _| empty_query!(),
+            generics_of: |_, _| empty_query!(),
+        }
+    }
+}
+
+#[derive(Default)]
 pub struct Queries<'tcx> {
-    providers: Providers,
+    pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
@@ -71,25 +93,6 @@ pub struct Queries<'tcx> {
 }
 
 impl<'tcx> Queries<'tcx> {
-    pub(crate) fn new(providers: Providers) -> Self {
-        Self {
-            providers,
-            mir: Cache::default(),
-            lower_type_of: Cache::default(),
-            lower_fn_sig: Cache::default(),
-            defns: OnceCell::new(),
-            qualifiers: OnceCell::new(),
-            check_wf: Cache::default(),
-            adt_def: Cache::default(),
-            generics_of: Cache::default(),
-            predicates_of: Cache::default(),
-            type_of: Cache::default(),
-            variants_of: Cache::default(),
-            fn_sig: Cache::default(),
-            lower_late_bound_vars: Cache::default(),
-        }
-    }
-
     pub(crate) fn mir(
         &self,
         genv: &GlobalEnv<'_, 'tcx>,

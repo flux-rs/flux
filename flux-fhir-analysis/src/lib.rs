@@ -28,36 +28,31 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
+use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-pub fn build_genv<'sess, 'tcx>(
-    early_cx: EarlyCtxt<'sess, 'tcx>,
-) -> Result<GlobalEnv<'sess, 'tcx>, ErrorGuaranteed> {
-    let func_decls = early_cx
+pub fn conv_func_decls(early_cx: &EarlyCtxt) -> FxHashMap<Symbol, rty::FuncDecl> {
+    early_cx
         .map
         .func_decls()
-        .map(|decl| (decl.name, conv::conv_func_decl(&early_cx, decl)))
-        .collect();
+        .map(|decl| (decl.name, conv::conv_func_decl(early_cx, decl)))
+        .collect()
+}
 
-    let genv = GlobalEnv::new(
-        early_cx,
-        func_decls,
-        Providers {
-            defns,
-            qualifiers,
-            check_wf,
-            adt_def,
-            type_of,
-            variants_of,
-            fn_sig,
-            generics_of,
-        },
-    );
-    check_crate_wf(&genv)?;
-    Ok(genv)
+pub fn provide(providers: &mut Providers) {
+    *providers = Providers {
+        defns,
+        qualifiers,
+        check_wf,
+        adt_def,
+        type_of,
+        variants_of,
+        fn_sig,
+        generics_of,
+    };
 }
 
 fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
@@ -256,7 +251,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
     }
 }
 
-fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
+pub fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
     for def_id in genv.tcx.hir_crate_items(()).definitions() {

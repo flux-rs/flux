@@ -33,7 +33,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn new(
         early_cx: EarlyCtxt<'sess, 'tcx>,
         func_decls: FxHashMap<Symbol, rty::FuncDecl>,
-        providers: Providers,
     ) -> Self {
         let mut fn_quals = FxHashMap::default();
         for (def_id, names) in early_cx.map.fn_quals() {
@@ -52,9 +51,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             early_cx,
             func_decls,
             fn_quals,
-            queries: Queries::new(providers),
+            queries: Queries::default(),
             extern_specs: externs,
         }
+    }
+
+    pub fn providers(&mut self) -> &mut Providers {
+        &mut self.queries.providers
     }
 
     pub fn map(&self) -> &fhir::Map {
