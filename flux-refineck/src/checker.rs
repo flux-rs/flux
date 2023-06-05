@@ -639,6 +639,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), CheckerError> {
         self.apply_fold_unfolds_at_edge(&mut rcx, &mut env, from, target, span)?;
         if self.is_exit_block(target) {
+            let location = self.body.terminator_loc(target);
+            self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
             self.mode
                 .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
