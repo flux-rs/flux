@@ -4,9 +4,11 @@ mod subst;
 
 use flux_common::bug;
 use itertools::Itertools;
+use rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 use rustc_hir::def_id::DefId;
+use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::ClosureKind;
+use rustc_middle::ty::{AdtFlags, ClosureKind};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -82,6 +84,29 @@ pub type PolyFnSig = Binder<FnSig>;
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ty(Interned<TyS>);
 
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+pub struct AdtDef(Interned<AdtDefData>);
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct AdtDefData {
+    pub did: DefId,
+    variants: IndexVec<VariantIdx, VariantDef>,
+    flags: AdtFlags,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct VariantDef {
+    pub def_id: DefId,
+    pub name: Symbol,
+    pub fields: IndexVec<FieldIdx, FieldDef>,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+pub struct FieldDef {
+    pub did: DefId,
+    pub name: Symbol,
+}
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct TyS {
     kind: TyKind,
@@ -89,7 +114,7 @@ struct TyS {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Adt(DefId, List<GenericArg>),
+    Adt(AdtDef, Substs),
     Array(Ty, Const),
     Bool,
     Str,
@@ -103,7 +128,7 @@ pub enum TyKind {
     Uint(UintTy),
     Slice(Ty),
     FnPtr(PolyFnSig),
-    Closure(DefId, List<GenericArg>),
+    Closure(DefId, Substs),
     RawPtr(Ty, Mutability),
 }
 
@@ -116,6 +141,26 @@ pub struct Const {
 pub enum GenericArg {
     Ty(Ty),
     Lifetime(Region),
+}
+
+pub type Substs = List<GenericArg>;
+
+impl Substs {
+    pub fn as_closure(&self) -> ClosureSubsts {
+        ClosureSubsts { substs: self.clone() }
+    }
+}
+
+pub struct ClosureSubsts {
+    pub substs: Substs,
+}
+
+#[allow(unused)]
+pub struct ClosureSubstsParts<'a, T> {
+    parent_substs: &'a [T],
+    closure_kind_ty: &'a T,
+    closure_sig_as_fn_ptr_ty: &'a T,
+    tupled_upvars_ty: &'a T,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -221,7 +266,7 @@ impl GenericArg {
         if let GenericArg::Ty(ty) = self {
             ty
         } else {
-            bug!("expected type, found {:?}", self)
+            bug!("expected `GenericArg::Ty`, found {:?}", self)
         }
     }
 
@@ -229,8 +274,85 @@ impl GenericArg {
         if let GenericArg::Lifetime(re) = self {
             *re
         } else {
-            bug!("expected type, found {:?}", self)
+            bug!("expected `GenericArg::Lifetime`, found {:?}", self)
         }
+    }
+}
+
+impl ClosureSubsts {
+    pub fn tupled_upvars_ty(&self) -> &Ty {
+        self.split().tupled_upvars_ty.expect_type()
+    }
+
+    pub fn upvar_tys(&self) -> impl Iterator<Item = &Ty> {
+        self.tupled_upvars_ty().tuple_fields().iter()
+    }
+
+    pub fn split(&self) -> ClosureSubstsParts<GenericArg> {
+        match &self.substs[..] {
+            [parent_substs @ .., closure_kind_ty, closure_sig_as_fn_ptr_ty, tupled_upvars_ty] => {
+                ClosureSubstsParts {
+                    parent_substs,
+                    closure_kind_ty,
+                    closure_sig_as_fn_ptr_ty,
+                    tupled_upvars_ty,
+                }
+            }
+            _ => bug!("closure substs missing synthetics"),
+        }
+    }
+}
+
+impl AdtDef {
+    pub(crate) fn new(data: AdtDefData) -> Self {
+        Self(Interned::new(data))
+    }
+
+    pub fn did(&self) -> DefId {
+        self.0.did
+    }
+
+    pub fn flags(&self) -> AdtFlags {
+        self.0.flags
+    }
+
+    pub fn is_struct(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_STRUCT)
+    }
+
+    pub fn is_union(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_UNION)
+    }
+
+    pub fn is_enum(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_ENUM)
+    }
+
+    pub fn is_box(&self) -> bool {
+        self.flags().contains(AdtFlags::IS_BOX)
+    }
+
+    pub fn variant(&self, idx: VariantIdx) -> &VariantDef {
+        &self.0.variants[idx]
+    }
+
+    pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
+        &self.0.variants
+    }
+
+    pub fn non_enum_variant(&self) -> &VariantDef {
+        assert!(self.is_struct() || self.is_union());
+        self.variant(FIRST_VARIANT)
+    }
+}
+
+impl AdtDefData {
+    pub(crate) fn new(
+        did: DefId,
+        variants: IndexVec<VariantIdx, VariantDef>,
+        flags: AdtFlags,
+    ) -> Self {
+        Self { did, variants, flags }
     }
 }
 
@@ -241,8 +363,8 @@ impl TyKind {
 }
 
 impl Ty {
-    pub fn mk_adt(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
-        TyKind::Adt(def_id, substs.into()).intern()
+    pub fn mk_adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> Ty {
+        TyKind::Adt(adt_def, substs.into()).intern()
     }
 
     pub fn mk_closure(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
@@ -309,12 +431,42 @@ impl Ty {
         TyKind::Uint(UintTy::Usize).intern()
     }
 
+    pub fn deref(&self) -> Ty {
+        match self.kind() {
+            TyKind::Adt(adt_def, substs) if adt_def.is_box() => substs[0].expect_type().clone(),
+            TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty.clone(),
+            _ => bug!("deref projection of non-dereferenceable ty `{self:?}`"),
+        }
+    }
+
     pub fn kind(&self) -> &TyKind {
         &self.0.kind
     }
+
+    pub fn tuple_fields(&self) -> &List<Ty> {
+        match self.kind() {
+            TyKind::Tuple(tys) => tys,
+            _ => bug!("tuple_fields called on non-tuple"),
+        }
+    }
+
+    pub fn expect_adt(&self) -> (&AdtDef, &Substs) {
+        match self.kind() {
+            TyKind::Adt(adt_def, substs) => (adt_def, substs),
+            _ => bug!("expect_adt called on non-adt"),
+        }
+    }
+
+    pub fn is_mut_ref(&self) -> bool {
+        matches!(self.kind(), TyKind::Ref(.., Mutability::Mut))
+    }
+
+    pub fn is_box(&self) -> bool {
+        matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
+    }
 }
 
-impl_internable!(TyS,);
+impl_internable!(TyS, AdtDefData);
 impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Predicate);
 
 impl std::fmt::Debug for GenericArg {
@@ -335,9 +487,9 @@ impl std::fmt::Debug for Region {
 impl std::fmt::Debug for Ty {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind() {
-            TyKind::Adt(def_id, substs) => {
+            TyKind::Adt(adt_def, substs) => {
                 let adt_name = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*def_id);
+                    let path = tcx.def_path(adt_def.did());
                     path.data.iter().join("::")
                 });
                 write!(f, "{adt_name}")?;

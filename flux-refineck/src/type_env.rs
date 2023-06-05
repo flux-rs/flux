@@ -82,29 +82,29 @@ impl TypeEnv<'_> {
 
     pub(crate) fn lookup_place(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         place: &Place,
-        checker_config: CheckerConfig,
+        checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         Ok(self
             .bindings
-            .lookup(gen.genv, rcx, place, checker_config)?
-            .fold(rcx, gen, true)?
+            .lookup(genv, rcx, place, checker_conf)?
+            .unblock(rcx)
             .ty())
     }
 
     pub(crate) fn lookup_path(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         path: &Path,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         Ok(self
             .bindings
-            .lookup(gen.genv, rcx, path, checker_config)?
-            .fold(rcx, gen, false)?
+            .lookup(genv, rcx, path, checker_config)?
+            .unblock(rcx)
             .ty())
     }
 
@@ -117,8 +117,8 @@ impl TypeEnv<'_> {
     /// and then replaced by the region in the type of the `x` after the assignment.
     pub(crate) fn borrow(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         re: Region,
         mutbl: Mutability,
         place: &Place,
@@ -126,8 +126,8 @@ impl TypeEnv<'_> {
     ) -> Result<Ty, CheckerErrKind> {
         let ty = match self
             .bindings
-            .lookup(gen.genv, rcx, place, checker_config)?
-            .fold(rcx, gen, true)?
+            .lookup(genv, rcx, place, checker_config)?
+            .unblock(rcx)
         {
             FoldResult::Strg(path, _) => Ty::ptr(PtrKind::from_ref(re, mutbl), path),
             FoldResult::Weak(result_rk, ty) => {
@@ -152,7 +152,7 @@ impl TypeEnv<'_> {
         match self
             .bindings
             .lookup(gen.genv, rcx, place, checker_config)?
-            .fold(rcx, gen, true)?
+            .unblock(rcx)
         {
             FoldResult::Strg(path, _) => {
                 self.bindings.update(&path, new_ty);
@@ -170,15 +170,15 @@ impl TypeEnv<'_> {
 
     pub(crate) fn move_place(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         match self
             .bindings
-            .lookup(gen.genv, rcx, place, checker_config)?
-            .fold(rcx, gen, true)?
+            .lookup(genv, rcx, place, checker_config)?
+            .unblock(rcx)
         {
             FoldResult::Strg(path, ty) => {
                 self.bindings.update(&path, Ty::uninit(ty.layout()));
@@ -319,16 +319,7 @@ impl TypeEnv<'_> {
         target: BasicBlock,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.close_boxes(rcx, gen, &bb_env.scope)?;
-
         let reason = ConstrReason::Goto(target);
-
-        // Look up paths to make sure they are properly folded/unfolded
-        for path in bb_env.bindings.paths() {
-            self.bindings
-                .lookup(gen.genv, rcx, &path, checker_config)?
-                .fold(rcx, gen, false)?;
-        }
 
         // Infer subst
         let subst = self.infer_subst_for_bb_env(bb_env);
@@ -383,6 +374,31 @@ impl TypeEnv<'_> {
         Ok(())
     }
 
+    pub(crate) fn fold(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+        checker_config: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        self.bindings
+            .lookup(gen.genv, rcx, place, checker_config)?
+            .fold(rcx, gen, true)?;
+        Ok(())
+    }
+
+    pub(crate) fn unfold(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        place: &Place,
+        checker_conf: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        self.bindings
+            .unfold(genv, rcx, place, checker_conf)?
+            .unfold(genv, rcx, checker_conf)
+    }
+
     pub(crate) fn downcast(
         &mut self,
         genv: &GlobalEnv,
@@ -392,9 +408,11 @@ impl TypeEnv<'_> {
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let mut down_place = place.clone();
-        down_place.projection.push(PlaceElem::Downcast(variant_idx));
+        down_place
+            .projection
+            .push(PlaceElem::Downcast(None, variant_idx));
         self.bindings
-            .lookup(genv, rcx, &down_place, checker_config)?;
+            .unfold(genv, rcx, &down_place, checker_config)?;
         Ok(())
     }
 
@@ -533,12 +551,6 @@ impl BasicBlockEnvShape {
         mut other: TypeEnv,
         checker_config: CheckerConfig,
     ) -> Result<bool, CheckerErrKind> {
-        other.bindings.close_boxes(rcx, gen, &self.scope)?;
-
-        // Unfold
-        self.bindings
-            .join_with(rcx, gen, &mut other.bindings, checker_config)?;
-
         let paths = self.bindings.paths();
 
         // Convert pointers to borrows
@@ -682,7 +694,7 @@ impl BasicBlockEnvShape {
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(def1, substs1), BaseTy::Adt(def2, substs2)) => {
-                debug_assert_eq!(def1.def_id(), def2.def_id());
+                debug_assert_eq!(def1.did(), def2.did());
                 let substs = iter::zip(substs1, substs2)
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();

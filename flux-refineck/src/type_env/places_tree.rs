@@ -120,7 +120,7 @@ impl PlacesTree {
         let node = ptr.borrow();
         match &*node {
             Node::Leaf(binding) => binding.clone(),
-            Node::Internal(..) => tracked_span_bug!("expected `Node::Leaf`"),
+            Node::Internal(..) => tracked_span_bug!("expected `Node::Leaf`, got {node:?}"),
         }
     }
 
@@ -200,24 +200,100 @@ impl PlacesTree {
         bindings
     }
 
-    pub(super) fn join_with(
+    pub(super) fn lookup(
         &mut self,
+        genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        other: &mut PlacesTree,
-        checker_config: CheckerConfig,
-    ) -> Result<(), CheckerErrKind> {
-        for (loc, root1) in &self.map {
-            let node2 = &mut *other.map[loc].ptr.borrow_mut();
-            root1
-                .ptr
-                .borrow_mut()
-                .join_with(gen, rcx, node2, checker_config)?;
+        key: &impl LookupKey,
+        checker_conf: CheckerConfig,
+    ) -> Result<LookupResult, CheckerErrKind> {
+        let mut path = Path::from(key.loc());
+        let place_proj = &mut key.proj();
+        'outer: loop {
+            let loc = path.loc.clone();
+            let mut ptr = self.get_loc(&loc);
+            let mut path_proj = vec![];
+
+            for f in path.projection() {
+                let next = NodePtr::clone(&ptr.borrow().expect_internal()[f.as_usize()]);
+                ptr = next;
+                path_proj.push(*f);
+            }
+
+            for elem in place_proj.by_ref() {
+                match elem {
+                    PlaceElem::Deref => {
+                        let ty = ptr.borrow().expect_owned();
+                        match ty.kind() {
+                            TyKind::Ptr(_, ptr_path) => {
+                                path = ptr_path.clone();
+                                continue 'outer;
+                            }
+                            Ref!(_, ty, mutbl) => {
+                                let (mutbl, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::from(*mutbl),
+                                    ty,
+                                    place_proj,
+                                    checker_conf,
+                                )?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Weak(mutbl, ty),
+                                });
+                            }
+                            TyKind::Indexed(BaseTy::RawPtr(ty, _), _) => {
+                                assert!(place_proj.next().is_none());
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Raw(ty.clone()),
+                                });
+                            }
+                            _ => {
+                                todo!("{ty:?}")
+                            }
+                        }
+                    }
+                    PlaceElem::Field(f) => {
+                        let next = NodePtr::clone(&ptr.borrow().expect_internal()[f.as_usize()]);
+                        ptr = next;
+                        path_proj.push(f);
+                    }
+                    PlaceElem::Downcast(_, _) => {}
+                    PlaceElem::Index(_) => {
+                        let ty = ptr.borrow().expect_owned();
+                        match ty.kind() {
+                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
+                                let (mutbl, ty) = Self::lookup_ty(
+                                    genv,
+                                    rcx,
+                                    WeakKind::Arr,
+                                    arr_ty,
+                                    place_proj,
+                                    checker_conf,
+                                )?;
+                                return Ok(LookupResult {
+                                    tree: self,
+                                    kind: LookupKind::Weak(mutbl, ty),
+                                });
+                            }
+                            _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
+                        }
+                    }
+                }
+            }
+
+            return Ok(LookupResult {
+                tree: self,
+                kind: LookupKind::Strg(Path::new(loc, path_proj), ptr),
+            });
+
+            // return Ok(ptr.borrow_mut().expect_leaf_mut().unblock(rcx));
         }
-        Ok(())
     }
 
-    pub(super) fn lookup<'a>(
+    pub(super) fn unfold<'a>(
         &'a mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
@@ -231,13 +307,7 @@ impl PlacesTree {
             let loc = path.loc.clone();
             let mut path_proj = vec![];
 
-            let mut ptr = NodePtr::clone(
-                &self
-                    .map
-                    .get(&loc)
-                    .unwrap_or_else(|| tracked_span_bug!("PANIC: {loc:?}"))
-                    .ptr,
-            );
+            let mut ptr = self.get_loc(&loc);
 
             for field in path.projection() {
                 ptr = ptr.proj(genv, rcx, *field, checker_config)?;
@@ -250,7 +320,7 @@ impl PlacesTree {
                         path_proj.push(field);
                         ptr = ptr.proj(genv, rcx, field, checker_config)?;
                     }
-                    PlaceElem::Downcast(variant_idx) => {
+                    PlaceElem::Downcast(_, variant_idx) => {
                         ptr.downcast(genv, rcx, variant_idx, checker_config)?;
                     }
                     PlaceElem::Deref => {
@@ -274,16 +344,8 @@ impl PlacesTree {
                                     kind: LookupKind::Weak(mutbl, ty),
                                 });
                             }
-                            TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
-                                let (boxed, alloc) = box_args(substs);
-                                let fresh = rcx.define_var(&Sort::Loc);
-                                let loc = Loc::from(fresh);
-                                *ptr.borrow_mut() = Node::owned(Ty::ptr(PtrKind::Box, loc.clone()));
-                                self.insert(
-                                    loc.clone(),
-                                    boxed.clone(),
-                                    LocKind::Box(alloc.clone()),
-                                );
+                            TyKind::Indexed(BaseTy::Adt(adt, _), _) if adt.is_box() => {
+                                let loc = ptr.borrow_mut().unfold_box(rcx, self);
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
@@ -357,11 +419,11 @@ impl PlacesTree {
                 }
                 (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idx)) => {
                     let fields =
-                        downcast(genv, rcx, adt.def_id(), VariantIdx::from_u32(0), substs, idx)?;
+                        downcast(genv, rcx, adt.did(), VariantIdx::from_u32(0), substs, idx)?;
                     ty = fields[field.as_usize()].clone();
                 }
-                (Downcast(variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
-                    let tys = downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?;
+                (Downcast(_, variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
+                    let tys = downcast(genv, rcx, adt_def.did(), variant_idx, substs, idx)?;
                     ty = Ty::tuple(tys);
                     rcx.assume_invariants(&ty, checker_config.check_overflow);
                 }
@@ -398,6 +460,16 @@ impl PlacesTree {
             }
         }
         Ok(())
+    }
+
+    fn get_loc(&self, loc: &Loc) -> NodePtr {
+        NodePtr::clone(
+            &self
+                .map
+                .get(loc)
+                .unwrap_or_else(|| tracked_span_bug!("loc not found `{loc:?}`"))
+                .ptr,
+        )
     }
 
     #[must_use]
@@ -455,6 +527,29 @@ impl LookupResult<'_> {
         }
     }
 
+    pub(super) fn unblock(self, rcx: &mut RefineCtxt) -> FoldResult {
+        match self.kind {
+            LookupKind::Strg(path, ptr) => {
+                FoldResult::Strg(path, ptr.borrow_mut().expect_leaf_mut().unblock(rcx))
+            }
+            LookupKind::Weak(wk, ty) => FoldResult::Weak(wk, ty),
+            LookupKind::Raw(ty) => FoldResult::Raw(ty),
+        }
+    }
+
+    pub(super) fn unfold(
+        self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_conf: CheckerConfig,
+    ) -> Result<(), CheckerErrKind> {
+        match self.kind {
+            LookupKind::Strg(_, ptr) => ptr.unfold(genv, rcx, checker_conf, self.tree)?,
+            LookupKind::Weak(..) | LookupKind::Raw(..) => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn block(
         self,
         rcx: &mut RefineCtxt,
@@ -510,6 +605,14 @@ impl Node {
     }
 
     #[track_caller]
+    fn expect_internal(&self) -> &[NodePtr] {
+        match self {
+            Node::Internal(_, children) => children,
+            _ => tracked_span_bug!("expected `Node::Internal`, got `{self:?}`"),
+        }
+    }
+
+    #[track_caller]
     fn expect_owned(&self) -> Ty {
         match self {
             Node::Leaf(Binding::Owned(ty)) => ty.clone(),
@@ -521,7 +624,7 @@ impl Node {
     fn expect_leaf_mut(&mut self) -> &mut Binding {
         match self {
             Node::Leaf(binding) => binding,
-            Node::Internal(_, _) => tracked_span_bug!("expected `Node::Leaf`"),
+            Node::Internal(_, _) => tracked_span_bug!("expected `Node::Leaf`, got {self:?}"),
         }
     }
 
@@ -530,58 +633,6 @@ impl Node {
             Node::Leaf(Binding::Owned(ty)) => ty,
             _ => tracked_span_bug!("expected `Binding::Owned`"),
         }
-    }
-
-    fn join_with(
-        &mut self,
-        gen: &mut ConstrGen,
-        rcx: &mut RefineCtxt,
-        other: &mut Node,
-        checker_config: CheckerConfig,
-    ) -> Result<(), CheckerErrKind> {
-        let map = &mut FxHashMap::default();
-        match (&mut *self, &mut *other) {
-            (Node::Internal(..), Node::Leaf(_)) => {
-                other.join_with(gen, rcx, self, checker_config)?;
-            }
-            (Node::Leaf(_), Node::Leaf(_)) => {}
-            (Node::Leaf(_), Node::Internal(NodeKind::Adt(def, ..), _)) if def.is_enum() => {
-                other.fold(map, rcx, gen, false, false)?;
-            }
-            (Node::Leaf(_), Node::Internal(..)) => {
-                self.split(gen.genv, rcx, checker_config)?;
-                self.join_with(gen, rcx, other, checker_config)?;
-            }
-            (
-                Node::Internal(NodeKind::Adt(_, variant1, _), children1),
-                Node::Internal(NodeKind::Adt(_, variant2, _), children2),
-            ) => {
-                if variant1 == variant2 {
-                    for (ptr1, ptr2) in iter::zip(children1, children2) {
-                        ptr1.borrow_mut().join_with(
-                            gen,
-                            rcx,
-                            &mut ptr2.borrow_mut(),
-                            checker_config,
-                        )?;
-                    }
-                } else {
-                    self.fold(map, rcx, gen, false, false)?;
-                    other.fold(map, rcx, gen, false, false)?;
-                }
-            }
-            (Node::Internal(_, children1), Node::Internal(_, children2)) => {
-                for (ptr1, ptr2) in iter::zip(children1, children2) {
-                    ptr1.borrow_mut().join_with(
-                        gen,
-                        rcx,
-                        &mut ptr2.borrow_mut(),
-                        checker_config,
-                    )?;
-                }
-            }
-        };
-        Ok(())
     }
 
     fn proj(
@@ -611,15 +662,14 @@ impl Node {
             Node::Leaf(Binding::Owned(ty)) => {
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) => {
-                        let fields =
-                            downcast(genv, rcx, adt_def.def_id(), variant_idx, substs, idx)?
-                                .into_iter()
-                                .map(|ty| {
-                                    let ty = rcx.unpack(&ty);
-                                    rcx.assume_invariants(&ty, checker_config.check_overflow);
-                                    Node::owned(ty).into_ptr()
-                                })
-                                .collect();
+                        let fields = downcast(genv, rcx, adt_def.did(), variant_idx, substs, idx)?
+                            .into_iter()
+                            .map(|ty| {
+                                let ty = rcx.unpack(&ty);
+                                rcx.assume_invariants(&ty, checker_config.check_overflow);
+                                Node::owned(ty).into_ptr()
+                            })
+                            .collect();
                         *self = Node::Internal(
                             NodeKind::Adt(adt_def.clone(), variant_idx, substs.clone()),
                             fields,
@@ -733,7 +783,7 @@ impl Node {
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let variant = gen.genv.variant(adt_def.def_id(), *variant_idx)?.expect("unexpected opaque struct");
+                let variant = gen.genv.variant(adt_def.did(), *variant_idx)?.expect("unexpected opaque struct");
                 let fields: Vec<Ty> = children
                     .iter_mut()
                     .map(|node| {
@@ -744,7 +794,7 @@ impl Node {
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
                 let ty = if partially_moved {
-                    Ty::uninit(Layout::adt(adt_def.def_id()))
+                    Ty::uninit(Layout::adt(adt_def.did()))
                 } else {
                     gen.check_constructor(rcx, variant, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
@@ -759,6 +809,45 @@ impl Node {
             }
         };
         Ok(ty)
+    }
+
+    fn unfold(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_conf: CheckerConfig,
+        map: &mut PlacesTree,
+    ) -> Result<(), CheckerErrKind> {
+        match self {
+            Node::Leaf(Binding::Blocked(ty) | Binding::Owned(ty)) => {
+                if ty.is_box() {
+                    self.unfold_box(rcx, map);
+                } else if ty.is_tuple() | ty.is_closure() | ty.is_struct() | ty.is_uninit() {
+                    self.split(genv, rcx, checker_conf)?;
+                }
+
+                Ok(())
+            }
+            Node::Internal(_, _) => Ok(()),
+        }
+    }
+
+    fn unfold_box(&mut self, rcx: &mut RefineCtxt, map: &mut PlacesTree) -> Loc {
+        let ty = self.expect_owned();
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Adt(adt, substs), _) => {
+                debug_assert!(adt.is_box());
+                let (boxed, alloc) = box_args(substs);
+                let fresh = rcx.define_var(&Sort::Loc);
+                let loc = Loc::from(fresh);
+                *self = Node::owned(Ty::ptr(PtrKind::Box, loc.clone()));
+                map.insert(loc.clone(), boxed.clone(), LocKind::Box(alloc.clone()));
+                loc
+            }
+            _ => {
+                tracked_span_bug!()
+            }
+        }
     }
 
     fn fmap_mut(&mut self, f: &mut impl FnMut(&Binding) -> Binding) {
@@ -795,6 +884,16 @@ impl NodePtr {
         close_boxes: bool,
     ) -> Result<Ty, CheckerErrKind> {
         self.borrow_mut().fold(map, rcx, gen, unblock, close_boxes)
+    }
+
+    fn unfold(
+        &self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        checker_conf: CheckerConfig,
+        map: &mut PlacesTree,
+    ) -> Result<(), CheckerErrKind> {
+        self.borrow_mut().unfold(genv, rcx, checker_conf, map)
     }
 
     fn proj(

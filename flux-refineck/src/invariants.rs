@@ -42,7 +42,7 @@ fn check_invariant(
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let variant = genv
-            .variant(adt_def.def_id(), variant_idx)
+            .variant(adt_def.did(), variant_idx)
             .emit(genv.sess)?
             .expect("cannot check opaque structs")
             .subst_identity()
@@ -56,7 +56,7 @@ fn check_invariant(
         let pred = invariant.pred.replace_bound_expr(&idx.expr);
         rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let def_id = adt_def.def_id();
+    let def_id = adt_def.did();
     let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();

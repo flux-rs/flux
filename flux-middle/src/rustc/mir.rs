@@ -19,12 +19,13 @@ use rustc_middle::{
 };
 pub use rustc_middle::{
     mir::{
-        BasicBlock, Local, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+        BasicBlock, Local, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE,
+        START_BLOCK,
     },
     ty::Variance,
 };
-use rustc_span::Span;
-use rustc_target::abi::VariantIdx;
+use rustc_span::{Span, Symbol};
+pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 
 use super::ty::{GenericArg, Region, Ty, TyKind};
 use crate::{
@@ -221,7 +222,7 @@ pub struct PlaceTy {
 pub enum PlaceElem {
     Deref,
     Field(FieldIdx),
-    Downcast(VariantIdx),
+    Downcast(Option<Symbol>, VariantIdx),
     Index(Local),
 }
 
@@ -279,10 +280,10 @@ impl<'tcx> Body<'tcx> {
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
+        let total_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len();
+        let real_preds = total_preds - self.fake_predecessors[bb];
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
-        let real_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len()
-            - self.fake_predecessors[bb];
         real_preds > usize::from(bb != START_BLOCK)
     }
 
@@ -299,6 +300,10 @@ impl<'tcx> Body<'tcx> {
         self.basic_blocks
             .indices()
             .filter(|bb| self.is_join_point(*bb))
+    }
+
+    pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
+        Location { block: bb, statement_index: self.basic_blocks[bb].statements.len() }
     }
 }
 
@@ -327,20 +332,10 @@ impl PlaceTy {
         if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
             bug!("cannot use non field projection on downcasted place");
         }
-        let tcx = genv.tcx;
         let place_ty = match elem {
-            PlaceElem::Deref => {
-                let ty = match self.ty.kind() {
-                    TyKind::Adt(def_id, substs) if tcx.adt_def(def_id).is_box() => {
-                        substs[0].expect_type()
-                    }
-                    TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty,
-                    _ => bug!("deref projection of non-dereferenceable ty {self:?}"),
-                };
-                PlaceTy::from_ty(ty.clone())
-            }
+            PlaceElem::Deref => PlaceTy::from_ty(self.ty.deref()),
             PlaceElem::Field(fld) => PlaceTy::from_ty(self.field_ty(genv, fld)?),
-            PlaceElem::Downcast(variant_idx) => {
+            PlaceElem::Downcast(_, variant_idx) => {
                 PlaceTy { ty: self.ty.clone(), variant_index: Some(variant_idx) }
             }
             PlaceElem::Index(_) => {
@@ -356,8 +351,7 @@ impl PlaceTy {
 
     fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
         match self.ty.kind() {
-            TyKind::Adt(def_id, substs) => {
-                let adt_def = genv.tcx.adt_def(*def_id);
+            TyKind::Adt(adt_def, substs) => {
                 let variant_def = match self.variant_index {
                     None => adt_def.non_enum_variant(),
                     Some(variant_index) => {
@@ -499,8 +493,12 @@ impl fmt::Debug for Place {
                     p = format!("*{p}");
                     need_parens = true;
                 }
-                PlaceElem::Downcast(variant_idx) => {
-                    p = format!("{p} as {variant_idx:?}");
+                PlaceElem::Downcast(variant_name, variant_idx) => {
+                    if let Some(variant_name) = variant_name {
+                        p = format!("{p} as {variant_name}");
+                    } else {
+                        p = format!("{p} as {variant_idx:?}");
+                    }
                     need_parens = true;
                 }
                 PlaceElem::Index(v) => {
@@ -530,20 +528,19 @@ impl fmt::Debug for Rvalue {
             }
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
-                let fname = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*def_id);
-                    path.data.iter().join("::")
+                let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
+                    let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
+                    let fname = tcx.def_path(*def_id).data.iter().join("::");
+                    (fname, variant_name)
                 });
-                if substs.is_empty() {
-                    write!(f, "{fname}::{variant_idx:?}({:?})", args.iter().format(", "))
-                } else {
-                    write!(
-                        f,
-                        "{fname}::{variant_idx:?}::<{:?}>({:?})",
-                        substs.iter().format(", "),
-                        args.iter().format(", ")
-                    )
+                write!(f, "{fname}::{variant_name}")?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
                 }
+                if !args.is_empty() {
+                    write!(f, "({:?})", args.iter().format(", "))?;
+                }
+                Ok(())
             }
             Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
                 write!(f, "closure({def_id:?}, {substs:?}, {:?})", args.iter().format(", "))

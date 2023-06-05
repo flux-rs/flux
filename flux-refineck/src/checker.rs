@@ -1,7 +1,4 @@
-use std::{
-    collections::{hash_map::Entry, BinaryHeap},
-    iter,
-};
+use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{
     bug, dbg,
@@ -21,7 +18,7 @@ use flux_middle::{
         self,
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
         ty::RegionVar,
@@ -39,9 +36,12 @@ use self::errors::{CheckerError, ResultExt};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
+    fold_unfold::{FoldUnfold, FoldUnfolds},
+    queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
+    ExtraBodyData,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -59,12 +59,12 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     /// [`Generics`] of the function being checked.
     generics: Generics,
     body: &'ck Body<'tcx>,
-    mode: &'ck mut M,
+    extra_data: &'ck FxHashMap<DefId, ExtraBodyData>,
     output: Binder<FnOutput>,
+    mode: &'ck mut M,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
-    dominators: &'ck Dominators<BasicBlock>,
     visited: BitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
 }
@@ -122,6 +122,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        extra_data: &'a FxHashMap<DefId, ExtraBodyData>,
         config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
@@ -132,7 +133,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
                 .with_span(genv.tcx.def_span(def_id))?
                 .subst_identity();
 
-            Checker::run(genv, RefineTree::new().as_subtree(), def_id, &mut mode, fn_sig, config)?;
+            Checker::run(
+                genv,
+                RefineTree::new().as_subtree(),
+                def_id,
+                extra_data,
+                &mut mode,
+                fn_sig,
+                config,
+            )?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -143,6 +152,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        extra_data: &'a FxHashMap<DefId, ExtraBodyData>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
@@ -157,7 +167,15 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
 
         dbg::refine_mode_span!(genv.tcx, def_id, bb_envs).in_scope(|| {
             let mut mode = RefineMode { bb_envs, kvars };
-            Checker::run(genv, refine_tree.as_subtree(), def_id, &mut mode, fn_sig, config)?;
+            Checker::run(
+                genv,
+                refine_tree.as_subtree(),
+                def_id,
+                extra_data,
+                &mut mode,
+                fn_sig,
+                config,
+            )?;
 
             Ok((refine_tree, mode.kvars))
         })
@@ -169,6 +187,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
+        extra_data: &'a FxHashMap<DefId, ExtraBodyData>,
         mode: &'a mut M,
         poly_sig: PolyFnSig,
         config: CheckerConfig,
@@ -176,6 +195,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let body = genv
             .mir(def_id.expect_local())
             .with_span(genv.tcx.def_span(def_id))?;
+        let dominators = &extra_data[&def_id].dominators;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -187,24 +207,22 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
-        let dominators = body.dominators();
-
         let mut ck = Checker {
             def_id,
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
             body: &body,
+            extra_data,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            dominators: &dominators,
-            queue: WorkQueue::empty(body.basic_blocks.len(), &dominators),
+            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
             config,
         };
 
-        ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
+        ck.check_goto(rcx, env, START_BLOCK, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
                 let snapshot = ck.snapshot_at_dominator(bb);
@@ -268,27 +286,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
         let mut last_stmt_span = None;
+        let mut location = Location { block: bb, statement_index: 0 };
         for stmt in &data.statements {
-            dbg::statement!("start", stmt, rcx, env);
-            bug::track_span(stmt.source_info.span, || {
+            let span = stmt.source_info.span;
+            bug::track_span(span, || {
+                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
+                dbg::statement!("start", stmt, rcx, env);
                 self.check_statement(&mut rcx, &mut env, stmt)
             })?;
             dbg::statement!("end", stmt, rcx, env);
             if !stmt.is_nop() {
-                last_stmt_span = Some(stmt.source_info.span);
+                last_stmt_span = Some(span);
             }
+            location = location.successor_within_block();
         }
 
         if let Some(terminator) = &data.terminator {
-            bug::track_span(terminator.source_info.span, || {
+            let span = terminator.source_info.span;
+            bug::track_span(span, || {
+                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
+
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
                     self.check_terminator(&mut rcx, &mut env, terminator, last_stmt_span)?;
                 dbg::terminator!("end", terminator, rcx, env);
 
                 self.snapshots[bb] = Some(rcx.snapshot());
-                let term_span = last_stmt_span.unwrap_or(terminator.source_info.span);
-                self.check_successors(rcx, env, term_span, successors)
+                let term_span = last_stmt_span.unwrap_or(span);
+                self.check_successors(rcx, env, bb, term_span, successors)
             })?;
         }
         Ok(())
@@ -427,8 +452,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Drop { place, target, .. } => {
                 let config = self.config;
-                let mut gen = self.constr_gen(rcx, terminator_span);
-                let _ = env.move_place(rcx, &mut gen, place, config);
+                let _ = env.move_place(self.genv, rcx, place, config);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -494,6 +518,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     self.genv,
                     refine_tree,
                     *def_id,
+                    self.extra_data,
                     self.mode,
                     fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
                     self.config,
@@ -597,6 +622,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         mut rcx: RefineCtxt,
         env: TypeEnv,
+        from: BasicBlock,
         terminator_span: Span,
         successors: Vec<(BasicBlock, Guard)>,
     ) -> Result<(), CheckerError> {
@@ -613,7 +639,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                         .with_span(terminator_span)?;
                 }
             }
-            self.check_goto(rcx, env, terminator_span, target)?;
+            self.check_goto(rcx, env, from, terminator_span, target)?;
         }
         Ok(())
     }
@@ -622,16 +648,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
-        source_span: Span,
+        from: BasicBlock,
+        span: Span,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
+        self.apply_fold_unfolds_at_edge(&mut rcx, &mut env, from, target, span)?;
         if self.is_exit_block(target) {
+            let location = self.body.terminator_loc(target);
+            self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
             self.mode
-                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, source_span)
+                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
-                .with_span(source_span)
+                .with_span(span)
         } else if self.body.is_join_point(target) {
-            if M::check_goto_join_point(self, rcx, env, source_span, target)? {
+            if M::check_goto_join_point(self, rcx, env, span, target)? {
                 self.queue.insert(target);
             }
             Ok(())
@@ -660,14 +690,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, *r, Mutability::Mut, place, config)
+                env.borrow(self.genv, rcx, *r, Mutability::Mut, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared, place) => {
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.borrow(rcx, gen, *r, Mutability::Not, place, config)
+                env.borrow(self.genv, rcx, *r, Mutability::Not, place, config)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -713,9 +741,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::Discriminant(place) => {
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, stmt_span);
                 let ty = env
-                    .lookup_place(rcx, gen, place, config)
+                    .lookup_place(self.genv, rcx, place, config)
                     .with_span(stmt_span)?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -736,9 +763,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         place: &Place,
     ) -> Result<Ty, CheckerError> {
         let config = self.config;
-        let gen = &mut self.constr_gen(rcx, source_span);
         let ty = env
-            .lookup_place(rcx, gen, place, config)
+            .lookup_place(self.genv, rcx, place, config)
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
@@ -888,15 +914,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Operand::Copy(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, source_span);
-                env.lookup_place(rcx, gen, p, config)
+                env.lookup_place(self.genv, rcx, p, config)
                     .with_span(source_span)?
             }
             Operand::Move(p) => {
                 // OWNERSHIP SAFETY CHECK
                 let config = self.config;
-                let gen = &mut self.constr_gen(rcx, source_span);
-                env.move_place(rcx, gen, p, config).with_span(source_span)?
+                env.move_place(self.genv, rcx, p, config)
+                    .with_span(source_span)?
             }
             Operand::Constant(c) => Self::check_constant(c),
         };
@@ -924,6 +949,56 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
+    fn apply_fold_unfolds_at_location(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        location: Location,
+        span: Span,
+    ) -> Result<(), CheckerError> {
+        for fold_unfold in self.fold_unfolds().fold_unfolds_at_location(location) {
+            self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
+        }
+        Ok(())
+    }
+
+    fn apply_fold_unfolds_at_edge(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        from: BasicBlock,
+        target: BasicBlock,
+        span: Span,
+    ) -> Result<(), CheckerError> {
+        for fold_unfold in self.fold_unfolds().fold_unfolds_at_goto(from, target) {
+            self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
+        }
+        Ok(())
+    }
+
+    fn appy_fold_unfold(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        fold_unfold: &FoldUnfold,
+        span: Span,
+    ) -> Result<(), CheckerError> {
+        dbg::statement!("start", fold_unfold, rcx, env);
+        match fold_unfold {
+            FoldUnfold::Fold(place) => {
+                let config = self.config;
+                let mut gen = self
+                    .mode
+                    .constr_gen(self.genv, &self.rvid_gen, rcx, config, span);
+                env.fold(rcx, &mut gen, place, config)
+            }
+            FoldUnfold::Unfold(place) => env.unfold(self.genv, rcx, place, self.config),
+        }
+        .with_span(span)?;
+        dbg::statement!("end", fold_unfold, rcx, env);
+        Ok(())
+    }
+
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
         self.mode
             .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
@@ -931,8 +1006,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
-        let dominator = self.dominators.immediate_dominator(bb);
+        let dominator = self.dominators().immediate_dominator(bb);
         self.snapshots[dominator].as_ref().unwrap()
+    }
+
+    fn fold_unfolds(&self) -> &'a FoldUnfolds {
+        &self.extra_data[&self.def_id].fold_unfolds
+    }
+
+    fn dominators(&self) -> &'a Dominators<BasicBlock> {
+        &self.extra_data[&self.def_id].dominators
     }
 }
 
@@ -1062,7 +1145,7 @@ impl Mode for ShapeMode {
     fn clear(ck: &mut Checker<ShapeMode>, root: BasicBlock) {
         ck.visited.remove(root);
         for bb in ck.body.basic_blocks.indices() {
-            if bb != root && ck.dominators.dominates(root, bb) {
+            if bb != root && ck.dominators().dominates(root, bb) {
                 ck.mode.bb_envs.entry(ck.def_id).or_default().remove(&bb);
                 ck.visited.remove(bb);
             }
@@ -1128,61 +1211,6 @@ impl Mode for RefineMode {
 
     fn clear(_ck: &mut Checker<RefineMode>, _bb: BasicBlock) {
         bug!();
-    }
-}
-
-struct Item<'a> {
-    bb: BasicBlock,
-    dominators: &'a Dominators<BasicBlock>,
-}
-
-struct WorkQueue<'a> {
-    heap: BinaryHeap<Item<'a>>,
-    set: BitSet<BasicBlock>,
-    dominators: &'a Dominators<BasicBlock>,
-}
-
-impl<'a> WorkQueue<'a> {
-    fn empty(len: usize, dominators: &'a Dominators<BasicBlock>) -> Self {
-        Self { heap: BinaryHeap::with_capacity(len), set: BitSet::new_empty(len), dominators }
-    }
-
-    fn insert(&mut self, bb: BasicBlock) -> bool {
-        if self.set.insert(bb) {
-            self.heap.push(Item { bb, dominators: self.dominators });
-            true
-        } else {
-            false
-        }
-    }
-
-    fn pop(&mut self) -> Option<BasicBlock> {
-        if let Some(Item { bb, .. }) = self.heap.pop() {
-            self.set.remove(bb);
-            Some(bb)
-        } else {
-            None
-        }
-    }
-}
-
-impl PartialEq for Item<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.bb == other.bb
-    }
-}
-
-impl PartialOrd for Item<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.dominators.rank_partial_cmp(other.bb, self.bb)
-    }
-}
-
-impl Eq for Item<'_> {}
-
-impl Ord for Item<'_> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
     }
 }
 

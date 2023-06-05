@@ -19,7 +19,7 @@ pub fn track_span<R>(span: Span, f: impl FnOnce() -> R) -> R {
 
 #[macro_export]
 macro_rules! tracked_span_bug {
-    () => ( $crate::bug::bug_with_span_fmt("impossible case reached") );
+    () => ( $crate::tracked_span_bug!("impossible case reached") );
     ($msg:expr) => ({ $crate::bug::tracked_span_bug_fmt(::std::format_args!($msg)) });
     ($msg:expr,) => ({ $crate::tracked_span_bug!($msg) });
     ($fmt:expr, $($arg:tt)+) => ({
