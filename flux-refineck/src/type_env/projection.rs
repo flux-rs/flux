@@ -5,14 +5,14 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable},
-        BaseTy, GenericArg, Loc, Path, Ref, Ty, TyKind, VariantIdx, FIRST_VARIANT,
+        BaseTy, GenericArg, Loc, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, PlaceElem},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
-use super::places_tree::downcast;
+use super::places_tree::{downcast, LocKind, LookupKey};
 use crate::{
     checker::errors::CheckerErrKind,
     refine_tree::{RefineCtxt, UnpackFlags},
@@ -21,33 +21,73 @@ use crate::{
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
-type Map = FxHashMap<Loc, Ty>;
 
-pub(crate) fn unfold(
-    genv: &GlobalEnv,
-    rcx: &mut RefineCtxt,
-    proj: &mut impl Iterator<Item = PlaceElem>,
-    ty: &Ty,
-    checker_conf: CheckerConfig,
-) -> Result<(Ty, Ty)> {
-    let mut cursor = Cursor { proj };
-    let mut unfolder = Unfolder { genv, rcx, cursor: &mut cursor, cont: Cont::Init, checker_conf };
-    let updated = ty.try_fold_with(&mut unfolder)?;
-    // Ok((updated, unfolder.result.unwrap_or(ty.clone())))
-    todo!()
+struct PlacesTree {
+    map: FxHashMap<Loc, Binding>,
 }
 
-pub(crate) fn lookup(cursor: &mut impl Iterator<Item = PlaceElem>, ty: &Ty) -> Result<(Ty, Ty)> {
-    let mut lookup = Lookup { cursor, result: None, update: |ty| Ok(ty.clone()) };
-    let updated = ty.try_fold_with(&mut lookup)?;
-    Ok((updated, lookup.result.unwrap_or(ty.clone())))
+struct Binding {
+    kind: LocKind,
+    ty: Ty,
 }
 
-struct Unfolder<'a, 'rcx, 'tcx, I> {
+impl PlacesTree {
+    pub(crate) fn unfold(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        key: &impl LookupKey,
+        checker_conf: CheckerConfig,
+    ) -> Result {
+        let mut path = Path::from(key.loc());
+        let mut cursor = Cursor::new(key);
+        loop {
+            let binding = self.get_loc_mut(&path.loc);
+            let unfolder = Unfolder::new(genv, rcx, &mut cursor, checker_conf);
+            match unfolder.run(&path, binding)? {
+                Cont::Init => tracked_span_bug!(),
+                Cont::Break(_) => break,
+                Cont::Continue(new) => {
+                    path = new;
+                }
+                Cont::Insert(loc, kind, ty) => {
+                    self.insert(loc.clone(), kind, ty);
+                    path = Path::from(loc);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn lookup(
+        &mut self,
+        key: &impl LookupKey,
+        delegate: impl LookupDelegate,
+    ) -> Result<Ty> {
+        let cursor = key.proj();
+        let binding = self.get_loc_mut(&key.loc());
+        let mut lookup = Lookup { cursor, result: binding.ty.clone(), delegate };
+        binding.ty = binding.ty.try_fold_with(&mut lookup)?;
+        Ok(lookup.result)
+    }
+
+    fn insert(&mut self, loc: Loc, kind: LocKind, ty: Ty) {
+        self.map.insert(loc, Binding { kind, ty });
+    }
+
+    fn get_loc_mut(&mut self, loc: &Loc) -> &mut Binding {
+        self.map
+            .get_mut(loc)
+            .unwrap_or_else(|| tracked_span_bug!("loc not foound {loc:?}"))
+    }
+}
+
+struct Unfolder<'a, 'rcx, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
     cont: Cont,
-    cursor: &'a mut Cursor<I>,
+    cursor: &'a mut Cursor,
+    in_ref: bool,
     checker_conf: CheckerConfig,
 }
 
@@ -55,12 +95,10 @@ enum Cont {
     Init,
     Break(Ty),
     Continue(Path),
+    Insert(Loc, LocKind, Ty),
 }
 
-impl<I> FallibleTypeFolder for Unfolder<'_, '_, '_, I>
-where
-    I: Iterator<Item = PlaceElem>,
-{
+impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty> {
@@ -79,14 +117,29 @@ where
     }
 }
 
-impl<I> Unfolder<'_, '_, '_, I>
-where
-    I: Iterator<Item = PlaceElem>,
-{
+impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
+    fn new(
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        rcx: &'a mut RefineCtxt<'rcx>,
+        cursor: &'a mut Cursor,
+        checker_conf: CheckerConfig,
+    ) -> Self {
+        Unfolder { genv, rcx, cursor, cont: Cont::Init, in_ref: false, checker_conf }
+    }
+
+    fn run(mut self, path: &Path, binding: &mut Binding) -> Result<Cont> {
+        let ty = path
+            .projection()
+            .iter()
+            .try_fold(binding.ty.clone(), |ty, f| self.field(&ty, *f))?;
+
+        binding.ty = ty.try_fold_with(&mut self)?;
+        Ok(self.cont)
+    }
+
     fn unfold(&mut self, ty: &Ty) -> Result<Ty> {
         if ty.is_box() {
-            // TODO(nilehmann) implement unfolding of boxes
-            Ok(ty.clone())
+            self.deref(ty)
         } else if ty.is_struct() {
             self.downcast(ty, FIRST_VARIANT)
         } else {
@@ -100,7 +153,25 @@ where
                 self.cont = Cont::Continue(path.clone());
                 Ty::ptr(*pk, path.clone())
             }
-            Ref!(re, ty, mutbl) => Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl),
+            TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
+                let (deref_ty, alloc) = box_args(substs);
+                if self.in_ref {
+                    let substs = List::from_arr([
+                        GenericArg::Ty(deref_ty.try_fold_with(self)?),
+                        GenericArg::Ty(alloc.clone()),
+                    ]);
+                    Ty::indexed(BaseTy::Adt(adt.clone(), substs), idx.clone())
+                } else {
+                    let loc = Loc::from(self.rcx.define_var(&Sort::Loc));
+                    self.cont =
+                        Cont::Insert(loc.clone(), LocKind::Box(alloc.clone()), deref_ty.clone());
+                    Ty::ptr(PtrKind::Box, Path::from(loc))
+                }
+            }
+            Ref!(re, ty, mutbl) => {
+                self.in_ref = true;
+                Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
+            }
             _ => todo!(),
         };
         Ok(ty)
@@ -169,26 +240,51 @@ where
     }
 }
 
-struct Lookup<I, F>
+struct Lookup<I, D>
 where
-    F: FnMut(&Ty) -> Result<Ty>,
+    D: LookupDelegate,
 {
-    result: Option<Ty>,
-    update: F,
+    result: Ty,
+    delegate: D,
     cursor: I,
 }
 
-impl<I, F> FallibleTypeFolder for Lookup<I, F>
+trait LookupDelegate {
+    fn update(&mut self, ty: &Ty) -> Ty;
+    fn result(&mut self, old: &Ty, new: &Ty) -> Ty;
+}
+
+struct Fold;
+
+struct Block<F>(F)
+where
+    F: FnMut(&Ty) -> Ty;
+
+impl<F> LookupDelegate for Block<F>
+where
+    F: FnMut(&Ty) -> Ty,
+{
+    fn update(&mut self, ty: &Ty) -> Ty {
+        (self.0)(ty)
+    }
+
+    fn result(&mut self, old: &Ty, new: &Ty) -> Ty {
+        old.clone()
+    }
+}
+
+impl<I, D> FallibleTypeFolder for Lookup<I, D>
 where
     I: Iterator<Item = PlaceElem>,
-    F: FnMut(&Ty) -> Result<Ty>,
+    D: LookupDelegate,
 {
     type Error = CheckerErrKind;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty> {
         let Some(elem) = self.cursor.next() else {
-            self.result = Some(ty.clone());
-            return (self.update)(ty);
+            let updated = self.delegate.update(ty);
+            self.result = self.delegate.result(ty, &updated);
+            return Ok(updated);
         };
         match elem {
             PlaceElem::Deref => self.deref(ty),
@@ -199,10 +295,10 @@ where
     }
 }
 
-impl<I, F> Lookup<I, F>
+impl<I, D> Lookup<I, D>
 where
     I: Iterator<Item = PlaceElem>,
-    F: FnMut(&Ty) -> Result<Ty>,
+    D: LookupDelegate,
 {
     fn deref(&mut self, ty: &Ty) -> Result<Ty> {
         let ty = match ty.kind() {
@@ -246,15 +342,16 @@ where
     }
 }
 
-struct Cursor<I> {
-    proj: I,
+struct Cursor {
+    proj: Vec<PlaceElem>,
 }
 
-impl<I> Cursor<I>
-where
-    I: Iterator<Item = PlaceElem>,
-{
+impl Cursor {
+    fn new(key: &impl LookupKey) -> Self {
+        Self { proj: key.proj().collect() }
+    }
     fn next(&mut self) -> Option<PlaceElem> {
-        self.proj.next()
+        todo!()
+        // self.proj.next()
     }
 }
