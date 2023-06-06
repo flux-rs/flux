@@ -1,3 +1,5 @@
+use std::iter;
+
 use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -5,18 +7,18 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable},
-        BaseTy, GenericArg, Loc, Path, PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Loc, Path, PtrKind, Ref,
+        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
-    rustc::mir::{FieldIdx, PlaceElem},
+    rustc::mir::{FieldIdx, Place, PlaceElem},
 };
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
 
-use super::places_tree::{downcast, LocKind, LookupKey};
 use crate::{
     checker::errors::CheckerErrKind,
     refine_tree::{RefineCtxt, UnpackFlags},
-    type_env::places_tree::downcast_struct,
     CheckerConfig,
 };
 
@@ -29,6 +31,47 @@ struct PlacesTree {
 struct Binding {
     kind: LocKind,
     ty: Ty,
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub(super) enum LocKind {
+    Local,
+    Box(Ty),
+    Universal,
+}
+
+pub(super) trait LookupKey {
+    type Iter<'a>: Iterator<Item = PlaceElem> + 'a
+    where
+        Self: 'a;
+
+    fn loc(&self) -> Loc;
+
+    fn proj(&self) -> Self::Iter<'_>;
+}
+
+impl LookupKey for Place {
+    type Iter<'a> = impl Iterator<Item = PlaceElem> + 'a;
+
+    fn loc(&self) -> Loc {
+        Loc::Local(self.local)
+    }
+
+    fn proj(&self) -> Self::Iter<'_> {
+        self.projection.iter().copied()
+    }
+}
+
+impl LookupKey for Path {
+    type Iter<'a> = impl Iterator<Item = PlaceElem> + 'a;
+
+    fn loc(&self) -> Loc {
+        self.loc.clone()
+    }
+
+    fn proj(&self) -> Self::Iter<'_> {
+        self.projection().iter().map(|f| PlaceElem::Field(*f))
+    }
 }
 
 impl PlacesTree {
@@ -354,4 +397,88 @@ impl Cursor {
         todo!()
         // self.proj.next()
     }
+}
+
+pub(crate) fn downcast(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    adt: &AdtDef,
+    substs: &[GenericArg],
+    variant_idx: VariantIdx,
+    idx: &Index,
+) -> Result<Vec<Ty>> {
+    if adt.is_struct() {
+        debug_assert_eq!(variant_idx.as_u32(), 0);
+        downcast_struct(genv, adt, substs, idx)
+    } else if adt.is_enum() {
+        downcast_enum(genv, rcx, adt, variant_idx, substs, idx)
+    } else {
+        tracked_span_bug!("Downcast without struct or enum!")
+    }
+}
+
+/// `downcast` on struct works as follows
+/// Given a struct definition
+///     struct S<A..>[(i...)] { fld : T, ...}
+/// and a
+///     * "place" `x: S<t..>[e..]`
+/// the `downcast` returns a vector of `ty` for each `fld` of `x` where
+///     * `x.fld : T[A := t ..][i := e...]`
+/// i.e. by substituting the type and value indices using the types and values from `x`.
+pub(crate) fn downcast_struct(
+    genv: &GlobalEnv,
+    adt: &AdtDef,
+    substs: &[GenericArg],
+    idx: &Index,
+) -> Result<Vec<Ty>> {
+    Ok(struct_variant(genv, adt.did())?
+        .subst_generics(substs)
+        .replace_bound_exprs(idx.expr.expect_tuple())
+        .fields
+        .to_vec())
+}
+
+fn struct_variant(genv: &GlobalEnv, def_id: DefId) -> Result<EarlyBinder<Binder<VariantSig>>> {
+    debug_assert!(genv.adt_def(def_id)?.is_struct());
+    genv.variant_sig(def_id, VariantIdx::from_u32(0))?
+        .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
+}
+
+/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
+/// Given
+///     * a "place" `x : T[i..]`
+///     * a "variant" of type `forall z..,(y:t...) => E[j...]`
+/// We want `downcast` to return a vector of types _and an assertion_ by
+///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
+///     2. *Unpack* the fields using `y:t'...`
+///     3. *Assert* the constraint `i == j'...`
+pub(crate) fn downcast_enum(
+    genv: &GlobalEnv,
+    rcx: &mut RefineCtxt,
+    adt: &AdtDef,
+    variant_idx: VariantIdx,
+    substs: &[GenericArg],
+    idx1: &Index,
+) -> Result<Vec<Ty>> {
+    let variant_def = genv
+        .variant_sig(adt.did(), variant_idx)?
+        .expect("enums cannot be opaque")
+        .subst_generics(substs)
+        .replace_bound_exprs_with(|sort| rcx.define_vars(sort));
+
+    let (.., idx2) = variant_def.ret.expect_adt();
+    // FIXME(nilehmann) flatten indices
+    let exprs1 = idx1.expr.expect_tuple();
+    let exprs2 = idx2.expr.expect_tuple();
+    debug_assert_eq!(exprs1.len(), exprs2.len());
+    let constr = Expr::and(iter::zip(exprs1, exprs2).filter_map(|(e1, e2)| {
+        if !e1.is_abs() && !e2.is_abs() {
+            Some(Expr::eq(e1, e2))
+        } else {
+            None
+        }
+    }));
+    rcx.assume_pred(constr);
+
+    Ok(variant_def.fields.to_vec())
 }
