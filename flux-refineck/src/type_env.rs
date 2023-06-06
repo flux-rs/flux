@@ -671,6 +671,19 @@ impl BasicBlockEnvShape {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
             }
+            (
+                TyKind::Downcast(adt1, substs1, variant1, fields1),
+                TyKind::Downcast(adt2, substs2, variant2, fields2),
+            ) => {
+                debug_assert_eq!(adt1, adt2);
+                debug_assert_eq!(substs1, substs2);
+                debug_assert_eq!(variant1, variant2);
+                debug_assert_eq!(fields1.len(), fields2.len());
+                let fields = iter::zip(fields1, fields2)
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
+                    .collect();
+                Ty::downcast(adt1.clone(), substs1.clone(), *variant1, fields)
+            }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
     }
@@ -709,11 +722,11 @@ impl BasicBlockEnvShape {
                     .collect();
                 BaseTy::adt(def1.clone(), List::from_vec(substs))
             }
-            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
-                let tys = iter::zip(tys1, tys2)
+            (BaseTy::Tuple(fields1), BaseTy::Tuple(fields2)) => {
+                let fields = iter::zip(fields1, fields2)
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
-                BaseTy::Tuple(tys)
+                BaseTy::Tuple(fields)
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 debug_assert_eq!(r1, r2);

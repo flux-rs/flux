@@ -3,8 +3,9 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
+        box_args,
         fold::{FallibleTypeFolder, TypeFoldable},
-        BaseTy, Ref, Ty, TyKind, VariantIdx, FIRST_VARIANT,
+        BaseTy, GenericArg, Ref, Ty, TyKind, VariantIdx, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, PlaceElem},
 };
@@ -26,15 +27,16 @@ pub(crate) fn unfold(
     cursor: &mut impl Iterator<Item = PlaceElem>,
     ty: &Ty,
     checker_conf: CheckerConfig,
-) -> Result<Ty> {
+) -> Result<(Ty, Ty)> {
     let mut unfolder = Unfolder { genv, rcx, cursor, result: None, checker_conf };
-    ty.try_fold_with(&mut unfolder)
-    // Ok(unfolder.result.unwrap_or(ty.clone()))
+    let updated = ty.try_fold_with(&mut unfolder)?;
+    Ok((updated, unfolder.result.unwrap_or(ty.clone())))
 }
 
-pub(crate) fn lookup(cursor: &mut impl Iterator<Item = PlaceElem>, ty: &Ty) -> Result<Ty> {
-    let mut lookup = Lookup { cursor, update: |ty| Ok(ty.clone()) };
-    ty.try_fold_with(&mut lookup)
+pub(crate) fn lookup(cursor: &mut impl Iterator<Item = PlaceElem>, ty: &Ty) -> Result<(Ty, Ty)> {
+    let mut lookup = Lookup { cursor, result: None, update: |ty| Ok(ty.clone()) };
+    let updated = ty.try_fold_with(&mut lookup)?;
+    Ok((updated, lookup.result.unwrap_or(ty.clone())))
 }
 
 struct Unfolder<'a, 'rcx, 'tcx, I> {
@@ -53,8 +55,9 @@ where
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty> {
         let Some(elem) = self.cursor.next() else {
+            let ty = self.unfold(ty)?;
             self.result = Some(ty.clone());
-            return Ok(ty.clone())
+            return Ok(ty)
         };
         let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
         match elem {
@@ -70,6 +73,17 @@ impl<I> Unfolder<'_, '_, '_, I>
 where
     I: Iterator<Item = PlaceElem>,
 {
+    fn unfold(&mut self, ty: &Ty) -> Result<Ty> {
+        if ty.is_box() {
+            // TODO(nilehmann) implement unfolding of boxes
+            Ok(ty.clone())
+        } else if ty.is_struct() {
+            self.downcast(ty, FIRST_VARIANT)
+        } else {
+            Ok(ty.clone())
+        }
+    }
+
     fn deref(&mut self, ty: &Ty) -> Result<Ty> {
         let ty = match ty.kind() {
             Ref!(re, ty, mutbl) => Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl),
@@ -145,6 +159,7 @@ struct Lookup<I, F>
 where
     F: FnMut(&Ty) -> Result<Ty>,
 {
+    result: Option<Ty>,
     update: F,
     cursor: I,
 }
@@ -158,6 +173,7 @@ where
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty> {
         let Some(elem) = self.cursor.next() else {
+            self.result = Some(ty.clone());
             return (self.update)(ty);
         };
         match elem {
@@ -176,8 +192,16 @@ where
 {
     fn deref(&mut self, ty: &Ty) -> Result<Ty> {
         let ty = match ty.kind() {
+            TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
+                let (deref_ty, alloc) = box_args(substs);
+                let substs = List::from_arr([
+                    GenericArg::Ty(deref_ty.try_fold_with(self)?),
+                    GenericArg::Ty(alloc.clone()),
+                ]);
+                Ty::indexed(BaseTy::Adt(adt.clone(), substs), idx.clone())
+            }
             Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, deref_ty.try_fold_with(self)?, *mutbl),
-            _ => todo!(),
+            _ => tracked_span_bug!("invalid deref on `{ty:?}`"),
         };
         Ok(ty)
     }

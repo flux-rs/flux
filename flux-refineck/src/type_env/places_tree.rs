@@ -20,7 +20,7 @@ use super::projection::{lookup, unfold};
 use crate::{
     checker::errors::CheckerErrKind,
     constraint_gen::ConstrGen,
-    refine_tree::{RefineCtxt, Scope, UnpackFlags},
+    refine_tree::{RefineCtxt, Scope},
     CheckerConfig,
 };
 
@@ -231,7 +231,7 @@ impl PlacesTree {
                                 continue 'outer;
                             }
                             Ref!(_, ty, mutbl) => {
-                                let ty = lookup(place_proj, ty)?;
+                                let (_, ty) = lookup(place_proj, ty)?;
                                 return Ok(LookupResult {
                                     tree: self,
                                     kind: LookupKind::Weak(WeakKind::from(*mutbl), ty),
@@ -259,10 +259,10 @@ impl PlacesTree {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                                let arr_ty = lookup(place_proj, arr_ty)?;
+                                let (_, ty) = lookup(place_proj, arr_ty)?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(WeakKind::Arr, arr_ty),
+                                    kind: LookupKind::Weak(WeakKind::Arr, ty),
                                 });
                             }
                             _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
@@ -321,11 +321,11 @@ impl PlacesTree {
                                 continue 'outer;
                             }
                             Ref!(re, deref_ty, mutbl) => {
-                                let deref_ty =
+                                let (deref_ty, ty) =
                                     unfold(genv, rcx, place_proj, deref_ty, checker_config)?;
-                                let ty = Ty::mk_ref(*re, deref_ty.clone(), *mutbl);
-                                *ptr.borrow_mut() = Node::owned(ty);
-                                LookupKind::Weak(WeakKind::from(*mutbl), deref_ty)
+                                let updated = Ty::mk_ref(*re, deref_ty, *mutbl);
+                                *ptr.borrow_mut() = Node::owned(updated);
+                                LookupKind::Weak(WeakKind::from(*mutbl), ty)
                             }
                             TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx) => {
                                 let ty = Ty::indexed(
@@ -347,15 +347,14 @@ impl PlacesTree {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Indexed(BaseTy::Array(arr_ty, len), idx) => {
-                                let arr_ty = unfold(genv, rcx, place_proj, arr_ty, checker_config)?;
-                                let ty = Ty::indexed(
-                                    BaseTy::Array(arr_ty.clone(), len.clone()),
-                                    idx.clone(),
-                                );
-                                *ptr.borrow_mut() = Node::owned(ty);
+                                let (arr_ty, ty) =
+                                    unfold(genv, rcx, place_proj, arr_ty, checker_config)?;
+                                let updated =
+                                    Ty::indexed(BaseTy::Array(arr_ty, len.clone()), idx.clone());
+                                *ptr.borrow_mut() = Node::owned(updated);
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(WeakKind::Arr, arr_ty),
+                                    kind: LookupKind::Weak(WeakKind::Arr, ty),
                                 });
                             }
                             _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
