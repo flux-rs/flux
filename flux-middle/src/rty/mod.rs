@@ -758,6 +758,10 @@ impl AdtDef {
         self.0.rustc.variants()
     }
 
+    pub fn variant(&self, idx: VariantIdx) -> &VariantDef {
+        self.0.rustc.variant(idx)
+    }
+
     pub fn invariants(&self) -> &[Invariant] {
         &self.0.invariants
     }
@@ -1520,7 +1524,7 @@ mod pretty {
                     if !substs.is_empty() {
                         w!("<{:?}>", join!(", ", substs))?;
                     }
-                    w!("::{:?}", ^variant_idx)?;
+                    w!("::{}", ^adt.variant(*variant_idx).name)?;
                     if !fields.is_empty() {
                         w!("({:?})", join!(", ", fields))?;
                     }
