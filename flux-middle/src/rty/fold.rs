@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, List},
-    rty::{Var, VariantDef},
+    rty::{Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -498,7 +498,7 @@ impl TypeFoldable for BoundVariableKind {
     }
 }
 
-impl TypeVisitable for VariantDef {
+impl TypeVisitable for VariantSig {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.fields
             .iter()
@@ -507,7 +507,7 @@ impl TypeVisitable for VariantDef {
     }
 }
 
-impl TypeFoldable for VariantDef {
+impl TypeFoldable for VariantSig {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let fields = self
             .fields
@@ -515,7 +515,7 @@ impl TypeFoldable for VariantDef {
             .map(|ty| ty.try_fold_with(folder))
             .try_collect()?;
         let ret = self.ret.try_fold_with(folder)?;
-        Ok(VariantDef::new(fields, ret))
+        Ok(VariantSig::new(fields, ret))
     }
 }
 

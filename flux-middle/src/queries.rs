@@ -173,7 +173,8 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(adt_def) = genv.early_cx().cstore.adt_def(def_id) {
                 Ok(adt_def.clone())
             } else {
-                Ok(rty::AdtDef::new(genv.tcx.adt_def(def_id), rty::Sort::unit(), vec![], false))
+                let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(def_id));
+                Ok(rty::AdtDef::new(adt_def, rty::Sort::unit(), vec![], false))
             }
         })
     }

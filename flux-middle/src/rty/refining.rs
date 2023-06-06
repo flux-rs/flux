@@ -106,7 +106,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .try_collect_vec()?;
         let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, substs);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
-        let value = rty::VariantDef::new(fields, ret);
+        let value = rty::VariantSig::new(fields, ret);
         Ok(rty::Binder::new(value, List::empty()))
     }
 

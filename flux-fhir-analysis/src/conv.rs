@@ -17,7 +17,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{self, fold::TypeFoldable, refining, ESpan, INNERMOST},
-    rustc,
+    rustc::{self, lowering},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -132,7 +132,7 @@ pub(crate) fn adt_def_for_struct(
 ) -> rty::AdtDef {
     let sort =
         rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(struct_def.owner_id)));
-    let adt_def = genv.tcx.adt_def(struct_def.owner_id);
+    let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
 
@@ -143,7 +143,8 @@ pub(crate) fn adt_def_for_enum(
 ) -> rty::AdtDef {
     let sort =
         rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(enum_def.owner_id)));
-    rty::AdtDef::new(genv.tcx.adt_def(enum_def.owner_id), sort, invariants, false)
+    let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(enum_def.owner_id));
+    rty::AdtDef::new(adt_def, sort, invariants, false)
 }
 
 pub(crate) fn conv_invariants(
@@ -284,7 +285,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .try_collect()?;
         let args = rty::Index::from(cx.conv_refine_arg(&mut env, &variant.ret.idx));
         let ret = cx.conv_base_ty(&mut env, &variant.ret.bty, args)?;
-        let variant = rty::VariantDef::new(fields, ret);
+        let variant = rty::VariantSig::new(fields, ret);
 
         Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars()))
     }
@@ -339,7 +340,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .collect_vec(),
             );
             let ret = rty::Ty::indexed(rty::BaseTy::adt(genv.adt_def(def_id)?, substs), idx);
-            let variant = rty::VariantDef::new(fields, ret);
+            let variant = rty::VariantSig::new(fields, ret);
             Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, vars)))
         } else {
             Ok(rty::Opaqueness::Opaque)

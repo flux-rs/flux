@@ -38,11 +38,11 @@ fn check_invariant(
 ) -> Result<(), ErrorGuaranteed> {
     let mut refine_tree = RefineTree::new();
 
-    for variant_idx in adt_def.variants() {
+    for variant_idx in adt_def.variants().indices() {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let variant = genv
-            .variant(adt_def.did(), variant_idx)
+            .variant_sig(adt_def.did(), variant_idx)
             .emit(genv.sess)?
             .expect("cannot check opaque structs")
             .subst_identity()

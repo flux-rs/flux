@@ -156,7 +156,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.variants_of(self, def_id)
     }
 
-    pub fn variant(
+    pub fn variant_sig(
         &self,
         def_id: DefId,
         variant_idx: VariantIdx,

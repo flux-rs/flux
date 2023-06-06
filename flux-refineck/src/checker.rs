@@ -598,7 +598,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let (adt_def, place) = discr_ty.expect_discr();
 
         let mut successors = vec![];
-        let mut remaining = BitSet::new_filled(adt_def.nvariants());
+        let mut remaining = BitSet::new_filled(adt_def.variants().len());
         for (bits, bb) in targets.iter() {
             let i = bits as usize;
             remaining.remove(i);
@@ -701,7 +701,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
                 let sig = genv
-                    .variant(*def_id, *variant_idx)
+                    .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
                     .to_poly_fn_sig();

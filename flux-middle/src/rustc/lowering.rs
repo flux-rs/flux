@@ -636,7 +636,7 @@ pub(crate) fn lower_ty<'tcx>(
     }
 }
 
-fn lower_adt_def(adt_def: &rustc_ty::AdtDef) -> AdtDef {
+pub fn lower_adt_def(adt_def: &rustc_ty::AdtDef) -> AdtDef {
     AdtDef::new(AdtDefData::new(
         adt_def.did(),
         adt_def.variants().iter().map(lower_variant).collect(),

@@ -8,7 +8,7 @@ use flux_middle::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, LayoutKind, Loc,
-        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantDef, VariantIdx,
+        Path, PtrKind, Ref, Sort, Substs, Ty, TyKind, Var, VariantIdx, VariantSig,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -783,7 +783,7 @@ impl Node {
                 ty
             }
             Node::Internal(NodeKind::Adt(adt_def, variant_idx, substs), children) => {
-                let variant = gen.genv.variant(adt_def.did(), *variant_idx)?.expect("unexpected opaque struct");
+                let variant = gen.genv.variant_sig(adt_def.did(), *variant_idx)?.expect("unexpected opaque struct");
                 let fields: Vec<Ty> = children
                     .iter_mut()
                     .map(|node| {
@@ -1011,9 +1011,9 @@ fn downcast_struct(
 fn struct_variant(
     genv: &GlobalEnv,
     def_id: DefId,
-) -> Result<EarlyBinder<Binder<VariantDef>>, CheckerErrKind> {
+) -> Result<EarlyBinder<Binder<VariantSig>>, CheckerErrKind> {
     debug_assert!(genv.adt_def(def_id)?.is_struct());
-    genv.variant(def_id, VariantIdx::from_u32(0))?
+    genv.variant_sig(def_id, VariantIdx::from_u32(0))?
         .ok_or_else(|| CheckerErrKind::OpaqueStruct(def_id))
 }
 
@@ -1034,7 +1034,7 @@ fn downcast_enum(
     idx1: &Index,
 ) -> Result<Vec<Ty>, CheckerErrKind> {
     let variant_def = genv
-        .variant(def_id, variant_idx)?
+        .variant_sig(def_id, variant_idx)?
         .expect("enums cannot be opaque")
         .subst_generics(substs)
         .replace_bound_exprs_with(|sort| rcx.define_vars(sort));

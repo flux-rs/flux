@@ -21,6 +21,7 @@ use itertools::Itertools;
 pub use normalize::Defns;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::{
     mir::Mutability,
@@ -39,7 +40,7 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Internable, Interned, List},
     queries::QueryResult,
-    rustc::{self, mir::Place},
+    rustc::{self, mir::Place, ty::VariantDef},
 };
 pub use crate::{
     fhir::InferMode,
@@ -124,12 +125,10 @@ pub struct AdtDef(Interned<AdtDefData>);
 
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
-    def_id: DefId,
     invariants: Vec<Invariant>,
     sort: Sort,
-    flags: AdtFlags,
-    nvariants: usize,
     opaque: bool,
+    rustc: rustc::ty::AdtDef,
 }
 
 /// Option-like enum to explicitly mark that we don't have information about an ADT because it was
@@ -150,11 +149,11 @@ pub struct Invariant {
     pub pred: Binder<Expr>,
 }
 
-pub type PolyVariants = List<Binder<VariantDef>>;
-pub type PolyVariant = Binder<VariantDef>;
+pub type PolyVariants = List<Binder<VariantSig>>;
+pub type PolyVariant = Binder<VariantSig>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub struct VariantDef {
+pub struct VariantSig {
     pub fields: List<Ty>,
     pub ret: Ty,
 }
@@ -636,9 +635,9 @@ impl EarlyBinder<GenericPredicates> {
     }
 }
 
-impl VariantDef {
+impl VariantSig {
     pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
-        VariantDef { fields: List::from_vec(fields), ret }
+        VariantSig { fields: List::from_vec(fields), ret }
     }
 
     pub fn fields(&self) -> &[Ty] {
@@ -726,51 +725,36 @@ impl FnOutput {
 
 impl AdtDef {
     pub fn new(
-        rustc_def: rustc_middle::ty::AdtDef,
+        rustc: rustc::ty::AdtDef,
         sort: Sort,
         invariants: Vec<Invariant>,
         opaque: bool,
     ) -> Self {
-        AdtDef(Interned::new(AdtDefData {
-            def_id: rustc_def.did(),
-            invariants,
-            sort,
-            flags: rustc_def.flags(),
-            nvariants: rustc_def.variants().len(),
-            opaque,
-        }))
+        AdtDef(Interned::new(AdtDefData { invariants, sort, opaque, rustc }))
     }
 
     pub fn did(&self) -> DefId {
-        self.0.def_id
+        self.0.rustc.did()
     }
 
     pub fn sort(&self) -> &Sort {
         &self.0.sort
     }
 
-    pub fn flags(&self) -> &AdtFlags {
-        &self.0.flags
-    }
-
     pub fn is_box(&self) -> bool {
-        self.flags().contains(AdtFlags::IS_BOX)
+        self.0.rustc.is_box()
     }
 
     pub fn is_enum(&self) -> bool {
-        self.flags().contains(AdtFlags::IS_ENUM)
+        self.0.rustc.is_enum()
     }
 
     pub fn is_struct(&self) -> bool {
-        self.flags().contains(AdtFlags::IS_STRUCT)
+        self.0.rustc.is_struct()
     }
 
-    pub fn variants(&self) -> impl Iterator<Item = VariantIdx> {
-        (0..self.0.nvariants).map(VariantIdx::from)
-    }
-
-    pub fn nvariants(&self) -> usize {
-        self.0.nvariants
+    pub fn variants(&self) -> &IndexSlice<VariantIdx, VariantDef> {
+        self.0.rustc.variants()
     }
 
     pub fn invariants(&self) -> &[Invariant] {
@@ -1634,7 +1618,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for VariantDef {
+    impl Pretty for VariantSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
@@ -1663,7 +1647,7 @@ mod pretty {
         FnSig,
         GenericArg,
         Index,
-        VariantDef,
+        VariantSig,
         PtrKind,
         FuncSort,
     );

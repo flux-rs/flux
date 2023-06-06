@@ -84,24 +84,24 @@ pub type PolyFnSig = Binder<FnSig>;
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ty(Interned<TyS>);
 
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     pub did: DefId,
     variants: IndexVec<VariantIdx, VariantDef>,
     flags: AdtFlags,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub def_id: DefId,
     pub name: Symbol,
     pub fields: IndexVec<FieldIdx, FieldDef>,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct FieldDef {
     pub did: DefId,
     pub name: Symbol,
