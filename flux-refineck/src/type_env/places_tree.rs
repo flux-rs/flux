@@ -16,6 +16,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
+use super::projection::{lookup, unfold};
 use crate::{
     checker::errors::CheckerErrKind,
     constraint_gen::ConstrGen,
@@ -230,17 +231,10 @@ impl PlacesTree {
                                 continue 'outer;
                             }
                             Ref!(_, ty, mutbl) => {
-                                let (mutbl, ty) = Self::lookup_ty(
-                                    genv,
-                                    rcx,
-                                    WeakKind::from(*mutbl),
-                                    ty,
-                                    place_proj,
-                                    checker_conf,
-                                )?;
+                                let ty = lookup(place_proj, ty)?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(mutbl, ty),
+                                    kind: LookupKind::Weak(WeakKind::from(*mutbl), ty),
                                 });
                             }
                             TyKind::Indexed(BaseTy::RawPtr(ty, _), _) => {
@@ -265,17 +259,10 @@ impl PlacesTree {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
                             TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                                let (mutbl, ty) = Self::lookup_ty(
-                                    genv,
-                                    rcx,
-                                    WeakKind::Arr,
-                                    arr_ty,
-                                    place_proj,
-                                    checker_conf,
-                                )?;
+                                let arr_ty = lookup(place_proj, arr_ty)?;
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(mutbl, ty),
+                                    kind: LookupKind::Weak(WeakKind::Arr, arr_ty),
                                 });
                             }
                             _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
@@ -288,8 +275,6 @@ impl PlacesTree {
                 tree: self,
                 kind: LookupKind::Strg(Path::new(loc, path_proj), ptr),
             });
-
-            // return Ok(ptr.borrow_mut().expect_leaf_mut().unblock(rcx));
         }
     }
 
@@ -325,58 +310,52 @@ impl PlacesTree {
                     }
                     PlaceElem::Deref => {
                         let ty = ptr.borrow().expect_owned();
-                        match ty.kind() {
+                        let kind = match ty.kind() {
                             TyKind::Ptr(_, ptr_path) => {
                                 path = ptr_path.clone();
                                 continue 'outer;
-                            }
-                            Ref!(_, ty, mutbl) => {
-                                let (mutbl, ty) = Self::lookup_ty(
-                                    genv,
-                                    rcx,
-                                    WeakKind::from(*mutbl),
-                                    ty,
-                                    place_proj,
-                                    checker_config,
-                                )?;
-                                return Ok(LookupResult {
-                                    tree: self,
-                                    kind: LookupKind::Weak(mutbl, ty),
-                                });
                             }
                             TyKind::Indexed(BaseTy::Adt(adt, _), _) if adt.is_box() => {
                                 let loc = ptr.borrow_mut().unfold_box(rcx, self);
                                 path = Path::from(loc);
                                 continue 'outer;
                             }
-                            TyKind::Indexed(BaseTy::RawPtr(ty, _), _) => {
-                                return Ok(LookupResult {
-                                    tree: self,
-                                    kind: LookupKind::Raw(ty.clone()),
-                                });
+                            Ref!(re, deref_ty, mutbl) => {
+                                let deref_ty =
+                                    unfold(genv, rcx, place_proj, deref_ty, checker_config)?;
+                                let ty = Ty::mk_ref(*re, deref_ty.clone(), *mutbl);
+                                *ptr.borrow_mut() = Node::owned(ty);
+                                LookupKind::Weak(WeakKind::from(*mutbl), deref_ty)
+                            }
+                            TyKind::Indexed(BaseTy::RawPtr(deref_ty, mutbl), idx) => {
+                                let ty = Ty::indexed(
+                                    BaseTy::RawPtr(deref_ty.clone(), *mutbl),
+                                    idx.clone(),
+                                );
+                                *ptr.borrow_mut() = Node::owned(ty);
+                                LookupKind::Raw(deref_ty.clone())
                             }
                             _ => {
                                 tracked_span_bug!(
                                     "unsupported deref: elem = {elem:?}, ty = {ty:?}"
                                 );
                             }
-                        }
+                        };
+                        return Ok(LookupResult { tree: self, kind });
                     }
                     PlaceElem::Index(_) => {
                         let ty = ptr.borrow().expect_owned();
                         match ty.kind() {
-                            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                                let (mutbl, ty) = Self::lookup_ty(
-                                    genv,
-                                    rcx,
-                                    WeakKind::Arr,
-                                    arr_ty,
-                                    place_proj,
-                                    checker_config,
-                                )?;
+                            TyKind::Indexed(BaseTy::Array(arr_ty, len), idx) => {
+                                let arr_ty = unfold(genv, rcx, place_proj, arr_ty, checker_config)?;
+                                let ty = Ty::indexed(
+                                    BaseTy::Array(arr_ty.clone(), len.clone()),
+                                    idx.clone(),
+                                );
+                                *ptr.borrow_mut() = Node::owned(ty);
                                 return Ok(LookupResult {
                                     tree: self,
-                                    kind: LookupKind::Weak(mutbl, ty),
+                                    kind: LookupKind::Weak(WeakKind::Arr, arr_ty),
                                 });
                             }
                             _ => tracked_span_bug!("unsupported index: {elem:?} {ty:?}"),
@@ -390,53 +369,6 @@ impl PlacesTree {
                 kind: LookupKind::Strg(Path::new(loc, path_proj), ptr),
             });
         }
-    }
-
-    fn lookup_ty(
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        mut rk: WeakKind,
-        ty: &Ty,
-        proj: &mut impl Iterator<Item = PlaceElem>,
-        checker_config: CheckerConfig,
-    ) -> Result<(WeakKind, Ty), CheckerErrKind> {
-        use PlaceElem::*;
-        let mut ty = ty.clone();
-        for elem in proj.by_ref() {
-            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
-            match (elem, ty.kind()) {
-                (Deref, Ref!(_, ty2, mutbl2)) => {
-                    rk = rk.min(WeakKind::from(*mutbl2));
-                    ty = ty2.clone();
-                }
-                (Deref, TyKind::Indexed(BaseTy::Adt(adt, substs), _)) if adt.is_box() => {
-                    let (boxed, _) = box_args(substs);
-                    ty = boxed.clone();
-                }
-                (Field(field), TyKind::Indexed(BaseTy::Tuple(tys), _))
-                | (Field(field), TyKind::Indexed(BaseTy::Closure(_, tys), _)) => {
-                    ty = tys[field.as_usize()].clone();
-                }
-                (Field(field), TyKind::Indexed(BaseTy::Adt(adt, substs), idx)) => {
-                    let fields =
-                        downcast(genv, rcx, adt.did(), VariantIdx::from_u32(0), substs, idx)?;
-                    ty = fields[field.as_usize()].clone();
-                }
-                (Downcast(_, variant_idx), TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx)) => {
-                    let tys = downcast(genv, rcx, adt_def.did(), variant_idx, substs, idx)?;
-                    ty = Ty::tuple(tys);
-                    rcx.assume_invariants(&ty, checker_config.check_overflow);
-                }
-                (Index(_), TyKind::Indexed(BaseTy::Slice(slice_ty), _)) => ty = slice_ty.clone(),
-
-                _ => {
-                    tracked_span_bug!(
-                        "unexpected type and projection elem = {elem:?}, ty = {ty:?}"
-                    );
-                }
-            }
-        }
-        Ok((rk, ty))
     }
 
     pub fn close_boxes(
@@ -662,7 +594,7 @@ impl Node {
             Node::Leaf(Binding::Owned(ty)) => {
                 match ty.kind() {
                     TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) => {
-                        let fields = downcast(genv, rcx, adt_def.did(), variant_idx, substs, idx)?
+                        let fields = downcast(genv, rcx, adt_def, substs, variant_idx, idx)?
                             .into_iter()
                             .map(|ty| {
                                 let ty = rcx.unpack(&ty);
@@ -969,19 +901,19 @@ impl TypeFoldable for Binding {
     }
 }
 
-fn downcast(
+pub(crate) fn downcast(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
-    def_id: DefId,
-    variant_idx: VariantIdx,
+    adt: &AdtDef,
     substs: &[GenericArg],
+    variant_idx: VariantIdx,
     idx: &Index,
 ) -> Result<Vec<Ty>, CheckerErrKind> {
-    if genv.tcx.adt_def(def_id).is_struct() {
+    if adt.is_struct() {
         debug_assert_eq!(variant_idx.as_u32(), 0);
-        downcast_struct(genv, def_id, substs, idx)
-    } else if genv.tcx.adt_def(def_id).is_enum() {
-        downcast_enum(genv, rcx, def_id, variant_idx, substs, idx)
+        downcast_struct(genv, adt, substs, idx)
+    } else if adt.is_enum() {
+        downcast_enum(genv, rcx, adt, variant_idx, substs, idx)
     } else {
         tracked_span_bug!("Downcast without struct or enum!")
     }
@@ -995,13 +927,13 @@ fn downcast(
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
-fn downcast_struct(
+pub(crate) fn downcast_struct(
     genv: &GlobalEnv,
-    def_id: DefId,
+    adt: &AdtDef,
     substs: &[GenericArg],
     idx: &Index,
 ) -> Result<Vec<Ty>, CheckerErrKind> {
-    Ok(struct_variant(genv, def_id)?
+    Ok(struct_variant(genv, adt.did())?
         .subst_generics(substs)
         .replace_bound_exprs(idx.expr.expect_tuple())
         .fields
@@ -1028,13 +960,13 @@ fn struct_variant(
 fn downcast_enum(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
-    def_id: DefId,
+    adt: &AdtDef,
     variant_idx: VariantIdx,
     substs: &[GenericArg],
     idx1: &Index,
 ) -> Result<Vec<Ty>, CheckerErrKind> {
     let variant_def = genv
-        .variant_sig(def_id, variant_idx)?
+        .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .subst_generics(substs)
         .replace_bound_exprs_with(|sort| rcx.define_vars(sort));

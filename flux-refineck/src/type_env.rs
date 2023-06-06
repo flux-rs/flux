@@ -1,4 +1,5 @@
-pub mod places_tree;
+mod places_tree;
+mod projection;
 
 use std::iter;
 
@@ -457,6 +458,14 @@ impl BasicBlockEnvShape {
                 } else {
                     Ty::indexed(bty, idxs.clone())
                 }
+            }
+            TyKind::Downcast(adt, substs, variant, fields) => {
+                let substs = substs
+                    .iter()
+                    .map(|arg| Self::pack_generic_arg(scope, arg))
+                    .collect();
+                let fields = fields.iter().map(|ty| Self::pack_ty(scope, ty)).collect();
+                Ty::downcast(adt.clone(), substs, *variant, fields)
             }
             // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)

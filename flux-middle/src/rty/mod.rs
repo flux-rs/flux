@@ -253,6 +253,7 @@ pub enum TyKind {
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
+    Downcast(AdtDef, Substs, VariantIdx, List<Ty>),
 }
 
 /// *Abstract* representation of a type's layout, i.e., a type that may contain type variables and
@@ -889,6 +890,10 @@ impl Ty {
         TyKind::Param(param_ty).intern()
     }
 
+    pub fn downcast(adt: AdtDef, substs: Substs, variant: VariantIdx, fields: List<Ty>) -> Ty {
+        TyKind::Downcast(adt, substs, variant, fields).intern()
+    }
+
     pub fn usize() -> Ty {
         Ty::uint(UintTy::Usize)
     }
@@ -1510,6 +1515,17 @@ mod pretty {
                     }
                 }
                 TyKind::Param(param_ty) => w!("{}#t", ^param_ty),
+                TyKind::Downcast(adt, substs, variant_idx, fields) => {
+                    w!("{:?}", adt.did())?;
+                    if !substs.is_empty() {
+                        w!("<{:?}>", join!(", ", substs))?;
+                    }
+                    w!("::{:?}", ^variant_idx)?;
+                    if !fields.is_empty() {
+                        w!("({:?})", join!(", ", fields))?;
+                    }
+                    Ok(())
+                }
             }
         }
 

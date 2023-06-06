@@ -621,6 +621,10 @@ impl TypeSuperVisitable for Ty {
                 pred.visit_with(visitor)?;
                 ty.visit_with(visitor)
             }
+            TyKind::Downcast(_, substs, _, fields) => {
+                substs.visit_with(visitor)?;
+                fields.visit_with(visitor)
+            }
             TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit(_) => ControlFlow::Continue(()),
         }
     }
@@ -656,6 +660,14 @@ impl TypeSuperFoldable for Ty {
             }
             TyKind::Constr(pred, ty) => {
                 Ty::constr(pred.try_fold_with(folder)?, ty.try_fold_with(folder)?)
+            }
+            TyKind::Downcast(adt, substs, variant, fields) => {
+                Ty::downcast(
+                    adt.clone(),
+                    substs.try_fold_with(folder)?,
+                    *variant,
+                    fields.try_fold_with(folder)?,
+                )
             }
             TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Discr(..) => self.clone(),
         };
