@@ -467,6 +467,7 @@ impl BasicBlockEnvShape {
                 let fields = fields.iter().map(|ty| Self::pack_ty(scope, ty)).collect();
                 Ty::downcast(adt.clone(), substs, *variant, fields)
             }
+            TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
             // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)
             | TyKind::Discr(..)

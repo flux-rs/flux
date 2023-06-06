@@ -254,6 +254,7 @@ pub enum TyKind {
     Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, Substs, VariantIdx, List<Ty>),
+    Blocked(Ty),
 }
 
 /// *Abstract* representation of a type's layout, i.e., a type that may contain type variables and
@@ -898,6 +899,10 @@ impl Ty {
         TyKind::Downcast(adt, substs, variant, fields).intern()
     }
 
+    pub fn blocked(ty: Ty) -> Ty {
+        TyKind::Blocked(ty).intern()
+    }
+
     pub fn usize() -> Ty {
         Ty::uint(UintTy::Usize)
     }
@@ -1530,6 +1535,7 @@ mod pretty {
                     }
                     Ok(())
                 }
+                TyKind::Blocked(ty) => w!("†{:?}", ty),
             }
         }
 
