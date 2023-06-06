@@ -5,11 +5,12 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable},
-        BaseTy, GenericArg, Ref, Ty, TyKind, VariantIdx, FIRST_VARIANT,
+        BaseTy, GenericArg, Loc, Path, Ref, Ty, TyKind, VariantIdx, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, PlaceElem},
 };
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
 use super::places_tree::downcast;
 use crate::{
@@ -20,17 +21,20 @@ use crate::{
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
+type Map = FxHashMap<Loc, Ty>;
 
 pub(crate) fn unfold(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
-    cursor: &mut impl Iterator<Item = PlaceElem>,
+    proj: &mut impl Iterator<Item = PlaceElem>,
     ty: &Ty,
     checker_conf: CheckerConfig,
 ) -> Result<(Ty, Ty)> {
-    let mut unfolder = Unfolder { genv, rcx, cursor, result: None, checker_conf };
+    let mut cursor = Cursor { proj };
+    let mut unfolder = Unfolder { genv, rcx, cursor: &mut cursor, cont: Cont::Init, checker_conf };
     let updated = ty.try_fold_with(&mut unfolder)?;
-    Ok((updated, unfolder.result.unwrap_or(ty.clone())))
+    // Ok((updated, unfolder.result.unwrap_or(ty.clone())))
+    todo!()
 }
 
 pub(crate) fn lookup(cursor: &mut impl Iterator<Item = PlaceElem>, ty: &Ty) -> Result<(Ty, Ty)> {
@@ -42,9 +46,15 @@ pub(crate) fn lookup(cursor: &mut impl Iterator<Item = PlaceElem>, ty: &Ty) -> R
 struct Unfolder<'a, 'rcx, 'tcx, I> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
-    result: Option<Ty>,
-    cursor: &'a mut I,
+    cont: Cont,
+    cursor: &'a mut Cursor<I>,
     checker_conf: CheckerConfig,
+}
+
+enum Cont {
+    Init,
+    Break(Ty),
+    Continue(Path),
 }
 
 impl<I> FallibleTypeFolder for Unfolder<'_, '_, '_, I>
@@ -56,7 +66,7 @@ where
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty> {
         let Some(elem) = self.cursor.next() else {
             let ty = self.unfold(ty)?;
-            self.result = Some(ty.clone());
+            self.cont = Cont::Break(ty.clone());
             return Ok(ty)
         };
         let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
@@ -86,6 +96,10 @@ where
 
     fn deref(&mut self, ty: &Ty) -> Result<Ty> {
         let ty = match ty.kind() {
+            TyKind::Ptr(pk, path) => {
+                self.cont = Cont::Continue(path.clone());
+                Ty::ptr(*pk, path.clone())
+            }
             Ref!(re, ty, mutbl) => Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl),
             _ => todo!(),
         };
@@ -229,5 +243,18 @@ where
         let mut fields = fields.to_vec();
         fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
         Ok(fields.into())
+    }
+}
+
+struct Cursor<I> {
+    proj: I,
+}
+
+impl<I> Cursor<I>
+where
+    I: Iterator<Item = PlaceElem>,
+{
+    fn next(&mut self) -> Option<PlaceElem> {
+        self.proj.next()
     }
 }
