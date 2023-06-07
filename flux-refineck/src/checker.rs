@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter};
+use std::{collections::hash_map::Entry, fmt, iter};
 
 use flux_common::{
     bug, dbg,
@@ -15,11 +15,11 @@ use flux_middle::{
         TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
-        self,
+        self, lowering,
         mir::{
-            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-            RETURN_PLACE, START_BLOCK,
+            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowData, BorrowKind, CastKind,
+            Constant, Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator,
+            TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
         ty::RegionVar,
     },
@@ -289,7 +289,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for stmt in &data.statements {
             let span = stmt.source_info.span;
             bug::track_span(span, || {
-                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
+                self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
                 dbg::statement!("start", stmt, rcx, env);
                 self.check_statement(&mut rcx, &mut env, stmt)
             })?;
@@ -303,7 +303,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         if let Some(terminator) = &data.terminator {
             let span = terminator.source_info.span;
             bug::track_span(span, || {
-                self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
+                self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
 
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
@@ -654,7 +654,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         self.apply_fold_unfolds_at_edge(&mut rcx, &mut env, from, target, span)?;
         if self.is_exit_block(target) {
             let location = self.body.terminator_loc(target);
-            self.apply_fold_unfolds_at_location(&mut rcx, &mut env, location, span)?;
+            self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
             self.mode
                 .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
@@ -948,13 +948,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn apply_fold_unfolds_at_location(
+    fn apply_extra_effects_at_location(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         location: Location,
         span: Span,
     ) -> Result<(), CheckerError> {
+        for borrow in self.borrows_out_of_scope_at(location) {
+            self.unblock(rcx, env, &UnblockStmt::from(borrow));
+        }
         for fold_unfold in self.fold_unfolds().fold_unfolds_at_location(location) {
             self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
         }
@@ -975,6 +978,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
+    fn unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
+        dbg::statement!("start", stmt, rcx, env);
+        dbg::statement!("end", stmt, rcx, env);
+    }
+
     fn appy_fold_unfold(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -986,10 +994,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match fold_unfold {
             FoldUnfold::Fold(place) => {
                 let config = self.config;
-                let mut gen = self
-                    .mode
-                    .constr_gen(self.genv, &self.rvid_gen, rcx, config, span);
-                env.fold(rcx, &mut gen, place, config)
+                let gen = &mut self.constr_gen(rcx, span);
+                env.fold(rcx, gen, place, config)
             }
             FoldUnfold::Unfold(place) => env.unfold(self.genv, rcx, place, self.config),
         }
@@ -1010,11 +1016,27 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn fold_unfolds(&self) -> &'a FoldUnfolds {
-        &self.extra_data[&self.def_id].fold_unfolds
+        &self.extra_data().fold_unfolds
     }
 
     fn dominators(&self) -> &'a Dominators<BasicBlock> {
         self.body.dominators()
+    }
+
+    fn borrows_out_of_scope_at(
+        &self,
+        location: Location,
+    ) -> impl Iterator<Item = &'a BorrowData<'tcx>> {
+        self.extra_data()
+            .borrows_out_of_scope_at_location
+            .get(&location)
+            .map_or([].as_slice(), Vec::as_slice)
+            .iter()
+            .map(|idx| self.body.borrow_data(*idx))
+    }
+
+    fn extra_data(&self) -> &'a ExtraBodyData {
+        &self.extra_data[&self.def_id]
     }
 }
 
@@ -1298,5 +1320,21 @@ pub(crate) mod errors {
         fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError> {
             self.map_err(|kind| CheckerError { kind: kind.into(), span: src_info.span })
         }
+    }
+}
+
+struct UnblockStmt {
+    place: Place,
+}
+
+impl From<&BorrowData<'_>> for UnblockStmt {
+    fn from(borrow: &BorrowData) -> Self {
+        UnblockStmt { place: lowering::lower_place(&borrow.borrowed_place).unwrap() }
+    }
+}
+
+impl fmt::Debug for UnblockStmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unblock({:?})", self.place)
     }
 }

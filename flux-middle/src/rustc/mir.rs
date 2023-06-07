@@ -8,8 +8,9 @@ use flux_common::{
 };
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
-use rustc_borrowck::consumers::BodyWithBorrowckFacts;
-use rustc_data_structures::graph::dominators::Dominators;
+pub use rustc_borrowck::borrow_set::BorrowData;
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
+use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable};
@@ -304,6 +305,25 @@ impl<'tcx> Body<'tcx> {
 
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
         Location { block: bb, statement_index: self.basic_blocks[bb].statements.len() }
+    }
+
+    pub fn calculate_borrows_out_of_scope_at_location(
+        &self,
+    ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
+        rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
+            &self.body_with_facts.body,
+            &self.body_with_facts.region_inference_context,
+            &self.body_with_facts.borrow_set,
+        )
+    }
+
+    pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
+        self.body_with_facts
+            .borrow_set
+            .location_map
+            .get_index(idx.as_usize())
+            .unwrap()
+            .1
     }
 }
 
