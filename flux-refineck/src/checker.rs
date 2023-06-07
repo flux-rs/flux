@@ -956,7 +956,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         span: Span,
     ) -> Result<(), CheckerError> {
         for borrow in self.borrows_out_of_scope_at(location) {
-            self.unblock(rcx, env, &UnblockStmt::from(borrow));
+            self.apply_unblock(rcx, env, &UnblockStmt::from(borrow));
         }
         for fold_unfold in self.fold_unfolds().fold_unfolds_at_location(location) {
             self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
@@ -978,8 +978,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
+    fn apply_unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
         dbg::statement!("start", stmt, rcx, env);
+        env.unblock(rcx, &stmt.place);
         dbg::statement!("end", stmt, rcx, env);
     }
 

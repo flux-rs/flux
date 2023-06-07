@@ -103,6 +103,10 @@ impl TypeEnv<'_> {
         Ok(self.bindings.lookup(path, |mut lookup| lookup.unblock(rcx)))
     }
 
+    pub(crate) fn get(&mut self, path: &Path) -> Ty {
+        self.bindings.get(path)
+    }
+
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
         self.bindings.update(path, new_ty);
     }
@@ -120,7 +124,7 @@ impl TypeEnv<'_> {
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         Ok(self.bindings.lookup(place, |mut lookup| {
-            let ty = lookup.unblock(rcx);
+            let ty = if mutbl == Mutability::Not { lookup.block() } else { lookup.ty };
             match lookup.kind {
                 PlaceKind::Strg(path) => Ty::ptr(PtrKind::from_ref(re, mutbl), path),
                 PlaceKind::Weak | PlaceKind::RawPtr => Ty::mk_ref(re, ty, mutbl),
@@ -173,6 +177,11 @@ impl TypeEnv<'_> {
 
     pub(crate) fn unpack(&mut self, rcx: &mut RefineCtxt) {
         self.bindings.fmap_mut(|ty| rcx.unpack(ty));
+    }
+
+    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place) {
+        self.bindings
+            .lookup(place, |mut lookup| lookup.unblock(rcx));
     }
 
     pub(crate) fn block_with(

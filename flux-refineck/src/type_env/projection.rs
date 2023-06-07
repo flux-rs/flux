@@ -106,6 +106,15 @@ impl PlaceLookup<'_> {
         self.update(unblocked.clone());
         unblocked
     }
+
+    pub(crate) fn block(&mut self) -> Ty {
+        if let TyKind::Blocked(ty) = self.ty.kind() {
+            ty.clone()
+        } else {
+            self.update(Ty::blocked(self.ty.clone()));
+            self.ty.clone()
+        }
+    }
 }
 
 impl PlacesTree {
@@ -285,7 +294,7 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
         let Some(elem) = self.cursor.next() else {
             return self.unfold(ty);
         };
-        let ty = self.rcx.unpack_with(&ty.unblocked(), UnpackFlags::SHALLOW);
+        let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
         match elem {
             PlaceElem::Deref => self.deref(&ty),
             PlaceElem::Field(f) => self.field(&ty, f),
@@ -311,7 +320,6 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
-        let ty = self.rcx.unpack_with(&ty.unblocked(), UnpackFlags::SHALLOW);
         if let TyKind::Indexed(BaseTy::Adt(adt, substs), _) = ty.kind() && adt.is_box() {
             if self.in_ref {
                 self.cont.set(Cont::Break(ty.clone())).unwrap();
@@ -321,12 +329,12 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 Ok(self.unfold_box(deref_ty, alloc))
             }
         } else if ty.is_struct() {
-            let ty = self.downcast(&ty, FIRST_VARIANT)?;
+            let ty = self.downcast(ty, FIRST_VARIANT)?;
             self.cont.set(Cont::Break(ty.clone())).unwrap();
             Ok(ty)
         } else {
             self.cont.set(Cont::Break(ty.clone())).unwrap();
-            Ok(ty)
+            Ok(ty.clone())
         }
     }
 

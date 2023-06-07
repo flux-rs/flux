@@ -240,8 +240,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
-                    let checker_config = infcx.checker_config;
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
+                    let ty = env.get(path).unblocked();
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, actual, &formal),
