@@ -3,7 +3,7 @@ use std::collections::hash_map;
 use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
-use rustc_borrowck::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -242,7 +242,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
             rustc_mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
-            rustc_mir::TerminatorKind::Drop { place, target, unwind } => {
+            rustc_mir::TerminatorKind::Drop { place, target, unwind, .. } => {
                 TerminatorKind::Drop {
                     place: self
                         .lower_place(place)

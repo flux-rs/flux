@@ -195,7 +195,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let body = genv
             .mir(def_id.expect_local())
             .with_span(genv.tcx.def_span(def_id))?;
-        let dominators = &extra_data[&def_id].dominators;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -218,7 +217,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             output: fn_sig.output().clone(),
             mode,
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
+            queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
             config,
         };
 
@@ -1006,7 +1005,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
-        let dominator = self.dominators().immediate_dominator(bb);
+        let dominator = self.dominators().immediate_dominator(bb).unwrap();
         self.snapshots[dominator].as_ref().unwrap()
     }
 
@@ -1015,7 +1014,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn dominators(&self) -> &'a Dominators<BasicBlock> {
-        &self.extra_data[&self.def_id].dominators
+        self.body.dominators()
     }
 }
 

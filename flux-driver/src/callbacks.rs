@@ -11,14 +11,12 @@ use flux_middle::{
 };
 use flux_refineck as refineck;
 use refineck::CheckerConfig;
+use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
-use rustc_middle::ty::{
-    query::{query_values, Providers},
-    TyCtxt,
-};
+use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
 
 use crate::{
@@ -409,8 +407,15 @@ fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
 }
 
 #[allow(clippy::needless_lifetimes)]
-fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> query_values::mir_borrowck<'tcx> {
-    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(tcx, def_id);
+fn mir_borrowck<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+) -> query::queries::mir_borrowck::ProvidedValue {
+    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
+        tcx,
+        def_id,
+        ConsumerOptions::RegionInferenceContext,
+    );
 
     if config::dump_mir() {
         rustc_middle::mir::pretty::write_mir_fn(
@@ -427,7 +432,7 @@ fn mir_borrowck<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) -> query_values::mi
     unsafe {
         flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
     }
-    let mut providers = Providers::default();
+    let mut providers = query::Providers::default();
     rustc_borrowck::provide(&mut providers);
     let original_mir_borrowck = providers.mir_borrowck;
     original_mir_borrowck(tcx, def_id)

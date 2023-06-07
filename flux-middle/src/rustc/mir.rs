@@ -8,7 +8,7 @@ use flux_common::{
 };
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
-use rustc_borrowck::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
@@ -288,7 +288,7 @@ impl<'tcx> Body<'tcx> {
     }
 
     #[inline]
-    pub fn dominators(&self) -> Dominators<BasicBlock> {
+    pub fn dominators(&self) -> &Dominators<BasicBlock> {
         self.body_with_facts.body.basic_blocks.dominators()
     }
 

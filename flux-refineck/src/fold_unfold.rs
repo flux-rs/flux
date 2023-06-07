@@ -15,7 +15,6 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, Idx, IndexVec};
@@ -180,7 +179,6 @@ impl<'a, 'tcx, M> FoldUnfoldAnalysis<'a, 'tcx, M> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
-        dominators: &'a Dominators<BasicBlock>,
         bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
         mode: M,
     ) -> Self {
@@ -191,7 +189,7 @@ impl<'a, 'tcx, M> FoldUnfoldAnalysis<'a, 'tcx, M> {
             discriminants: FxHashMap::default(),
             location: Location::START,
             visited: BitSet::new_empty(body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), dominators),
+            queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
             mode,
         }
     }
@@ -201,20 +199,13 @@ impl<'a, 'tcx> FoldUnfoldAnalysis<'a, 'tcx, ()> {
     pub(crate) fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
         body: &'a Body<'tcx>,
-        dominators: &'a Dominators<BasicBlock>,
     ) -> QueryResult<FoldUnfolds> {
         let mut bb_envs = FxHashMap::default();
-        FoldUnfoldAnalysis::new(genv, body, dominators, &mut bb_envs, Infer).run()?;
+        FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Infer).run()?;
 
         let mut fold_unfolds = FoldUnfolds::default();
-        FoldUnfoldAnalysis::new(
-            genv,
-            body,
-            dominators,
-            &mut bb_envs,
-            Elaboration { data: &mut fold_unfolds },
-        )
-        .run()?;
+        FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Elaboration { data: &mut fold_unfolds })
+            .run()?;
 
         Ok(fold_unfolds)
     }
