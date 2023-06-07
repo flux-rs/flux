@@ -17,6 +17,7 @@
     unwrap_infallible
 )]
 
+extern crate rustc_borrowck;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -48,22 +49,22 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, ESpan},
-    rustc::mir::BasicBlock,
 };
 use fold_unfold::{FoldUnfoldAnalysis, FoldUnfolds};
 use itertools::Itertools;
-use rustc_data_structures::graph::dominators::Dominators;
+use rustc_borrowck::consumers::BorrowIndex;
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{mir::Location, ty::TyCtxt};
 use rustc_span::Span;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
 struct ExtraBodyData {
-    dominators: Dominators<BasicBlock>,
     fold_unfolds: FoldUnfolds,
+    borrows_out_of_scope_at_location: FxIndexMap<Location, Vec<BorrowIndex>>,
 }
 
 pub fn check_fn(
@@ -121,9 +122,12 @@ fn compute_extra_data(
     let mut data = FxHashMap::default();
     for def_id in bodies {
         let body = genv.mir(def_id).emit(genv.sess)?;
-        let dominators = body.dominators();
-        let fold_unfolds = FoldUnfoldAnalysis::run(genv, &body, &dominators).emit(genv.sess)?;
-        data.insert(def_id.to_def_id(), ExtraBodyData { dominators, fold_unfolds });
+        let fold_unfolds = FoldUnfoldAnalysis::run(genv, &body).emit(genv.sess)?;
+        let borrows_out_of_scope_at_location = body.calculate_borrows_out_of_scope_at_location();
+        data.insert(
+            def_id.to_def_id(),
+            ExtraBodyData { fold_unfolds, borrows_out_of_scope_at_location },
+        );
     }
     Ok(data)
 }

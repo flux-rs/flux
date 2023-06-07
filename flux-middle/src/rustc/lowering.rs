@@ -3,7 +3,7 @@ use std::collections::hash_map;
 use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
-use rustc_borrowck::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -113,7 +113,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         let kind = match &stmt.kind {
             rustc_mir::StatementKind::Assign(box (place, rvalue)) => {
                 StatementKind::Assign(
-                    self.lower_place(place)
+                    lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(self.sess)?,
                     self.lower_rvalue(rvalue)
@@ -123,7 +123,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             }
             rustc_mir::StatementKind::SetDiscriminant { place, variant_index } => {
                 StatementKind::SetDiscriminant(
-                    self.lower_place(place)
+                    lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(self.sess)?,
                     *variant_index,
@@ -134,14 +134,14 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     self.lower_fake_read_cause(*cause)
                         .ok_or_else(|| errors::UnsupportedMir::from(stmt))
                         .emit(self.sess)?,
-                    self.lower_place(place)
+                    lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(self.sess)?,
                 )))
             }
             rustc_mir::StatementKind::PlaceMention(place) => {
                 StatementKind::PlaceMention(
-                    self.lower_place(place)
+                    lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(self.sess)?,
                 )
@@ -154,7 +154,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 variance,
             ) if projs.is_empty() => {
                 StatementKind::AscribeUserType(
-                    self.lower_place(place)
+                    lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(self.sess)?,
                     *variance,
@@ -202,8 +202,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     _ => Err(errors::UnsupportedMir::from(terminator)).emit(self.sess)?,
                 };
 
-                let destination = self
-                    .lower_place(destination)
+                let destination = lower_place(destination)
                     .map_err(|reason| {
                         errors::UnsupportedMir::new(span, "terminator destination", reason)
                     })
@@ -242,10 +241,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
             rustc_mir::TerminatorKind::Goto { target } => TerminatorKind::Goto { target: *target },
-            rustc_mir::TerminatorKind::Drop { place, target, unwind } => {
+            rustc_mir::TerminatorKind::Drop { place, target, unwind, .. } => {
                 TerminatorKind::Drop {
-                    place: self
-                        .lower_place(place)
+                    place: lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
                         .emit(self.sess)?,
                     target: *target,
@@ -333,7 +331,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(Rvalue::Ref(
                     lower_region(region)?,
                     self.lower_borrow_kind(*bk)?,
-                    self.lower_place(p)?,
+                    lower_place(p)?,
                 ))
             }
             rustc_mir::Rvalue::UnaryOp(un_op, op) => {
@@ -344,8 +342,8 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
-            rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(self.lower_place(p)?)),
-            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(self.lower_place(place)?)),
+            rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(lower_place(p)?)),
+            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self
                     .lower_cast_kind(*kind)
@@ -441,28 +439,10 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
 
     fn lower_operand(&self, op: &rustc_mir::Operand<'tcx>) -> Result<Operand, UnsupportedReason> {
         match op {
-            rustc_mir::Operand::Copy(place) => Ok(Operand::Copy(self.lower_place(place)?)),
-            rustc_mir::Operand::Move(place) => Ok(Operand::Move(self.lower_place(place)?)),
+            rustc_mir::Operand::Copy(place) => Ok(Operand::Copy(lower_place(place)?)),
+            rustc_mir::Operand::Move(place) => Ok(Operand::Move(lower_place(place)?)),
             rustc_mir::Operand::Constant(c) => Ok(Operand::Constant(self.lower_constant(c)?)),
         }
-    }
-
-    fn lower_place(&self, place: &rustc_mir::Place<'tcx>) -> Result<Place, UnsupportedReason> {
-        let mut projection = vec![];
-        for elem in place.projection {
-            match elem {
-                rustc_mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
-                rustc_mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
-                rustc_mir::PlaceElem::Downcast(name, idx) => {
-                    projection.push(PlaceElem::Downcast(name, idx));
-                }
-                rustc_mir::PlaceElem::Index(v) => projection.push(PlaceElem::Index(v)),
-                _ => {
-                    return Err(UnsupportedReason::new(format!("unsupported place `{place:?}`")));
-                }
-            }
-        }
-        Ok(Place { local: place.local, projection })
     }
 
     fn lower_constant(
@@ -510,6 +490,24 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             _ => None,
         }
     }
+}
+
+pub fn lower_place(place: &rustc_mir::Place) -> Result<Place, UnsupportedReason> {
+    let mut projection = vec![];
+    for elem in place.projection {
+        match elem {
+            rustc_mir::PlaceElem::Deref => projection.push(PlaceElem::Deref),
+            rustc_mir::PlaceElem::Field(field, _) => projection.push(PlaceElem::Field(field)),
+            rustc_mir::PlaceElem::Downcast(name, idx) => {
+                projection.push(PlaceElem::Downcast(name, idx));
+            }
+            rustc_mir::PlaceElem::Index(v) => projection.push(PlaceElem::Index(v)),
+            _ => {
+                return Err(UnsupportedReason::new(format!("unsupported place `{place:?}`")));
+            }
+        }
+    }
+    Ok(Place { local: place.local, projection })
 }
 
 impl UnsupportedReason {

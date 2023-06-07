@@ -12,7 +12,7 @@
 
 use std::{cell::RefCell, collections::HashMap, thread_local};
 
-use rustc_borrowck::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
