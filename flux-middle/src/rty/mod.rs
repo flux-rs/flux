@@ -951,6 +951,13 @@ impl Ty {
         let mut preds = vec![];
         (go(self, &mut preds), Expr::and(preds))
     }
+
+    pub fn unblocked(&self) -> Ty {
+        match self.kind() {
+            TyKind::Blocked(ty) => ty.clone(),
+            _ => self.clone(),
+        }
+    }
 }
 
 impl TyKind {

@@ -2,6 +2,7 @@
 
 #![warn(unused_extern_crates)]
 #![feature(
+    associated_type_defaults,
     box_patterns,
     drain_filter,
     if_let_guard,
@@ -12,7 +13,8 @@
     never_type,
     result_option_inspect,
     rustc_private,
-    type_alias_impl_trait
+    type_alias_impl_trait,
+    unwrap_infallible
 )]
 
 extern crate rustc_data_structures;

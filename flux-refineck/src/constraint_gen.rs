@@ -494,6 +494,18 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 rcx.check_pred(p2, self.tag);
                 self.subtyping(rcx, ty1, ty2);
             }
+            (
+                TyKind::Downcast(adt1, substs1, variant1, fields1),
+                TyKind::Downcast(adt2, substs2, variant2, fields2),
+            ) => {
+                debug_assert_eq!(adt1, adt2);
+                debug_assert_eq!(substs1, substs2);
+                debug_assert_eq!(variant1, variant2);
+                debug_assert_eq!(fields1.len(), fields2.len());
+                for (field1, field2) in iter::zip(fields1, fields2) {
+                    self.subtyping(rcx, field1, field2);
+                }
+            }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
