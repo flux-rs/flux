@@ -2,6 +2,8 @@
 
 mod subst;
 
+use std::fmt;
+
 use flux_common::bug;
 use itertools::Itertools;
 use rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
@@ -19,7 +21,10 @@ pub use rustc_middle::{
 use rustc_span::{symbol::kw, Symbol};
 
 use self::subst::Subst;
-use crate::intern::{impl_internable, impl_slice_internable, Interned, List};
+use crate::{
+    intern::{impl_internable, impl_slice_internable, Interned, List},
+    pretty::def_id_to_string,
+};
 
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
@@ -29,7 +34,7 @@ pub struct Generics<'tcx> {
 #[derive(Clone)]
 pub struct EarlyBinder<T>(pub T);
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
@@ -74,7 +79,7 @@ pub enum PredicateKind {
     FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
@@ -469,8 +474,8 @@ impl Ty {
 impl_internable!(TyS, AdtDefData);
 impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Predicate);
 
-impl std::fmt::Debug for GenericArg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for GenericArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             GenericArg::Ty(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(region) => write!(f, "{region:?}"),
@@ -478,14 +483,29 @@ impl std::fmt::Debug for GenericArg {
     }
 }
 
-impl std::fmt::Debug for Region {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Region {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", region_to_string(*self))
     }
 }
 
-impl std::fmt::Debug for Ty {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T: fmt::Debug> fmt::Debug for Binder<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.1.is_empty() {
+            write!(f, "for<{:?}> ", self.1.iter().format(", "))?;
+        }
+        write!(f, "{:?}", self.0)
+    }
+}
+
+impl fmt::Debug for FnSig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "fn({:?}) -> {:?}", self.inputs().iter().format(", "), self.output())
+    }
+}
+
+impl fmt::Debug for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
             TyKind::Adt(adt_def, substs) => {
                 let adt_name = rustc_middle::ty::tls::with(|tcx| {
@@ -521,7 +541,7 @@ impl std::fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, substs) => {
-                write!(f, "Closure {did:?}")?;
+                write!(f, "{}", def_id_to_string(*did))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
@@ -531,8 +551,8 @@ impl std::fmt::Debug for Ty {
     }
 }
 
-impl std::fmt::Debug for Const {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Const {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "_")
     }
 }

@@ -265,6 +265,7 @@ struct Unfolder<'a, 'rcx, 'tcx> {
     cursor: Cursor,
     in_ref: bool,
     checker_conf: CheckerConfig,
+    has_work: bool,
 }
 
 #[derive(Debug)]
@@ -307,21 +308,19 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             insertions: vec![],
             in_ref: false,
             checker_conf,
+            has_work: true,
         }
     }
 
     fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
-        loop {
+        while self.should_continue() {
             let binding = bindings.get_loc_mut(&self.cursor.loc);
             binding.ty = binding.ty.try_fold_with(&mut self)?;
             for (loc, binding) in self.insertions.drain(..) {
                 bindings.insert(loc, binding.kind, binding.ty);
             }
-
-            if !self.cursor.has_next() {
-                return Ok(());
-            }
         }
+        Ok(())
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
@@ -334,7 +333,8 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
         } else if ty.is_struct() {
-            let ty = self.downcast(ty, FIRST_VARIANT)?;
+            let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+            let ty = self.downcast(&ty, FIRST_VARIANT)?;
             Ok(ty)
         } else {
             Ok(ty.clone())
@@ -344,7 +344,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn deref(&mut self, ty: &Ty) -> CheckerResult<Ty> {
         let ty = match ty.kind() {
             TyKind::Ptr(pk, path) => {
-                self.cursor.change_root(path);
+                self.change_root(path);
                 Ty::ptr(*pk, path.clone())
             }
             TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
@@ -358,7 +358,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 } else {
                     let loc = self.unfold_box(deref_ty, alloc);
                     let path = Path::from(loc);
-                    self.cursor.change_root(&path);
+                    self.change_root(&path);
                     Ty::ptr(PtrKind::Box, path)
                 }
             }
@@ -453,6 +453,20 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn assume_invariants(&mut self, ty: &Ty) {
         self.rcx
             .assume_invariants(ty, self.checker_conf.check_overflow);
+    }
+
+    fn change_root(&mut self, path: &Path) {
+        self.has_work = true;
+        self.cursor.change_root(path);
+    }
+
+    fn should_continue(&mut self) -> bool {
+        if self.has_work {
+            self.has_work = false;
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -621,10 +635,6 @@ impl Cursor {
             }
         }
         Path::new(self.loc.clone(), List::from_vec(proj))
-    }
-
-    fn has_next(&self) -> bool {
-        self.pos > 0
     }
 
     fn next(&mut self) -> Option<PlaceElem> {

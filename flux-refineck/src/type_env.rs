@@ -121,15 +121,12 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(place, |mut lookup| {
+        Ok(self.bindings.lookup(place, |lookup| {
             match lookup.kind {
-                PlaceKind::Strg => {
-                    if mutbl == Mutability::Not {
-                        lookup.block();
-                    }
+                PlaceKind::Strg if mutbl != Mutability::Not => {
                     Ty::ptr(PtrKind::from_ref(re, mutbl), lookup.path)
                 }
-                PlaceKind::Weak | PlaceKind::RawPtr => Ty::mk_ref(re, lookup.ty, mutbl),
+                _ => Ty::mk_ref(re, lookup.ty, mutbl),
             }
         }))
     }

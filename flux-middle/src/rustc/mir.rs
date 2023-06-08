@@ -30,7 +30,8 @@ pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 
 use super::ty::{GenericArg, Region, Ty, TyKind};
 use crate::{
-    global_env::GlobalEnv, intern::List, queries::QueryResult, rustc::ty::region_to_string,
+    global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
+    rustc::ty::region_to_string,
 };
 
 pub struct Body<'tcx> {
@@ -563,7 +564,12 @@ impl fmt::Debug for Rvalue {
                 Ok(())
             }
             Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
-                write!(f, "closure({def_id:?}, {substs:?}, {:?})", args.iter().format(", "))
+                write!(
+                    f,
+                    "closure({}, {substs:?}, {:?})",
+                    def_id_to_string(*def_id),
+                    args.iter().format(", ")
+                )
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))
