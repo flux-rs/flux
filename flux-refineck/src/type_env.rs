@@ -324,7 +324,7 @@ impl TypeEnv<'_> {
         // Check subtyping
         for (path, _, ty2) in bb_env {
             let ty1 = self.bindings.get(&path);
-            gen.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked(), reason);
+            gen.subtyping(rcx, &ty1, &ty2, reason);
         }
         Ok(())
     }

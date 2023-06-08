@@ -127,22 +127,7 @@ impl PlacesTree {
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
-        let mut cursor = Cursor::new(key);
-        loop {
-            let binding = self.get_loc_mut(&cursor.loc);
-            let unfolder = Unfolder::new(genv, rcx, &mut cursor, checker_conf);
-            match unfolder.run(binding)? {
-                Cont::Continue(path) => {
-                    cursor.change_root(&path);
-                }
-                Cont::Insert(loc, kind, ty) => {
-                    self.insert(loc.clone(), kind, ty);
-                    cursor.change_root(&Path::from(loc));
-                }
-                Cont::Break(_) => break,
-            }
-        }
-        Ok(())
+        Unfolder::new(genv, rcx, key, checker_conf).run(self)
     }
 
     pub(crate) fn lookup(
@@ -276,8 +261,8 @@ impl PlacesTree {
 struct Unfolder<'a, 'rcx, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
-    cont: OnceCell<Cont>,
-    cursor: &'a mut Cursor,
+    insertions: Vec<(Loc, Binding)>,
+    cursor: Cursor,
     in_ref: bool,
     checker_conf: CheckerConfig,
 }
@@ -286,7 +271,6 @@ struct Unfolder<'a, 'rcx, 'tcx> {
 enum Cont {
     Break(Ty),
     Continue(Path),
-    Insert(Loc, LocKind, Ty),
 }
 
 impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
@@ -313,32 +297,46 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
-        cursor: &'a mut Cursor,
+        key: &impl LookupKey,
         checker_conf: CheckerConfig,
     ) -> Self {
-        Unfolder { genv, rcx, cursor, cont: OnceCell::new(), in_ref: false, checker_conf }
+        Unfolder {
+            genv,
+            rcx,
+            cursor: Cursor::new(key),
+            insertions: vec![],
+            in_ref: false,
+            checker_conf,
+        }
     }
 
-    fn run(mut self, binding: &mut Binding) -> CheckerResult<Cont> {
-        binding.ty = binding.ty.try_fold_with(&mut self)?;
-        Ok(self.cont.into_inner().unwrap())
+    fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
+        loop {
+            let binding = bindings.get_loc_mut(&self.cursor.loc);
+            binding.ty = binding.ty.try_fold_with(&mut self)?;
+            for (loc, binding) in self.insertions.drain(..) {
+                bindings.insert(loc, binding.kind, binding.ty);
+            }
+
+            if !self.cursor.has_next() {
+                return Ok(());
+            }
+        }
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
         if let TyKind::Indexed(BaseTy::Adt(adt, substs), _) = ty.kind() && adt.is_box() {
             if self.in_ref {
-                self.cont.set(Cont::Break(ty.clone())).unwrap();
                 Ok(ty.clone())
             } else {
                 let (deref_ty, alloc) = box_args(substs);
-                Ok(self.unfold_box(deref_ty, alloc))
+                let loc = self.unfold_box(deref_ty, alloc);
+                Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
         } else if ty.is_struct() {
             let ty = self.downcast(ty, FIRST_VARIANT)?;
-            self.cont.set(Cont::Break(ty.clone())).unwrap();
             Ok(ty)
         } else {
-            self.cont.set(Cont::Break(ty.clone())).unwrap();
             Ok(ty.clone())
         }
     }
@@ -346,7 +344,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn deref(&mut self, ty: &Ty) -> CheckerResult<Ty> {
         let ty = match ty.kind() {
             TyKind::Ptr(pk, path) => {
-                self.cont.set(Cont::Continue(path.clone())).unwrap();
+                self.cursor.change_root(path);
                 Ty::ptr(*pk, path.clone())
             }
             TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
@@ -358,7 +356,10 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                     ]);
                     Ty::indexed(BaseTy::Adt(adt.clone(), substs), idx.clone())
                 } else {
-                    self.unfold_box(deref_ty, alloc)
+                    let loc = self.unfold_box(deref_ty, alloc);
+                    let path = Path::from(loc);
+                    self.cursor.change_root(&path);
+                    Ty::ptr(PtrKind::Box, path)
                 }
             }
             Ref!(re, ty, mutbl) => {
@@ -370,12 +371,13 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
         Ok(ty)
     }
 
-    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Ty {
+    fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
         let loc = Loc::from(self.rcx.define_var(&Sort::Loc));
-        self.cont
-            .set(Cont::Insert(loc.clone(), LocKind::Box(alloc.clone()), deref_ty.clone()))
-            .unwrap();
-        Ty::ptr(PtrKind::Box, Path::from(loc))
+        self.insertions.push((
+            loc.clone(),
+            Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
+        ));
+        loc
     }
 
     fn field(&mut self, ty: &Ty, f: FieldIdx) -> CheckerResult<Ty> {
@@ -487,7 +489,7 @@ where
             PlaceElem::Field(f) => self.field(ty, f),
             PlaceElem::Downcast(_, _) => ty.try_fold_with(self),
             PlaceElem::Index(_) => {
-                self.index(ty);
+                self.index(ty)?;
                 Ok(ty.clone())
             }
         }
@@ -515,7 +517,6 @@ where
                 Cont::Continue(path) => {
                     cursor.change_root(&path);
                 }
-                Cont::Insert(_, _, _) => tracked_span_bug!(),
             }
         }
     }
@@ -620,6 +621,10 @@ impl Cursor {
             }
         }
         Path::new(self.loc.clone(), List::from_vec(proj))
+    }
+
+    fn has_next(&self) -> bool {
+        self.pos > 0
     }
 
     fn next(&mut self) -> Option<PlaceElem> {
