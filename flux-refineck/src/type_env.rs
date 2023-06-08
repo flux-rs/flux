@@ -22,7 +22,6 @@ use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
 use self::projection::{LocKind, PlaceKind, PlacesTree};
-// use self::places_tree::{Binding, FoldResult, LocKind, PlacesTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
     checker::errors::CheckerErrKind,

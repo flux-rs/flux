@@ -1045,6 +1045,18 @@ impl TyS {
             .unwrap_or_default()
     }
 
+    pub fn is_array(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_array)
+            .unwrap_or_default()
+    }
+
+    pub fn is_slice(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_slice)
+            .unwrap_or_default()
+    }
+
     pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
@@ -1131,6 +1143,14 @@ impl BaseTy {
 
     fn is_tuple(&self) -> bool {
         matches!(self, BaseTy::Tuple(..))
+    }
+
+    fn is_array(&self) -> bool {
+        matches!(self, BaseTy::Array(..))
+    }
+
+    fn is_slice(&self) -> bool {
+        matches!(self, BaseTy::Slice(..))
     }
 
     pub fn is_box(&self) -> bool {

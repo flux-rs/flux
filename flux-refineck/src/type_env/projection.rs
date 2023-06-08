@@ -336,6 +336,8 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
             Ok(ty)
+        } else if ty.is_array() || ty.is_slice() {
+            Ok(self.rcx.unpack_with(ty, UnpackFlags::SHALLOW))
         } else {
             Ok(ty.clone())
         }
