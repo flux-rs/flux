@@ -119,6 +119,21 @@ impl PlaceLookup<'_> {
     }
 }
 
+pub(crate) struct LookupResult<'a> {
+    pub ty: Ty,
+    pub kind: LookupKind,
+    cursor: Cursor,
+    bindings: &'a mut PlacesTree,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum LookupKind {
+    Strg,
+    Ref,
+    Array,
+    Ptr,
+}
+
 impl PlacesTree {
     pub(crate) fn unfold(
         &mut self,
@@ -130,12 +145,75 @@ impl PlacesTree {
         Unfolder::new(genv, rcx, key, checker_conf).run(self)
     }
 
+    pub(crate) fn lookup_place(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        place: &Place,
+    ) -> CheckerResult<LookupResult> {
+        let mut cursor = Cursor::new(place);
+        let mut ty = self.get_loc(&cursor.loc).ty.clone();
+        let mut kind = LookupKind::Strg;
+        while let Some(elem) = cursor.next() {
+            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
+            match elem {
+                PlaceElem::Deref => {
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
+                            ty = box_args(substs).0.clone();
+                        }
+                        TyKind::Ptr(_, path) => {
+                            cursor.change_root(path);
+                            ty = self.get_loc(&cursor.loc).ty.clone();
+                        }
+                        Ref!(_, deref_ty, _) => {
+                            kind = LookupKind::max(kind, LookupKind::Ref);
+                            ty = deref_ty.clone();
+                        }
+                        _ => tracked_span_bug!("invalid deref `{ty:?}`"),
+                    }
+                }
+                PlaceElem::Field(f) => {
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Tuple(fields), _) => {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        TyKind::Indexed(BaseTy::Closure(_, fields), _) => {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        TyKind::Downcast(.., fields) => {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
+                            ty = downcast_struct(genv, adt, substs, idx)?[f.as_usize()].clone();
+                        }
+                        _ => tracked_span_bug!("invalid field access `{ty:?}`"),
+                    };
+                }
+                PlaceElem::Index(_) => {
+                    kind = LookupKind::max(kind, LookupKind::Array);
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Array(array_ty, _), _) => {
+                            ty = array_ty.clone();
+                        }
+                        TyKind::Indexed(BaseTy::Slice(slice_ty), _) => {
+                            ty = slice_ty.clone();
+                        }
+                        _ => tracked_span_bug!("invalid index access `{ty:?}`"),
+                    }
+                }
+                PlaceElem::Downcast(..) => {}
+            }
+        }
+        Ok(LookupResult { ty, kind, cursor, bindings: self })
+    }
+
     pub(crate) fn lookup(
         &mut self,
         key: &impl LookupKey,
         mut f: impl FnMut(PlaceLookup) -> Ty,
     ) -> Ty {
-        Lookup::run(self, key, move |thing| Ok::<_, !>(f(thing))).into_ok()
+        Lookup::run(self, Cursor::new(key), move |thing| Ok::<_, !>(f(thing))).into_ok()
     }
 
     pub(crate) fn try_lookup(
@@ -143,7 +221,7 @@ impl PlacesTree {
         key: &impl LookupKey,
         f: impl FnMut(PlaceLookup) -> CheckerResult<Ty>,
     ) -> CheckerResult<Ty> {
-        Lookup::run(self, key, f)
+        Lookup::run(self, Cursor::new(key), f)
     }
 
     pub(crate) fn block_with(&mut self, key: &impl LookupKey, new: Ty) -> Ty {
@@ -306,6 +384,17 @@ impl PlacesTree {
         self.map
             .get_mut(loc)
             .unwrap_or_else(|| tracked_span_bug!("loc not found {loc:?}"))
+    }
+}
+
+impl LookupResult<'_> {
+    pub(crate) fn update(mut self, new: Ty) {
+        self.cursor.reset();
+        Lookup::run(self.bindings, self.cursor, |mut lookup| {
+            lookup.update(new.clone());
+            Ok::<_, !>(lookup.ty)
+        })
+        .into_ok();
     }
 }
 
@@ -570,8 +659,7 @@ where
         Self { bindings, cursor, f, cont: OnceCell::new(), is_weak: false }
     }
 
-    fn run(bindings: &mut PlacesTree, key: &impl LookupKey, mut f: F) -> Result<Ty, E> {
-        let mut cursor = Cursor::new(key);
+    fn run(bindings: &mut PlacesTree, mut cursor: Cursor, mut f: F) -> Result<Ty, E> {
         loop {
             let ty = bindings.get_loc(&cursor.loc).ty.clone();
             let mut lookup = Lookup::new(bindings, &mut cursor, &mut f);
@@ -696,6 +784,10 @@ impl Cursor {
         } else {
             None
         }
+    }
+
+    fn reset(&mut self) {
+        self.pos = self.proj.len();
     }
 }
 

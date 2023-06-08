@@ -21,7 +21,7 @@ use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
-use self::projection::{LocKind, PlaceKind, PlacesTree};
+use self::projection::{LocKind, LookupKind, PlaceKind, PlacesTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
     checker::errors::CheckerErrKind,
@@ -87,7 +87,9 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        self.bindings.projection(genv, rcx, place)
+        let result = self.bindings.lookup_place(genv, rcx, place)?;
+        // self.bindings.projection(genv, rcx, place)
+        Ok(result.ty)
     }
 
     pub(crate) fn lookup_path(
@@ -140,18 +142,17 @@ impl TypeEnv<'_> {
     ) -> Result<(), CheckerErrKind> {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
-        self.bindings.lookup(place, |mut lookup| {
-            match lookup.kind {
-                PlaceKind::Strg => {
-                    lookup.update(new_ty.clone());
-                }
-                PlaceKind::Weak => {
-                    gen.subtyping(rcx, &new_ty, &lookup.ty, ConstrReason::Assign);
-                }
-                PlaceKind::RawPtr => {}
+        let result = self.bindings.lookup_place(gen.genv, rcx, place)?;
+
+        match result.kind {
+            LookupKind::Strg => {
+                result.update(new_ty);
             }
-            lookup.ty
-        });
+            LookupKind::Ref | LookupKind::Array => {
+                gen.subtyping(rcx, &new_ty, &result.ty, ConstrReason::Assign);
+            }
+            LookupKind::Ptr => todo!(),
+        }
         Ok(())
     }
 
