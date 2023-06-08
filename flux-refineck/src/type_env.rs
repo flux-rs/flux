@@ -88,9 +88,7 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self
-            .bindings
-            .lookup(place, |mut lookup| lookup.unblock(rcx)))
+        Ok(self.bindings.lookup(place, |lookup| lookup.ty))
     }
 
     pub(crate) fn lookup_path(
@@ -100,7 +98,7 @@ impl TypeEnv<'_> {
         path: &Path,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(path, |mut lookup| lookup.unblock(rcx)))
+        Ok(self.bindings.lookup(path, |lookup| lookup.ty))
     }
 
     pub(crate) fn get(&mut self, path: &Path) -> Ty {
@@ -124,10 +122,14 @@ impl TypeEnv<'_> {
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         Ok(self.bindings.lookup(place, |mut lookup| {
-            let ty = if mutbl == Mutability::Not { lookup.block() } else { lookup.ty };
             match lookup.kind {
-                PlaceKind::Strg(path) => Ty::ptr(PtrKind::from_ref(re, mutbl), path),
-                PlaceKind::Weak | PlaceKind::RawPtr => Ty::mk_ref(re, ty, mutbl),
+                PlaceKind::Strg => {
+                    if mutbl == Mutability::Not {
+                        lookup.block();
+                    }
+                    Ty::ptr(PtrKind::from_ref(re, mutbl), lookup.path)
+                }
+                PlaceKind::Weak | PlaceKind::RawPtr => Ty::mk_ref(re, lookup.ty, mutbl),
             }
         }))
     }
@@ -144,7 +146,7 @@ impl TypeEnv<'_> {
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
         self.bindings.lookup(place, |mut lookup| {
             match lookup.kind {
-                PlaceKind::Strg(_) => {
+                PlaceKind::Strg => {
                     lookup.update(new_ty.clone());
                 }
                 PlaceKind::Weak => {
@@ -166,7 +168,7 @@ impl TypeEnv<'_> {
     ) -> Result<Ty, CheckerErrKind> {
         Ok(self.bindings.lookup(place, |mut lookup| {
             match lookup.kind {
-                PlaceKind::Strg(_) => lookup.update(Ty::uninit(lookup.ty.layout())),
+                PlaceKind::Strg => lookup.update(Ty::uninit(lookup.ty.layout())),
                 PlaceKind::Weak | PlaceKind::RawPtr => {
                     tracked_span_bug!("cannot move out of {place:?}");
                 }

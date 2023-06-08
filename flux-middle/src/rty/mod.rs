@@ -1441,7 +1441,7 @@ mod pretty {
                         w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }
                 }
-                Sort::Param(param_ty) => w!("<{}>::sort", ^param_ty),
+                Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
             }
         }
     }
@@ -1530,7 +1530,7 @@ mod pretty {
                         w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
-                TyKind::Param(param_ty) => w!("{}#t", ^param_ty),
+                TyKind::Param(param_ty) => w!("{}", ^param_ty),
                 TyKind::Downcast(adt, substs, variant_idx, fields) => {
                     w!("{:?}", adt.did())?;
                     if !substs.is_empty() {
@@ -1605,13 +1605,17 @@ mod pretty {
                     }
                     Ok(())
                 }
-                BaseTy::Param(param) => w!("{}#b", ^param),
+                BaseTy::Param(param) => w!("{}", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
-                BaseTy::Ref(region, ty, mutbl) => {
-                    w!("&{:?} {}{:?}", region, ^mutbl.prefix_str(), ty)
+                BaseTy::Ref(re, ty, mutbl) => {
+                    w!("&")?;
+                    if !cx.hide_regions {
+                        w!("{:?} ", re)?;
+                    }
+                    w!("{}{:?}",  ^mutbl.prefix_str(), ty)
                 }
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {

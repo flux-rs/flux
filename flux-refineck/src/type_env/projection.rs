@@ -80,12 +80,14 @@ impl LookupKey for Path {
 pub(crate) struct PlaceLookup<'a> {
     pub ty: Ty,
     pub kind: PlaceKind,
+    pub path: Path,
     new_ty: &'a mut Ty,
     bindings: &'a mut PlacesTree,
 }
 
+#[derive(Copy, Clone)]
 pub(crate) enum PlaceKind {
-    Strg(Path),
+    Strg,
     Weak,
     RawPtr,
 }
@@ -456,9 +458,10 @@ where
             let kind = if self.is_weak {
                 PlaceKind::Weak
             } else {
-                PlaceKind::Strg(self.cursor.to_path())
+                PlaceKind::Strg
             };
-            let lookup = PlaceLookup { bindings: self.bindings, ty: ty.clone(), new_ty: &mut new_ty, kind };
+            let path = self.cursor.to_path();
+            let lookup = PlaceLookup { bindings: self.bindings, path, ty: ty.clone(), new_ty: &mut new_ty, kind };
             let result = (self.f)(lookup)?;
             self.cont.set(Cont::Break(result)).unwrap();
             return Ok(new_ty);
@@ -580,7 +583,7 @@ impl Cursor {
                 PlaceElem::Field(f) => proj.push(f),
                 PlaceElem::Downcast(_, _) => {}
                 PlaceElem::Deref | PlaceElem::Index(_) => {
-                    tracked_span_bug!();
+                    break;
                 }
             }
         }
