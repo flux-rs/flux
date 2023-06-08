@@ -179,8 +179,14 @@ impl TypeEnv<'_> {
     }
 
     pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place) {
+<<<<<<< Updated upstream
         self.bindings
             .lookup(place, |mut lookup| lookup.unblock(rcx));
+=======
+
+        // self.bindings
+        //     .lookup(place, |mut lookup| lookup.unblock(rcx));
+>>>>>>> Stashed changes
     }
 
     pub(crate) fn block_with(
