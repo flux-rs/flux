@@ -300,7 +300,10 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
         match elem {
             PlaceElem::Deref => self.deref(&ty),
             PlaceElem::Field(f) => self.field(&ty, f),
-            PlaceElem::Index(_) => todo!(),
+            PlaceElem::Index(_) => {
+                self.index(&ty)?;
+                Ok(ty.clone())
+            }
             PlaceElem::Downcast(_, variant) => self.downcast(&ty, variant)?.try_fold_with(self),
         }
     }
@@ -362,7 +365,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 self.in_ref = true;
                 Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
             }
-            _ => todo!(),
+            _ => tracked_span_bug!("invalid deref of `{ty:?}`"),
         };
         Ok(ty)
     }
@@ -416,7 +419,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 let fields = downcast(self.genv, self.rcx, adt, substs, variant, idx)?
                     .into_iter()
                     .map(|ty| {
-                        let ty = self.rcx.unpack(&ty);
+                        let ty = if self.in_ref { ty } else { self.rcx.unpack(&ty) };
                         self.assume_invariants(&ty);
                         ty
                     })
@@ -430,6 +433,19 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             _ => tracked_span_bug!("invalid downcast `{ty:?}`"),
         };
         Ok(ty)
+    }
+
+    fn index(&mut self, ty: &Ty) -> CheckerResult {
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
+                arr_ty.try_fold_with(self)?;
+            }
+            TyKind::Indexed(BaseTy::Slice(slice_ty), _) => {
+                slice_ty.try_fold_with(self)?;
+            }
+            _ => tracked_span_bug!("invalid index on `{ty:?}`"),
+        }
+        Ok(())
     }
 
     fn assume_invariants(&mut self, ty: &Ty) {
@@ -470,7 +486,10 @@ where
             PlaceElem::Deref => self.deref(ty),
             PlaceElem::Field(f) => self.field(ty, f),
             PlaceElem::Downcast(_, _) => ty.try_fold_with(self),
-            PlaceElem::Index(_) => todo!(),
+            PlaceElem::Index(_) => {
+                self.index(ty);
+                Ok(ty.clone())
+            }
         }
     }
 }
@@ -547,6 +566,19 @@ where
         let mut fields = fields.to_vec();
         fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
         Ok(fields.into())
+    }
+
+    fn index(&mut self, ty: &Ty) -> Result<(), E> {
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
+                arr_ty.try_fold_with(self)?;
+            }
+            TyKind::Indexed(BaseTy::Slice(slice_ty), _) => {
+                slice_ty.try_fold_with(self)?;
+            }
+            _ => tracked_span_bug!("invalid index on `{ty:?}`"),
+        }
+        Ok(())
     }
 }
 
