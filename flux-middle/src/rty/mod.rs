@@ -253,7 +253,7 @@ pub enum TyKind {
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
-    Downcast(AdtDef, Substs, VariantIdx, List<Ty>),
+    Downcast(AdtDef, Substs, Index, VariantIdx, List<Ty>),
     Blocked(Ty),
 }
 
@@ -895,8 +895,14 @@ impl Ty {
         TyKind::Param(param_ty).intern()
     }
 
-    pub fn downcast(adt: AdtDef, substs: Substs, variant: VariantIdx, fields: List<Ty>) -> Ty {
-        TyKind::Downcast(adt, substs, variant, fields).intern()
+    pub fn downcast(
+        adt: AdtDef,
+        substs: Substs,
+        idx: Index,
+        variant: VariantIdx,
+        fields: List<Ty>,
+    ) -> Ty {
+        TyKind::Downcast(adt, substs, idx, variant, fields).intern()
     }
 
     pub fn blocked(ty: Ty) -> Ty {
@@ -1531,12 +1537,8 @@ mod pretty {
                     }
                 }
                 TyKind::Param(param_ty) => w!("{}", ^param_ty),
-                TyKind::Downcast(adt, substs, variant_idx, fields) => {
-                    w!("{:?}", adt.did())?;
-                    if !substs.is_empty() {
-                        w!("<{:?}>", join!(", ", substs))?;
-                    }
-                    w!("::{}", ^adt.variant(*variant_idx).name)?;
+                TyKind::Downcast(adt, .., variant_idx, fields) => {
+                    w!("{:?}::{}", adt.did(), ^adt.variant(*variant_idx).name)?;
                     if !fields.is_empty() {
                         w!("({:?})", join!(", ", fields))?;
                     }
@@ -1572,13 +1574,14 @@ mod pretty {
             ) -> fmt::Result {
                 define_scoped!(cx, f);
                 if let ExprKind::Tuple(es) = expr.kind() {
-                    w!("(")?;
-                    for (is_binder, e) in iter::zip(is_binder.split(), es) {
+                    for (i, (is_binder, e)) in iter::zip(is_binder.split(), es).enumerate() {
+                        if i > 0 {
+                            w!(" ")?;
+                        }
                         go(cx, f, is_binder, e)?;
-                        w!(", ")?;
+                        w!(",")?;
                     }
-                    w!(")")?;
-                } else if let Some(true) = is_binder.as_leaf() {
+                } else if let Some(true) = is_binder.as_leaf() && !cx.hide_binder {
                     w!("@{:?}", expr)?;
                 } else {
                     w!("{:?}", expr)?;
@@ -1600,6 +1603,10 @@ mod pretty {
                 BaseTy::Char => w!("char"),
                 BaseTy::Adt(adt_def, substs) => {
                     w!("{:?}", adt_def.did())?;
+                    let substs = substs
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                        .collect_vec();
                     if !substs.is_empty() {
                         w!("<{:?}>", join!(", ", substs))?;
                     }

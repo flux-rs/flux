@@ -98,7 +98,7 @@ impl PlaceLookup<'_> {
     }
 
     pub(crate) fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
-        let ty = fold(self.bindings, rcx, gen, &self.ty)?;
+        let ty = fold(self.bindings, rcx, gen, &self.ty, self.kind)?;
         self.update(ty.clone());
         Ok(ty)
     }
@@ -398,12 +398,12 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                     })
                     .collect_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                Ty::downcast(adt.clone(), substs.clone(), FIRST_VARIANT, fields.into())
+                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), FIRST_VARIANT, fields.into())
             }
-            TyKind::Downcast(adt, substs, variant, fields) => {
+            TyKind::Downcast(adt, substs, idx, variant, fields) => {
                 let mut fields = fields.to_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                Ty::downcast(adt.clone(), substs.clone(), *variant, fields.into())
+                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), *variant, fields.into())
             }
             _ => todo!(),
         };
@@ -421,9 +421,9 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                         ty
                     })
                     .collect_vec();
-                Ty::downcast(adt.clone(), substs.clone(), variant, fields.into())
+                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), variant, fields.into())
             }
-            TyKind::Downcast(_, _, variant2, _) => {
+            TyKind::Downcast(.., variant2, _) => {
                 debug_assert_eq!(variant, *variant2);
                 ty.clone()
             }
@@ -534,9 +534,9 @@ where
                 let fields = self.try_fold_field_at(fields, f)?;
                 Ty::indexed(BaseTy::Closure(*def_id, fields), idx.clone())
             }
-            TyKind::Downcast(adt, substs, variant, fields) => {
+            TyKind::Downcast(adt, substs, idx, variant, fields) => {
                 let fields = self.try_fold_field_at(fields, f)?;
-                Ty::downcast(adt.clone(), substs.clone(), *variant, fields)
+                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), *variant, fields)
             }
             _ => tracked_span_bug!("invalid field projection on `{ty:?}`"),
         };
@@ -692,6 +692,7 @@ fn fold(
     rcx: &mut RefineCtxt,
     gen: &mut ConstrGen,
     ty: &Ty,
+    kind: PlaceKind,
 ) -> CheckerResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
@@ -700,36 +701,40 @@ fn fold(
             let LocKind::Box(alloc) = binding.kind else {
                tracked_span_bug!("box pointer to non-box loc");
             };
-            let deref_ty = fold(bindings, rcx, gen, &binding.ty)?;
+            let deref_ty = fold(bindings, rcx, gen, &binding.ty, kind)?;
             Ok(gen.genv.mk_box(deref_ty, alloc))
         }
-        TyKind::Downcast(adt, substs, variant_idx, fields) => {
-            let variant_sig = gen
-                .genv
-                .variant_sig(adt.did(), *variant_idx)?
-                .expect("unexpected opaque struct");
+        TyKind::Downcast(adt, substs, idx, variant_idx, fields) => {
+            if let PlaceKind::Strg = kind {
+                let variant_sig = gen
+                    .genv
+                    .variant_sig(adt.did(), *variant_idx)?
+                    .expect("unexpected opaque struct");
 
-            let fields = fields
-                .iter()
-                .map(|ty| fold(bindings, rcx, gen, ty))
-                .try_collect_vec()?;
+                let fields = fields
+                    .iter()
+                    .map(|ty| fold(bindings, rcx, gen, ty, kind))
+                    .try_collect_vec()?;
 
-            let partially_moved = fields.iter().any(|ty| ty.is_uninit());
-            let ty = if partially_moved {
-                Ty::uninit(Layout::tuple(fields.iter().map(|ty| ty.layout()).collect()))
+                let partially_moved = fields.iter().any(|ty| ty.is_uninit());
+                let ty = if partially_moved {
+                    Ty::uninit(Layout::tuple(fields.iter().map(|ty| ty.layout()).collect()))
+                } else {
+                    gen.check_constructor(rcx, variant_sig, substs, &fields)
+                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
+                };
+
+                Ok(ty)
             } else {
-                gen.check_constructor(rcx, variant_sig, substs, &fields)
-                    .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
-            };
-
-            Ok(ty)
+                Ok(Ty::indexed(BaseTy::Adt(adt.clone(), substs.clone()), idx.clone()))
+            }
         }
         TyKind::Indexed(BaseTy::Tuple(fields), idx) => {
             debug_assert_eq!(idx.expr, Expr::unit());
 
             let fields = fields
                 .iter()
-                .map(|ty| fold(bindings, rcx, gen, ty))
+                .map(|ty| fold(bindings, rcx, gen, ty, kind))
                 .try_collect_vec()?;
 
             let partially_moved = fields.iter().any(|ty| ty.is_uninit());
@@ -769,7 +774,9 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+            PPrintCx::default(tcx)
+                .kvar_args(KVarArgs::Hide)
+                .hide_binder(true)
         }
     }
 
