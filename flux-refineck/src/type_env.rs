@@ -87,7 +87,7 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(place, |lookup| lookup.ty))
+        self.bindings.projection(genv, rcx, place)
     }
 
     pub(crate) fn lookup_path(
@@ -97,7 +97,7 @@ impl TypeEnv<'_> {
         path: &Path,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(path, |lookup| lookup.ty))
+        Ok(self.bindings.get(path))
     }
 
     pub(crate) fn get(&mut self, path: &Path) -> Ty {

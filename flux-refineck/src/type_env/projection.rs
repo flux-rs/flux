@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, iter};
+use std::{cell::OnceCell, clone::Clone, iter};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{
@@ -171,6 +171,57 @@ impl PlacesTree {
             lookup.update(new_ty.clone());
             lookup.ty
         });
+    }
+
+    pub(crate) fn projection(
+        &self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        place: &Place,
+    ) -> CheckerResult<Ty> {
+        let mut cursor = Cursor::new(place);
+        let mut ty = self.get_loc(&cursor.loc).ty.clone();
+        while let Some(elem) = cursor.next() {
+            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
+            match elem {
+                PlaceElem::Deref => {
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
+                            ty = box_args(substs).0.clone();
+                        }
+                        TyKind::Ptr(_, path) => {
+                            cursor.change_root(path);
+                            ty = self.get_loc(&cursor.loc).ty.clone();
+                        }
+                        Ref!(_, deref_ty, _) => ty = deref_ty.clone(),
+                        _ => tracked_span_bug!("invalid deref on `{ty:?}`"),
+                    };
+                }
+                PlaceElem::Field(f) => {
+                    match ty.kind() {
+                        TyKind::Downcast(.., fields)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields) | BaseTy::Tuple(fields), _) => {
+                            ty = fields[f.as_usize()].clone();
+                        }
+                        TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
+                            let fields = downcast_struct(genv, adt, substs, idx)?;
+                            ty = rcx.unpack(&fields[f.as_usize()]);
+                        }
+                        _ => tracked_span_bug!("invalid field {ty:?}"),
+                    }
+                }
+                PlaceElem::Downcast(_, _) => {}
+                PlaceElem::Index(_) => {
+                    match ty.kind() {
+                        TyKind::Indexed(BaseTy::Array(innerty, _) | BaseTy::Slice(innerty), _) => {
+                            ty = innerty.clone();
+                        }
+                        _ => tracked_span_bug!("invalid index {ty:?}"),
+                    }
+                }
+            }
+        }
+        Ok(ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -395,7 +446,6 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 Ty::indexed(BaseTy::Closure(*def_id, fields.into()), idx.clone())
             }
             TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
-                debug_assert!(adt.is_struct());
                 let mut fields = downcast_struct(self.genv, adt, substs, idx)?
                     .into_iter()
                     .map(|ty| {
