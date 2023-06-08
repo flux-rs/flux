@@ -56,7 +56,6 @@ struct InferCtxt<'a, 'tcx> {
     evar_gen: EVarGen,
     rvid_gen: &'a IndexGen<RegionVid>,
     tag: Tag,
-    checker_config: CheckerConfig,
     scopes: FxIndexMap<EVarCxId, Scope>,
 }
 
@@ -128,17 +127,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
     pub(crate) fn pack_closure_operands(
         &mut self,
-        rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         operands: &[Ty],
     ) -> Result<Vec<Ty>, CheckerErrKind> {
-        let mut infcx = self.infcx(rcx, ConstrReason::Call);
-        let checker_config = infcx.checker_config;
         let mut res = Vec::new();
         for ty in operands {
             let packed_ty = match ty.kind() {
                 TyKind::Ptr(PtrKind::Shr(region), path) => {
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
+                    let ty = env.get(path);
                     rty::Ty::mk_ref(*region, ty, Mutability::Not)
                 }
                 _ => ty.clone(),
@@ -229,14 +225,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let checker_config = infcx.checker_config;
-                    let ty = env.block_with(
-                        rcx,
-                        &mut infcx.as_constr_gen(),
-                        path,
-                        bound.clone(),
-                        checker_config,
-                    )?;
+                    let ty = env.block_with(path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
@@ -331,20 +320,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let checker_config = infcx.checker_config;
-                    let ty = env.block_with(
-                        rcx,
-                        &mut infcx.as_constr_gen(),
-                        path,
-                        bound.clone(),
-                        checker_config,
-                    )?;
+                    let ty = env.block_with(path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     // TODO(pack-closure): why is this not put into `infcx.subtyping`?
-                    let checker_config = infcx.checker_config;
-                    let ty = env.block(rcx, &mut infcx.as_constr_gen(), path, checker_config)?;
+                    let ty = env.get(path);
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty),
@@ -361,7 +342,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             rcx,
             &mut self.kvar_gen,
             self.rvid_gen,
-            self.checker_config,
             Tag::new(reason, self.span),
         )
     }
@@ -373,13 +353,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
         rvid_gen: &'a IndexGen<RegionVid>,
-        checker_config: CheckerConfig,
         tag: Tag,
     ) -> Self {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen, evar_gen, rvid_gen, tag, checker_config, scopes }
+        Self { genv, kvar_gen, evar_gen, rvid_gen, tag, scopes }
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -418,16 +397,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx.check_pred(pred, self.tag);
     }
 
-    fn as_constr_gen<'b>(&'b mut self) -> ConstrGen<'b, 'tcx> {
-        ConstrGen::new(
-            self.genv,
-            &mut *self.kvar_gen,
-            self.rvid_gen,
-            self.checker_config,
-            self.tag.src_span,
-        )
-    }
-
     fn check_type_constr(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -435,8 +404,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         path: &Path,
         ty: &Ty,
     ) -> Result<(), CheckerErrKind> {
-        let checker_config = self.checker_config;
-        let actual_ty = env.lookup_path(self.genv, rcx, path, checker_config)?;
+        let actual_ty = env.get(path);
         self.subtyping(rcx, &actual_ty, ty);
         Ok(())
     }

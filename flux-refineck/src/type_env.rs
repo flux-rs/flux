@@ -21,7 +21,7 @@ use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
-use self::projection::{LocKind, LookupKind, PlaceKind, PlacesTree};
+use self::projection::{LocKind, PlacesTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
     checker::errors::CheckerErrKind,
@@ -92,16 +92,6 @@ impl TypeEnv<'_> {
         Ok(result.ty)
     }
 
-    pub(crate) fn lookup_path(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        path: &Path,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.get(path))
-    }
-
     pub(crate) fn get(&mut self, path: &Path) -> Ty {
         self.bindings.get(path)
     }
@@ -122,14 +112,12 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(place, |lookup| {
-            match lookup.kind {
-                PlaceKind::Strg if mutbl != Mutability::Not => {
-                    Ty::ptr(PtrKind::from_ref(re, mutbl), lookup.path)
-                }
-                _ => Ty::mk_ref(re, lookup.ty, mutbl),
-            }
-        }))
+        let result = self.bindings.lookup_place(genv, rcx, place)?;
+        if result.is_strg && mutbl == Mutability::Mut {
+            Ok(Ty::ptr(PtrKind::from_ref(re, mutbl), result.path()))
+        } else {
+            Ok(Ty::mk_ref(re, result.ty, mutbl))
+        }
     }
 
     pub(crate) fn assign(
@@ -144,14 +132,10 @@ impl TypeEnv<'_> {
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
         let result = self.bindings.lookup_place(gen.genv, rcx, place)?;
 
-        match result.kind {
-            LookupKind::Strg => {
-                result.update(new_ty);
-            }
-            LookupKind::Ref | LookupKind::Array => {
-                gen.subtyping(rcx, &new_ty, &result.ty, ConstrReason::Assign);
-            }
-            LookupKind::Ptr => todo!(),
+        if result.is_strg {
+            result.update(new_ty);
+        } else if !place.behind_raw_ptr(gen.genv, self.local_decls)? {
+            gen.subtyping(rcx, &new_ty, &result.ty, ConstrReason::Assign);
         }
         Ok(())
     }
@@ -163,40 +147,32 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(place, |mut lookup| {
-            match lookup.kind {
-                PlaceKind::Strg => lookup.update(Ty::uninit(lookup.ty.layout())),
-                PlaceKind::Weak | PlaceKind::RawPtr => {
-                    tracked_span_bug!("cannot move out of {place:?}");
-                }
-            };
-            lookup.ty
-        }))
+        let result = self.bindings.lookup_place(genv, rcx, place)?;
+        if result.is_strg {
+            let uninit = Ty::uninit(result.ty.layout());
+            Ok(result.update(uninit))
+        } else {
+            tracked_span_bug!("cannot move out of {place:?}");
+        }
     }
 
     pub(crate) fn unpack(&mut self, rcx: &mut RefineCtxt) {
         self.bindings.fmap_mut(|ty| rcx.unpack(ty));
     }
 
-    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place) {
-<<<<<<< Updated upstream
-        self.bindings
-            .lookup(place, |mut lookup| lookup.unblock(rcx));
-=======
-
-        // self.bindings
-        //     .lookup(place, |mut lookup| lookup.unblock(rcx));
->>>>>>> Stashed changes
+    // FIXME(nilehmann) Unblocking shouldn't require unfolding or unpacking, because we cannot
+    // unblock inside an array
+    pub(crate) fn unblock(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        place: &Place,
+    ) -> Result<(), CheckerErrKind> {
+        self.bindings.lookup_place(genv, rcx, place)?.unblock(rcx);
+        Ok(())
     }
 
-    pub(crate) fn block_with(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        new_ty: Ty,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
+    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Result<Ty, CheckerErrKind> {
         Ok(self.bindings.block_with(path, new_ty))
     }
 
@@ -317,7 +293,7 @@ impl TypeEnv<'_> {
                 }
                 (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
                     debug_assert_eq!(r1, r2);
-                    let ty = self.bindings.block(ptr_path);
+                    let ty = self.bindings.get(ptr_path);
                     self.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
                 }
                 _ => (),
@@ -327,7 +303,7 @@ impl TypeEnv<'_> {
         // Check subtyping
         for (path, _, ty2) in bb_env {
             let ty1 = self.bindings.get(&path);
-            gen.subtyping(rcx, &ty1, &ty2, reason);
+            gen.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked(), reason);
         }
         Ok(())
     }
@@ -339,10 +315,9 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.try_lookup(place, |mut lookup| {
-            lookup.fold(rcx, gen)?;
-            Ok(lookup.ty)
-        })?;
+        self.bindings
+            .lookup_place(gen.genv, rcx, place)?
+            .fold(rcx, gen)?;
         Ok(())
     }
 
@@ -482,14 +457,7 @@ impl BasicBlockEnvShape {
         Ok(self.bindings.block(path))
     }
 
-    pub(crate) fn block_with(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        new_ty: Ty,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
+    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Result<Ty, CheckerErrKind> {
         Ok(self.bindings.block_with(path, new_ty))
     }
 
@@ -544,19 +512,19 @@ impl BasicBlockEnvShape {
                     self.update(path, Ty::mk_ref(*r1, ty1.clone(), Mutability::Mut));
                     other.update(path, Ty::mk_ref(*r1, ty2.clone(), Mutability::Mut));
 
-                    self.block_with(rcx, gen, path1, ty1, checker_config)?;
-                    other.block_with(rcx, gen, path2, ty2, checker_config)?;
+                    self.block_with(path1, ty1)?;
+                    other.block_with(path2, ty2)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
                     debug_assert_eq!(r1, r2);
                     let bound = bound.with_holes();
-                    self.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
+                    self.block_with(ptr_path, bound.clone())?;
                     self.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
                 }
                 (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
                     debug_assert_eq!(r1, r2);
                     let bound = bound.with_holes();
-                    other.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
+                    other.block_with(ptr_path, bound.clone())?;
                     other.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
                 }
                 _ => {}

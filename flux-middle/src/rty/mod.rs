@@ -1577,8 +1577,20 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                PtrKind::Shr(r) => w!("shr[{:?}]", r),
-                PtrKind::Mut(r) => w!("mut[{:?}]", r),
+                PtrKind::Shr(re) => {
+                    w!("shr")?;
+                    if !cx.hide_regions {
+                        w!("[{:?}]", re)?;
+                    }
+                    Ok(())
+                }
+                PtrKind::Mut(re) => {
+                    w!("mut")?;
+                    if !cx.hide_regions {
+                        w!("[{:?}]", re)?;
+                    }
+                    Ok(())
+                }
                 PtrKind::Box => w!("box"),
             }
         }

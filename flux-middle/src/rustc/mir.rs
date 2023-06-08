@@ -342,6 +342,17 @@ impl Place {
                 place_ty.projection_ty(genv, *elem)
             })
     }
+
+    pub fn behind_raw_ptr(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<bool> {
+        let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
+        for elem in &self.projection {
+            if let (PlaceElem::Deref, TyKind::RawPtr(..)) = (elem, place_ty.ty.kind()) {
+                return Ok(true);
+            }
+            place_ty = place_ty.projection_ty(genv, *elem)?;
+        }
+        Ok(false)
+    }
 }
 
 impl PlaceTy {

@@ -243,6 +243,9 @@ impl RefineCtxt<'_> {
                         self.rcx.assume_pred(pred);
                         ty.fold_with(self)
                     }
+                    TyKind::Downcast(..) if !self.flags.contains(UnpackFlags::SHALLOW) => {
+                        ty.super_fold_with(self)
+                    }
                     _ => ty.clone(),
                 }
             }

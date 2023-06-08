@@ -79,59 +79,20 @@ impl LookupKey for Path {
 
 pub(crate) struct PlaceLookup<'a> {
     pub ty: Ty,
-    pub kind: PlaceKind,
-    pub path: Path,
     new_ty: &'a mut Ty,
-    bindings: &'a mut PlacesTree,
-}
-
-#[derive(Copy, Clone)]
-pub(crate) enum PlaceKind {
-    Strg,
-    Weak,
-    RawPtr,
 }
 
 impl PlaceLookup<'_> {
     pub(crate) fn update(&mut self, new_ty: Ty) {
         *self.new_ty = new_ty;
     }
-
-    pub(crate) fn fold(&mut self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
-        let ty = fold(self.bindings, rcx, gen, &self.ty, self.kind)?;
-        self.update(ty.clone());
-        Ok(ty)
-    }
-
-    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt) -> Ty {
-        let unblocked = rcx.unpack(&self.ty.unblocked());
-        self.update(unblocked.clone());
-        unblocked
-    }
-
-    pub(crate) fn block(&mut self) -> Ty {
-        if let TyKind::Blocked(ty) = self.ty.kind() {
-            ty.clone()
-        } else {
-            self.update(Ty::blocked(self.ty.clone()));
-            self.ty.clone()
-        }
-    }
 }
 
 pub(crate) struct LookupResult<'a> {
     pub ty: Ty,
-    pub kind: LookupKind,
+    pub is_strg: bool,
     cursor: Cursor,
     bindings: &'a mut PlacesTree,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum LookupKind {
-    Strg,
-    Ref,
-    Array,
-    Ptr,
 }
 
 impl PlacesTree {
@@ -149,11 +110,11 @@ impl PlacesTree {
         &mut self,
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
-        place: &Place,
+        key: &impl LookupKey,
     ) -> CheckerResult<LookupResult> {
-        let mut cursor = Cursor::new(place);
+        let mut cursor = Cursor::new(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
-        let mut kind = LookupKind::Strg;
+        let mut is_strg = true;
         while let Some(elem) = cursor.next() {
             ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
             match elem {
@@ -162,13 +123,21 @@ impl PlacesTree {
                         TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
                             ty = box_args(substs).0.clone();
                         }
+                        TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
+                            is_strg = false;
+                            ty = deref_ty.clone();
+                        }
                         TyKind::Ptr(_, path) => {
                             cursor.change_root(path);
                             ty = self.get_loc(&cursor.loc).ty.clone();
                         }
                         Ref!(_, deref_ty, _) => {
-                            kind = LookupKind::max(kind, LookupKind::Ref);
+                            is_strg = false;
                             ty = deref_ty.clone();
+                        }
+                        TyKind::Uninit(..) => {
+                            ty = Ty::uninit(Layout::block());
+                            break;
                         }
                         _ => tracked_span_bug!("invalid deref `{ty:?}`"),
                     }
@@ -191,7 +160,7 @@ impl PlacesTree {
                     };
                 }
                 PlaceElem::Index(_) => {
-                    kind = LookupKind::max(kind, LookupKind::Array);
+                    is_strg = false;
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Array(array_ty, _), _) => {
                             ty = array_ty.clone();
@@ -205,7 +174,8 @@ impl PlacesTree {
                 PlaceElem::Downcast(..) => {}
             }
         }
-        Ok(LookupResult { ty, kind, cursor, bindings: self })
+        cursor.reset();
+        Ok(LookupResult { ty, is_strg, cursor, bindings: self })
     }
 
     pub(crate) fn lookup(
@@ -216,16 +186,8 @@ impl PlacesTree {
         Lookup::run(self, Cursor::new(key), move |thing| Ok::<_, !>(f(thing))).into_ok()
     }
 
-    pub(crate) fn try_lookup(
-        &mut self,
-        key: &impl LookupKey,
-        f: impl FnMut(PlaceLookup) -> CheckerResult<Ty>,
-    ) -> CheckerResult<Ty> {
-        Lookup::run(self, Cursor::new(key), f)
-    }
-
-    pub(crate) fn block_with(&mut self, key: &impl LookupKey, new: Ty) -> Ty {
-        self.lookup(key, |mut lookup| {
+    pub(crate) fn block_with(&mut self, path: &Path, new: Ty) -> Ty {
+        self.lookup(path, |mut lookup| {
             lookup.update(Ty::blocked(new.clone()));
             lookup.ty
         })
@@ -249,57 +211,6 @@ impl PlacesTree {
             lookup.update(new_ty.clone());
             lookup.ty
         });
-    }
-
-    pub(crate) fn projection(
-        &self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        place: &Place,
-    ) -> CheckerResult<Ty> {
-        let mut cursor = Cursor::new(place);
-        let mut ty = self.get_loc(&cursor.loc).ty.clone();
-        while let Some(elem) = cursor.next() {
-            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
-            match elem {
-                PlaceElem::Deref => {
-                    match ty.kind() {
-                        TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
-                            ty = box_args(substs).0.clone();
-                        }
-                        TyKind::Ptr(_, path) => {
-                            cursor.change_root(path);
-                            ty = self.get_loc(&cursor.loc).ty.clone();
-                        }
-                        Ref!(_, deref_ty, _) => ty = deref_ty.clone(),
-                        _ => tracked_span_bug!("invalid deref on `{ty:?}`"),
-                    };
-                }
-                PlaceElem::Field(f) => {
-                    match ty.kind() {
-                        TyKind::Downcast(.., fields)
-                        | TyKind::Indexed(BaseTy::Closure(_, fields) | BaseTy::Tuple(fields), _) => {
-                            ty = fields[f.as_usize()].clone();
-                        }
-                        TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
-                            let fields = downcast_struct(genv, adt, substs, idx)?;
-                            ty = rcx.unpack(&fields[f.as_usize()]);
-                        }
-                        _ => tracked_span_bug!("invalid field {ty:?}"),
-                    }
-                }
-                PlaceElem::Downcast(_, _) => {}
-                PlaceElem::Index(_) => {
-                    match ty.kind() {
-                        TyKind::Indexed(BaseTy::Array(innerty, _) | BaseTy::Slice(innerty), _) => {
-                            ty = innerty.clone();
-                        }
-                        _ => tracked_span_bug!("invalid index {ty:?}"),
-                    }
-                }
-            }
-        }
-        Ok(ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -388,13 +299,33 @@ impl PlacesTree {
 }
 
 impl LookupResult<'_> {
-    pub(crate) fn update(mut self, new: Ty) {
-        self.cursor.reset();
+    pub(crate) fn update(self, new: Ty) -> Ty {
         Lookup::run(self.bindings, self.cursor, |mut lookup| {
             lookup.update(new.clone());
             Ok::<_, !>(lookup.ty)
         })
+        .into_ok()
+    }
+
+    pub(crate) fn unblock(self, rcx: &mut RefineCtxt) {
+        if self.ty.is_uninit() {
+            return;
+        }
+        Lookup::run(self.bindings, self.cursor, |mut lookup| {
+            let unblocked = rcx.unpack(&self.ty.unblocked());
+            lookup.update(unblocked);
+            Ok::<_, !>(lookup.ty)
+        })
         .into_ok();
+    }
+
+    pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
+        let ty = fold(self.bindings, rcx, gen, &self.ty, self.is_strg)?;
+        Ok(self.update(ty))
+    }
+
+    pub(crate) fn path(&self) -> Path {
+        self.cursor.to_path()
     }
 }
 
@@ -613,7 +544,6 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
 
 struct Lookup<'a, F> {
     cont: OnceCell<Cont>,
-    bindings: &'a mut PlacesTree,
     f: &'a mut F,
     cursor: &'a mut Cursor,
     is_weak: bool,
@@ -628,13 +558,7 @@ where
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         let Some(elem) = self.cursor.next() else {
             let mut new_ty = ty.clone();
-            let kind = if self.is_weak {
-                PlaceKind::Weak
-            } else {
-                PlaceKind::Strg
-            };
-            let path = self.cursor.to_path();
-            let lookup = PlaceLookup { bindings: self.bindings, path, ty: ty.clone(), new_ty: &mut new_ty, kind };
+            let lookup = PlaceLookup { ty: ty.clone(), new_ty: &mut new_ty,};
             let result = (self.f)(lookup)?;
             self.cont.set(Cont::Break(result)).unwrap();
             return Ok(new_ty);
@@ -655,14 +579,14 @@ impl<'a, F, E> Lookup<'a, F>
 where
     F: FnMut(PlaceLookup) -> Result<Ty, E>,
 {
-    fn new(bindings: &'a mut PlacesTree, cursor: &'a mut Cursor, f: &'a mut F) -> Self {
-        Self { bindings, cursor, f, cont: OnceCell::new(), is_weak: false }
+    fn new(cursor: &'a mut Cursor, f: &'a mut F) -> Self {
+        Self { cursor, f, cont: OnceCell::new(), is_weak: false }
     }
 
     fn run(bindings: &mut PlacesTree, mut cursor: Cursor, mut f: F) -> Result<Ty, E> {
         loop {
             let ty = bindings.get_loc(&cursor.loc).ty.clone();
-            let mut lookup = Lookup::new(bindings, &mut cursor, &mut f);
+            let mut lookup = Lookup::new(&mut cursor, &mut f);
             let ty = ty.try_fold_with(&mut lookup)?;
             let cont = lookup.cont.into_inner().unwrap();
             bindings.get_loc_mut(&cursor.loc).ty = ty;
@@ -883,7 +807,7 @@ fn fold(
     rcx: &mut RefineCtxt,
     gen: &mut ConstrGen,
     ty: &Ty,
-    kind: PlaceKind,
+    is_strg: bool,
 ) -> CheckerResult<Ty> {
     match ty.kind() {
         TyKind::Ptr(PtrKind::Box, path) => {
@@ -892,11 +816,11 @@ fn fold(
             let LocKind::Box(alloc) = binding.kind else {
                tracked_span_bug!("box pointer to non-box loc");
             };
-            let deref_ty = fold(bindings, rcx, gen, &binding.ty, kind)?;
+            let deref_ty = fold(bindings, rcx, gen, &binding.ty, is_strg)?;
             Ok(gen.genv.mk_box(deref_ty, alloc))
         }
         TyKind::Downcast(adt, substs, idx, variant_idx, fields) => {
-            if let PlaceKind::Strg = kind {
+            if is_strg {
                 let variant_sig = gen
                     .genv
                     .variant_sig(adt.did(), *variant_idx)?
@@ -904,7 +828,7 @@ fn fold(
 
                 let fields = fields
                     .iter()
-                    .map(|ty| fold(bindings, rcx, gen, ty, kind))
+                    .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
                     .try_collect_vec()?;
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
@@ -925,7 +849,7 @@ fn fold(
 
             let fields = fields
                 .iter()
-                .map(|ty| fold(bindings, rcx, gen, ty, kind))
+                .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
                 .try_collect_vec()?;
 
             let partially_moved = fields.iter().any(|ty| ty.is_uninit());
