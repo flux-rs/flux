@@ -20,8 +20,8 @@ use rustc_middle::{
 };
 pub use rustc_middle::{
     mir::{
-        BasicBlock, Local, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE,
-        START_BLOCK,
+        BasicBlock, Local, LocalKind, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction,
+        RETURN_PLACE, START_BLOCK,
     },
     ty::Variance,
 };
@@ -325,6 +325,10 @@ impl<'tcx> Body<'tcx> {
             .get_index(idx.as_usize())
             .unwrap()
             .1
+    }
+
+    pub fn local_kind(&self, local: Local) -> LocalKind {
+        self.body_with_facts.body.local_kind(local)
     }
 }
 

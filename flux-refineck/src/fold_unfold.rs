@@ -8,8 +8,9 @@ use flux_middle::{
     queries::QueryResult,
     rustc::{
         mir::{
-            BasicBlock, Body, FieldIdx, Local, Location, Operand, Place, PlaceElem, Rvalue,
-            Statement, StatementKind, Terminator, TerminatorKind, VariantIdx, FIRST_VARIANT,
+            BasicBlock, Body, FieldIdx, Local, LocalKind, Location, Operand, Place, PlaceElem,
+            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
+            FIRST_VARIANT,
         },
         ty::{AdtDef, Substs, Ty, TyKind},
     },
@@ -379,8 +380,14 @@ impl Env {
         Self {
             map: body
                 .local_decls
-                .iter()
-                .map(|decl| PlaceNode::Ty(decl.ty.clone()))
+                .iter_enumerated()
+                .map(|(local, decl)| {
+                    let mut node = PlaceNode::Ty(decl.ty.clone());
+                    if decl.ty.is_mut_ref() && body.local_kind(local) == LocalKind::Arg {
+                        node.deref();
+                    }
+                    node
+                })
                 .collect(),
         }
     }
