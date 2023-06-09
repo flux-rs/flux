@@ -148,18 +148,8 @@ impl TypeEnv<'_> {
         self.bindings.fmap_mut(|ty| rcx.unpack(ty));
     }
 
-    // FIXME(nilehmann) Unblocking shouldn't require unfolding or unpacking, because we cannot
-    // unblock inside an array
-    pub(crate) fn unblock(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        place: &Place,
-    ) -> Result<(), CheckerErrKind> {
-        self.bindings
-            .lookup_unfolding(genv, rcx, place)?
-            .unblock(rcx);
-        Ok(())
+    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place) {
+        self.bindings.lookup(place).unblock(rcx);
     }
 
     pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
@@ -299,8 +289,7 @@ impl TypeEnv<'_> {
     ) -> Result<(), CheckerErrKind> {
         self.bindings
             .lookup_unfolding(gen.genv, rcx, place)?
-            .fold(rcx, gen)?;
-        Ok(())
+            .fold(rcx, gen)
     }
 
     pub(crate) fn unfold(

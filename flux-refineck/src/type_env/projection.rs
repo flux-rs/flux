@@ -228,20 +228,18 @@ impl PlacesTree {
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
-        let mut ty = self.get_loc(&path.loc).ty.clone();
+        let mut ty = &self.get_loc(&path.loc).ty;
         for f in path.projection() {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Closure(_, fields) | BaseTy::Tuple(fields), _) => {
-                    ty = fields[f.as_usize()].clone();
+                    ty = &fields[f.as_usize()];
                 }
-                TyKind::Uninit => {
-                    ty = Ty::uninit();
-                }
+                TyKind::Uninit => return Ty::uninit(),
                 _ => tracked_span_bug!("{ty:?}"),
             }
         }
-        ty
+        ty.clone()
     }
 
     pub(crate) fn fmap_mut(&mut self, mut f: impl FnMut(&Ty) -> Ty) {

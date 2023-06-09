@@ -32,7 +32,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir as rustc_mir, ty::RegionVid};
 use rustc_span::Span;
 
-use self::errors::{CheckerErrKind, CheckerError, ResultExt};
+use self::errors::{CheckerError, ResultExt};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
@@ -936,8 +936,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         span: Span,
     ) -> Result<(), CheckerError> {
         for borrow in self.borrows_out_of_scope_at(location) {
-            self.apply_unblock(rcx, env, &UnblockStmt::from(borrow))
-                .with_span(span)?;
+            self.apply_unblock(rcx, env, &UnblockStmt::from(borrow));
         }
         for fold_unfold in self.fold_unfolds().fold_unfolds_at_location(location) {
             self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
@@ -959,16 +958,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn apply_unblock(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        stmt: &UnblockStmt,
-    ) -> Result<(), CheckerErrKind> {
+    fn apply_unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
         dbg::statement!("start", stmt, rcx, env);
-        env.unblock(self.genv, rcx, &stmt.place)?;
+        env.unblock(rcx, &stmt.place);
         dbg::statement!("end", stmt, rcx, env);
-        Ok(())
     }
 
     fn appy_fold_unfold(
