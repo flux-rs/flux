@@ -29,14 +29,12 @@ use crate::{
     fixpoint_encoding::KVarEncoding,
     refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
     type_env::TypeEnv,
-    CheckerConfig,
 };
 
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     kvar_gen: Box<dyn KVarGen + 'a>,
     rvid_gen: &'a IndexGen<RegionVid>,
-    checker_config: CheckerConfig,
     span: Span,
 }
 
@@ -95,13 +93,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         kvar_gen: G,
         rvid_gen: &'a IndexGen<RegionVid>,
-        checker_config: CheckerConfig,
         span: Span,
     ) -> Self
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), rvid_gen, checker_config, span }
+        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
     }
 
     pub(crate) fn check_pred(
@@ -225,7 +222,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(path, bound.clone())?;
+                    let ty = env.block_with(path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
@@ -251,7 +248,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         output: &Binder<FnOutput>,
     ) -> Result<(), CheckerErrKind> {
-        let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN, self.checker_config)?;
+        let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -320,7 +317,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(path, bound.clone())?;
+                    let ty = env.block_with(path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound);
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {

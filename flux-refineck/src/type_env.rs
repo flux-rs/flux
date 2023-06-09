@@ -71,13 +71,8 @@ impl TypeEnv<'_> {
             .insert(local.into(), LocKind::Local, Ty::uninit(layout));
     }
 
-    pub(crate) fn into_infer(
-        self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        scope: Scope,
-    ) -> Result<BasicBlockEnvShape, CheckerErrKind> {
-        BasicBlockEnvShape::new(rcx, gen, scope, self)
+    pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {
+        BasicBlockEnvShape::new(scope, self)
     }
 
     pub(crate) fn lookup_place(
@@ -85,11 +80,8 @@ impl TypeEnv<'_> {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-        checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
-        // self.bindings.projection(genv, rcx, place)
-        Ok(result.ty)
+        Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
     }
 
     pub(crate) fn get(&mut self, path: &Path) -> Ty {
@@ -110,7 +102,6 @@ impl TypeEnv<'_> {
         re: Region,
         mutbl: Mutability,
         place: &Place,
-        checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
@@ -126,7 +117,6 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         place: &Place,
         new_ty: Ty,
-        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
@@ -145,7 +135,6 @@ impl TypeEnv<'_> {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-        checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
         let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg {
@@ -174,18 +163,12 @@ impl TypeEnv<'_> {
         Ok(())
     }
 
-    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(path).block_with(new_ty))
+    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
+        self.bindings.lookup(path).block_with(new_ty)
     }
 
-    pub(crate) fn block(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(path).block())
+    pub(crate) fn block(&mut self, path: &Path) -> Ty {
+        self.bindings.lookup(path).block()
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
@@ -268,7 +251,6 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
-        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let reason = ConstrReason::Goto(target);
 
@@ -315,7 +297,6 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         self.bindings
             .lookup_unfolding(gen.genv, rcx, place)?
@@ -365,12 +346,7 @@ impl BasicBlockEnvShape {
         TypeEnv { bindings: self.bindings.clone(), local_decls }
     }
 
-    fn new(
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        scope: Scope,
-        mut env: TypeEnv,
-    ) -> Result<BasicBlockEnvShape, CheckerErrKind> {
+    fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape, CheckerErrKind> {
         let mut bindings = env.bindings;
         bindings.fmap_mut(|ty| BasicBlockEnvShape::pack_ty(&scope, ty));
         Ok(BasicBlockEnvShape { scope, bindings })
@@ -449,18 +425,12 @@ impl BasicBlockEnvShape {
         }
     }
 
-    fn block(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(path).block())
+    fn block(&mut self, path: &Path) -> Ty {
+        self.bindings.lookup(path).block()
     }
 
-    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.lookup(path).block_with(new_ty))
+    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
+        self.bindings.lookup(path).block_with(new_ty)
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
@@ -470,13 +440,7 @@ impl BasicBlockEnvShape {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub(crate) fn join(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        mut other: TypeEnv,
-        checker_config: CheckerConfig,
-    ) -> Result<bool, CheckerErrKind> {
+    pub(crate) fn join(&mut self, mut other: TypeEnv) -> Result<bool, CheckerErrKind> {
         let paths = self.bindings.paths();
 
         // Convert pointers to borrows
@@ -488,20 +452,20 @@ impl BasicBlockEnvShape {
                     if path1 != path2 =>
                 {
                     debug_assert_eq!(r1, r2);
-                    let ty1 = self.block(rcx, gen, path1, checker_config)?;
-                    let ty2 = self.block(rcx, gen, path2, checker_config)?;
+                    let ty1 = self.block(path1);
+                    let ty2 = self.block(path2);
 
                     self.update(path, Ty::mk_ref(*r1, ty1, Mutability::Not));
                     other.update(path, Ty::mk_ref(*r2, ty2, Mutability::Not));
                 }
                 (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
                     debug_assert_eq!(r1, r2);
-                    let ty = self.block(rcx, gen, ptr_path, checker_config)?;
+                    let ty = self.block(ptr_path);
                     self.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
                 }
                 (Ref!(r1, _, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) => {
                     debug_assert_eq!(r1, r2);
-                    let ty = other.block(rcx, gen, ptr_path, checker_config)?;
+                    let ty = other.block(ptr_path);
                     other.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
                 }
                 (TyKind::Ptr(PtrKind::Mut(r1), path1), TyKind::Ptr(PtrKind::Mut(r2), path2))
@@ -514,19 +478,19 @@ impl BasicBlockEnvShape {
                     self.update(path, Ty::mk_ref(*r1, ty1.clone(), Mutability::Mut));
                     other.update(path, Ty::mk_ref(*r1, ty2.clone(), Mutability::Mut));
 
-                    self.block_with(path1, ty1)?;
-                    other.block_with(path2, ty2)?;
+                    self.block_with(path1, ty1);
+                    other.block_with(path2, ty2);
                 }
                 (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
                     debug_assert_eq!(r1, r2);
                     let bound = bound.with_holes();
-                    self.block_with(ptr_path, bound.clone())?;
+                    self.block_with(ptr_path, bound.clone());
                     self.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
                 }
                 (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
                     debug_assert_eq!(r1, r2);
                     let bound = bound.with_holes();
-                    other.block_with(ptr_path, bound.clone())?;
+                    other.block_with(ptr_path, bound.clone());
                     other.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
                 }
                 _ => {}
