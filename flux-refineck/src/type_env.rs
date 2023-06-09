@@ -87,7 +87,7 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        let result = self.bindings.lookup_place(genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         // self.bindings.projection(genv, rcx, place)
         Ok(result.ty)
     }
@@ -97,7 +97,7 @@ impl TypeEnv<'_> {
     }
 
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
-        self.bindings.update(path, new_ty);
+        self.bindings.lookup(path).update(new_ty);
     }
 
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
@@ -112,7 +112,7 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        let result = self.bindings.lookup_place(genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::from_ref(re, mutbl), result.path()))
         } else {
@@ -130,7 +130,7 @@ impl TypeEnv<'_> {
     ) -> Result<(), CheckerErrKind> {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
-        let result = self.bindings.lookup_place(gen.genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(gen.genv, rcx, place)?;
 
         if result.is_strg {
             result.update(new_ty);
@@ -147,7 +147,7 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        let result = self.bindings.lookup_place(genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg {
             let uninit = Ty::uninit(result.ty.layout());
             Ok(result.update(uninit))
@@ -168,12 +168,14 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         place: &Place,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.lookup_place(genv, rcx, place)?.unblock(rcx);
+        self.bindings
+            .lookup_unfolding(genv, rcx, place)?
+            .unblock(rcx);
         Ok(())
     }
 
     pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.block_with(path, new_ty))
+        Ok(self.bindings.lookup(path).block_with(new_ty))
     }
 
     pub(crate) fn block(
@@ -183,7 +185,7 @@ impl TypeEnv<'_> {
         path: &Path,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.block(path))
+        Ok(self.bindings.lookup(path).block())
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
@@ -286,7 +288,7 @@ impl TypeEnv<'_> {
             match (ty1.kind(), ty2.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
                     debug_assert_eq!(r1, r2);
-                    let ty = self.bindings.block_with(ptr_path, bound.clone());
+                    let ty = self.bindings.lookup(ptr_path).block_with(bound.clone());
                     gen.subtyping(rcx, &ty, bound, reason);
 
                     self.update(path, Ty::mk_ref(*r1, bound.clone(), Mutability::Mut));
@@ -316,7 +318,7 @@ impl TypeEnv<'_> {
         checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         self.bindings
-            .lookup_place(gen.genv, rcx, place)?
+            .lookup_unfolding(gen.genv, rcx, place)?
             .fold(rcx, gen)?;
         Ok(())
     }
@@ -354,7 +356,7 @@ impl TypeEnv<'_> {
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty);
+        self.bindings.lookup(path).update(ty);
     }
 }
 
@@ -454,15 +456,15 @@ impl BasicBlockEnvShape {
         path: &Path,
         checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.block(path))
+        Ok(self.bindings.lookup(path).block())
     }
 
     pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Result<Ty, CheckerErrKind> {
-        Ok(self.bindings.block_with(path, new_ty))
+        Ok(self.bindings.lookup(path).block_with(new_ty))
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty);
+        self.bindings.lookup(path).update(ty);
     }
 
     /// join(self, genv, other) consumes the bindings in other, to "update"

@@ -95,6 +95,48 @@ pub(crate) struct LookupResult<'a> {
     bindings: &'a mut PlacesTree,
 }
 
+pub(crate) trait LookupMode {
+    type Error = !;
+
+    fn unpack(&mut self, ty: &Ty) -> Ty {
+        ty.clone()
+    }
+
+    fn downcast_struct(
+        &mut self,
+        adt: &AdtDef,
+        substs: &[GenericArg],
+        idx: &Index,
+    ) -> Result<Vec<Ty>, Self::Error>;
+}
+
+struct Unfold<'a, 'rcx, 'tcx>(&'a GlobalEnv<'a, 'tcx>, &'a mut RefineCtxt<'rcx>);
+
+impl LookupMode for Unfold<'_, '_, '_> {
+    type Error = CheckerErrKind;
+
+    fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.1.unpack_with(ty, UnpackFlags::SHALLOW)
+    }
+
+    fn downcast_struct(
+        &mut self,
+        adt: &AdtDef,
+        substs: &[GenericArg],
+        idx: &Index,
+    ) -> Result<Vec<Ty>, Self::Error> {
+        downcast_struct(self.0, adt, substs, idx)
+    }
+}
+
+struct NoUnfold;
+
+impl LookupMode for NoUnfold {
+    fn downcast_struct(&mut self, _: &AdtDef, _: &[GenericArg], _: &Index) -> Result<Vec<Ty>, !> {
+        tracked_span_bug!("cannot unfold in `NoUnfold` mode")
+    }
+}
+
 impl PlacesTree {
     pub(crate) fn unfold(
         &mut self,
@@ -106,17 +148,16 @@ impl PlacesTree {
         Unfolder::new(genv, rcx, key, checker_conf).run(self)
     }
 
-    pub(crate) fn lookup_place(
+    fn lookup_inner<M: LookupMode>(
         &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
         key: &impl LookupKey,
-    ) -> CheckerResult<LookupResult> {
+        mut mode: M,
+    ) -> Result<LookupResult, M::Error> {
         let mut cursor = Cursor::new(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
         while let Some(elem) = cursor.next() {
-            ty = rcx.unpack_with(&ty, UnpackFlags::SHALLOW);
+            ty = mode.unpack(&ty);
             match elem {
                 PlaceElem::Deref => {
                     match ty.kind() {
@@ -154,7 +195,7 @@ impl PlacesTree {
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
-                            ty = downcast_struct(genv, adt, substs, idx)?[f.as_usize()].clone();
+                            ty = mode.downcast_struct(adt, substs, idx)?[f.as_usize()].clone();
                         }
                         _ => tracked_span_bug!("invalid field access `{ty:?}`"),
                     };
@@ -178,39 +219,23 @@ impl PlacesTree {
         Ok(LookupResult { ty, is_strg, cursor, bindings: self })
     }
 
-    pub(crate) fn lookup(
+    pub(crate) fn lookup_unfolding(
         &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
         key: &impl LookupKey,
-        mut f: impl FnMut(PlaceLookup) -> Ty,
-    ) -> Ty {
-        Lookup::run(self, Cursor::new(key), move |thing| Ok::<_, !>(f(thing))).into_ok()
+    ) -> CheckerResult<LookupResult> {
+        self.lookup_inner(key, Unfold(genv, rcx))
     }
 
-    pub(crate) fn block_with(&mut self, path: &Path, new: Ty) -> Ty {
-        self.lookup(path, |mut lookup| {
-            lookup.update(Ty::blocked(new.clone()));
-            lookup.ty
-        })
+    pub(crate) fn lookup(&mut self, key: &impl LookupKey) -> LookupResult {
+        self.lookup_inner(key, NoUnfold).into_ok()
     }
 
     pub(crate) fn paths(&self) -> Vec<Path> {
         let mut paths = vec![];
         self.iter_flatten(|path, _, _| paths.push(path));
         paths
-    }
-
-    pub(crate) fn block(&mut self, key: &impl LookupKey) -> Ty {
-        self.lookup(key, |mut lookup| {
-            lookup.update(Ty::blocked(lookup.ty.clone()));
-            lookup.ty
-        })
-    }
-
-    pub(crate) fn update(&mut self, path: &Path, new_ty: Ty) {
-        self.lookup(path, |mut lookup| {
-            lookup.update(new_ty.clone());
-            lookup.ty
-        });
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -317,6 +342,15 @@ impl LookupResult<'_> {
             Ok::<_, !>(lookup.ty)
         })
         .into_ok();
+    }
+
+    pub(crate) fn block(self) -> Ty {
+        let ty = self.ty.clone();
+        self.block_with(ty)
+    }
+
+    pub(crate) fn block_with(self, new_ty: Ty) -> Ty {
+        self.update(Ty::blocked(new_ty))
     }
 
     pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
