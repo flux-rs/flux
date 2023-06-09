@@ -626,7 +626,7 @@ impl TypeSuperVisitable for Ty {
                 fields.visit_with(visitor)
             }
             TyKind::Blocked(ty) => ty.visit_with(visitor),
-            TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit(_) => ControlFlow::Continue(()),
+            TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => ControlFlow::Continue(()),
         }
     }
 }
@@ -672,7 +672,7 @@ impl TypeSuperFoldable for Ty {
                 )
             }
             TyKind::Blocked(ty) => Ty::blocked(ty.try_fold_with(folder)?),
-            TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Discr(..) => self.clone(),
+            TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => self.clone(),
         };
         Ok(ty)
     }

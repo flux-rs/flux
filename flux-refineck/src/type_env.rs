@@ -12,8 +12,8 @@ use flux_middle::{
         evars::EVarSol,
         fold::{TypeFoldable, TypeVisitable},
         subst::{FVarSubst, RegionSubst},
-        BaseTy, Binder, Expr, ExprKind, GenericArg, Layout, Mutability, Path, PtrKind, Ref, Region,
-        Ty, TyKind, Var, INNERMOST,
+        BaseTy, Binder, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty,
+        TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -66,9 +66,8 @@ impl TypeEnv<'_> {
     }
 
     pub fn alloc(&mut self, local: Local) {
-        let layout = Layout::from_rust_ty(&self.local_decls[local].ty);
         self.bindings
-            .insert(local.into(), LocKind::Local, Ty::uninit(layout));
+            .insert(local.into(), LocKind::Local, Ty::uninit());
     }
 
     pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {
@@ -138,7 +137,7 @@ impl TypeEnv<'_> {
     ) -> Result<Ty, CheckerErrKind> {
         let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg {
-            let uninit = Ty::uninit(result.ty.layout());
+            let uninit = Ty::uninit();
             Ok(result.update(uninit))
         } else {
             tracked_span_bug!("cannot move out of {place:?}");
@@ -375,7 +374,7 @@ impl BasicBlockEnvShape {
             TyKind::Exists(_)
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
-            | TyKind::Uninit(_)
+            | TyKind::Uninit
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
         }
@@ -514,7 +513,7 @@ impl BasicBlockEnvShape {
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Blocked(ty1), _) => Ty::blocked(self.join_ty(ty1, &ty2.unblocked())),
             (_, TyKind::Blocked(ty2)) => Ty::blocked(self.join_ty(&ty1.unblocked(), ty2)),
-            (TyKind::Uninit(layout), _) | (_, TyKind::Uninit(layout)) => Ty::uninit(layout.clone()),
+            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binder(), ty2),
             (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binder()),
             (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),

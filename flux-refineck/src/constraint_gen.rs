@@ -451,7 +451,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
             }
-            (_, TyKind::Uninit(_)) => {
+            (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
             }
             (_, TyKind::Constr(p2, ty2)) => {

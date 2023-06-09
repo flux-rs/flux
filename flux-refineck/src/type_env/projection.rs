@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, Loc, Path, PtrKind,
-        Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Loc, Path, PtrKind, Ref,
+        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -165,8 +165,8 @@ impl PlacesTree {
                             is_strg = false;
                             ty = deref_ty.clone();
                         }
-                        TyKind::Uninit(..) => {
-                            ty = Ty::uninit(Layout::block());
+                        TyKind::Uninit => {
+                            ty = Ty::uninit();
                             break;
                         }
                         _ => tracked_span_bug!("invalid deref `{ty:?}`"),
@@ -235,8 +235,8 @@ impl PlacesTree {
                 | TyKind::Indexed(BaseTy::Closure(_, fields) | BaseTy::Tuple(fields), _) => {
                     ty = fields[f.as_usize()].clone();
                 }
-                TyKind::Uninit(_) => {
-                    ty = Ty::uninit(Layout::block());
+                TyKind::Uninit => {
+                    ty = Ty::uninit();
                 }
                 _ => tracked_span_bug!("{ty:?}"),
             }
@@ -800,7 +800,7 @@ fn fold(
 
                 let partially_moved = fields.iter().any(|ty| ty.is_uninit());
                 let ty = if partially_moved {
-                    Ty::uninit(Layout::tuple(fields.iter().map(|ty| ty.layout()).collect()))
+                    Ty::uninit()
                 } else {
                     gen.check_constructor(rcx, variant_sig, substs, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
@@ -820,11 +820,7 @@ fn fold(
                 .try_collect_vec()?;
 
             let partially_moved = fields.iter().any(|ty| ty.is_uninit());
-            let ty = if partially_moved {
-                Ty::uninit(Layout::tuple(fields.iter().map(|ty| ty.layout()).collect()))
-            } else {
-                Ty::tuple(fields)
-            };
+            let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(fields) };
             Ok(ty)
         }
         _ => Ok(ty.clone()),
