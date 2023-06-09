@@ -1,4 +1,3 @@
-// mod places_tree;
 mod projection;
 
 use std::iter;
@@ -638,7 +637,7 @@ impl BasicBlockEnvShape {
         );
         constrs.push(kvar);
 
-        // Replace holes that weren't generalized by fresh kvars
+        // Replace remaning holes by fresh kvars
         let mut kvar_gen = |sorts: &[_]| {
             kvar_store.fresh_bound(
                 sorts,

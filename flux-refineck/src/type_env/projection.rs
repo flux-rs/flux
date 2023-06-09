@@ -321,7 +321,11 @@ impl LookupResult<'_> {
         if self.ty.is_uninit() {
             return;
         }
-        Updater::update(self.bindings, self.cursor, rcx.unpack(&self.ty.unblocked()));
+        let mut unblocked = self.ty.unblocked();
+        if self.is_strg {
+            unblocked = rcx.unpack(&unblocked);
+        }
+        Updater::update(self.bindings, self.cursor, unblocked);
     }
 
     pub(crate) fn block(self) -> Ty {
