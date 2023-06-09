@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, clone::Clone, iter};
+use std::{clone::Clone, iter};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{
@@ -6,7 +6,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args,
-        fold::{FallibleTypeFolder, TypeFoldable},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Layout, Loc, Path, PtrKind,
         Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
@@ -74,17 +74,6 @@ impl LookupKey for Path {
 
     fn proj(&self) -> Self::Iter<'_> {
         self.projection().iter().map(|f| PlaceElem::Field(*f))
-    }
-}
-
-pub(crate) struct PlaceLookup<'a> {
-    pub ty: Ty,
-    new_ty: &'a mut Ty,
-}
-
-impl PlaceLookup<'_> {
-    pub(crate) fn update(&mut self, new_ty: Ty) {
-        *self.new_ty = new_ty;
     }
 }
 
@@ -325,23 +314,16 @@ impl PlacesTree {
 
 impl LookupResult<'_> {
     pub(crate) fn update(self, new: Ty) -> Ty {
-        Lookup::run(self.bindings, self.cursor, |mut lookup| {
-            lookup.update(new.clone());
-            Ok::<_, !>(lookup.ty)
-        })
-        .into_ok()
+        let old = self.ty.clone();
+        Updater::update(self.bindings, self.cursor, new);
+        old
     }
 
     pub(crate) fn unblock(self, rcx: &mut RefineCtxt) {
         if self.ty.is_uninit() {
             return;
         }
-        Lookup::run(self.bindings, self.cursor, |mut lookup| {
-            let unblocked = rcx.unpack(&self.ty.unblocked());
-            lookup.update(unblocked);
-            Ok::<_, !>(lookup.ty)
-        })
-        .into_ok();
+        Updater::update(self.bindings, self.cursor, rcx.unpack(&self.ty.unblocked()));
     }
 
     pub(crate) fn block(self) -> Ty {
@@ -353,9 +335,10 @@ impl LookupResult<'_> {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
+    pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult {
         let ty = fold(self.bindings, rcx, gen, &self.ty, self.is_strg)?;
-        Ok(self.update(ty))
+        self.update(ty);
+        Ok(())
     }
 
     pub(crate) fn path(&self) -> Path {
@@ -371,12 +354,6 @@ struct Unfolder<'a, 'rcx, 'tcx> {
     in_ref: bool,
     checker_conf: CheckerConfig,
     has_work: bool,
-}
-
-#[derive(Debug)]
-enum Cont {
-    Break(Ty),
-    Continue(Path),
 }
 
 impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
@@ -576,122 +553,78 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 }
 
-struct Lookup<'a, F> {
-    cont: OnceCell<Cont>,
-    f: &'a mut F,
+struct Updater<'a> {
+    new_ty: Ty,
     cursor: &'a mut Cursor,
-    is_weak: bool,
 }
 
-impl<F, E> FallibleTypeFolder for Lookup<'_, F>
-where
-    F: FnMut(PlaceLookup) -> Result<Ty, E>,
-{
-    type Error = E;
-
-    fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
+impl TypeFolder for Updater<'_> {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
         let Some(elem) = self.cursor.next() else {
-            let mut new_ty = ty.clone();
-            let lookup = PlaceLookup { ty: ty.clone(), new_ty: &mut new_ty,};
-            let result = (self.f)(lookup)?;
-            self.cont.set(Cont::Break(result)).unwrap();
-            return Ok(new_ty);
+            return self.new_ty.clone();
         };
         match elem {
             PlaceElem::Deref => self.deref(ty),
             PlaceElem::Field(f) => self.field(ty, f),
-            PlaceElem::Downcast(_, _) => ty.try_fold_with(self),
+            PlaceElem::Downcast(_, _) => ty.fold_with(self),
             PlaceElem::Index(_) => {
-                self.index(ty)?;
-                Ok(ty.clone())
+                tracked_span_bug!("cannot update inside array or slice")
             }
         }
     }
 }
 
-impl<'a, F, E> Lookup<'a, F>
-where
-    F: FnMut(PlaceLookup) -> Result<Ty, E>,
-{
-    fn new(cursor: &'a mut Cursor, f: &'a mut F) -> Self {
-        Self { cursor, f, cont: OnceCell::new(), is_weak: false }
+impl<'a> Updater<'a> {
+    fn new(cursor: &'a mut Cursor, new_ty: Ty) -> Self {
+        Self { new_ty, cursor }
     }
 
-    fn run(bindings: &mut PlacesTree, mut cursor: Cursor, mut f: F) -> Result<Ty, E> {
-        loop {
-            let ty = bindings.get_loc(&cursor.loc).ty.clone();
-            let mut lookup = Lookup::new(&mut cursor, &mut f);
-            let ty = ty.try_fold_with(&mut lookup)?;
-            let cont = lookup.cont.into_inner().unwrap();
-            bindings.get_loc_mut(&cursor.loc).ty = ty;
-            match cont {
-                Cont::Break(ty) => return Ok(ty),
-                Cont::Continue(path) => {
-                    cursor.change_root(&path);
-                }
-            }
-        }
+    fn update(bindings: &mut PlacesTree, mut cursor: Cursor, new_ty: Ty) {
+        let binding = bindings.get_loc_mut(&cursor.loc);
+        let mut lookup = Updater::new(&mut cursor, new_ty);
+        binding.ty = binding.ty.fold_with(&mut lookup);
     }
 
-    fn deref(&mut self, ty: &Ty) -> Result<Ty, E> {
-        let ty = match ty.kind() {
+    fn deref(&mut self, ty: &Ty) -> Ty {
+        match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
                 let (deref_ty, alloc) = box_args(substs);
                 let substs = List::from_arr([
-                    GenericArg::Ty(deref_ty.try_fold_with(self)?),
+                    GenericArg::Ty(deref_ty.fold_with(self)),
                     GenericArg::Ty(alloc.clone()),
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), substs), idx.clone())
             }
-            TyKind::Ptr(pk, path) => {
-                self.cont.set(Cont::Continue(path.clone())).unwrap();
-                Ty::ptr(*pk, path.clone())
+            TyKind::Ptr(..) => {
+                tracked_span_bug!("cannot update through pointer");
             }
-            Ref!(re, deref_ty, mutbl) => {
-                self.is_weak = true;
-                Ty::mk_ref(*re, deref_ty.try_fold_with(self)?, *mutbl)
-            }
+            Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, deref_ty.fold_with(self), *mutbl),
             _ => tracked_span_bug!("invalid deref on `{ty:?}`"),
-        };
-        Ok(ty)
+        }
     }
 
-    fn field(&mut self, ty: &Ty, f: FieldIdx) -> Result<Ty, E> {
-        let ty = match ty.kind() {
+    fn field(&mut self, ty: &Ty, f: FieldIdx) -> Ty {
+        match ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(fields), idx) => {
-                let fields = self.try_fold_field_at(fields, f)?;
+                let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Tuple(fields), idx.clone())
             }
             TyKind::Indexed(BaseTy::Closure(def_id, fields), idx) => {
-                let fields = self.try_fold_field_at(fields, f)?;
+                let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Closure(*def_id, fields), idx.clone())
             }
             TyKind::Downcast(adt, substs, idx, variant, fields) => {
-                let fields = self.try_fold_field_at(fields, f)?;
+                let fields = self.fold_field_at(fields, f);
                 Ty::downcast(adt.clone(), substs.clone(), idx.clone(), *variant, fields)
             }
             _ => tracked_span_bug!("invalid field projection on `{ty:?}`"),
-        };
-        Ok(ty)
-    }
-
-    fn try_fold_field_at(&mut self, fields: &[Ty], f: FieldIdx) -> Result<List<Ty>, E> {
-        let mut fields = fields.to_vec();
-        fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-        Ok(fields.into())
-    }
-
-    fn index(&mut self, ty: &Ty) -> Result<(), E> {
-        match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(arr_ty, _), _) => {
-                arr_ty.try_fold_with(self)?;
-            }
-            TyKind::Indexed(BaseTy::Slice(slice_ty), _) => {
-                slice_ty.try_fold_with(self)?;
-            }
-            _ => tracked_span_bug!("invalid index on `{ty:?}`"),
         }
-        Ok(())
+    }
+
+    fn fold_field_at(&mut self, fields: &[Ty], f: FieldIdx) -> List<Ty> {
+        let mut fields = fields.to_vec();
+        fields[f.as_usize()] = fields[f.as_usize()].fold_with(self);
+        fields.into()
     }
 }
 
