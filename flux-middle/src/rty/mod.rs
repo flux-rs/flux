@@ -253,7 +253,7 @@ pub enum TyKind {
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
-    Downcast(AdtDef, Substs, Index, VariantIdx, List<Ty>),
+    Downcast(AdtDef, Substs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
 }
 
@@ -878,11 +878,11 @@ impl Ty {
     pub fn downcast(
         adt: AdtDef,
         substs: Substs,
-        idx: Index,
+        ty: Ty,
         variant: VariantIdx,
         fields: List<Ty>,
     ) -> Ty {
-        TyKind::Downcast(adt, substs, idx, variant, fields).intern()
+        TyKind::Downcast(adt, substs, ty, variant, fields).intern()
     }
 
     pub fn blocked(ty: Ty) -> Ty {

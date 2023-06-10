@@ -525,18 +525,18 @@ impl BasicBlockEnvShape {
                 Ty::param(*param_ty1)
             }
             (
-                TyKind::Downcast(adt1, substs1, idx1, variant1, fields1),
-                TyKind::Downcast(adt2, substs2, idx2, variant2, fields2),
+                TyKind::Downcast(adt1, substs1, ty1, variant1, fields1),
+                TyKind::Downcast(adt2, substs2, ty2, variant2, fields2),
             ) => {
                 debug_assert_eq!(adt1, adt2);
                 debug_assert_eq!(substs1, substs2);
-                debug_assert_eq!(idx1.expr, idx2.expr);
+                debug_assert_eq!(ty1, ty2);
                 debug_assert_eq!(variant1, variant2);
                 debug_assert_eq!(fields1.len(), fields2.len());
                 let fields = iter::zip(fields1, fields2)
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
-                Ty::downcast(adt1.clone(), substs1.clone(), idx1.clone(), *variant1, fields)
+                Ty::downcast(adt1.clone(), substs1.clone(), ty1.clone(), *variant1, fields)
             }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }

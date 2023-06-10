@@ -488,12 +488,13 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                     })
                     .collect_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), FIRST_VARIANT, fields.into())
+                let substs = substs.with_holes();
+                Ty::downcast(adt.clone(), substs, ty.clone(), FIRST_VARIANT, fields.into())
             }
-            TyKind::Downcast(adt, substs, idx, variant, fields) => {
+            TyKind::Downcast(adt, substs, ty, variant, fields) => {
                 let mut fields = fields.to_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), *variant, fields.into())
+                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields.into())
             }
             _ => tracked_span_bug!("invalid field access for `{ty:?}`"),
         };
@@ -511,7 +512,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                         ty
                     })
                     .collect_vec();
-                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), variant, fields.into())
+                Ty::downcast(adt.clone(), substs.with_holes(), ty.clone(), variant, fields.into())
             }
             TyKind::Downcast(.., variant2, _) => {
                 debug_assert_eq!(variant, *variant2);
@@ -623,9 +624,9 @@ impl<'a> Updater<'a> {
                 let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Closure(*def_id, fields), idx.clone())
             }
-            TyKind::Downcast(adt, substs, idx, variant, fields) => {
+            TyKind::Downcast(adt, substs, ty, variant, fields) => {
                 let fields = self.fold_field_at(fields, f);
-                Ty::downcast(adt.clone(), substs.clone(), idx.clone(), *variant, fields)
+                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields)
             }
             _ => tracked_span_bug!("invalid field projection on `{ty:?}`"),
         }
@@ -800,7 +801,7 @@ fn fold(
             let deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)?;
             Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
         }
-        TyKind::Downcast(adt, substs, idx, variant_idx, fields) => {
+        TyKind::Downcast(adt, substs, ty, variant_idx, fields) => {
             if is_strg {
                 let variant_sig = gen
                     .genv
@@ -822,7 +823,7 @@ fn fold(
 
                 Ok(ty)
             } else {
-                Ok(Ty::indexed(BaseTy::Adt(adt.clone(), substs.clone()), idx.clone()))
+                Ok(ty.clone())
             }
         }
         TyKind::Indexed(BaseTy::Tuple(fields), idx) => {

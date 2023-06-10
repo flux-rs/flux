@@ -459,12 +459,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.subtyping(rcx, ty1, ty2);
             }
             (
-                TyKind::Downcast(adt1, substs1, idx1, variant1, fields1),
-                TyKind::Downcast(adt2, substs2, idx2, variant2, fields2),
+                TyKind::Downcast(adt1, substs1, ty1, variant1, fields1),
+                TyKind::Downcast(adt2, substs2, ty2, variant2, fields2),
             ) => {
                 debug_assert_eq!(adt1, adt2);
                 debug_assert_eq!(substs1, substs2);
-                debug_assert_eq!(idx1.expr, idx2.expr);
+                debug_assert_eq!(ty1, ty2);
                 debug_assert_eq!(variant1, variant2);
                 debug_assert_eq!(fields1.len(), fields2.len());
                 for (field1, field2) in iter::zip(fields1, fields2) {
