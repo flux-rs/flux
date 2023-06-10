@@ -24,7 +24,7 @@ fn main() -> io::Result<()> {
                 args.push("-C".to_string());
                 is_codegen = false;
             }
-            if arg == CMD_RUSTC {
+            if arg.ends_with(CMD_RUSTC) {
                 in_cargo = true;
             } else {
                 args.push(arg);
