@@ -796,6 +796,10 @@ fn fold(
             let deref_ty = fold(bindings, rcx, gen, &binding.ty, is_strg)?;
             Ok(gen.genv.mk_box(deref_ty, alloc))
         }
+        Ref!(re, deref_ty, mutbl) => {
+            let deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)?;
+            Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
+        }
         TyKind::Downcast(adt, substs, idx, variant_idx, fields) => {
             if is_strg {
                 let variant_sig = gen
