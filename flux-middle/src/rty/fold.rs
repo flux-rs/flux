@@ -656,17 +656,17 @@ impl TypeSuperFoldable for Ty {
                         .try_fold_with(folder)?
                         .normalize(&Default::default())
                         .to_path()
-                        .expect("folding produced an invalid path"),
+                        .expect("type folding produced an invalid path"),
                 )
             }
             TyKind::Constr(pred, ty) => {
                 Ty::constr(pred.try_fold_with(folder)?, ty.try_fold_with(folder)?)
             }
-            TyKind::Downcast(adt, substs, idx, variant, fields) => {
+            TyKind::Downcast(adt, substs, ty, variant, fields) => {
                 Ty::downcast(
                     adt.clone(),
                     substs.clone(),
-                    idx.clone(),
+                    ty.clone(),
                     *variant,
                     fields.try_fold_with(folder)?,
                 )

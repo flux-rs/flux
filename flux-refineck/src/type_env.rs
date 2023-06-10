@@ -347,13 +347,11 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
-            TyKind::Downcast(adt, substs, idx, variant, fields) => {
-                let substs = substs
-                    .iter()
-                    .map(|arg| Self::pack_generic_arg(scope, arg))
-                    .collect();
+            TyKind::Downcast(adt, substs, ty, variant, fields) => {
+                debug_assert!(!scope.has_free_vars(substs));
+                debug_assert!(!scope.has_free_vars(ty));
                 let fields = fields.iter().map(|ty| Self::pack_ty(scope, ty)).collect();
-                Ty::downcast(adt.clone(), substs, idx.clone(), *variant, fields)
+                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields)
             }
             TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
             // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
@@ -530,7 +528,7 @@ impl BasicBlockEnvShape {
             ) => {
                 debug_assert_eq!(adt1, adt2);
                 debug_assert_eq!(substs1, substs2);
-                debug_assert_eq!(ty1, ty2);
+                debug_assert!(ty1 == ty2 && !self.scope.has_free_vars(ty2));
                 debug_assert_eq!(variant1, variant2);
                 debug_assert_eq!(fields1.len(), fields2.len());
                 let fields = iter::zip(fields1, fields2)
