@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Loc, Path, PtrKind, Ref,
-        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Loc, Mutability, Path,
+        PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -353,7 +353,7 @@ struct Unfolder<'a, 'rcx, 'tcx> {
     rcx: &'a mut RefineCtxt<'rcx>,
     insertions: Vec<(Loc, Binding)>,
     cursor: Cursor,
-    in_ref: bool,
+    in_ref: Option<Mutability>,
     checker_conf: CheckerConfig,
     has_work: bool,
 }
@@ -390,7 +390,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             rcx,
             cursor: Cursor::new(key),
             insertions: vec![],
-            in_ref: false,
+            in_ref: None,
             checker_conf,
             has_work: true,
         }
@@ -409,7 +409,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
         if let TyKind::Indexed(BaseTy::Adt(adt, substs), _) = ty.kind() && adt.is_box() {
-            if self.in_ref {
+            if self.in_ref.is_some() {
                 Ok(ty.clone())
             } else {
                 let (deref_ty, alloc) = box_args(substs);
@@ -435,7 +435,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             }
             TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
                 let (deref_ty, alloc) = box_args(substs);
-                if self.in_ref {
+                if self.in_ref.is_some() {
                     let substs = List::from_arr([
                         GenericArg::Ty(deref_ty.try_fold_with(self)?),
                         GenericArg::Ty(alloc.clone()),
@@ -449,7 +449,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 }
             }
             Ref!(re, ty, mutbl) => {
-                self.in_ref = true;
+                self.in_ref = self.in_ref.max(Some(*mutbl));
                 Ty::mk_ref(*re, ty.try_fold_with(self)?, *mutbl)
             }
             _ => tracked_span_bug!("invalid deref of `{ty:?}`"),
@@ -482,7 +482,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 let mut fields = downcast_struct(self.genv, adt, substs, idx)?
                     .into_iter()
                     .map(|ty| {
-                        let ty = self.rcx.unpack(&ty);
+                        let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
                         self.assume_invariants(&ty);
                         ty
                     })
@@ -495,7 +495,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::downcast(adt.clone(), substs.clone(), idx.clone(), *variant, fields.into())
             }
-            _ => todo!(),
+            _ => tracked_span_bug!("invalid field access for `{ty:?}`"),
         };
         Ok(ty)
     }
@@ -506,7 +506,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 let fields = downcast(self.genv, self.rcx, adt, substs, variant, idx)?
                     .into_iter()
                     .map(|ty| {
-                        let ty = if self.in_ref { ty } else { self.rcx.unpack(&ty) };
+                        let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
                         self.assume_invariants(&ty);
                         ty
                     })
@@ -543,6 +543,14 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn change_root(&mut self, path: &Path) {
         self.has_work = true;
         self.cursor.change_root(path);
+    }
+
+    fn unpack_flags_for_downcast(&self) -> UnpackFlags {
+        if self.in_ref == Some(Mutability::Mut) {
+            UnpackFlags::NO_UNPACK_EXISTS
+        } else {
+            UnpackFlags::empty()
+        }
     }
 
     fn should_continue(&mut self) -> bool {

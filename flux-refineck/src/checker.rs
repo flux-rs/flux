@@ -219,7 +219,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
             config,
         };
-
         ck.check_goto(rcx, env, START_BLOCK, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
