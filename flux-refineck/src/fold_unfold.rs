@@ -433,7 +433,7 @@ impl Env {
     fn join(&mut self, genv: &GlobalEnv, mut other: Env) -> QueryResult<bool> {
         let mut modified = false;
         for (local, node) in self.map.iter_enumerated_mut() {
-            let (m, _) = node.join(genv, &mut other.map[local])?;
+            let (m, _) = node.join(genv, &mut other.map[local], false)?;
             modified |= m;
         }
         Ok(modified)
@@ -564,13 +564,19 @@ impl PlaceNode {
         }
     }
 
-    fn join(&mut self, genv: &GlobalEnv, other: &mut PlaceNode) -> QueryResult<(bool, bool)> {
+    fn join(
+        &mut self,
+        genv: &GlobalEnv,
+        other: &mut PlaceNode,
+        in_mut_ref: bool,
+    ) -> QueryResult<(bool, bool)> {
         let mut modified1 = false;
         let mut modified2 = false;
 
         let (fields1, fields2) = match (&mut *self, &mut *other) {
-            (PlaceNode::Deref(_, node1), PlaceNode::Deref(_, node2)) => {
-                return node1.join(genv, node2);
+            (PlaceNode::Deref(ty1, node1), PlaceNode::Deref(ty2, node2)) => {
+                debug_assert_eq!(ty1, ty2);
+                return node1.join(genv, node2, in_mut_ref || ty1.is_mut_ref());
             }
             (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
             (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
@@ -591,7 +597,7 @@ impl PlaceNode {
             }
             (PlaceNode::Ty(_), PlaceNode::Ty(_)) => return Ok((false, false)),
             (PlaceNode::Ty(_), _) => {
-                let (m1, m2) = other.join(genv, self)?;
+                let (m1, m2) = other.join(genv, self, in_mut_ref)?;
                 return Ok((m2, m1));
             }
             (PlaceNode::Deref(ty, _), _) => {
@@ -609,7 +615,7 @@ impl PlaceNode {
                 (fields1, fields2)
             }
             (PlaceNode::Downcast(adt, substs, .., fields1), _) => {
-                if adt.is_struct() {
+                if adt.is_struct() && !in_mut_ref {
                     let (fields2, m) = other.fields(genv)?;
                     modified2 |= m;
                     (fields1, fields2)
@@ -620,7 +626,7 @@ impl PlaceNode {
             }
         };
         for (node1, node2) in iter::zip(fields1, fields2) {
-            let (m1, m2) = node1.join(genv, node2)?;
+            let (m1, m2) = node1.join(genv, node2, in_mut_ref)?;
             modified1 |= m1;
             modified2 |= m2;
         }
