@@ -145,8 +145,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.type_of(self, def_id)
     }
 
-    pub fn fn_sig(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        self.queries.fn_sig(self, def_id)
+    pub fn fn_sig(
+        &self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+        self.queries.fn_sig(self, def_id.into())
     }
 
     pub fn variants_of(

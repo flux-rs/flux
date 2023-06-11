@@ -621,7 +621,12 @@ impl TypeSuperVisitable for Ty {
                 pred.visit_with(visitor)?;
                 ty.visit_with(visitor)
             }
-            TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit(_) => ControlFlow::Continue(()),
+            TyKind::Downcast(.., substs, _, fields) => {
+                substs.visit_with(visitor)?;
+                fields.visit_with(visitor)
+            }
+            TyKind::Blocked(ty) => ty.visit_with(visitor),
+            TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => ControlFlow::Continue(()),
         }
     }
 }
@@ -651,13 +656,23 @@ impl TypeSuperFoldable for Ty {
                         .try_fold_with(folder)?
                         .normalize(&Default::default())
                         .to_path()
-                        .expect("folding produced an invalid path"),
+                        .expect("type folding produced an invalid path"),
                 )
             }
             TyKind::Constr(pred, ty) => {
                 Ty::constr(pred.try_fold_with(folder)?, ty.try_fold_with(folder)?)
             }
-            TyKind::Param(_) | TyKind::Uninit(_) | TyKind::Discr(..) => self.clone(),
+            TyKind::Downcast(adt, substs, ty, variant, fields) => {
+                Ty::downcast(
+                    adt.clone(),
+                    substs.clone(),
+                    ty.clone(),
+                    *variant,
+                    fields.try_fold_with(folder)?,
+                )
+            }
+            TyKind::Blocked(ty) => Ty::blocked(ty.try_fold_with(folder)?),
+            TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => self.clone(),
         };
         Ok(ty)
     }

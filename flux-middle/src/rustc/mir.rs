@@ -20,8 +20,8 @@ use rustc_middle::{
 };
 pub use rustc_middle::{
     mir::{
-        BasicBlock, Local, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE,
-        START_BLOCK,
+        BasicBlock, Local, LocalKind, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction,
+        RETURN_PLACE, START_BLOCK,
     },
     ty::Variance,
 };
@@ -30,7 +30,8 @@ pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 
 use super::ty::{GenericArg, Region, Ty, TyKind};
 use crate::{
-    global_env::GlobalEnv, intern::List, queries::QueryResult, rustc::ty::region_to_string,
+    global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
+    rustc::ty::region_to_string,
 };
 
 pub struct Body<'tcx> {
@@ -325,6 +326,10 @@ impl<'tcx> Body<'tcx> {
             .unwrap()
             .1
     }
+
+    pub fn local_kind(&self, local: Local) -> LocalKind {
+        self.body_with_facts.body.local_kind(local)
+    }
 }
 
 impl Place {
@@ -340,6 +345,17 @@ impl Place {
             .try_fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
                 place_ty.projection_ty(genv, *elem)
             })
+    }
+
+    pub fn behind_raw_ptr(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<bool> {
+        let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
+        for elem in &self.projection {
+            if let (PlaceElem::Deref, TyKind::RawPtr(..)) = (elem, place_ty.ty.kind()) {
+                return Ok(true);
+            }
+            place_ty = place_ty.projection_ty(genv, *elem)?;
+        }
+        Ok(false)
     }
 }
 
@@ -563,7 +579,12 @@ impl fmt::Debug for Rvalue {
                 Ok(())
             }
             Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
-                write!(f, "closure({def_id:?}, {substs:?}, {:?})", args.iter().format(", "))
+                write!(
+                    f,
+                    "closure({}, {substs:?}, {:?})",
+                    def_id_to_string(*def_id),
+                    args.iter().format(", ")
+                )
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {
                 write!(f, "[{:?}]", args.iter().format(", "))

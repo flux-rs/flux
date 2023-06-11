@@ -1,10 +1,9 @@
-pub mod places_tree;
+mod projection;
 
 use std::iter;
 
 use flux_common::{index::IndexGen, tracked_span_bug};
 use flux_middle::{
-    fhir::WeakKind,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -12,8 +11,8 @@ use flux_middle::{
         evars::EVarSol,
         fold::{TypeFoldable, TypeVisitable},
         subst::{FVarSubst, RegionSubst},
-        BaseTy, Binder, Expr, ExprKind, GenericArg, Layout, Mutability, Path, PtrKind, Ref, Region,
-        Ty, TyKind, Var, INNERMOST,
+        BaseTy, Binder, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty,
+        TyKind, Var, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -21,7 +20,7 @@ use itertools::{izip, Itertools};
 use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 
-use self::places_tree::{Binding, FoldResult, LocKind, PlacesTree};
+use self::projection::{LocKind, PlacesTree};
 use super::rty::{Loc, Name, Sort};
 use crate::{
     checker::errors::CheckerErrKind,
@@ -57,27 +56,21 @@ impl TypeEnv<'_> {
     }
 
     pub fn alloc_universal_loc(&mut self, loc: Loc, ty: Ty) {
-        self.bindings.insert(loc, ty, LocKind::Universal);
+        self.bindings.insert(loc, LocKind::Universal, ty);
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
         let ty = RegionSubst::new(&ty, &self.local_decls[local].ty).apply(&ty);
-        self.bindings.insert(local.into(), ty, LocKind::Local);
+        self.bindings.insert(local.into(), LocKind::Local, ty);
     }
 
     pub fn alloc(&mut self, local: Local) {
-        let layout = Layout::from_rust_ty(&self.local_decls[local].ty);
         self.bindings
-            .insert(local.into(), Ty::uninit(layout), LocKind::Local);
+            .insert(local.into(), LocKind::Local, Ty::uninit());
     }
 
-    pub(crate) fn into_infer(
-        self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        scope: Scope,
-    ) -> Result<BasicBlockEnvShape, CheckerErrKind> {
-        BasicBlockEnvShape::new(rcx, gen, scope, self)
+    pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {
+        BasicBlockEnvShape::new(scope, self)
     }
 
     pub(crate) fn lookup_place(
@@ -85,31 +78,16 @@ impl TypeEnv<'_> {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-        checker_conf: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        Ok(self
-            .bindings
-            .lookup(genv, rcx, place, checker_conf)?
-            .unblock(rcx)
-            .ty())
+        Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
     }
 
-    pub(crate) fn lookup_path(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        path: &Path,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        Ok(self
-            .bindings
-            .lookup(genv, rcx, path, checker_config)?
-            .unblock(rcx)
-            .ty())
+    pub(crate) fn get(&mut self, path: &Path) -> Ty {
+        self.bindings.get(path)
     }
 
     pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
-        self.bindings.update(path, new_ty);
+        self.bindings.lookup(path).update(new_ty);
     }
 
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
@@ -122,21 +100,13 @@ impl TypeEnv<'_> {
         re: Region,
         mutbl: Mutability,
         place: &Place,
-        checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        let ty = match self
-            .bindings
-            .lookup(genv, rcx, place, checker_config)?
-            .unblock(rcx)
-        {
-            FoldResult::Strg(path, _) => Ty::ptr(PtrKind::from_ref(re, mutbl), path),
-            FoldResult::Weak(result_rk, ty) => {
-                debug_assert!(WeakKind::from(mutbl) <= result_rk);
-                Ty::mk_ref(re, ty, mutbl)
-            }
-            FoldResult::Raw(ty) => Ty::mk_ref(re, ty, mutbl), // TODO(RJ): is this legit?
-        };
-        Ok(ty)
+        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
+        if result.is_strg && mutbl == Mutability::Mut {
+            Ok(Ty::ptr(PtrKind::from_ref(re, mutbl), result.path()))
+        } else {
+            Ok(Ty::mk_ref(re, result.ty, mutbl))
+        }
     }
 
     pub(crate) fn assign(
@@ -145,25 +115,15 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         place: &Place,
         new_ty: Ty,
-        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
-        match self
-            .bindings
-            .lookup(gen.genv, rcx, place, checker_config)?
-            .unblock(rcx)
-        {
-            FoldResult::Strg(path, _) => {
-                self.bindings.update(&path, new_ty);
-            }
-            FoldResult::Weak(WeakKind::Mut | WeakKind::Arr, ty) => {
-                gen.subtyping(rcx, &new_ty, &ty, ConstrReason::Assign);
-            }
-            FoldResult::Weak(WeakKind::Shr, _) => {
-                tracked_span_bug!("cannot assign to `{place:?}`, which is behind a `&` reference");
-            }
-            FoldResult::Raw(_) => { /* ignore write through Raw */ }
+        let result = self.bindings.lookup_unfolding(gen.genv, rcx, place)?;
+
+        if result.is_strg {
+            result.update(new_ty);
+        } else if !place.behind_raw_ptr(gen.genv, self.local_decls)? {
+            gen.subtyping(rcx, &new_ty, &result.ty, ConstrReason::Assign);
         }
         Ok(())
     }
@@ -173,76 +133,39 @@ impl TypeEnv<'_> {
         genv: &GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-        checker_config: CheckerConfig,
     ) -> Result<Ty, CheckerErrKind> {
-        match self
-            .bindings
-            .lookup(genv, rcx, place, checker_config)?
-            .unblock(rcx)
-        {
-            FoldResult::Strg(path, ty) => {
-                self.bindings.update(&path, Ty::uninit(ty.layout()));
-                Ok(ty)
-            }
-            FoldResult::Weak(WeakKind::Mut, _) => {
-                tracked_span_bug!(
-                    "cannot move out of `{place:?}`, which is behind a `&mut` reference"
-                )
-            }
-            FoldResult::Weak(WeakKind::Arr, _) | FoldResult::Weak(WeakKind::Shr, _) => {
-                tracked_span_bug!("cannot move out of `{place:?}`, which is behind a `&` reference")
-            }
-            FoldResult::Raw(_) => {
-                tracked_span_bug!("cannot move out of a raw pointer")
-            }
+        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
+        if result.is_strg {
+            let uninit = Ty::uninit();
+            Ok(result.update(uninit))
+        } else {
+            tracked_span_bug!("cannot move out of {place:?}");
         }
     }
 
     pub(crate) fn unpack(&mut self, rcx: &mut RefineCtxt) {
-        self.bindings.fmap_mut(|binding| {
-            match binding {
-                Binding::Owned(ty) => Binding::Owned(rcx.unpack(ty)),
-                Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
-            }
-        });
+        self.bindings.fmap_mut(|ty| rcx.unpack(ty));
     }
 
-    pub(crate) fn block_with(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        updated: Ty,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        self.bindings
-            .lookup(gen.genv, rcx, path, checker_config)?
-            .block_with(rcx, gen, updated)
+    pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place) {
+        self.bindings.lookup(place).unblock(rcx);
     }
 
-    pub(crate) fn block(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        self.bindings
-            .lookup(gen.genv, rcx, path, checker_config)?
-            .block(rcx, gen)
+    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
+        self.bindings.lookup(path).block_with(new_ty)
+    }
+
+    pub(crate) fn block(&mut self, path: &Path) -> Ty {
+        self.bindings.lookup(path).block()
     }
 
     fn infer_subst_for_bb_env(&self, bb_env: &BasicBlockEnv) -> FVarSubst {
         let params = bb_env.params.iter().map(|(name, _)| *name).collect();
         let mut subst = FVarSubst::empty();
-        self.bindings.iter(|_, path, binding1| {
-            let binding2 = bb_env.bindings.get(&path);
-            if bb_env.bindings.contains_loc(path.loc)
-              && let Binding::Owned(ty1) = binding1
-              && let Binding::Owned(ty2) = binding2 {
-                self.infer_subst_for_bb_env_ty(bb_env, &params, ty1, &ty2, &mut subst);
-            }
-        });
+        for (loc, binding1) in self.bindings.iter() {
+            let binding2 = bb_env.bindings.get_loc(loc);
+            self.infer_subst_for_bb_env_ty(bb_env, &params, &binding1.ty, &binding2.ty, &mut subst);
+        }
 
         param_infer::check_inference(&subst, bb_env.params.iter().map(|(name, _)| *name)).unwrap();
         subst
@@ -267,9 +190,8 @@ impl TypeEnv<'_> {
             }
             (TyKind::Ptr(pk1, path), Ref!(r2, ty2, mutbl2)) => {
                 debug_assert_eq!(pk1, &PtrKind::from_ref(*r2, *mutbl2));
-                if let Binding::Owned(ty1) = self.bindings.get(path) {
-                    self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, ty2, subst);
-                }
+                let ty1 = self.bindings.get(path);
+                self.infer_subst_for_bb_env_ty(bb_env, params, &ty1, ty2, subst);
             }
             _ => {}
         }
@@ -317,7 +239,6 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
-        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
         let reason = ConstrReason::Goto(target);
 
@@ -329,47 +250,32 @@ impl TypeEnv<'_> {
             gen.check_pred(rcx, subst.apply(constr), reason);
         }
 
-        let bb_env = bb_env
-            .bindings
-            .fmap(|binding| subst.apply(binding))
-            .flatten();
+        let bb_env = bb_env.bindings.fmap(|ty| subst.apply(ty)).flatten();
 
         // Convert pointers to borrows
-        for (_, path, binding2) in &bb_env {
-            let binding1 = self.bindings.get(path);
-            if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
-                match (ty1.kind(), ty2.kind()) {
-                    (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
-                        debug_assert_eq!(r1, r2);
-                        let ty = self
-                            .bindings
-                            .lookup(gen.genv, rcx, ptr_path, checker_config)?
-                            .block_with(rcx, gen, bound.clone())?;
-                        gen.subtyping(rcx, &ty, bound, reason);
+        for (path, _, ty2) in &bb_env {
+            let ty1 = self.bindings.get(path);
+            match (ty1.kind(), ty2.kind()) {
+                (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
+                    debug_assert_eq!(r1, r2);
+                    let ty = self.bindings.lookup(ptr_path).block_with(bound.clone());
+                    gen.subtyping(rcx, &ty, bound, reason);
 
-                        self.bindings
-                            .update(path, Ty::mk_ref(*r1, bound.clone(), Mutability::Mut));
-                    }
-                    (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
-                        debug_assert_eq!(r1, r2);
-                        let ty = self
-                            .bindings
-                            .lookup(gen.genv, rcx, ptr_path, checker_config)?
-                            .block(rcx, gen)?;
-                        self.bindings
-                            .update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
-                    }
-                    _ => (),
+                    self.update(path, Ty::mk_ref(*r1, bound.clone(), Mutability::Mut));
                 }
+                (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
+                    debug_assert_eq!(r1, r2);
+                    let ty = self.bindings.get(ptr_path);
+                    self.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
+                }
+                _ => (),
             }
         }
 
         // Check subtyping
-        for (_, path, binding2) in bb_env {
-            let binding1 = self.bindings.get(&path);
-            let ty1 = binding1.ty();
-            let ty2 = binding2.ty();
-            gen.subtyping(rcx, ty1, ty2, reason);
+        for (path, _, ty2) in bb_env {
+            let ty1 = self.bindings.get(&path);
+            gen.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked(), reason);
         }
         Ok(())
     }
@@ -379,12 +285,8 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-        checker_config: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings
-            .lookup(gen.genv, rcx, place, checker_config)?
-            .fold(rcx, gen, true)?;
-        Ok(())
+        self.bindings.lookup(place).fold(rcx, gen)
     }
 
     pub(crate) fn unfold(
@@ -394,9 +296,7 @@ impl TypeEnv<'_> {
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings
-            .unfold(genv, rcx, place, checker_conf)?
-            .unfold(genv, rcx, checker_conf)
+        self.bindings.unfold(genv, rcx, place, checker_conf)
     }
 
     pub(crate) fn downcast(
@@ -422,7 +322,7 @@ impl TypeEnv<'_> {
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty);
+        self.bindings.lookup(path).update(ty);
     }
 }
 
@@ -431,20 +331,9 @@ impl BasicBlockEnvShape {
         TypeEnv { bindings: self.bindings.clone(), local_decls }
     }
 
-    fn new(
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        scope: Scope,
-        mut env: TypeEnv,
-    ) -> Result<BasicBlockEnvShape, CheckerErrKind> {
-        env.bindings.close_boxes(rcx, gen, &scope)?;
+    fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape, CheckerErrKind> {
         let mut bindings = env.bindings;
-        bindings.fmap_mut(|binding| {
-            match binding {
-                Binding::Owned(ty) => Binding::Owned(BasicBlockEnvShape::pack_ty(&scope, ty)),
-                Binding::Blocked(ty) => Binding::Blocked(BasicBlockEnvShape::pack_ty(&scope, ty)),
-            }
-        });
+        bindings.fmap_mut(|ty| BasicBlockEnvShape::pack_ty(&scope, ty));
         Ok(BasicBlockEnvShape { scope, bindings })
     }
 
@@ -458,11 +347,18 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idxs.clone())
                 }
             }
+            TyKind::Downcast(adt, substs, ty, variant, fields) => {
+                debug_assert!(!scope.has_free_vars(substs));
+                debug_assert!(!scope.has_free_vars(ty));
+                let fields = fields.iter().map(|ty| Self::pack_ty(scope, ty)).collect();
+                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields)
+            }
+            TyKind::Blocked(ty) => Ty::blocked(BasicBlockEnvShape::pack_ty(scope, ty)),
             // FIXME(nilehmann) [`TyKind::Exists`] could also contain free variables.
             TyKind::Exists(_)
             | TyKind::Discr(..)
             | TyKind::Ptr(..)
-            | TyKind::Uninit(_)
+            | TyKind::Uninit
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
         }
@@ -512,124 +408,86 @@ impl BasicBlockEnvShape {
         }
     }
 
-    fn block(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        self.bindings
-            .lookup(gen.genv, rcx, path, checker_config)?
-            .block(rcx, gen)
+    fn block(&mut self, path: &Path) -> Ty {
+        self.bindings.lookup(path).block()
     }
 
-    pub(crate) fn block_with(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        path: &Path,
-        updated: Ty,
-        checker_config: CheckerConfig,
-    ) -> Result<Ty, CheckerErrKind> {
-        self.bindings
-            .lookup(gen.genv, rcx, path, checker_config)?
-            .block_with(rcx, gen, updated)
+    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
+        self.bindings.lookup(path).block_with(new_ty)
     }
 
     fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.update(path, ty);
+        self.bindings.lookup(path).update(ty);
     }
 
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub(crate) fn join(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
-        mut other: TypeEnv,
-        checker_config: CheckerConfig,
-    ) -> Result<bool, CheckerErrKind> {
+    pub(crate) fn join(&mut self, mut other: TypeEnv) -> Result<bool, CheckerErrKind> {
         let paths = self.bindings.paths();
 
         // Convert pointers to borrows
         for path in &paths {
-            let binding1 = self.bindings.get(path);
-            let binding2 = other.bindings.get(path);
-            if let (Binding::Owned(ty1), Binding::Owned(ty2)) = (binding1, binding2) {
-                match (ty1.kind(), ty2.kind()) {
-                    (
-                        TyKind::Ptr(PtrKind::Shr(r1), path1),
-                        TyKind::Ptr(PtrKind::Shr(r2), path2),
-                    ) if path1 != path2 => {
-                        debug_assert_eq!(r1, r2);
-                        let ty1 = self.block(rcx, gen, path1, checker_config)?;
-                        let ty2 = self.block(rcx, gen, path2, checker_config)?;
+            let ty1 = self.bindings.get(path);
+            let ty2 = other.bindings.get(path);
+            match (ty1.kind(), ty2.kind()) {
+                (TyKind::Ptr(PtrKind::Shr(r1), path1), TyKind::Ptr(PtrKind::Shr(r2), path2))
+                    if path1 != path2 =>
+                {
+                    debug_assert_eq!(r1, r2);
+                    let ty1 = self.block(path1);
+                    let ty2 = self.block(path2);
 
-                        self.update(path, Ty::mk_ref(*r1, ty1, Mutability::Not));
-                        other.update(path, Ty::mk_ref(*r2, ty2, Mutability::Not));
-                    }
-                    (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
-                        debug_assert_eq!(r1, r2);
-                        let ty = self.block(rcx, gen, ptr_path, checker_config)?;
-                        self.bindings
-                            .update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
-                    }
-                    (Ref!(r1, _, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) => {
-                        debug_assert_eq!(r1, r2);
-                        let ty = other.block(rcx, gen, ptr_path, checker_config)?;
-                        other.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
-                    }
-                    (
-                        TyKind::Ptr(PtrKind::Mut(r1), path1),
-                        TyKind::Ptr(PtrKind::Mut(r2), path2),
-                    ) if path1 != path2 => {
-                        debug_assert_eq!(r1, r2);
-                        let ty1 = self.bindings.get(path1).expect_owned().with_holes();
-                        let ty2 = other.bindings.get(path2).expect_owned().with_holes();
-
-                        self.bindings
-                            .update(path, Ty::mk_ref(*r1, ty1.clone(), Mutability::Mut));
-                        other.update(path, Ty::mk_ref(*r1, ty2.clone(), Mutability::Mut));
-
-                        self.block_with(rcx, gen, path1, ty1, checker_config)?;
-                        other.block_with(rcx, gen, path2, ty2, checker_config)?;
-                    }
-                    (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
-                        debug_assert_eq!(r1, r2);
-                        let bound = bound.with_holes();
-                        self.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
-                        self.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
-                    }
-                    (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
-                        debug_assert_eq!(r1, r2);
-                        let bound = bound.with_holes();
-                        other.block_with(rcx, gen, ptr_path, bound.clone(), checker_config)?;
-                        other.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
-                    }
-                    _ => {}
+                    self.update(path, Ty::mk_ref(*r1, ty1, Mutability::Not));
+                    other.update(path, Ty::mk_ref(*r2, ty2, Mutability::Not));
                 }
+                (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
+                    debug_assert_eq!(r1, r2);
+                    let ty = self.block(ptr_path);
+                    self.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
+                }
+                (Ref!(r1, _, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) => {
+                    debug_assert_eq!(r1, r2);
+                    let ty = other.block(ptr_path);
+                    other.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
+                }
+                (TyKind::Ptr(PtrKind::Mut(r1), path1), TyKind::Ptr(PtrKind::Mut(r2), path2))
+                    if path1 != path2 =>
+                {
+                    debug_assert_eq!(r1, r2);
+                    let ty1 = self.bindings.get(path1).with_holes();
+                    let ty2 = other.bindings.get(path2).with_holes();
+
+                    self.update(path, Ty::mk_ref(*r1, ty1.clone(), Mutability::Mut));
+                    other.update(path, Ty::mk_ref(*r1, ty2.clone(), Mutability::Mut));
+
+                    self.block_with(path1, ty1);
+                    other.block_with(path2, ty2);
+                }
+                (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
+                    debug_assert_eq!(r1, r2);
+                    let bound = bound.with_holes();
+                    self.block_with(ptr_path, bound.clone());
+                    self.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
+                }
+                (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
+                    debug_assert_eq!(r1, r2);
+                    let bound = bound.with_holes();
+                    other.block_with(ptr_path, bound.clone());
+                    other.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
+                }
+                _ => {}
             }
         }
 
         // Join types
         let mut modified = false;
         for path in &paths {
-            let binding1 = self.bindings.get(path);
-            let binding2 = other.bindings.get(path);
-            let binding = match (&binding1, &binding2) {
-                (Binding::Owned(ty1), Binding::Owned(ty2)) => {
-                    Binding::Owned(self.join_ty(ty1, ty2))
-                }
-                (Binding::Owned(ty1), Binding::Blocked(ty2))
-                | (Binding::Blocked(ty1), Binding::Owned(ty2))
-                | (Binding::Blocked(ty1), Binding::Blocked(ty2)) => {
-                    Binding::Blocked(self.join_ty(ty1, ty2))
-                }
-            };
-            modified |= binding1 != binding;
-            self.bindings.update_binding(path, binding);
+            let ty1 = self.bindings.get(path);
+            let ty2 = other.bindings.get(path);
+            let ty = self.join_ty(&ty1, &ty2);
+            modified |= ty1 != ty;
+            self.update(path, ty);
         }
 
         Ok(modified)
@@ -637,7 +495,9 @@ impl BasicBlockEnvShape {
 
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Uninit(layout), _) | (_, TyKind::Uninit(layout)) => Ty::uninit(layout.clone()),
+            (TyKind::Blocked(ty1), _) => Ty::blocked(self.join_ty(ty1, &ty2.unblocked())),
+            (_, TyKind::Blocked(ty2)) => Ty::blocked(self.join_ty(&ty1.unblocked(), ty2)),
+            (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
             (TyKind::Exists(ty1), _) => self.join_ty(ty1.as_ref().skip_binder(), ty2),
             (_, TyKind::Exists(ty2)) => self.join_ty(ty1, ty2.as_ref().skip_binder()),
             (TyKind::Constr(_, ty1), _) => self.join_ty(ty1, ty2),
@@ -661,6 +521,20 @@ impl BasicBlockEnvShape {
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
                 Ty::param(*param_ty1)
+            }
+            (
+                TyKind::Downcast(adt1, substs1, ty1, variant1, fields1),
+                TyKind::Downcast(adt2, substs2, ty2, variant2, fields2),
+            ) => {
+                debug_assert_eq!(adt1, adt2);
+                debug_assert_eq!(substs1, substs2);
+                debug_assert!(ty1 == ty2 && !self.scope.has_free_vars(ty2));
+                debug_assert_eq!(variant1, variant2);
+                debug_assert_eq!(fields1.len(), fields2.len());
+                let fields = iter::zip(fields1, fields2)
+                    .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
+                    .collect();
+                Ty::downcast(adt1.clone(), substs1.clone(), ty1.clone(), *variant1, fields)
             }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
         }
@@ -700,11 +574,11 @@ impl BasicBlockEnvShape {
                     .collect();
                 BaseTy::adt(def1.clone(), List::from_vec(substs))
             }
-            (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
-                let tys = iter::zip(tys1, tys2)
+            (BaseTy::Tuple(fields1), BaseTy::Tuple(fields2)) => {
+                let fields = iter::zip(fields1, fields2)
                     .map(|(ty1, ty2)| self.join_ty(ty1, ty2))
                     .collect();
-                BaseTy::Tuple(tys)
+                BaseTy::Tuple(fields)
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
                 debug_assert_eq!(r1, r2);
@@ -740,12 +614,7 @@ impl BasicBlockEnvShape {
         let mut bindings = self.bindings;
 
         let mut generalizer = Generalizer::new(self.scope.name_gen());
-        bindings.fmap_mut(|binding| {
-            match binding {
-                Binding::Owned(ty) => Binding::Owned(generalizer.generalize_ty(ty)),
-                Binding::Blocked(ty) => Binding::Blocked(ty.clone()),
-            }
-        });
+        bindings.fmap_mut(|ty| generalizer.generalize_ty(ty));
         let (names, sorts, preds) = generalizer.into_parts();
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
@@ -764,7 +633,7 @@ impl BasicBlockEnvShape {
         );
         constrs.push(kvar);
 
-        // Replace holes that weren't generalized by fresh kvars
+        // Replace remaning holes by fresh kvars
         let mut kvar_gen = |sorts: &[_]| {
             kvar_store.fresh_bound(
                 sorts,
@@ -882,7 +751,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+            PlacesTree::default_cx(tcx)
         }
     }
 
@@ -893,7 +762,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+            PlacesTree::default_cx(tcx)
         }
     }
 
@@ -922,7 +791,7 @@ mod pretty {
         }
 
         fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx).kvar_args(KVarArgs::Hide)
+            PlacesTree::default_cx(tcx)
         }
     }
 

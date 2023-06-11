@@ -22,7 +22,7 @@ pub use normalize::Defns;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{TyDecodable, TyEncodable};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -243,7 +243,7 @@ pub enum TyKind {
     Indexed(BaseTy, Index),
     Exists(Binder<Ty>),
     Constr(Expr, Ty),
-    Uninit(Layout),
+    Uninit,
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
@@ -253,26 +253,8 @@ pub enum TyKind {
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
-}
-
-/// *Abstract* representation of a type's layout, i.e., a type that may contain type variables and
-/// it doesn't have an order defined for the fields in an ADT. It can be understood as a stripped down
-/// version of a [`Ty`] that doesn't distinguish between pointers and references. This is used to annotate
-/// [`TyKind::Uninit`] in a way that let's us split it into multiple "blocks" of uninitialized memory
-/// and then fold it back. In principle, this should let us construct some explicit "physical" layout
-/// after substituting type variables, but the current representation is a bit of a hack as it doesn't
-/// track enough information to do so, e.g., it doesn't track substitutions on ADTs and it lumps together
-/// many different types into a single [`LayoutKind::Block`] of unknown size.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub struct Layout {
-    kind: Interned<LayoutKind>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum LayoutKind {
-    Adt(DefId),
-    Tuple(List<Layout>),
-    Block,
+    Downcast(AdtDef, Substs, Ty, VariantIdx, List<Ty>),
+    Blocked(Ty),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -757,6 +739,10 @@ impl AdtDef {
         self.0.rustc.variants()
     }
 
+    pub fn variant(&self, idx: VariantIdx) -> &VariantDef {
+        self.0.rustc.variant(idx)
+    }
+
     pub fn invariants(&self) -> &[Invariant] {
         &self.0.invariants
     }
@@ -847,8 +833,8 @@ impl Ty {
         TyKind::Constr(p.into(), ty).intern()
     }
 
-    pub fn uninit(layout: Layout) -> Ty {
-        TyKind::Uninit(layout).intern()
+    pub fn uninit() -> Ty {
+        TyKind::Uninit.intern()
     }
 
     pub fn indexed(bty: BaseTy, idx: impl Into<Index>) -> Ty {
@@ -887,6 +873,20 @@ impl Ty {
 
     pub fn param(param_ty: ParamTy) -> Ty {
         TyKind::Param(param_ty).intern()
+    }
+
+    pub fn downcast(
+        adt: AdtDef,
+        substs: Substs,
+        ty: Ty,
+        variant: VariantIdx,
+        fields: List<Ty>,
+    ) -> Ty {
+        TyKind::Downcast(adt, substs, ty, variant, fields).intern()
+    }
+
+    pub fn blocked(ty: Ty) -> Ty {
+        TyKind::Blocked(ty).intern()
     }
 
     pub fn usize() -> Ty {
@@ -936,6 +936,13 @@ impl Ty {
         }
         let mut preds = vec![];
         (go(self, &mut preds), Expr::and(preds))
+    }
+
+    pub fn unblocked(&self) -> Ty {
+        match self.kind() {
+            TyKind::Blocked(ty) => ty.clone(),
+            _ => self.clone(),
+        }
     }
 }
 
@@ -991,7 +998,7 @@ impl TyS {
     }
 
     pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit(_))
+        matches!(self.kind(), TyKind::Uninit)
     }
 
     pub fn is_box(&self) -> bool {
@@ -1018,6 +1025,18 @@ impl TyS {
             .unwrap_or_default()
     }
 
+    pub fn is_array(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_array)
+            .unwrap_or_default()
+    }
+
+    pub fn is_slice(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_slice)
+            .unwrap_or_default()
+    }
+
     pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
         match self.kind() {
             TyKind::Indexed(bty, _) => Some(bty),
@@ -1025,55 +1044,6 @@ impl TyS {
             TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
             _ => None,
         }
-    }
-
-    pub fn layout(&self) -> Layout {
-        match self.kind() {
-            TyKind::Indexed(BaseTy::Adt(adt_def, ..), _) => Layout::adt(adt_def.did()),
-            TyKind::Indexed(BaseTy::Tuple(tys), _) => {
-                let layouts = tys.iter().map(|ty| ty.layout()).collect();
-                Layout::tuple(layouts)
-            }
-            TyKind::Exists(ty) => ty.as_ref().skip_binder().layout(),
-            TyKind::Constr(_, ty) => ty.layout(),
-            TyKind::Uninit(layout) => layout.clone(),
-            _ => Layout::block(),
-        }
-    }
-}
-
-impl Layout {
-    pub fn kind(&self) -> &LayoutKind {
-        &self.kind
-    }
-
-    pub fn from_rust_ty(ty: &rustc::ty::Ty) -> Self {
-        match ty.kind() {
-            rustc::ty::TyKind::Adt(adt_def, ..) => Layout::adt(adt_def.did()),
-            rustc::ty::TyKind::Tuple(tys) => {
-                let layouts = tys.iter().map(Layout::from_rust_ty).collect();
-                Layout::tuple(layouts)
-            }
-            _ => Layout::block(),
-        }
-    }
-
-    pub fn adt(def_id: DefId) -> Self {
-        LayoutKind::Adt(def_id).intern()
-    }
-
-    pub fn block() -> Self {
-        LayoutKind::Block.intern()
-    }
-
-    pub fn tuple(layouts: List<Layout>) -> Self {
-        LayoutKind::Tuple(layouts).intern()
-    }
-}
-
-impl LayoutKind {
-    fn intern(self) -> Layout {
-        Layout { kind: Interned::new(self) }
     }
 }
 
@@ -1104,6 +1074,14 @@ impl BaseTy {
 
     fn is_tuple(&self) -> bool {
         matches!(self, BaseTy::Tuple(..))
+    }
+
+    fn is_array(&self) -> bool {
+        matches!(self, BaseTy::Array(..))
+    }
+
+    fn is_slice(&self) -> bool {
+        matches!(self, BaseTy::Slice(..))
     }
 
     pub fn is_box(&self) -> bool {
@@ -1245,7 +1223,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, TyS, LayoutKind);
+impl_internable!(AdtDefData, TyS);
 impl_slice_internable!(
     Ty,
     GenericArg,
@@ -1258,7 +1236,6 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     BoundVariableKind,
-    Layout
 );
 
 #[macro_export]
@@ -1420,7 +1397,7 @@ mod pretty {
                         w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }
                 }
-                Sort::Param(param_ty) => w!("<{}>::sort", ^param_ty),
+                Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
             }
         }
     }
@@ -1499,7 +1476,7 @@ mod pretty {
                         )
                     }
                 }
-                TyKind::Uninit(_) => w!("uninit"),
+                TyKind::Uninit => w!("uninit"),
                 TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
                 TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.did(), ^place),
                 TyKind::Constr(pred, ty) => {
@@ -1509,7 +1486,15 @@ mod pretty {
                         w!("{{ {:?} | {:?} }}", ty, pred)
                     }
                 }
-                TyKind::Param(param_ty) => w!("{}#t", ^param_ty),
+                TyKind::Param(param_ty) => w!("{}", ^param_ty),
+                TyKind::Downcast(adt, .., variant_idx, fields) => {
+                    w!("{:?}::{}", adt.did(), ^adt.variant(*variant_idx).name)?;
+                    if !fields.is_empty() {
+                        w!("({:?})", join!(", ", fields))?;
+                    }
+                    Ok(())
+                }
+                TyKind::Blocked(ty) => w!("†{:?}", ty),
             }
         }
 
@@ -1522,8 +1507,20 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                PtrKind::Shr(r) => w!("shr[{:?}]", r),
-                PtrKind::Mut(r) => w!("mut[{:?}]", r),
+                PtrKind::Shr(re) => {
+                    w!("shr")?;
+                    if !cx.hide_regions {
+                        w!("[{:?}]", re)?;
+                    }
+                    Ok(())
+                }
+                PtrKind::Mut(re) => {
+                    w!("mut")?;
+                    if !cx.hide_regions {
+                        w!("[{:?}]", re)?;
+                    }
+                    Ok(())
+                }
                 PtrKind::Box => w!("box"),
             }
         }
@@ -1539,13 +1536,14 @@ mod pretty {
             ) -> fmt::Result {
                 define_scoped!(cx, f);
                 if let ExprKind::Tuple(es) = expr.kind() {
-                    w!("(")?;
-                    for (is_binder, e) in iter::zip(is_binder.split(), es) {
+                    for (i, (is_binder, e)) in iter::zip(is_binder.split(), es).enumerate() {
+                        if i > 0 {
+                            w!(" ")?;
+                        }
                         go(cx, f, is_binder, e)?;
-                        w!(", ")?;
+                        w!(",")?;
                     }
-                    w!(")")?;
-                } else if let Some(true) = is_binder.as_leaf() {
+                } else if let Some(true) = is_binder.as_leaf() && !cx.hide_binder {
                     w!("@{:?}", expr)?;
                 } else {
                     w!("{:?}", expr)?;
@@ -1567,18 +1565,26 @@ mod pretty {
                 BaseTy::Char => w!("char"),
                 BaseTy::Adt(adt_def, substs) => {
                     w!("{:?}", adt_def.did())?;
+                    let substs = substs
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                        .collect_vec();
                     if !substs.is_empty() {
                         w!("<{:?}>", join!(", ", substs))?;
                     }
                     Ok(())
                 }
-                BaseTy::Param(param) => w!("{}#b", ^param),
+                BaseTy::Param(param) => w!("{}", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
                 BaseTy::RawPtr(ty, Mutability::Mut) => w!("*mut {:?}", ty),
                 BaseTy::RawPtr(ty, Mutability::Not) => w!("*const {:?}", ty),
-                BaseTy::Ref(region, ty, mutbl) => {
-                    w!("&{:?} {}{:?}", region, ^mutbl.prefix_str(), ty)
+                BaseTy::Ref(re, ty, mutbl) => {
+                    w!("&")?;
+                    if !cx.hide_regions {
+                        w!("{:?} ", re)?;
+                    }
+                    w!("{}{:?}",  ^mutbl.prefix_str(), ty)
                 }
                 BaseTy::Tuple(tys) => {
                     if let [ty] = &tys[..] {

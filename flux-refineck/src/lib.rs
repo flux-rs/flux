@@ -2,6 +2,7 @@
 
 #![warn(unused_extern_crates)]
 #![feature(
+    associated_type_defaults,
     box_patterns,
     drain_filter,
     if_let_guard,
@@ -12,7 +13,8 @@
     never_type,
     result_option_inspect,
     rustc_private,
-    type_alias_impl_trait
+    type_alias_impl_trait,
+    unwrap_infallible
 )]
 
 extern crate rustc_borrowck;
@@ -48,7 +50,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, ESpan},
 };
-use fold_unfold::{FoldUnfoldAnalysis, FoldUnfolds};
+use fold_unfold::FoldUnfolds;
 use itertools::Itertools;
 use rustc_borrowck::consumers::BorrowIndex;
 use rustc_data_structures::fx::FxIndexMap;
@@ -120,7 +122,7 @@ fn compute_extra_data(
     let mut data = FxHashMap::default();
     for def_id in bodies {
         let body = genv.mir(def_id).emit(genv.sess)?;
-        let fold_unfolds = FoldUnfoldAnalysis::run(genv, &body).emit(genv.sess)?;
+        let fold_unfolds = fold_unfold::run_analysis(genv, &body).emit(genv.sess)?;
         let borrows_out_of_scope_at_location = body.calculate_borrows_out_of_scope_at_location();
         data.insert(
             def_id.to_def_id(),

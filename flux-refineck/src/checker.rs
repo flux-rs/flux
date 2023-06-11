@@ -75,7 +75,6 @@ pub(crate) trait Mode: Sized {
         genv: &'a GlobalEnv<'a, 'tcx>,
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
-        checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
 
@@ -220,7 +219,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
             config,
         };
-
         ck.check_goto(rcx, env, START_BLOCK, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
@@ -329,9 +327,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
                 let ty = rcx.unpack(&ty);
-                let checker_config = self.config;
                 let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.assign(rcx, gen, place, ty, checker_config)
+                env.assign(rcx, gen, place, ty)
                     .with_src_info(stmt.source_info)?;
             }
             StatementKind::SetDiscriminant { .. } => {
@@ -380,7 +377,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 self.mode
-                    .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
+                    .constr_gen(self.genv, &self.rvid_gen, rcx, span)
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 Ok(vec![])
@@ -432,9 +429,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret, self.config.check_overflow);
-                let config = self.config;
                 let mut gen = self.constr_gen(rcx, terminator_span);
-                env.assign(rcx, &mut gen, destination, ret, config)
+                env.assign(rcx, &mut gen, destination, ret)
                     .with_span(terminator_span)?;
 
                 if let Some(target) = target {
@@ -450,8 +446,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let config = self.config;
-                let _ = env.move_place(self.genv, rcx, place, config);
+                let _ = env.move_place(self.genv, rcx, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -656,7 +651,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let location = self.body.terminator_loc(target);
             self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
             self.mode
-                .constr_gen(self.genv, &self.rvid_gen, &rcx, self.config, span)
+                .constr_gen(self.genv, &self.rvid_gen, &rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(span)
         } else if self.body.is_join_point(target) {
@@ -688,13 +683,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
-                let config = self.config;
-                env.borrow(self.genv, rcx, *r, Mutability::Mut, place, config)
+                env.borrow(self.genv, rcx, *r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared, place) => {
-                let config = self.config;
-                env.borrow(self.genv, rcx, *r, Mutability::Not, place, config)
+                env.borrow(self.genv, rcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -731,17 +724,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 // TODO(pack-closure): handle case where closure "moves" in values for "free variables"
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
-                let tys = gen
-                    .pack_closure_operands(rcx, env, &tys)
-                    .with_span(stmt_span);
+                let tys = gen.pack_closure_operands(env, &tys).with_span(stmt_span);
 
                 let res = Ty::closure(*did, tys?);
                 Ok(res)
             }
             Rvalue::Discriminant(place) => {
-                let config = self.config;
                 let ty = env
-                    .lookup_place(self.genv, rcx, place, config)
+                    .lookup_place(self.genv, rcx, place)
                     .with_span(stmt_span)?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -761,9 +751,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         source_span: Span,
         place: &Place,
     ) -> Result<Ty, CheckerError> {
-        let config = self.config;
         let ty = env
-            .lookup_place(self.genv, rcx, place, config)
+            .lookup_place(self.genv, rcx, place)
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
@@ -910,18 +899,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         operand: &Operand,
     ) -> Result<Ty, CheckerError> {
         let ty = match operand {
-            Operand::Copy(p) => {
-                // OWNERSHIP SAFETY CHECK
-                let config = self.config;
-                env.lookup_place(self.genv, rcx, p, config)
-                    .with_span(source_span)?
-            }
-            Operand::Move(p) => {
-                // OWNERSHIP SAFETY CHECK
-                let config = self.config;
-                env.move_place(self.genv, rcx, p, config)
-                    .with_span(source_span)?
-            }
+            Operand::Copy(p) => env.lookup_place(self.genv, rcx, p).with_span(source_span)?,
+            Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
             Operand::Constant(c) => Self::check_constant(c),
         };
         Ok(rcx.unpack(&ty))
@@ -956,7 +935,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         span: Span,
     ) -> Result<(), CheckerError> {
         for borrow in self.borrows_out_of_scope_at(location) {
-            self.unblock(rcx, env, &UnblockStmt::from(borrow));
+            self.apply_unblock(rcx, env, &UnblockStmt::from(borrow));
         }
         for fold_unfold in self.fold_unfolds().fold_unfolds_at_location(location) {
             self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
@@ -978,8 +957,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    fn unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
+    fn apply_unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
         dbg::statement!("start", stmt, rcx, env);
+        env.unblock(rcx, &stmt.place);
         dbg::statement!("end", stmt, rcx, env);
     }
 
@@ -993,9 +973,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         dbg::statement!("start", fold_unfold, rcx, env);
         match fold_unfold {
             FoldUnfold::Fold(place) => {
-                let config = self.config;
                 let gen = &mut self.constr_gen(rcx, span);
-                env.fold(rcx, gen, place, config)
+                env.fold(rcx, gen, place)
             }
             FoldUnfold::Unfold(place) => env.unfold(self.genv, rcx, place, self.config),
         }
@@ -1005,8 +984,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.mode
-            .constr_gen(self.genv, &self.rvid_gen, rcx, self.config, span)
+        self.mode.constr_gen(self.genv, &self.rvid_gen, rcx, span)
     }
 
     #[track_caller]
@@ -1108,10 +1086,9 @@ impl Mode for ShapeMode {
         genv: &'a GlobalEnv<'a, 'tcx>,
         rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
-        checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_: &[_], _| Expr::hole(), rvid_gen, checker_config, span)
+        ConstrGen::new(genv, |_: &[_], _| Expr::hole(), rvid_gen, span)
     }
 
     fn enter_basic_block<'a>(
@@ -1124,7 +1101,7 @@ impl Mode for ShapeMode {
 
     fn check_goto_join_point(
         ck: &mut Checker<ShapeMode>,
-        mut rcx: RefineCtxt,
+        _: RefineCtxt,
         env: TypeEnv,
         terminator_span: Span,
         target: BasicBlock,
@@ -1135,26 +1112,10 @@ impl Mode for ShapeMode {
         let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
-        let mut gen = ConstrGen::new(
-            ck.genv,
-            |_: &[_], _| Expr::hole(),
-            &ck.rvid_gen,
-            ck.config,
-            terminator_span,
-        );
-
         let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
-            Entry::Occupied(mut entry) => {
-                entry
-                    .get_mut()
-                    .join(&mut rcx, &mut gen, env, ck.config)
-                    .with_span(terminator_span)?
-            }
+            Entry::Occupied(mut entry) => entry.get_mut().join(env).with_span(terminator_span)?,
             Entry::Vacant(entry) => {
-                entry.insert(
-                    env.into_infer(&mut rcx, &mut gen, scope)
-                        .with_span(terminator_span)?,
-                );
+                entry.insert(env.into_infer(scope).with_span(terminator_span)?);
                 true
             }
         };
@@ -1180,7 +1141,6 @@ impl Mode for RefineMode {
         genv: &'a GlobalEnv<'a, 'tcx>,
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
-        checker_config: CheckerConfig,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
@@ -1188,7 +1148,6 @@ impl Mode for RefineMode {
             genv,
             move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
             rvid_gen,
-            checker_config,
             span,
         )
     }
@@ -1221,10 +1180,9 @@ impl Mode for RefineMode {
                     .fresh_bound(sorts, bb_env.scope().iter(), encoding)
             },
             &ck.rvid_gen,
-            ck.config,
             terminator_span,
         );
-        env.check_goto(&mut rcx, gen, bb_env, target, ck.config)
+        env.check_goto(&mut rcx, gen, bb_env, target)
             .with_span(terminator_span)?;
 
         Ok(!ck.visited.contains(target))

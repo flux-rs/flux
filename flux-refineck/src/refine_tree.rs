@@ -224,14 +224,15 @@ impl RefineCtxt<'_> {
 
         impl TypeFolder for Unpacker<'_, '_> {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                let flags = self.flags;
                 match ty.kind() {
                     TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
-                    TyKind::Exists(bound_ty) => {
+                    TyKind::Exists(bound_ty) if !flags.contains(UnpackFlags::NO_UNPACK_EXISTS) => {
                         // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                         // that makes the refered type too specific. We only have this as a workaround to
                         // infer parameters under mutable references and it should be removed once we implement
                         // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                        if !self.in_mut_ref || self.flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
+                        if !self.in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
                             bound_ty
                                 .replace_bound_exprs_with(|sort| self.rcx.define_vars(sort))
                                 .fold_with(self)
@@ -242,6 +243,9 @@ impl RefineCtxt<'_> {
                     TyKind::Constr(pred, ty) => {
                         self.rcx.assume_pred(pred);
                         ty.fold_with(self)
+                    }
+                    TyKind::Downcast(..) if !self.flags.contains(UnpackFlags::SHALLOW) => {
+                        ty.super_fold_with(self)
                     }
                     _ => ty.clone(),
                 }
@@ -401,8 +405,9 @@ impl NodePtr {
 
 bitflags! {
     pub struct UnpackFlags: u8 {
-        const EXISTS_IN_MUT_REF = 0b01;
-        const SHALLOW           = 0b10;
+        const EXISTS_IN_MUT_REF = 0b001;
+        const SHALLOW           = 0b010;
+        const NO_UNPACK_EXISTS  = 0b100;
     }
 }
 

@@ -149,6 +149,8 @@ pub struct PPrintCx<'tcx> {
     pub hide_uninit: bool,
     pub show_is_binder: bool,
     pub hide_refinements: bool,
+    pub hide_regions: bool,
+    pub hide_binder: bool,
 }
 
 pub struct WithCx<'a, 'tcx, T> {
@@ -210,6 +212,8 @@ impl PPrintCx<'_> {
             hide_uninit: true,
             show_is_binder: false,
             hide_refinements: false,
+            hide_regions: false,
+            hide_binder: false,
         }
     }
 
@@ -228,6 +232,8 @@ impl PPrintCx<'_> {
                 hide_uninit,
                 show_is_binder,
                 hide_refinements,
+                hide_regions,
+                hide_binder,
             ]
         );
     }
@@ -242,6 +248,14 @@ impl PPrintCx<'_> {
 
     pub fn show_is_binder(self, b: bool) -> Self {
         Self { show_is_binder: b, ..self }
+    }
+
+    pub fn hide_regions(self, b: bool) -> Self {
+        Self { hide_regions: b, ..self }
+    }
+
+    pub fn hide_binder(self, b: bool) -> Self {
+        Self { hide_binder: b, ..self }
     }
 }
 
