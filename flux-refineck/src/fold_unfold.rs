@@ -21,17 +21,14 @@ use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, Idx, IndexVec};
 use rustc_middle::mir::START_BLOCK;
 
-use crate::queue::WorkQueue;
+use crate::{
+    ghost_statements::{GhostStatement, Point},
+    queue::WorkQueue,
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct FoldUnfolds {
-    at_location: FxHashMap<Location, Vec<FoldUnfold>>,
-    at_edge: FxHashMap<(BasicBlock, BasicBlock), Vec<FoldUnfold>>,
-}
-
-pub(crate) enum FoldUnfold {
-    Fold(Place),
-    Unfold(Place),
+    fold_unfolds: FxHashMap<Point, Vec<GhostStatement>>,
 }
 
 pub(crate) fn run_analysis<'tcx>(
@@ -93,12 +90,6 @@ struct Elaboration<'a> {
 struct FoldUnfoldsAt<'a> {
     data: &'a mut FoldUnfolds,
     point: Point,
-}
-
-#[derive(Clone, Copy)]
-enum Point {
-    Location(Location),
-    Edge(BasicBlock, BasicBlock),
 }
 
 #[derive(Debug)]
@@ -750,52 +741,24 @@ impl PlaceNode {
 
 impl FoldUnfolds {
     fn insert_fold_at(&mut self, point: Point, place: Place) {
-        match point {
-            Point::Location(location) => {
-                self.at_location
-                    .entry(location)
-                    .or_default()
-                    .push(FoldUnfold::Fold(place));
-            }
-            Point::Edge(from, to) => {
-                self.at_edge
-                    .entry((from, to))
-                    .or_default()
-                    .push(FoldUnfold::Fold(place));
-            }
-        }
+        self.fold_unfolds
+            .entry(point)
+            .or_default()
+            .push(GhostStatement::Fold(place));
     }
 
     fn insert_unfold_at(&mut self, point: Point, place: Place) {
-        match point {
-            Point::Location(location) => {
-                self.at_location
-                    .entry(location)
-                    .or_default()
-                    .push(FoldUnfold::Unfold(place));
-            }
-            Point::Edge(from, to) => {
-                self.at_edge
-                    .entry((from, to))
-                    .or_default()
-                    .push(FoldUnfold::Unfold(place));
-            }
-        }
+        self.fold_unfolds
+            .entry(point)
+            .or_default()
+            .push(GhostStatement::Unfold(place));
     }
 
-    pub(crate) fn fold_unfolds_at_location(
+    pub(crate) fn fold_unfolds_at(
         &self,
-        location: Location,
-    ) -> impl Iterator<Item = &FoldUnfold> + '_ {
-        self.at_location.get(&location).into_iter().flatten()
-    }
-
-    pub(crate) fn fold_unfolds_at_goto(
-        &self,
-        from: BasicBlock,
-        target: BasicBlock,
-    ) -> impl Iterator<Item = &FoldUnfold> + '_ {
-        self.at_edge.get(&(from, target)).into_iter().flatten()
+        point: Point,
+    ) -> impl Iterator<Item = &GhostStatement> + '_ {
+        self.fold_unfolds.get(&point).into_iter().flatten()
     }
 }
 
@@ -881,15 +844,6 @@ impl fmt::Debug for PlaceNode {
             }
             PlaceNode::Tuple(_, fields) => write!(f, "({:?})", fields.iter().format(", ")),
             PlaceNode::Ty(ty) => write!(f, "•{ty:?}"),
-        }
-    }
-}
-
-impl fmt::Debug for FoldUnfold {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FoldUnfold::Fold(place) => write!(f, "fold({place:?})"),
-            FoldUnfold::Unfold(place) => write!(f, "unfold({place:?})"),
         }
     }
 }

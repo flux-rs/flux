@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, fmt, iter};
+use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{
     bug, dbg,
@@ -15,11 +15,11 @@ use flux_middle::{
         TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
-        self, lowering,
+        self,
         mir::{
-            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowData, BorrowKind, CastKind,
-            Constant, Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator,
-            TerminatorKind, RETURN_PLACE, START_BLOCK,
+            self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+            RETURN_PLACE, START_BLOCK,
         },
         ty::RegionVar,
     },
@@ -36,12 +36,11 @@ use self::errors::{CheckerError, ResultExt};
 use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
-    fold_unfold::{FoldUnfold, FoldUnfolds},
+    ghost_statements::{GhostStatement, GhostStatements, Point},
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
-    ExtraBodyData,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -59,7 +58,7 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     /// [`Generics`] of the function being checked.
     generics: Generics,
     body: &'ck Body<'tcx>,
-    extra_data: &'ck FxHashMap<DefId, ExtraBodyData>,
+    ghost_stmts: &'ck FxHashMap<DefId, GhostStatements>,
     output: Binder<FnOutput>,
     mode: &'ck mut M,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
@@ -121,7 +120,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, ExtraBodyData>,
+        extra_data: &'a FxHashMap<DefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
@@ -151,7 +150,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, ExtraBodyData>,
+        extra_data: &'a FxHashMap<DefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
@@ -186,7 +185,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, ExtraBodyData>,
+        extra_data: &'a FxHashMap<DefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: PolyFnSig,
         config: CheckerConfig,
@@ -211,7 +210,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
             body: &body,
-            extra_data,
+            ghost_stmts: extra_data,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             mode,
@@ -286,12 +285,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut location = Location { block: bb, statement_index: 0 };
         for stmt in &data.statements {
             let span = stmt.source_info.span;
+            self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Location(location), span)?;
             bug::track_span(span, || {
-                self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
                 dbg::statement!("start", stmt, rcx, env);
-                self.check_statement(&mut rcx, &mut env, stmt)
+                self.check_statement(&mut rcx, &mut env, stmt)?;
+                dbg::statement!("end", stmt, rcx, env);
+                Ok(())
             })?;
-            dbg::statement!("end", stmt, rcx, env);
             if !stmt.is_nop() {
                 last_stmt_span = Some(span);
             }
@@ -300,9 +300,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         if let Some(terminator) = &data.terminator {
             let span = terminator.source_info.span;
+            self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Location(location), span)?;
             bug::track_span(span, || {
-                self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
-
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
                     self.check_terminator(&mut rcx, &mut env, terminator, last_stmt_span)?;
@@ -512,7 +511,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     self.genv,
                     refine_tree,
                     *def_id,
-                    self.extra_data,
+                    self.ghost_stmts,
                     self.mode,
                     fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
                     self.config,
@@ -646,10 +645,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         span: Span,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
-        self.apply_fold_unfolds_at_edge(&mut rcx, &mut env, from, target, span)?;
+        self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Edge(from, target), span)?;
         if self.is_exit_block(target) {
             let location = self.body.terminator_loc(target);
-            self.apply_extra_effects_at_location(&mut rcx, &mut env, location, span)?;
+            self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Location(location), span)?;
             self.mode
                 .constr_gen(self.genv, &self.rvid_gen, &rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
@@ -927,59 +926,41 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn apply_extra_effects_at_location(
+    fn check_ghost_stmts_at(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        location: Location,
+        point: Point,
         span: Span,
     ) -> Result<(), CheckerError> {
-        for borrow in self.borrows_out_of_scope_at(location) {
-            self.apply_unblock(rcx, env, &UnblockStmt::from(borrow));
-        }
-        for fold_unfold in self.fold_unfolds().fold_unfolds_at_location(location) {
-            self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
-        }
-        Ok(())
-    }
-
-    fn apply_fold_unfolds_at_edge(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        from: BasicBlock,
-        target: BasicBlock,
-        span: Span,
-    ) -> Result<(), CheckerError> {
-        for fold_unfold in self.fold_unfolds().fold_unfolds_at_goto(from, target) {
-            self.appy_fold_unfold(rcx, env, fold_unfold, span)?;
-        }
-        Ok(())
-    }
-
-    fn apply_unblock(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, stmt: &UnblockStmt) {
-        dbg::statement!("start", stmt, rcx, env);
-        env.unblock(rcx, &stmt.place);
-        dbg::statement!("end", stmt, rcx, env);
-    }
-
-    fn appy_fold_unfold(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        fold_unfold: &FoldUnfold,
-        span: Span,
-    ) -> Result<(), CheckerError> {
-        dbg::statement!("start", fold_unfold, rcx, env);
-        match fold_unfold {
-            FoldUnfold::Fold(place) => {
-                let gen = &mut self.constr_gen(rcx, span);
-                env.fold(rcx, gen, place)
+        bug::track_span(span, || {
+            for stmt in self.ghost_stmts().statements_at(point) {
+                self.check_ghost_statement(rcx, env, stmt, span)?;
             }
-            FoldUnfold::Unfold(place) => env.unfold(self.genv, rcx, place, self.config),
+            Ok(())
+        })
+    }
+
+    fn check_ghost_statement(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        stmt: &GhostStatement,
+        span: Span,
+    ) -> Result<(), CheckerError> {
+        dbg::statement!("start", stmt, rcx, env);
+        match stmt {
+            GhostStatement::Fold(place) => {
+                let gen = &mut self.constr_gen(rcx, span);
+                env.fold(rcx, gen, place).with_span(span)?;
+            }
+            GhostStatement::Unfold(place) => {
+                env.unfold(self.genv, rcx, place, self.config)
+                    .with_span(span)?;
+            }
+            GhostStatement::Unblock(place) => env.unblock(rcx, place),
         }
-        .with_span(span)?;
-        dbg::statement!("end", fold_unfold, rcx, env);
+        dbg::statement!("end", stmt, rcx, env);
         Ok(())
     }
 
@@ -993,28 +974,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         self.snapshots[dominator].as_ref().unwrap()
     }
 
-    fn fold_unfolds(&self) -> &'a FoldUnfolds {
-        &self.extra_data().fold_unfolds
-    }
-
     fn dominators(&self) -> &'a Dominators<BasicBlock> {
         self.body.dominators()
     }
 
-    fn borrows_out_of_scope_at(
-        &self,
-        location: Location,
-    ) -> impl Iterator<Item = &'a BorrowData<'tcx>> {
-        self.extra_data()
-            .borrows_out_of_scope_at_location
-            .get(&location)
-            .map_or([].as_slice(), Vec::as_slice)
-            .iter()
-            .map(|idx| self.body.borrow_data(*idx))
-    }
-
-    fn extra_data(&self) -> &'a ExtraBodyData {
-        &self.extra_data[&self.def_id]
+    fn ghost_stmts(&self) -> &'a GhostStatements {
+        &self.ghost_stmts[&self.def_id]
     }
 }
 
@@ -1281,18 +1246,18 @@ pub(crate) mod errors {
     }
 }
 
-struct UnblockStmt {
-    place: Place,
-}
+// struct UnblockStmt {
+//     place: Place,
+// }
 
-impl From<&BorrowData<'_>> for UnblockStmt {
-    fn from(borrow: &BorrowData) -> Self {
-        UnblockStmt { place: lowering::lower_place(&borrow.borrowed_place).unwrap() }
-    }
-}
+// impl From<&BorrowData<'_>> for UnblockStmt {
+//     fn from(borrow: &BorrowData) -> Self {
+//         UnblockStmt { place: lowering::lower_place(&borrow.borrowed_place).unwrap() }
+//     }
+// }
 
-impl fmt::Debug for UnblockStmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unblock({:?})", self.place)
-    }
-}
+// impl fmt::Debug for UnblockStmt {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "unblock({:?})", self.place)
+//     }
+// }
