@@ -17,7 +17,6 @@
     unwrap_infallible
 )]
 
-extern crate rustc_borrowck;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -32,6 +31,7 @@ mod checker;
 mod constraint_gen;
 mod fixpoint_encoding;
 mod fold_unfold;
+mod ghost_statements;
 pub mod invariants;
 mod param_infer;
 mod queue;
@@ -50,22 +50,14 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, ESpan},
 };
-use fold_unfold::FoldUnfolds;
 use itertools::Itertools;
-use rustc_borrowck::consumers::BorrowIndex;
-use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
-use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_middle::{mir::Location, ty::TyCtxt};
+use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
 
-fluent_messages! { "../locales/en-US.ftl" }
+use crate::ghost_statements::compute_ghost_statements;
 
-struct ExtraBodyData {
-    fold_unfolds: FoldUnfolds,
-    borrows_out_of_scope_at_location: FxIndexMap<Location, Vec<BorrowIndex>>,
-}
+fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn check_fn(
     genv: &GlobalEnv,
@@ -84,16 +76,16 @@ pub fn check_fn(
         if genv.tcx.def_span(def_id).ctxt() > rustc_span::SyntaxContext::root() {
             return Ok(());
         }
-        let extra_data = compute_extra_data(genv, all_nested_bodies(genv.tcx, local_id))?;
+        let ghost_stmts = compute_ghost_statements(genv, local_id).emit(genv.sess)?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =
-            Checker::run_in_shape_mode(genv, def_id, &extra_data, config).emit(genv.sess)?;
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, config).emit(genv.sess)?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
         let (mut refine_tree, kvars) =
-            Checker::run_in_refine_mode(genv, def_id, &extra_data, shape_result, config)
+            Checker::run_in_refine_mode(genv, def_id, &ghost_stmts, shape_result, config)
                 .emit(genv.sess)?;
         tracing::info!("check_fn::refine");
 
@@ -113,23 +105,6 @@ pub fn check_fn(
             report_errors(genv, errors)
         }
     })
-}
-
-fn compute_extra_data(
-    genv: &GlobalEnv,
-    bodies: impl IntoIterator<Item = LocalDefId>,
-) -> Result<FxHashMap<DefId, ExtraBodyData>, ErrorGuaranteed> {
-    let mut data = FxHashMap::default();
-    for def_id in bodies {
-        let body = genv.mir(def_id).emit(genv.sess)?;
-        let fold_unfolds = fold_unfold::run_analysis(genv, &body).emit(genv.sess)?;
-        let borrows_out_of_scope_at_location = body.calculate_borrows_out_of_scope_at_location();
-        data.insert(
-            def_id.to_def_id(),
-            ExtraBodyData { fold_unfolds, borrows_out_of_scope_at_location },
-        );
-    }
-    Ok(data)
 }
 
 fn call_error(genv: &GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
@@ -164,37 +139,6 @@ fn report_errors(genv: &GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarante
     } else {
         Ok(())
     }
-}
-
-fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> FxHashSet<LocalDefId> {
-    use rustc_hir as hir;
-    struct ClosureFinder<'hir> {
-        hir: rustc_middle::hir::map::Map<'hir>,
-        closures: FxHashSet<LocalDefId>,
-    }
-
-    impl<'hir> rustc_hir::intravisit::Visitor<'hir> for ClosureFinder<'hir> {
-        type NestedFilter = rustc_middle::hir::nested_filter::OnlyBodies;
-
-        fn nested_visit_map(&mut self) -> Self::Map {
-            self.hir
-        }
-
-        fn visit_expr(&mut self, ex: &'hir hir::Expr<'hir>) {
-            if let hir::ExprKind::Closure(closure) = ex.kind {
-                self.closures.insert(closure.def_id);
-            }
-
-            hir::intravisit::walk_expr(self, ex);
-        }
-    }
-    let hir = tcx.hir();
-    let body_id = hir.body_owned_by(def_id);
-    let body_expr = hir.body(body_id).value;
-    let mut finder = ClosureFinder { hir, closures: FxHashSet::default() };
-    hir::intravisit::Visitor::visit_expr(&mut finder, body_expr);
-    finder.closures.insert(def_id);
-    finder.closures
 }
 
 mod errors {
