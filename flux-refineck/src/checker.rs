@@ -1245,19 +1245,3 @@ pub(crate) mod errors {
         }
     }
 }
-
-// struct UnblockStmt {
-//     place: Place,
-// }
-
-// impl From<&BorrowData<'_>> for UnblockStmt {
-//     fn from(borrow: &BorrowData) -> Self {
-//         UnblockStmt { place: lowering::lower_place(&borrow.borrowed_place).unwrap() }
-//     }
-// }
-
-// impl fmt::Debug for UnblockStmt {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "unblock({:?})", self.place)
-//     }
-// }
