@@ -78,7 +78,7 @@ impl GhostStatements {
         if config::dump_mir() {
             let mut writer =
                 dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
-            stmts.write_mir(&body, &mut writer).unwrap();
+            stmts.write_mir(genv.tcx, &body, &mut writer).unwrap();
         }
         Ok(stmts)
     }
@@ -96,40 +96,41 @@ impl GhostStatements {
         }
     }
 
-    pub(crate) fn write_mir<W: io::Write>(&self, body: &Body, w: &mut W) -> io::Result<()> {
-        for (bb, data) in body.basic_blocks.iter_enumerated() {
-            let mut location = Location { block: bb, statement_index: 0 };
-            write!(w, "{bb:?}: {{")?;
-            for stmt in &data.statements {
-                for stmt in self.statements_at(Point::Location(location)) {
-                    write!(w, "\n    {stmt:?};")?;
-                }
-                location = location.successor_within_block();
-
-                if stmt.is_nop() {
-                    continue;
-                }
-                write!(w, "\n    {stmt:?};")?;
-            }
-            for stmt in self.statements_at(Point::Location(location)) {
-                write!(w, "\n    {stmt:?};")?;
-            }
-            if let Some(terminator) = &data.terminator {
-                write!(w, "\n    {terminator:?}")?;
-            }
-            if let Some(map) = self.at_goto.get(&bb) {
-                writeln!(w)?;
-                for (target, stmts) in map {
-                    write!(w, "\n    -> {target:?} {{")?;
-                    for stmt in stmts {
-                        write!(w, "\n        {stmt:?};")?;
+    pub(crate) fn write_mir<'tcx, W: io::Write>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+        body: &Body<'tcx>,
+        w: &mut W,
+    ) -> io::Result<()> {
+        use rustc_middle::mir::PassWhere;
+        rustc_middle::mir::pretty::write_mir_fn(
+            tcx,
+            body.inner(),
+            &mut |pass, w| {
+                match pass {
+                    PassWhere::BeforeLocation(location) => {
+                        for stmt in self.statements_at(Point::Location(location)) {
+                            writeln!(w, "        {stmt:?};")?;
+                        }
                     }
-                    write!(w, "\n    }}")?;
+                    PassWhere::AfterTerminator(bb) => {
+                        if let Some(map) = self.at_goto.get(&bb) {
+                            writeln!(w)?;
+                            for (target, stmts) in map {
+                                write!(w, "        -> {target:?} {{")?;
+                                for stmt in stmts {
+                                    write!(w, "\n            {stmt:?};")?;
+                                }
+                                write!(w, "\n        }}")?;
+                            }
+                        }
+                    }
+                    _ => {}
                 }
-            }
-            writeln!(w, "\n}}\n")?;
-        }
-        Ok(())
+                Ok(())
+            },
+            w,
+        )
     }
 }
 

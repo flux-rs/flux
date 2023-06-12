@@ -262,6 +262,10 @@ impl<'tcx> Body<'tcx> {
         self.body_with_facts.body.span
     }
 
+    pub fn inner(&self) -> &mir::Body<'tcx> {
+        &self.body_with_facts.body
+    }
+
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
