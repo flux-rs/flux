@@ -754,11 +754,8 @@ impl FoldUnfolds {
             .push(GhostStatement::Unfold(place));
     }
 
-    pub(crate) fn fold_unfolds_at(
-        &self,
-        point: Point,
-    ) -> impl Iterator<Item = &GhostStatement> + '_ {
-        self.fold_unfolds.get(&point).into_iter().flatten()
+    pub(crate) fn into_statements(self) -> impl Iterator<Item = (Point, Vec<GhostStatement>)> {
+        self.fold_unfolds.into_iter()
     }
 }
 

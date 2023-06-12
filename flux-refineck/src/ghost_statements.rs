@@ -10,18 +10,19 @@ use flux_middle::{
         mir::{BasicBlock, Body, Place},
     },
 };
-use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::{mir::Location, ty::TyCtxt};
 
-use crate::fold_unfold::{self, FoldUnfolds};
+use crate::fold_unfold;
 
 pub(crate) struct GhostStatements {
-    pub fold_unfolds: FoldUnfolds,
-    pub unblocks: FxIndexMap<Point, Vec<GhostStatement>>,
+    pub at_location: LocationMap,
+    pub at_goto: GotoMap,
 }
+
+type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
+type GotoMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
 
 pub(crate) enum GhostStatement {
     Fold(Place),
@@ -35,26 +36,45 @@ pub(crate) enum Point {
     Edge(BasicBlock, BasicBlock),
 }
 
+pub(crate) fn compute_ghost_statements(
+    genv: &GlobalEnv,
+    def_id: LocalDefId,
+) -> QueryResult<FxHashMap<DefId, GhostStatements>> {
+    let mut data = FxHashMap::default();
+    for def_id in all_nested_bodies(genv.tcx, def_id) {
+        data.insert(def_id.to_def_id(), GhostStatements::new(genv, def_id)?);
+    }
+    Ok(data)
+}
+
 impl GhostStatements {
     fn new(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
         let fold_unfolds = fold_unfold::run_analysis(genv, &body)?;
-        let unblocks = body
-            .calculate_borrows_out_of_scope_at_location()
-            .into_iter()
-            .map(|(location, idxs)| {
-                let stmts = idxs
-                    .into_iter()
-                    .map(|idx| {
-                        let borrow = body.borrow_data(idx);
-                        let place = lowering::lower_place(&borrow.borrowed_place).unwrap();
-                        GhostStatement::Unblock(place)
-                    })
-                    .collect_vec();
-                (Point::Location(location), stmts)
-            })
-            .collect();
-        let stmts = Self { fold_unfolds, unblocks };
+        let mut at_location = LocationMap::default();
+        let mut at_goto = GotoMap::default();
+        for (point, stmts) in fold_unfolds.into_statements() {
+            match point {
+                Point::Location(location) => at_location.entry(location).or_default().extend(stmts),
+                Point::Edge(from, to) => {
+                    at_goto
+                        .entry(from)
+                        .or_default()
+                        .entry(to)
+                        .or_default()
+                        .extend(stmts);
+                }
+            }
+        }
+        for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
+            let stmts = borrows.into_iter().map(|bidx| {
+                let borrow = body.borrow_data(bidx);
+                let place = lowering::lower_place(&borrow.borrowed_place).unwrap();
+                GhostStatement::Unblock(place)
+            });
+            at_location.entry(location).or_default().extend(stmts);
+        }
+        let stmts = Self { at_location, at_goto };
         if config::dump_mir() {
             let mut writer =
                 dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
@@ -64,13 +84,16 @@ impl GhostStatements {
     }
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {
-        let fold_unfolds = self.fold_unfolds.fold_unfolds_at(point);
-        let unblocks = self
-            .unblocks
-            .get(&point)
-            .map_or([].as_slice(), Vec::as_slice)
-            .iter();
-        fold_unfolds.chain(unblocks)
+        match point {
+            Point::Location(location) => self.at_location.get(&location).into_iter().flatten(),
+            Point::Edge(from, to) => {
+                self.at_goto
+                    .get(&from)
+                    .and_then(|m| m.get(&to))
+                    .into_iter()
+                    .flatten()
+            }
+        }
     }
 
     pub(crate) fn write_mir<W: io::Write>(&self, body: &Body, w: &mut W) -> io::Result<()> {
@@ -94,21 +117,20 @@ impl GhostStatements {
             if let Some(terminator) = &data.terminator {
                 write!(w, "\n    {terminator:?}")?;
             }
+            if let Some(map) = self.at_goto.get(&bb) {
+                writeln!(w)?;
+                for (target, stmts) in map {
+                    write!(w, "\n    -> {target:?} {{")?;
+                    for stmt in stmts {
+                        write!(w, "\n        {stmt:?};")?;
+                    }
+                    write!(w, "\n    }}")?;
+                }
+            }
             writeln!(w, "\n}}\n")?;
         }
         Ok(())
     }
-}
-
-pub(crate) fn compute_ghost_statements(
-    genv: &GlobalEnv,
-    def_id: LocalDefId,
-) -> QueryResult<FxHashMap<DefId, GhostStatements>> {
-    let mut data = FxHashMap::default();
-    for def_id in all_nested_bodies(genv.tcx, def_id) {
-        data.insert(def_id.to_def_id(), GhostStatements::new(genv, def_id)?);
-    }
-    Ok(data)
 }
 
 fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = LocalDefId> {

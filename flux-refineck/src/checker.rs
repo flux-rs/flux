@@ -285,7 +285,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut location = Location { block: bb, statement_index: 0 };
         for stmt in &data.statements {
             let span = stmt.source_info.span;
-            self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             bug::track_span(span, || {
                 dbg::statement!("start", stmt, rcx, env);
                 self.check_statement(&mut rcx, &mut env, stmt)?;
@@ -300,7 +300,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         if let Some(terminator) = &data.terminator {
             let span = terminator.source_info.span;
-            self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
@@ -645,10 +645,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         span: Span,
         target: BasicBlock,
     ) -> Result<(), CheckerError> {
-        self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Edge(from, target), span)?;
+        self.check_ghost_statements_at(&mut rcx, &mut env, Point::Edge(from, target), span)?;
         if self.is_exit_block(target) {
             let location = self.body.terminator_loc(target);
-            self.check_ghost_stmts_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             self.mode
                 .constr_gen(self.genv, &self.rvid_gen, &rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
@@ -926,7 +926,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_ghost_stmts_at(
+    fn check_ghost_statements_at(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
