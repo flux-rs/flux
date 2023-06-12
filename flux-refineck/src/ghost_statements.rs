@@ -1,11 +1,13 @@
-use std::{fmt, iter};
+use std::{fmt, io, iter};
 
+use flux_common::dbg;
+use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rustc::{
         lowering,
-        mir::{BasicBlock, Place},
+        mir::{BasicBlock, Body, Place},
     },
 };
 use itertools::Itertools;
@@ -52,7 +54,13 @@ impl GhostStatements {
                 (Point::Location(location), stmts)
             })
             .collect();
-        Ok(Self { fold_unfolds, unblocks })
+        let stmts = Self { fold_unfolds, unblocks };
+        if config::dump_mir() {
+            let mut writer =
+                dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
+            stmts.write_mir(&body, &mut writer).unwrap();
+        }
+        Ok(stmts)
     }
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {
@@ -63,6 +71,32 @@ impl GhostStatements {
             .map_or([].as_slice(), Vec::as_slice)
             .iter();
         fold_unfolds.chain(unblocks)
+    }
+
+    pub(crate) fn write_mir<W: io::Write>(&self, body: &Body, w: &mut W) -> io::Result<()> {
+        for (bb, data) in body.basic_blocks.iter_enumerated() {
+            let mut location = Location { block: bb, statement_index: 0 };
+            write!(w, "{bb:?}: {{")?;
+            for stmt in &data.statements {
+                for stmt in self.statements_at(Point::Location(location)) {
+                    write!(w, "\n    {stmt:?};")?;
+                }
+                location = location.successor_within_block();
+
+                if stmt.is_nop() {
+                    continue;
+                }
+                write!(w, "\n    {stmt:?};")?;
+            }
+            for stmt in self.statements_at(Point::Location(location)) {
+                write!(w, "\n    {stmt:?};")?;
+            }
+            if let Some(terminator) = &data.terminator {
+                write!(w, "\n    {terminator:?}")?;
+            }
+            writeln!(w, "\n}}\n")?;
+        }
+        Ok(())
     }
 }
 
@@ -112,7 +146,7 @@ impl fmt::Debug for GhostStatement {
         match self {
             GhostStatement::Fold(place) => write!(f, "fold({place:?})"),
             GhostStatement::Unfold(place) => write!(f, "unfold({place:?})"),
-            GhostStatement::Unblock(place) => write!(f, "unfold({place:?})"),
+            GhostStatement::Unblock(place) => write!(f, "unblock({place:?})"),
         }
     }
 }

@@ -52,9 +52,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
-use rustc_hash::FxHashSet;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 use crate::ghost_statements::compute_ghost_statements;
