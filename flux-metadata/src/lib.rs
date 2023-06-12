@@ -28,7 +28,10 @@ use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
-use rustc_session::{config::OutputType, utils::CanonicalizedPath};
+use rustc_session::{
+    config::{OutFileName, OutputType},
+    utils::CanonicalizedPath,
+};
 use rustc_span::def_id::{CrateNum, DefId, DefIndex};
 
 pub use crate::encoder::encode_metadata;
@@ -141,10 +144,16 @@ impl CrateMetadata {
     }
 }
 
-pub fn filename_for_metadata(tcx: TyCtxt) -> PathBuf {
+pub fn filename_for_metadata(tcx: TyCtxt) -> OutFileName {
     let crate_name = tcx.crate_name(LOCAL_CRATE);
-    rustc_session::output::filename_for_metadata(tcx.sess, crate_name, tcx.output_filenames(()))
-        .with_extension("fluxmeta")
+    match rustc_session::output::filename_for_metadata(
+        tcx.sess,
+        crate_name,
+        tcx.output_filenames(()),
+    ) {
+        OutFileName::Real(path) => OutFileName::Real(path.with_extension("fluxmeta")),
+        OutFileName::Stdout => OutFileName::Stdout,
+    }
 }
 
 fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<PathBuf> {
