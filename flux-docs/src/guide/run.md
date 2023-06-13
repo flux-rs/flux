@@ -157,6 +157,7 @@ For example, suppose your project root contains the following `flux.toml`.
 log_dir = "./test"
 dump_timings = true
 dump_mir = true
+cache = true
 ```
 
 and you run in the project root
