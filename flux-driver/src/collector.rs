@@ -255,7 +255,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .enums
-            .insert(owner_id, surface::EnumDef { owner_id, refined_by, variants, invariants });
+            .insert(owner_id, surface::EnumDef { refined_by, variants, invariants });
         Ok(())
     }
 

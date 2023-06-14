@@ -92,7 +92,6 @@ impl<'sess> Resolver<'sess> {
             .try_collect_exhaust()?;
 
         Ok(surface::EnumDef {
-            owner_id: enum_def.owner_id,
             refined_by: enum_def.refined_by,
             invariants: enum_def.invariants,
             variants,

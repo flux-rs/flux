@@ -4,7 +4,7 @@ pub use rustc_ast::{
     token::{Lit, LitKind},
     Mutability,
 };
-use rustc_hir::{def_id::LocalDefId, OwnerId};
+use rustc_hir::def_id::LocalDefId;
 pub use rustc_span::symbol::Ident;
 use rustc_span::{symbol::kw, Span};
 
@@ -59,7 +59,6 @@ pub struct StructDef<R = ()> {
 
 #[derive(Debug)]
 pub struct EnumDef<R = ()> {
-    pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
     pub variants: Vec<VariantDef<R>>,
     pub invariants: Vec<Expr>,

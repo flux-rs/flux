@@ -262,7 +262,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     err = std::mem::take(&mut specs.enums)
         .into_iter()
         .try_for_each_exhaust(|(owner_id, enum_def)| {
-            let enum_def = desugar::desugar_enum_def(&early_cx, enum_def)?;
+            let enum_def = desugar::desugar_enum_def(&early_cx, owner_id, enum_def)?;
             if config::dump_fhir() {
                 dbg::dump_item_info(tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
             }

@@ -164,9 +164,10 @@ pub fn desugar_struct_def(
 
 pub fn desugar_enum_def(
     early_cx: &EarlyCtxt,
+    owner_id: OwnerId,
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let mut cx = DesugarCtxt::new(early_cx, enum_def.owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id);
     let variants = enum_def
         .variants
         .iter()
@@ -187,7 +188,7 @@ pub fn desugar_enum_def(
         .try_collect_exhaust()?;
 
     Ok(fhir::EnumDef {
-        owner_id: enum_def.owner_id,
+        owner_id,
         params: binders.pop_layer().into_params(&cx),
         variants,
         invariants,
