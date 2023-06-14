@@ -4,7 +4,6 @@ pub use rustc_ast::{
     token::{Lit, LitKind},
     Mutability,
 };
-use rustc_hir::{def_id::LocalDefId, OwnerId};
 pub use rustc_span::symbol::Ident;
 use rustc_span::{symbol::kw, Span};
 
@@ -51,7 +50,6 @@ pub struct TyAlias<R = ()> {
 
 #[derive(Debug)]
 pub struct StructDef<R = ()> {
-    pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
     pub fields: Vec<Option<Ty<R>>>,
     pub opaque: bool,
@@ -60,20 +58,13 @@ pub struct StructDef<R = ()> {
 
 #[derive(Debug)]
 pub struct EnumDef<R = ()> {
-    pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
-    pub variants: Vec<VariantDef<R>>,
+    pub variants: Vec<Option<VariantDef<R>>>,
     pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
 pub struct VariantDef<R = ()> {
-    pub def_id: LocalDefId,
-    pub data: Option<VariantData<R>>,
-}
-
-#[derive(Debug)]
-pub struct VariantData<R = ()> {
     pub fields: Vec<Ty<R>>,
     pub ret: VariantRet<R>,
     pub span: Span,

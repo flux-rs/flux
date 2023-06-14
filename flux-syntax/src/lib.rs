@@ -2,7 +2,6 @@
 #![feature(rustc_private)]
 
 extern crate rustc_ast;
-extern crate rustc_hir;
 extern crate rustc_span;
 
 pub mod lexer;
@@ -11,8 +10,7 @@ pub mod surface;
 use lalrpop_util::lalrpop_mod;
 use lexer::{Cursor, Location, Token};
 use rustc_ast::tokenstream::TokenStream;
-use rustc_hir::def_id::LocalDefId;
-use rustc_span::{BytePos, Span, SyntaxContext};
+use rustc_span::{def_id::LocalDefId, BytePos, Span, SyntaxContext};
 
 lalrpop_mod!(
     #[allow(warnings)]
@@ -57,7 +55,7 @@ pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
     parse!(grammar::TyParser, tokens, span)
 }
 
-pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantData> {
+pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantDef> {
     parse!(grammar::VariantParser, tokens, span)
 }
 

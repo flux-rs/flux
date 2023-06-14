@@ -215,10 +215,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .insert(extern_def_id, owner_id.def_id);
         }
 
-        self.specs.structs.insert(
-            owner_id,
-            surface::StructDef { owner_id, refined_by, fields, opaque, invariants },
-        );
+        self.specs
+            .structs
+            .insert(owner_id, surface::StructDef { refined_by, fields, opaque, invariants });
 
         Ok(())
     }
@@ -256,26 +255,26 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .enums
-            .insert(owner_id, surface::EnumDef { owner_id, refined_by, variants, invariants });
+            .insert(owner_id, surface::EnumDef { refined_by, variants, invariants });
         Ok(())
     }
 
     fn parse_variant(
         &mut self,
-        variant: &rustc_hir::Variant,
+        hir_variant: &rustc_hir::Variant,
         has_refined_by: bool,
-    ) -> Result<surface::VariantDef, ErrorGuaranteed> {
-        let attrs = self.tcx.hir().attrs(variant.hir_id);
+    ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
+        let attrs = self.tcx.hir().attrs(hir_variant.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
 
-        let data = attrs.variant();
+        let variant = attrs.variant();
 
-        if data.is_none() && has_refined_by {
-            return Err(self.emit_err(errors::MissingVariant::new(variant.span)));
+        if variant.is_none() && has_refined_by {
+            return Err(self.emit_err(errors::MissingVariant::new(hir_variant.span)));
         }
 
-        Ok(surface::VariantDef { def_id: variant.def_id, data })
+        Ok(variant)
     }
 
     fn parse_fn_spec(
@@ -553,7 +552,7 @@ enum FluxAttrKind {
     Items(Vec<surface::Item>),
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
-    Variant(surface::VariantData),
+    Variant(surface::VariantDef),
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
@@ -643,7 +642,7 @@ impl FluxAttrs {
         read_attr!(self, Field)
     }
 
-    fn variant(&mut self) -> Option<surface::VariantData> {
+    fn variant(&mut self) -> Option<surface::VariantDef> {
         read_attr!(self, Variant)
     }
 

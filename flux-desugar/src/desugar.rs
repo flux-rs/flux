@@ -9,6 +9,7 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface;
+use hir::ItemKind;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
@@ -119,6 +120,7 @@ pub fn desugar_type_alias(
 
 pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
+    owner_id: OwnerId,
     struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let mut binders = Binders::from_params(
@@ -129,7 +131,7 @@ pub fn desugar_struct_def(
             .flat_map(surface::RefinedBy::all_params),
     )?;
 
-    let mut cx = DesugarCtxt::new(early_cx, struct_def.owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id);
 
     let invariants = struct_def
         .invariants
@@ -140,7 +142,7 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(struct_def.owner_id.def_id).kind else {
+        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
             bug!("expected struct")
         };
         let fields = iter::zip(&struct_def.fields, variant_data.fields())
@@ -158,23 +160,20 @@ pub fn desugar_struct_def(
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };
-    Ok(fhir::StructDef {
-        owner_id: struct_def.owner_id,
-        params: binders.pop_layer().into_params(&cx),
-        kind,
-        invariants,
-    })
+    Ok(fhir::StructDef { owner_id, params: binders.pop_layer().into_params(&cx), kind, invariants })
 }
 
 pub fn desugar_enum_def(
     early_cx: &EarlyCtxt,
+    owner_id: OwnerId,
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let mut cx = DesugarCtxt::new(early_cx, enum_def.owner_id);
-    let variants = enum_def
-        .variants
-        .iter()
-        .map(|variant| cx.desugar_enum_variant_def(variant))
+    let mut cx = DesugarCtxt::new(early_cx, owner_id);
+    let ItemKind::Enum(hir_enum, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
+        bug!("expected enum");
+    };
+    let variants = iter::zip(&enum_def.variants, hir_enum.variants)
+        .map(|(variant, hir_variant)| cx.desugar_enum_variant_def(variant, hir_variant))
         .try_collect_exhaust()?;
 
     let mut binders = Binders::from_params(
@@ -191,7 +190,7 @@ pub fn desugar_enum_def(
         .try_collect_exhaust()?;
 
     Ok(fhir::EnumDef {
-        owner_id: enum_def.owner_id,
+        owner_id,
         params: binders.pop_layer().into_params(&cx),
         variants,
         invariants,
@@ -322,21 +321,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_enum_variant_def(
         &mut self,
-        variant_def: &surface::VariantDef<Res>,
+        variant_def: &Option<surface::VariantDef<Res>>,
+        hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
         let mut binders = Binders::new();
-        binders.gather_params_variant(self.early_cx, variant_def)?;
 
-        if let Some(data) = &variant_def.data {
-            let hir_id = self
-                .early_cx
-                .hir()
-                .local_def_id_to_hir_id(variant_def.def_id);
-            let hir::Node::Variant(hir_variant) = &self.early_cx.hir().get(hir_id) else {
-                bug!("expected enum variant")
-            };
-
-            let fields = iter::zip(&data.fields, hir_variant.data.fields())
+        if let Some(variant_def) = variant_def {
+            binders.gather_params_variant(self.early_cx, variant_def)?;
+            let fields = iter::zip(&variant_def.fields, hir_variant.data.fields())
                 .map(|(ty, hir_field)| {
                     Ok(fhir::FieldDef {
                         ty: self.desugar_ty(None, ty, &mut binders)?,
@@ -346,21 +338,21 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 })
                 .try_collect_exhaust()?;
 
-            let ret = self.desugar_variant_ret(&data.ret, &mut binders)?;
+            let ret = self.desugar_variant_ret(&variant_def.ret, &mut binders)?;
 
             Ok(fhir::VariantDef {
-                def_id: variant_def.def_id,
+                def_id: hir_variant.def_id,
                 params: binders.pop_layer().into_params(self),
                 fields,
                 ret,
-                span: data.span,
+                span: variant_def.span,
                 lifted: false,
             })
         } else {
             fhir::lift::lift_enum_variant_def(
                 self.early_cx.tcx,
                 self.early_cx.sess,
-                variant_def.def_id,
+                hir_variant.def_id,
             )
         }
     }
@@ -987,23 +979,25 @@ impl Binders {
         early_cx: &EarlyCtxt,
         variant_def: &surface::VariantDef<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        let Some(data) = &variant_def.data else {
-            return Ok(())
-        };
-        for ty in &data.fields {
+        for ty in &variant_def.fields {
             self.gather_params_ty(early_cx, None, ty, TypePos::Input)?;
         }
         // Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
-        self.gather_params_variant_ret(early_cx, &data.ret)?;
+        self.gather_params_variant_ret(early_cx, &variant_def.ret)?;
 
         // Check binders in `VariantRet`
-        data.ret.indices.indices.iter().try_for_each_exhaust(|idx| {
-            if let surface::RefineArg::Bind(_, kind, span) = idx {
-                Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
-            } else {
-                Ok(())
-            }
-        })
+        variant_def
+            .ret
+            .indices
+            .indices
+            .iter()
+            .try_for_each_exhaust(|idx| {
+                if let surface::RefineArg::Bind(_, kind, span) = idx {
+                    Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
+                } else {
+                    Ok(())
+                }
+            })
     }
 
     fn gather_params_variant_ret(
