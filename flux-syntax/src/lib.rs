@@ -1,9 +1,8 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private, box_patterns, let_chains, type_alias_impl_trait)]
+#![feature(rustc_private)]
 
 extern crate rustc_ast;
 extern crate rustc_hir;
-extern crate rustc_middle;
 extern crate rustc_span;
 
 pub mod lexer;
