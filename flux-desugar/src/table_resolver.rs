@@ -74,7 +74,6 @@ impl<'sess> Resolver<'sess> {
             .try_collect_exhaust()?;
 
         Ok(surface::StructDef {
-            owner_id: struct_def.owner_id,
             refined_by: struct_def.refined_by,
             fields,
             opaque: struct_def.opaque,

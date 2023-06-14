@@ -215,10 +215,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .insert(extern_def_id, owner_id.def_id);
         }
 
-        self.specs.structs.insert(
-            owner_id,
-            surface::StructDef { owner_id, refined_by, fields, opaque, invariants },
-        );
+        self.specs
+            .structs
+            .insert(owner_id, surface::StructDef { refined_by, fields, opaque, invariants });
 
         Ok(())
     }

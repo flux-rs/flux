@@ -24,12 +24,12 @@ use rustc_hir::OwnerId;
 
 pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
+    owner_id: OwnerId,
     struct_def: surface::StructDef,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let resolver =
-        table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, struct_def.owner_id.def_id)?;
+    let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, owner_id.def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(early_cx, struct_def)
+    desugar::desugar_struct_def(early_cx, owner_id, struct_def)
 }
 
 pub fn desugar_enum_def(

@@ -248,7 +248,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     err = std::mem::take(&mut specs.structs)
         .into_iter()
         .try_for_each_exhaust(|(owner_id, struct_def)| {
-            let struct_def = desugar::desugar_struct_def(&early_cx, struct_def)?;
+            let struct_def = desugar::desugar_struct_def(&early_cx, owner_id, struct_def)?;
             if config::dump_fhir() {
                 dbg::dump_item_info(tcx, owner_id, "fhir", &struct_def).unwrap();
             }

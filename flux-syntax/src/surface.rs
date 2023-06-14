@@ -51,7 +51,6 @@ pub struct TyAlias<R = ()> {
 
 #[derive(Debug)]
 pub struct StructDef<R = ()> {
-    pub owner_id: OwnerId,
     pub refined_by: Option<RefinedBy>,
     pub fields: Vec<Option<Ty<R>>>,
     pub opaque: bool,

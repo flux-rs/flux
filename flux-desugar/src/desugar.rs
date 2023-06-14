@@ -119,6 +119,7 @@ pub fn desugar_type_alias(
 
 pub fn desugar_struct_def(
     early_cx: &EarlyCtxt,
+    owner_id: OwnerId,
     struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let mut binders = Binders::from_params(
@@ -129,7 +130,7 @@ pub fn desugar_struct_def(
             .flat_map(surface::RefinedBy::all_params),
     )?;
 
-    let mut cx = DesugarCtxt::new(early_cx, struct_def.owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id);
 
     let invariants = struct_def
         .invariants
@@ -140,7 +141,7 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(struct_def.owner_id.def_id).kind else {
+        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
             bug!("expected struct")
         };
         let fields = iter::zip(&struct_def.fields, variant_data.fields())
@@ -158,12 +159,7 @@ pub fn desugar_struct_def(
             .try_collect_exhaust()?;
         fhir::StructKind::Transparent { fields }
     };
-    Ok(fhir::StructDef {
-        owner_id: struct_def.owner_id,
-        params: binders.pop_layer().into_params(&cx),
-        kind,
-        invariants,
-    })
+    Ok(fhir::StructDef { owner_id, params: binders.pop_layer().into_params(&cx), kind, invariants })
 }
 
 pub fn desugar_enum_def(
