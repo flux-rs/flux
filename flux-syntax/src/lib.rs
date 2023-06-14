@@ -55,7 +55,7 @@ pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
     parse!(grammar::TyParser, tokens, span)
 }
 
-pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantData> {
+pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantDef> {
     parse!(grammar::VariantParser, tokens, span)
 }
 

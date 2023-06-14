@@ -321,14 +321,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_enum_variant_def(
         &mut self,
-        variant_def: &surface::VariantDef<Res>,
+        variant_def: &Option<surface::VariantDef<Res>>,
         hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
         let mut binders = Binders::new();
-        binders.gather_params_variant(self.early_cx, variant_def)?;
 
-        if let Some(data) = &variant_def.data {
-            let fields = iter::zip(&data.fields, hir_variant.data.fields())
+        if let Some(variant_def) = variant_def {
+            binders.gather_params_variant(self.early_cx, variant_def)?;
+            let fields = iter::zip(&variant_def.fields, hir_variant.data.fields())
                 .map(|(ty, hir_field)| {
                     Ok(fhir::FieldDef {
                         ty: self.desugar_ty(None, ty, &mut binders)?,
@@ -338,14 +338,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 })
                 .try_collect_exhaust()?;
 
-            let ret = self.desugar_variant_ret(&data.ret, &mut binders)?;
+            let ret = self.desugar_variant_ret(&variant_def.ret, &mut binders)?;
 
             Ok(fhir::VariantDef {
                 def_id: hir_variant.def_id,
                 params: binders.pop_layer().into_params(self),
                 fields,
                 ret,
-                span: data.span,
+                span: variant_def.span,
                 lifted: false,
             })
         } else {
@@ -979,23 +979,25 @@ impl Binders {
         early_cx: &EarlyCtxt,
         variant_def: &surface::VariantDef<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        let Some(data) = &variant_def.data else {
-            return Ok(())
-        };
-        for ty in &data.fields {
+        for ty in &variant_def.fields {
             self.gather_params_ty(early_cx, None, ty, TypePos::Input)?;
         }
         // Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
-        self.gather_params_variant_ret(early_cx, &data.ret)?;
+        self.gather_params_variant_ret(early_cx, &variant_def.ret)?;
 
         // Check binders in `VariantRet`
-        data.ret.indices.indices.iter().try_for_each_exhaust(|idx| {
-            if let surface::RefineArg::Bind(_, kind, span) = idx {
-                Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
-            } else {
-                Ok(())
-            }
-        })
+        variant_def
+            .ret
+            .indices
+            .indices
+            .iter()
+            .try_for_each_exhaust(|idx| {
+                if let surface::RefineArg::Bind(_, kind, span) = idx {
+                    Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
+                } else {
+                    Ok(())
+                }
+            })
     }
 
     fn gather_params_variant_ret(

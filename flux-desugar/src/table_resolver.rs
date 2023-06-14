@@ -100,20 +100,20 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_variant(
         &self,
-        variant: surface::VariantDef,
-    ) -> Result<surface::VariantDef<Res>, ErrorGuaranteed> {
-        let data = if let Some(data) = variant.data {
-            let fields = data
+        variant_def: Option<surface::VariantDef>,
+    ) -> Result<Option<surface::VariantDef<Res>>, ErrorGuaranteed> {
+        let variant_def = if let Some(variant_def) = variant_def {
+            let fields = variant_def
                 .fields
                 .into_iter()
                 .map(|ty| self.resolve_ty(ty))
                 .try_collect_exhaust()?;
-            let ret = self.resolve_variant_ret(data.ret)?;
-            Some(surface::VariantData { fields, ret, span: data.span })
+            let ret = self.resolve_variant_ret(variant_def.ret)?;
+            Some(surface::VariantDef { fields, ret, span: variant_def.span })
         } else {
             None
         };
-        Ok(surface::VariantDef { data })
+        Ok(variant_def)
     }
 
     fn resolve_variant_ret(

@@ -59,17 +59,12 @@ pub struct StructDef<R = ()> {
 #[derive(Debug)]
 pub struct EnumDef<R = ()> {
     pub refined_by: Option<RefinedBy>,
-    pub variants: Vec<VariantDef<R>>,
+    pub variants: Vec<Option<VariantDef<R>>>,
     pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
 pub struct VariantDef<R = ()> {
-    pub data: Option<VariantData<R>>,
-}
-
-#[derive(Debug)]
-pub struct VariantData<R = ()> {
     pub fields: Vec<Ty<R>>,
     pub ret: VariantRet<R>,
     pub span: Span,
