@@ -274,7 +274,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Err(self.emit_err(errors::MissingVariant::new(variant.span)));
         }
 
-        Ok(surface::VariantDef { def_id: variant.def_id, data })
+        Ok(surface::VariantDef { data })
     }
 
     fn parse_fn_spec(

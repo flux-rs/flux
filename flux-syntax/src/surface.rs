@@ -4,7 +4,6 @@ pub use rustc_ast::{
     token::{Lit, LitKind},
     Mutability,
 };
-use rustc_hir::def_id::LocalDefId;
 pub use rustc_span::symbol::Ident;
 use rustc_span::{symbol::kw, Span};
 
@@ -66,7 +65,6 @@ pub struct EnumDef<R = ()> {
 
 #[derive(Debug)]
 pub struct VariantDef<R = ()> {
-    pub def_id: LocalDefId,
     pub data: Option<VariantData<R>>,
 }
 

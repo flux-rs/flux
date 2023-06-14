@@ -9,6 +9,7 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface;
+use hir::ItemKind;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
@@ -168,10 +169,11 @@ pub fn desugar_enum_def(
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
     let mut cx = DesugarCtxt::new(early_cx, owner_id);
-    let variants = enum_def
-        .variants
-        .iter()
-        .map(|variant| cx.desugar_enum_variant_def(variant))
+    let ItemKind::Enum(hir_enum, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
+        bug!("expected enum");
+    };
+    let variants = iter::zip(&enum_def.variants, hir_enum.variants)
+        .map(|(variant, hir_variant)| cx.desugar_enum_variant_def(variant, hir_variant))
         .try_collect_exhaust()?;
 
     let mut binders = Binders::from_params(
@@ -320,19 +322,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_enum_variant_def(
         &mut self,
         variant_def: &surface::VariantDef<Res>,
+        hir_variant: &hir::Variant,
     ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
         let mut binders = Binders::new();
         binders.gather_params_variant(self.early_cx, variant_def)?;
 
         if let Some(data) = &variant_def.data {
-            let hir_id = self
-                .early_cx
-                .hir()
-                .local_def_id_to_hir_id(variant_def.def_id);
-            let hir::Node::Variant(hir_variant) = &self.early_cx.hir().get(hir_id) else {
-                bug!("expected enum variant")
-            };
-
             let fields = iter::zip(&data.fields, hir_variant.data.fields())
                 .map(|(ty, hir_field)| {
                     Ok(fhir::FieldDef {
@@ -346,7 +341,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             let ret = self.desugar_variant_ret(&data.ret, &mut binders)?;
 
             Ok(fhir::VariantDef {
-                def_id: variant_def.def_id,
+                def_id: hir_variant.def_id,
                 params: binders.pop_layer().into_params(self),
                 fields,
                 ret,
@@ -357,7 +352,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             fhir::lift::lift_enum_variant_def(
                 self.early_cx.tcx,
                 self.early_cx.sess,
-                variant_def.def_id,
+                hir_variant.def_id,
             )
         }
     }

@@ -113,7 +113,7 @@ impl<'sess> Resolver<'sess> {
         } else {
             None
         };
-        Ok(surface::VariantDef { def_id: variant.def_id, data })
+        Ok(surface::VariantDef { data })
     }
 
     fn resolve_variant_ret(
