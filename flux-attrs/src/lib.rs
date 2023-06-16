@@ -1,5 +1,7 @@
 // #![feature(proc_macro_diagnostic)]
 
+mod ast;
+
 use std::mem;
 
 use proc_macro2::TokenStream;
@@ -15,6 +17,14 @@ use syn::{
     Type,
 };
 
+pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
+}
+
+pub fn flux(tokens: TokenStream) -> TokenStream {
+    syn::parse2::<ast::Items>(tokens)
+        .map_or_else(|err| err.to_compile_error(), ToTokens::into_token_stream)
+}
 enum ExternItem {
     Struct(syn::ItemStruct),
     Fn(ExternFn),
@@ -179,10 +189,6 @@ impl Parse for ExternItemImpl {
             dummy_ident: None,
         })
     }
-}
-
-pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
-    transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
 }
 
 fn transform_extern_spec(attr: TokenStream, tokens: TokenStream) -> syn::Result<TokenStream> {
