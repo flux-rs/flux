@@ -606,10 +606,13 @@ impl ToTokens for Item {
 impl ToTokens for ItemFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let ItemFn { attrs, vis, sig, block } = self;
-        let flux_sig = ToTokensFlux(sig);
+        #[cfg(feature = "enabled")]
+        {
+            let flux_sig = ToTokensFlux(sig);
+            quote!(#[flux::sig(#flux_sig)]).to_tokens(tokens);
+        }
         let rust_sig = ToTokensRust(sig);
         quote! {
-            #[flux::sig(#flux_sig)]
             #(#attrs)*
             #vis #rust_sig #block
         }
@@ -639,10 +642,13 @@ impl ToTokens for ImplItem {
 impl ToTokens for ImplItemFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let ImplItemFn { attrs, vis, sig, block } = self;
-        let flux_sig = ToTokensFlux(sig);
+        #[cfg(feature = "enabled")]
+        {
+            let flux_sig = ToTokensFlux(sig);
+            quote!(#[flux::sig(#flux_sig)]).to_tokens(tokens);
+        }
         let rust_sig = ToTokensRust(sig);
         quote! {
-            #[flux::sig(#flux_sig)]
             #(#attrs)*
             #vis #rust_sig #block
         }
