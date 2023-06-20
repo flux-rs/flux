@@ -18,6 +18,7 @@ pub enum Item {
     Struct(syn::ItemStruct),
     Enum(syn::ItemEnum),
     Use(syn::ItemUse),
+    Type(syn::ItemType),
     Fn(ItemFn),
     Impl(ItemImpl),
 }
@@ -268,6 +269,8 @@ impl Parse for Item {
             Item::Enum(input.parse()?)
         } else if lookahead.peek(Token![use]) {
             Item::Use(input.parse()?)
+        } else if lookahead.peek(Token![type]) {
+            Item::Type(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
@@ -348,10 +351,11 @@ impl Parse for Signature {
         let content;
         let fn_token = input.parse()?;
         let ident = input.parse()?;
-        let generics = input.parse()?;
+        let mut generics: syn::Generics = input.parse()?;
         let paren_token = parenthesized!(content in input);
         let inputs = content.parse_terminated(FnArg::parse, Token![,])?;
         let output = input.parse()?;
+        generics.where_clause = input.parse()?;
         let ensures = parse_ensures(input)?;
         Ok(Signature { fn_token, ident, generics, paren_token, inputs, output, ensures })
     }
@@ -664,7 +668,8 @@ impl Item {
             | Item::Impl(ItemImpl { attrs, .. })
             | Item::Enum(syn::ItemEnum { attrs, .. })
             | Item::Struct(syn::ItemStruct { attrs, .. })
-            | Item::Use(syn::ItemUse { attrs, .. }) => mem::replace(attrs, new),
+            | Item::Use(syn::ItemUse { attrs, .. })
+            | Item::Type(syn::ItemType { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -683,6 +688,7 @@ impl ToTokens for Item {
             Item::Struct(item_struct) => item_struct.to_tokens(tokens),
             Item::Enum(item_enum) => item_enum.to_tokens(tokens),
             Item::Use(item_use) => item_use.to_tokens(tokens),
+            Item::Type(item_type) => item_type.to_tokens(tokens),
         }
     }
 }
@@ -770,6 +776,9 @@ impl Signature {
             }
         });
         self.output.to_tokens_inner(tokens, mode);
+        if mode == Mode::Rust {
+            self.generics.where_clause.to_tokens(tokens);
+        }
         if let Some(ensures) = &self.ensures {
             ensures.to_tokens_inner(tokens, mode);
         }
