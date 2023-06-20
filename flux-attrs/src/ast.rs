@@ -35,6 +35,7 @@ pub struct ItemImpl {
     pub attrs: Vec<Attribute>,
     pub impl_token: Token![impl],
     pub generics: Generics,
+    pub trait_: Option<(syn::Path, Token![for])>,
     /// The Self type of the impl.
     pub self_ty: Box<syn::Type>,
     pub brace_token: token::Brace,
@@ -43,6 +44,7 @@ pub struct ItemImpl {
 
 pub enum ImplItem {
     Fn(ImplItemFn),
+    Type(syn::ImplItemType),
 }
 
 pub struct ImplItemFn {
@@ -293,11 +295,44 @@ impl Parse for ItemFn {
 impl Parse for ItemImpl {
     fn parse(input: ParseStream) -> Result<Self> {
         let content;
+        let attrs = input.call(Attribute::parse_outer)?;
+        let impl_token = input.parse()?;
+        let generics = input.parse()?;
+
+        let mut first_ty = input.parse()?;
+
+        let trait_;
+        let self_ty;
+        if input.peek(Token![for]) {
+            let for_token: Token![for] = input.parse()?;
+            let mut first_ty_ref = &first_ty;
+            while let syn::Type::Group(ty) = first_ty_ref {
+                first_ty_ref = &ty.elem;
+            }
+            if let syn::Type::Path(syn::TypePath { qself: None, .. }) = first_ty_ref {
+                while let syn::Type::Group(ty) = first_ty {
+                    first_ty = *ty.elem;
+                }
+                if let syn::Type::Path(syn::TypePath { qself: None, path }) = first_ty {
+                    trait_ = Some((path, for_token));
+                } else {
+                    unreachable!();
+                }
+            } else {
+                return Err(syn::Error::new_spanned(first_ty_ref, "expected trait path"));
+            }
+            self_ty = input.parse()?;
+        } else {
+            trait_ = None;
+            self_ty = first_ty;
+        }
+
         Ok(ItemImpl {
-            attrs: input.call(Attribute::parse_outer)?,
-            impl_token: input.parse()?,
-            generics: input.parse()?,
-            self_ty: input.parse()?,
+            attrs,
+            impl_token,
+            generics,
+            self_ty: Box::new(self_ty),
+            trait_,
             brace_token: braced!(content in input),
             items: {
                 let mut items = Vec::new();
@@ -314,7 +349,8 @@ impl Parse for ItemImpl {
 impl ImplItem {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
-            ImplItem::Fn(ImplItemFn { attrs, .. }) => mem::replace(attrs, new),
+            ImplItem::Fn(ImplItemFn { attrs, .. })
+            | ImplItem::Type(syn::ImplItemType { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -327,6 +363,8 @@ impl Parse for ImplItem {
         let lookahead = ahead.lookahead1();
         let mut item = if lookahead.peek(Token![fn]) {
             ImplItem::Fn(input.parse()?)
+        } else if lookahead.peek(Token![type]) {
+            ImplItem::Type(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
@@ -715,6 +753,10 @@ impl ToTokens for ItemImpl {
         tokens.append_all(&self.attrs);
         self.impl_token.to_tokens(tokens);
         self.generics.to_tokens(tokens);
+        if let Some((trait_, for_token)) = &self.trait_ {
+            trait_.to_tokens(tokens);
+            for_token.to_tokens(tokens);
+        }
         self.self_ty.to_tokens(tokens);
         self.brace_token
             .surround(tokens, |tokens| tokens.append_all(&self.items));
@@ -725,6 +767,7 @@ impl ToTokens for ImplItem {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             ImplItem::Fn(impl_item_fn) => impl_item_fn.to_tokens(tokens),
+            ImplItem::Type(impl_item_ty) => impl_item_ty.to_tokens(tokens),
         }
     }
 }
