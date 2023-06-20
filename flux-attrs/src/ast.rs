@@ -1,7 +1,7 @@
 use std::mem;
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
 use syn::{
     braced, bracketed,
     ext::IdentExt,
@@ -59,6 +59,20 @@ pub struct Signature {
     pub paren_token: Paren,
     pub inputs: Punctuated<FnArg, Token![,]>,
     pub output: ReturnType,
+    pub ensures: Option<EnsuresConstraints>,
+}
+
+#[derive(Debug)]
+pub struct EnsuresConstraints {
+    pub ensures_token: kw::ensures,
+    pub constraints: Punctuated<Constraint, Token![,]>,
+}
+
+#[derive(Debug)]
+pub struct Constraint {
+    pub ident: Ident,
+    pub colon_token: Token![:],
+    pub ty: Box<Type>,
 }
 
 #[derive(Debug)]
@@ -76,7 +90,13 @@ pub struct PatType {
 }
 
 #[derive(Debug)]
-pub struct Pat {
+pub enum Pat {
+    Ident(PatIdent),
+    Wild(Token![_]),
+}
+
+#[derive(Debug)]
+pub struct PatIdent {
     pub mutability: Option<Token![mut]>,
     pub ident: Ident,
 }
@@ -288,21 +308,38 @@ impl Parse for ItemImpl {
     }
 }
 
+impl ImplItem {
+    fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
+        match self {
+            ImplItem::Fn(ImplItemFn { attrs, .. }) => mem::replace(attrs, new),
+        }
+    }
+}
+
 impl Parse for ImplItem {
     fn parse(input: ParseStream) -> Result<Self> {
         let attrs = input.call(Attribute::parse_outer)?;
-        let lookahead = input.lookahead1();
-        let item = if lookahead.peek(Token![fn]) {
-            ImplItem::Fn(ImplItemFn {
-                attrs,
-                vis: input.parse()?,
-                sig: input.parse()?,
-                block: input.parse()?,
-            })
+        let ahead = input.fork();
+        let _: Visibility = ahead.parse()?;
+        let lookahead = ahead.lookahead1();
+        let mut item = if lookahead.peek(Token![fn]) {
+            ImplItem::Fn(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
+        item.replace_attrs(attrs);
         Ok(item)
+    }
+}
+
+impl Parse for ImplItemFn {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(ImplItemFn {
+            attrs: input.call(Attribute::parse_outer)?,
+            vis: input.parse()?,
+            sig: input.parse()?,
+            block: input.parse()?,
+        })
     }
 }
 
@@ -314,7 +351,30 @@ impl Parse for Signature {
         let generics = input.parse()?;
         let paren_token = parenthesized!(content in input);
         let inputs = content.parse_terminated(FnArg::parse, Token![,])?;
-        Ok(Signature { fn_token, ident, generics, paren_token, inputs, output: input.parse()? })
+        let output = input.parse()?;
+        let ensures = parse_ensures(input)?;
+        Ok(Signature { fn_token, ident, generics, paren_token, inputs, output, ensures })
+    }
+}
+
+fn parse_ensures(input: ParseStream) -> Result<Option<EnsuresConstraints>> {
+    if input.peek(kw::ensures) {
+        Ok(Some(EnsuresConstraints {
+            ensures_token: input.parse()?,
+            constraints: parse_until(input, Constraint::parse, Token![,], token::Brace)?,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+impl Parse for Constraint {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Constraint {
+            ident: parse_ident_or_self(input)?,
+            colon_token: input.parse()?,
+            ty: input.parse()?,
+        })
     }
 }
 
@@ -326,7 +386,7 @@ impl Parse for FnArg {
             let and_token = input.parse()?;
             let strg_token = input.parse()?;
             let ty = input.parse()?;
-            FnArg::StrgRef(StrgRef { and_token, strg_token, pat, colon_token, ty })
+            FnArg::StrgRef(StrgRef { pat, colon_token, and_token, strg_token, ty })
         } else if input.peek(Ident) {
             let bty: BaseType = input.parse()?;
             let mut pred = None;
@@ -365,16 +425,12 @@ impl Parse for FnArg {
 
 impl Parse for Pat {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Pat {
-            mutability: input.parse()?,
-            ident: {
-                if input.peek(Token![self]) {
-                    input.call(Ident::parse_any)?
-                } else {
-                    input.parse()?
-                }
-            },
-        })
+        let pat = if input.peek(Token![_]) {
+            Pat::Wild(input.parse()?)
+        } else {
+            Pat::Ident(PatIdent { mutability: input.parse()?, ident: parse_ident_or_self(input)? })
+        };
+        Ok(pat)
     }
 }
 
@@ -567,7 +623,6 @@ fn parse_until<T: Parse, P1: Peek, P2: Peek>(
 ) -> Result<Punctuated<T, P1::Token>>
 where
     P1::Token: Parse,
-    P2::Token: Parse,
 {
     let _ = sep;
     let mut params = Punctuated::new();
@@ -583,8 +638,17 @@ where
     }
 }
 
+fn parse_ident_or_self(input: ParseStream) -> Result<Ident> {
+    if input.peek(Token![self]) {
+        input.call(Ident::parse_any)
+    } else {
+        input.parse()
+    }
+}
+
 mod kw {
     syn::custom_keyword!(strg);
+    syn::custom_keyword!(ensures);
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -706,17 +770,56 @@ impl Signature {
             }
         });
         self.output.to_tokens_inner(tokens, mode);
+        if let Some(ensures) = &self.ensures {
+            ensures.to_tokens_inner(tokens, mode);
+        }
+    }
+}
+
+impl EnsuresConstraints {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        if mode == Mode::Flux {
+            self.ensures_token.to_tokens(tokens);
+            for constraint in self.constraints.pairs() {
+                constraint.value().to_tokens_inner(tokens);
+                constraint.punct().to_tokens(tokens);
+            }
+        }
+    }
+}
+
+impl Constraint {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream) {
+        self.ident.to_tokens(tokens);
+        self.colon_token.to_tokens(tokens);
+        self.ty.to_tokens_inner(tokens, Mode::Flux);
     }
 }
 
 impl FnArg {
     fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
         match self {
-            FnArg::StrgRef(_) => todo!(),
+            FnArg::StrgRef(strg_ref) => strg_ref.to_tokens_inner(tokens, mode),
             FnArg::Typed(pat_type) => {
                 pat_type.to_tokens_inner(tokens, mode);
             }
         }
+    }
+}
+
+impl StrgRef {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        self.pat.to_tokens_inner(tokens, mode);
+        self.colon_token.to_tokens(tokens);
+        self.and_token.to_tokens(tokens);
+        match mode {
+            Mode::Flux => self.strg_token.to_tokens(tokens),
+            Mode::Rust => {
+                let span = self.strg_token.span;
+                quote_spanned!(span=> mut).to_tokens(tokens);
+            }
+        }
+        self.ty.to_tokens_inner(tokens, mode);
     }
 }
 
@@ -746,6 +849,17 @@ impl PatType {
 }
 
 impl Pat {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        match self {
+            Pat::Ident(pat_ident) => pat_ident.to_tokens_inner(tokens, mode),
+            Pat::Wild(underscore_token) => {
+                underscore_token.to_tokens(tokens);
+            }
+        }
+    }
+}
+
+impl PatIdent {
     fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
         if mode == Mode::Rust {
             self.mutability.to_tokens(tokens);
