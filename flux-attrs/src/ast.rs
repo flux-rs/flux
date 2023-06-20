@@ -69,10 +69,16 @@ pub enum FnArg {
 
 #[derive(Debug)]
 pub struct PatType {
-    pub ident: Ident,
+    pub pat: Pat,
     pub colon_token: Token![:],
     pub ty: Type,
     pub pred: Option<PatTypePredicate>,
+}
+
+#[derive(Debug)]
+pub struct Pat {
+    pub mutability: Option<Token![mut]>,
+    pub ident: Ident,
 }
 
 #[derive(Debug)]
@@ -83,10 +89,10 @@ pub struct PatTypePredicate {
 
 #[derive(Debug)]
 pub struct StrgRef {
+    pub pat: Pat,
+    pub colon_token: Token![:],
     pub and_token: Token![&],
     pub strg_token: kw::strg,
-    pub ident: Ident,
-    pub colon_token: Token![:],
     pub ty: Box<Type>,
 }
 
@@ -314,14 +320,13 @@ impl Parse for Signature {
 
 impl Parse for FnArg {
     fn parse(input: ParseStream) -> Result<Self> {
-        let ident =
-            if input.peek(Token![self]) { input.call(Ident::parse_any)? } else { input.parse()? };
+        let pat = input.parse()?;
         let colon_token = input.parse()?;
         let fn_arg = if input.peek(Token![&]) && input.peek2(kw::strg) {
             let and_token = input.parse()?;
             let strg_token = input.parse()?;
             let ty = input.parse()?;
-            FnArg::StrgRef(StrgRef { and_token, strg_token, ident, colon_token, ty })
+            FnArg::StrgRef(StrgRef { and_token, strg_token, pat, colon_token, ty })
         } else if input.peek(Ident) {
             let bty: BaseType = input.parse()?;
             let mut pred = None;
@@ -350,11 +355,26 @@ impl Parse for FnArg {
             } else {
                 Type::Base(bty)
             };
-            FnArg::Typed(PatType { ident, colon_token, ty, pred })
+            FnArg::Typed(PatType { pat, colon_token, ty, pred })
         } else {
-            FnArg::Typed(PatType { ident, colon_token, ty: input.parse()?, pred: None })
+            FnArg::Typed(PatType { pat, colon_token, ty: input.parse()?, pred: None })
         };
         Ok(fn_arg)
+    }
+}
+
+impl Parse for Pat {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Pat {
+            mutability: input.parse()?,
+            ident: {
+                if input.peek(Token![self]) {
+                    input.call(Ident::parse_any)?
+                } else {
+                    input.parse()?
+                }
+            },
+        })
     }
 }
 
@@ -714,7 +734,7 @@ impl ReturnType {
 
 impl PatType {
     fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
-        self.ident.to_tokens(tokens);
+        self.pat.to_tokens_inner(tokens, mode);
         self.colon_token.to_tokens(tokens);
         self.ty.to_tokens_inner(tokens, mode);
         if mode == Mode::Flux {
@@ -722,6 +742,15 @@ impl PatType {
                 pred.to_tokens_inner(tokens);
             }
         }
+    }
+}
+
+impl Pat {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        if mode == Mode::Rust {
+            self.mutability.to_tokens(tokens);
+        }
+        self.ident.to_tokens(tokens);
     }
 }
 
