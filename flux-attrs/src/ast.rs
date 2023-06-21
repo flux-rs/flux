@@ -1,6 +1,6 @@
 use std::mem;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
 use syn::{
     braced, bracketed,
@@ -62,13 +62,20 @@ pub struct Signature {
     pub paren_token: Paren,
     pub inputs: Punctuated<FnArg, Token![,]>,
     pub output: ReturnType,
-    pub ensures: Option<EnsuresConstraints>,
+    pub requires: Option<Requires>,
+    pub ensures: Option<Ensures>,
 }
 
 #[derive(Debug)]
-pub struct EnsuresConstraints {
+pub struct Ensures {
     pub ensures_token: kw::ensures,
     pub constraints: Punctuated<Constraint, Token![,]>,
+}
+
+#[derive(Debug)]
+pub struct Requires {
+    pub requires_token: kw::requires,
+    pub constraint: Expr,
 }
 
 #[derive(Debug)]
@@ -394,14 +401,32 @@ impl Parse for Signature {
         let inputs = content.parse_terminated(FnArg::parse, Token![,])?;
         let output = input.parse()?;
         generics.where_clause = input.parse()?;
+        let requires = parse_requires(input)?;
         let ensures = parse_ensures(input)?;
-        Ok(Signature { fn_token, ident, generics, paren_token, inputs, output, ensures })
+        Ok(Signature { fn_token, ident, generics, paren_token, inputs, output, requires, ensures })
     }
 }
 
-fn parse_ensures(input: ParseStream) -> Result<Option<EnsuresConstraints>> {
+fn parse_requires(input: ParseStream) -> Result<Option<Requires>> {
+    if input.peek(kw::requires) {
+        let requires_token = input.parse()?;
+        let mut constraint = TokenStream::new();
+        loop {
+            let tt: TokenTree = input.parse()?;
+            constraint.append(tt);
+            if input.is_empty() || input.peek(kw::ensures) || input.peek(token::Brace) {
+                break;
+            }
+        }
+        Ok(Some(Requires { requires_token, constraint }))
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_ensures(input: ParseStream) -> Result<Option<Ensures>> {
     if input.peek(kw::ensures) {
-        Ok(Some(EnsuresConstraints {
+        Ok(Some(Ensures {
             ensures_token: input.parse()?,
             constraints: parse_until(input, Constraint::parse, Token![,], token::Brace)?,
         }))
@@ -691,6 +716,7 @@ fn parse_ident_or_self(input: ParseStream) -> Result<Ident> {
 mod kw {
     syn::custom_keyword!(strg);
     syn::custom_keyword!(ensures);
+    syn::custom_keyword!(requires);
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -822,13 +848,25 @@ impl Signature {
         if mode == Mode::Rust {
             self.generics.where_clause.to_tokens(tokens);
         }
+        if let Some(requires) = &self.requires {
+            requires.to_tokens_inner(tokens, mode);
+        }
         if let Some(ensures) = &self.ensures {
             ensures.to_tokens_inner(tokens, mode);
         }
     }
 }
 
-impl EnsuresConstraints {
+impl Requires {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        if mode == Mode::Flux {
+            self.requires_token.to_tokens(tokens);
+            self.constraint.to_tokens(tokens);
+        }
+    }
+}
+
+impl Ensures {
     fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
         if mode == Mode::Flux {
             self.ensures_token.to_tokens(tokens);
