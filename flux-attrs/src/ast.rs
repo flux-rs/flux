@@ -18,7 +18,7 @@ pub enum Item {
     Struct(syn::ItemStruct),
     Enum(syn::ItemEnum),
     Use(syn::ItemUse),
-    Type(syn::ItemType),
+    Type(ItemType),
     Fn(ItemFn),
     Impl(ItemImpl),
 }
@@ -29,6 +29,23 @@ pub struct ItemFn {
     pub vis: Visibility,
     pub sig: Signature,
     pub block: Block,
+}
+
+pub struct ItemType {
+    pub attrs: Vec<Attribute>,
+    pub vis: Visibility,
+    pub type_token: Token![type],
+    pub ident: Ident,
+    pub generics: Generics,
+    pub index_params: Option<IndexParams>,
+    pub eq_token: Token![=],
+    pub ty: Box<Type>,
+    pub semi_token: Token![;],
+}
+
+pub struct IndexParams {
+    pub bracket_token: token::Bracket,
+    pub params: Punctuated<RefineParam, Token![,]>,
 }
 
 pub struct ItemImpl {
@@ -296,6 +313,34 @@ impl Parse for ItemFn {
             sig: input.parse()?,
             block: input.parse()?,
         })
+    }
+}
+
+impl Parse for ItemType {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(ItemType {
+            attrs: input.call(Attribute::parse_outer)?,
+            vis: input.parse()?,
+            type_token: input.parse()?,
+            ident: input.parse()?,
+            generics: input.parse()?,
+            index_params: parse_index_params(input)?,
+            eq_token: input.parse()?,
+            ty: input.parse()?,
+            semi_token: input.parse()?,
+        })
+    }
+}
+
+fn parse_index_params(input: ParseStream) -> Result<Option<IndexParams>> {
+    if input.peek(token::Bracket) {
+        let content;
+        Ok(Some(IndexParams {
+            bracket_token: bracketed!(content in input),
+            params: Punctuated::parse_terminated(&content)?,
+        }))
+    } else {
+        Ok(None)
     }
 }
 
@@ -665,13 +710,14 @@ impl Parse for GenericArgument {
 
 impl Parse for RefineParam {
     fn parse(input: ParseStream) -> Result<Self> {
+        let ident = input.parse()?;
         let mut colon_token = None;
         let mut sort = None;
         if input.peek(Token![:]) {
             colon_token = Some(input.parse()?);
             sort = Some(input.parse()?);
         }
-        Ok(RefineParam { ident: input.parse()?, colon_token, sort })
+        Ok(RefineParam { ident, colon_token, sort })
     }
 }
 
@@ -733,7 +779,7 @@ impl Item {
             | Item::Enum(syn::ItemEnum { attrs, .. })
             | Item::Struct(syn::ItemStruct { attrs, .. })
             | Item::Use(syn::ItemUse { attrs, .. })
-            | Item::Type(syn::ItemType { attrs, .. }) => mem::replace(attrs, new),
+            | Item::Type(ItemType { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -771,6 +817,63 @@ impl ToTokens for ItemFn {
             #vis #rust_sig #block
         }
         .to_tokens(tokens);
+    }
+}
+
+impl ToTokens for ItemType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let flux_type = ToTokensFlux(self);
+        let rust_type = ToTokensRust(self);
+        quote! {
+            #[flux::alias(#flux_type)]
+            #rust_type
+        }
+        .to_tokens(tokens);
+    }
+}
+
+impl ToTokens for ToTokensFlux<&ItemType> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.0.to_tokens_inner(tokens, Mode::Flux);
+    }
+}
+
+impl ToTokens for ToTokensRust<&ItemType> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.0.to_tokens_inner(tokens, Mode::Rust);
+    }
+}
+
+impl ItemType {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        if mode == Mode::Rust {
+            tokens.append_all(&self.attrs);
+            self.vis.to_tokens(tokens);
+        }
+        self.type_token.to_tokens(tokens);
+        self.ident.to_tokens(tokens);
+        self.generics.to_tokens(tokens);
+        if let Some(params) = &self.index_params {
+            params.to_tokens_inner(tokens, mode);
+        }
+        self.eq_token.to_tokens(tokens);
+        self.ty.to_tokens_inner(tokens, mode);
+        if mode == Mode::Rust {
+            self.semi_token.to_tokens(tokens);
+        }
+    }
+}
+
+impl IndexParams {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        if mode == Mode::Flux {
+            self.bracket_token.surround(tokens, |tokens| {
+                for param in self.params.pairs() {
+                    param.value().to_tokens_inner(tokens);
+                    param.punct().to_tokens(tokens);
+                }
+            });
+        }
     }
 }
 
