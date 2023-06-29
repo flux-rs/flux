@@ -4,7 +4,7 @@
 #![feature(
     associated_type_defaults,
     box_patterns,
-    drain_filter,
+    extract_if,
     if_let_guard,
     impl_trait_in_assoc_type,
     lazy_cell,

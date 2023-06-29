@@ -75,16 +75,16 @@ pub enum GenericParamDefKind {
 #[derive(Clone)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
-    pub predicates: List<Predicate>,
+    pub predicates: List<Clause>,
 }
 
 #[derive(PartialEq, Eq, Hash)]
-pub struct Predicate {
-    kind: Binder<PredicateKind>,
+pub struct Clause {
+    kind: Binder<ClauseKind>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum PredicateKind {
+pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
 }
 
@@ -298,8 +298,8 @@ pub enum GenericArg {
     Lifetime(Region),
 }
 
-impl Predicate {
-    pub fn kind(&self) -> Binder<PredicateKind> {
+impl Clause {
+    pub fn kind(&self) -> Binder<ClauseKind> {
         self.kind.clone()
     }
 }
@@ -612,7 +612,7 @@ impl<T: TypeFoldable> EarlyBinder<T> {
 }
 
 impl EarlyBinder<GenericPredicates> {
-    pub fn predicates(&self) -> EarlyBinder<List<Predicate>> {
+    pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
         EarlyBinder(self.0.predicates.clone())
     }
 }
@@ -1232,7 +1232,7 @@ impl_slice_internable!(
     TupleTree<bool>,
     Sort,
     GenericParamDef,
-    Predicate,
+    Clause,
     PolyVariant,
     Invariant,
     BoundVariableKind,

@@ -39,7 +39,7 @@ pub struct ConstrGen<'a, 'tcx> {
 }
 
 pub(crate) struct Obligations {
-    pub(crate) predicates: List<rty::Predicate>,
+    pub(crate) predicates: List<rty::Clause>,
     /// Snapshot of the refinement subtree where the obligations should be checked
     pub(crate) snapshot: Snapshot,
 }
@@ -620,7 +620,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 }
 
 impl Obligations {
-    fn new(predicates: List<rty::Predicate>, snapshot: Snapshot) -> Self {
+    fn new(predicates: List<rty::Clause>, snapshot: Snapshot) -> Self {
         Self { predicates, snapshot }
     }
 }
@@ -629,7 +629,7 @@ fn mk_obligations(
     genv: &GlobalEnv<'_, '_>,
     did: DefId,
     substs: &[GenericArg],
-) -> Result<List<rty::Predicate>, CheckerErrKind> {
+) -> Result<List<rty::Clause>, CheckerErrKind> {
     Ok(genv.predicates_of(did)?.predicates().subst_generics(substs))
 }
 

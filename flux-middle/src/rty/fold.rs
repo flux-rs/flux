@@ -12,9 +12,9 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, BoundVariableKind, Constraint, Expr, ExprKind, FnOutput, FnSig,
-    FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness, Predicate,
-    PredicateKind, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind, FnOutput,
+    FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness,
+    PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -358,30 +358,30 @@ pub trait TypeSuperFoldable: TypeFoldable {
     }
 }
 
-impl TypeVisitable for Predicate {
+impl TypeVisitable for Clause {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.kind.visit_with(visitor)
     }
 }
 
-impl TypeFoldable for Predicate {
+impl TypeFoldable for Clause {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Predicate { kind: self.kind.try_fold_with(folder)? })
+        Ok(Clause { kind: self.kind.try_fold_with(folder)? })
     }
 }
 
-impl TypeVisitable for PredicateKind {
+impl TypeVisitable for ClauseKind {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            PredicateKind::FnTrait(pred) => pred.visit_with(visitor),
+            ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
         }
     }
 }
 
-impl TypeFoldable for PredicateKind {
+impl TypeFoldable for ClauseKind {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
-            PredicateKind::FnTrait(pred) => Ok(PredicateKind::FnTrait(pred.try_fold_with(folder)?)),
+            ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
         }
     }
 }

@@ -72,20 +72,20 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let predicates = generics
             .predicates
             .iter()
-            .map(|pred| -> QueryResult<rty::Predicate> {
+            .map(|pred| -> QueryResult<rty::Clause> {
                 let vars = refine_bound_variables(pred.kind.vars());
                 let kind = match pred.kind.as_ref().skip_binder() {
-                    rustc::ty::PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
+                    rustc::ty::ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
                             self_ty: self.refine_ty(bounded_ty)?,
                             tupled_args: self.refine_ty(tupled_args)?,
                             output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        rty::Binder::new(rty::PredicateKind::FnTrait(pred), vars)
+                        rty::Binder::new(rty::ClauseKind::FnTrait(pred), vars)
                     }
                 };
-                Ok(rty::Predicate { kind })
+                Ok(rty::Clause { kind })
             })
             .try_collect()?;
 

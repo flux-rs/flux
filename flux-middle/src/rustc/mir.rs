@@ -15,7 +15,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
-    mir,
+    mir::{self, MutBorrowKind},
     ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
@@ -155,7 +155,7 @@ pub enum Rvalue {
 }
 
 pub enum BorrowKind {
-    Mut { allow_two_phase_borrow: bool },
+    Mut { kind: MutBorrowKind },
     Shared,
 }
 

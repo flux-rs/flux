@@ -66,16 +66,16 @@ pub enum GenericParamDefKind {
 #[derive(Debug)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
-    pub predicates: List<Predicate>,
+    pub predicates: List<Clause>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub struct Predicate {
-    pub kind: Binder<PredicateKind>,
+pub struct Clause {
+    pub kind: Binder<ClauseKind>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub enum PredicateKind {
+pub enum ClauseKind {
     FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
 }
 
@@ -220,9 +220,9 @@ pub struct BoundRegion {
     pub kind: BoundRegionKind,
 }
 
-impl Predicate {
-    pub(crate) fn new(kind: Binder<PredicateKind>) -> Predicate {
-        Predicate { kind }
+impl Clause {
+    pub(crate) fn new(kind: Binder<ClauseKind>) -> Clause {
+        Clause { kind }
     }
 }
 
@@ -472,7 +472,7 @@ impl Ty {
 }
 
 impl_internable!(TyS, AdtDefData);
-impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Predicate);
+impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Clause);
 
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
