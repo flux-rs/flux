@@ -451,14 +451,17 @@ impl Node {
             NodeKind::True => {}
             NodeKind::Guard(pred) => {
                 *pred = pred.simplify();
-                self.children.drain_filter(|child| {
-                    matches!(child.borrow().kind, NodeKind::True)
-                        || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
-                });
+                self.children
+                    .extract_if(|child| {
+                        matches!(child.borrow().kind, NodeKind::True)
+                            || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
+                    })
+                    .for_each(drop);
             }
             NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) => {
                 self.children
-                    .drain_filter(|child| matches!(&child.borrow().kind, NodeKind::True));
+                    .extract_if(|child| matches!(&child.borrow().kind, NodeKind::True))
+                    .for_each(drop);
             }
         }
         if !self.is_leaf() && self.children.is_empty() {

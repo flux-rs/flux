@@ -498,7 +498,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), CheckerError> {
         for predicate in &obligs.predicates {
             let fn_trait_pred = predicate.kind().map(|kind| {
-                let rty::PredicateKind::FnTrait(fn_trait_pred) = kind;
+                let rty::ClauseKind::FnTrait(fn_trait_pred) = kind;
                 fn_trait_pred
             });
             if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred

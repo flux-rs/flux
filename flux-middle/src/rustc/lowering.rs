@@ -24,9 +24,9 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Const,
-        FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind, GenericPredicates,
-        Generics, PolyFnSig, Predicate, PredicateKind, Ty, VariantDef,
+        AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Clause,
+        ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
+        GenericPredicates, Generics, PolyFnSig, Ty, VariantDef,
     },
 };
 use crate::{
@@ -369,10 +369,8 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     ) -> Result<BorrowKind, UnsupportedReason> {
         match bk {
             rustc_mir::BorrowKind::Shared => Ok(BorrowKind::Shared),
-            rustc_mir::BorrowKind::Mut { allow_two_phase_borrow } => {
-                Ok(BorrowKind::Mut { allow_two_phase_borrow })
-            }
-            rustc_mir::BorrowKind::Shallow | rustc_mir::BorrowKind::Unique => {
+            rustc_mir::BorrowKind::Mut { kind } => Ok(BorrowKind::Mut { kind }),
+            rustc_mir::BorrowKind::Shallow => {
                 Err(UnsupportedReason::new(format!("unsupported borrow kind `{bk:?}`")))
             }
         }
@@ -431,7 +429,13 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::BinOp::BitOr => Ok(BinOp::BitOr),
             rustc_mir::BinOp::Shl => Ok(BinOp::Shl),
             rustc_mir::BinOp::Shr => Ok(BinOp::Shr),
-            rustc_mir::BinOp::BitXor | rustc_mir::BinOp::Offset => {
+            rustc_mir::BinOp::AddUnchecked
+            | rustc_mir::BinOp::SubUnchecked
+            | rustc_mir::BinOp::MulUnchecked
+            | rustc_mir::BinOp::ShlUnchecked
+            | rustc_mir::BinOp::ShrUnchecked
+            | rustc_mir::BinOp::BitXor
+            | rustc_mir::BinOp::Offset => {
                 Err(UnsupportedReason::new(format!("unsupported binary op `{bin_op:?}`")))
             }
         }
@@ -749,12 +753,9 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     for (predicate, span) in generics.predicates {
         let bound_vars = predicate.kind().bound_vars();
         let kind = predicate.kind().skip_binder();
-        let rustc_ty::PredicateKind::Clause(clause) = kind else {
-            continue;
-        };
 
-        match clause {
-            rustc_ty::Clause::Trait(trait_pred) => {
+        match kind {
+            rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
                     let substs = rustc_ty::Binder::bind_with_vars(trait_ref.substs, bound_vars);
@@ -766,7 +767,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
                     }
                 }
             }
-            rustc_ty::Clause::Projection(proj_pred) => {
+            rustc_ty::ClauseKind::Projection(proj_pred) => {
                 let proj_ty = proj_pred.projection_ty;
                 if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
                     let substs = rustc_ty::Binder::bind_with_vars(proj_ty.substs, bound_vars);
@@ -802,8 +803,8 @@ pub(crate) fn lower_generic_predicates<'tcx>(
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
 
-        let kind = PredicateKind::FnTrait { bounded_ty, tupled_args, output, kind };
-        predicates.push(Predicate::new(Binder::bind_with_vars(kind, vars)));
+        let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
+        predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
     Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
 }
