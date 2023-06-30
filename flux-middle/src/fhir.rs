@@ -352,8 +352,13 @@ pub struct BaseTy {
 
 #[derive(Clone)]
 pub enum BaseTyKind {
-    Path(Path),
+    Path(QPath),
     Slice(Box<Ty>),
+}
+
+#[derive(Clone)]
+pub enum QPath {
+    Resolved(Option<Box<Ty>>, Path),
 }
 
 #[derive(Clone)]
@@ -377,6 +382,7 @@ pub enum Res {
     Struct(DefId),
     Enum(DefId),
     Param(DefId),
+    AssocTy(DefId),
 }
 
 #[derive(Debug, Clone)]
@@ -522,11 +528,14 @@ impl From<OwnerId> for FluxOwnerId {
 
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
-        matches!(self.kind, BaseTyKind::Path(Path { res: Res::PrimTy(PrimTy::Bool), .. }))
+        matches!(
+            self.kind,
+            BaseTyKind::Path(QPath::Resolved(_, Path { res: Res::PrimTy(PrimTy::Bool), .. }))
+        )
     }
 
     pub fn is_refined_by_record(&self) -> Option<DefId> {
-        if let BaseTyKind::Path(path) = &self.kind
+        if let BaseTyKind::Path(QPath::Resolved(_, path)) = &self.kind
            && let Res::Struct(def_id) | Res::Enum(def_id) | Res::Alias(def_id) = path.res
         {
             Some(def_id)
@@ -535,13 +544,23 @@ impl BaseTy {
         }
     }
 
+    #[track_caller]
     pub fn expect_param(&self) -> DefId {
-        if let BaseTyKind::Path(path) = &self.kind
+        if let BaseTyKind::Path(QPath::Resolved(_, path)) = &self.kind
            && let Res::Param(def_id) = path.res
         {
             def_id
         } else {
             panic!("expected param")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_path(&self) -> &QPath {
+        if let BaseTyKind::Path(qpath) = &self.kind {
+            qpath
+        } else {
+            panic!("expected `BaseTyKind::Path`")
         }
     }
 }
@@ -554,14 +573,23 @@ impl Res {
             Res::Struct(_) => "struct",
             Res::Enum(_) => "enum",
             Res::Param(_) => "type parameter",
+            Res::AssocTy(_) => "associated type",
         }
     }
 }
 
-impl From<Path> for BaseTy {
-    fn from(path: Path) -> Self {
-        let span = path.span;
-        Self { kind: BaseTyKind::Path(path), span }
+impl QPath {
+    pub fn span(&self) -> Span {
+        match self {
+            QPath::Resolved(_, path) => path.span,
+        }
+    }
+}
+
+impl From<QPath> for BaseTy {
+    fn from(qpath: QPath) -> Self {
+        let span = qpath.span();
+        Self { kind: BaseTyKind::Path(qpath), span }
     }
 }
 
@@ -1207,8 +1235,18 @@ impl fmt::Debug for ArrayLen {
 impl fmt::Debug for BaseTy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            BaseTyKind::Path(path) => write!(f, "{path:?}"),
+            BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
+        }
+    }
+}
+
+impl fmt::Debug for QPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QPath::Resolved(self_ty, path) => {
+                write!(f, "{path:?}")
+            }
         }
     }
 }
@@ -1231,6 +1269,7 @@ impl fmt::Debug for Path {
             Res::Alias(def_id) | Res::Struct(def_id) | Res::Enum(def_id) | Res::Param(def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
+            Res::AssocTy(_) => todo!(),
         }
         if !self.generics.is_empty() {
             write!(f, "<{:?}>", self.generics.iter().format(", "))?;

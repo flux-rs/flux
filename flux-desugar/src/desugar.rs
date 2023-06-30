@@ -601,7 +601,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
         let generics = self.desugar_generic_args(path.res, &path.generics, binders)?;
         let refine = self.desugar_refine_args(&path.refine, binders)?;
-        Ok(fhir::BaseTy::from(fhir::Path { res: path.res, generics, refine, span: path.span }))
+        let path = fhir::Path { res: path.res, generics, refine, span: path.span };
+        Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, path)))
     }
 
     fn desugar_generic_args(

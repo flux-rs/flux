@@ -150,7 +150,7 @@ pub fn lift_enum_variant_def(
         span: ident.span,
     };
     let ret = fhir::VariantRet {
-        bty: fhir::BaseTy::from(path),
+        bty: fhir::BaseTy::from(fhir::QPath::Resolved(None, path)),
         idx: fhir::RefineArg::Record(enum_id.to_def_id(), vec![], ident.span),
     };
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
@@ -237,7 +237,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::Tup(tys) => {
                 fhir::TyKind::Tuple(tys.iter().map(|ty| self.lift_ty(ty)).try_collect()?)
             }
-            hir::TyKind::Path(hir::QPath::Resolved(_, path)) => return self.lift_path(path),
+            hir::TyKind::Path(qpath) => return self.lift_qpath(qpath),
             hir::TyKind::Ptr(mut_ty) => {
                 fhir::TyKind::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
             }
@@ -268,20 +268,38 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(fhir::MutTy { ty: Box::new(self.lift_ty(mut_ty.ty)?), mutbl: mut_ty.mutbl })
     }
 
-    fn lift_path(&self, path: &hir::Path) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn lift_qpath(&self, qpath: &hir::QPath) -> Result<fhir::Ty, ErrorGuaranteed> {
+        match qpath {
+            hir::QPath::Resolved(self_ty, path) => self.lift_path(*self_ty, path),
+            hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
+                return self.emit_unsupported(&format!(
+                    "unsupported type: `{}`",
+                    rustc_hir_pretty::qpath_to_string(qpath)
+                ));
+            }
+        }
+    }
+
+    fn lift_path(
+        &self,
+        self_ty: Option<&hir::Ty>,
+        path: &hir::Path,
+    ) -> Result<fhir::Ty, ErrorGuaranteed> {
         let res = match path.res {
             hir::def::Res::Def(DefKind::Struct, def_id) => fhir::Res::Struct(def_id),
             hir::def::Res::Def(DefKind::Enum, def_id) => fhir::Res::Enum(def_id),
             hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
             hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Res::Param(def_id),
+            hir::def::Res::Def(DefKind::AssocTy, def_id) => fhir::Res::AssocTy(def_id),
             hir::def::Res::SelfTyAlias { alias_to, .. } => {
                 return self.lift_self_ty_alias(alias_to)
             }
             _ => {
                 return self.emit_unsupported(&format!(
-                    "unsupported type: `{}`",
-                    rustc_hir_pretty::path_to_string(path)
+                    "unsupported type: `{}` {:?}",
+                    rustc_hir_pretty::path_to_string(path),
+                    path.res
                 ));
             }
         };
@@ -291,7 +309,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             refine: vec![],
             span: path.span,
         };
-        let bty = fhir::BaseTy::from(path);
+        let self_ty = self_ty
+            .map(|ty| Ok(Box::new(self.lift_ty(ty)?)))
+            .transpose()?;
+        let qpath = fhir::QPath::Resolved(self_ty, path);
+        let bty = fhir::BaseTy::from(qpath);
         let span = bty.span;
         Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), fhir_id: self.next_fhir_id(), span })
     }
@@ -358,7 +380,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                     let res = fhir::Res::Param(param.def_id.to_def_id());
                     let path =
                         fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
-                    let bty = fhir::BaseTy::from(path);
+                    let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
                     let ty = fhir::Ty {
                         kind: fhir::TyKind::BaseTy(bty),
                         fhir_id: self.next_fhir_id(),
@@ -382,10 +404,12 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(args)
     }
 
+    #[track_caller]
     fn emit_unsupported<T>(&self, msg: &str) -> Result<T, ErrorGuaranteed> {
         self.emit_err(errors::UnsupportedHir::new(self.tcx, self.owner, msg))
     }
 
+    #[track_caller]
     fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
     }

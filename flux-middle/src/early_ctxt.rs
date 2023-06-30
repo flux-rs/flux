@@ -99,6 +99,10 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
             fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
             fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
+            fhir::Res::Alias(def_id) | fhir::Res::Enum(def_id) | fhir::Res::Struct(def_id) => {
+                fhir::Sort::Record(def_id)
+            }
+            fhir::Res::AssocTy(_) => fhir::Sort::Unit,
             fhir::Res::Param(def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
@@ -106,9 +110,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     fhir::GenericParamDefKind::Type { .. }
                     | fhir::GenericParamDefKind::Lifetime => return None,
                 }
-            }
-            fhir::Res::Alias(def_id) | fhir::Res::Enum(def_id) | fhir::Res::Struct(def_id) => {
-                fhir::Sort::Record(def_id)
             }
         };
         Some(sort)
@@ -144,7 +145,9 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
         match &bty.kind {
-            fhir::BaseTyKind::Path(fhir::Path { res, .. }) => self.sort_of_res(*res),
+            fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, fhir::Path { res, .. })) => {
+                self.sort_of_res(*res)
+            }
             fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
         }
     }

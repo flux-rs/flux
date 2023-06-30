@@ -362,27 +362,23 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => {
-                match self.genv.early_cx().sort_of_bty(bty) {
-                    Some(sort) => {
-                        let sort = conv_sort(self.early_cx(), &sort);
+            fhir::TyKind::BaseTy(bty) if let Some(sort) = self.genv.early_cx().sort_of_bty(bty) => {
+                let sort = conv_sort(self.early_cx(), &sort);
 
-                        if sort.is_unit() {
-                            let idx = rty::Index::from(rty::Expr::unit());
-                            self.conv_base_ty(env, bty, idx)
-                        } else {
-                            env.push_layer(Layer::empty());
-                            let idx = rty::Index::from(rty::Expr::nu());
-                            let ty = self.conv_base_ty(env, bty, idx)?;
-                            env.pop_layer();
-                            Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
-                        }
-                    }
-                    None => {
-                        let def_id = bty.expect_param();
-                        Ok(rty::Ty::param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local())))
-                    }
+                if sort.is_unit() {
+                    let idx = rty::Index::from(rty::Expr::unit());
+                    self.conv_base_ty(env, bty, idx)
+                } else {
+                    env.push_layer(Layer::empty());
+                    let idx = rty::Index::from(rty::Expr::nu());
+                    let ty = self.conv_base_ty(env, bty, idx)?;
+                    env.pop_layer();
+                    Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
                 }
+            }
+            fhir::TyKind::BaseTy(bty) => {
+                let def_id = bty.expect_param();
+                Ok(rty::Ty::param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local())))
             }
             fhir::TyKind::Indexed(bty, idx) => {
                 let idxs = rty::Index::from(self.conv_refine_arg(env, idx));
@@ -502,7 +498,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         idx: rty::Index,
     ) -> QueryResult<rty::Ty> {
         match &bty.kind {
-            fhir::BaseTyKind::Path(path) => self.conv_path(env, path, idx),
+            fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) => {
+                self.conv_path(env, self_ty.as_deref(), path, idx)
+            }
             fhir::BaseTyKind::Slice(ty) => {
                 let slice = rty::BaseTy::slice(self.conv_ty(env, ty)?);
                 Ok(rty::Ty::indexed(slice, idx))
@@ -510,7 +508,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_path(&self, env: &mut Env, path: &fhir::Path, idx: rty::Index) -> QueryResult<rty::Ty> {
+    fn conv_path(
+        &self,
+        env: &mut Env,
+        self_ty: Option<&fhir::Ty>,
+        path: &fhir::Path,
+        idx: rty::Index,
+    ) -> QueryResult<rty::Ty> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -531,6 +535,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Param(def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
+            }
+            fhir::Res::AssocTy(def_id) => {
+                let self_ty = self.conv_ty(env, self_ty.unwrap());
+                todo!("{self_ty:?} {def_id:?}");
             }
             fhir::Res::Alias(def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.generics)?;
