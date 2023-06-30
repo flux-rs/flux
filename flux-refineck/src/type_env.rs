@@ -385,6 +385,7 @@ impl BasicBlockEnvShape {
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Ref(r, ty, mutbl) => BaseTy::Ref(*r, Self::pack_ty(scope, ty), *mutbl),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
+            BaseTy::AliasTy(..) => tracked_span_bug!("packing of `AliasTy` is not implemented"),
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)

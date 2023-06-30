@@ -537,8 +537,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
             fhir::Res::AssocTy(def_id) => {
-                let self_ty = self.conv_ty(env, self_ty.unwrap());
-                todo!("{self_ty:?} {def_id:?}");
+                let self_ty = self.conv_ty(env, self_ty.unwrap())?;
+                assert!(path.generics.is_empty(), "generic associated types are not supported");
+                rty::AliasTy { substs: List::singleton(self_ty), def_id: *def_id };
             }
             fhir::Res::Alias(def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.generics)?;

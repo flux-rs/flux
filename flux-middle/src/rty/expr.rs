@@ -303,18 +303,7 @@ impl Expr {
             }
             BaseTy::Uint(_) => ExprKind::Constant(Constant::from(bits)).intern(),
             BaseTy::Bool => ExprKind::Constant(Constant::Bool(bits != 0)).intern(),
-            BaseTy::Adt(..)
-            | BaseTy::Ref(..)
-            | BaseTy::Str
-            | BaseTy::Float(_)
-            | BaseTy::Slice(_)
-            | BaseTy::Char
-            | BaseTy::RawPtr(_, _)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
-            | BaseTy::Never
-            | BaseTy::Param(_) => bug!(),
+            _ => bug!(),
         }
     }
 

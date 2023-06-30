@@ -287,6 +287,18 @@ pub enum BaseTy {
     Never,
     Closure(DefId, List<Ty>),
     Param(ParamTy),
+    AliasTy(AliasKind, AliasTy),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct AliasTy {
+    pub substs: Substs,
+    pub def_id: DefId,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum AliasKind {
+    Projection,
 }
 
 pub type Substs = List<GenericArg>;
@@ -1093,18 +1105,7 @@ impl BaseTy {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
             BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
             BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
-            BaseTy::Bool
-            | BaseTy::Str
-            | BaseTy::Float(_)
-            | BaseTy::Slice(_)
-            | BaseTy::RawPtr(_, _)
-            | BaseTy::Char
-            | BaseTy::Ref(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
-            | BaseTy::Never
-            | BaseTy::Param(_) => &[],
+            _ => &[],
         }
     }
 
@@ -1131,7 +1132,8 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
-            | BaseTy::Never => Sort::unit(),
+            | BaseTy::Never
+            | BaseTy::AliasTy(..) => Sort::unit(),
         }
     }
 }
@@ -1602,6 +1604,7 @@ mod pretty {
                     }
                     Ok(())
                 }
+                BaseTy::AliasTy(_, _) => w!("<alias_ty>"),
             }
         }
     }

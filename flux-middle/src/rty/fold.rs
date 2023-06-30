@@ -12,9 +12,9 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind, FnOutput,
-    FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness,
-    PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name,
+    Opaqueness, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -717,6 +717,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.iter().try_for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
+            BaseTy::AliasTy(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -749,6 +750,9 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
+            BaseTy::AliasTy(kind, alias_ty) => {
+                BaseTy::AliasTy(*kind, alias_ty.try_fold_with(folder)?)
+            }
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)
@@ -760,6 +764,18 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
         };
         Ok(bty)
+    }
+}
+
+impl TypeVisitable for AliasTy {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.substs.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for AliasTy {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(AliasTy { substs: self.substs.try_fold_with(folder)?, def_id: self.def_id })
     }
 }
 
