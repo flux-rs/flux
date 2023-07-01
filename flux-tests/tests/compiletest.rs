@@ -28,9 +28,9 @@ fn find_flux_path() -> PathBuf {
 
 fn find_attrs_proc_macro_lib_path() -> PathBuf {
     let attrs_proc_macros_lib = if cfg!(target_os = "linux") {
-        "libflux_attrs_proc_macros.so"
+        "libflux_rs.so"
     } else if cfg!(target_os = "macos") {
-        "libflux_attrs_proc_macros.dylib"
+        "libflux_rs.dylib"
     } else {
         todo!("implement for windows")
     };
