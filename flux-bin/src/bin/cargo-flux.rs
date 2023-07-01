@@ -30,7 +30,7 @@ fn run() -> Result<i32> {
     let cargo_target = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
     let cargo_target = PathBuf::from_iter([cargo_target, "flux".to_string()]);
 
-    let features = ["--features", "flux-attrs-proc-macros/enabled"].iter();
+    let features = ["--features", "flux-rs/enabled"].iter();
 
     let exit_code = Command::new("cargo")
         // Skip the invocation of cargo-flux itself

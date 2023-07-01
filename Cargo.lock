@@ -505,18 +505,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux-attrs-proc-macros"
-version = "0.1.0"
-dependencies = [
- "flux-attrs",
- "proc-macro2",
-]
-
-[[package]]
 name = "flux-attrs-proc-macros-build"
 version = "0.1.0"
 dependencies = [
- "flux-attrs-proc-macros",
+ "flux-rs",
 ]
 
 [[package]]
@@ -657,6 +649,14 @@ dependencies = [
  "flux-middle",
  "itertools",
  "tracing",
+]
+
+[[package]]
+name = "flux-rs"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs",
+ "proc-macro2",
 ]
 
 [[package]]

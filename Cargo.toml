@@ -4,7 +4,7 @@ resolver = "2"
 members = [
     "flux",
     "flux-attrs",
-    "flux-attrs-proc-macros",
+    "flux-rs",
     "flux-attrs-proc-macros-build",
     "flux-bin",
     "flux-common",

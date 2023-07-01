@@ -13,3 +13,8 @@ pub fn extern_spec(_attrs: TokenStream, _tokens: TokenStream) -> TokenStream {
 pub fn extern_spec(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     flux_attrs::extern_spec(attrs.into(), tokens.into()).into()
 }
+
+#[proc_macro]
+pub fn flux(tokens: TokenStream) -> TokenStream {
+    flux_attrs::flux(tokens.into()).into()
+}
