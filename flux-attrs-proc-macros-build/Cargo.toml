@@ -7,4 +7,4 @@ version = "0.1.0"
 
 [dependencies.flux-rs]
 features = ["enabled"]
-path = "../flux-attrs-proc-macros"
+path = "../flux-rs"

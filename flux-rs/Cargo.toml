@@ -7,7 +7,6 @@ version = "0.1.0"
 proc-macro = true
 
 [dependencies]
-#flux-attrs = { path = "../flux-attrs", version = "0.1.0", optional = true }
 flux-attrs = { path = "../flux-attrs" }
 proc-macro2 = { version = "1.0", optional = true }
 
@@ -16,4 +15,3 @@ proc-macro2 = { version = "1.0", optional = true }
 # feature when checking with flux which indicates that we should pull in these
 # deps.
 enabled = ["flux-attrs/enabled"]
-# enabled = ["dep:flux-attrs", "dep:proc-macro2"]
