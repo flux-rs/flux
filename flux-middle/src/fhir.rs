@@ -1244,7 +1244,7 @@ impl fmt::Debug for BaseTy {
 impl fmt::Debug for QPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            QPath::Resolved(self_ty, path) => {
+            QPath::Resolved(_self_ty, path) => {
                 write!(f, "{path:?}")
             }
         }

@@ -8,7 +8,6 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
-mod project;
 pub mod refining;
 pub mod subst;
 
@@ -87,7 +86,6 @@ pub struct Clause {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
-    Projection(ProjectionPredicate),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -96,12 +94,6 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
-    pub ty: Ty,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -369,12 +361,6 @@ impl Binder<FnTraitPredicate> {
         );
 
         PolyFnSig::new(fn_sig, vars)
-    }
-}
-
-impl Binder<ProjectionPredicate> {
-    fn projection_def_id(&self) -> DefId {
-        self.skip_binder().projection_ty.def_id
     }
 }
 
