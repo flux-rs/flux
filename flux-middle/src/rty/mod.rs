@@ -8,6 +8,7 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
+mod project;
 pub mod refining;
 pub mod subst;
 
@@ -86,6 +87,7 @@ pub struct Clause {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
+    Projection(ProjectionPredicate),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -94,6 +96,12 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ProjectionPredicate {
+    pub projection_ty: AliasTy,
+    pub ty: Ty,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -287,7 +295,7 @@ pub enum BaseTy {
     Never,
     Closure(DefId, List<Ty>),
     Param(ParamTy),
-    AliasTy(AliasKind, AliasTy),
+    Alias(AliasKind, AliasTy),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -361,6 +369,12 @@ impl Binder<FnTraitPredicate> {
         );
 
         PolyFnSig::new(fn_sig, vars)
+    }
+}
+
+impl Binder<ProjectionPredicate> {
+    fn projection_def_id(&self) -> DefId {
+        self.skip_binder().projection_ty.def_id
     }
 }
 
@@ -511,6 +525,10 @@ impl<T> Binder<T> {
 
     pub fn skip_binder(self) -> T {
         self.value
+    }
+
+    pub fn rebind<U>(self, value: U) -> Binder<U> {
+        Binder { vars: self.vars.clone(), value }
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
@@ -1133,7 +1151,7 @@ impl BaseTy {
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
             | BaseTy::Never
-            | BaseTy::AliasTy(..) => Sort::unit(),
+            | BaseTy::Alias(..) => Sort::unit(),
         }
     }
 }
@@ -1604,7 +1622,16 @@ mod pretty {
                     }
                     Ok(())
                 }
-                BaseTy::AliasTy(_, _) => w!("<alias_ty>"),
+                BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                    let assoc_name = cx.tcx.item_name(alias_ty.def_id);
+                    let trait_ref = cx.tcx.parent(alias_ty.def_id);
+                    w!(
+                        "<{:?} as {:?}>::{}",
+                        &alias_ty.substs[0],
+                        trait_ref,
+                        ^assoc_name
+                    )
+                }
             }
         }
     }

@@ -11,12 +11,14 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
+    project,
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name,
     Opaqueness, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
+    global_env::GlobalEnv,
     intern::{Internable, List},
     rty::{Var, VariantSig},
 };
@@ -200,6 +202,10 @@ pub trait TypeFoldable: TypeVisitable {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         self.try_fold_with(folder).into_ok()
+    }
+
+    fn normalize_ty(&self, genv: &GlobalEnv) -> Self {
+        self.fold_with(&mut project::Normalizer::new(genv))
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
@@ -717,7 +723,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.iter().try_for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::AliasTy(_, alias_ty) => alias_ty.visit_with(visitor),
+            BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -750,9 +756,7 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
-            BaseTy::AliasTy(kind, alias_ty) => {
-                BaseTy::AliasTy(*kind, alias_ty.try_fold_with(folder)?)
-            }
+            BaseTy::Alias(kind, alias_ty) => BaseTy::Alias(*kind, alias_ty.try_fold_with(folder)?),
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)
