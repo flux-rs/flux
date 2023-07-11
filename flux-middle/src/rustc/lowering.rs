@@ -550,6 +550,7 @@ pub(crate) fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedReason> {
+    // println!("TRACE: lower_fn_sig {fn_sig:?}");
     lower_binder(fn_sig, |fn_sig| {
         let inputs_and_output = List::from_vec(
             fn_sig
@@ -633,6 +634,15 @@ pub(crate) fn lower_ty<'tcx>(
         rustc_ty::Closure(did, substs) => {
             let substs = lower_substs(tcx, substs)?;
             Ok(Ty::mk_closure(*did, substs))
+        }
+
+        rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
+            // panic!("unexpected projection type `{alias_ty:?}`")
+            let substs = lower_substs(tcx, alias_ty.substs)?;
+            Ok(Ty::mk_projection(alias_ty.def_id, substs))
+            // Err(UnsupportedReason::new(format!(
+            //     "unsupported PROJECTION type `{ty:?}` alias_ty =`{alias_ty:?}`"
+            // )))
         }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }

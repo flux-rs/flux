@@ -286,6 +286,7 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
+    Projection(DefId, Substs),
     Param(ParamTy),
     Alias(AliasKind, AliasTy),
 }
@@ -1068,6 +1069,10 @@ impl BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
+    pub fn projection(did: DefId, substs: impl Into<List<GenericArg>>) -> BaseTy {
+        BaseTy::Projection(did, substs.into())
+    }
+
     pub fn slice(ty: Ty) -> BaseTy {
         BaseTy::Slice(ty)
     }
@@ -1136,6 +1141,7 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
+            | BaseTy::Projection(_, _)
             | BaseTy::Never
             | BaseTy::Alias(..) => Sort::unit(),
         }
@@ -1560,6 +1566,16 @@ mod pretty {
         }
     }
 
+    fn fmt_substs(substs: &Substs, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) {
+        let substs = substs
+            .iter()
+            .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+            .collect_vec();
+        if !substs.is_empty() {
+            w!("<{:?}>", join!(", ", substs))?;
+        }
+    }
+
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1571,13 +1587,19 @@ mod pretty {
                 BaseTy::Char => w!("char"),
                 BaseTy::Adt(adt_def, substs) => {
                     w!("{:?}", adt_def.did())?;
-                    let substs = substs
-                        .iter()
-                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                        .collect_vec();
-                    if !substs.is_empty() {
-                        w!("<{:?}>", join!(", ", substs))?;
-                    }
+                    fmt_substs(substs, cx, f);
+                    // let substs = substs
+                    //     .iter()
+                    //     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                    //     .collect_vec();
+                    // if !substs.is_empty() {
+                    //     w!("<{:?}>", join!(", ", substs))?;
+                    // }
+                    Ok(())
+                }
+                BaseTy::Projection(did, substs) => {
+                    w!("{:?}", did)?;
+                    fmt_substs(substs, cx, f);
                     Ok(())
                 }
                 BaseTy::Param(param) => w!("{}", ^param),

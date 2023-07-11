@@ -712,6 +712,9 @@ impl TypeSuperVisitable for BaseTy {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             BaseTy::Adt(_, substs) => substs.iter().try_for_each(|ty| ty.visit_with(visitor)),
+            BaseTy::Projection(_, substs) => {
+                substs.iter().try_for_each(|ty| ty.visit_with(visitor))
+            }
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
@@ -742,6 +745,9 @@ impl TypeSuperFoldable for BaseTy {
         let bty = match self {
             BaseTy::Adt(adt_def, substs) => {
                 BaseTy::adt(adt_def.clone(), substs.try_fold_with(folder)?)
+            }
+            BaseTy::Projection(did, substs) => {
+                BaseTy::projection(*did, substs.try_fold_with(folder)?)
             }
             BaseTy::Slice(ty) => BaseTy::Slice(ty.try_fold_with(folder)?),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.try_fold_with(folder)?, *mu),

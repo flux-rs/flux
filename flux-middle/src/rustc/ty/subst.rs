@@ -31,6 +31,9 @@ impl Subst for Ty {
             TyKind::Closure(def_id, closure_substs) => {
                 Ty::mk_closure(*def_id, closure_substs.subst(substs))
             }
+            TyKind::Projection(def_id, closure_substs) => {
+                Ty::mk_projection(*def_id, closure_substs.subst(substs))
+            }
             TyKind::RawPtr(ty, mutbl) => Ty::mk_raw_ptr(ty.subst(substs), *mutbl),
             TyKind::Param(param_ty) => substs[param_ty.index as usize].expect_type().clone(),
             TyKind::FnPtr(fn_sig) => Ty::mk_fn_ptr(fn_sig.subst(substs)),

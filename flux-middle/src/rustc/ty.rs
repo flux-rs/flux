@@ -134,6 +134,7 @@ pub enum TyKind {
     Slice(Ty),
     FnPtr(PolyFnSig),
     Closure(DefId, Substs),
+    Projection(DefId, Substs),
     RawPtr(Ty, Mutability),
 }
 
@@ -376,6 +377,10 @@ impl Ty {
         TyKind::Closure(def_id, substs.into()).intern()
     }
 
+    pub fn mk_projection(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
+        TyKind::Projection(def_id, substs.into()).intern()
+    }
+
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
         TyKind::Array(ty, c).intern()
     }
@@ -542,6 +547,13 @@ impl fmt::Debug for Ty {
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, substs) => {
                 write!(f, "{}", def_id_to_string(*did))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                Ok(())
+            }
+            TyKind::Projection(did, substs) => {
+                write!(f, "ProjectionTy {}", def_id_to_string(*did))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
