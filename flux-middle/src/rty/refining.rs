@@ -199,12 +199,13 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     .try_collect_vec()?;
                 rty::BaseTy::adt(adt_def, substs)
             }
+            rustc::ty::TyKind::Alias(rustc::ty::AliasKind::Projection, alias_ty) => {
+                let def_id = alias_ty.def_id;
+                 let substs = iter::zip(&self.generics_of(def_id)?.params, alias_ty.substs.iter())
+                     .map(|(param, arg)| self.refine_generic_arg(param, arg))
+                     .try_collect_vec()?;
+                 rty::BaseTy::projection(def_id, substs)
 
-            rustc::ty::TyKind::Projection(did, substs) => {
-                let substs = iter::zip(&self.generics_of(*did)?.params, substs)
-                    .map(|(param, arg)| self.refine_generic_arg(param, arg))
-                    .try_collect_vec()?;
-                rty::BaseTy::projection(*did, substs)
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
