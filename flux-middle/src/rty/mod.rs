@@ -72,20 +72,27 @@ pub enum GenericParamDefKind {
     Lifetime,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Clause>,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
+    Projection(ProjectionPredicate),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct ProjectionPredicate {
+    pub projection_ty: AliasTy,
+    pub term: Ty,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -290,7 +297,7 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct AliasTy {
     pub substs: Substs,
     pub def_id: DefId,
@@ -1063,13 +1070,18 @@ impl TyS {
     }
 }
 
+impl AliasTy {
+    pub fn new(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Self {
+        AliasTy { def_id, substs: substs.into() }
+    }
+}
+
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
-    pub fn projection(did: DefId, substs: impl Into<List<GenericArg>>) -> BaseTy {
-        let alias_ty = AliasTy { substs: substs.into(), def_id: did };
+    pub fn projection(alias_ty: AliasTy) -> BaseTy {
         BaseTy::Alias(AliasKind::Projection, alias_ty)
     }
 
@@ -1308,6 +1320,15 @@ mod pretty {
                         w!("{:?}", sort)
                     }
                 }
+            }
+        }
+    }
+
+    impl Pretty for ClauseKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                ClauseKind::FnTrait(fn_trait_pred) => w!("FnTrait ({fn_trait_pred:?})"),
             }
         }
     }

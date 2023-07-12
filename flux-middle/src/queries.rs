@@ -208,8 +208,9 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.predicates_of, def_id, || {
             let predicates = genv.tcx.predicates_of(def_id);
             // FIXME(nilehmann) we should propagate this error through the query
-            let predicates = lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
-                .unwrap_or_else(|_| FatalError.raise());
+            let predicates =
+                lowering::lower_generic_predicates(genv.tcx, genv.sess, def_id, predicates)
+                    .unwrap_or_else(|_| FatalError.raise());
 
             let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
                 .refine_generic_predicates(&predicates)?;
@@ -282,10 +283,8 @@ impl<'tcx> Queries<'tcx> {
                 Ok(fn_sig)
             } else {
                 let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
-                println!("TRACE: get_fn_sig 3a: {def_id:?} :: {fn_sig:?}");
                 let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_poly_fn_sig(&fn_sig)?;
-                println!("TRACE: get_fn_sig 3b: {def_id:?} :: {fn_sig:?}");
                 Ok(rty::EarlyBinder(fn_sig))
             }
         })

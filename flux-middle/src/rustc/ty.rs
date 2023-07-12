@@ -77,8 +77,14 @@ pub struct Clause {
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum ClauseKind {
     FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
+    Projection(ProjectionPredicate),
 }
 
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct ProjectionPredicate {
+    pub projection_ty: AliasTy,
+    pub term: Ty,
+}
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,

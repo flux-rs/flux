@@ -456,6 +456,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
+    fn callsite_predicates(&self, span: Span) -> Result<rty::GenericPredicates, CheckerError> {
+        match self.genv.predicates_of(self.def_id) {
+            Ok(eb) => Ok(eb.0),
+            Err(e) => Err(CheckerError::query(e, span)),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
@@ -468,21 +475,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
-
+        let predicates = self.callsite_predicates(terminator_span)?;
         //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
+            .check_fn_call(rcx, env, did, fn_sig, substs, predicates, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
 
-        // println!("TRACE: check_call 2: {did:?} {output:?}");
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
-                    let updated_ty = rcx.unpack(updated_ty);
-                    env.update_path(path, updated_ty);
+                    let updated_ty = rcx.unpack(&updated_ty);
+                    env.update_path(&path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
             }
@@ -1182,6 +1188,10 @@ pub(crate) mod errors {
     impl CheckerError {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+        }
+
+        pub fn query(query_error: QueryErr, span: Span) -> Self {
+            Self { kind: CheckerErrKind::Query(query_error), span }
         }
     }
 

@@ -84,6 +84,13 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                         };
                         rty::Binder::new(rty::ClauseKind::FnTrait(pred), vars)
                     }
+                    rustc::ty::ClauseKind::Projection(proj_pred) => {
+                        let proj_pred = rty::ProjectionPredicate {
+                            projection_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
+                            term: self.as_default().refine_ty(&proj_pred.term)?,
+                        };
+                        rty::Binder::new(rty::ClauseKind::Projection(proj_pred), vars)
+                    }
                 };
                 Ok(rty::Clause { kind })
             })
@@ -145,6 +152,17 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
+    pub(crate) fn refine_alias_ty(
+        &self,
+        alias_ty: &rustc::ty::AliasTy,
+    ) -> QueryResult<rty::AliasTy> {
+        let def_id = alias_ty.def_id;
+        let substs = iter::zip(&self.generics_of(def_id)?.params, alias_ty.substs.iter())
+            .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
+            .try_collect_vec()?;
+        Ok(rty::AliasTy::new(def_id, substs))
+    }
+
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
         let ty = self.refine_poly_ty(ty)?;
         match &ty.vars()[..] {
@@ -200,11 +218,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 rty::BaseTy::adt(adt_def, substs)
             }
             rustc::ty::TyKind::Alias(rustc::ty::AliasKind::Projection, alias_ty) => {
-                let def_id = alias_ty.def_id;
-                let substs = iter::zip(&self.generics_of(def_id)?.params, alias_ty.substs.iter())
-                     .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
-                     .try_collect_vec()?;
-                rty::BaseTy::projection(def_id, substs)
+                let alias_ty = self.refine_alias_ty(alias_ty)?;
+                rty::BaseTy::projection(alias_ty)
 
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
