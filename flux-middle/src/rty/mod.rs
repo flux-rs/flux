@@ -191,7 +191,7 @@ pub struct FnSig {
     output: Binder<FnOutput>,
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Constraint>,
@@ -1068,8 +1068,8 @@ impl BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
-    pub fn projection(def_id: DefId, substs: impl Into<List<GenericArg>>) -> BaseTy {
-        let alias_ty = AliasTy { substs: substs.into(), def_id };
+    pub fn projection(did: DefId, substs: impl Into<List<GenericArg>>) -> BaseTy {
+        let alias_ty = AliasTy { substs: substs.into(), def_id: did };
         BaseTy::Alias(AliasKind::Projection, alias_ty)
     }
 
@@ -1627,12 +1627,26 @@ mod pretty {
                 BaseTy::Alias(AliasKind::Projection, alias_ty) => {
                     let assoc_name = cx.tcx.item_name(alias_ty.def_id);
                     let trait_ref = cx.tcx.parent(alias_ty.def_id);
-                    w!(
-                        "<{:?} as {:?}>::{}",
-                        &alias_ty.substs[0],
-                        trait_ref,
-                        ^assoc_name
-                    )
+                    // let alias_ty_subst = alias_ty.substs[0]
+                    // let substs = alias_ty
+                    //     .substs
+                    //     .iter()
+                    //     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                    //     .collect_vec();
+                    if !alias_ty.substs.is_empty() {
+                        w!(
+                            "<{:?} as {:?}>::{}",
+                            &alias_ty.substs[0],
+                            trait_ref,
+                            ^assoc_name
+                        )
+                    } else {
+                        w!(
+                            "<??? as {:?}>::{}",
+                            trait_ref,
+                            ^assoc_name
+                        )
+                    }
                 }
             }
         }

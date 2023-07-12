@@ -182,7 +182,6 @@ fn variants_of(
 
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let fn_sig = genv.map().get_fn_sig(def_id);
-    println!("TRACE: fn_sig : {def_id:?} :: {fn_sig:?}");
     let wfckresults = genv.check_wf(def_id)?;
     let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?.normalize(genv.defns()?);
 

@@ -393,11 +393,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
                 let (func_id, call_substs) = resolved_call;
-
                 let fn_sig = self
                     .genv
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
+                // println!("TRACE: check_terminator 1: {func_id:?} call_substs: {call_substs:?}");
 
                 let fn_generics = self
                     .genv
@@ -469,6 +469,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
 
+        //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
@@ -476,6 +477,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let output = output.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
 
+        // println!("TRACE: check_call 2: {did:?} {output:?}");
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {

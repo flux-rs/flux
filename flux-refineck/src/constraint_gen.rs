@@ -191,9 +191,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        // Check closure obligations
-        let closure_obligs =
-            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
+        println!("TRACE: check_fn_call {inst_fn_sig:?}");
+        // _nico_says_normalize_here();
+
+        if let Some(did) = did {
+            mk_obligations(genv, did, &substs)?
+        } else {
+            List::empty()
+        };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();

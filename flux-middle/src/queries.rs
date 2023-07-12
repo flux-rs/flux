@@ -189,7 +189,11 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
-                let generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
+                let my_generics = genv.tcx.generics_of(def_id);
+                let generics = if let Some(parent_def_id) = my_generics.parent && genv.tcx.is_trait(parent_def_id) {
+                    genv.tcx.generics_of(parent_def_id)
+                } else {my_generics};
+                let generics = lowering::lower_generics(generics)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?;
                 Ok(refining::refine_generics(&generics))
             }
@@ -278,8 +282,10 @@ impl<'tcx> Queries<'tcx> {
                 Ok(fn_sig)
             } else {
                 let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
+                println!("TRACE: get_fn_sig 3a: {def_id:?} :: {fn_sig:?}");
                 let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_poly_fn_sig(&fn_sig)?;
+                println!("TRACE: get_fn_sig 3b: {def_id:?} :: {fn_sig:?}");
                 Ok(rty::EarlyBinder(fn_sig))
             }
         })

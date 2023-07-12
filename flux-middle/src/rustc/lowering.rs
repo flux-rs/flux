@@ -550,7 +550,6 @@ pub(crate) fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedReason> {
-    // println!("TRACE: lower_fn_sig {fn_sig:?}");
     lower_binder(fn_sig, |fn_sig| {
         let inputs_and_output = List::from_vec(
             fn_sig
