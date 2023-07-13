@@ -136,8 +136,28 @@ pub struct FnSig<R = ()> {
     pub returns: Option<Ty<R>>,
     /// example: `*x: i32{v. v = n+1}`
     pub ensures: Vec<(Ident, Ty<R>)>,
+    /// example: `where I: Iterator<Item = i32{v:0<=v}>`
+    pub predicates: Vec<WhereBoundPredicate<R>>,
     /// source span
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct WhereBoundPredicate<R = ()> {
+    pub span: Span,
+    pub bounded_ty: Ty<R>,
+    pub bounds: Vec<GenericBound<R>>,
+}
+
+#[derive(Debug)]
+pub enum GenericBound<R = ()> {
+    Projection(ProjectionPredicate<R>),
+}
+
+#[derive(Debug)]
+pub struct ProjectionPredicate<R = ()> {
+    pub item: Path<R>,
+    pub term: Ty<R>,
 }
 
 #[derive(Debug)]
@@ -281,13 +301,36 @@ pub enum UnOp {
     Neg,
 }
 
+impl From<Ident> for Path {
+    fn from(ident: Ident) -> Self {
+        Path { segments: vec![ident], generics: vec![], refine: vec![], span: ident.span, res: () }
+    }
+}
+
+impl From<(Ident, Ident)> for Path {
+    fn from(idents: (Ident, Ident)) -> Self {
+        let (ident1, ident2) = idents;
+        Path {
+            segments: vec![ident1, ident2],
+            generics: vec![],
+            refine: vec![],
+            span: ident1.span.to(ident2.span),
+            res: (),
+        }
+    }
+}
+
 impl Path {
     pub fn is_hole(&self) -> bool {
         if let [segment] = &self.segments[..] {
-            segment.name == kw::Underscore && self.refine.is_empty() && self.generics.is_empty()
+            segment.name == kw::Underscore && self.is_simple()
         } else {
             false
         }
+    }
+
+    fn is_simple(&self) -> bool {
+        self.generics.is_empty() && self.refine.is_empty()
     }
 }
 

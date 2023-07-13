@@ -3,7 +3,7 @@ use crate::{
     surface,
     lexer::{Lit, Location, Token, Delimiter, BinOpToken}
 };
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, symbol::Ident};
 use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
@@ -115,11 +115,13 @@ pub FnSig: surface::FnSig = {
     <returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
     <ensures:("ensures" <Ensures>)?>
+    <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
         let ensures = ensures.unwrap_or_default();
         let params = params.unwrap_or_default();
-        surface::FnSig { params, args, returns, ensures, requires, span: mk_span(lo, hi) }
+        let predicates = predicates.unwrap_or_default();
+        surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
     }
 }
 
@@ -150,7 +152,27 @@ Fields: Vec<surface::Ty> = {
 
 Args    = <Comma<Arg>>;
 Ensures = <Comma<(<Ident> ":" <Ty>)>>;
+Predicates = <Comma<WhereBoundPredicate>>;
 
+
+WhereBoundPredicate: surface::WhereBoundPredicate = {
+    <lo:@L> <bounded_ty:Ty> ":" <bound:GenericBound>  <hi:@R> => {
+        surface::WhereBoundPredicate {
+            span: mk_span(lo, hi),
+            bounded_ty,
+            bounds:vec![bound],
+        }
+    }
+}
+
+GenericBound: surface::GenericBound = {
+    <trait_id:Ident> "<" <item_id:Ident> "=" <term:Ty> ">" => {
+        let item = surface::Path::from((trait_id, item_id));
+        let proj = surface::ProjectionPredicate {item, term};
+        surface::GenericBound::Projection(proj)
+    },
+
+}
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
@@ -414,6 +436,7 @@ extern {
         "strg" => Token::Strg,
         "requires" => Token::Requires,
         "ensures" => Token::Ensures,
+        "where" => Token::Where,
         "qualifier" => Token::Qualifier,
         "sort" => Token::Sort,
         "opaque" => Token::Opaque,

@@ -124,6 +124,40 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
+    fn resolve_projection_predicate(
+        &self,
+        bound: surface::ProjectionPredicate,
+    ) -> Result<surface::ProjectionPredicate<Res>, ErrorGuaranteed> {
+        let item = self.resolve_path(bound.item)?;
+        let term = self.resolve_ty(bound.term)?;
+        Ok(surface::ProjectionPredicate { item, term })
+    }
+
+    fn resolve_generic_bound(
+        &self,
+        bound: surface::GenericBound,
+    ) -> Result<surface::GenericBound<Res>, ErrorGuaranteed> {
+        match bound {
+            surface::GenericBound::Projection(pred) => {
+                let pred = self.resolve_projection_predicate(pred)?;
+                Ok(surface::GenericBound::Projection(pred))
+            }
+        }
+    }
+
+    fn resolve_where_bound_predicate(
+        &self,
+        pred: surface::WhereBoundPredicate,
+    ) -> Result<surface::WhereBoundPredicate<Res>, ErrorGuaranteed> {
+        let bounded_ty = self.resolve_ty(pred.bounded_ty)?;
+        let bounds = pred
+            .bounds
+            .into_iter()
+            .map(|bound| self.resolve_generic_bound(bound))
+            .try_collect_exhaust()?;
+        Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+    }
+
     #[allow(dead_code)]
     pub(crate) fn resolve_fn_sig(
         &self,
@@ -141,6 +175,15 @@ impl<'sess> Resolver<'sess> {
             .map(|(loc, ty)| Ok((loc, self.resolve_ty(ty)?)))
             .try_collect_exhaust();
 
+        let predicates = fn_sig
+            .predicates
+            .into_iter()
+            .map(|pred| {
+                let pred = self.resolve_where_bound_predicate(pred)?;
+                Ok(pred)
+            })
+            .try_collect_exhaust();
+
         let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
 
         Ok(surface::FnSig {
@@ -149,6 +192,7 @@ impl<'sess> Resolver<'sess> {
             args: args?,
             returns: returns?,
             ensures: ensures?,
+            predicates: predicates?,
             span: fn_sig.span,
         })
     }
