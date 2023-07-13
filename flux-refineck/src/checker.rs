@@ -9,10 +9,11 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
-        TyKind, Uint, UintTy, VariantIdx,
+        FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
+        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -499,16 +500,24 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(output.ret)
     }
 
+    fn oblig_fn_traits(predicates: &List<rty::Clause>) -> Vec<Binder<FnTraitPredicate>> {
+        let mut fn_trait_preds = vec![];
+        for pred in predicates {
+            let kind = pred.kind();
+            let vars = kind.vars().clone();
+            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
+                fn_trait_preds.push(Binder::new(fn_trait_pred, vars))
+            }
+        }
+        fn_trait_preds
+    }
+
     fn check_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
-        for predicate in &obligs.predicates {
-            let fn_trait_pred = predicate.kind().map(|kind| {
-                let rty::ClauseKind::FnTrait(fn_trait_pred) = kind;
-                fn_trait_pred
-            });
+        for fn_trait_pred in Self::oblig_fn_traits(&obligs.predicates) {
             if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
                 .self_ty()
                 .skip_binder()

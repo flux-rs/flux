@@ -14,7 +14,7 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name,
-    Opaqueness, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -374,6 +374,7 @@ impl TypeVisitable for ClauseKind {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
+            ClauseKind::Projection(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -382,7 +383,24 @@ impl TypeFoldable for ClauseKind {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
             ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
+            ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
         }
+    }
+}
+
+impl TypeVisitable for ProjectionPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.projection_ty.visit_with(visitor)?;
+        self.term.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for ProjectionPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(ProjectionPredicate {
+            projection_ty: self.projection_ty.try_fold_with(folder)?,
+            term: self.term.try_fold_with(folder)?,
+        })
     }
 }
 

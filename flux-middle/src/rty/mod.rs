@@ -1329,6 +1329,7 @@ mod pretty {
             define_scoped!(_cx, f);
             match self {
                 ClauseKind::FnTrait(fn_trait_pred) => w!("FnTrait ({fn_trait_pred:?})"),
+                ClauseKind::Projection(proj_pred) => w!("Projection ({proj_pred:?})"),
             }
         }
     }
