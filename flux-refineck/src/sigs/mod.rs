@@ -120,7 +120,7 @@ where
     }
 
     fn get(&self, op: T, btys: [BaseTy; N]) -> &Sig<N> {
-        println!("TRACE: SigTable::get {op:?} {btys:?}");
+        // println!("TRACE: SigTable::get {op:?} {btys:?}");
         &self.map[&(op, btys)]
     }
 }

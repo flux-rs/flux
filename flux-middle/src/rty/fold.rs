@@ -195,6 +195,7 @@ pub trait TypeSuperVisitable: TypeVisitable {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()>;
 }
 
+#[derive(Debug)]
 struct ProjectionTable(FxHashMap<AliasTy, Ty>);
 
 impl ProjectionTable {
@@ -212,7 +213,11 @@ impl ProjectionTable {
     }
 
     pub fn resolve(&self, alias_ty: &AliasTy) -> Ty {
-        self.0[alias_ty].clone()
+        let alias_ty = alias_ty.without_constrs();
+        match self.0.get(&alias_ty) {
+            Some(ty) => ty.clone(),
+            None => panic!("cannot resolve {alias_ty:?} in {self:?}"),
+        }
     }
 }
 
@@ -258,6 +263,22 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.fold_with(&mut ReplaceHoles(mk_pred, vec![]))
+    }
+
+    /// Turns each Constr(e, T) into T
+    fn without_constrs(&self) -> Self {
+        struct WithoutConstrs;
+
+        impl TypeFolder for WithoutConstrs {
+            fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                match ty.kind() {
+                    TyKind::Constr(_, ty) => ty.fold_with(self),
+                    _ => ty.super_fold_with(self),
+                }
+            }
+        }
+
+        self.fold_with(&mut WithoutConstrs)
     }
 
     /// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces

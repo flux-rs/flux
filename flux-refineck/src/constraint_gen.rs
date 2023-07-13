@@ -192,7 +192,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {predicates:?}");
+        // println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {predicates:?}");
         let inst_fn_sig = inst_fn_sig.normalize_projections(predicates);
 
         let closure_obligs =
