@@ -141,10 +141,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(res)
     }
 
-    fn normalize_fn_sig(fn_sig: rty::FnSig, predicates: rty::GenericPredicates) -> rty::FnSig {
-        todo!("TODO: normalize_fn_sig {fn_sig:?} {predicates:?}")
-    }
-
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -197,7 +193,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         );
 
         println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {predicates:?}");
-        let inst_fn_sig = Self::normalize_fn_sig(inst_fn_sig, predicates);
+        let inst_fn_sig = inst_fn_sig.normalize_projections(predicates);
 
         let closure_obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
