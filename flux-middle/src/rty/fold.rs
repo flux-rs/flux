@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, List},
-    rty::{Var, VariantSig},
+    rty::{AliasKind, GenericPredicates, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -195,6 +195,10 @@ pub trait TypeSuperVisitable: TypeVisitable {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()>;
 }
 
+fn resolve_projection(predicates: &GenericPredicates, alias_ty: &AliasTy) -> Ty {
+    todo!("TODO: resolve_projection")
+}
+
 pub trait TypeFoldable: TypeVisitable {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error>;
 
@@ -269,6 +273,33 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.fold_with(&mut WithHoles { in_exists: false })
+    }
+
+    fn normalize_projections(&self, predicates: GenericPredicates) -> Self {
+        struct WithPredicates {
+            predicates: GenericPredicates,
+        }
+
+        impl TypeFolder for WithPredicates {
+            // fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+            //     match bty {
+            //         BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+            //             resolve_projection(&self.predicates, alias_ty)
+            //         }
+            //         _ => bty.super_fold_with(self),
+            //     }
+            // }
+            fn fold_ty(&mut self, ty: &Ty) -> Ty {
+                match ty.kind() {
+                    TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
+                        // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
+                        resolve_projection(&self.predicates, alias_ty)
+                    }
+                    _ => ty.super_fold_with(self),
+                }
+            }
+        }
+        self.fold_with(&mut WithPredicates { predicates })
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {
