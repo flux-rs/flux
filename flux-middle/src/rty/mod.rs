@@ -318,6 +318,10 @@ pub enum GenericArg {
 }
 
 impl Clause {
+    pub fn new(kind: ClauseKind, vars: List<BoundVariableKind>) -> Self {
+        Clause { kind: Binder::new(kind, vars) }
+    }
+
     pub fn kind(&self) -> Binder<ClauseKind> {
         self.kind.clone()
     }

@@ -52,6 +52,7 @@ pub fn provide(providers: &mut Providers) {
         variants_of,
         fn_sig,
         generics_of,
+        predicates_of,
     };
 }
 
@@ -111,6 +112,19 @@ fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
             Ok(conv::adt_def_for_struct(genv, invariants, genv.map().get_struct(def_id)))
         }
         kind => bug!("expected struct or enum found `{kind:?}`"),
+    }
+}
+
+fn predicates_of(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+    let wfckresults = genv.check_wf(local_id)?;
+    if let Some(predicates) = genv.map().get_predicates(local_id) {
+        Ok(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?))
+    } else {
+        // TODO(RJ): should allow situation where no (refined) predicates are specified
+        bug!("cannot find predicates for {local_id:?}")
     }
 }
 

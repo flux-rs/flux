@@ -90,6 +90,40 @@ pub(crate) fn expand_type_alias(
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars()))
 }
 
+pub(crate) fn conv_generic_predicates(
+    genv: &GlobalEnv,
+    predicates: &fhir::GenericPredicates,
+    wfckresults: &fhir::WfckResults,
+) -> QueryResult<rty::GenericPredicates> {
+    let parent = predicates.parent;
+    let mut preds = vec![];
+    for fhir::ClauseKind::Projection(proj) in &predicates.predicates {
+        let ck = rty::ClauseKind::Projection(conv_projection_predicate(genv, proj, wfckresults)?);
+        preds.push(rty::Clause::new(ck, List::empty()));
+    }
+    Ok(rty::GenericPredicates { parent, predicates: List::from_vec(preds) })
+}
+
+fn conv_projection_predicate(
+    genv: &GlobalEnv,
+    proj: &fhir::ProjectionPredicate,
+    wfckresults: &fhir::WfckResults,
+) -> QueryResult<rty::ProjectionPredicate> {
+    let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
+    let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
+    Ok(rty::ProjectionPredicate { term: ty, projection_ty })
+}
+
+fn conv_alias_ty(
+    genv: &GlobalEnv,
+    alias_ty: &fhir::AliasTy,
+    wfckresults: &fhir::WfckResults,
+) -> QueryResult<rty::AliasTy> {
+    let ty = conv_ty(genv, &alias_ty.substs, wfckresults)?.skip_binder();
+    let substs = List::singleton(rty::GenericArg::Ty(ty));
+    Ok(rty::AliasTy { substs, def_id: alias_ty.def_id })
+}
+
 pub(crate) fn conv_generics(
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
