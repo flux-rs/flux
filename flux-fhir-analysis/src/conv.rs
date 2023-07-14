@@ -556,6 +556,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .subst(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
+            fhir::Res::Trait(def_id) => bug!("unexpected res in conv_path: Trait {def_id:?}"),
         };
         Ok(rty::Ty::indexed(bty, idx))
     }

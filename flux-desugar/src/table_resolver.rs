@@ -412,8 +412,12 @@ impl<'sess> NameResTable<'sess> {
         &mut self,
         bound: &hir::GenericBound,
     ) -> Result<(), ErrorGuaranteed> {
-        println!("TRACE: collect_from_generic_bound {bound:#?}");
-        Ok(())
+        match bound {
+            hir::GenericBound::Trait(poly_trait_ref, _) => {
+                self.collect_from_path(poly_trait_ref.trait_ref.path)
+            }
+            _ => Ok(()),
+        }
     }
 
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -438,6 +442,9 @@ impl<'sess> NameResTable<'sess> {
             hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
                 ResEntry::Res(Res::Alias(def_id))
             }
+            hir::def::Res::Def(hir::def::DefKind::Trait, def_id) => {
+                ResEntry::Res(Res::Trait(def_id))
+            }
             _ => {
                 ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
             }
@@ -453,24 +460,12 @@ impl<'sess> NameResTable<'sess> {
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
                 let hir::QPath::Resolved(None, path) = qpath else {
-                    return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                        qpath.span(),
-                        "unsupported type",
-                    )));
-                };
-
-                let key = ResKey::from_hir_path(self.sess, path)?;
-                let res = self.res_from_hir_res(path.res, path.span);
-                self.insert(key, res);
-
-                if let [.., PathSegment { args, .. }] = path.segments {
-                    args.map(|args| args.args)
-                        .iter()
-                        .copied()
-                        .flatten()
-                        .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
-                }
-                Ok(())
+            return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                qpath.span(),
+                "unsupported type",
+            )));
+        };
+                self.collect_from_path(path)
             }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
@@ -479,6 +474,48 @@ impl<'sess> NameResTable<'sess> {
             | hir::TyKind::Typeof(_)
             | hir::TyKind::Infer
             | hir::TyKind::Err(_) => Ok(()),
+        }
+    }
+
+    fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result<(), ErrorGuaranteed> {
+        let key = ResKey::from_hir_path(self.sess, path)?;
+        let res = self.res_from_hir_res(path.res, path.span);
+        self.insert(key, res);
+
+        if let [.., PathSegment { args, .. }] = path.segments {
+            args.map(|args| args.args)
+                .iter()
+                .copied()
+                .flatten()
+                .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
+
+            args.map(|args| args.bindings)
+                .iter()
+                .copied()
+                .flatten()
+                .try_for_each_exhaust(|binding| self.collect_from_type_binding(&binding))?;
+        }
+        Ok(())
+    }
+
+    fn collect_from_type_binding(
+        &mut self,
+        binding: &hir::TypeBinding<'_>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match binding.kind {
+            hir::TypeBindingKind::Equality { term } => self.collect_from_term(&term),
+            hir::TypeBindingKind::Constraint { bounds } => {
+                bounds
+                    .iter()
+                    .try_for_each_exhaust(|bound| self.collect_from_generic_bound(bound))
+            }
+        }
+    }
+
+    fn collect_from_term(&mut self, term: &hir::Term<'_>) -> Result<(), ErrorGuaranteed> {
+        match term {
+            hir::Term::Ty(ty) => self.collect_from_ty(ty),
+            hir::Term::Const(_) => Ok(()),
         }
     }
 

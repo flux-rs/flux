@@ -136,7 +136,7 @@ fn build_stage1_fhir_map(
         map.insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
     }
 
-    // Register Generics
+    // Register Generics and Predicates
     err = defs_with_generics(tcx)
         .try_for_each_exhaust(|owner_id| {
             let generics = fhir::lift::lift_generics(tcx, sess, owner_id)?;
@@ -281,15 +281,20 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             if spec.trusted {
                 early_cx.map.add_trusted(def_id);
             }
-            let fn_sig = if let Some(fn_sig) = spec.fn_sig {
-                desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?
+            let (fn_sig, fn_preds) = if let Some(fn_sig) = spec.fn_sig {
+                let (fhir_fn_sig, fhir_fn_preds) =
+                    desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?;
+                (fhir_fn_sig, Some(fhir_fn_preds))
             } else {
-                fhir::lift::lift_fn_sig(tcx, sess, owner_id)?
+                (fhir::lift::lift_fn_sig(tcx, sess, owner_id)?, None)
             };
             if config::dump_fhir() {
                 dbg::dump_item_info(tcx, def_id, "fhir", &fn_sig).unwrap();
             }
             early_cx.map.insert_fn_sig(def_id, fn_sig);
+            if let Some(preds) = fn_preds {
+                early_cx.map.insert_predicates(def_id, preds);
+            }
             if let Some(quals) = spec.qual_names {
                 early_cx.map.insert_fn_quals(def_id, quals.names);
             }

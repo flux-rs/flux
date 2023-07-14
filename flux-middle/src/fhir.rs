@@ -91,12 +91,36 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
+#[derive(Debug, Clone)]
+pub struct GenericPredicates {
+    pub parent: Option<DefId>,
+    pub predicates: Vec<ClauseKind>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ClauseKind {
+    Projection(ProjectionPredicate),
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectionPredicate {
+    pub projection_ty: AliasTy,
+    pub term: Ty,
+}
+
+#[derive(Debug, Clone)]
+pub struct AliasTy {
+    pub substs: Ty,
+    pub def_id: DefId,
+}
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
+    predicates: FxHashMap<LocalDefId, GenericPredicates>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,
@@ -373,7 +397,7 @@ pub struct Path {
 pub enum GenericArg {
     Lifetime(Lifetime),
     Type(Ty),
-    Constraint(SurfaceIdent, Ty),
+    // Constraint(SurfaceIdent, Ty),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -384,6 +408,7 @@ pub enum Res {
     Enum(DefId),
     Param(DefId),
     AssocTy(DefId),
+    Trait(DefId),
 }
 
 #[derive(Debug, Clone)]
@@ -575,6 +600,7 @@ impl Res {
             Res::Enum(_) => "enum",
             Res::Param(_) => "type parameter",
             Res::AssocTy(_) => "associated type",
+            Res::Trait(_) => "trait",
         }
     }
 }
@@ -813,8 +839,16 @@ impl Map {
         self.generics.insert(def_id, generics);
     }
 
+    pub fn insert_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
+        self.predicates.insert(def_id, predicates);
+    }
+
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
         self.generics.get(&def_id)
+    }
+
+    pub fn get_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
+        self.predicates.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -1267,10 +1301,14 @@ impl fmt::Debug for Path {
             Res::PrimTy(PrimTy::Bool) => write!(f, "bool")?,
             Res::PrimTy(PrimTy::Str) => write!(f, "str")?,
             Res::PrimTy(PrimTy::Char) => write!(f, "char")?,
-            Res::Alias(def_id) | Res::Struct(def_id) | Res::Enum(def_id) | Res::Param(def_id) => {
+            Res::Alias(def_id)
+            | Res::Struct(def_id)
+            | Res::Enum(def_id)
+            | Res::Param(def_id)
+            | Res::AssocTy(def_id)
+            | Res::Trait(def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
-            Res::AssocTy(_) => todo!(),
         }
         if !self.generics.is_empty() {
             write!(f, "<{:?}>", self.generics.iter().format(", "))?;
@@ -1287,7 +1325,6 @@ impl fmt::Debug for GenericArg {
         match self {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
-            GenericArg::Constraint(ident, ty) => write!(f, "{ident:?} = {ty:?}"),
         }
     }
 }

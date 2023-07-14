@@ -111,6 +111,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     | fhir::GenericParamDefKind::Lifetime => return None,
                 }
             }
+            _ => panic!("unexpected res {:?}", res),
         };
         Some(sort)
     }

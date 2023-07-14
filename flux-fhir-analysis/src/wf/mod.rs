@@ -349,6 +349,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::Struct(_)
             | fhir::Res::PrimTy(..)
             | fhir::Res::Param(_)
+            | fhir::Res::Trait(_)
             | fhir::Res::AssocTy(_) => {}
         }
         let snapshot = self.xi.snapshot();

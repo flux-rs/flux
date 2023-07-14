@@ -197,6 +197,14 @@ pub fn desugar_enum_def(
     })
 }
 
+pub fn desugar_predicates(
+    _early_cx: &EarlyCtxt,
+    _owner_id: OwnerId,
+    _predicates: &Vec<surface::WhereBoundPredicate<Res>>,
+) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
+    todo!("desugar_predicates")
+}
+
 pub fn desugar_fn_sig(
     early_cx: &EarlyCtxt,
     owner_id: OwnerId,
@@ -626,11 +634,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 surface::GenericArg::Type(ty) => {
                     args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?))
                 }
-                surface::GenericArg::Constraint(ident, ty) => {
-                    args.push(fhir::GenericArg::Constraint(
-                        *ident,
-                        self.desugar_ty(None, ty, binders)?,
-                    ))
+                surface::GenericArg::Constraint(ident, _) => {
+                    return Err(self.emit_err(errors::InvalidUnrefinedParam::new(*ident)));
                 }
             }
         }
