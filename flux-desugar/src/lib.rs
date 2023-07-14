@@ -49,9 +49,7 @@ pub fn desugar_fn_sig(
 ) -> Result<(fhir::FnSig, fhir::GenericPredicates), ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, owner_id.def_id)?;
     let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
-    let hir_fn_sig = desugar::desugar_fn_sig(early_cx, owner_id, &fn_sig)?;
-    let hir_predicates = desugar::desugar_predicates(early_cx, owner_id, &fn_sig.predicates)?;
-    Ok((hir_fn_sig, hir_predicates))
+    desugar::desugar_fn_sig(early_cx, owner_id, &fn_sig)
 }
 
 pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
