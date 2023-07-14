@@ -373,6 +373,7 @@ pub struct Path {
 pub enum GenericArg {
     Lifetime(Lifetime),
     Type(Ty),
+    Constraint(SurfaceIdent, Ty),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -1286,6 +1287,7 @@ impl fmt::Debug for GenericArg {
         match self {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
+            GenericArg::Constraint(ident, ty) => write!(f, "{ident:?} = {ty:?}"),
         }
     }
 }

@@ -124,26 +124,26 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
-    fn resolve_projection_predicate(
-        &self,
-        bound: surface::ProjectionPredicate,
-    ) -> Result<surface::ProjectionPredicate<Res>, ErrorGuaranteed> {
-        let item = self.resolve_path(bound.item)?;
-        let term = self.resolve_ty(bound.term)?;
-        Ok(surface::ProjectionPredicate { item, term })
-    }
+    // fn resolve_projection_predicate(
+    //     &self,
+    //     bound: surface::ProjectionPredicate,
+    // ) -> Result<surface::ProjectionPredicate<Res>, ErrorGuaranteed> {
+    //     let item = self.resolve_path(bound.item)?;
+    //     let term = self.resolve_ty(bound.term)?;
+    //     Ok(surface::ProjectionPredicate { item, term })
+    // }
 
-    fn resolve_generic_bound(
-        &self,
-        bound: surface::GenericBound,
-    ) -> Result<surface::GenericBound<Res>, ErrorGuaranteed> {
-        match bound {
-            surface::GenericBound::Projection(pred) => {
-                let pred = self.resolve_projection_predicate(pred)?;
-                Ok(surface::GenericBound::Projection(pred))
-            }
-        }
-    }
+    // fn resolve_generic_bound(
+    //     &self,
+    //     bound: surface::GenericBound,
+    // ) -> Result<surface::GenericBound<Res>, ErrorGuaranteed> {
+    //     match bound {
+    //         surface::GenericBound::Projection(pred) => {
+    //             let pred = self.resolve_projection_predicate(pred)?;
+    //             Ok(surface::GenericBound::Projection(pred))
+    //         }
+    //     }
+    // }
 
     fn resolve_where_bound_predicate(
         &self,
@@ -153,7 +153,7 @@ impl<'sess> Resolver<'sess> {
         let bounds = pred
             .bounds
             .into_iter()
-            .map(|bound| self.resolve_generic_bound(bound))
+            .map(|bound| self.resolve_path(bound))
             .try_collect_exhaust()?;
         Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
     }
@@ -263,6 +263,18 @@ impl<'sess> Resolver<'sess> {
         Ok(BaseTy { kind, span: bty.span })
     }
 
+    fn resolve_generic_arg(
+        &self,
+        arg: surface::GenericArg,
+    ) -> Result<surface::GenericArg<Res>, ErrorGuaranteed> {
+        match arg {
+            surface::GenericArg::Type(ty) => Ok(surface::GenericArg::Type(self.resolve_ty(ty)?)),
+            surface::GenericArg::Constraint(ident, ty) => {
+                Ok(surface::GenericArg::Constraint(ident, self.resolve_ty(ty)?))
+            }
+        }
+    }
+
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
         let Some(res) = self.table.get(&ResKey::from_path(&path)) else {
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)))
@@ -272,7 +284,7 @@ impl<'sess> Resolver<'sess> {
                 let generics = path
                     .generics
                     .into_iter()
-                    .map(|ty| self.resolve_ty(ty))
+                    .map(|arg| self.resolve_generic_arg(arg))
                     .try_collect_exhaust()?;
                 Ok(Path {
                     segments: path.segments,
@@ -319,8 +331,9 @@ impl<'sess> NameResTable<'sess> {
                     }
                 }
             }
-            ItemKind::Fn(fn_sig, ..) => {
+            ItemKind::Fn(fn_sig, generics, ..) => {
                 table.collect_from_fn_sig(fn_sig)?;
+                table.collect_from_generics(generics)?;
             }
             _ => {}
         }
@@ -366,6 +379,43 @@ impl<'sess> NameResTable<'sess> {
         self.res.get(key)
     }
 
+    fn collect_from_generics(
+        &mut self,
+        generics: &hir::Generics<'_>,
+    ) -> Result<(), ErrorGuaranteed> {
+        // generics
+        //     .params
+        //     .iter()
+        //     .try_for_each_exhaust(|param| self.collect_from_generic_param(param));
+
+        generics
+            .predicates
+            .iter()
+            .try_for_each_exhaust(|pred| self.collect_from_where_predicate(pred))
+    }
+
+    fn collect_from_where_predicate(
+        &mut self,
+        clause: &hir::WherePredicate,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let hir::WherePredicate::BoundPredicate(bound) = clause {
+            self.collect_from_ty(&bound.bounded_ty)?;
+            bound
+                .bounds
+                .iter()
+                .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
+        }
+        Ok(())
+    }
+
+    fn collect_from_generic_bound(
+        &mut self,
+        bound: &hir::GenericBound,
+    ) -> Result<(), ErrorGuaranteed> {
+        println!("TRACE: collect_from_generic_bound {bound:#?}");
+        Ok(())
+    }
+
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
         fn_sig
             .decl
@@ -376,7 +426,6 @@ impl<'sess> NameResTable<'sess> {
         if let hir::FnRetTy::Return(ty) = fn_sig.decl.output {
             self.collect_from_ty(ty)?;
         }
-
         Ok(())
     }
 

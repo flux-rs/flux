@@ -146,18 +146,7 @@ pub struct FnSig<R = ()> {
 pub struct WhereBoundPredicate<R = ()> {
     pub span: Span,
     pub bounded_ty: Ty<R>,
-    pub bounds: Vec<GenericBound<R>>,
-}
-
-#[derive(Debug)]
-pub enum GenericBound<R = ()> {
-    Projection(ProjectionPredicate<R>),
-}
-
-#[derive(Debug)]
-pub struct ProjectionPredicate<R = ()> {
-    pub item: Path<R>,
-    pub term: Ty<R>,
+    pub bounds: Vec<Path<R>>,
 }
 
 #[derive(Debug)]
@@ -247,10 +236,16 @@ pub enum BindKind {
 #[derive(Debug)]
 pub struct Path<R = ()> {
     pub segments: Vec<Ident>,
-    pub generics: Vec<Ty<R>>,
+    pub generics: Vec<GenericArg<R>>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
     pub res: R,
+}
+
+#[derive(Debug)]
+pub enum GenericArg<R = ()> {
+    Type(Ty<R>),
+    Constraint(Ident, Ty<R>),
 }
 
 #[derive(Debug, Clone)]

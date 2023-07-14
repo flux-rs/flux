@@ -12,7 +12,7 @@ pub TyAlias: surface::TyAlias = {
     <lo:@L>
     "type"
     <ident:Ident>
-    <generics:GenericArgs?>
+    <generics:GenericArgTys?>
     <refined_by_lo:@L>
     <early_bound_params:("(" <RefineParams<"!">> ")")?>
     <index_params:("[" <RefineParams<"!">> "]")?>
@@ -156,22 +156,13 @@ Predicates = <Comma<WhereBoundPredicate>>;
 
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {
-    <lo:@L> <bounded_ty:Ty> ":" <bound:GenericBound>  <hi:@R> => {
+    <lo:@L> <bounded_ty:Ty> ":" <bound:Path>  <hi:@R> => {
         surface::WhereBoundPredicate {
             span: mk_span(lo, hi),
             bounded_ty,
             bounds:vec![bound],
         }
     }
-}
-
-GenericBound: surface::GenericBound = {
-    <trait_id:Ident> "<" <item_id:Ident> "=" <term:Ty> ">" => {
-        let item = surface::Path::from((trait_id, item_id));
-        let proj = surface::ProjectionPredicate {item, term};
-        surface::GenericBound::Projection(proj)
-    },
-
 }
 
 Arg: surface::Arg = {
@@ -226,10 +217,21 @@ BaseTyKind: surface::BaseTyKind = {
     "[" <ty:Ty> "]" => surface::BaseTyKind::Slice(Box::new(ty)),
 }
 
-GenericArgs: Vec<surface::Ty> = {
+GenericArgTys: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">",
     "<" <Comma<Ty>> ">(?=>)",
 }
+
+GenericArgs: Vec<surface::GenericArg> = {
+    "<" <Comma<GenericArg>> ">",
+    "<" <Comma<GenericArg>> ">(?=>)",
+}
+
+GenericArg: surface::GenericArg = {
+    <bind:Ident> "=" <ty:Ty> => surface::GenericArg::Constraint(bind, ty),
+    <ty:Ty> => surface::GenericArg::Type(ty),
+}
+
 
 RefineArgs: Vec<surface::RefineArg> = {
    "(" <Comma<RefineArg>> ")"

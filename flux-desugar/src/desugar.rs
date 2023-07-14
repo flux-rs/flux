@@ -608,7 +608,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_generic_args(
         &mut self,
         res: Res,
-        substs: &[surface::Ty<Res>],
+        substs: &[surface::GenericArg<Res>],
         binders: &mut Binders,
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut args = vec![];
@@ -622,7 +622,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
         }
         for ty in substs {
-            args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
+            match ty {
+                surface::GenericArg::Type(ty) => {
+                    args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?))
+                }
+                surface::GenericArg::Constraint(ident, ty) => {
+                    args.push(fhir::GenericArg::Constraint(
+                        *ident,
+                        self.desugar_ty(None, ty, binders)?,
+                    ))
+                }
+            }
         }
         Ok(args)
     }
@@ -1182,7 +1192,21 @@ impl Binders {
         let pos = if early_cx.is_box(path.res) { pos } else { TypePos::Other };
         path.generics
             .iter()
-            .try_for_each_exhaust(|ty| self.gather_params_ty(early_cx, None, ty, pos))
+            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(early_cx, arg, pos))
+    }
+
+    fn gather_params_generic_arg(
+        &mut self,
+        early_cx: &EarlyCtxt,
+        arg: &surface::GenericArg<Res>,
+        pos: TypePos,
+    ) -> Result<(), ErrorGuaranteed> {
+        match arg {
+            surface::GenericArg::Type(ty) => self.gather_params_ty(early_cx, None, ty, pos),
+            surface::GenericArg::Constraint(_, ty) => {
+                self.gather_params_ty(early_cx, None, ty, pos)
+            }
+        }
     }
 
     fn gather_params_bty(
