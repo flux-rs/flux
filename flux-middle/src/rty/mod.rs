@@ -525,7 +525,7 @@ impl<T> Binder<T> {
     }
 
     pub fn rebind<U>(self, value: U) -> Binder<U> {
-        Binder { vars: self.vars.clone(), value }
+        Binder { vars: self.vars, value }
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {

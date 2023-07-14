@@ -272,10 +272,10 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         match qpath {
             hir::QPath::Resolved(self_ty, path) => self.lift_path(*self_ty, path),
             hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
-                return self.emit_unsupported(&format!(
+                self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
                     rustc_hir_pretty::qpath_to_string(qpath)
-                ));
+                ))
             }
         }
     }

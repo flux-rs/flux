@@ -440,7 +440,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             .tcx
             .associated_items(trait_id)
             .filter_by_name_unhygienic(ident.name)
-            .into_iter()
             .next();
         match item {
             Some(item) => Ok(item.def_id),

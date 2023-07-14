@@ -399,7 +399,7 @@ impl<'sess> NameResTable<'sess> {
         clause: &hir::WherePredicate,
     ) -> Result<(), ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = clause {
-            self.collect_from_ty(&bound.bounded_ty)?;
+            self.collect_from_ty(bound.bounded_ty)?;
             bound
                 .bounds
                 .iter()
@@ -493,7 +493,7 @@ impl<'sess> NameResTable<'sess> {
                 .iter()
                 .copied()
                 .flatten()
-                .try_for_each_exhaust(|binding| self.collect_from_type_binding(&binding))?;
+                .try_for_each_exhaust(|binding| self.collect_from_type_binding(binding))?;
         }
         Ok(())
     }

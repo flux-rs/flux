@@ -141,6 +141,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(res)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
