@@ -118,13 +118,12 @@ fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
 fn predicates_of(
     genv: &GlobalEnv,
     local_id: LocalDefId,
-) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
     let wfckresults = genv.check_wf(local_id)?;
     if let Some(predicates) = genv.map().get_predicates(local_id) {
-        Ok(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?))
+        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
     } else {
-        // TODO(RJ): should allow situation where no (refined) predicates are specified
-        bug!("cannot find predicates for {local_id:?}")
+        Ok(None)
     }
 }
 
@@ -261,7 +260,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
             Ok(wfckresults)
         }
-        kind => bug!("unexpected def kind `{kind:?}`"),
+        kind => panic!("unexpected def kind `{kind:?}`"),
     }
 }
 

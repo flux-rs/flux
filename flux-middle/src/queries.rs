@@ -52,7 +52,7 @@ pub struct Providers {
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
     pub predicates_of:
-        fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
+        fn(&GlobalEnv, LocalDefId) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>>,
 }
 
 macro_rules! empty_query {
@@ -210,8 +210,11 @@ impl<'tcx> Queries<'tcx> {
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
             let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.predicates_of)(genv, local_id)
+
+            if !genv.tcx.is_closure(def_id) && // TODO(RJ) Hack to avoid check_wf_rust_item on closure
+               let Some(local_id) = def_id.as_local() &&
+               let Some(predicates) = (self.providers.predicates_of)(genv, local_id)? {
+                Ok(predicates)
             } else {
                 let predicates = genv.tcx.predicates_of(def_id);
                 // FIXME(nilehmann) we should propagate this error through the query
