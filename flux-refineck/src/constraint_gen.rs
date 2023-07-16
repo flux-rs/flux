@@ -194,7 +194,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         );
 
         let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
-        println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {actuals:?}");
+        // println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {actuals:?}");
 
         let closure_obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
