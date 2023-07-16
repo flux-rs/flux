@@ -383,11 +383,6 @@ impl<'sess> NameResTable<'sess> {
         &mut self,
         generics: &hir::Generics<'_>,
     ) -> Result<(), ErrorGuaranteed> {
-        // generics
-        //     .params
-        //     .iter()
-        //     .try_for_each_exhaust(|param| self.collect_from_generic_param(param));
-
         generics
             .predicates
             .iter()

@@ -8,6 +8,7 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
+pub mod projections;
 pub mod refining;
 pub mod subst;
 

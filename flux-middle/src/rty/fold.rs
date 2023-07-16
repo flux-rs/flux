@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, List},
-    rty::{AliasKind, GenericPredicates, Var, VariantSig},
+    rty::{Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -195,32 +195,6 @@ pub trait TypeSuperVisitable: TypeVisitable {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()>;
 }
 
-#[derive(Debug)]
-struct ProjectionTable(FxHashMap<AliasTy, Ty>);
-
-impl ProjectionTable {
-    pub fn new(predicates: GenericPredicates) -> Self {
-        let mut res = FxHashMap::default();
-        for pred in &predicates.predicates {
-            if pred.kind.vars().is_empty() {
-                if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
-                    // TODO(RJ): duplicate entries overwrite?
-                    res.insert(proj_pred.projection_ty, proj_pred.term);
-                }
-            }
-        }
-        ProjectionTable(res)
-    }
-
-    pub fn resolve(&self, alias_ty: &AliasTy) -> Ty {
-        let alias_ty = alias_ty.without_constrs();
-        match self.0.get(&alias_ty) {
-            Some(ty) => ty.clone(),
-            None => panic!("cannot resolve {alias_ty:?} in {self:?}"),
-        }
-    }
-}
-
 pub trait TypeFoldable: TypeVisitable {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error>;
 
@@ -265,22 +239,6 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut ReplaceHoles(mk_pred, vec![]))
     }
 
-    /// Turns each Constr(e, T) into T
-    fn without_constrs(&self) -> Self {
-        struct WithoutConstrs;
-
-        impl TypeFolder for WithoutConstrs {
-            fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                match ty.kind() {
-                    TyKind::Constr(_, ty) => ty.fold_with(self),
-                    _ => ty.super_fold_with(self),
-                }
-            }
-        }
-
-        self.fold_with(&mut WithoutConstrs)
-    }
-
     /// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces
     /// all existing predicates with a [`hole`].
     /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
@@ -311,25 +269,6 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.fold_with(&mut WithHoles { in_exists: false })
-    }
-
-    fn normalize_projections(&self, predicates: GenericPredicates) -> Self {
-        struct WithPredicates {
-            proj_table: ProjectionTable,
-        }
-
-        impl TypeFolder for WithPredicates {
-            fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                match ty.kind() {
-                    TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
-                        // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
-                        self.proj_table.resolve(alias_ty)
-                    }
-                    _ => ty.super_fold_with(self),
-                }
-            }
-        }
-        self.fold_with(&mut WithPredicates { proj_table: ProjectionTable::new(predicates) })
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {

@@ -193,8 +193,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        // println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {predicates:?}");
-        let inst_fn_sig = inst_fn_sig.normalize_projections(predicates);
+        let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
+        println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {actuals:?}");
 
         let closure_obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
