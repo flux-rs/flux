@@ -131,6 +131,7 @@ pub fn pprint_with_default_cx<T: Pretty>(
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 
+#[derive(Copy, Clone)]
 pub enum KVarArgs {
     All,
     SelfOnly,

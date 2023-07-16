@@ -3,7 +3,7 @@ use crate::{
     surface,
     lexer::{Lit, Location, Token, Delimiter, BinOpToken}
 };
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, symbol::Ident};
 use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
@@ -12,7 +12,7 @@ pub TyAlias: surface::TyAlias = {
     <lo:@L>
     "type"
     <ident:Ident>
-    <generics:GenericArgs?>
+    <generics:GenericArgTys?>
     <refined_by_lo:@L>
     <early_bound_params:("(" <RefineParams<"!">> ")")?>
     <index_params:("[" <RefineParams<"!">> "]")?>
@@ -115,11 +115,13 @@ pub FnSig: surface::FnSig = {
     <returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
     <ensures:("ensures" <Ensures>)?>
+    <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
         let ensures = ensures.unwrap_or_default();
         let params = params.unwrap_or_default();
-        surface::FnSig { params, args, returns, ensures, requires, span: mk_span(lo, hi) }
+        let predicates = predicates.unwrap_or_default();
+        surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
     }
 }
 
@@ -150,7 +152,18 @@ Fields: Vec<surface::Ty> = {
 
 Args    = <Comma<Arg>>;
 Ensures = <Comma<(<Ident> ":" <Ty>)>>;
+Predicates = <Comma<WhereBoundPredicate>>;
 
+
+WhereBoundPredicate: surface::WhereBoundPredicate = {
+    <lo:@L> <bounded_ty:Ty> ":" <bound:Path>  <hi:@R> => {
+        surface::WhereBoundPredicate {
+            span: mk_span(lo, hi),
+            bounded_ty,
+            bounds:vec![bound],
+        }
+    }
+}
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
@@ -204,10 +217,21 @@ BaseTyKind: surface::BaseTyKind = {
     "[" <ty:Ty> "]" => surface::BaseTyKind::Slice(Box::new(ty)),
 }
 
-GenericArgs: Vec<surface::Ty> = {
+GenericArgTys: Vec<surface::Ty> = {
     "<" <Comma<Ty>> ">",
     "<" <Comma<Ty>> ">(?=>)",
 }
+
+GenericArgs: Vec<surface::GenericArg> = {
+    "<" <Comma<GenericArg>> ">",
+    "<" <Comma<GenericArg>> ">(?=>)",
+}
+
+GenericArg: surface::GenericArg = {
+    <bind:Ident> "=" <ty:Ty> => surface::GenericArg::Constraint(bind, ty),
+    <ty:Ty> => surface::GenericArg::Type(ty),
+}
+
 
 RefineArgs: Vec<surface::RefineArg> = {
    "(" <Comma<RefineArg>> ")"
@@ -414,6 +438,7 @@ extern {
         "strg" => Token::Strg,
         "requires" => Token::Requires,
         "ensures" => Token::Ensures,
+        "where" => Token::Where,
         "qualifier" => Token::Qualifier,
         "sort" => Token::Sort,
         "opaque" => Token::Opaque,

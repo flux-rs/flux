@@ -77,8 +77,14 @@ pub struct Clause {
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum ClauseKind {
     FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
+    Projection(ProjectionPredicate),
 }
 
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct ProjectionPredicate {
+    pub projection_ty: AliasTy,
+    pub term: Ty,
+}
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
@@ -134,7 +140,20 @@ pub enum TyKind {
     Slice(Ty),
     FnPtr(PolyFnSig),
     Closure(DefId, Substs),
+    Alias(AliasKind, AliasTy),
+    // Projection(DefId, Substs),
     RawPtr(Ty, Mutability),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct AliasTy {
+    pub substs: Substs,
+    pub def_id: DefId,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum AliasKind {
+    Projection,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -376,6 +395,11 @@ impl Ty {
         TyKind::Closure(def_id, substs.into()).intern()
     }
 
+    pub fn mk_projection(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
+        let alias_ty = AliasTy { substs: substs.into(), def_id };
+        TyKind::Alias(AliasKind::Projection, alias_ty).intern()
+    }
+
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
         TyKind::Array(ty, c).intern()
     }
@@ -504,6 +528,14 @@ impl fmt::Debug for FnSig {
     }
 }
 
+impl fmt::Debug for AliasKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AliasKind::Projection => write!(f, "Projection"),
+        }
+    }
+}
+
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
@@ -545,6 +577,16 @@ impl fmt::Debug for Ty {
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
+                Ok(())
+            }
+            TyKind::Alias(kind, alias_ty) => {
+                let def_id = alias_ty.def_id;
+                let substs = &alias_ty.substs;
+                write!(f, "Alias ({kind:?}, {}, ", def_id_to_string(def_id))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                write!(f, ")")?;
                 Ok(())
             }
         }

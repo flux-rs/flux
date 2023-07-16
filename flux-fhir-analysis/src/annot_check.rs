@@ -246,13 +246,33 @@ impl<'zip> Zipper<'zip> {
         expected_bty: &'zip fhir::BaseTy,
     ) -> Result<(), ErrorGuaranteed> {
         match (&bty.kind, &expected_bty.kind) {
-            (fhir::BaseTyKind::Path(path), fhir::BaseTyKind::Path(expected_path)) => {
-                self.zip_path(path, expected_path)
+            (fhir::BaseTyKind::Path(qpath), fhir::BaseTyKind::Path(expected_qpath)) => {
+                self.zip_qpath(qpath, expected_qpath)
             }
             (fhir::BaseTyKind::Slice(ty), fhir::BaseTyKind::Slice(expected_ty)) => {
                 self.zip_ty(ty, expected_ty)
             }
             _ => Err(self.emit_err(errors::InvalidRefinement::from_btys(bty, expected_bty))),
+        }
+    }
+
+    fn zip_qpath(
+        &mut self,
+        qpath: &fhir::QPath,
+        expected_qpath: &'zip fhir::QPath,
+    ) -> Result<(), ErrorGuaranteed> {
+        match (qpath, expected_qpath) {
+            (fhir::QPath::Resolved(None, path), fhir::QPath::Resolved(None, expected_path)) => {
+                self.zip_path(path, expected_path)
+            }
+            (
+                fhir::QPath::Resolved(Some(self_ty), path),
+                fhir::QPath::Resolved(Some(expected_self_ty), expected_path),
+            ) => {
+                self.zip_ty(self_ty, expected_self_ty)?;
+                self.zip_path(path, expected_path)
+            }
+            _ => Err(self.emit_err(errors::InvalidRefinement::from_qpaths(qpath, expected_qpath))),
         }
     }
 
@@ -322,6 +342,16 @@ mod errors {
                 span: bty.span,
                 expected_span: expected_bty.span,
                 expected_ty: format!("{expected_bty:?}"),
+                has_note: None,
+                note: String::new(),
+            }
+        }
+
+        pub(super) fn from_qpaths(qpath: &fhir::QPath, expected_qpath: &fhir::QPath) -> Self {
+            Self {
+                span: qpath.span(),
+                expected_span: expected_qpath.span(),
+                expected_ty: format!("{expected_qpath:?}"),
                 has_note: None,
                 note: String::new(),
             }

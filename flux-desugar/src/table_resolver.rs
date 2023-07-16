@@ -124,6 +124,40 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
+    // fn resolve_projection_predicate(
+    //     &self,
+    //     bound: surface::ProjectionPredicate,
+    // ) -> Result<surface::ProjectionPredicate<Res>, ErrorGuaranteed> {
+    //     let item = self.resolve_path(bound.item)?;
+    //     let term = self.resolve_ty(bound.term)?;
+    //     Ok(surface::ProjectionPredicate { item, term })
+    // }
+
+    // fn resolve_generic_bound(
+    //     &self,
+    //     bound: surface::GenericBound,
+    // ) -> Result<surface::GenericBound<Res>, ErrorGuaranteed> {
+    //     match bound {
+    //         surface::GenericBound::Projection(pred) => {
+    //             let pred = self.resolve_projection_predicate(pred)?;
+    //             Ok(surface::GenericBound::Projection(pred))
+    //         }
+    //     }
+    // }
+
+    fn resolve_where_bound_predicate(
+        &self,
+        pred: surface::WhereBoundPredicate,
+    ) -> Result<surface::WhereBoundPredicate<Res>, ErrorGuaranteed> {
+        let bounded_ty = self.resolve_ty(pred.bounded_ty)?;
+        let bounds = pred
+            .bounds
+            .into_iter()
+            .map(|bound| self.resolve_path(bound))
+            .try_collect_exhaust()?;
+        Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+    }
+
     #[allow(dead_code)]
     pub(crate) fn resolve_fn_sig(
         &self,
@@ -141,6 +175,15 @@ impl<'sess> Resolver<'sess> {
             .map(|(loc, ty)| Ok((loc, self.resolve_ty(ty)?)))
             .try_collect_exhaust();
 
+        let predicates = fn_sig
+            .predicates
+            .into_iter()
+            .map(|pred| {
+                let pred = self.resolve_where_bound_predicate(pred)?;
+                Ok(pred)
+            })
+            .try_collect_exhaust();
+
         let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
 
         Ok(surface::FnSig {
@@ -149,6 +192,7 @@ impl<'sess> Resolver<'sess> {
             args: args?,
             returns: returns?,
             ensures: ensures?,
+            predicates: predicates?,
             span: fn_sig.span,
         })
     }
@@ -219,6 +263,18 @@ impl<'sess> Resolver<'sess> {
         Ok(BaseTy { kind, span: bty.span })
     }
 
+    fn resolve_generic_arg(
+        &self,
+        arg: surface::GenericArg,
+    ) -> Result<surface::GenericArg<Res>, ErrorGuaranteed> {
+        match arg {
+            surface::GenericArg::Type(ty) => Ok(surface::GenericArg::Type(self.resolve_ty(ty)?)),
+            surface::GenericArg::Constraint(ident, ty) => {
+                Ok(surface::GenericArg::Constraint(ident, self.resolve_ty(ty)?))
+            }
+        }
+    }
+
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
         let Some(res) = self.table.get(&ResKey::from_path(&path)) else {
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)))
@@ -228,7 +284,7 @@ impl<'sess> Resolver<'sess> {
                 let generics = path
                     .generics
                     .into_iter()
-                    .map(|ty| self.resolve_ty(ty))
+                    .map(|arg| self.resolve_generic_arg(arg))
                     .try_collect_exhaust()?;
                 Ok(Path {
                     segments: path.segments,
@@ -275,8 +331,9 @@ impl<'sess> NameResTable<'sess> {
                     }
                 }
             }
-            ItemKind::Fn(fn_sig, ..) => {
+            ItemKind::Fn(fn_sig, generics, ..) => {
                 table.collect_from_fn_sig(fn_sig)?;
+                table.collect_from_generics(generics)?;
             }
             _ => {}
         }
@@ -322,6 +379,42 @@ impl<'sess> NameResTable<'sess> {
         self.res.get(key)
     }
 
+    fn collect_from_generics(
+        &mut self,
+        generics: &hir::Generics<'_>,
+    ) -> Result<(), ErrorGuaranteed> {
+        generics
+            .predicates
+            .iter()
+            .try_for_each_exhaust(|pred| self.collect_from_where_predicate(pred))
+    }
+
+    fn collect_from_where_predicate(
+        &mut self,
+        clause: &hir::WherePredicate,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let hir::WherePredicate::BoundPredicate(bound) = clause {
+            self.collect_from_ty(bound.bounded_ty)?;
+            bound
+                .bounds
+                .iter()
+                .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
+        }
+        Ok(())
+    }
+
+    fn collect_from_generic_bound(
+        &mut self,
+        bound: &hir::GenericBound,
+    ) -> Result<(), ErrorGuaranteed> {
+        match bound {
+            hir::GenericBound::Trait(poly_trait_ref, _) => {
+                self.collect_from_path(poly_trait_ref.trait_ref.path)
+            }
+            _ => Ok(()),
+        }
+    }
+
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
         fn_sig
             .decl
@@ -332,7 +425,6 @@ impl<'sess> NameResTable<'sess> {
         if let hir::FnRetTy::Return(ty) = fn_sig.decl.output {
             self.collect_from_ty(ty)?;
         }
-
         Ok(())
     }
 
@@ -344,6 +436,9 @@ impl<'sess> NameResTable<'sess> {
             hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
             hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
                 ResEntry::Res(Res::Alias(def_id))
+            }
+            hir::def::Res::Def(hir::def::DefKind::Trait, def_id) => {
+                ResEntry::Res(Res::Trait(def_id))
             }
             _ => {
                 ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
@@ -360,24 +455,12 @@ impl<'sess> NameResTable<'sess> {
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
                 let hir::QPath::Resolved(None, path) = qpath else {
-                    return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                        qpath.span(),
-                        "unsupported type",
-                    )));
-                };
-
-                let key = ResKey::from_hir_path(self.sess, path)?;
-                let res = self.res_from_hir_res(path.res, path.span);
-                self.insert(key, res);
-
-                if let [.., PathSegment { args, .. }] = path.segments {
-                    args.map(|args| args.args)
-                        .iter()
-                        .copied()
-                        .flatten()
-                        .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
-                }
-                Ok(())
+            return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                qpath.span(),
+                "unsupported type",
+            )));
+        };
+                self.collect_from_path(path)
             }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
@@ -386,6 +469,48 @@ impl<'sess> NameResTable<'sess> {
             | hir::TyKind::Typeof(_)
             | hir::TyKind::Infer
             | hir::TyKind::Err(_) => Ok(()),
+        }
+    }
+
+    fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result<(), ErrorGuaranteed> {
+        let key = ResKey::from_hir_path(self.sess, path)?;
+        let res = self.res_from_hir_res(path.res, path.span);
+        self.insert(key, res);
+
+        if let [.., PathSegment { args, .. }] = path.segments {
+            args.map(|args| args.args)
+                .iter()
+                .copied()
+                .flatten()
+                .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
+
+            args.map(|args| args.bindings)
+                .iter()
+                .copied()
+                .flatten()
+                .try_for_each_exhaust(|binding| self.collect_from_type_binding(binding))?;
+        }
+        Ok(())
+    }
+
+    fn collect_from_type_binding(
+        &mut self,
+        binding: &hir::TypeBinding<'_>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match binding.kind {
+            hir::TypeBindingKind::Equality { term } => self.collect_from_term(&term),
+            hir::TypeBindingKind::Constraint { bounds } => {
+                bounds
+                    .iter()
+                    .try_for_each_exhaust(|bound| self.collect_from_generic_bound(bound))
+            }
+        }
+    }
+
+    fn collect_from_term(&mut self, term: &hir::Term<'_>) -> Result<(), ErrorGuaranteed> {
+        match term {
+            hir::Term::Ty(ty) => self.collect_from_ty(ty),
+            hir::Term::Const(_) => Ok(()),
         }
     }
 

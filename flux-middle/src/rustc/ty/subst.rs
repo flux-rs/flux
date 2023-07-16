@@ -1,4 +1,4 @@
-use super::{Binder, FnSig, GenericArg, Region, Ty, TyKind};
+use super::{AliasKind, Binder, FnSig, GenericArg, Region, Ty, TyKind};
 use crate::intern::{Internable, List};
 
 pub(super) trait Subst {
@@ -30,6 +30,11 @@ impl Subst for Ty {
             TyKind::Slice(ty) => Ty::mk_slice(ty.subst(substs)),
             TyKind::Closure(def_id, closure_substs) => {
                 Ty::mk_closure(*def_id, closure_substs.subst(substs))
+            }
+            TyKind::Alias(AliasKind::Projection, alias_ty) => {
+                let def_id = alias_ty.def_id;
+                let alias_substs = &alias_ty.substs;
+                Ty::mk_projection(def_id, alias_substs.subst(substs))
             }
             TyKind::RawPtr(ty, mutbl) => Ty::mk_raw_ptr(ty.subst(substs), *mutbl),
             TyKind::Param(param_ty) => substs[param_ty.index as usize].expect_type().clone(),

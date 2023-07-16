@@ -32,7 +32,7 @@ use super::{
 use crate::{
     const_eval::scalar_int_to_constant,
     intern::List,
-    rustc::ty::{Region, RegionVar},
+    rustc::ty::{AliasTy, ProjectionPredicate, Region, RegionVar},
 };
 
 pub struct LoweringCtxt<'a, 'sess, 'tcx> {
@@ -634,6 +634,15 @@ pub(crate) fn lower_ty<'tcx>(
             let substs = lower_substs(tcx, substs)?;
             Ok(Ty::mk_closure(*did, substs))
         }
+
+        rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
+            // panic!("unexpected projection type `{alias_ty:?}`")
+            let substs = lower_substs(tcx, alias_ty.substs)?;
+            Ok(Ty::mk_projection(alias_ty.def_id, substs))
+            // Err(UnsupportedReason::new(format!(
+            //     "unsupported PROJECTION type `{ty:?}` alias_ty =`{alias_ty:?}`"
+            // )))
+        }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }
@@ -749,6 +758,9 @@ pub(crate) fn lower_generic_predicates<'tcx>(
 ) -> Result<GenericPredicates, ErrorGuaranteed> {
     let mut fn_trait_refs = FxHashMap::default();
     let mut fn_output_proj = FxHashMap::default();
+    let mut predicates = vec![];
+
+    // println!("TRACE: lower_generic_predicates 1: {def_id:?} {generics:?}");
 
     for (predicate, span) in generics.predicates {
         let bound_vars = predicate.kind().bound_vars();
@@ -757,8 +769,9 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         match kind {
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
+                // println!("TRACE: lower_generic_predicates 2: {def_id:?} trait_ref.def_id = {:?}, trait_ref.substs = {:?}", trait_ref.def_id, trait_ref.substs);
+                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.substs, bound_vars);
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
-                    let substs = rustc_ty::Binder::bind_with_vars(trait_ref.substs, bound_vars);
                     match fn_trait_refs.entry(substs) {
                         hash_map::Entry::Occupied(_) => todo!(),
                         hash_map::Entry::Vacant(entry) => {
@@ -769,21 +782,32 @@ pub(crate) fn lower_generic_predicates<'tcx>(
             }
             rustc_ty::ClauseKind::Projection(proj_pred) => {
                 let proj_ty = proj_pred.projection_ty;
+                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.substs, bound_vars);
                 if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
-                    let substs = rustc_ty::Binder::bind_with_vars(proj_ty.substs, bound_vars);
                     match fn_output_proj.entry(substs) {
                         hash_map::Entry::Occupied(_) => todo!(),
                         hash_map::Entry::Vacant(entry) => {
                             entry.insert(proj_pred.term.ty().unwrap());
                         }
                     };
+                } else if let Some(ty) = proj_pred.term.ty() &&
+                          let Some(substs) = substs.no_bound_vars(){
+                    let substs = lower_substs(tcx, substs)
+                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
+                        .emit(sess)?;
+
+                    let projection_ty = AliasTy { substs, def_id: proj_ty.def_id };
+                    let term = lower_ty(tcx, ty)
+                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
+                        .emit(sess)?;
+                    let kind = ClauseKind::Projection(ProjectionPredicate { projection_ty, term });
+                    predicates.push(Clause::new(Binder::bind_with_vars(kind, List::empty())));
                 }
             }
             _ => {}
         }
     }
 
-    let mut predicates = vec![];
     for (substs, (kind, span)) in fn_trait_refs {
         let output = fn_output_proj.get(&substs).unwrap();
 
@@ -806,6 +830,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
         predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
+    // println!("TRACE: lower_generic_predicates 4: {def_id:?} {predicates:?}");
     Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
 }
 

@@ -317,7 +317,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         bty: &fhir::BaseTy,
     ) -> Result<(), ErrorGuaranteed> {
         match &bty.kind {
-            fhir::BaseTyKind::Path(path) => self.check_path(env, path),
+            fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) => {
+                if let Some(self_ty) = self_ty {
+                    self.check_type(env, self_ty)?;
+                }
+                self.check_path(env, path)
+            }
             fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
         }
     }
@@ -343,7 +348,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::Res::Enum(_)
             | fhir::Res::Struct(_)
             | fhir::Res::PrimTy(..)
-            | fhir::Res::Param(_) => {}
+            | fhir::Res::Param(_)
+            | fhir::Res::Trait(_)
+            | fhir::Res::AssocTy(_) => {}
         }
         let snapshot = self.xi.snapshot();
         let res = path.generics.iter().try_for_each_exhaust(|arg| {

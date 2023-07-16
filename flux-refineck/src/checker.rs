@@ -9,10 +9,11 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
-        TyKind, Uint, UintTy, VariantIdx,
+        FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
+        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -393,11 +394,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
                 let (func_id, call_substs) = resolved_call;
-
                 let fn_sig = self
                     .genv
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
+                // println!("TRACE: check_terminator 1: {func_id:?} call_substs: {call_substs:?}");
 
                 let fn_generics = self
                     .genv
@@ -456,6 +457,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
+    fn callsite_predicates(&self, span: Span) -> Result<rty::GenericPredicates, CheckerError> {
+        match self.genv.predicates_of(self.def_id) {
+            Ok(eb) => Ok(eb.0),
+            Err(e) => Err(CheckerError::query(e, span)),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
@@ -468,10 +476,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
-
+        let predicates = self.callsite_predicates(terminator_span)?;
+        //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, fn_sig, substs, &actuals)
+            .check_fn_call(rcx, env, did, fn_sig, substs, predicates, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
@@ -491,16 +500,24 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(output.ret)
     }
 
+    fn oblig_fn_traits(predicates: &List<rty::Clause>) -> Vec<Binder<FnTraitPredicate>> {
+        let mut fn_trait_preds = vec![];
+        for pred in predicates {
+            let kind = pred.kind();
+            let vars = kind.vars().clone();
+            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
+                fn_trait_preds.push(Binder::new(fn_trait_pred, vars))
+            }
+        }
+        fn_trait_preds
+    }
+
     fn check_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
-        for predicate in &obligs.predicates {
-            let fn_trait_pred = predicate.kind().map(|kind| {
-                let rty::ClauseKind::FnTrait(fn_trait_pred) = kind;
-                fn_trait_pred
-            });
+        for fn_trait_pred in Self::oblig_fn_traits(&obligs.predicates) {
             if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
                 .self_ty()
                 .skip_binder()
@@ -1180,6 +1197,10 @@ pub(crate) mod errors {
     impl CheckerError {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+        }
+
+        pub fn query(query_error: QueryErr, span: Span) -> Self {
+            Self { kind: CheckerErrKind::Query(query_error), span }
         }
     }
 

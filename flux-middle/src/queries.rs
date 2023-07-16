@@ -51,6 +51,8 @@ pub struct Providers {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
+    pub predicates_of:
+        fn(&GlobalEnv, LocalDefId) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>>,
 }
 
 macro_rules! empty_query {
@@ -70,6 +72,7 @@ impl Default for Providers {
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
+            predicates_of: |_, _| empty_query!(),
         }
     }
 }
@@ -189,7 +192,11 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
-                let generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
+                let my_generics = genv.tcx.generics_of(def_id);
+                let generics = if let Some(parent_def_id) = my_generics.parent && genv.tcx.is_trait(parent_def_id) {
+                    genv.tcx.generics_of(parent_def_id)
+                } else {my_generics};
+                let generics = lowering::lower_generics(generics)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?;
                 Ok(refining::refine_generics(&generics))
             }
@@ -202,14 +209,23 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
-            let predicates = genv.tcx.predicates_of(def_id);
-            // FIXME(nilehmann) we should propagate this error through the query
-            let predicates = lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
-                .unwrap_or_else(|_| FatalError.raise());
+            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
 
-            let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
-                .refine_generic_predicates(&predicates)?;
-            Ok(rty::EarlyBinder(predicates))
+            if !genv.tcx.is_closure(def_id) && // TODO(RJ) Hack to avoid check_wf_rust_item on closure
+               let Some(local_id) = def_id.as_local() &&
+               let Some(predicates) = (self.providers.predicates_of)(genv, local_id)? {
+                Ok(predicates)
+            } else {
+                let predicates = genv.tcx.predicates_of(def_id);
+                // FIXME(nilehmann) we should propagate this error through the query
+                let predicates =
+                    lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
+                        .unwrap_or_else(|_| FatalError.raise());
+
+                let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
+                    .refine_generic_predicates(&predicates)?;
+                Ok(rty::EarlyBinder(predicates))
+            }
         })
     }
 

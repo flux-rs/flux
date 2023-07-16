@@ -9,8 +9,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
-        Sort, TupleTree, Ty, TyKind, Var,
+        FnOutput, GenericArg, GenericPredicates, InferMode, Mutability, Path, PolyFnSig,
+        PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -141,6 +141,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(res)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -148,6 +149,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
+        predicates: GenericPredicates,
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
@@ -191,7 +193,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        // Check closure obligations
+        let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
+        // println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {actuals:?}");
+
         let closure_obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
 

@@ -8,6 +8,7 @@ pub mod evars;
 mod expr;
 pub mod fold;
 pub(crate) mod normalize;
+pub mod projections;
 pub mod refining;
 pub mod subst;
 
@@ -72,20 +73,27 @@ pub enum GenericParamDefKind {
     Lifetime,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Clause>,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
+    Projection(ProjectionPredicate),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct ProjectionPredicate {
+    pub projection_ty: AliasTy,
+    pub term: Ty,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -191,7 +199,7 @@ pub struct FnSig {
     output: Binder<FnOutput>,
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Constraint>,
@@ -287,6 +295,18 @@ pub enum BaseTy {
     Never,
     Closure(DefId, List<Ty>),
     Param(ParamTy),
+    Alias(AliasKind, AliasTy),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct AliasTy {
+    pub substs: Substs,
+    pub def_id: DefId,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum AliasKind {
+    Projection,
 }
 
 pub type Substs = List<GenericArg>;
@@ -299,6 +319,10 @@ pub enum GenericArg {
 }
 
 impl Clause {
+    pub fn new(kind: ClauseKind, vars: List<BoundVariableKind>) -> Self {
+        Clause { kind: Binder::new(kind, vars) }
+    }
+
     pub fn kind(&self) -> Binder<ClauseKind> {
         self.kind.clone()
     }
@@ -499,6 +523,10 @@ impl<T> Binder<T> {
 
     pub fn skip_binder(self) -> T {
         self.value
+    }
+
+    pub fn rebind<U>(self, value: U) -> Binder<U> {
+        Binder { vars: self.vars, value }
     }
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
@@ -1047,9 +1075,19 @@ impl TyS {
     }
 }
 
+impl AliasTy {
+    pub fn new(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Self {
+        AliasTy { def_id, substs: substs.into() }
+    }
+}
+
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
         BaseTy::Adt(adt_def, substs.into())
+    }
+
+    pub fn projection(alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(AliasKind::Projection, alias_ty)
     }
 
     pub fn slice(ty: Ty) -> BaseTy {
@@ -1093,18 +1131,7 @@ impl BaseTy {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
             BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
             BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
-            BaseTy::Bool
-            | BaseTy::Str
-            | BaseTy::Float(_)
-            | BaseTy::Slice(_)
-            | BaseTy::RawPtr(_, _)
-            | BaseTy::Char
-            | BaseTy::Ref(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
-            | BaseTy::Never
-            | BaseTy::Param(_) => &[],
+            _ => &[],
         }
     }
 
@@ -1131,7 +1158,8 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
-            | BaseTy::Never => Sort::unit(),
+            | BaseTy::Never
+            | BaseTy::Alias(..) => Sort::unit(),
         }
     }
 }
@@ -1297,6 +1325,16 @@ mod pretty {
                         w!("{:?}", sort)
                     }
                 }
+            }
+        }
+    }
+
+    impl Pretty for ClauseKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                ClauseKind::FnTrait(fn_trait_pred) => w!("FnTrait ({fn_trait_pred:?})"),
+                ClauseKind::Projection(proj_pred) => w!("Projection ({proj_pred:?})"),
             }
         }
     }
@@ -1574,6 +1612,17 @@ mod pretty {
                     }
                     Ok(())
                 }
+                // BaseTy::Projection(did, substs) => {
+                //     w!("{:?}", did)?;
+                //     let substs = substs
+                //         .iter()
+                //         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                //         .collect_vec();
+                //     if !substs.is_empty() {
+                //         w!("<{:?}>", join!(", ", substs))?;
+                //     }
+                //     Ok(())
+                // }
                 BaseTy::Param(param) => w!("{}", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
@@ -1601,6 +1650,30 @@ mod pretty {
                         w!("<{:?}>", join!(", ", substs))?;
                     }
                     Ok(())
+                }
+                BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                    let assoc_name = cx.tcx.item_name(alias_ty.def_id);
+                    let trait_ref = cx.tcx.parent(alias_ty.def_id);
+                    // let alias_ty_subst = alias_ty.substs[0]
+                    // let substs = alias_ty
+                    //     .substs
+                    //     .iter()
+                    //     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                    //     .collect_vec();
+                    if !alias_ty.substs.is_empty() {
+                        w!(
+                            "<{:?} as {:?}>::{}",
+                            &alias_ty.substs[0],
+                            trait_ref,
+                            ^assoc_name
+                        )
+                    } else {
+                        w!(
+                            "<??? as {:?}>::{}",
+                            trait_ref,
+                            ^assoc_name
+                        )
+                    }
                 }
             }
         }

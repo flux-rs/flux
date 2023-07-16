@@ -1,5 +1,5 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private, let_chains, box_patterns)]
+#![feature(rustc_private, let_chains, box_patterns, if_let_guard)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -52,6 +52,7 @@ pub fn provide(providers: &mut Providers) {
         variants_of,
         fn_sig,
         generics_of,
+        predicates_of,
     };
 }
 
@@ -111,6 +112,18 @@ fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
             Ok(conv::adt_def_for_struct(genv, invariants, genv.map().get_struct(def_id)))
         }
         kind => bug!("expected struct or enum found `{kind:?}`"),
+    }
+}
+
+fn predicates_of(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
+    let wfckresults = genv.check_wf(local_id)?;
+    if let Some(predicates) = genv.map().get_predicates(local_id) {
+        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
+    } else {
+        Ok(None)
     }
 }
 
@@ -247,7 +260,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
             Ok(wfckresults)
         }
-        kind => bug!("unexpected def kind `{kind:?}`"),
+        kind => panic!("unexpected def kind `{kind:?}`"),
     }
 }
 

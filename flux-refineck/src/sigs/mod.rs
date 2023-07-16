@@ -110,7 +110,7 @@ impl<T, const N: usize> SigTable<T, N> {
 
 impl<T, const N: usize> SigTable<T, N>
 where
-    T: std::hash::Hash + Eq,
+    T: std::hash::Hash + Eq + std::fmt::Debug,
 {
     fn extend(&mut self, iter: impl IntoIterator<Item = (T, Sig<N>)>) {
         self.map.extend(
@@ -120,6 +120,7 @@ where
     }
 
     fn get(&self, op: T, btys: [BaseTy; N]) -> &Sig<N> {
+        // println!("TRACE: SigTable::get {op:?} {btys:?}");
         &self.map[&(op, btys)]
     }
 }

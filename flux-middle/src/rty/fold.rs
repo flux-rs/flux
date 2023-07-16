@@ -12,9 +12,9 @@ use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
-    BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind, FnOutput,
-    FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name, Opaqueness,
-    PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name,
+    Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -374,6 +374,7 @@ impl TypeVisitable for ClauseKind {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
+            ClauseKind::Projection(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -382,7 +383,24 @@ impl TypeFoldable for ClauseKind {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
             ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
+            ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
         }
+    }
+}
+
+impl TypeVisitable for ProjectionPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.projection_ty.visit_with(visitor)?;
+        self.term.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for ProjectionPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(ProjectionPredicate {
+            projection_ty: self.projection_ty.try_fold_with(folder)?,
+            term: self.term.try_fold_with(folder)?,
+        })
     }
 }
 
@@ -717,6 +735,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.iter().try_for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
+            BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -749,6 +768,7 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
+            BaseTy::Alias(kind, alias_ty) => BaseTy::Alias(*kind, alias_ty.try_fold_with(folder)?),
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)
@@ -760,6 +780,18 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
         };
         Ok(bty)
+    }
+}
+
+impl TypeVisitable for AliasTy {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.substs.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for AliasTy {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(AliasTy { substs: self.substs.try_fold_with(folder)?, def_id: self.def_id })
     }
 }
 
