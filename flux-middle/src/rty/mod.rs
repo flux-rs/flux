@@ -169,7 +169,7 @@ pub struct VariantSig {
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
-    Refine(Sort, Option<InferMode>),
+    Refine(Sort, InferMode),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -475,7 +475,7 @@ impl Qualifier {
     pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
         let name_gen = IndexGen::new();
         let mut params = vec![];
-        let body = self.body.replace_bound_exprs_with(|sort| {
+        let body = self.body.replace_bound_exprs_with(|sort, _| {
             Expr::fold_sort(sort, |s| {
                 let fresh = name_gen.fresh();
                 params.push((fresh, s.clone()));
@@ -487,7 +487,7 @@ impl Qualifier {
 }
 
 impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, Option<InferMode>) {
+    fn expect_refine(&self) -> (&Sort, InferMode) {
         if let BoundVariableKind::Refine(sort, mode) = self {
             (sort, *mode)
         } else {
@@ -504,7 +504,10 @@ impl<T> Binder<T> {
     pub fn with_sorts(value: T, sorts: impl IntoIterator<Item = Sort>) -> Binder<T> {
         let vars = sorts
             .into_iter()
-            .map(|s| BoundVariableKind::Refine(s, None))
+            .map(|s| {
+                let infer_mode = s.default_infer_mode();
+                BoundVariableKind::Refine(s, infer_mode)
+            })
             .collect();
         Binder { vars, value }
     }
@@ -581,7 +584,7 @@ where
     pub fn replace_bound_vars(
         &self,
         replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, Option<InferMode>) -> Expr,
+        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
         let mut exprs = FxHashMap::default();
         let delegate = FnMutDelegate {
@@ -617,9 +620,15 @@ where
         self.replace_bound_exprs(slice::from_ref(expr))
     }
 
-    pub fn replace_bound_exprs_with(&self, f: impl FnMut(&Sort) -> Expr) -> T {
-        let sorts = self.vars.to_sort_list();
-        let exprs = sorts.iter().map(f).collect_vec();
+    pub fn replace_bound_exprs_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> T {
+        let exprs = self
+            .vars
+            .iter()
+            .map(|param| {
+                let (sort, mode) = param.expect_refine();
+                f(sort, mode)
+            })
+            .collect_vec();
         self.replace_bound_exprs(&exprs)
     }
 }
@@ -1319,7 +1328,7 @@ mod pretty {
             match self {
                 BoundVariableKind::Region(re) => w!("{:?}", re),
                 BoundVariableKind::Refine(sort, mode) => {
-                    if let Some(InferMode::KVar) = mode {
+                    if let InferMode::KVar = mode {
                         w!("${:?}", sort)
                     } else {
                         w!("{:?}", sort)

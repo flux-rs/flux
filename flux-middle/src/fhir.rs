@@ -415,8 +415,8 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Inference mode for parameter at function calls. It has no meaning for parameters in other places.
-    pub mode: InferMode,
+    /// Whether the parameter was declared implicitly with `@` or `#` syntax
+    pub implicit: bool,
     pub fhir_id: FhirId,
 }
 
@@ -786,6 +786,14 @@ impl ena::unify::EqUnifyValue for Sort {}
 impl RefineParam {
     pub fn name(&self) -> Name {
         self.ident.name
+    }
+
+    pub fn infer_mode(&self) -> InferMode {
+        if self.sort.is_pred() && !self.implicit {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
     }
 }
 

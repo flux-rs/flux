@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::hash_map};
+use std::{cmp::Ordering, collections::hash_map, slice};
 
 use flux_common::bug;
 use rustc_data_structures::unord::UnordMap;
@@ -379,7 +379,7 @@ impl GenericsSubstFolder<'_> {
 
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
         match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs_with(|_| idx.expr.clone()),
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs(slice::from_ref(&idx.expr)),
             Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
             None => bug!("type parameter out of range"),
         }

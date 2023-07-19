@@ -483,7 +483,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .check_fn_call(rcx, env, did, fn_sig, substs, predicates, &actuals)
             .with_span(terminator_span)?;
 
-        let output = output.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
+        let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {
@@ -506,7 +506,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let kind = pred.kind();
             let vars = kind.vars().clone();
             if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
-                fn_trait_preds.push(Binder::new(fn_trait_pred, vars))
+                fn_trait_preds.push(Binder::new(fn_trait_pred, vars));
             }
         }
         fn_trait_preds
