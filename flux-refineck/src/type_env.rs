@@ -673,7 +673,7 @@ impl Generalizer {
                 Ty::indexed(bty, idxs.clone())
             }
             TyKind::Exists(ty) => {
-                let ty = ty.replace_bound_exprs_with(|sort| self.fresh_vars(sort));
+                let ty = ty.replace_bound_exprs_with(|sort, _| self.fresh_vars(sort));
                 self.generalize_ty(&ty)
             }
             TyKind::Constr(pred, ty) => {

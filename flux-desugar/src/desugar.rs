@@ -284,14 +284,14 @@ struct Layer {
 enum Binder {
     /// A normal binder to a refinable type that will be desugared as an explicit parameter.
     /// The boolean indicates whether the binder was declared _implicitly_ with the `@` or `#`
-    /// syntax and it is used to determine the [inference mode] for abstract refinements.
+    /// syntax.
     ///
     /// [inference mode]: fhir::InferMode
     Refined(fhir::Name, fhir::Sort, /*implicit*/ bool),
     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
-    /// fail if a type parameter `T` (which cannot be refined) is used as an indexed type
-    /// `T[@a]` or as an existential `T{v : v > 0}`, but unrefined binders can appear when
+    /// fail if a type parameter `T` of kind `typ` (which cannot be refined) is used as an indexed
+    /// type `T[@a]` or as an existential `T{v : v > 0}`, but unrefined binders can appear when
     /// using argument syntax (`x: T`), thus we track them and report appropriate errors if
     /// they are used in any way.
     Unrefined,
@@ -692,7 +692,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         for ty in substs {
             match ty {
                 surface::GenericArg::Type(ty) => {
-                    args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?))
+                    args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
                 }
                 surface::GenericArg::Constraint(ident, _) => {
                     return Err(self.emit_err(errors::InvalidUnrefinedParam::new(*ident)));
@@ -1325,14 +1325,6 @@ impl Binders {
     }
 }
 
-fn infer_mode(implicit: bool, sort: &fhir::Sort) -> fhir::InferMode {
-    if !implicit && sort.is_pred() {
-        fhir::InferMode::KVar
-    } else {
-        fhir::InferMode::EVar
-    }
-}
-
 impl<T: Borrow<surface::Ident>> std::ops::Index<T> for Binders {
     type Output = Binder;
 
@@ -1396,9 +1388,8 @@ impl Layer {
             match binder {
                 Binder::Refined(name, sort, implicit) => {
                     let ident = fhir::Ident::new(name, ident);
-                    let mode = infer_mode(implicit, &sort);
                     let fhir_id = cx.next_fhir_id();
-                    params.push(fhir::RefineParam { ident, sort, mode, fhir_id });
+                    params.push(fhir::RefineParam { ident, sort, implicit, fhir_id });
                 }
                 Binder::Unrefined => {}
             }

@@ -53,7 +53,7 @@ struct Layer {
 enum Entry {
     Sort {
         sort: fhir::Sort,
-        infer_mode: Option<rty::InferMode>,
+        infer_mode: rty::InferMode,
         conv: rty::Sort,
         /// The index of the entry in the layer skipping all [`ListEntry::Unit`] if [`Layer::filter_unit`]
         /// is true
@@ -623,7 +623,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         .genv
                         .type_of(param.def_id)?
                         .subst_generics(&[])
-                        .replace_bound_exprs_with(|_| rty::Expr::unit());
+                        .replace_bound_exprs(&[rty::Expr::unit()]);
                     Ok(rty::GenericArg::Ty(ty))
                 } else {
                     bug!("unexpected generic param: {param:?}");
@@ -770,7 +770,7 @@ impl Layer {
             .iter()
             .map(|param| {
                 let sort = cx.resolve_param_sort(param);
-                let entry = Entry::new(cx.early_cx(), idx, sort, None);
+                let entry = Entry::new(cx.early_cx(), idx, sort, param.infer_mode());
                 if !filter_unit || !matches!(entry, Entry::Unit) {
                     idx += 1;
                 }
@@ -809,7 +809,8 @@ impl Layer {
         if self.collapse {
             let sorts = self.into_iter().map(|(s, _)| s).collect();
             let tuple = rty::Sort::Tuple(sorts);
-            List::singleton(rty::BoundVariableKind::Refine(tuple, None))
+            let infer_mode = tuple.default_infer_mode();
+            List::singleton(rty::BoundVariableKind::Refine(tuple, infer_mode))
         } else {
             self.into_iter()
                 .map(|(sort, mode)| rty::BoundVariableKind::Refine(sort, mode))
@@ -821,7 +822,7 @@ impl Layer {
         self.clone().into_bound_vars()
     }
 
-    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, Option<rty::InferMode>)> {
+    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
         self.map.into_values().filter_map(move |entry| {
             match entry {
                 Entry::Sort { infer_mode, conv, .. } => Some((conv, infer_mode)),
@@ -829,7 +830,9 @@ impl Layer {
                     if self.filter_unit {
                         None
                     } else {
-                        Some((rty::Sort::unit(), None))
+                        let unit = rty::Sort::unit();
+                        let infer_mode = unit.default_infer_mode();
+                        Some((unit, infer_mode))
                     }
                 }
             }
@@ -838,12 +841,7 @@ impl Layer {
 }
 
 impl Entry {
-    fn new(
-        early_cx: &EarlyCtxt,
-        idx: u32,
-        sort: fhir::Sort,
-        infer_mode: Option<fhir::InferMode>,
-    ) -> Self {
+    fn new(early_cx: &EarlyCtxt, idx: u32, sort: fhir::Sort, infer_mode: fhir::InferMode) -> Self {
         let conv = conv_sort(early_cx, &sort);
         if conv.is_unit() {
             Entry::Unit

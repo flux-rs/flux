@@ -93,7 +93,7 @@ pub(crate) fn check_ty_alias(
     let mut wf = Wf::new(early_cx);
     infcx.push_layer(ty_alias.all_params());
     wf.check_type(&mut infcx, &ty_alias.ty)?;
-    wf.check_params_determined(&infcx, &ty_alias.index_params)?;
+    wf.check_params_are_determined(&infcx, &ty_alias.index_params)?;
     Ok(infcx.into_results())
 }
 
@@ -114,7 +114,7 @@ pub(crate) fn check_struct_def(
         fields
             .iter()
             .try_for_each_exhaust(|field_def| wf.check_type(&mut infcx, &field_def.ty))?;
-        wf.check_params_determined(&infcx, &struct_def.params)?;
+        wf.check_params_are_determined(&infcx, &struct_def.params)?;
     }
 
     Ok(infcx.into_results())
@@ -151,7 +151,7 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(early_cx, owner_id.into());
     let mut wf = Wf::new(early_cx);
     for param in &fn_sig.params {
-        wf.modes.insert(param.ident.name, param.mode);
+        wf.modes.insert(param.ident.name, param.infer_mode());
     }
     infcx.push_layer(&fn_sig.params);
 
@@ -174,7 +174,7 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
-    wf.check_params_determined(&infcx, &fn_sig.params)?;
+    wf.check_params_are_determined(&infcx, &fn_sig.params)?;
 
     Ok(infcx.into_results())
 }
@@ -184,7 +184,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Wf { early_cx, modes: Default::default(), xi: Default::default() }
     }
 
-    fn check_params_determined(
+    fn check_params_are_determined(
         &mut self,
         env: &InferCtxt,
         params: &[fhir::RefineParam],
@@ -228,7 +228,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .iter()
             .try_for_each_exhaust(|constr| self.check_constraint(env, constr))?;
 
-        let params = self.check_params_determined(env, &fn_output.params);
+        let params = self.check_params_are_determined(env, &fn_output.params);
 
         self.xi.rollback_to(snapshot);
 
@@ -289,7 +289,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 infcx.push_layer(params);
                 self.check_type(infcx, ty)?;
                 infcx.resolve_params_sorts(params)?;
-                self.check_params_determined(infcx, params)
+                self.check_params_are_determined(infcx, params)
             }
             fhir::TyKind::Ptr(_, loc) => {
                 self.xi.insert(loc.name);

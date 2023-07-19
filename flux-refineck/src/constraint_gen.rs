@@ -194,7 +194,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         );
 
         let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
-        // println!("TRACE: check_fn_call {did:?} {inst_fn_sig:?} {actuals:?}");
 
         let closure_obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
@@ -256,7 +255,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
-        let output = output.replace_bound_exprs_with(|sort| infcx.fresh_evars_or_kvar(sort, None));
+        let output =
+            output.replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret);
         for constraint in &output.ensures {
@@ -289,7 +289,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .subst_generics(&substs)
-            .replace_bound_exprs_with(|sort| infcx.fresh_evars_or_kvar(sort, None));
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -379,8 +379,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: Option<InferMode>) -> Expr {
-        let mode = mode.unwrap_or_else(|| sort.default_infer_mode());
+    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: InferMode) -> Expr {
         match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
@@ -431,7 +430,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bound_exprs_with(|sort| rcx.define_vars(sort));
+                let ty1 = ty1.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2);
             }
             (TyKind::Constr(p1, ty1), _) => {
@@ -440,7 +439,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2.replace_bound_exprs_with(|sort| self.fresh_evars(sort));
+                let ty2 =
+                    ty2.replace_bound_exprs_with(|sort, mode| self.fresh_evars_or_kvar(sort, mode));
                 self.subtyping(rcx, ty1, &ty2);
                 self.pop_scope();
             }

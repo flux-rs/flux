@@ -761,7 +761,7 @@ pub(crate) fn downcast_enum(
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .subst_generics(substs)
-        .replace_bound_exprs_with(|sort| rcx.define_vars(sort));
+        .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
     // FIXME(nilehmann) flatten indices
