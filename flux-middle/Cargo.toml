@@ -13,7 +13,7 @@ flux-config = { path = "../flux-config" }
 flux-errors = { path = "../flux-errors" }
 flux-fixpoint = { path = "../flux-fixpoint" }
 flux-macros = { path = "../flux-macros" }
-hashbrown = "0.12.3"
+hashbrown = "0.14.0"
 itertools = "0.10"
 toposort-scc = "0.5.4"
 
