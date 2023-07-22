@@ -9,7 +9,6 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
         FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
@@ -495,46 +494,48 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
 
-        self.check_obligs(rcx, obligs)?;
+        self.check_closure_obligs(rcx, obligs)?;
 
         Ok(output.ret)
     }
 
-    fn oblig_fn_traits(predicates: &List<rty::Clause>) -> Vec<Binder<FnTraitPredicate>> {
-        let mut fn_trait_preds = vec![];
-        for pred in predicates {
-            let kind = pred.kind();
-            let vars = kind.vars().clone();
-            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
-                fn_trait_preds.push(Binder::new(fn_trait_pred, vars));
-            }
+    fn check_oblig_fn_trait_pred(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        snapshot: &Snapshot,
+        fn_trait_pred: Binder<FnTraitPredicate>,
+    ) -> Result<(), CheckerError> {
+        if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
+            .self_ty()
+            .skip_binder()
+            .as_bty_skipping_existentials()
+        {
+            let refine_tree = rcx.subtree_at(snapshot).unwrap();
+            Checker::run(
+                self.genv,
+                refine_tree,
+                *def_id,
+                self.ghost_stmts,
+                self.mode,
+                fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
+                self.config,
+            )?;
         }
-        fn_trait_preds
+        Ok(())
     }
 
-    fn check_obligs(
+    /// This checks obligations related to closures; the remainder are checked in `check_non_closure_obligs`
+    fn check_closure_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
-        for fn_trait_pred in Self::oblig_fn_traits(&obligs.predicates) {
-            if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
-                .self_ty()
-                .skip_binder()
-                .as_bty_skipping_existentials()
-            {
-                let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
-                Checker::run(
-                    self.genv,
-                    refine_tree,
-                    *def_id,
-                    self.ghost_stmts,
-                    self.mode,
-                    fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
-                    self.config,
-                )?;
-            } else {
-                bug!("`Fn*` bounds on a non-closure type are not supported. This should be an error an not an ICE.");
+        for pred in &obligs.predicates {
+            let kind = pred.kind();
+            let vars = kind.vars().clone();
+            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
+                let fn_trait_pred = Binder::new(fn_trait_pred, vars);
+                self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
             }
         }
         Ok(())

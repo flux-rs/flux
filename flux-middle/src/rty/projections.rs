@@ -1,5 +1,7 @@
 use flux_common::bug;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -66,4 +68,8 @@ impl TypeFolder for WithPredicates {
 
 pub fn normalize_projections<T: TypeFoldable>(t: &T, predicates: GenericPredicates) -> T {
     t.fold_with(&mut WithPredicates { proj_table: ProjectionTable::new(predicates) })
+}
+
+pub fn resolve_impl_projection(_tcx: &TyCtxt, impl_rty: &Ty, elem: DefId) -> Ty {
+    todo!("resolve_impl_projection: {impl_rty:?} {elem:?}")
 }

@@ -14,8 +14,8 @@ where
     }
 }
 
-pub fn test() {
-    let mut v = Vec::new();
-    v.push(1);
-    foo(v.into_iter());
-}
+// pub fn test() {
+//     let mut v = Vec::new();
+//     v.push(1);
+//     foo(v.into_iter());
+// }

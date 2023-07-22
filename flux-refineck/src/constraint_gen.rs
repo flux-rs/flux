@@ -8,6 +8,7 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
+        projections::resolve_impl_projection,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
         FnOutput, GenericArg, GenericPredicates, InferMode, Mutability, Path, PolyFnSig,
         PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
@@ -141,6 +142,18 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(res)
     }
 
+    fn check_oblig_projection_pred(
+        infcx: &mut InferCtxt,
+        rcx: &mut RefineCtxt,
+        projection_pred: rty::ProjectionPredicate,
+    ) -> Result<(), CheckerErrKind> {
+        let impl_ty = projection_pred.impl_ty();
+        let elem = projection_pred.elem();
+        let impl_elem = resolve_impl_projection(&infcx.genv.tcx, &impl_ty, elem);
+        infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
@@ -195,7 +208,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
 
-        let closure_obligs =
+        let obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
 
         // Check requires predicates and collect type constraints
@@ -236,13 +249,20 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             }
         }
 
+        // check (non-closure) obligations -- the closure ones are handled in `checker` since
+        // as we have to recursively walk over their def_id bodies.
+        for pred in &obligs {
+            if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
+                Self::check_oblig_projection_pred(&mut infcx, rcx, projection_pred)?;
+            }
+        }
         // Replace evars
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
         let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok((output, Obligations::new(closure_obligs, snapshot)))
+        Ok((output, Obligations::new(obligs, snapshot)))
     }
 
     pub(crate) fn check_ret(
