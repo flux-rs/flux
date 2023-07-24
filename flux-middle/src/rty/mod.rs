@@ -643,7 +643,7 @@ impl<T: TypeFoldable> EarlyBinder<T> {
         self.subst(generics, &[])
     }
 
-    pub fn subst_identity(self) -> T {
+    pub fn instantiate_identity(self) -> T {
         self.0
     }
 }

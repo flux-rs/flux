@@ -188,7 +188,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
-        let inst_fn_sig = fn_sig.subst_generics(&substs).replace_bound_vars(
+        let inst_fn_sig = fn_sig.instantiate(&substs).replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
@@ -288,7 +288,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
-            .subst_generics(&substs)
+            .instantiate(&substs)
             .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
 
         // Check arguments
@@ -634,7 +634,7 @@ fn mk_obligations(
     did: DefId,
     substs: &[GenericArg],
 ) -> Result<List<rty::Clause>, CheckerErrKind> {
-    Ok(genv.predicates_of(did)?.predicates().subst_generics(substs))
+    Ok(genv.predicates_of(did)?.predicates().instantiate(substs))
 }
 
 impl<F> KVarGen for F

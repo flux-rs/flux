@@ -622,7 +622,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     let ty = self
                         .genv
                         .type_of(param.def_id)?
-                        .subst_generics(&[])
+                        .instantiate(&[])
                         .replace_bound_exprs(&[rty::Expr::unit()]);
                     Ok(rty::GenericArg::Ty(ty))
                 } else {

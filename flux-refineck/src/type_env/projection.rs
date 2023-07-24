@@ -726,7 +726,7 @@ pub(crate) fn downcast_struct(
     idx: &Index,
 ) -> CheckerResult<Vec<Ty>> {
     Ok(struct_variant(genv, adt.did())?
-        .subst_generics(substs)
+        .instantiate(substs)
         .replace_bound_exprs(idx.expr.expect_tuple())
         .fields
         .to_vec())
@@ -760,7 +760,7 @@ pub(crate) fn downcast_enum(
     let variant_def = genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
-        .subst_generics(substs)
+        .instantiate(substs)
         .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
