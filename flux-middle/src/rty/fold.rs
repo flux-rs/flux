@@ -785,13 +785,13 @@ impl TypeSuperFoldable for BaseTy {
 
 impl TypeVisitable for AliasTy {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.substs.visit_with(visitor)
+        self.args.visit_with(visitor)
     }
 }
 
 impl TypeFoldable for AliasTy {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(AliasTy { substs: self.substs.try_fold_with(folder)?, def_id: self.def_id })
+        Ok(AliasTy { args: self.args.try_fold_with(folder)?, def_id: self.def_id })
     }
 }
 

@@ -93,5 +93,5 @@ pub fn extend_env_var_with_path(var_name: &str, new_path: PathBuf) -> Result<OsS
         })?;
     // clone the path so we can report it in the error message.
     paths.insert(0, new_path);
-    env::join_paths(paths.into_iter()).map_err(anyhow::Error::from)
+    env::join_paths(paths).map_err(anyhow::Error::from)
 }

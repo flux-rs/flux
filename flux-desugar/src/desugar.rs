@@ -142,7 +142,9 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
+        let hir::ItemKind::Struct(variant_data, _) =
+            &early_cx.hir().expect_item(owner_id.def_id).kind
+        else {
             bug!("expected struct")
         };
         let fields = iter::zip(&struct_def.fields, variant_data.fields())
@@ -635,7 +637,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn ident_into_refine_arg(
         &self,
         ident: surface::Ident,
-        binders: &mut Binders,
+        binders: &Binders,
     ) -> Result<Option<fhir::RefineArg>, ErrorGuaranteed> {
         match binders.get(ident) {
             Some(Binder::Refined(name, ..)) => {

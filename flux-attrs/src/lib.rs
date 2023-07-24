@@ -231,10 +231,7 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
     }
 }
 
-fn create_dummy_ident_from_path(
-    dummy_prefix: &mut String,
-    path: &syn::Path,
-) -> syn::Result<syn::Ident> {
+fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Result<syn::Ident> {
     // For paths, we mangle the last identifier
     if let Some(path_segment) = path.segments.last() {
         // Mangle the identifier using the dummy_prefix
@@ -274,7 +271,7 @@ fn create_dummy_struct(
         return Err(syn::Error::new(
             fields_span,
             "invalid extern spec: extern specs on structs cannot have fields, i.e. they must look like struct Vec<T>;",
-        ))
+        ));
     };
     let mut dummy_struct = item_struct.clone();
     let ident = item_struct.ident;

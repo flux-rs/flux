@@ -106,9 +106,7 @@ pub fn lift_field_def(
 ) -> Result<fhir::FieldDef, ErrorGuaranteed> {
     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
     let node = tcx.hir().get(hir_id);
-    let hir::Node::Field(field_def) = node else {
-        bug!("expected a field")
-    };
+    let hir::Node::Field(field_def) = node else { bug!("expected a field") };
     let struct_id = tcx.hir().get_parent_item(hir_id);
     let ty = LiftCtxt::new(tcx, sess, struct_id).lift_ty(field_def.ty)?;
     Ok(fhir::FieldDef { def_id, ty, lifted: true })
@@ -121,15 +119,11 @@ pub fn lift_enum_variant_def(
 ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
     let node = tcx.hir().get(hir_id);
-    let hir::Node::Variant(variant) = node else {
-        bug!("expected a variant")
-    };
+    let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
     let enum_id = tcx.hir().get_parent_item(hir_id);
-    let hir::OwnerNode::Item(hir::Item {
-        ident,
-        kind: hir::ItemKind::Enum(_, generics),
-        ..
-    }) = tcx.hir().owner(enum_id) else {
+    let hir::OwnerNode::Item(hir::Item { ident, kind: hir::ItemKind::Enum(_, generics), .. }) =
+        tcx.hir().owner(enum_id)
+    else {
         bug!("expected an enum")
     };
 
