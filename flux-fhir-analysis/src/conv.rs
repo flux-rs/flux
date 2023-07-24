@@ -587,7 +587,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
-                    .subst(&generics, &refine)
+                    .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
             fhir::Res::Trait(def_id) => bug!("unexpected res in conv_path: Trait {def_id:?}"),
@@ -622,7 +622,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     let ty = self
                         .genv
                         .type_of(param.def_id)?
-                        .instantiate(&[])
+                        .instantiate(&[], &[])
                         .replace_bound_exprs(&[rty::Expr::unit()]);
                     Ok(rty::GenericArg::Ty(ty))
                 } else {

@@ -722,11 +722,11 @@ pub(crate) fn downcast(
 pub(crate) fn downcast_struct(
     genv: &GlobalEnv,
     adt: &AdtDef,
-    substs: &[GenericArg],
+    args: &[GenericArg],
     idx: &Index,
 ) -> CheckerResult<Vec<Ty>> {
     Ok(struct_variant(genv, adt.did())?
-        .instantiate(substs)
+        .instantiate(args, &[])
         .replace_bound_exprs(idx.expr.expect_tuple())
         .fields
         .to_vec())
@@ -754,13 +754,13 @@ pub(crate) fn downcast_enum(
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
     variant_idx: VariantIdx,
-    substs: &[GenericArg],
+    args: &[GenericArg],
     idx1: &Index,
 ) -> CheckerResult<Vec<Ty>> {
     let variant_def = genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
-        .instantiate(substs)
+        .instantiate(args, &[])
         .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
     let (.., idx2) = variant_def.ret.expect_adt();
