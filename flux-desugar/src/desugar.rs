@@ -142,7 +142,9 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let hir::ItemKind::Struct(variant_data, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
+        let hir::ItemKind::Struct(variant_data, _) =
+            &early_cx.hir().expect_item(owner_id.def_id).kind
+        else {
             bug!("expected struct")
         };
         let fields = iter::zip(&struct_def.fields, variant_data.fields())

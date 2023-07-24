@@ -792,7 +792,7 @@ fn fold(
             let loc = path.to_loc().unwrap();
             let binding = bindings.remove(&loc);
             let LocKind::Box(alloc) = binding.kind else {
-               tracked_span_bug!("box pointer to non-box loc");
+                tracked_span_bug!("box pointer to non-box loc");
             };
             let deref_ty = fold(bindings, rcx, gen, &binding.ty, is_strg)?;
             Ok(gen.genv.mk_box(deref_ty, alloc))

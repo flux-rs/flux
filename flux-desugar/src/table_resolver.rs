@@ -277,7 +277,7 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
         let Some(res) = self.table.get(&ResKey::from_path(&path)) else {
-            return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)))
+            return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)));
         };
         match res {
             &ResEntry::Res(res) => {
@@ -455,11 +455,11 @@ impl<'sess> NameResTable<'sess> {
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
                 let hir::QPath::Resolved(None, path) = qpath else {
-            return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                qpath.span(),
-                "unsupported type",
-            )));
-        };
+                    return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                        qpath.span(),
+                        "unsupported type",
+                    )));
+                };
                 self.collect_from_path(path)
             }
             hir::TyKind::BareFn(_)

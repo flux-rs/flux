@@ -274,7 +274,7 @@ fn create_dummy_struct(
         return Err(syn::Error::new(
             fields_span,
             "invalid extern spec: extern specs on structs cannot have fields, i.e. they must look like struct Vec<T>;",
-        ))
+        ));
     };
     let mut dummy_struct = item_struct.clone();
     let ident = item_struct.ident;
