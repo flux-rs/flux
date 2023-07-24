@@ -477,9 +477,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
         let predicates = self.callsite_predicates(terminator_span)?;
         //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
+        let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, fn_sig, substs, predicates, &actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, substs, predicates, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));

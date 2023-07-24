@@ -145,11 +145,18 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     fn check_oblig_projection_pred(
         infcx: &mut InferCtxt,
         rcx: &mut RefineCtxt,
+        callsite_def_id: DefId,
         projection_pred: rty::ProjectionPredicate,
     ) -> Result<(), CheckerErrKind> {
         let impl_ty = projection_pred.impl_ty();
         let elem = projection_pred.elem();
-        let impl_elem = resolve_impl_projection(&infcx.genv.tcx, &impl_ty, elem);
+        let impl_elem = resolve_impl_projection(
+            &infcx.genv.tcx,
+            callsite_def_id,
+            &impl_ty,
+            elem,
+            &projection_pred.term,
+        );
         infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
         Ok(())
     }
@@ -159,6 +166,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        callsite_def_id: DefId,
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
@@ -253,7 +261,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
-                Self::check_oblig_projection_pred(&mut infcx, rcx, projection_pred)?;
+                Self::check_oblig_projection_pred(
+                    &mut infcx,
+                    rcx,
+                    callsite_def_id,
+                    projection_pred,
+                )?;
             }
         }
         // Replace evars

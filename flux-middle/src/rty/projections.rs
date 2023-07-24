@@ -1,7 +1,16 @@
+#[allow(unused_imports)]
 use flux_common::bug;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::TyCtxt;
+use rustc_infer::{
+    infer::{InferCtxtBuilder, TyCtxtInferExt},
+    traits::Obligation,
+};
+use rustc_middle::{
+    traits::{DefiningAnchor, ObligationCause},
+    ty::{Binder, TraitPredicate, TraitRef, TyCtxt},
+};
+use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -70,6 +79,39 @@ pub fn normalize_projections<T: TypeFoldable>(t: &T, predicates: GenericPredicat
     t.fold_with(&mut WithPredicates { proj_table: ProjectionTable::new(predicates) })
 }
 
-pub fn resolve_impl_projection(_tcx: &TyCtxt, impl_rty: &Ty, elem: DefId) -> Ty {
-    todo!("resolve_impl_projection: {impl_rty:?} {elem:?}")
+fn into_rustc_ty<'tcx>(_tcx: &TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx> {
+    todo!("into_rustc_ty")
+}
+
+pub fn resolve_impl_projection(
+    tcx: &TyCtxt,
+    callsite_def_id: DefId,
+    impl_rty: &Ty,
+    elem: DefId,
+    term: &Ty,
+) -> Ty {
+    // 1. rty -> ty
+    // 2. lookup impl selection/trait blah
+    let inf_ctxt = tcx.infer_ctxt().build();
+    let mut sel_ctxt = SelectionContext::new(&inf_ctxt);
+
+    let predicate = TraitPredicate {
+        trait_ref: TraitRef::new(
+            *tcx,
+            elem,
+            vec![into_rustc_ty(tcx, impl_rty), into_rustc_ty(tcx, term)],
+        ),
+        constness: rustc_middle::ty::BoundConstness::ConstIfConst,
+        polarity: rustc_middle::ty::ImplPolarity::Negative,
+    };
+    let predicate = Binder::dummy(predicate);
+    let cause = ObligationCause::dummy(); // TODO(RJ): use with_span instead of `dummy`
+    let param_env = tcx.param_env(callsite_def_id);
+    let recursion_depth = 5; // TODO(RJ): made up a random number!
+    let oblig = Obligation { cause, param_env, predicate, recursion_depth };
+    let selection_result = sel_ctxt.select(&oblig);
+    println!("selection_result: {elem:?} with {selection_result:?}");
+    // 3. subst-hacks to recover the rty::Ty
+
+    todo!("resolve_impl_projection: {impl_rty:?} {elem:?}");
 }
