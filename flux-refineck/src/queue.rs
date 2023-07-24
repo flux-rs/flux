@@ -47,7 +47,7 @@ impl PartialEq for Item<'_> {
 
 impl PartialOrd for Item<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.dominators.rank_partial_cmp(other.bb, self.bb)
+        Some(self.cmp(other))
     }
 }
 
@@ -55,6 +55,6 @@ impl Eq for Item<'_> {}
 
 impl Ord for Item<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        self.dominators.rank_partial_cmp(other.bb, self.bb).unwrap()
     }
 }

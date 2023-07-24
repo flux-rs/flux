@@ -637,7 +637,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn ident_into_refine_arg(
         &self,
         ident: surface::Ident,
-        binders: &mut Binders,
+        binders: &Binders,
     ) -> Result<Option<fhir::RefineArg>, ErrorGuaranteed> {
         match binders.get(ident) {
             Some(Binder::Refined(name, ..)) => {
