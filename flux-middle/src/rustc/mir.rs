@@ -16,7 +16,7 @@ use rustc_index::IndexSlice;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::{self, MutBorrowKind},
-    ty::{subst::SubstsRef, FloatTy, IntTy, UintTy},
+    ty::{FloatTy, IntTy, UintTy},
 };
 pub use rustc_middle::{
     mir::{
@@ -63,7 +63,7 @@ pub struct Terminator<'tcx> {
 
 #[derive(Debug)]
 pub struct CallSubsts<'tcx> {
-    pub orig: SubstsRef<'tcx>,
+    pub orig: rustc_middle::ty::GenericArgsRef<'tcx>,
     pub lowered: List<GenericArg>,
 }
 

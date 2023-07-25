@@ -279,7 +279,7 @@ pub enum TyKind {
     /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
-    Downcast(AdtDef, Substs, Ty, VariantIdx, List<Ty>),
+    Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
 }
 
@@ -304,7 +304,7 @@ pub enum BaseTy {
     Str,
     Char,
     Slice(Ty),
-    Adt(AdtDef, Substs),
+    Adt(AdtDef, GenericArgs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
     Ref(Region, Ty, Mutability),
@@ -318,7 +318,7 @@ pub enum BaseTy {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct AliasTy {
-    pub substs: Substs,
+    pub args: GenericArgs,
     pub def_id: DefId,
 }
 
@@ -327,7 +327,7 @@ pub enum AliasKind {
     Projection,
 }
 
-pub type Substs = List<GenericArg>;
+pub type GenericArgs = List<GenericArg>;
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
@@ -652,16 +652,12 @@ where
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn subst(self, generics: &[GenericArg], refine: &[Expr]) -> T {
+    pub fn instantiate(self, generics: &[GenericArg], refine: &[Expr]) -> T {
         self.0
             .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
     }
 
-    pub fn subst_generics(self, generics: &[GenericArg]) -> T {
-        self.subst(generics, &[])
-    }
-
-    pub fn subst_identity(self) -> T {
+    pub fn instantiate_identity(self) -> T {
         self.0
     }
 }
@@ -932,12 +928,12 @@ impl Ty {
 
     pub fn downcast(
         adt: AdtDef,
-        substs: Substs,
+        args: GenericArgs,
         ty: Ty,
         variant: VariantIdx,
         fields: List<Ty>,
     ) -> Ty {
-        TyKind::Downcast(adt, substs, ty, variant, fields).intern()
+        TyKind::Downcast(adt, args, ty, variant, fields).intern()
     }
 
     pub fn blocked(ty: Ty) -> Ty {
@@ -1104,7 +1100,7 @@ impl TyS {
 
 impl AliasTy {
     pub fn new(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Self {
-        AliasTy { def_id, substs: substs.into() }
+        AliasTy { def_id, args: substs.into() }
     }
 }
 
@@ -1199,7 +1195,7 @@ impl Binder<Expr> {
 }
 
 #[track_caller]
-pub fn box_args(substs: &Substs) -> (&Ty, &Ty) {
+pub fn box_args(substs: &GenericArgs) -> (&Ty, &Ty) {
     if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &substs[..] {
         (boxed, alloc)
     } else {
@@ -1687,10 +1683,10 @@ mod pretty {
                     //     .iter()
                     //     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
                     //     .collect_vec();
-                    if !alias_ty.substs.is_empty() {
+                    if !alias_ty.args.is_empty() {
                         w!(
                             "<{:?} as {:?}>::{}",
-                            &alias_ty.substs[0],
+                            &alias_ty.args[0],
                             trait_ref,
                             ^assoc_name
                         )

@@ -129,7 +129,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
             let fn_sig = genv
                 .fn_sig(def_id)
                 .with_span(genv.tcx.def_span(def_id))?
-                .subst_identity();
+                .instantiate_identity();
 
             Checker::run(
                 genv,
@@ -157,7 +157,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         let fn_sig = genv
             .fn_sig(def_id)
             .with_span(genv.tcx.def_span(def_id))?
-            .subst_identity();
+            .instantiate_identity();
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();

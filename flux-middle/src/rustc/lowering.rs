@@ -10,11 +10,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir as rustc_mir,
-    ty::{
-        self as rustc_ty, adjustment as rustc_adjustment,
-        subst::{GenericArgKind, SubstsRef},
-        ParamEnv, TyCtxt,
-    },
+    ty::{self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamEnv, TyCtxt},
 };
 
 use super::{
@@ -288,7 +284,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     fn resolve_call(
         &self,
         callee_id: DefId,
-        substs: SubstsRef<'tcx>,
+        substs: rustc_middle::ty::GenericArgsRef<'tcx>,
     ) -> Result<(DefId, CallSubsts<'tcx>), UnsupportedReason> {
         // NOTE(nilehmann) tcx.resolve_instance used to panic without this check but none of the tests
         // are failing now. Leaving it here in case the problem comes back.
@@ -303,7 +299,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .resolve_instance(param_env.and((callee_id, substs)))
             .ok()
             .flatten()
-            .map_or_else(|| (callee_id, substs), |instance| (instance.def_id(), instance.substs));
+            .map_or_else(|| (callee_id, substs), |instance| (instance.def_id(), instance.args));
 
         let call_substs = CallSubsts {
             lowered: lower_generic_args(self.tcx, resolved_substs)?,
@@ -383,9 +379,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
-            rustc_mir::CastKind::Pointer(rustc_adjustment::PointerCast::MutToConstPointer) => {
-                Some(CastKind::Pointer(crate::rustc::mir::PointerCast::MutToConstPointer))
-            }
+            rustc_mir::CastKind::PointerCoercion(
+                rustc_adjustment::PointerCoercion::MutToConstPointer,
+            ) => Some(CastKind::Pointer(crate::rustc::mir::PointerCast::MutToConstPointer)),
             _ => None,
         }
     }
@@ -639,7 +635,11 @@ pub(crate) fn lower_ty<'tcx>(
 
         rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
             // panic!("unexpected projection type `{alias_ty:?}`")
+<<<<<<< HEAD
             let substs = lower_generic_args(tcx, alias_ty.substs)?;
+=======
+            let substs = lower_generic_args(tcx, alias_ty.args)?;
+>>>>>>> main
             Ok(Ty::mk_projection(alias_ty.def_id, substs))
             // Err(UnsupportedReason::new(format!(
             //     "unsupported PROJECTION type `{ty:?}` alias_ty =`{alias_ty:?}`"
@@ -671,7 +671,7 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
 
 fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
-    substs: rustc_middle::ty::subst::SubstsRef<'tcx>,
+    substs: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Result<List<GenericArg>, UnsupportedReason> {
     Ok(List::from_vec(
         substs
@@ -683,7 +683,7 @@ fn lower_generic_args<'tcx>(
 
 fn lower_generic_arg<'tcx>(
     tcx: TyCtxt<'tcx>,
-    arg: rustc_middle::ty::subst::GenericArg<'tcx>,
+    arg: rustc_middle::ty::GenericArg<'tcx>,
 ) -> Result<GenericArg, UnsupportedReason> {
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
@@ -772,7 +772,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
                 // println!("TRACE: lower_generic_predicates 2: {def_id:?} trait_ref.def_id = {:?}, trait_ref.substs = {:?}", trait_ref.def_id, trait_ref.substs);
-                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.substs, bound_vars);
+                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
                     match fn_trait_refs.entry(substs) {
                         hash_map::Entry::Occupied(_) => todo!(),
@@ -784,7 +784,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
             }
             rustc_ty::ClauseKind::Projection(proj_pred) => {
                 let proj_ty = proj_pred.projection_ty;
-                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.substs, bound_vars);
+                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
                 if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
                     match fn_output_proj.entry(substs) {
                         hash_map::Entry::Occupied(_) => todo!(),

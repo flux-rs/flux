@@ -120,8 +120,8 @@ fn conv_alias_ty(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::AliasTy> {
     let ty = conv_ty(genv, &alias_ty.substs, wfckresults)?.skip_binder();
-    let substs = List::singleton(rty::GenericArg::Ty(ty));
-    Ok(rty::AliasTy { substs, def_id: alias_ty.def_id })
+    let args = List::singleton(rty::GenericArg::Ty(ty));
+    Ok(rty::AliasTy { args, def_id: alias_ty.def_id })
 }
 
 pub(crate) fn conv_generics(
@@ -340,7 +340,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .map(|field_def| cx.conv_ty(&mut env, &field_def.ty))
                 .try_collect()?;
 
-            let substs = genv
+            let args = genv
                 .generics_of(def_id)?
                 .params
                 .iter()
@@ -373,7 +373,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
                     .collect_vec(),
             );
-            let ret = rty::Ty::indexed(rty::BaseTy::adt(genv.adt_def(def_id)?, substs), idx);
+            let ret = rty::Ty::indexed(rty::BaseTy::adt(genv.adt_def(def_id)?, args), idx);
             let variant = rty::VariantSig::new(fields, ret);
             Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, vars)))
         } else {
@@ -564,8 +564,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let substs = self.conv_generic_args(env, *did, &path.generics)?;
-                rty::BaseTy::adt(adt_def, substs)
+                let args = self.conv_generic_args(env, *did, &path.generics)?;
+                rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Param(def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
@@ -573,8 +573,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::AssocTy(def_id) => {
                 let self_ty = self.conv_ty(env, self_ty.unwrap())?;
                 assert!(path.generics.is_empty(), "generic associated types are not supported");
-                let substs = List::singleton(rty::GenericArg::Ty(self_ty));
-                let alias_ty = rty::AliasTy { substs, def_id: *def_id };
+                let args = List::singleton(rty::GenericArg::Ty(self_ty));
+                let alias_ty = rty::AliasTy { args, def_id: *def_id };
                 rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty)
             }
             fhir::Res::Alias(def_id) => {
@@ -587,7 +587,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
-                    .subst(&generics, &refine)
+                    .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
             fhir::Res::Trait(def_id) => bug!("unexpected res in conv_path: Trait {def_id:?}"),
@@ -622,7 +622,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     let ty = self
                         .genv
                         .type_of(param.def_id)?
-                        .subst_generics(&[])
+                        .instantiate(&[], &[])
                         .replace_bound_exprs(&[rty::Expr::unit()]);
                     Ok(rty::GenericArg::Ty(ty))
                 } else {
@@ -966,9 +966,7 @@ fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
 }
 
 fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId, BoundVar> {
-    let FluxOwnerId::Rust(owner_id) = owner_id else {
-        return FxHashMap::default()
-    };
+    let FluxOwnerId::Rust(owner_id) = owner_id else { return FxHashMap::default() };
 
     let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
     tcx.late_bound_vars(hir_id)

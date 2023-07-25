@@ -114,7 +114,7 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::Ty>> {
         run_with_cache(&self.lower_type_of, def_id, || {
-            let ty = genv.tcx.type_of(def_id).subst_identity();
+            let ty = genv.tcx.type_of(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
                 lowering::lower_ty(genv.tcx, ty)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,
@@ -135,7 +135,7 @@ impl<'tcx> Queries<'tcx> {
                 .infer_ctxt()
                 .build()
                 .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
-                .normalize(fn_sig.subst_identity());
+                .normalize(fn_sig.instantiate_identity());
             Ok(ty::EarlyBinder(
                 lowering::lower_fn_sig(genv.tcx, result.value)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,

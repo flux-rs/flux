@@ -38,7 +38,7 @@ impl FluxSession {
         fallback_bundle: LazyFallbackBundle,
     ) -> Self {
         let emitter = emitter(opts, source_map.clone(), fallback_bundle);
-        let handler = rustc_errors::Handler::with_emitter(true, None, emitter);
+        let handler = rustc_errors::Handler::with_emitter(true, None, emitter, None);
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
