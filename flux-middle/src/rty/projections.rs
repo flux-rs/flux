@@ -1,20 +1,25 @@
+use std::iter;
+
 #[allow(unused_imports)]
 use flux_common::bug;
+use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_infer::{
-    infer::{InferCtxtBuilder, TyCtxtInferExt},
-    traits::Obligation,
-};
+use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
-    traits::{DefiningAnchor, ObligationCause},
-    ty::{Binder, List, TraitPredicate, TraitRef, TyCtxt},
+    traits::ObligationCause,
+    ty::{Binder, ParamTy, TraitPredicate, TraitRef, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     AliasKind, AliasTy, BaseTy, ClauseKind, GenericArg, GenericPredicates, Ty, TyKind,
+};
+use crate::{
+    global_env::GlobalEnv,
+    rty::EarlyBinder,
+    rustc::{self},
 };
 
 #[derive(Debug)]
@@ -132,40 +137,156 @@ fn into_rustc_ty<'tcx>(tcx: &TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx
     }
 }
 
+#[derive(Debug)]
+pub struct TVarSubst {
+    map: FxHashMap<ParamTy, Ty>,
+}
+
+impl TVarSubst {
+    pub fn new(src: &rustc_middle::ty::Ty, dst: &Ty) -> Vec<GenericArg> {
+        let mut subst = TVarSubst { map: FxHashMap::default() };
+        subst.infer_from_ty(src, dst);
+        subst
+            .map
+            .iter()
+            .sorted_by_key(|(pty, _)| pty.index)
+            .map(|(_, ty)| GenericArg::Ty(ty.clone()))
+            .collect()
+    }
+
+    fn insert(&mut self, pty: &ParamTy, ty: &Ty) {
+        match self.map.insert(pty.clone(), ty.clone()) {
+            None => (),
+            Some(_) => bug!("duplicate insert"),
+        }
+    }
+
+    fn base_ty(ty: &Ty) -> BaseTy {
+        match ty.kind() {
+            TyKind::Indexed(bty, _) => bty.clone(),
+            TyKind::Exists(b) => Self::base_ty(&b.clone().skip_binder()), // TODO: seems dicey...
+            TyKind::Constr(_, ty) => Self::base_ty(ty),
+            TyKind::Uninit
+            | TyKind::Ptr(_, _)
+            | TyKind::Discr(_, _)
+            | TyKind::Param(_)
+            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Blocked(_) => bug!("unexpected base_ty"),
+        }
+    }
+
+    fn infer_from_arg(&mut self, src: &rustc_middle::ty::GenericArg, dst: &GenericArg) {
+        match dst {
+            GenericArg::Ty(dst) => self.infer_from_ty(&src.as_type().unwrap(), dst),
+            _ => {}
+        }
+    }
+
+    fn infer_from_ty(&mut self, src: &rustc_middle::ty::Ty, dst: &Ty) {
+        use rustc_middle::ty;
+        match src.kind().clone() {
+            ty::TyKind::Param(pty) => self.insert(&pty, dst),
+            ty::TyKind::Adt(_, src_subst) => {
+                if let BaseTy::Adt(_, dst_subst) = Self::base_ty(dst) {
+                    debug_assert_eq!(src_subst.len(), dst_subst.len());
+                    iter::zip(src_subst, &dst_subst)
+                        .for_each(|(src_arg, dst_arg)| self.infer_from_arg(&src_arg, dst_arg));
+                } else {
+                    bug!("unexpected base_ty")
+                }
+            }
+            ty::TyKind::Array(src, _) => {
+                if let BaseTy::Array(dst, _) = Self::base_ty(dst) {
+                    self.infer_from_ty(&src, &dst)
+                } else {
+                    bug!("unexpected base_ty")
+                }
+            }
+
+            ty::TyKind::Slice(src) => {
+                if let BaseTy::Slice(dst) = Self::base_ty(dst) {
+                    self.infer_from_ty(&src, &dst)
+                } else {
+                    bug!("unexpected base_ty")
+                }
+            }
+            ty::TyKind::Tuple(src_tys) => {
+                if let BaseTy::Tuple(dst_tys) = Self::base_ty(dst) {
+                    debug_assert_eq!(src_tys.len(), dst_tys.len());
+                    iter::zip(src_tys.iter(), dst_tys.iter())
+                        .for_each(|(src, dst)| self.infer_from_ty(&src, dst))
+                } else {
+                    bug!("unexpected base_ty")
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 pub fn resolve_impl_projection(
-    tcx: &TyCtxt,
+    genv: &GlobalEnv,
     callsite_def_id: DefId,
     impl_rty: &Ty,
     elem: DefId,
-    term: &Ty,
 ) -> Ty {
     // 1. rty -> ty
 
     // 2. lookup impl selection/trait blah
-    let inf_ctxt = tcx.infer_ctxt().build();
+    let inf_ctxt = genv.tcx.infer_ctxt().build();
     let mut sel_ctxt = SelectionContext::new(&inf_ctxt);
 
-    let trait_def_id = tcx.parent(elem);
+    let trait_def_id = genv.tcx.parent(elem);
 
     let predicate = TraitPredicate {
-        trait_ref: TraitRef::new(
-            *tcx,
-            trait_def_id,
-            vec![into_rustc_ty(tcx, impl_rty)],
-            // elem,
-            // vec![into_rustc_ty(tcx, impl_rty), into_rustc_ty(tcx, term)],
-        ),
-        constness: rustc_middle::ty::BoundConstness::ConstIfConst,
+        trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
+        constness: rustc_middle::ty::BoundConstness::NotConst,
         polarity: rustc_middle::ty::ImplPolarity::Positive,
     };
     let predicate = Binder::dummy(predicate);
     let cause = ObligationCause::dummy(); // TODO(RJ): use with_span instead of `dummy`
-    let param_env = tcx.param_env(callsite_def_id);
+    let param_env = genv.tcx.param_env(callsite_def_id);
     let recursion_depth = 5; // TODO(RJ): made up a random number!
     let oblig = Obligation { cause, param_env, predicate, recursion_depth };
-    let selection_result = sel_ctxt.select(&oblig);
-    println!("selection_result: {predicate:?} with {selection_result:?}");
-    // 3. subst-hacks to recover the rty::Ty
 
-    todo!("resolve_impl_projection: {impl_rty:?} {elem:?}");
+    let impl_source = match sel_ctxt.select(&oblig) {
+        Ok(Some(rustc_middle::traits::ImplSource::UserDefined(impl_source))) => impl_source,
+        Ok(e) => bug!("invalid selection for {oblig:?} = {e:?}"),
+        Err(e) => bug!("error selecting {oblig:?}: {e:?}"),
+    };
+    // let impl_source_substs = lower_substs(*tcx, impl_source.substs);
+    // println!("TRACE: impl_source: {impl_source:?}");
+    // println!("TRACE: impl_source generics: {:?}", genv.generics_of(impl_source.impl_def_id));
+
+    // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
+    let impl_id = genv
+        .tcx
+        .associated_items(impl_source.impl_def_id)
+        .in_definition_order()
+        .find(|item| item.trait_item_def_id == Some(elem))
+        .map(|item| item.def_id)
+        .unwrap();
+    // 3. subst-hacks to recover the rty::Ty
+    let impl_generics = genv.generics_of(impl_source.impl_def_id).unwrap();
+    let impl_ty =
+        rustc::lowering::lower_ty(genv.tcx, genv.tcx.type_of(impl_id).subst_identity()).unwrap();
+    let impl_ty = genv.refine_default(&impl_generics, &impl_ty).unwrap();
+
+    // HERE: match
+    let src = genv
+        .tcx
+        .impl_trait_ref(impl_source.impl_def_id)
+        .unwrap()
+        .skip_binder()
+        .substs[0]
+        .as_type()
+        .unwrap();
+    // println!("TRACE: impl_trait_ref: {:?}", tcx.impl_trait_ref(impl_source.impl_def_id));
+    // println!("TRACE: impl_rty: {impl_rty:?}");
+    let generics = TVarSubst::new(&src, impl_rty);
+    // println!("TRACE: subst: {generics:?}");
+    // println!("TRACE: impl_ty {impl_ty:?}");
+    EarlyBinder(impl_ty).subst(&generics, &[])
+
+    // todo!("resolve_impl_projection: {impl_rty:?} {elem:?}");
 }

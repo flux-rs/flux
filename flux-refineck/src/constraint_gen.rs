@@ -150,13 +150,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<(), CheckerErrKind> {
         let impl_ty = projection_pred.impl_ty();
         let elem = projection_pred.elem();
-        let impl_elem = resolve_impl_projection(
-            &infcx.genv.tcx,
-            callsite_def_id,
-            &impl_ty,
-            elem,
-            &projection_pred.term,
-        );
+        let impl_elem = resolve_impl_projection(&infcx.genv, callsite_def_id, &impl_ty, elem);
         infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
         Ok(())
     }

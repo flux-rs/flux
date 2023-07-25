@@ -667,7 +667,7 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
     FieldDef { did: f.did, name: f.name }
 }
 
-fn lower_substs<'tcx>(
+pub fn lower_substs<'tcx>(
     tcx: TyCtxt<'tcx>,
     substs: rustc_middle::ty::subst::SubstsRef<'tcx>,
 ) -> Result<List<GenericArg>, UnsupportedReason> {
@@ -760,7 +760,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     let mut fn_output_proj = FxHashMap::default();
     let mut predicates = vec![];
 
-    println!("TRACE: lower_generic_predicates 1: {generics:?}");
+    // println!("TRACE: lower_generic_predicates 1: {generics:?}");
 
     for (predicate, span) in generics.predicates {
         let bound_vars = predicate.kind().bound_vars();
