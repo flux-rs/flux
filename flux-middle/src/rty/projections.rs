@@ -7,7 +7,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
-    traits::ObligationCause,
+    traits::{ImplSourceUserDefinedData, ObligationCause},
     ty::{Binder, ParamTy, TraitPredicate, TraitRef, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
@@ -143,7 +143,7 @@ pub struct TVarSubst {
 }
 
 impl TVarSubst {
-    pub fn new(src: &rustc_middle::ty::Ty, dst: &Ty) -> Vec<GenericArg> {
+    pub fn mk_subst(src: &rustc_middle::ty::Ty, dst: &Ty) -> Vec<GenericArg> {
         let mut subst = TVarSubst { map: FxHashMap::default() };
         subst.infer_from_ty(src, dst);
         subst
@@ -155,7 +155,7 @@ impl TVarSubst {
     }
 
     fn insert(&mut self, pty: &ParamTy, ty: &Ty) {
-        match self.map.insert(pty.clone(), ty.clone()) {
+        match self.map.insert(*pty, ty.clone()) {
             None => (),
             Some(_) => bug!("duplicate insert"),
         }
@@ -176,9 +176,8 @@ impl TVarSubst {
     }
 
     fn infer_from_arg(&mut self, src: &rustc_middle::ty::GenericArg, dst: &GenericArg) {
-        match dst {
-            GenericArg::Ty(dst) => self.infer_from_ty(&src.as_type().unwrap(), dst),
-            _ => {}
+        if let GenericArg::Ty(dst) = dst {
+            self.infer_from_ty(&src.as_type().unwrap(), dst)
         }
     }
 
@@ -224,40 +223,52 @@ impl TVarSubst {
     }
 }
 
+fn get_impl_source<'tcx>(
+    genv: &GlobalEnv<'_, 'tcx>,
+    elem: DefId,
+    impl_rty: &Ty,
+    callsite_def_id: DefId,
+) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
+    // 1a. build up the `Obligation` query
+    let trait_def_id = genv.tcx.parent(elem);
+    let predicate = Binder::dummy(TraitPredicate {
+        trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
+        constness: rustc_middle::ty::BoundConstness::NotConst,
+        polarity: rustc_middle::ty::ImplPolarity::Positive,
+    });
+    let oblig = Obligation {
+        cause: ObligationCause::dummy(), // TODO(RJ): use with_span instead of `dummy`
+        param_env: genv.tcx.param_env(callsite_def_id),
+        predicate,
+        recursion_depth: 5, // TODO(RJ): made up a random number!
+    };
+
+    // 1b. build up the `SelectionContext`
+    let inf_ctxt = genv.tcx.infer_ctxt().build();
+    let mut sel_ctxt = SelectionContext::new(&inf_ctxt);
+
+    // 1c. issue query to find the `impl` block that implements the `Trait`
+    let impl_source = match sel_ctxt.select(&oblig) {
+        Ok(Some(rustc_middle::traits::ImplSource::UserDefined(impl_source))) => impl_source,
+        Ok(e) => bug!("invalid selection for {oblig:?} = {e:?}"),
+        Err(e) => bug!("error selecting {oblig:?}: {e:?}"),
+    };
+    impl_source
+}
+
+/// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
+/// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
+
 pub fn resolve_impl_projection(
     genv: &GlobalEnv,
     callsite_def_id: DefId,
     impl_rty: &Ty,
     elem: DefId,
 ) -> Ty {
-    // 1. rty -> ty
+    // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
+    let impl_source = get_impl_source(genv, elem, impl_rty, callsite_def_id);
 
-    // 2. lookup impl selection/trait blah
-    let inf_ctxt = genv.tcx.infer_ctxt().build();
-    let mut sel_ctxt = SelectionContext::new(&inf_ctxt);
-
-    let trait_def_id = genv.tcx.parent(elem);
-
-    let predicate = TraitPredicate {
-        trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
-        constness: rustc_middle::ty::BoundConstness::NotConst,
-        polarity: rustc_middle::ty::ImplPolarity::Positive,
-    };
-    let predicate = Binder::dummy(predicate);
-    let cause = ObligationCause::dummy(); // TODO(RJ): use with_span instead of `dummy`
-    let param_env = genv.tcx.param_env(callsite_def_id);
-    let recursion_depth = 5; // TODO(RJ): made up a random number!
-    let oblig = Obligation { cause, param_env, predicate, recursion_depth };
-
-    let impl_source = match sel_ctxt.select(&oblig) {
-        Ok(Some(rustc_middle::traits::ImplSource::UserDefined(impl_source))) => impl_source,
-        Ok(e) => bug!("invalid selection for {oblig:?} = {e:?}"),
-        Err(e) => bug!("error selecting {oblig:?}: {e:?}"),
-    };
-    // let impl_source_substs = lower_substs(*tcx, impl_source.substs);
-    // println!("TRACE: impl_source: {impl_source:?}");
-    // println!("TRACE: impl_source generics: {:?}", genv.generics_of(impl_source.impl_def_id));
-
+    // 2. Extract the `DefId` corresponding to `elem` from the impl-block
     // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
     let impl_id = genv
         .tcx
@@ -266,13 +277,16 @@ pub fn resolve_impl_projection(
         .find(|item| item.trait_item_def_id == Some(elem))
         .map(|item| item.def_id)
         .unwrap();
-    // 3. subst-hacks to recover the rty::Ty
-    let impl_generics = genv.generics_of(impl_source.impl_def_id).unwrap();
-    let impl_ty =
-        rustc::lowering::lower_ty(genv.tcx, genv.tcx.type_of(impl_id).subst_identity()).unwrap();
-    let impl_ty = genv.refine_default(&impl_generics, &impl_ty).unwrap();
 
-    // HERE: match
+    // 3. Compute the rty::Ty for `impl_id`
+    let impl_ty = genv.tcx.type_of(impl_id).subst_identity();
+    let impl_ty = rustc::lowering::lower_ty(genv.tcx, impl_ty).unwrap();
+    let impl_ty = genv
+        .refine_default(&genv.generics_of(impl_source.impl_def_id).unwrap(), &impl_ty)
+        .unwrap();
+
+    // 4. "Unify" the types of the target of the `src` impl trait (e.g. IntoIter<T>) and `dst` impl_rty (e.g. IntoIter<Nat>)
+    //     to get a `generics` substitution (e.g. `T` -> `Nat`)
     let src = genv
         .tcx
         .impl_trait_ref(impl_source.impl_def_id)
@@ -281,12 +295,8 @@ pub fn resolve_impl_projection(
         .substs[0]
         .as_type()
         .unwrap();
-    // println!("TRACE: impl_trait_ref: {:?}", tcx.impl_trait_ref(impl_source.impl_def_id));
-    // println!("TRACE: impl_rty: {impl_rty:?}");
-    let generics = TVarSubst::new(&src, impl_rty);
-    // println!("TRACE: subst: {generics:?}");
-    // println!("TRACE: impl_ty {impl_ty:?}");
-    EarlyBinder(impl_ty).subst(&generics, &[])
+    let generics = TVarSubst::mk_subst(&src, impl_rty);
 
-    // todo!("resolve_impl_projection: {impl_rty:?} {elem:?}");
+    // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
+    EarlyBinder(impl_ty).subst(&generics, &[])
 }
