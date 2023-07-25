@@ -194,7 +194,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
                 let (func, substs) = match func.ty(self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        let lowered_substs = lower_substs(self.tcx, substs)
+                        let lowered_substs = lower_generic_args(self.tcx, substs)
                             .map_err(|_err| errors::UnsupportedMir::from(terminator))
                             .emit(self.sess)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
@@ -305,8 +305,10 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .flatten()
             .map_or_else(|| (callee_id, substs), |instance| (instance.def_id(), instance.substs));
 
-        let call_substs =
-            CallSubsts { lowered: lower_substs(self.tcx, resolved_substs)?, orig: resolved_substs };
+        let call_substs = CallSubsts {
+            lowered: lower_generic_args(self.tcx, resolved_substs)?,
+            orig: resolved_substs,
+        };
         Ok((resolved_id, call_substs))
     }
 
@@ -394,14 +396,14 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     ) -> Result<AggregateKind, UnsupportedReason> {
         match aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
-                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_substs(self.tcx, substs)?))
+                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_generic_args(self.tcx, substs)?))
             }
             rustc_mir::AggregateKind::Array(ty) => {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
             }
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
             rustc_mir::AggregateKind::Closure(did, substs) => {
-                let lowered_substs = lower_substs(self.tcx, substs)?;
+                let lowered_substs = lower_generic_args(self.tcx, substs)?;
                 Ok(AggregateKind::Closure(*did, lowered_substs))
             }
             rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
@@ -603,7 +605,7 @@ pub(crate) fn lower_ty<'tcx>(
         rustc_ty::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
         rustc_ty::Adt(adt_def, substs) => {
-            let substs = lower_substs(tcx, substs)?;
+            let substs = lower_generic_args(tcx, substs)?;
             Ok(Ty::mk_adt(lower_adt_def(adt_def), substs))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
@@ -631,13 +633,13 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_fn_ptr(fn_sig))
         }
         rustc_ty::Closure(did, substs) => {
-            let substs = lower_substs(tcx, substs)?;
+            let substs = lower_generic_args(tcx, substs)?;
             Ok(Ty::mk_closure(*did, substs))
         }
 
         rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
             // panic!("unexpected projection type `{alias_ty:?}`")
-            let substs = lower_substs(tcx, alias_ty.substs)?;
+            let substs = lower_generic_args(tcx, alias_ty.substs)?;
             Ok(Ty::mk_projection(alias_ty.def_id, substs))
             // Err(UnsupportedReason::new(format!(
             //     "unsupported PROJECTION type `{ty:?}` alias_ty =`{alias_ty:?}`"
@@ -667,7 +669,7 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
     FieldDef { did: f.did, name: f.name }
 }
 
-pub fn lower_substs<'tcx>(
+fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
     substs: rustc_middle::ty::subst::SubstsRef<'tcx>,
 ) -> Result<List<GenericArg>, UnsupportedReason> {
@@ -792,7 +794,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
                     };
                 } else if let Some(ty) = proj_pred.term.ty() &&
                           let Some(substs) = substs.no_bound_vars(){
-                    let substs = lower_substs(tcx, substs)
+                    let substs = lower_generic_args(tcx, substs)
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
 
