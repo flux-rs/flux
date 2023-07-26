@@ -98,7 +98,7 @@ pub struct ProjectionPredicate {
 
 impl ProjectionPredicate {
     pub fn impl_ty(&self) -> Ty {
-        if let GenericArg::Ty(ty) = &self.projection_ty.substs[0] {
+        if let GenericArg::Ty(ty) = &self.projection_ty.args[0] {
             ty.clone()
         } else {
             bug!("expected `GenericArg::Ty`")

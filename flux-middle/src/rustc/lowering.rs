@@ -634,16 +634,8 @@ pub(crate) fn lower_ty<'tcx>(
         }
 
         rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
-            // panic!("unexpected projection type `{alias_ty:?}`")
-<<<<<<< HEAD
-            let substs = lower_generic_args(tcx, alias_ty.substs)?;
-=======
             let substs = lower_generic_args(tcx, alias_ty.args)?;
->>>>>>> main
             Ok(Ty::mk_projection(alias_ty.def_id, substs))
-            // Err(UnsupportedReason::new(format!(
-            //     "unsupported PROJECTION type `{ty:?}` alias_ty =`{alias_ty:?}`"
-            // )))
         }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }

@@ -8,7 +8,7 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSourceUserDefinedData, ObligationCause},
-    ty::{Binder, ParamTy, TraitPredicate, TraitRef, TyCtxt},
+    ty::{ParamTy, TraitPredicate, TraitRef, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -98,21 +98,21 @@ fn into_rustc_generic_arg<'tcx>(
 }
 fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
     match bty {
-        BaseTy::Int(i) => tcx.mk_mach_int(*i), // rustc_middle::ty::Ty::mk_int(*tcx, int_ty),
-        BaseTy::Uint(i) => tcx.mk_mach_uint(*i),
+        BaseTy::Int(i) => rustc_middle::ty::Ty::new_int(*tcx, *i), // rustc_middle::ty::Ty::mk_int(*tcx, int_ty),
+        BaseTy::Uint(i) => rustc_middle::ty::Ty::new_uint(*tcx, *i),
         BaseTy::Param(pty) => pty.to_ty(*tcx),
-        BaseTy::Slice(ty) => tcx.mk_slice(into_rustc_ty(tcx, ty)),
+        BaseTy::Slice(ty) => rustc_middle::ty::Ty::new_slice(*tcx, into_rustc_ty(tcx, ty)),
         BaseTy::Bool => todo!(),
-        BaseTy::Str => tcx.mk_static_str(),
+        BaseTy::Str => rustc_middle::ty::Ty::new_static_str(*tcx),
         BaseTy::Char => todo!(),
         BaseTy::Adt(adt_def, substs) => {
             let did = adt_def.did();
             let adt_def = tcx.adt_def(did);
             let substs = substs.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-            let substs = tcx.mk_substs_from_iter(substs);
-            tcx.mk_adt(adt_def, substs)
+            let substs = tcx.mk_args_from_iter(substs);
+            rustc_middle::ty::Ty::new_adt(*tcx, adt_def, substs)
         }
-        BaseTy::Float(_) => todo!(),
+        BaseTy::Float(f) => rustc_middle::ty::Ty::new_float(*tcx, *f),
         BaseTy::RawPtr(_, _) => todo!(),
         BaseTy::Ref(_, _, _) => todo!(),
         BaseTy::Tuple(_) => todo!(),
@@ -231,11 +231,11 @@ fn get_impl_source<'tcx>(
 ) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
     // 1a. build up the `Obligation` query
     let trait_def_id = genv.tcx.parent(elem);
-    let predicate = Binder::dummy(TraitPredicate {
+    let predicate = TraitPredicate {
         trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
         constness: rustc_middle::ty::BoundConstness::NotConst,
         polarity: rustc_middle::ty::ImplPolarity::Positive,
-    });
+    };
     let oblig = Obligation {
         cause: ObligationCause::dummy(), // TODO(RJ): use with_span instead of `dummy`
         param_env: genv.tcx.param_env(callsite_def_id),
@@ -279,7 +279,7 @@ pub fn resolve_impl_projection(
         .unwrap();
 
     // 3. Compute the rty::Ty for `impl_id`
-    let impl_ty = genv.tcx.type_of(impl_id).subst_identity();
+    let impl_ty = genv.tcx.type_of(impl_id).instantiate_identity();
     let impl_ty = rustc::lowering::lower_ty(genv.tcx, impl_ty).unwrap();
     let impl_ty = genv
         .refine_default(&genv.generics_of(impl_source.impl_def_id).unwrap(), &impl_ty)
@@ -292,11 +292,11 @@ pub fn resolve_impl_projection(
         .impl_trait_ref(impl_source.impl_def_id)
         .unwrap()
         .skip_binder()
-        .substs[0]
+        .args[0]
         .as_type()
         .unwrap();
     let generics = TVarSubst::mk_subst(&src, impl_rty);
 
     // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
-    EarlyBinder(impl_ty).subst(&generics, &[])
+    EarlyBinder(impl_ty).instantiate(&generics, &[])
 }
