@@ -104,7 +104,7 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         BaseTy::Slice(ty) => rustc_middle::ty::Ty::new_slice(*tcx, into_rustc_ty(tcx, ty)),
         BaseTy::Bool => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Bool),
         BaseTy::Char => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Char),
-        BaseTy::Str => rustc_middle::ty::Ty::new_static_str(*tcx),
+        BaseTy::Str => tcx.types.str_,
         BaseTy::Adt(adt_def, substs) => {
             let did = adt_def.did();
             let adt_def = tcx.adt_def(did);
