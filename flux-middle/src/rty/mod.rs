@@ -96,20 +96,6 @@ pub struct ProjectionPredicate {
     pub term: Ty,
 }
 
-impl ProjectionPredicate {
-    pub fn impl_ty(&self) -> Ty {
-        if let GenericArg::Ty(ty) = &self.alias_ty.args[0] {
-            ty.clone()
-        } else {
-            bug!("expected `GenericArg::Ty`")
-        }
-    }
-
-    pub fn elem(&self) -> DefId {
-        self.alias_ty.def_id
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct FnTraitPredicate {
     pub self_ty: Ty,

@@ -8,7 +8,7 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        projections::normalize_alias_ty,
+        refining::refine_default,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
         FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
         Sort, TupleTree, Ty, TyKind, Var,
@@ -241,8 +241,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
-                let impl_elem =
-                    normalize_alias_ty(infcx.genv, callsite_def_id, &projection_pred.alias_ty)?;
+                let proj_ty = refine_default(BaseTy::projection(projection_pred.alias_ty));
+                let impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty)?
+                    .skip_binder();
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
             }
         }

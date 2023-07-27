@@ -253,7 +253,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 }
 
-fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
+pub fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
     rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
 }

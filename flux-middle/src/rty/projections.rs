@@ -14,7 +14,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, ClauseKind, GenericArg, GenericPredicates, Ty, TyKind,
+    AliasKind, AliasTy, BaseTy, ClauseKind, GenericArg, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -22,13 +22,6 @@ use crate::{
     rty::{fold::TypeVisitable, EarlyBinder},
     rustc::{self},
 };
-
-fn callsite_predicates(genv: &GlobalEnv, def_id: DefId) -> Result<GenericPredicates, QueryErr> {
-    match genv.predicates_of(def_id) {
-        Ok(eb) => Ok(eb.0),
-        Err(e) => Err(e),
-    }
-}
 
 struct ProjectionTable<'sess, 'tcx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
@@ -38,7 +31,7 @@ struct ProjectionTable<'sess, 'tcx> {
 
 impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     fn new(genv: &'sess GlobalEnv<'sess, 'tcx>, def_id: DefId) -> Result<Self, QueryErr> {
-        let predicates = callsite_predicates(genv, def_id)?;
+        let predicates = genv.predicates_of(def_id)?.skip_binder();
         let mut preds = FxHashMap::default();
         for pred in &predicates.predicates {
             if pred.kind.vars().is_empty() {
@@ -109,9 +102,9 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         BaseTy::Uint(i) => rustc_middle::ty::Ty::new_uint(*tcx, *i),
         BaseTy::Param(pty) => pty.to_ty(*tcx),
         BaseTy::Slice(ty) => rustc_middle::ty::Ty::new_slice(*tcx, into_rustc_ty(tcx, ty)),
-        BaseTy::Bool => todo!(),
+        BaseTy::Bool => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Bool),
+        BaseTy::Char => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Char),
         BaseTy::Str => rustc_middle::ty::Ty::new_static_str(*tcx),
-        BaseTy::Char => todo!(),
         BaseTy::Adt(adt_def, substs) => {
             let did = adt_def.did();
             let adt_def = tcx.adt_def(did);
@@ -122,8 +115,13 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         BaseTy::Float(f) => rustc_middle::ty::Ty::new_float(*tcx, *f),
         BaseTy::RawPtr(_, _) => todo!(),
         BaseTy::Ref(_, _, _) => todo!(),
-        BaseTy::Tuple(_) => todo!(),
-        BaseTy::Array(_, _) => todo!(),
+        BaseTy::Tuple(tys) => {
+            let ts = tys.iter().map(|ty| into_rustc_ty(tcx, ty)).collect_vec();
+            rustc_middle::ty::Ty::new_tup(*tcx, &ts)
+        }
+        BaseTy::Array(ty, c) => {
+            rustc_middle::ty::Ty::new_array(*tcx, into_rustc_ty(tcx, ty), c.val as u64)
+        }
         BaseTy::Never => todo!(),
         BaseTy::Closure(_, _) => todo!(),
         BaseTy::Alias(_, _) => todo!(),
@@ -179,6 +177,7 @@ impl TVarSubst {
         match src.kind().clone() {
             ty::TyKind::Param(pty) => self.insert(&pty, dst),
             ty::TyKind::Adt(_, src_subst) => {
+                // NOTE: see https://github.com/flux-rs/flux/pull/478#issuecomment-1650983695
                 if let Some(dst) = dst.as_bty_skipping_existentials() &&
                    !dst.has_escaping_bvars() &&
                    let BaseTy::Adt(_, dst_subst) = dst.clone()
@@ -189,7 +188,6 @@ impl TVarSubst {
                    } else {
                         bug!("unexpected base_ty")
                    }
-
             }
             ty::TyKind::Array(src, _) => {
                 if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
@@ -300,18 +298,6 @@ fn normalize_with_impl<'tcx>(
 
     // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
     EarlyBinder(impl_ty).instantiate(&generics, &[])
-}
-
-// -----------------------------------------------------------------------------------------------------
-// function to normalize a single `AliasTy` e.g. in a Predicate obligation
-// -----------------------------------------------------------------------------------------------------
-
-pub fn normalize_alias_ty<'sess>(
-    genv: &'sess GlobalEnv<'sess, '_>,
-    def_id: DefId,
-    alias_ty: &AliasTy,
-) -> Result<Ty, QueryErr> {
-    Ok(ProjectionTable::new(genv, def_id)?.normalize(alias_ty))
 }
 
 // -----------------------------------------------------------------------------------------------------
