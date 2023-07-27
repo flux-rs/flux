@@ -217,7 +217,6 @@ impl<'tcx> Queries<'tcx> {
                 Ok(predicates)
             } else {
                 let predicates = genv.tcx.predicates_of(def_id);
-                // println!("TRACE: predicates_of: {def_id:?} = {predicates:?}" );
                 // FIXME(nilehmann) we should propagate this error through the query
                 let predicates =
                     lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
