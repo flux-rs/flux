@@ -9,7 +9,6 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
-    intern::List,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
         FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
@@ -457,13 +456,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn callsite_predicates(&self, span: Span) -> Result<rty::GenericPredicates, CheckerError> {
-        match self.genv.predicates_of(self.def_id) {
-            Ok(eb) => Ok(eb.0),
-            Err(e) => Err(CheckerError::query(e, span)),
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
@@ -476,11 +468,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
-        let predicates = self.callsite_predicates(terminator_span)?;
-        //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
+        let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, fn_sig, substs, predicates, &actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, substs, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -495,46 +486,48 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
         }
 
-        self.check_obligs(rcx, obligs)?;
+        self.check_closure_obligs(rcx, obligs)?;
 
         Ok(output.ret)
     }
 
-    fn oblig_fn_traits(predicates: &List<rty::Clause>) -> Vec<Binder<FnTraitPredicate>> {
-        let mut fn_trait_preds = vec![];
-        for pred in predicates {
-            let kind = pred.kind();
-            let vars = kind.vars().clone();
-            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
-                fn_trait_preds.push(Binder::new(fn_trait_pred, vars));
-            }
+    fn check_oblig_fn_trait_pred(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        snapshot: &Snapshot,
+        fn_trait_pred: Binder<FnTraitPredicate>,
+    ) -> Result<(), CheckerError> {
+        if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
+            .self_ty()
+            .skip_binder()
+            .as_bty_skipping_existentials()
+        {
+            let refine_tree = rcx.subtree_at(snapshot).unwrap();
+            Checker::run(
+                self.genv,
+                refine_tree,
+                *def_id,
+                self.ghost_stmts,
+                self.mode,
+                fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
+                self.config,
+            )?;
         }
-        fn_trait_preds
+        Ok(())
     }
 
-    fn check_obligs(
+    /// This checks obligations related to closures; the remainder are directly checked in `check_fn_call`
+    fn check_closure_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
-        for fn_trait_pred in Self::oblig_fn_traits(&obligs.predicates) {
-            if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
-                .self_ty()
-                .skip_binder()
-                .as_bty_skipping_existentials()
-            {
-                let refine_tree = rcx.subtree_at(&obligs.snapshot).unwrap();
-                Checker::run(
-                    self.genv,
-                    refine_tree,
-                    *def_id,
-                    self.ghost_stmts,
-                    self.mode,
-                    fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
-                    self.config,
-                )?;
-            } else {
-                bug!("`Fn*` bounds on a non-closure type are not supported. This should be an error an not an ICE.");
+        for pred in &obligs.predicates {
+            let kind = pred.kind();
+            let vars = kind.vars().clone();
+            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
+                let fn_trait_pred = Binder::new(fn_trait_pred, vars);
+                self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
             }
         }
         Ok(())
@@ -1174,7 +1167,6 @@ impl Mode for RefineMode {
         bug!();
     }
 }
-
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
     use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
@@ -1197,10 +1189,6 @@ pub(crate) mod errors {
     impl CheckerError {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
-        }
-
-        pub fn query(query_error: QueryErr, span: Span) -> Self {
-            Self { kind: CheckerErrKind::Query(query_error), span }
         }
     }
 

@@ -634,12 +634,8 @@ pub(crate) fn lower_ty<'tcx>(
         }
 
         rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
-            // panic!("unexpected projection type `{alias_ty:?}`")
             let substs = lower_generic_args(tcx, alias_ty.args)?;
             Ok(Ty::mk_projection(alias_ty.def_id, substs))
-            // Err(UnsupportedReason::new(format!(
-            //     "unsupported PROJECTION type `{ty:?}` alias_ty =`{alias_ty:?}`"
-            // )))
         }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
@@ -758,8 +754,6 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     let mut fn_output_proj = FxHashMap::default();
     let mut predicates = vec![];
 
-    // println!("TRACE: lower_generic_predicates 1: {def_id:?} {generics:?}");
-
     for (predicate, span) in generics.predicates {
         let bound_vars = predicate.kind().bound_vars();
         let kind = predicate.kind().skip_binder();
@@ -767,7 +761,6 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         match kind {
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
-                // println!("TRACE: lower_generic_predicates 2: {def_id:?} trait_ref.def_id = {:?}, trait_ref.substs = {:?}", trait_ref.def_id, trait_ref.substs);
                 let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
                     match fn_trait_refs.entry(substs) {
@@ -828,7 +821,6 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
         predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
-    // println!("TRACE: lower_generic_predicates 4: {def_id:?} {predicates:?}");
     Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
 }
 

@@ -13,9 +13,3 @@ where
         assert(0 <= x) //~ ERROR refinement type
     }
 }
-
-pub fn test() {
-    let mut v = Vec::new();
-    v.push(1);
-    foo(v.into_iter());
-}

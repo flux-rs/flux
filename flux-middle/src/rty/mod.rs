@@ -92,7 +92,7 @@ pub enum ClauseKind {
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
+    pub alias_ty: AliasTy,
     pub term: Ty,
 }
 

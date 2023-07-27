@@ -111,7 +111,7 @@ fn conv_projection_predicate(
 ) -> QueryResult<rty::ProjectionPredicate> {
     let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
     let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
-    Ok(rty::ProjectionPredicate { term: ty, projection_ty })
+    Ok(rty::ProjectionPredicate { term: ty, alias_ty: projection_ty })
 }
 
 fn conv_alias_ty(

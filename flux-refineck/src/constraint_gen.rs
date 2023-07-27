@@ -8,9 +8,10 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
+        refining::refine_default,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GenericArg, GenericPredicates, InferMode, Mutability, Path, PolyFnSig,
-        PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
+        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
+        Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -146,10 +147,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        callsite_def_id: DefId,
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
-        predicates: GenericPredicates,
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
@@ -193,9 +194,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
+        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
 
-        let closure_obligs =
+        let obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
 
         // Check requires predicates and collect type constraints
@@ -236,13 +237,26 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             }
         }
 
+        // check (non-closure) obligations -- the closure ones are handled in `checker` since
+        // as we have to recursively walk over their def_id bodies.
+        for pred in &obligs {
+            if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
+                let proj_ty = refine_default(BaseTy::projection(projection_pred.alias_ty));
+                let impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty)?
+                    .skip_binder();
+
+                // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
+                infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
+                infcx.subtyping(rcx, &projection_pred.term, &impl_elem);
+            }
+        }
         // Replace evars
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
         let output = inst_fn_sig.output().replace_evars(&evars_sol);
 
-        Ok((output, Obligations::new(closure_obligs, snapshot)))
+        Ok((output, Obligations::new(obligs, snapshot)))
     }
 
     pub(crate) fn check_ret(
