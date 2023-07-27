@@ -754,7 +754,6 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     let mut fn_output_proj = FxHashMap::default();
     let mut predicates = vec![];
 
-
     for (predicate, span) in generics.predicates {
         let bound_vars = predicate.kind().bound_vars();
         let kind = predicate.kind().skip_binder();

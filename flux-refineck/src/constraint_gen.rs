@@ -244,7 +244,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 let proj_ty = refine_default(BaseTy::projection(projection_pred.alias_ty));
                 let impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty)?
                     .skip_binder();
+
+                // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
+                infcx.subtyping(rcx, &projection_pred.term, &impl_elem);
             }
         }
         // Replace evars

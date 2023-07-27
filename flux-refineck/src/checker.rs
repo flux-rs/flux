@@ -516,7 +516,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
-    /// This checks obligations related to closures; the remainder are checked in `check_non_closure_obligs`
+    /// This checks obligations related to closures; the remainder are directly checked in `check_fn_call`
     fn check_closure_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -1190,10 +1190,6 @@ pub(crate) mod errors {
         pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
         }
-
-        // pub fn query(query_error: QueryErr, span: Span) -> Self {
-        //     Self { kind: CheckerErrKind::Query(query_error), span }
-        // }
     }
 
     impl<'a> IntoDiagnostic<'a> for CheckerError {

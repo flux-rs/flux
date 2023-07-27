@@ -18,9 +18,6 @@ pub fn foo<I>(it: I)
 where
     I: Iterator<Item = i32>,
 {
-    // let x = it.next()
-    // fn next<J><J:Iterator) -> Option<J::Item>
-    //  query: what is J::Item when J is I
     for x in it {
         assert(0 <= x)
     }
