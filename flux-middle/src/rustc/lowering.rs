@@ -761,7 +761,6 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         match kind {
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
-                // println!("TRACE: lower_generic_predicates 2: {def_id:?} trait_ref.def_id = {:?}, trait_ref.substs = {:?}", trait_ref.def_id, trait_ref.substs);
                 let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
                     match fn_trait_refs.entry(substs) {
@@ -822,7 +821,6 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
         predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
-    // println!("TRACE: lower_generic_predicates 4: {def_id:?} {predicates:?}");
     Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
 }
 
