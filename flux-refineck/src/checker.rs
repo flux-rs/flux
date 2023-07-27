@@ -456,13 +456,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn callsite_predicates(&self, span: Span) -> Result<rty::GenericPredicates, CheckerError> {
-        match self.genv.predicates_of(self.def_id) {
-            Ok(eb) => Ok(eb.0),
-            Err(e) => Err(CheckerError::query(e, span)),
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
@@ -475,12 +468,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
-        let predicates = self.callsite_predicates(terminator_span)?;
+        // let predicates = self.callsite_predicates(terminator_span)?;
         //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, substs, predicates, &actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, substs, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -488,8 +481,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
-                    let updated_ty = rcx.unpack(updated_ty);
-                    env.update_path(path, updated_ty);
+                    let updated_ty = rcx.unpack(&updated_ty);
+                    env.update_path(&path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
             }
@@ -1176,7 +1169,6 @@ impl Mode for RefineMode {
         bug!();
     }
 }
-
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
     use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
@@ -1201,9 +1193,9 @@ pub(crate) mod errors {
             Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
         }
 
-        pub fn query(query_error: QueryErr, span: Span) -> Self {
-            Self { kind: CheckerErrKind::Query(query_error), span }
-        }
+        // pub fn query(query_error: QueryErr, span: Span) -> Self {
+        //     Self { kind: CheckerErrKind::Query(query_error), span }
+        // }
     }
 
     impl<'a> IntoDiagnostic<'a> for CheckerError {

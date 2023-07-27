@@ -18,35 +18,58 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
+    queries::QueryErr,
     rty::{fold::TypeVisitable, EarlyBinder},
     rustc::{self},
 };
 
-#[derive(Debug)]
-struct ProjectionTable(FxHashMap<AliasTy, Ty>);
+fn callsite_predicates(genv: &GlobalEnv, def_id: DefId) -> Result<GenericPredicates, QueryErr> {
+    match genv.predicates_of(def_id) {
+        Ok(eb) => Ok(eb.0),
+        Err(e) => Err(e),
+    }
+}
 
-impl ProjectionTable {
-    pub fn new(predicates: GenericPredicates) -> Self {
-        let mut res = FxHashMap::default();
+struct ProjectionTable<'sess, 'tcx> {
+    genv: &'sess GlobalEnv<'sess, 'tcx>,
+    def_id: DefId,
+    preds: FxHashMap<AliasTy, Ty>,
+}
+
+impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
+    fn new(genv: &'sess GlobalEnv<'sess, 'tcx>, def_id: DefId) -> Result<Self, QueryErr> {
+        let predicates = callsite_predicates(genv, def_id)?;
+        let mut preds = FxHashMap::default();
         for pred in &predicates.predicates {
             if pred.kind.vars().is_empty() {
                 if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
-                    match res.insert(proj_pred.projection_ty, proj_pred.term) {
+                    match preds.insert(proj_pred.alias_ty, proj_pred.term) {
                         None => (),
                         Some(_) => bug!("duplicate projection predicate"),
                     }
                 }
             }
         }
-        ProjectionTable(res)
+        Ok(ProjectionTable { genv, def_id, preds })
     }
 
-    pub fn resolve(&self, alias_ty: &AliasTy) -> Ty {
+    fn resolve_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let alias_ty = without_constrs(alias_ty);
-        match self.0.get(&alias_ty) {
-            Some(ty) => ty.clone(),
-            None => panic!("cannot resolve {alias_ty:?} in {self:?}"),
-        }
+        self.preds.get(&alias_ty).map(|ty| ty.clone())
+    }
+
+    fn resolve_with_param_env(&self, alias_ty: &AliasTy) -> Option<Ty> {
+        let param_env = self.genv.tcx.param_env(self.def_id);
+        Some(normalize_with_impl(self.genv, param_env, alias_ty))
+    }
+
+    fn resolve(&self, alias_ty: &AliasTy) -> Ty {
+        self.resolve_with_preds(alias_ty)
+            .or_else(|| self.resolve_with_param_env(alias_ty))
+            .unwrap_or_else(|| {
+                let def_id = self.def_id;
+                bug!("failed to resolve {alias_ty:?} in {def_id:?}")
+            })
     }
 }
 struct WithoutConstrs;
@@ -64,25 +87,9 @@ fn without_constrs<T: TypeFoldable>(t: &T) -> T {
     t.fold_with(&mut WithoutConstrs)
 }
 
-struct WithPredicates {
-    proj_table: ProjectionTable,
-}
-
-impl TypeFolder for WithPredicates {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
-                // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
-                self.proj_table.resolve(alias_ty)
-            }
-            _ => ty.super_fold_with(self),
-        }
-    }
-}
-
-pub fn normalize_projections<T: TypeFoldable>(t: &T, predicates: GenericPredicates) -> T {
-    t.fold_with(&mut WithPredicates { proj_table: ProjectionTable::new(predicates) })
-}
+// -----------------------------------------------------------------------------------------------------
+// Code for normalizing `AliasTy` using impl -----------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------
 
 fn into_rustc_generic_arg<'tcx>(
     tcx: &TyCtxt<'tcx>,
@@ -217,21 +224,16 @@ fn get_impl_source<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     elem: DefId,
     impl_rty: &Ty,
-    callsite_def_id: DefId,
+    param_env: rustc_middle::ty::ParamEnv<'tcx>,
 ) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
     // 1a. build up the `Obligation` query
     let trait_def_id = genv.tcx.parent(elem);
     let trait_ref = TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]);
     let predicate = trait_ref.to_predicate(genv.tcx);
 
-    // let predicate = TraitPredicate {
-    //     trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
-    //     constness: rustc_middle::ty::BoundConstness::NotConst,
-    //     polarity: rustc_middle::ty::ImplPolarity::Positive,
-    // };
     let oblig = Obligation {
         cause: ObligationCause::dummy(), // TODO(RJ): use with_span instead of `dummy`
-        param_env: genv.tcx.param_env(callsite_def_id),
+        param_env,
         predicate,
         recursion_depth: 5, // TODO(RJ): made up a random number!
     };
@@ -253,14 +255,19 @@ fn get_impl_source<'tcx>(
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
 
-pub fn resolve_impl_projection(
-    genv: &GlobalEnv,
-    callsite_def_id: DefId,
-    impl_rty: &Ty,
-    elem: DefId,
+fn normalize_with_impl<'sess, 'tcx>(
+    genv: &GlobalEnv<'sess, 'tcx>,
+    param_env: rustc_middle::ty::ParamEnv<'tcx>,
+    alias_ty: &AliasTy,
 ) -> Ty {
+    let impl_rty = if let GenericArg::Ty(impl_ty) = &alias_ty.args[0] {
+        impl_ty
+    } else {
+        bug!("unexpected {alias_ty:?}")
+    };
+    let elem = alias_ty.def_id;
     // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
-    let impl_source = get_impl_source(genv, elem, impl_rty, callsite_def_id);
+    let impl_source = get_impl_source(genv, elem, &impl_rty, param_env);
 
     // 2. Extract the `DefId` corresponding to `elem` from the impl-block
     // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
@@ -289,8 +296,45 @@ pub fn resolve_impl_projection(
         .args[0]
         .as_type()
         .unwrap();
-    let generics = TVarSubst::mk_subst(&src, impl_rty);
+    let generics = TVarSubst::mk_subst(&src, &impl_rty);
 
     // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
     EarlyBinder(impl_ty).instantiate(&generics, &[])
+}
+
+// -----------------------------------------------------------------------------------------------------
+// function to normalize a single `AliasTy` e.g. in a Predicate obligation
+// -----------------------------------------------------------------------------------------------------
+
+pub fn normalize_alias_ty<'sess, 'tcx>(
+    genv: &'sess GlobalEnv<'sess, 'tcx>,
+    def_id: DefId,
+    alias_ty: &AliasTy,
+) -> Result<Ty, QueryErr> {
+    Ok(ProjectionTable::new(genv, def_id)?.resolve(alias_ty))
+}
+
+// -----------------------------------------------------------------------------------------------------
+// Type folder that recursively normalizes all nested `AliasTy` e.g. in a `FnSig`
+// -----------------------------------------------------------------------------------------------------
+
+impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
+                // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
+                self.resolve(alias_ty)
+            }
+            _ => ty.super_fold_with(self),
+        }
+    }
+}
+
+pub fn normalize<'sess, 'tcx, T: TypeFoldable>(
+    genv: &'sess GlobalEnv<'sess, 'tcx>,
+    def_id: DefId,
+    t: &T,
+) -> Result<T, QueryErr> {
+    let mut table = ProjectionTable::new(genv, def_id)?;
+    Ok(t.fold_with(&mut table))
 }

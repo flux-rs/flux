@@ -8,10 +8,10 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        projections::resolve_impl_projection,
+        projections::normalize_alias_ty,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GenericArg, GenericPredicates, InferMode, Mutability, Path, PolyFnSig,
-        PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
+        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
+        Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -142,19 +142,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(res)
     }
 
-    fn check_oblig_projection_pred(
-        infcx: &mut InferCtxt,
-        rcx: &mut RefineCtxt,
-        callsite_def_id: DefId,
-        projection_pred: rty::ProjectionPredicate,
-    ) -> Result<(), CheckerErrKind> {
-        let impl_ty = projection_pred.impl_ty();
-        let elem = projection_pred.elem();
-        let impl_elem = resolve_impl_projection(infcx.genv, callsite_def_id, &impl_ty, elem);
-        infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
-        Ok(())
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
@@ -164,7 +151,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
-        predicates: GenericPredicates,
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
@@ -208,7 +194,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        let inst_fn_sig = rty::projections::normalize_projections(&inst_fn_sig, predicates);
+        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
 
         let obligs =
             if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
@@ -255,12 +241,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
-                Self::check_oblig_projection_pred(
-                    &mut infcx,
-                    rcx,
-                    callsite_def_id,
-                    projection_pred,
-                )?;
+                let impl_elem =
+                    normalize_alias_ty(infcx.genv, callsite_def_id, &projection_pred.alias_ty)?;
+                infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
             }
         }
         // Replace evars

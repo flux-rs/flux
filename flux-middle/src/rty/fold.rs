@@ -390,7 +390,7 @@ impl TypeFoldable for ClauseKind {
 
 impl TypeVisitable for ProjectionPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.projection_ty.visit_with(visitor)?;
+        self.alias_ty.visit_with(visitor)?;
         self.term.visit_with(visitor)
     }
 }
@@ -398,7 +398,7 @@ impl TypeVisitable for ProjectionPredicate {
 impl TypeFoldable for ProjectionPredicate {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(ProjectionPredicate {
-            projection_ty: self.projection_ty.try_fold_with(folder)?,
+            alias_ty: self.alias_ty.try_fold_with(folder)?,
             term: self.term.try_fold_with(folder)?,
         })
     }

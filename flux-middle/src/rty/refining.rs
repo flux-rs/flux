@@ -86,7 +86,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     }
                     rustc::ty::ClauseKind::Projection(proj_pred) => {
                         let proj_pred = rty::ProjectionPredicate {
-                            projection_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
+                            alias_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
                             term: self.as_default().refine_ty(&proj_pred.term)?,
                         };
                         rty::Binder::new(rty::ClauseKind::Projection(proj_pred), vars)

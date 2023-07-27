@@ -92,13 +92,13 @@ pub enum ClauseKind {
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
+    pub alias_ty: AliasTy,
     pub term: Ty,
 }
 
 impl ProjectionPredicate {
     pub fn impl_ty(&self) -> Ty {
-        if let GenericArg::Ty(ty) = &self.projection_ty.args[0] {
+        if let GenericArg::Ty(ty) = &self.alias_ty.args[0] {
             ty.clone()
         } else {
             bug!("expected `GenericArg::Ty`")
@@ -106,7 +106,7 @@ impl ProjectionPredicate {
     }
 
     pub fn elem(&self) -> DefId {
-        self.projection_ty.def_id
+        self.alias_ty.def_id
     }
 }
 
