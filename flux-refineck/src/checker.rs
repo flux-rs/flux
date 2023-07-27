@@ -468,8 +468,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         args: &[Operand],
     ) -> Result<Ty, CheckerError> {
         let actuals = self.check_operands(rcx, env, terminator_span, args)?;
-        // let predicates = self.callsite_predicates(terminator_span)?;
-        //  println!("TRACE: check_call 1: {did:?} {fn_sig:?}");
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
