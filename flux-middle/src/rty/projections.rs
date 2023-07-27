@@ -53,19 +53,19 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         Ok(ProjectionTable { genv, def_id, preds })
     }
 
-    fn resolve_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
+    fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let alias_ty = without_constrs(alias_ty);
         self.preds.get(&alias_ty).map(|ty| ty.clone())
     }
 
-    fn resolve_with_param_env(&self, alias_ty: &AliasTy) -> Option<Ty> {
+    fn normalize_with_impl(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let param_env = self.genv.tcx.param_env(self.def_id);
         Some(normalize_with_impl(self.genv, param_env, alias_ty))
     }
 
-    fn resolve(&self, alias_ty: &AliasTy) -> Ty {
-        self.resolve_with_preds(alias_ty)
-            .or_else(|| self.resolve_with_param_env(alias_ty))
+    fn normalize(&self, alias_ty: &AliasTy) -> Ty {
+        self.normalize_with_preds(alias_ty)
+            .or_else(|| self.normalize_with_impl(alias_ty))
             .unwrap_or_else(|| {
                 let def_id = self.def_id;
                 bug!("failed to resolve {alias_ty:?} in {def_id:?}")
@@ -311,7 +311,7 @@ pub fn normalize_alias_ty<'sess, 'tcx>(
     def_id: DefId,
     alias_ty: &AliasTy,
 ) -> Result<Ty, QueryErr> {
-    Ok(ProjectionTable::new(genv, def_id)?.resolve(alias_ty))
+    Ok(ProjectionTable::new(genv, def_id)?.normalize(alias_ty))
 }
 
 // -----------------------------------------------------------------------------------------------------
@@ -323,7 +323,7 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
                 // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
-                self.resolve(alias_ty)
+                self.normalize(alias_ty)
             }
             _ => ty.super_fold_with(self),
         }
