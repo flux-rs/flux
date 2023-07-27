@@ -55,7 +55,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
 
     fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let alias_ty = without_constrs(alias_ty);
-        self.preds.get(&alias_ty).map(|ty| ty.clone())
+        self.preds.get(&alias_ty).cloned()
     }
 
     fn normalize_with_impl(&self, alias_ty: &AliasTy) -> Option<Ty> {
@@ -193,7 +193,7 @@ impl TVarSubst {
             }
             ty::TyKind::Array(src, _) => {
                 if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(&src, &dst)
+                    self.infer_from_ty(&src, dst)
                 } else {
                     bug!("unexpected base_ty")
                 }
@@ -201,7 +201,7 @@ impl TVarSubst {
 
             ty::TyKind::Slice(src) => {
                 if let Some(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(&src, &dst)
+                    self.infer_from_ty(&src, dst)
                 } else {
                     bug!("unexpected base_ty")
                 }
@@ -255,8 +255,8 @@ fn get_impl_source<'tcx>(
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
 
-fn normalize_with_impl<'sess, 'tcx>(
-    genv: &GlobalEnv<'sess, 'tcx>,
+fn normalize_with_impl<'tcx>(
+    genv: &GlobalEnv<'_, 'tcx>,
     param_env: rustc_middle::ty::ParamEnv<'tcx>,
     alias_ty: &AliasTy,
 ) -> Ty {
@@ -267,7 +267,7 @@ fn normalize_with_impl<'sess, 'tcx>(
     };
     let elem = alias_ty.def_id;
     // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
-    let impl_source = get_impl_source(genv, elem, &impl_rty, param_env);
+    let impl_source = get_impl_source(genv, elem, impl_rty, param_env);
 
     // 2. Extract the `DefId` corresponding to `elem` from the impl-block
     // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
@@ -296,7 +296,7 @@ fn normalize_with_impl<'sess, 'tcx>(
         .args[0]
         .as_type()
         .unwrap();
-    let generics = TVarSubst::mk_subst(&src, &impl_rty);
+    let generics = TVarSubst::mk_subst(&src, impl_rty);
 
     // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
     EarlyBinder(impl_ty).instantiate(&generics, &[])
@@ -306,8 +306,8 @@ fn normalize_with_impl<'sess, 'tcx>(
 // function to normalize a single `AliasTy` e.g. in a Predicate obligation
 // -----------------------------------------------------------------------------------------------------
 
-pub fn normalize_alias_ty<'sess, 'tcx>(
-    genv: &'sess GlobalEnv<'sess, 'tcx>,
+pub fn normalize_alias_ty<'sess>(
+    genv: &'sess GlobalEnv<'sess, '_>,
     def_id: DefId,
     alias_ty: &AliasTy,
 ) -> Result<Ty, QueryErr> {
@@ -330,8 +330,8 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
     }
 }
 
-pub fn normalize<'sess, 'tcx, T: TypeFoldable>(
-    genv: &'sess GlobalEnv<'sess, 'tcx>,
+pub fn normalize<'sess, T: TypeFoldable>(
+    genv: &'sess GlobalEnv<'sess, '_>,
     def_id: DefId,
     t: &T,
 ) -> Result<T, QueryErr> {

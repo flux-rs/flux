@@ -481,8 +481,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
-                    let updated_ty = rcx.unpack(&updated_ty);
-                    env.update_path(&path, updated_ty);
+                    let updated_ty = rcx.unpack(updated_ty);
+                    env.update_path(path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
             }
