@@ -8,7 +8,7 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSourceUserDefinedData, ObligationCause},
-    ty::{ParamTy, TraitPredicate, TraitRef, TyCtxt},
+    ty::{ParamTy, ToPredicate, TraitRef, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::EarlyBinder,
+    rty::{fold::TypeVisitable, EarlyBinder},
     rustc::{self},
 };
 
@@ -138,12 +138,12 @@ fn into_rustc_ty<'tcx>(tcx: &TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx
 }
 
 #[derive(Debug)]
-pub struct TVarSubst {
+struct TVarSubst {
     map: FxHashMap<ParamTy, Ty>,
 }
 
 impl TVarSubst {
-    pub fn mk_subst(src: &rustc_middle::ty::Ty, dst: &Ty) -> Vec<GenericArg> {
+    fn mk_subst(src: &rustc_middle::ty::Ty, dst: &Ty) -> Vec<GenericArg> {
         let mut subst = TVarSubst { map: FxHashMap::default() };
         subst.infer_from_ty(src, dst);
         subst
@@ -161,20 +161,6 @@ impl TVarSubst {
         }
     }
 
-    fn base_ty(ty: &Ty) -> BaseTy {
-        match ty.kind() {
-            TyKind::Indexed(bty, _) => bty.clone(),
-            TyKind::Exists(b) => Self::base_ty(&b.clone().skip_binder()), // TODO: seems dicey...
-            TyKind::Constr(_, ty) => Self::base_ty(ty),
-            TyKind::Uninit
-            | TyKind::Ptr(_, _)
-            | TyKind::Discr(_, _)
-            | TyKind::Param(_)
-            | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_) => bug!("unexpected base_ty"),
-        }
-    }
-
     fn infer_from_arg(&mut self, src: &rustc_middle::ty::GenericArg, dst: &GenericArg) {
         if let GenericArg::Ty(dst) = dst {
             self.infer_from_ty(&src.as_type().unwrap(), dst)
@@ -186,16 +172,20 @@ impl TVarSubst {
         match src.kind().clone() {
             ty::TyKind::Param(pty) => self.insert(&pty, dst),
             ty::TyKind::Adt(_, src_subst) => {
-                if let BaseTy::Adt(_, dst_subst) = Self::base_ty(dst) {
-                    debug_assert_eq!(src_subst.len(), dst_subst.len());
-                    iter::zip(src_subst, &dst_subst)
-                        .for_each(|(src_arg, dst_arg)| self.infer_from_arg(&src_arg, dst_arg));
-                } else {
-                    bug!("unexpected base_ty")
-                }
+                if let Some(dst) = dst.as_bty_skipping_existentials() &&
+                   !dst.has_escaping_bvars() &&
+                   let BaseTy::Adt(_, dst_subst) = dst.clone()
+                   {
+                        debug_assert_eq!(src_subst.len(), dst_subst.len());
+                        iter::zip(src_subst, &dst_subst)
+                            .for_each(|(src_arg, dst_arg)| self.infer_from_arg(&src_arg, dst_arg));
+                   } else {
+                        bug!("unexpected base_ty")
+                   }
+
             }
             ty::TyKind::Array(src, _) => {
-                if let BaseTy::Array(dst, _) = Self::base_ty(dst) {
+                if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
                     self.infer_from_ty(&src, &dst)
                 } else {
                     bug!("unexpected base_ty")
@@ -203,14 +193,14 @@ impl TVarSubst {
             }
 
             ty::TyKind::Slice(src) => {
-                if let BaseTy::Slice(dst) = Self::base_ty(dst) {
+                if let Some(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
                     self.infer_from_ty(&src, &dst)
                 } else {
                     bug!("unexpected base_ty")
                 }
             }
             ty::TyKind::Tuple(src_tys) => {
-                if let BaseTy::Tuple(dst_tys) = Self::base_ty(dst) {
+                if let Some(BaseTy::Tuple(dst_tys)) = dst.as_bty_skipping_existentials() {
                     debug_assert_eq!(src_tys.len(), dst_tys.len());
                     iter::zip(src_tys.iter(), dst_tys.iter())
                         .for_each(|(src, dst)| self.infer_from_ty(&src, dst))
@@ -231,11 +221,14 @@ fn get_impl_source<'tcx>(
 ) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
     // 1a. build up the `Obligation` query
     let trait_def_id = genv.tcx.parent(elem);
-    let predicate = TraitPredicate {
-        trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
-        constness: rustc_middle::ty::BoundConstness::NotConst,
-        polarity: rustc_middle::ty::ImplPolarity::Positive,
-    };
+    let trait_ref = TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]);
+    let predicate = trait_ref.to_predicate(genv.tcx);
+
+    // let predicate = TraitPredicate {
+    //     trait_ref: TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]),
+    //     constness: rustc_middle::ty::BoundConstness::NotConst,
+    //     polarity: rustc_middle::ty::ImplPolarity::Positive,
+    // };
     let oblig = Obligation {
         cause: ObligationCause::dummy(), // TODO(RJ): use with_span instead of `dummy`
         param_env: genv.tcx.param_env(callsite_def_id),
@@ -256,6 +249,7 @@ fn get_impl_source<'tcx>(
     impl_source
 }
 
+/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
 

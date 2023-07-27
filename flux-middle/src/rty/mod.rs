@@ -108,10 +108,6 @@ impl ProjectionPredicate {
     pub fn elem(&self) -> DefId {
         self.projection_ty.def_id
     }
-
-    pub fn term_rty(&self) -> Ty {
-        self.term.clone()
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
