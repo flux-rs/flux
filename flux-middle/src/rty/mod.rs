@@ -304,9 +304,10 @@ pub struct AliasTy {
     pub def_id: DefId,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum AliasKind {
     Projection,
+    Opaque,
 }
 
 pub type GenericArgs = List<GenericArg>;
@@ -1091,8 +1092,12 @@ impl BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
+    pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(kind, alias_ty)
+    }
+
     pub fn projection(alias_ty: AliasTy) -> BaseTy {
-        BaseTy::Alias(AliasKind::Projection, alias_ty)
+        Self::alias(AliasKind::Projection, alias_ty)
     }
 
     pub fn slice(ty: Ty) -> BaseTy {
@@ -1597,6 +1602,16 @@ mod pretty {
         }
     }
 
+    impl Pretty for AliasKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                AliasKind::Projection => w!("Projection"),
+                AliasKind::Opaque => w!("Opaque"),
+            }
+        }
+    }
+
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1617,17 +1632,6 @@ mod pretty {
                     }
                     Ok(())
                 }
-                // BaseTy::Projection(did, substs) => {
-                //     w!("{:?}", did)?;
-                //     let substs = substs
-                //         .iter()
-                //         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                //         .collect_vec();
-                //     if !substs.is_empty() {
-                //         w!("<{:?}>", join!(", ", substs))?;
-                //     }
-                //     Ok(())
-                // }
                 BaseTy::Param(param) => w!("{}", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
@@ -1656,28 +1660,19 @@ mod pretty {
                     }
                     Ok(())
                 }
-                BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                BaseTy::Alias(kind, alias_ty) => {
                     let assoc_name = cx.tcx.item_name(alias_ty.def_id);
                     let trait_ref = cx.tcx.parent(alias_ty.def_id);
-                    // let alias_ty_subst = alias_ty.substs[0]
-                    // let substs = alias_ty
-                    //     .substs
-                    //     .iter()
-                    //     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                    //     .collect_vec();
                     if !alias_ty.args.is_empty() {
                         w!(
-                            "<{:?} as {:?}>::{}",
+                            "({:?})<{:?} as {:?}>::{}",
+                            kind,
                             &alias_ty.args[0],
                             trait_ref,
                             ^assoc_name
                         )
                     } else {
-                        w!(
-                            "<??? as {:?}>::{}",
-                            trait_ref,
-                            ^assoc_name
-                        )
+                        w!("Alias({:?}, {:?})", kind, alias_ty.def_id)
                     }
                 }
             }

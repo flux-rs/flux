@@ -34,6 +34,7 @@ use crate::{
 
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
+    def_id: DefId,
     kvar_gen: Box<dyn KVarGen + 'a>,
     rvid_gen: &'a IndexGen<RegionVid>,
     span: Span,
@@ -51,6 +52,7 @@ pub trait KVarGen {
 
 struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
+    def_id: DefId,
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
     rvid_gen: &'a IndexGen<RegionVid>,
@@ -92,6 +94,7 @@ pub enum ConstrReason {
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         kvar_gen: G,
         rvid_gen: &'a IndexGen<RegionVid>,
         span: Span,
@@ -99,7 +102,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, def_id, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
     }
 
     pub(crate) fn check_pred(
@@ -263,9 +266,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        def_id: DefId,
         output: &Binder<FnOutput>,
     ) -> Result<(), CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
+
+        let output = rty::projections::normalize(self.genv, def_id, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -354,6 +360,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
         InferCtxt::new(
             self.genv,
+            self.def_id,
             rcx,
             &mut self.kvar_gen,
             self.rvid_gen,
@@ -365,6 +372,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
         rvid_gen: &'a IndexGen<RegionVid>,
@@ -373,7 +381,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen, evar_gen, rvid_gen, tag, scopes }
+        Self { genv, def_id, kvar_gen, evar_gen, rvid_gen, tag, scopes }
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -539,10 +547,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     self.subtyping(rcx, ty1, ty2);
                 }
             }
+            (_, BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                // TODO: use alias_ty.args
+                self.opaque_subtyping(rcx, bty1, alias_ty.def_id);
+            }
             _ => {
-                tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
+                panic!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
         }
+    }
+
+    fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, bty: &BaseTy, opaque_def_id: DefId) {
+        let callsite_def_id = self.def_id;
+        panic!("TODO: normalize-opaque {callsite_def_id:?} |- {bty:?} <: Opaque {opaque_def_id:?}")
+
+        //let opaque_ty = self.genv.opaque_ty(opaque_item_def_id);
+        //let opaque_ty = opaque_ty.replace_holes(|sort| rcx.define_vars(sort));
+        // self.subtyping(rcx, bty, &opaque_ty);
     }
 
     fn generic_arg_subtyping(

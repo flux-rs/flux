@@ -173,6 +173,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             _ => Ok(rty::Ty::exists(ty)),
         }
     }
+    fn refine_alias_kind(kind: &rustc::ty::AliasKind) -> rty::AliasKind {
+        match kind {
+            rustc::ty::AliasKind::Projection => rty::AliasKind::Projection,
+            rustc::ty::AliasKind::Opaque => rty::AliasKind::Opaque,
+        }
+    }
 
     fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
@@ -217,11 +223,14 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     .try_collect_vec()?;
                 rty::BaseTy::adt(adt_def, substs)
             }
-            rustc::ty::TyKind::Alias(rustc::ty::AliasKind::Projection, alias_ty) => {
+            rustc::ty::TyKind::Alias(kind, alias_ty) => {
+                let kind = Self::refine_alias_kind(kind);
                 let alias_ty = self.refine_alias_ty(alias_ty)?;
-                rty::BaseTy::projection(alias_ty)
-
+                rty::BaseTy::alias(kind, alias_ty)
             }
+
+
+
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),

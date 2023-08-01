@@ -72,6 +72,7 @@ pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         span: Span,
@@ -158,7 +159,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
             .fn_sig(def_id)
             .with_span(genv.tcx.def_span(def_id))?
             .instantiate_identity();
-
+        println!("TRACE: run_in_refine_mode {def_id:?} {fn_sig:?}");
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
@@ -376,8 +377,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 self.mode
-                    .constr_gen(self.genv, &self.rvid_gen, rcx, span)
-                    .check_ret(rcx, env, &self.output)
+                    .constr_gen(self.genv, self.def_id, &self.rvid_gen, rcx, span)
+                    .check_ret(rcx, env, self.def_id, &self.output)
                     .with_span(span)?;
                 Ok(vec![])
             }
@@ -397,7 +398,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .genv
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
-                // println!("TRACE: check_terminator 1: {func_id:?} call_substs: {call_substs:?}");
 
                 let fn_generics = self
                     .genv
@@ -660,8 +660,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let location = self.body.terminator_loc(target);
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             self.mode
-                .constr_gen(self.genv, &self.rvid_gen, &rcx, span)
-                .check_ret(&mut rcx, &mut env, &self.output)
+                .constr_gen(self.genv, self.def_id, &self.rvid_gen, &rcx, span)
+                .check_ret(&mut rcx, &mut env, self.def_id, &self.output)
                 .with_span(span)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, rcx, env, span, target)? {
@@ -975,7 +975,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.mode.constr_gen(self.genv, &self.rvid_gen, rcx, span)
+        self.mode
+            .constr_gen(self.genv, self.def_id, &self.rvid_gen, rcx, span)
     }
 
     #[track_caller]
@@ -1059,11 +1060,12 @@ impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, |_: &[_], _| Expr::hole(), rvid_gen, span)
+        ConstrGen::new(genv, def_id, |_: &[_], _| Expr::hole(), rvid_gen, span)
     }
 
     fn enter_basic_block<'a>(
@@ -1114,6 +1116,7 @@ impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         span: Span,
@@ -1121,6 +1124,7 @@ impl Mode for RefineMode {
         let scope = rcx.scope();
         ConstrGen::new(
             genv,
+            def_id,
             move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
             rvid_gen,
             span,
@@ -1149,6 +1153,7 @@ impl Mode for RefineMode {
 
         let gen = &mut ConstrGen::new(
             ck.genv,
+            ck.def_id,
             |sorts: &[_], encoding| {
                 ck.mode
                     .kvars

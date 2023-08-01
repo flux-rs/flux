@@ -464,6 +464,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
                 self.conv_ty(env, ty)
             }
+            fhir::TyKind::OpaqueDef(item_id, args, _in_trait) => {
+                let def_id = item_id.owner_id.to_def_id();
+                let args = self.conv_generic_args(env, def_id, args)?;
+                let alias_ty = rty::AliasTy::new(def_id, args);
+                let bty = rty::BaseTy::alias(rty::AliasKind::Opaque, alias_ty);
+                Ok(rty::Ty::indexed(bty, rty::Expr::unit()))
+            }
         }
     }
 

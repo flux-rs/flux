@@ -296,6 +296,7 @@ impl<'tcx> Queries<'tcx> {
                 let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
                 let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_poly_fn_sig(&fn_sig)?;
+                println!("TRACE: fn_sig {def_id:?} {fn_sig:?}");
                 Ok(rty::EarlyBinder(fn_sig))
             }
         })

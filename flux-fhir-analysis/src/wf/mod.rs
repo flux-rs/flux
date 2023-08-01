@@ -306,8 +306,25 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)
             }
+            fhir::TyKind::OpaqueDef(_item_id, args, _) => {
+                // TODO: self.check_item_id(infcx, *item_id)?;
+                args.iter()
+                    .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
+            }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
+        }
+    }
+
+    fn check_generic_arg(
+        &mut self,
+        env: &mut InferCtxt,
+        arg: &fhir::GenericArg,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let fhir::GenericArg::Type(ty) = arg {
+            self.check_type(env, ty)
+        } else {
+            Ok(())
         }
     }
 
@@ -353,13 +370,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::AssocTy(_) => {}
         }
         let snapshot = self.xi.snapshot();
-        let res = path.generics.iter().try_for_each_exhaust(|arg| {
-            if let fhir::GenericArg::Type(ty) = arg {
-                self.check_type(env, ty)
-            } else {
-                Ok(())
-            }
-        });
+        let res = path
+            .generics
+            .iter()
+            .try_for_each_exhaust(|arg| self.check_generic_arg(env, arg));
         if !self.early_cx.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }

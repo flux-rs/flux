@@ -30,7 +30,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
-    OwnerId,
+    ItemId, OwnerId,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -249,6 +249,7 @@ pub enum TyKind {
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
+    OpaqueDef(ItemId, Vec<GenericArg>, bool),
     Never,
     Hole,
 }
@@ -1259,6 +1260,7 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
+            TyKind::OpaqueDef(_, _, _) => write!(f, "impl trait"),
         }
     }
 }

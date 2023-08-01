@@ -20,9 +20,9 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Clause,
-        ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, PolyFnSig, Ty, VariantDef,
+        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
+        Clause, ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef,
+        GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, Ty, VariantDef,
     },
 };
 use crate::{
@@ -633,11 +633,21 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_closure(*did, substs))
         }
 
-        rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
+        rustc_ty::Alias(kind, alias_ty) => {
+            let kind = lower_alias_kind(kind)?;
             let substs = lower_generic_args(tcx, alias_ty.args)?;
-            Ok(Ty::mk_projection(alias_ty.def_id, substs))
+            Ok(Ty::mk_alias(kind, alias_ty.def_id, substs))
         }
+
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
+    }
+}
+
+fn lower_alias_kind(kind: &rustc_ty::AliasKind) -> Result<AliasKind, UnsupportedReason> {
+    match kind {
+        rustc_type_ir::AliasKind::Projection => Ok(AliasKind::Projection),
+        rustc_type_ir::AliasKind::Opaque => Ok(AliasKind::Opaque),
+        _ => Err(UnsupportedReason::new(format!("unsupported alias kind `{kind:?}`"))),
     }
 }
 
@@ -845,6 +855,7 @@ mod errors {
             local_decl: &rustc_mir::LocalDecl<'tcx>,
             _err: UnsupportedReason,
         ) -> Self {
+            println!("TRACE: unsupported local_decl {local_decl:?} {_err:?}");
             Self { span: local_decl.source_info.span, ty: local_decl.ty }
         }
     }

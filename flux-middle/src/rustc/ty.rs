@@ -151,9 +151,10 @@ pub struct AliasTy {
     pub def_id: DefId,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum AliasKind {
     Projection,
+    Opaque,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -395,9 +396,9 @@ impl Ty {
         TyKind::Closure(def_id, substs.into()).intern()
     }
 
-    pub fn mk_projection(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
+    pub fn mk_alias(kind: AliasKind, def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
         let alias_ty = AliasTy { substs: substs.into(), def_id };
-        TyKind::Alias(AliasKind::Projection, alias_ty).intern()
+        TyKind::Alias(kind, alias_ty).intern()
     }
 
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
@@ -532,6 +533,7 @@ impl fmt::Debug for AliasKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AliasKind::Projection => write!(f, "Projection"),
+            AliasKind::Opaque => write!(f, "Opaque"),
         }
     }
 }

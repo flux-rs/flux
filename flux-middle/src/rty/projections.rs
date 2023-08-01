@@ -56,7 +56,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         Some(normalize_with_impl(self.genv, param_env, alias_ty))
     }
 
-    fn normalize(&self, alias_ty: &AliasTy) -> Ty {
+    fn normalize_projection(&self, alias_ty: &AliasTy) -> Ty {
         self.normalize_with_preds(alias_ty)
             .or_else(|| self.normalize_with_impl(alias_ty))
             .unwrap_or_else(|| {
@@ -309,7 +309,7 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
                 // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
-                self.normalize(alias_ty)
+                self.normalize_projection(alias_ty)
             }
             _ => ty.super_fold_with(self),
         }

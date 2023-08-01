@@ -235,6 +235,20 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::Ptr(mut_ty) => {
                 fhir::TyKind::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
             }
+            hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
+                let args = self.lift_generic_args(args)?;
+                fhir::TyKind::OpaqueDef(*item_id, args, *in_trait_def)
+                // let def_id = item_id.owner_id.to_def_id();
+                // let _ty = self.tcx.type_of(def_id);
+                // let item = self.tcx.hir().expect_item(item_id.owner_id.def_id);
+                // if let hir::ItemKind::OpaqueTy(opaque_ty) = item.kind {
+                //     for bound in opaque_ty.bounds {
+                //         println!("TRACE: opaqueDef {item_id:?} bound = {bound:?}");
+                //     }
+                //     // println!("TRACE: opaqueDef {item_id:?} ty = {ty:?}");
+                // }
+                // panic!("yikes")
+            }
             _ => {
                 return self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
@@ -297,9 +311,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 ));
             }
         };
+        let generics = match path.segments.last().unwrap().args {
+            Some(args) => self.lift_generic_args(args.args)?,
+            None => vec![],
+        };
+
         let path = fhir::Path {
             res,
-            generics: self.lift_generic_args(path.segments.last().unwrap().args)?,
+            generics, // : self.lift_generic_args(path.segments.last().unwrap().args)?,
             refine: vec![],
             span: path.span,
         };
@@ -323,29 +342,30 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn lift_generic_args(
         &self,
-        args: Option<&hir::GenericArgs>,
+        // args: Option<&hir::GenericArgs>,
+        args: &[hir::GenericArg<'_>],
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut lifted = vec![];
-        if let Some(args) = args {
-            for arg in args.args {
-                match arg {
-                    hir::GenericArg::Lifetime(lft) => {
-                        let lft = self.lift_lifetime(lft)?;
-                        lifted.push(fhir::GenericArg::Lifetime(lft));
-                    }
-                    hir::GenericArg::Type(ty) => {
-                        let ty = self.lift_ty(ty)?;
-                        lifted.push(fhir::GenericArg::Type(ty));
-                    }
-                    hir::GenericArg::Const(_) => {
-                        return self.emit_unsupported("const generics are not supported")
-                    }
-                    hir::GenericArg::Infer(_) => {
-                        bug!("unexpected inference generic argument");
-                    }
+        // if let Some(args) = args {
+        for arg in args {
+            match arg {
+                hir::GenericArg::Lifetime(lft) => {
+                    let lft = self.lift_lifetime(lft)?;
+                    lifted.push(fhir::GenericArg::Lifetime(lft));
+                }
+                hir::GenericArg::Type(ty) => {
+                    let ty = self.lift_ty(ty)?;
+                    lifted.push(fhir::GenericArg::Type(ty));
+                }
+                hir::GenericArg::Const(_) => {
+                    return self.emit_unsupported("const generics are not supported")
+                }
+                hir::GenericArg::Infer(_) => {
+                    bug!("unexpected inference generic argument");
                 }
             }
         }
+        //}
         Ok(lifted)
     }
 

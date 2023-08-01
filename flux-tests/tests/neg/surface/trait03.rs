@@ -11,9 +11,9 @@ pub fn assert(_b: bool) {}
 #[flux::sig(fn(it: IntoIter<i32{v: 5 <= v}>))]
 pub fn goo<I>(it: IntoIter<i32>) {
     for x in it {
-        assert(0 <= x); // OK
-        assert(1 <= x); // OK
-        assert(5 <= x); // OK
+        assert(0 <= x);
+        assert(1 <= x);
+        assert(5 <= x); // would fail without scrape
         assert(6 <= x); //~ ERROR refinement type
     }
 }
