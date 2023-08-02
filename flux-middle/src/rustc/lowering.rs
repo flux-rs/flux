@@ -855,7 +855,6 @@ mod errors {
             local_decl: &rustc_mir::LocalDecl<'tcx>,
             _err: UnsupportedReason,
         ) -> Self {
-            println!("TRACE: unsupported local_decl {local_decl:?} {_err:?}");
             Self { span: local_decl.source_info.span, ty: local_decl.ty }
         }
     }

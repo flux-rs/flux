@@ -557,13 +557,35 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, bty: &BaseTy, opaque_def_id: DefId) {
-        let callsite_def_id = self.def_id;
-        panic!("TODO: normalize-opaque {callsite_def_id:?} |- {bty:?} <: Opaque {opaque_def_id:?}")
+    fn opaque_predicates(&mut self, opaque_def_id: DefId) -> Vec<rty::OpaquePredicate> {
+        todo!("HEREHEREHEREHEREHERE: get opaque predicates from {opaque_def_id:?}")
+        // let def_id = item_id.owner_id.to_def_id();
+        // let _ty = self.tcx.type_of(def_id);
+        // let item = self.tcx.hir().expect_item(item_id.owner_id.def_id);
+        // if let hir::ItemKind::OpaqueTy(opaque_ty) = item.kind {
+        //     for bound in opaque_ty.bounds {
+        //         println!("TRACE: opaqueDef {item_id:?} bound = {bound:?}");
+        //     }
+        //     // println!("TRACE: opaqueDef {item_id:?} ty = {ty:?}");
+        // }
+        // panic!("yikes")
+    }
 
-        //let opaque_ty = self.genv.opaque_ty(opaque_item_def_id);
-        //let opaque_ty = opaque_ty.replace_holes(|sort| rcx.define_vars(sort));
-        // self.subtyping(rcx, bty, &opaque_ty);
+    fn project_bty(&mut self, bty: &BaseTy, def_id: DefId) -> Ty {
+        let args = vec![GenericArg::Ty(refine_default(bty.clone()).skip_binder())];
+        let alias_ty = rty::AliasTy::new(def_id, args);
+        let proj_ty = refine_default(BaseTy::projection(alias_ty));
+        rty::projections::normalize(self.genv, self.def_id, &proj_ty)
+            .unwrap()
+            .skip_binder()
+    }
+
+    fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, bty: &BaseTy, opaque_def_id: DefId) {
+        for pred in self.opaque_predicates(opaque_def_id) {
+            let ty1 = self.project_bty(bty, pred.def_id);
+            let ty2 = pred.term;
+            self.subtyping(rcx, &ty1, &ty2);
+        }
     }
 
     fn generic_arg_subtyping(

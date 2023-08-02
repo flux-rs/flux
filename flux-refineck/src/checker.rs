@@ -159,7 +159,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
             .fn_sig(def_id)
             .with_span(genv.tcx.def_span(def_id))?
             .instantiate_identity();
-        println!("TRACE: run_in_refine_mode {def_id:?} {fn_sig:?}");
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);

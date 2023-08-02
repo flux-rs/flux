@@ -238,16 +238,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
                 let args = self.lift_generic_args(args)?;
                 fhir::TyKind::OpaqueDef(*item_id, args, *in_trait_def)
-                // let def_id = item_id.owner_id.to_def_id();
-                // let _ty = self.tcx.type_of(def_id);
-                // let item = self.tcx.hir().expect_item(item_id.owner_id.def_id);
-                // if let hir::ItemKind::OpaqueTy(opaque_ty) = item.kind {
-                //     for bound in opaque_ty.bounds {
-                //         println!("TRACE: opaqueDef {item_id:?} bound = {bound:?}");
-                //     }
-                //     // println!("TRACE: opaqueDef {item_id:?} ty = {ty:?}");
-                // }
-                // panic!("yikes")
             }
             _ => {
                 return self.emit_unsupported(&format!(

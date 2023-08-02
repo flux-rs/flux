@@ -96,6 +96,18 @@ pub struct ProjectionPredicate {
     pub term: Ty,
 }
 
+/// An `OpaquePredicate` is like a `ProjectionPredicate` that
+/// where the alias_type.args is unknown and will be filled in
+/// by the concrete type that implements the trait/predicate.
+/// e.g. given `impl Trait<item=T>` we will have
+///     OpaquePredicate { def_id: Trait::item, term: T }
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct OpaquePredicate {
+    pub def_id: DefId,
+    pub term: Ty,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct FnTraitPredicate {
     pub self_ty: Ty,
@@ -1082,8 +1094,8 @@ impl TyS {
 }
 
 impl AliasTy {
-    pub fn new(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Self {
-        AliasTy { def_id, args: substs.into() }
+    pub fn new(def_id: DefId, args: impl Into<List<GenericArg>>) -> Self {
+        AliasTy { def_id, args: args.into() }
     }
 }
 
