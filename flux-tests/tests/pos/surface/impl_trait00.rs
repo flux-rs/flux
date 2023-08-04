@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn () -> impl Iterator<Item = i32{v:0<=v}>)]
+#[flux::sig(fn () -> impl Iterator<Item = i32{v:1000<=v}>)]
 pub fn foo() -> impl Iterator<Item = i32> {
     Some(10).into_iter()
 }

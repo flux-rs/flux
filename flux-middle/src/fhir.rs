@@ -91,6 +91,8 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
+pub type ItemBounds = FxHashMap<LocalDefId, GenericPredicates>;
+
 #[derive(Debug, Clone)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
@@ -121,7 +123,7 @@ pub struct AliasTy {
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
     predicates: FxHashMap<LocalDefId, GenericPredicates>,
-    item_bounds: FxHashMap<LocalDefId, GenericPredicates>,
+    item_bounds: ItemBounds, // FxHashMap<LocalDefId, GenericPredicates>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,

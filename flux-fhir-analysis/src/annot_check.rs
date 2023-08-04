@@ -214,6 +214,28 @@ impl<'zip> Zipper<'zip> {
                     .insert(ty.fhir_id, expected_ty.clone());
                 Ok(())
             }
+            (
+                fhir::TyKind::OpaqueDef(item_id, args, _),
+                fhir::TyKind::OpaqueDef(exp_item_id, exp_args, _),
+            ) => {
+                if item_id != exp_item_id {
+                    return Err(self.emit_err(
+                        errors::InvalidRefinement::from_tys(ty, expected_ty)
+                            .with_note("impl trait: types differ in impl id!"),
+                    ));
+                }
+                if args.len() != exp_args.len() {
+                    return Err(self.emit_err(
+                        errors::InvalidRefinement::from_tys(ty, expected_ty)
+                            .with_note("impl trait: types differ in number of args!"),
+                    ));
+                }
+                for (arg, exp_arg) in args.iter().zip(exp_args) {
+                    self.zip_generic_arg(arg, exp_arg)?;
+                }
+                Ok(())
+            }
+
             _ => Err(self.emit_err(errors::InvalidRefinement::from_tys(ty, expected_ty))),
         }
     }

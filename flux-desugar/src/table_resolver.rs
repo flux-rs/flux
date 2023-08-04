@@ -2,7 +2,7 @@ use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
 use flux_syntax::surface::{self, BaseTy, BaseTyKind, Bounds, Ident, Path, Ty};
-use hir::{ItemKind, PathSegment};
+use hir::{ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -340,8 +340,10 @@ impl<'sess> NameResTable<'sess> {
                 }
             }
             ItemKind::Fn(fn_sig, generics, ..) => {
+                println!("TRACE: collect_from_fn_sig {fn_sig:?}");
                 table.collect_from_fn_sig(fn_sig)?;
                 table.collect_from_generics(generics)?;
+                table.collect_from_opaque_impls(tcx)?;
             }
             _ => {}
         }
@@ -372,6 +374,7 @@ impl<'sess> NameResTable<'sess> {
         match &impl_item.kind {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
+                table.collect_from_opaque_impls(tcx)?;
             }
             rustc_hir::ImplItemKind::Const(_, _) | rustc_hir::ImplItemKind::Type(_) => {}
         }
@@ -403,11 +406,18 @@ impl<'sess> NameResTable<'sess> {
     ) -> Result<(), ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = clause {
             self.collect_from_ty(bound.bounded_ty)?;
-            bound
-                .bounds
-                .iter()
-                .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
+            self.collect_from_generic_bounds(bound.bounds)?;
         }
+        Ok(())
+    }
+
+    fn collect_from_generic_bounds(
+        &mut self,
+        bounds: &[hir::GenericBound<'_>],
+    ) -> Result<(), ErrorGuaranteed> {
+        bounds
+            .iter()
+            .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
         Ok(())
     }
 
@@ -421,6 +431,24 @@ impl<'sess> NameResTable<'sess> {
             }
             _ => Ok(()),
         }
+    }
+
+    fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
+        if let Some((did, _arity)) = self.opaque {
+            // let _generics = tcx.hir().get_generics(did);
+            // let item_id = tcx.hir().local_def_id_to_hir_id(did);
+            let owner_id = OwnerId { def_id: did };
+            let item_id = hir::ItemId { owner_id };
+            if let ItemKind::OpaqueTy(opaque_ty) = tcx.hir().item(item_id).kind {
+                self.collect_from_generic_bounds(&opaque_ty.bounds)?;
+                // let bounds = opaque_ty.bounds;
+                // println!("TRACE:collect_from_opaque_impls {bounds:?} {arity:?}");
+            }
+
+            // println!("TRACE:collect_from_opqaue_impls {generics:?} {arity:?}");
+            // tcx.hir().foo();
+        }
+        Ok(())
     }
 
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -470,9 +498,12 @@ impl<'sess> NameResTable<'sess> {
                 };
                 self.collect_from_path(path)
             }
+            hir::TyKind::OpaqueDef(item_id, args, _) => {
+                self.opaque = Some((item_id.owner_id.def_id, args.len()));
+                Ok(())
+            }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
-            | hir::TyKind::OpaqueDef(..)
             | hir::TyKind::TraitObject(..)
             | hir::TyKind::Typeof(_)
             | hir::TyKind::Infer
