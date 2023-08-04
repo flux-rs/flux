@@ -217,12 +217,11 @@ impl<'tcx> Queries<'tcx> {
 
             if !genv.tcx.is_closure(def_id) && // TODO(RJ) Hack to avoid check_wf_rust_item on closure
                let Some(local_id) = def_id.as_local() &&
-               let Some(predicates) = (self.providers.predicates_of)(genv, local_id)? {
+               let Some(predicates) = (self.providers.item_bounds)(genv, local_id)? {
                 Ok(predicates)
             } else {
                 let clauses = genv.tcx.item_bounds(def_id).skip_binder().iter().map(|clause| (clause.clone(), span)).collect_vec();
 
-                // let predicates = rustc_middle::ty::GenericPredicates { parent: None, predicates: &clauses[..]};
                 // FIXME(nilehmann) we should propagate this error through the query
                 let predicates =
                     lowering::lower_generic_predicates_clauses(genv.tcx, genv.sess, None, &clauses)

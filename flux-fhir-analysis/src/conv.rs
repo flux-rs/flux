@@ -109,6 +109,7 @@ fn conv_projection_predicate(
     proj: &fhir::ProjectionPredicate,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::ProjectionPredicate> {
+    println!("TRACE: conv_projection_predicate {proj:?} {:?}", wfckresults.owner);
     let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
     let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
     Ok(rty::ProjectionPredicate { term: ty, alias_ty: projection_ty })

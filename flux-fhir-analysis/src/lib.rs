@@ -274,7 +274,11 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
             Ok(wfckresults)
         }
         DefKind::OpaqueTy => {
-            Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Rust(OwnerId { def_id })))
+            let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
+            let owner = genv.hir().get_parent_item(hir_id);
+            println!("TRACE: WFCHECK {owner:?}");
+            // Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Rust(OwnerId { def_id })))
+            Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Rust(owner)))
         }
         kind => panic!("unexpected def kind `{kind:?}`"),
     }
