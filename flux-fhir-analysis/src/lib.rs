@@ -53,6 +53,7 @@ pub fn provide(providers: &mut Providers) {
         fn_sig,
         generics_of,
         predicates_of,
+        item_bounds,
     };
 }
 
@@ -127,6 +128,18 @@ fn predicates_of(
     }
 }
 
+fn item_bounds(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
+    let wfckresults = genv.check_wf(local_id)?;
+    if let Some(predicates) = genv.map().get_item_bounds(local_id) {
+        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
+    } else {
+        Ok(None)
+    }
+}
+
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
@@ -134,7 +147,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
     let generics = genv.map().get_generics(local_id).unwrap_or_else(|| {
         genv.map()
             .get_generics(genv.tcx.local_parent(local_id))
-            .unwrap()
+            .unwrap_or_else(|| panic!("no generics for {:?}", def_id))
     });
     Ok(conv::conv_generics(&rustc_generics, generics))
 }
@@ -259,6 +272,9 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
             let mut wfckresults = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
             Ok(wfckresults)
+        }
+        DefKind::OpaqueTy => {
+            Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Rust(OwnerId { def_id })))
         }
         kind => panic!("unexpected def kind `{kind:?}`"),
     }

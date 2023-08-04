@@ -12,6 +12,7 @@ use rustc_middle::{
     mir as rustc_mir,
     ty::{self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamEnv, TyCtxt},
 };
+use rustc_span::Span;
 
 use super::{
     mir::{
@@ -832,6 +833,87 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
     Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
+}
+
+#[allow(clippy::mutable_key_type)] // False positive `List` is not mutable
+pub(crate) fn lower_generic_predicates_clauses<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    sess: &FluxSession,
+    parent: Option<DefId>,
+    generic_predicates: &[(rustc_ty::Clause<'tcx>, Span)],
+) -> Result<GenericPredicates, ErrorGuaranteed> {
+    let mut fn_trait_refs = FxHashMap::default();
+    let mut fn_output_proj = FxHashMap::default();
+    let mut predicates = vec![];
+
+    for (predicate, span) in generic_predicates {
+        let bound_vars = predicate.kind().bound_vars();
+        let kind = predicate.kind().skip_binder();
+
+        match kind {
+            rustc_ty::ClauseKind::Trait(trait_pred) => {
+                let trait_ref = trait_pred.trait_ref;
+                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
+                if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
+                    match fn_trait_refs.entry(substs) {
+                        hash_map::Entry::Occupied(_) => todo!(),
+                        hash_map::Entry::Vacant(entry) => {
+                            entry.insert((closure_kind, *span));
+                        }
+                    }
+                }
+            }
+            rustc_ty::ClauseKind::Projection(proj_pred) => {
+                let proj_ty = proj_pred.projection_ty;
+                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
+                if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
+                    match fn_output_proj.entry(substs) {
+                        hash_map::Entry::Occupied(_) => todo!(),
+                        hash_map::Entry::Vacant(entry) => {
+                            entry.insert(proj_pred.term.ty().unwrap());
+                        }
+                    };
+                } else if let Some(ty) = proj_pred.term.ty() &&
+                          let Some(substs) = substs.no_bound_vars(){
+                    let substs = lower_generic_args(tcx, substs)
+                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
+                        .emit(sess)?;
+
+                    let projection_ty = AliasTy { substs, def_id: proj_ty.def_id };
+                    let term = lower_ty(tcx, ty)
+                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
+                        .emit(sess)?;
+                    let kind = ClauseKind::Projection(ProjectionPredicate { projection_ty, term });
+                    predicates.push(Clause::new(Binder::bind_with_vars(kind, List::empty())));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for (substs, (kind, span)) in fn_trait_refs {
+        let output = fn_output_proj.get(&substs).unwrap();
+
+        let vars = substs.bound_vars();
+        let substs = substs.skip_binder().into_type_list(tcx);
+        let bounded_ty = lower_ty(tcx, substs[0])
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+        let tupled_args = lower_ty(tcx, substs[1])
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+        let output = lower_ty(tcx, *output)
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+
+        let vars = lower_bound_vars(vars)
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+
+        let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
+        predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
+    }
+    Ok(GenericPredicates { parent, predicates: List::from_vec(predicates) })
 }
 
 mod errors {

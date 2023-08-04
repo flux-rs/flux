@@ -121,6 +121,7 @@ pub struct AliasTy {
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
     predicates: FxHashMap<LocalDefId, GenericPredicates>,
+    item_bounds: FxHashMap<LocalDefId, GenericPredicates>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,
@@ -410,6 +411,7 @@ pub enum Res {
     Param(DefId),
     AssocTy(DefId),
     Trait(DefId),
+    OpaqueTy(DefId),
 }
 
 #[derive(Debug, Clone)]
@@ -602,6 +604,7 @@ impl Res {
             Res::Param(_) => "type parameter",
             Res::AssocTy(_) => "associated type",
             Res::Trait(_) => "trait",
+            Res::OpaqueTy(_) => "opaque type",
         }
     }
 }
@@ -851,6 +854,9 @@ impl Map {
     pub fn insert_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
         self.predicates.insert(def_id, predicates);
     }
+    pub fn insert_item_bounds(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
+        self.item_bounds.insert(def_id, predicates);
+    }
 
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
         self.generics.get(&def_id)
@@ -858,6 +864,10 @@ impl Map {
 
     pub fn get_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
         self.predicates.get(&def_id)
+    }
+
+    pub fn get_item_bounds(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
+        self.item_bounds.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -1316,7 +1326,8 @@ impl fmt::Debug for Path {
             | Res::Enum(def_id)
             | Res::Param(def_id)
             | Res::AssocTy(def_id)
-            | Res::Trait(def_id) => {
+            | Res::Trait(def_id)
+            | Res::OpaqueTy(def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
         }

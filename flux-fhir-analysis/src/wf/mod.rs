@@ -367,7 +367,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::PrimTy(..)
             | fhir::Res::Param(_)
             | fhir::Res::Trait(_)
-            | fhir::Res::AssocTy(_) => {}
+            | fhir::Res::AssocTy(_)
+            | fhir::Res::OpaqueTy(_) => {}
         }
         let snapshot = self.xi.snapshot();
         let res = path

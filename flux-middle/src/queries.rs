@@ -53,6 +53,8 @@ pub struct Providers {
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
     pub predicates_of:
         fn(&GlobalEnv, LocalDefId) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>>,
+    pub item_bounds:
+        fn(&GlobalEnv, LocalDefId) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>>,
 }
 
 macro_rules! empty_query {
@@ -73,6 +75,7 @@ impl Default for Providers {
             fn_sig: |_, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
+            item_bounds: |_, _| empty_query!(),
         }
     }
 }
@@ -89,6 +92,7 @@ pub struct Queries<'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
+    item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
@@ -202,7 +206,34 @@ impl<'tcx> Queries<'tcx> {
             }
         })
     }
+    pub(crate) fn item_bounds(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+        span: Span,
+    ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+        run_with_cache(&self.item_bounds, def_id, || {
+            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
 
+            if !genv.tcx.is_closure(def_id) && // TODO(RJ) Hack to avoid check_wf_rust_item on closure
+               let Some(local_id) = def_id.as_local() &&
+               let Some(predicates) = (self.providers.predicates_of)(genv, local_id)? {
+                Ok(predicates)
+            } else {
+                let clauses = genv.tcx.item_bounds(def_id).skip_binder().iter().map(|clause| (clause.clone(), span)).collect_vec();
+
+                // let predicates = rustc_middle::ty::GenericPredicates { parent: None, predicates: &clauses[..]};
+                // FIXME(nilehmann) we should propagate this error through the query
+                let predicates =
+                    lowering::lower_generic_predicates_clauses(genv.tcx, genv.sess, None, &clauses)
+                        .unwrap_or_else(|_| FatalError.raise());
+
+                let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
+                    .refine_generic_predicates(&predicates)?;
+                Ok(rty::EarlyBinder(predicates))
+            }
+        })
+    }
     pub(crate) fn predicates_of(
         &self,
         genv: &GlobalEnv,

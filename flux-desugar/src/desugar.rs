@@ -569,6 +569,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
+            surface::TyKind::Opaque(_, _, _) => todo!("desugar_ty: OPAQUE"),
         };
         Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
     }
@@ -1213,6 +1214,7 @@ impl Binders {
                 self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
             surface::TyKind::Hole => Ok(()),
+            surface::TyKind::Opaque(_, _, _) => todo!("gather_params: opaque types"),
         }
     }
 

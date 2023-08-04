@@ -415,6 +415,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
+    fn span(&self) -> Span {
+        self.tag.src_span
+    }
+
     fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
@@ -557,18 +561,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn opaque_predicates(&mut self, opaque_def_id: DefId) -> Vec<rty::OpaquePredicate> {
-        todo!("HEREHEREHEREHEREHERE: get opaque predicates from {opaque_def_id:?}")
-        // let def_id = item_id.owner_id.to_def_id();
-        // let _ty = self.tcx.type_of(def_id);
-        // let item = self.tcx.hir().expect_item(item_id.owner_id.def_id);
-        // if let hir::ItemKind::OpaqueTy(opaque_ty) = item.kind {
-        //     for bound in opaque_ty.bounds {
-        //         println!("TRACE: opaqueDef {item_id:?} bound = {bound:?}");
-        //     }
-        //     // println!("TRACE: opaqueDef {item_id:?} ty = {ty:?}");
-        // }
-        // panic!("yikes")
+    fn opaque_predicates(
+        &mut self,
+        opaque_def_id: DefId,
+        span: Span,
+    ) -> Vec<rty::ProjectionPredicate> {
+        let bounds = self
+            .genv
+            .item_bounds(opaque_def_id, span)
+            .unwrap()
+            .skip_binder();
+        let mut res = vec![];
+        for pred in &bounds.predicates {
+            if let rty::ClauseKind::Projection(pred) = pred.kind().skip_binder() {
+                res.push(pred);
+            }
+        }
+        res
     }
 
     fn project_bty(&mut self, bty: &BaseTy, def_id: DefId) -> Ty {
@@ -581,8 +590,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, bty: &BaseTy, opaque_def_id: DefId) {
-        for pred in self.opaque_predicates(opaque_def_id) {
-            let ty1 = self.project_bty(bty, pred.def_id);
+        for pred in self.opaque_predicates(opaque_def_id, self.span()) {
+            let ty1 = self.project_bty(bty, pred.alias_ty.def_id);
             let ty2 = pred.term;
             self.subtyping(rcx, &ty1, &ty2);
         }

@@ -1,7 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Ty};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, Bounds, Ident, Path, Ty};
 use hir::{ItemKind, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -22,6 +22,7 @@ pub struct ResKey {
 
 struct NameResTable<'sess> {
     res: FxHashMap<ResKey, ResEntry>,
+    opaque: Option<(LocalDefId, usize)>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     sess: &'sess FluxSession,
 }
 
@@ -124,38 +125,21 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
-    // fn resolve_projection_predicate(
-    //     &self,
-    //     bound: surface::ProjectionPredicate,
-    // ) -> Result<surface::ProjectionPredicate<Res>, ErrorGuaranteed> {
-    //     let item = self.resolve_path(bound.item)?;
-    //     let term = self.resolve_ty(bound.term)?;
-    //     Ok(surface::ProjectionPredicate { item, term })
-    // }
-
-    // fn resolve_generic_bound(
-    //     &self,
-    //     bound: surface::GenericBound,
-    // ) -> Result<surface::GenericBound<Res>, ErrorGuaranteed> {
-    //     match bound {
-    //         surface::GenericBound::Projection(pred) => {
-    //             let pred = self.resolve_projection_predicate(pred)?;
-    //             Ok(surface::GenericBound::Projection(pred))
-    //         }
-    //     }
-    // }
-
     fn resolve_where_bound_predicate(
         &self,
         pred: surface::WhereBoundPredicate,
     ) -> Result<surface::WhereBoundPredicate<Res>, ErrorGuaranteed> {
         let bounded_ty = self.resolve_ty(pred.bounded_ty)?;
-        let bounds = pred
-            .bounds
+        let bounds = self.resolve_bounds(pred.bounds)?;
+        Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+    }
+
+    fn resolve_bounds(&self, bounds: surface::Bounds) -> Result<Bounds<Res>, ErrorGuaranteed> {
+        let bounds = bounds
             .into_iter()
             .map(|bound| self.resolve_path(bound))
             .try_collect_exhaust()?;
-        Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+        Ok(bounds)
     }
 
     #[allow(dead_code)]
@@ -248,8 +232,25 @@ impl<'sess> Resolver<'sess> {
                 surface::TyKind::Array(Box::new(ty), len)
             }
             surface::TyKind::Hole => surface::TyKind::Hole,
+            surface::TyKind::Opaque(_, _, bounds) => {
+                let bounds = self.resolve_bounds(bounds)?;
+                let (res, arity) = self.resolve_opaque_impl(ty.span)?;
+                let span = ty.span;
+                let args = mk_generic_args_with_hole(arity, span);
+                surface::TyKind::Opaque(res, Some(args), bounds)
+            },
         };
         Ok(surface::Ty { kind, span: ty.span })
+    }
+
+    fn resolve_opaque_impl(&self, span: Span) -> Result<(Res, usize), ErrorGuaranteed> {
+        if let Some((opaque, arity)) = self.table.opaque {
+            Ok((Res::OpaqueTy(opaque.to_def_id()), arity))
+        } else {
+            Err(self
+                .sess
+                .emit_err(errors::UnresolvedPath { span, path: "opaque type".into() }))
+        }
     }
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
@@ -301,6 +302,13 @@ impl<'sess> Resolver<'sess> {
             }
         }
     }
+}
+
+fn mk_generic_args_with_hole(arity: usize, span: Span) -> Vec<surface::GenericArg<Res>> {
+    let args = (0..arity)
+        .map(|_| surface::GenericArg::Type(surface::Ty { kind: surface::TyKind::Hole, span }))
+        .collect();
+    args
 }
 
 impl<'sess> NameResTable<'sess> {
@@ -372,7 +380,7 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
-        NameResTable { sess, res: FxHashMap::default() }
+        NameResTable { sess, opaque: None, res: FxHashMap::default() }
     }
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {
