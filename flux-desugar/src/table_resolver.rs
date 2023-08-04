@@ -340,7 +340,6 @@ impl<'sess> NameResTable<'sess> {
                 }
             }
             ItemKind::Fn(fn_sig, generics, ..) => {
-                println!("TRACE: collect_from_fn_sig {fn_sig:?}");
                 table.collect_from_fn_sig(fn_sig)?;
                 table.collect_from_generics(generics)?;
                 table.collect_from_opaque_impls(tcx)?;
@@ -435,18 +434,11 @@ impl<'sess> NameResTable<'sess> {
 
     fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
         if let Some((did, _arity)) = self.opaque {
-            // let _generics = tcx.hir().get_generics(did);
-            // let item_id = tcx.hir().local_def_id_to_hir_id(did);
             let owner_id = OwnerId { def_id: did };
             let item_id = hir::ItemId { owner_id };
             if let ItemKind::OpaqueTy(opaque_ty) = tcx.hir().item(item_id).kind {
                 self.collect_from_generic_bounds(&opaque_ty.bounds)?;
-                // let bounds = opaque_ty.bounds;
-                // println!("TRACE:collect_from_opaque_impls {bounds:?} {arity:?}");
             }
-
-            // println!("TRACE:collect_from_opqaue_impls {generics:?} {arity:?}");
-            // tcx.hir().foo();
         }
         Ok(())
     }

@@ -140,7 +140,6 @@ fn build_stage1_fhir_map(
     err = defs_with_generics(tcx)
         .try_for_each_exhaust(|owner_id| {
             let generics = fhir::lift::lift_generics(tcx, sess, owner_id)?;
-            println!("TRACE: insert_generic({:?}, {:?})", owner_id, generics);
             map.insert_generics(owner_id.def_id, generics);
             Ok(())
         })
