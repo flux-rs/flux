@@ -220,7 +220,7 @@ impl<'tcx> Queries<'tcx> {
                let Some(predicates) = (self.providers.item_bounds)(genv, local_id)? {
                 Ok(predicates)
             } else {
-                let clauses = genv.tcx.item_bounds(def_id).skip_binder().iter().map(|clause| (clause.clone(), span)).collect_vec();
+                let clauses = genv.tcx.item_bounds(def_id).skip_binder().iter().map(|clause| (clause, span)).collect_vec();
 
                 // FIXME(nilehmann) we should propagate this error through the query
                 let predicates =
@@ -229,6 +229,7 @@ impl<'tcx> Queries<'tcx> {
 
                 let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_generic_predicates(&predicates)?;
+
                 Ok(rty::EarlyBinder(predicates))
             }
         })

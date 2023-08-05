@@ -91,7 +91,7 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
-pub type ItemBounds = FxHashMap<LocalDefId, GenericPredicates>;
+pub type ItemPredicates = FxHashMap<LocalDefId, GenericPredicates>;
 
 #[derive(Debug, Clone)]
 pub struct GenericPredicates {
@@ -112,7 +112,7 @@ pub struct ProjectionPredicate {
 
 #[derive(Debug, Clone)]
 pub struct AliasTy {
-    pub substs: Ty,
+    pub args: Ty,
     pub def_id: DefId,
 }
 
@@ -122,8 +122,8 @@ pub struct AliasTy {
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
-    predicates: FxHashMap<LocalDefId, GenericPredicates>,
-    item_bounds: ItemBounds, // FxHashMap<LocalDefId, GenericPredicates>,
+    predicates: ItemPredicates,
+    item_bounds: ItemPredicates,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,

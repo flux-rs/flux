@@ -179,6 +179,20 @@ pub(crate) fn check_fn_sig(
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_generic_predicates(
+    early_cx: &EarlyCtxt,
+    predicates: &fhir::GenericPredicates,
+    owner_id: OwnerId,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    predicates
+        .predicates
+        .iter()
+        .try_for_each_exhaust(|clause| wf.check_clause_kind(&mut infcx, clause))?;
+    Ok(infcx.into_results())
+}
+
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
         Wf { early_cx, modes: Default::default(), xi: Default::default() }
@@ -314,6 +328,25 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
         }
+    }
+
+    fn check_clause_kind(
+        &mut self,
+        env: &mut InferCtxt,
+        clause: &fhir::ClauseKind,
+    ) -> Result<(), ErrorGuaranteed> {
+        let fhir::ClauseKind::Projection(proj) = clause;
+        self.check_alias_ty(env, &proj.projection_ty)?;
+        self.check_type(env, &proj.term)?;
+        Ok(())
+    }
+
+    fn check_alias_ty(
+        &mut self,
+        env: &mut InferCtxt,
+        alias_ty: &fhir::AliasTy,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.check_type(env, &alias_ty.args)
     }
 
     fn check_generic_arg(

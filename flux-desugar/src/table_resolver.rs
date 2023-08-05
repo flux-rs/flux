@@ -305,10 +305,9 @@ impl<'sess> Resolver<'sess> {
 }
 
 fn mk_generic_args_with_hole(arity: usize, span: Span) -> Vec<surface::GenericArg<Res>> {
-    let args = (0..arity)
+    (0..arity)
         .map(|_| surface::GenericArg::Type(surface::Ty { kind: surface::TyKind::Hole, span }))
-        .collect();
-    args
+        .collect()
 }
 
 impl<'sess> NameResTable<'sess> {
@@ -437,7 +436,7 @@ impl<'sess> NameResTable<'sess> {
             let owner_id = OwnerId { def_id: did };
             let item_id = hir::ItemId { owner_id };
             if let ItemKind::OpaqueTy(opaque_ty) = tcx.hir().item(item_id).kind {
-                self.collect_from_generic_bounds(&opaque_ty.bounds)?;
+                self.collect_from_generic_bounds(opaque_ty.bounds)?;
             }
         }
         Ok(())

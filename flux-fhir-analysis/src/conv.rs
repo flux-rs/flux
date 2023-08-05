@@ -119,7 +119,7 @@ fn conv_alias_ty(
     alias_ty: &fhir::AliasTy,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::AliasTy> {
-    let ty = conv_ty(genv, &alias_ty.substs, wfckresults)?.skip_binder();
+    let ty = conv_ty(genv, &alias_ty.args, wfckresults)?.skip_binder();
     let args = List::singleton(rty::GenericArg::Ty(ty));
     Ok(rty::AliasTy { args, def_id: alias_ty.def_id })
 }

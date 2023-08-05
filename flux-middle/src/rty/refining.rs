@@ -158,11 +158,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
         let generics = self.generics_of(def_id)?;
-        // println!(
-        //     "TRACE: refine_alias_ty: {def_id:?} generics = {generics:?}, substs = {:?}",
-        //     alias_ty.substs
-        // );
-
         let args = iter::zip(&generics.params, alias_ty.substs.iter())
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;

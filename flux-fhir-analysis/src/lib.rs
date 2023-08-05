@@ -267,18 +267,28 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
             }
         }
         DefKind::Fn | DefKind::AssocFn => {
-            let fn_sig = genv.map().get_fn_sig(def_id);
             let owner_id = OwnerId { def_id };
+
+            // 1. check the actual FnSig
+            let fn_sig = genv.map().get_fn_sig(def_id);
             let mut wfckresults = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
+
+            // 2. check the predicates (stashed in `where` clauses); we don't 'zip' these because the orders are jumbled :-(
+            if let Some(predicates) = genv.map().get_predicates(def_id) {
+                wf::check_generic_predicates(genv.early_cx(), predicates, owner_id)?;
+            }
             Ok(wfckresults)
         }
         DefKind::OpaqueTy => {
             let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
             let owner = genv.hir().get_parent_item(hir_id);
-            // println!("TRACE: WFCHECK {owner:?}");
-            // Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Rust(OwnerId { def_id })))
-            Ok(fhir::WfckResults::new(fhir::FluxOwnerId::Rust(owner)))
+            if let Some(predicates) = genv.map().get_item_bounds(def_id) {
+                let wfckresults = wf::check_generic_predicates(genv.early_cx(), predicates, owner)?;
+                Ok(wfckresults)
+            } else {
+                bug!("missing item_bounds for opaque trait impl {def_id:?}")
+            }
         }
         kind => panic!("unexpected def kind `{kind:?}`"),
     }

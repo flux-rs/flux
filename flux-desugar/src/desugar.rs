@@ -5,7 +5,7 @@ use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, FhirId, FluxOwnerId, ItemBounds, Res},
+    fhir::{self, FhirId, FluxOwnerId, ItemPredicates, Res},
     intern::List,
 };
 use flux_syntax::surface;
@@ -203,7 +203,7 @@ pub fn desugar_fn_sig(
     early_cx: &EarlyCtxt,
     owner_id: OwnerId,
     fn_sig: &surface::FnSig<Res>,
-) -> Result<(fhir::FnSig, fhir::GenericPredicates, fhir::ItemBounds), ErrorGuaranteed> {
+) -> Result<(fhir::FnSig, fhir::GenericPredicates, fhir::ItemPredicates), ErrorGuaranteed> {
     let mut binders = Binders::new();
 
     // Desugar inputs
@@ -268,7 +268,7 @@ pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     requires: Vec<fhir::Constraint>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
-    opaque_impls: ItemBounds,
+    opaque_impls: ItemPredicates,
     owner: OwnerId,
 }
 
@@ -477,7 +477,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
        let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice()
     {
         let item_id = self.lookup_item_id(trait_def_id, *ident)?;
-        let projection_ty = fhir::AliasTy { substs: substs.clone(), def_id: item_id };
+        let projection_ty = fhir::AliasTy { args: substs.clone(), def_id: item_id };
         let term = self.desugar_ty(None, ty, binders)?;
         let proj = fhir::ProjectionPredicate { projection_ty, term };
         Ok(fhir::ClauseKind::Projection(proj))

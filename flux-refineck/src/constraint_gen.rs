@@ -565,19 +565,19 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         &mut self,
         opaque_def_id: DefId,
         span: Span,
-    ) -> Vec<rty::ProjectionPredicate> {
-        let bounds = self
-            .genv
-            .item_bounds(opaque_def_id, span)
-            .unwrap()
-            .skip_binder();
-        let mut res = vec![];
-        for pred in &bounds.predicates {
-            if let rty::ClauseKind::Projection(pred) = pred.kind().skip_binder() {
-                res.push(pred);
+    ) -> Option<Vec<rty::ProjectionPredicate>> {
+        if let Ok(bounds) = self.genv.item_bounds(opaque_def_id, span) {
+            let bounds = bounds.skip_binder();
+            let mut res = vec![];
+            for pred in &bounds.predicates {
+                if let rty::ClauseKind::Projection(pred) = pred.kind().skip_binder() {
+                    res.push(pred);
+                }
             }
+            Some(res)
+        } else {
+            None
         }
-        res
     }
 
     fn project_bty(&mut self, bty: &BaseTy, def_id: DefId) -> Ty {
@@ -590,10 +590,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, bty: &BaseTy, opaque_def_id: DefId) {
-        for pred in self.opaque_predicates(opaque_def_id, self.span()) {
-            let ty1 = self.project_bty(bty, pred.alias_ty.def_id);
-            let ty2 = pred.term;
-            self.subtyping(rcx, &ty1, &ty2);
+        // TODO(RJ): odd hack because a malformed predicate makes the `item_bounds` query return `Err` which cannot be `unwrapped` in `self.opaque_predicates`
+        // instead: we return a `none` there and skip subtyping, to replicate, see error_messages/predicate01.rs
+        if let Some(predicates) = self.opaque_predicates(opaque_def_id, self.span()) {
+            for pred in predicates {
+                let ty1 = self.project_bty(bty, pred.alias_ty.def_id);
+                let ty2 = pred.term;
+                self.subtyping(rcx, &ty1, &ty2);
+            }
         }
     }
 
