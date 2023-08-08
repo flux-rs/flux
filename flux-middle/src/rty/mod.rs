@@ -294,6 +294,8 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
+    Generator(DefId, List<Ty>),
+    GeneratorWitness(Binder<List<Ty>>),
     Param(ParamTy),
     Alias(AliasKind, AliasTy),
 }
@@ -1168,6 +1170,8 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
+            | BaseTy::Generator(_, _)
+            | BaseTy::GeneratorWitness(_)
             | BaseTy::Never
             | BaseTy::Alias(..) => Sort::unit(),
         }
@@ -1612,6 +1616,17 @@ mod pretty {
         }
     }
 
+    impl Pretty for List<Ty> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if let [ty] = &self[..] {
+                w!("({:?},)", ty)
+            } else {
+                w!("({:?})", join!(", ", self))
+            }
+        }
+    }
+
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1654,11 +1669,13 @@ mod pretty {
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
                 BaseTy::Closure(did, substs) => {
-                    w!("{:?}", did)?;
-                    if !substs.is_empty() {
-                        w!("<{:?}>", join!(", ", substs))?;
-                    }
-                    Ok(())
+                    w!("Closure {:?}<{:?}>", did, substs)
+                }
+                BaseTy::Generator(did, substs) => {
+                    w!("Generator {:?}<{:?}>", did, substs)
+                }
+                BaseTy::GeneratorWitness(args) => {
+                    w!("GeneratorWitness<{:?}>", args)
                 }
                 BaseTy::Alias(kind, alias_ty) => {
                     let assoc_name = cx.tcx.item_name(alias_ty.def_id);

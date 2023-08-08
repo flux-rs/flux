@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 
+edition = "2021"
+
 members = [
     "flux",
     "flux-attrs",

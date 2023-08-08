@@ -9,7 +9,13 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
 use super::fold::TypeFoldable;
-use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
+use crate::{
+    global_env::GlobalEnv,
+    intern::List,
+    queries::QueryResult,
+    rty,
+    rustc::{self, ty::Substs},
+};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -181,17 +187,23 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
+    fn refine_generic_args(&self, args: &Substs) -> QueryResult<List<rty::Ty>> {
+        if let rustc::ty::GenericArg::Ty(ty) = &args[args.len() - 1] &&
+           let rustc::ty::TyKind::Tuple(tys) = ty.kind()
+        {
+          tys.iter().map(|ty| self.refine_ty(ty)).try_collect()
+        } else {
+            bug!()
+        }
+    }
+
     fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
-            rustc::ty::TyKind::Closure(did, substs) => {
-                if let rustc::ty::GenericArg::Ty(ty) = &substs[substs.len() - 1] &&
-                   let rustc::ty::TyKind::Tuple(tys) = ty.kind()
-                {
-                   let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
-                   rty::BaseTy::Closure(*did, tys)
-                } else {
-                    bug!()
-                }
+            rustc::ty::TyKind::Closure(did, args) => {
+                rty::BaseTy::Closure(*did, self.refine_generic_args(args)?)
+            }
+            rustc::ty::TyKind::Generator(did, args) => {
+                rty::BaseTy::Generator(*did, self.refine_generic_args(args)?)
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {
@@ -208,10 +220,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::new(
-                            rty::Ty::param(*param_ty),
-                            List::empty(),
-                        ));
+                        return Ok(rty::Binder::new(rty::Ty::param(*param_ty), List::empty()));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime => bug!(),
@@ -230,8 +239,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 rty::BaseTy::alias(kind, alias_ty)
             }
 
-
-
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
@@ -242,6 +249,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
+            rustc::ty::TyKind::GeneratorWitness(args) => todo!(),
         };
         Ok((self.refine)(bty))
     }

@@ -124,6 +124,8 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         }
         BaseTy::Never => todo!(),
         BaseTy::Closure(_, _) => todo!(),
+        BaseTy::Generator(_, _) => todo!(),
+        BaseTy::GeneratorWitness(_) => todo!(),
         BaseTy::Alias(_, _) => todo!(),
     }
 }

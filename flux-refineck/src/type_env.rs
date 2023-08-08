@@ -395,7 +395,9 @@ impl BasicBlockEnvShape {
             | BaseTy::RawPtr(_, _)
             | BaseTy::Char
             | BaseTy::Never
-            | BaseTy::Closure(_, _) => bty.clone(),
+            | BaseTy::Closure(_, _)
+            | BaseTy::Generator(_, _)
+            | BaseTy::GeneratorWitness(_) => bty.clone(),
         }
     }
 

@@ -28,9 +28,9 @@ impl Subst for Ty {
             TyKind::Ref(re, ty, mutbl) => Ty::mk_ref(*re, ty.subst(substs), *mutbl),
             TyKind::Tuple(tys) => Ty::mk_tuple(tys.subst(substs)),
             TyKind::Slice(ty) => Ty::mk_slice(ty.subst(substs)),
-            TyKind::Closure(def_id, closure_substs) => {
-                Ty::mk_closure(*def_id, closure_substs.subst(substs))
-            }
+            TyKind::Closure(def_id, args) => Ty::mk_closure(*def_id, args.subst(substs)),
+            TyKind::Generator(def_id, args) => Ty::mk_generator(*def_id, args.subst(substs)),
+            TyKind::GeneratorWitness(args) => Ty::mk_generator_witness(args.subst(substs)),
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;
                 let alias_substs = &alias_ty.substs;

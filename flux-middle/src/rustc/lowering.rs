@@ -629,9 +629,9 @@ pub(crate) fn lower_ty<'tcx>(
             let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
             Ok(Ty::mk_fn_ptr(fn_sig))
         }
-        rustc_ty::Closure(did, substs) => {
-            let substs = lower_generic_args(tcx, substs)?;
-            Ok(Ty::mk_closure(*did, substs))
+        rustc_ty::Closure(did, args) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_closure(*did, args))
         }
 
         rustc_ty::Alias(kind, alias_ty) => {
@@ -639,7 +639,17 @@ pub(crate) fn lower_ty<'tcx>(
             let substs = lower_generic_args(tcx, alias_ty.args)?;
             Ok(Ty::mk_alias(kind, alias_ty.def_id, substs))
         }
-
+        rustc_ty::Generator(did, args, _) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_generator(*did, args))
+        }
+        rustc_ty::GeneratorWitness(tys) => {
+            let tys = lower_binder(tys.clone(), |tys| {
+                Ok(List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()?))
+            })?;
+            Ok(Ty::mk_generator_witness(tys))
+        }
+        rustc_ty::GeneratorWitnessMIR(_, _) => todo!(),
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }
@@ -674,11 +684,10 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
 
 fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
-    substs: rustc_middle::ty::GenericArgsRef<'tcx>,
+    args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Result<List<GenericArg>, UnsupportedReason> {
     Ok(List::from_vec(
-        substs
-            .iter()
+        args.iter()
             .map(|arg| lower_generic_arg(tcx, arg))
             .try_collect()?,
     ))

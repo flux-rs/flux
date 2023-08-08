@@ -140,8 +140,9 @@ pub enum TyKind {
     Slice(Ty),
     FnPtr(PolyFnSig),
     Closure(DefId, Substs),
+    Generator(DefId, Substs),
+    GeneratorWitness(Binder<List<Ty>>),
     Alias(AliasKind, AliasTy),
-    // Projection(DefId, Substs),
     RawPtr(Ty, Mutability),
 }
 
@@ -396,6 +397,14 @@ impl Ty {
         TyKind::Closure(def_id, substs.into()).intern()
     }
 
+    pub fn mk_generator(def_id: DefId, args: impl Into<List<GenericArg>>) -> Ty {
+        TyKind::Generator(def_id, args.into()).intern()
+    }
+
+    pub fn mk_generator_witness(args: Binder<List<Ty>>) -> Ty {
+        TyKind::GeneratorWitness(args).intern()
+    }
+
     pub fn mk_alias(kind: AliasKind, def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
         let alias_ty = AliasTy { substs: substs.into(), def_id };
         TyKind::Alias(kind, alias_ty).intern()
@@ -575,11 +584,21 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, substs) => {
-                write!(f, "{}", def_id_to_string(*did))?;
+                write!(f, "Closure {}", def_id_to_string(*did))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
                 Ok(())
+            }
+            TyKind::Generator(did, substs) => {
+                write!(f, "Generator {}", def_id_to_string(*did))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                Ok(())
+            }
+            TyKind::GeneratorWitness(args) => {
+                write!(f, "GeneratorWitness {:?}", args)
             }
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;
