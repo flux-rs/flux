@@ -123,20 +123,44 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Ok(rty::Binder::new(value, List::empty()))
     }
 
+    pub(crate) fn refine_binders<S, T, F>(
+        &self,
+        thing: &rustc::ty::Binder<S>,
+        mut f: F,
+    ) -> QueryResult<rty::Binder<T>>
+    where
+        F: FnMut(&S) -> QueryResult<T>,
+    {
+        let vars = refine_bound_variables(thing.vars());
+        let inner = thing.as_ref().skip_binder();
+        let inner = f(inner)?;
+        Ok(rty::Binder::new(inner, vars))
+    }
+
     pub(crate) fn refine_poly_fn_sig(
         &self,
         fn_sig: &rustc::ty::PolyFnSig,
     ) -> QueryResult<rty::PolyFnSig> {
-        let vars = refine_bound_variables(fn_sig.vars());
-        let fn_sig = fn_sig.as_ref().skip_binder();
-        let args = fn_sig
-            .inputs()
-            .iter()
-            .map(|ty| self.refine_ty(ty))
-            .try_collect_vec()?;
-        let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-        let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
-        Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
+        self.refine_binders(fn_sig, |fn_sig| {
+            let args = fn_sig
+                .inputs()
+                .iter()
+                .map(|ty| self.refine_ty(ty))
+                .try_collect_vec()?;
+            let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
+            let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+            Ok(rty::FnSig::new(vec![], args, output))
+        })
+        // let vars = refine_bound_variables(fn_sig.vars());
+        // let fn_sig = fn_sig.as_ref().skip_binder();
+        // let args = fn_sig
+        //     .inputs()
+        //     .iter()
+        //     .map(|ty| self.refine_ty(ty))
+        //     .try_collect_vec()?;
+        // let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
+        // let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+        // Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -249,7 +273,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
-            rustc::ty::TyKind::GeneratorWitness(args) => todo!(),
+            rustc::ty::TyKind::GeneratorWitness(args) => {
+                let args = self.refine_binders(args, |tys| {
+                    Ok(List::from_vec(tys.iter().map(|ty| self.refine_ty(ty)).try_collect_vec()?))
+                })?;
+                rty::BaseTy::GeneratorWitness(args)
+            }
         };
         Ok((self.refine)(bty))
     }
