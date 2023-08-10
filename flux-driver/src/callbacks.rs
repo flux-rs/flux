@@ -281,20 +281,23 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             if spec.trusted {
                 early_cx.map.add_trusted(def_id);
             }
-            let (fn_sig, fn_preds) = if let Some(fn_sig) = spec.fn_sig {
-                let (fhir_fn_sig, fhir_fn_preds, fhir_opaque_impls) =
-                    desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?;
-                (fhir_fn_sig, Some((fhir_fn_preds, fhir_opaque_impls)))
+            let (fn_sig, preds) = if let Some(fn_sig) = spec.fn_sig {
+                let fn_info = desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?;
+                (fn_info.fn_sig, Some((fn_info.fn_preds, fn_info.fn_impls)))
             } else {
+                // let preds = tcx.predicates_of(def_id);
+                // let item_bounds = tcx.item_bounds(def_id);
+                // println!("TRACE: fhir_map (no-spec) {def_id:?} preds = {preds:?} item-bounds = {item_bounds:?}")
                 (fhir::lift::lift_fn_sig(tcx, sess, owner_id)?, None)
             };
             if config::dump_fhir() {
                 dbg::dump_item_info(tcx, def_id, "fhir", &fn_sig).unwrap();
             }
+            // println!("TRACE: fhir_map: {def_id:?} {fn_sig:?} {preds:?}");
             early_cx.map.insert_fn_sig(def_id, fn_sig);
-            if let Some((preds, item_bounds)) = fn_preds {
-                early_cx.map.insert_predicates(def_id, preds);
-                for (def_id, predicates) in item_bounds {
+            if let Some((fn_preds, fn_impls)) = preds {
+                early_cx.map.insert_predicates(def_id, fn_preds);
+                for (def_id, predicates) in fn_impls {
                     early_cx.map.insert_item_bounds(def_id, predicates)
                 }
             }

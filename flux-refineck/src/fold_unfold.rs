@@ -649,7 +649,8 @@ impl PlaceNode {
                 return;
             }
             (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
-            (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
+            (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2))
+            | (PlaceNode::Generator(.., fields1), PlaceNode::Generator(.., fields2)) => {
                 (fields1, fields2)
             }
             (

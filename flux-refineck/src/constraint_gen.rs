@@ -10,8 +10,8 @@ use flux_middle::{
         fold::TypeFoldable,
         refining::refine_default,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
-        Sort, TupleTree, Ty, TyKind, Var,
+        FnOutput, GeneratorObligPredicate, GenericArg, InferMode, Mutability, Path, PolyFnSig,
+        PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -58,6 +58,7 @@ struct InferCtxt<'a, 'tcx> {
     rvid_gen: &'a IndexGen<RegionVid>,
     tag: Tag,
     scopes: FxIndexMap<EVarCxId, Scope>,
+    obligs: Vec<rty::Clause>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
@@ -151,7 +152,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         callsite_def_id: DefId,
-        did: Option<DefId>,
+        callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
         actuals: &[Ty],
@@ -199,8 +200,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
 
-        let obligs =
-            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
+        let obligs = if let Some(did) = callee_def_id {
+            mk_obligations(genv, did, &substs)?
+        } else {
+            List::empty()
+        };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -268,7 +272,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         def_id: DefId,
         output: &Binder<FnOutput>,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
         let output = rty::projections::normalize(self.genv, def_id, output)?;
@@ -283,10 +287,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             infcx.check_constraint(rcx, env, constraint)?;
         }
 
+        let obligs = infcx.obligations();
+
         let evars_sol = infcx.solve()?;
         rcx.replace_evars(&evars_sol);
 
-        Ok(())
+        Ok(Obligations::new(obligs.into(), rcx.snapshot()))
     }
 
     pub(crate) fn check_constructor(
@@ -381,7 +387,18 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, def_id, kvar_gen, evar_gen, rvid_gen, tag, scopes }
+        Self { genv, def_id, kvar_gen, evar_gen, rvid_gen, tag, scopes, obligs: Vec::new() }
+    }
+
+    fn obligations(&self) -> Vec<rty::Clause> {
+        self.obligs.clone()
+    }
+
+    fn insert_obligations(&mut self, obligs: List<rty::Clause>) {
+        for oblig in obligs.into_iter() {
+            self.obligs.push(oblig.clone());
+        }
+        // self.obligs.extend(obligs.clone().into_iter());
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -551,6 +568,24 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     self.subtyping(rcx, ty1, ty2);
                 }
             }
+            (BaseTy::Generator(def_id, args), BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                // TODO: use alias_ty.args
+                let obligs = mk_generator_obligations(
+                    self.genv,
+                    def_id,
+                    args,
+                    &alias_ty.def_id,
+                    self.span(),
+                );
+                match obligs {
+                    Ok(obligs) => {
+                        self.insert_obligations(obligs);
+                    }
+                    Err(e) => {
+                        panic!("unexpected error: {:#?}", e);
+                    }
+                }
+            }
             (_, BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
                 // TODO: use alias_ty.args
                 self.opaque_subtyping(rcx, bty1, alias_ty.def_id);
@@ -697,6 +732,35 @@ impl Obligations {
     fn new(predicates: List<rty::Clause>, snapshot: Snapshot) -> Self {
         Self { predicates, snapshot }
     }
+}
+
+fn mk_generator_obligations(
+    genv: &GlobalEnv<'_, '_>,
+    generator_did: &DefId,
+    generator_args: &[Ty],
+    opaque_def_id: &DefId,
+    span: Span,
+) -> Result<List<rty::Clause>, CheckerErrKind> {
+    let bounds = genv.item_bounds(*opaque_def_id, span)?;
+    let pred = if let rty::ClauseKind::Projection(proj) =
+        bounds.skip_binder().predicates[0].kind().skip_binder()
+    {
+        let output = proj.term;
+        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.into(), output }
+    } else {
+        panic!("mk_generator_obligations: unexpected bounds")
+    };
+    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred), List::empty());
+    Ok(List::from_vec(vec![clause]))
+    // let mut res = vec![];
+    // println!("TRACE: mk_generator_obligations: LHS={generator_did:?} (args = {generator_args:?}) RHS={opaque_def_id:?} {bounds:?}");
+    // todo!("mk_generator_obligations")
+    // for pred in &bounds.predicates {
+    //     if let rty::ClauseKind::Projection(pred) = pred.kind().skip_binder() {
+    //         res.push(pred);
+    //     }
+    // }
+    // Ok(List::from_vec(res))
 }
 
 fn mk_obligations(

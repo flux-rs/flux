@@ -202,6 +202,13 @@ pub struct VariantRet {
     pub idx: RefineArg,
 }
 
+#[derive(Debug)]
+pub struct FnInfo {
+    pub fn_sig: FnSig,
+    pub fn_preds: GenericPredicates,
+    pub fn_impls: ItemPredicates,
+}
+
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<RefineParam>,

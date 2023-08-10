@@ -287,7 +287,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
                 let wfckresults = wf::check_generic_predicates(genv.early_cx(), predicates, owner)?;
                 Ok(wfckresults)
             } else {
-                bug!("missing item_bounds for opaque trait impl {def_id:?}")
+                Ok(fhir::WfckResults::new(fhir::FluxOwnerId::from(owner))) // todo!())) // bug!("missing item_bounds for opaque trait impl {def_id:?}")
             }
         }
         kind => panic!("unexpected def kind `{kind:?}`"),

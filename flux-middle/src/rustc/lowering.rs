@@ -403,7 +403,11 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let lowered_substs = lower_generic_args(self.tcx, substs)?;
                 Ok(AggregateKind::Closure(*did, lowered_substs))
             }
-            rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
+            rustc_mir::AggregateKind::Generator(did, substs, _mov) => {
+                let lowered_substs = lower_generic_args(self.tcx, substs)?;
+                Ok(AggregateKind::Generator(*did, lowered_substs))
+            }
+            rustc_mir::AggregateKind::Adt(..) => {
                 Err(UnsupportedReason::new(format!(
                     "unsupported aggregate kind `{aggregate_kind:?}`"
                 )))

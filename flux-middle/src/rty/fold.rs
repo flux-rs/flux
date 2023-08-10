@@ -13,8 +13,9 @@ use super::{
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name,
-    Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
+    Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound,
+    Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -375,6 +376,7 @@ impl TypeVisitable for ClauseKind {
         match self {
             ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
+            ClauseKind::GeneratorOblig(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -384,7 +386,27 @@ impl TypeFoldable for ClauseKind {
         match self {
             ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
             ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
+            ClauseKind::GeneratorOblig(pred) => {
+                Ok(ClauseKind::GeneratorOblig(pred.try_fold_with(folder)?))
+            }
         }
+    }
+}
+
+impl TypeVisitable for GeneratorObligPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.args.visit_with(visitor)?;
+        self.output.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for GeneratorObligPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(GeneratorObligPredicate {
+            def_id: self.def_id,
+            args: self.args.try_fold_with(folder)?,
+            output: self.output.try_fold_with(folder)?,
+        })
     }
 }
 

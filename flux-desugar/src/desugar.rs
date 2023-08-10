@@ -203,7 +203,7 @@ pub fn desugar_fn_sig(
     early_cx: &EarlyCtxt,
     owner_id: OwnerId,
     fn_sig: &surface::FnSig<Res>,
-) -> Result<(fhir::FnSig, fhir::GenericPredicates, fhir::ItemPredicates), ErrorGuaranteed> {
+) -> Result<fhir::FnInfo, ErrorGuaranteed> {
     let mut binders = Binders::new();
 
     // Desugar inputs
@@ -261,7 +261,7 @@ pub fn desugar_fn_sig(
 
     let hir_opaque_impls = cx.opaque_impls;
 
-    Ok((hir_fn_sig, hir_predicates, hir_opaque_impls))
+    Ok(fhir::FnInfo { fn_sig: hir_fn_sig, fn_preds: hir_predicates, fn_impls: hir_opaque_impls })
 }
 
 pub struct DesugarCtxt<'a, 'tcx> {

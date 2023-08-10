@@ -176,14 +176,16 @@ pub fn lift_fn_sig(
         ret: cx.lift_fn_ret_ty(&fn_sig.decl.output)?,
     };
 
-    Ok(fhir::FnSig {
+    let fn_sig = fhir::FnSig {
         params: vec![],
         requires: vec![],
         args,
         output,
         lifted: true,
         span: fn_sig.span,
-    })
+    };
+    Ok(fn_sig)
+    // Ok(fhir::FnInfo { fn_sig, fn_preds, fn_impls })
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {

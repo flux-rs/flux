@@ -79,7 +79,7 @@ pub struct GenericPredicates {
     pub predicates: List<Clause>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
@@ -88,6 +88,7 @@ pub struct Clause {
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
     Projection(ProjectionPredicate),
+    GeneratorOblig(GeneratorObligPredicate),
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -102,6 +103,13 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct GeneratorObligPredicate {
+    pub def_id: DefId,
+    pub args: List<Ty>,
+    pub output: Ty,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -368,6 +376,8 @@ impl Binder<FnTraitPredicate> {
         let inputs = std::iter::once(env_ty)
             .chain(pred.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
+
+        println!("TRACE: to_closure_sig: inputs={:?}", inputs);
 
         let fn_sig = FnSig::new(
             vec![],
@@ -957,6 +967,10 @@ impl Ty {
         BaseTy::Closure(did, tys.into()).into_ty()
     }
 
+    pub fn generator(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
+        BaseTy::Generator(did, tys.into()).into_ty()
+    }
+
     pub fn never() -> Ty {
         BaseTy::Never.into_ty()
     }
@@ -1347,8 +1361,9 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(_cx, f);
             match self {
-                ClauseKind::FnTrait(fn_trait_pred) => w!("FnTrait ({fn_trait_pred:?})"),
-                ClauseKind::Projection(proj_pred) => w!("Projection ({proj_pred:?})"),
+                ClauseKind::FnTrait(pred) => w!("FnTrait ({pred:?})"),
+                ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
+                ClauseKind::GeneratorOblig(pred) => w!("Projection ({pred:?})"),
             }
         }
     }

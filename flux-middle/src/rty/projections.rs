@@ -96,6 +96,7 @@ fn into_rustc_generic_arg<'tcx>(
         GenericArg::Lifetime(_) => todo!(),
     }
 }
+
 fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
     match bty {
         BaseTy::Int(i) => rustc_middle::ty::Ty::new_int(*tcx, *i), // rustc_middle::ty::Ty::mk_int(*tcx, int_ty),
@@ -124,7 +125,12 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         }
         BaseTy::Never => todo!(),
         BaseTy::Closure(_, _) => todo!(),
-        BaseTy::Generator(_, _) => todo!(),
+        BaseTy::Generator(def_id, args) => {
+            todo!("Generator {:?} {:?}", def_id, args)
+            // let args = args.iter().map(|ty| into_rustc_ty(tcx, ty));
+            // let args = tcx.mk_args_from_iter(args);
+            // rustc_middle::ty::Ty::new_generator(*tcx, *def_id, args, mov)
+        }
         BaseTy::GeneratorWitness(_) => todo!(),
         BaseTy::Alias(_, _) => todo!(),
     }

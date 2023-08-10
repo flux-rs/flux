@@ -11,8 +11,8 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
-        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        FnTraitPredicate, GeneratorObligPredicate, GenericArg, Generics, Index, Int, IntTy,
+        Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -375,10 +375,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &terminator.kind {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
-                self.mode
+                let obligs = self
+                    .mode
                     .constr_gen(self.genv, self.def_id, &self.rvid_gen, rcx, span)
                     .check_ret(rcx, env, self.def_id, &self.output)
                     .with_span(span)?;
+                self.check_closure_obligs(rcx, obligs)?;
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
@@ -490,6 +492,29 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(output.ret)
     }
 
+    fn check_oblig_generator_pred(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        snapshot: &Snapshot,
+        gen_pred: Binder<GeneratorObligPredicate>,
+    ) -> Result<(), CheckerError> {
+        let poly_sig = gen_pred.to_fn_sig();
+        let gen_pred = gen_pred.skip_binder();
+        // let def_id = gen_pred.def_id;
+        // let tys = gen_pred.args;
+
+        let refine_tree = rcx.subtree_at(snapshot).unwrap();
+        Checker::run(
+            self.genv,
+            refine_tree,
+            gen_pred.def_id,
+            self.ghost_stmts,
+            self.mode,
+            poly_sig,
+            self.config,
+        )
+    }
+
     fn check_oblig_fn_trait_pred(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -511,11 +536,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
                 self.config,
             )?;
+        } else {
+            panic!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty());
         }
         Ok(())
     }
 
-    /// This checks obligations related to closures; the remainder are directly checked in `check_fn_call`
+    /// This checks obligations related to closures & generators; the remainder are directly checked in `check_fn_call`
     fn check_closure_obligs(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -524,9 +551,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for pred in &obligs.predicates {
             let kind = pred.kind();
             let vars = kind.vars().clone();
-            if let rty::ClauseKind::FnTrait(fn_trait_pred) = kind.skip_binder() {
-                let fn_trait_pred = Binder::new(fn_trait_pred, vars);
-                self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
+            match kind.skip_binder() {
+                rty::ClauseKind::FnTrait(fn_trait_pred) => {
+                    let fn_trait_pred = Binder::new(fn_trait_pred, vars);
+                    self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?
+                }
+                rty::ClauseKind::GeneratorOblig(gen_pred) => {
+                    let gen_pred = Binder::new(gen_pred, vars);
+                    self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?
+                }
+                rty::ClauseKind::Projection(_) => (),
             }
         }
         Ok(())
@@ -658,10 +692,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         if self.is_exit_block(target) {
             let location = self.body.terminator_loc(target);
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
-            self.mode
+            let obligs = self
+                .mode
                 .constr_gen(self.genv, self.def_id, &self.rvid_gen, &rcx, span)
                 .check_ret(&mut rcx, &mut env, self.def_id, &self.output)
-                .with_span(span)
+                .with_span(span)?;
+            self.check_closure_obligs(&mut rcx, obligs)?;
+            Ok(())
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, rcx, env, span, target)? {
                 self.queue.insert(target);
@@ -729,14 +766,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, _substs), args) => {
-                // TODO(pack-closure): handle case where closure "moves" in values for "free variables"
-                let tys = self.check_operands(rcx, env, stmt_span, args)?;
-                let mut gen = self.constr_gen(rcx, stmt_span);
-                let tys = gen.pack_closure_operands(env, &tys).with_span(stmt_span);
-
+                let tys = self.check_aggregate_args(rcx, env, stmt_span, args)?;
                 let res = Ty::closure(*did, tys?);
                 Ok(res)
             }
+            Rvalue::Aggregate(AggregateKind::Generator(did, _substs), args) => {
+                let tys = self.check_aggregate_args(rcx, env, stmt_span, args)?;
+                let res = Ty::generator(*did, tys?);
+                Ok(res)
+            }
+
             Rvalue::Discriminant(place) => {
                 let ty = env
                     .lookup_place(self.genv, rcx, place)
@@ -750,6 +789,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.check_cast(*kind, &from, to)
             }
         }
+    }
+
+    fn check_aggregate_args(
+        &mut self,
+        rcx: &mut RefineCtxt<'_>,
+        env: &mut TypeEnv<'_>,
+        stmt_span: Span,
+        args: &Vec<Operand>,
+    ) -> Result<Result<Vec<flux_middle::intern::Interned<rty::TyS>>, CheckerError>, CheckerError>
+    {
+        let tys = self.check_operands(rcx, env, stmt_span, args)?;
+        let mut gen = self.constr_gen(rcx, stmt_span);
+        let tys = gen.pack_closure_operands(env, &tys).with_span(stmt_span);
+        Ok(tys)
     }
 
     fn check_len(
@@ -1184,6 +1237,7 @@ pub(crate) mod errors {
         span: Span,
     }
 
+    #[derive(Debug)]
     pub enum CheckerErrKind {
         Inference,
         OpaqueStruct(DefId),

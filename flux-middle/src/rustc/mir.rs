@@ -178,6 +178,7 @@ pub enum AggregateKind {
     Array(Ty),
     Tuple,
     Closure(DefId, List<GenericArg>),
+    Generator(DefId, List<GenericArg>),
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -586,6 +587,14 @@ impl fmt::Debug for Rvalue {
                 write!(
                     f,
                     "closure({}, {substs:?}, {:?})",
+                    def_id_to_string(*def_id),
+                    args.iter().format(", ")
+                )
+            }
+            Rvalue::Aggregate(AggregateKind::Generator(def_id, substs), args) => {
+                write!(
+                    f,
+                    "generator({}, {substs:?}, {:?})",
                     def_id_to_string(*def_id),
                     args.iter().format(", ")
                 )
