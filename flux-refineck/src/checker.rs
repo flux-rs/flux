@@ -497,7 +497,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         todo!("TODO: to_fn_sig: {pred:?}")
         // let fn_sig = self.genv.tcx.fn_sig(pred.def_id);
         // let fn_sig = self.genv.tcx.fn_sig(pred.def_id);
-
         // let def_id = pred.def_id;
         // let args = pred.args;
         // println!("TRACE: to_fn_sig {pred:?} sig = {fn_sig:?}");
