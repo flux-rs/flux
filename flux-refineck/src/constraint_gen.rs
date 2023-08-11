@@ -10,8 +10,8 @@ use flux_middle::{
         fold::TypeFoldable,
         refining::refine_default,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GeneratorObligPredicate, GenericArg, InferMode, Mutability, Path, PolyFnSig,
-        PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
+        FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode, Mutability, Path,
+        PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -737,7 +737,7 @@ impl Obligations {
 fn mk_generator_obligations(
     genv: &GlobalEnv<'_, '_>,
     generator_did: &DefId,
-    generator_args: &[Ty],
+    generator_args: &GenericArgs,
     opaque_def_id: &DefId,
     span: Span,
 ) -> Result<List<rty::Clause>, CheckerErrKind> {
@@ -746,7 +746,7 @@ fn mk_generator_obligations(
         bounds.skip_binder().predicates[0].kind().skip_binder()
     {
         let output = proj.term;
-        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.into(), output }
+        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
     } else {
         panic!("mk_generator_obligations: unexpected bounds")
     };

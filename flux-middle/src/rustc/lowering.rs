@@ -644,7 +644,16 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_alias(kind, alias_ty.def_id, substs))
         }
         rustc_ty::Generator(did, args, _) => {
+            // let gen = args.as_generator();
             let args = lower_generic_args(tcx, args)?;
+            // println!(
+            //     "TRACE: lowering generator_args {gen:?} resumeTy {:?} yieldTy {:?} returnTy {:?} sig {:?} lowered_args {args:?}",
+            //     gen.resume_ty(),
+            //     gen.yield_ty(),
+            //     gen.return_ty(),
+            //     gen.sig(),
+            // );
+
             Ok(Ty::mk_generator(*did, args))
         }
         rustc_ty::GeneratorWitness(tys) => {

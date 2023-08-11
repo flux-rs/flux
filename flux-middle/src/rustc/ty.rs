@@ -175,6 +175,13 @@ impl Substs {
     pub fn as_closure(&self) -> ClosureSubsts {
         ClosureSubsts { substs: self.clone() }
     }
+
+    pub fn as_generator(&self) -> GeneratorSubsts {
+        GeneratorSubsts { substs: self.clone() }
+    }
+}
+pub struct GeneratorSubsts {
+    pub substs: Substs,
 }
 
 pub struct ClosureSubsts {
@@ -187,6 +194,16 @@ pub struct ClosureSubstsParts<'a, T> {
     closure_kind_ty: &'a T,
     closure_sig_as_fn_ptr_ty: &'a T,
     tupled_upvars_ty: &'a T,
+}
+
+#[derive(Debug)]
+pub struct GeneratorSubstsParts<'a, T> {
+    pub parent_substs: &'a [T],
+    pub resume_ty: &'a T,
+    pub yield_ty: &'a T,
+    pub return_ty: &'a T,
+    pub witness: &'a T,
+    pub tupled_upvars_ty: &'a T,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

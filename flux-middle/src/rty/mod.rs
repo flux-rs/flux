@@ -41,7 +41,11 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Internable, Interned, List},
     queries::QueryResult,
-    rustc::{self, mir::Place, ty::VariantDef},
+    rustc::{
+        self,
+        mir::Place,
+        ty::{GeneratorSubstsParts, VariantDef},
+    },
 };
 pub use crate::{
     fhir::InferMode,
@@ -108,7 +112,7 @@ pub struct FnTraitPredicate {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GeneratorObligPredicate {
     pub def_id: DefId,
-    pub args: List<Ty>,
+    pub args: GenericArgs,
     pub output: Ty,
 }
 
@@ -302,7 +306,7 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
-    Generator(DefId, List<Ty>),
+    Generator(DefId, GenericArgs),
     GeneratorWitness(Binder<List<Ty>>),
     Param(ParamTy),
     Alias(AliasKind, AliasTy),
@@ -322,7 +326,7 @@ pub enum AliasKind {
 
 pub type GenericArgs = List<GenericArg>;
 
-#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
     BaseTy(Binder<Ty>),
@@ -338,6 +342,62 @@ impl Clause {
         self.kind.clone()
     }
 }
+
+pub struct GeneratorSubsts {
+    pub substs: GenericArgs,
+}
+
+impl GeneratorSubsts {
+    pub fn new(parts: GeneratorSubstsParts<GenericArg>) -> Self {
+        let substs = parts
+            .parent_substs
+            .iter()
+            .cloned()
+            .chain([
+                parts.resume_ty.clone(),
+                parts.yield_ty.clone(),
+                parts.return_ty.clone(),
+                parts.witness.clone(),
+                parts.tupled_upvars_ty.clone(),
+            ])
+            .collect();
+        GeneratorSubsts { substs }
+    }
+}
+
+impl GeneratorSubsts {
+    pub fn split(&self) -> GeneratorSubstsParts<GenericArg> {
+        match &self.substs[..] {
+            [ref parent_substs @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+                GeneratorSubstsParts {
+                    parent_substs,
+                    resume_ty,
+                    yield_ty,
+                    return_ty,
+                    witness,
+                    tupled_upvars_ty,
+                }
+            }
+            _ => bug!("generator substs missing synthetics"),
+        }
+    }
+}
+
+impl GenericArgs {
+    pub fn as_generator(&self) -> GeneratorSubsts {
+        GeneratorSubsts { substs: self.clone() }
+    }
+}
+
+// impl Binder<GeneratorObligPredicate> {
+//     pub fn to_fn_sig(&self) -> PolyFnSig {
+//         let pred = self.skip_binder();
+//         let def_id = pred.def_id;
+//         let args = pred.args;
+//         println!("TRACE: to_fn_sig {pred:?}");
+//         todo!("TODO: to_fn_sig")
+//     }
+// }
 
 impl Binder<FnTraitPredicate> {
     pub fn self_ty(&self) -> Binder<Ty> {
@@ -377,7 +437,7 @@ impl Binder<FnTraitPredicate> {
             .chain(pred.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
 
-        println!("TRACE: to_closure_sig: inputs={:?}", inputs);
+        // println!("TRACE: to_closure_sig: inputs={:?}", inputs);
 
         let fn_sig = FnSig::new(
             vec![],
@@ -967,8 +1027,8 @@ impl Ty {
         BaseTy::Closure(did, tys.into()).into_ty()
     }
 
-    pub fn generator(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Generator(did, tys.into()).into_ty()
+    pub fn generator(did: DefId, args: impl Into<List<GenericArg>>) -> Ty {
+        BaseTy::Generator(did, args.into()).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -1687,7 +1747,15 @@ mod pretty {
                     w!("Closure {:?}<{:?}>", did, substs)
                 }
                 BaseTy::Generator(did, substs) => {
-                    w!("Generator {:?}<{:?}>", did, substs)
+                    w!("Generator {:?}", did)?;
+                    let substs = substs
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                        .collect_vec();
+                    if !substs.is_empty() {
+                        w!("<{:?}>", join!(", ", substs))?;
+                    }
+                    Ok(())
                 }
                 BaseTy::GeneratorWitness(args) => {
                     w!("GeneratorWitness<{:?}>", args)

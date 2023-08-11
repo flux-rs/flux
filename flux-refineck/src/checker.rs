@@ -11,8 +11,8 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        FnTraitPredicate, GeneratorObligPredicate, GenericArg, Generics, Index, Int, IntTy,
-        Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        FnTraitPredicate, GeneratorObligPredicate, GeneratorSubsts, GenericArg, Generics, Index,
+        Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -21,7 +21,7 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::RegionVar,
+        ty::{GeneratorSubstsParts, RegionVar},
     },
 };
 use itertools::Itertools;
@@ -492,22 +492,29 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(output.ret)
     }
 
+    pub fn generator_fn_sig(&self, gen_pred: &Binder<GeneratorObligPredicate>) -> PolyFnSig {
+        let pred = gen_pred.as_ref().skip_binder();
+        todo!("TODO: to_fn_sig: {pred:?}")
+        // let fn_sig = self.genv.tcx.fn_sig(pred.def_id);
+        // let fn_sig = self.genv.tcx.fn_sig(pred.def_id);
+
+        // let def_id = pred.def_id;
+        // let args = pred.args;
+        // println!("TRACE: to_fn_sig {pred:?} sig = {fn_sig:?}");
+    }
+
     fn check_oblig_generator_pred(
         &mut self,
         rcx: &mut RefineCtxt,
         snapshot: &Snapshot,
         gen_pred: Binder<GeneratorObligPredicate>,
     ) -> Result<(), CheckerError> {
-        let poly_sig = gen_pred.to_fn_sig();
-        let gen_pred = gen_pred.skip_binder();
-        // let def_id = gen_pred.def_id;
-        // let tys = gen_pred.args;
-
+        let poly_sig = self.generator_fn_sig(&gen_pred);
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
             self.genv,
             refine_tree,
-            gen_pred.def_id,
+            gen_pred.skip_binder().def_id,
             self.ghost_stmts,
             self.mode,
             poly_sig,
@@ -770,10 +777,20 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let res = Ty::closure(*did, tys?);
                 Ok(res)
             }
-            Rvalue::Aggregate(AggregateKind::Generator(did, _substs), args) => {
-                let tys = self.check_aggregate_args(rcx, env, stmt_span, args)?;
-                let res = Ty::generator(*did, tys?);
-                Ok(res)
+            Rvalue::Aggregate(AggregateKind::Generator(did, substs), ops) => {
+                // We need to "update" the parameter-y bits of `substs` with `args`
+                let tys = self.check_aggregate_args(rcx, env, stmt_span, ops)?;
+                let generics = genv.generics_of(*did).unwrap();
+                let substs = genv.refine_default_generic_args(&generics, substs).unwrap();
+                let substs = substs.as_generator();
+                let substs = substs.split();
+
+                let substs_parts = GeneratorSubstsParts {
+                    tupled_upvars_ty: &GenericArg::Ty(Ty::tuple(tys?)),
+                    ..substs
+                };
+                let substs = GeneratorSubsts::new(substs_parts);
+                Ok(Ty::generator(*did, substs.substs))
             }
 
             Rvalue::Discriminant(place) => {

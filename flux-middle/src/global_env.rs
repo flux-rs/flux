@@ -193,6 +193,19 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.early_cx.early_bound_sorts_of(def_id)
     }
 
+    pub fn refine_default_generic_args(
+        &self,
+        generics: &rty::Generics,
+        args: &ty::Substs,
+    ) -> QueryResult<rty::GenericArgs> {
+        let refiner = Refiner::default(self, generics);
+        let mut res = vec![];
+        for arg in args.iter() {
+            res.push(refiner.refine_generic_arg_raw(&arg)?);
+        }
+        Ok(res.into())
+    }
+
     pub fn refine_default(
         &self,
         generics: &rty::Generics,

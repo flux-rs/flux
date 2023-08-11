@@ -182,6 +182,16 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
+    pub(crate) fn refine_generic_arg_raw(
+        &self,
+        arg: &rustc::ty::GenericArg,
+    ) -> QueryResult<rty::GenericArg> {
+        match arg {
+            rustc::ty::GenericArg::Ty(ty) => Ok(rty::GenericArg::Ty(self.refine_ty(ty)?)),
+            rustc::ty::GenericArg::Lifetime(re) => Ok(rty::GenericArg::Lifetime(*re)),
+        }
+    }
+
     pub(crate) fn refine_alias_ty(
         &self,
         alias_ty: &rustc::ty::AliasTy,
@@ -227,7 +237,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 rty::BaseTy::Closure(*did, self.refine_generic_args(args)?)
             }
             rustc::ty::TyKind::Generator(did, args) => {
-                rty::BaseTy::Generator(*did, self.refine_generic_args(args)?)
+                let args = args
+                    .iter()
+                    .map(|arg| self.refine_generic_arg_raw(arg))
+                    .try_collect()?;
+                rty::BaseTy::Generator(*did, args)
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {
