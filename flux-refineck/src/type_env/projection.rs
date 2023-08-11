@@ -178,7 +178,6 @@ impl PlacesTree {
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Indexed(BaseTy::Closure(_, fields), _) => {
-                            println!("TRACE: closure-field access {f:?} {ty:?}");
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Downcast(.., fields) => {
