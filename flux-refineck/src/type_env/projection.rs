@@ -178,6 +178,7 @@ impl PlacesTree {
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Indexed(BaseTy::Closure(_, fields), _) => {
+                            println!("TRACE: closure-field access {f:?} {ty:?}");
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Downcast(.., fields) => {
@@ -186,7 +187,7 @@ impl PlacesTree {
                         TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
                             ty = mode.downcast_struct(adt, substs, idx)?[f.as_usize()].clone();
                         }
-                        _ => tracked_span_bug!("invalid field access `{ty:?}`"),
+                        _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
                     };
                 }
                 PlaceElem::Index(_) => {

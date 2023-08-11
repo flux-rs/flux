@@ -492,23 +492,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(output.ret)
     }
 
-    pub fn generator_fn_sig(&self, gen_pred: &Binder<GeneratorObligPredicate>) -> PolyFnSig {
-        let pred = gen_pred.as_ref().skip_binder();
-        todo!("TODO: to_fn_sig: {pred:?}")
-        // let fn_sig = self.genv.tcx.fn_sig(pred.def_id);
-        // let fn_sig = self.genv.tcx.fn_sig(pred.def_id);
-        // let def_id = pred.def_id;
-        // let args = pred.args;
-        // println!("TRACE: to_fn_sig {pred:?} sig = {fn_sig:?}");
-    }
-
     fn check_oblig_generator_pred(
         &mut self,
         rcx: &mut RefineCtxt,
         snapshot: &Snapshot,
         gen_pred: Binder<GeneratorObligPredicate>,
     ) -> Result<(), CheckerError> {
-        let poly_sig = self.generator_fn_sig(&gen_pred);
+        let poly_sig = gen_pred.to_closure_sig();
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
             self.genv,

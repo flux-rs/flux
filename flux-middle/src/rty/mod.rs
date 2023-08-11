@@ -333,6 +333,16 @@ pub enum GenericArg {
     Lifetime(Region),
 }
 
+impl GenericArg {
+    pub fn expect_type(&self) -> &Ty {
+        if let GenericArg::Ty(ty) = self {
+            ty
+        } else {
+            bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
+        }
+    }
+}
+
 impl Clause {
     pub fn new(kind: ClauseKind, vars: List<BoundVariableKind>) -> Self {
         Clause { kind: Binder::new(kind, vars) }
@@ -362,6 +372,13 @@ impl GeneratorSubsts {
             ])
             .collect();
         GeneratorSubsts { substs }
+    }
+    pub fn resume_ty(&self) -> Ty {
+        self.split().resume_ty.expect_type().clone()
+    }
+
+    pub fn tupled_upvars_ty(&self) -> Ty {
+        self.split().tupled_upvars_ty.expect_type().clone()
     }
 }
 
@@ -415,6 +432,7 @@ impl Binder<FnTraitPredicate> {
 
         let pred = self.as_ref().skip_binder();
 
+        println!("TRACE: to_closure_sig: {tys:?}");
         let closure_ty = Ty::closure(closure_id, tys);
         let env_ty = match pred.kind {
             ClosureKind::Fn => {
@@ -437,7 +455,7 @@ impl Binder<FnTraitPredicate> {
             .chain(pred.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
 
-        // println!("TRACE: to_closure_sig: inputs={:?}", inputs);
+        println!("TRACE: to_closure_sig: inputs={:?}", inputs);
 
         let fn_sig = FnSig::new(
             vec![],
@@ -446,6 +464,34 @@ impl Binder<FnTraitPredicate> {
         );
 
         PolyFnSig::new(fn_sig, vars)
+    }
+}
+
+impl Binder<GeneratorObligPredicate> {
+    pub fn to_closure_sig(&self) -> PolyFnSig {
+        let vars = self.vars().iter().cloned().collect();
+        let pred = self.as_ref().skip_binder();
+        let pred_args = pred.args.as_generator();
+
+        let tys = pred_args
+            .tupled_upvars_ty()
+            .expect_tuple()
+            .iter()
+            .cloned()
+            .collect_vec();
+
+        let env_ty = Ty::closure(pred.def_id, tys);
+        let resume_ty = pred_args.resume_ty();
+        let requires = vec![];
+
+        println!("TRACE:generator_fn_sig {env_ty:?}");
+        let mut inputs = vec![];
+        inputs.push(env_ty);
+        inputs.push(resume_ty);
+
+        let output = Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty());
+
+        PolyFnSig::new(FnSig::new(requires, inputs, output), vars)
     }
 }
 

@@ -802,9 +802,7 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
             BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
-            BaseTy::Generator(did, substs) => {
-                BaseTy::Generator(*did, substs.try_fold_with(folder)?)
-            }
+            BaseTy::Generator(did, args) => BaseTy::Generator(*did, args.try_fold_with(folder)?),
             BaseTy::GeneratorWitness(args) => BaseTy::GeneratorWitness(args.try_fold_with(folder)?),
         };
         Ok(bty)
