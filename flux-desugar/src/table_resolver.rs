@@ -539,21 +539,8 @@ impl<'sess> NameResTable<'sess> {
         let res = self.res_from_hir_res(path.res, path.span);
         self.insert(key, res);
 
-        if let [.., PathSegment { args, .. }] = path.segments {
-            if let Some(args) = args {
-                self.collect_from_generic_args(args)?;
-            }
-            // args.map(|args| args.args)
-            //     .iter()
-            //     .copied()
-            //     .flatten()
-            //     .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
-
-            // args.map(|args| args.bindings)
-            //     .iter()
-            //     .copied()
-            //     .flatten()
-            //     .try_for_each_exhaust(|binding| self.collect_from_type_binding(binding))?;
+        if let [.., PathSegment { args: Some(args), .. }] = path.segments {
+            self.collect_from_generic_args(args)?;
         }
         Ok(())
     }
