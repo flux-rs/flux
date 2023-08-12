@@ -201,7 +201,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let refiner = Refiner::default(self, generics);
         let mut res = vec![];
         for arg in args.iter() {
-            res.push(refiner.refine_generic_arg_raw(&arg)?);
+            res.push(refiner.refine_generic_arg_raw(arg)?);
         }
         Ok(res.into())
     }

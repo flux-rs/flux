@@ -802,7 +802,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         rcx: &mut RefineCtxt<'_>,
         env: &mut TypeEnv<'_>,
         stmt_span: Span,
-        args: &Vec<Operand>,
+        args: &[Operand],
     ) -> Result<Result<Vec<flux_middle::intern::Interned<rty::TyS>>, CheckerError>, CheckerError>
     {
         let tys = self.check_operands(rcx, env, stmt_span, args)?;

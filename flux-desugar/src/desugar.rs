@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface;
-use hir::ItemKind;
+use hir::{ItemKind, LangItem};
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -473,17 +473,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-        if let Res::Trait(trait_def_id) = path.res &&
-       let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice()
-    {
-        let item_id = self.lookup_item_id(trait_def_id, *ident)?;
-        let projection_ty = fhir::AliasTy { args: substs.clone(), def_id: item_id };
-        let term = self.desugar_ty(None, ty, binders)?;
-        let proj = fhir::ProjectionPredicate { projection_ty, term };
-        Ok(fhir::ClauseKind::Projection(proj))
-    } else {
-        panic!("produce error for desugar_bound")
-    }
+        let trait_def_id = match path.res {
+            Res::Trait(trait_def_id) => trait_def_id,
+            Res::LangTrait(LangItem::Future) => {
+                self.early_cx.tcx.lang_items().future_trait().unwrap()
+            }
+            _ => panic!("unexpected trait {:?}", path.res),
+        };
+        if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
+            let item_id = self.lookup_item_id(trait_def_id, *ident)?;
+            let projection_ty = fhir::AliasTy { args: substs.clone(), def_id: item_id };
+            let term = self.desugar_ty(None, ty, binders)?;
+            let proj = fhir::ProjectionPredicate { projection_ty, term };
+            Ok(fhir::ClauseKind::Projection(proj))
+        } else {
+            panic!("unexpected path in desugar_bound: {:?}", path.generics)
+        }
     }
 
     fn desugar_ty(

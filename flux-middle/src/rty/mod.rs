@@ -432,7 +432,6 @@ impl Binder<FnTraitPredicate> {
 
         let pred = self.as_ref().skip_binder();
 
-        println!("TRACE: to_closure_sig: {tys:?}");
         let closure_ty = Ty::closure(closure_id, tys);
         let env_ty = match pred.kind {
             ClosureKind::Fn => {
@@ -455,7 +454,7 @@ impl Binder<FnTraitPredicate> {
             .chain(pred.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
 
-        println!("TRACE: to_closure_sig: inputs={:?}", inputs);
+        // println!("TRACE: to_closure_sig: inputs={:?}", inputs);
 
         let fn_sig = FnSig::new(
             vec![],
@@ -484,10 +483,8 @@ impl Binder<GeneratorObligPredicate> {
         let resume_ty = pred_args.resume_ty();
         let requires = vec![];
 
-        println!("TRACE:generator_fn_sig {env_ty:?}");
-        let mut inputs = vec![];
-        inputs.push(env_ty);
-        inputs.push(resume_ty);
+        // println!("TRACE:generator_fn_sig {env_ty:?}");
+        let inputs = vec![env_ty, resume_ty];
 
         let output = Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty());
 

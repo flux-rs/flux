@@ -657,7 +657,7 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_generator(*did, args))
         }
         rustc_ty::GeneratorWitness(tys) => {
-            let tys = lower_binder(tys.clone(), |tys| {
+            let tys = lower_binder(*tys, |tys| {
                 Ok(List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()?))
             })?;
             Ok(Ty::mk_generator_witness(tys))

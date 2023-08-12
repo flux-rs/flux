@@ -15,7 +15,7 @@ pub struct Resolver<'genv> {
     table: NameResTable<'genv>,
 }
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Debug)]
 pub struct ResKey {
     s: String,
 }
@@ -135,6 +135,7 @@ impl<'sess> Resolver<'sess> {
     }
 
     fn resolve_bounds(&self, bounds: surface::Bounds) -> Result<Bounds<Res>, ErrorGuaranteed> {
+        // println!("TRACE: resolve_bounds {bounds:?}");
         let bounds = bounds
             .into_iter()
             .map(|bound| self.resolve_path(bound))
@@ -233,6 +234,7 @@ impl<'sess> Resolver<'sess> {
             }
             surface::TyKind::Hole => surface::TyKind::Hole,
             surface::TyKind::Opaque(_, _, bounds) => {
+                // println!("TRACE: resolve_bounds {bounds:#?}");
                 let bounds = self.resolve_bounds(bounds)?;
                 let (res, arity) = self.resolve_opaque_impl(ty.span)?;
                 let span = ty.span;
@@ -278,6 +280,7 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
         let Some(res) = self.table.get(&ResKey::from_path(&path)) else {
+            // panic!("Unresolved path {:?} {:?}", path.segments.iter().join("::"), path.generics);
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)));
         };
         match res {
@@ -427,15 +430,28 @@ impl<'sess> NameResTable<'sess> {
             hir::GenericBound::Trait(poly_trait_ref, _) => {
                 self.collect_from_path(poly_trait_ref.trait_ref.path)
             }
+            hir::GenericBound::LangItemTrait(lang_item, _span, _hir_id, args) => {
+                let key = ResKey::from_lang_item(*lang_item);
+                // println!("TRACE: collect_from_lang_item {key:?}");
+                let res = Res::LangTrait(*lang_item);
+                self.insert(key, res);
+
+                self.collect_from_generic_args(args)?;
+                Ok(())
+            }
+
             _ => Ok(()),
         }
     }
 
     fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
+        // println!("TRACE: collect_from_opaque_impls {:?}", self.opaque);
         if let Some((did, _arity)) = self.opaque {
             let owner_id = OwnerId { def_id: did };
             let item_id = hir::ItemId { owner_id };
-            if let ItemKind::OpaqueTy(opaque_ty) = tcx.hir().item(item_id).kind {
+            let item_kind = tcx.hir().item(item_id).kind;
+            if let ItemKind::OpaqueTy(opaque_ty) = item_kind {
+                // println!("TRACE: collect_from_opaque_impls opaque_ty = {opaque_ty:#?}");
                 self.collect_from_generic_bounds(opaque_ty.bounds)?;
             }
         }
@@ -502,23 +518,42 @@ impl<'sess> NameResTable<'sess> {
         }
     }
 
+    fn collect_from_generic_args(
+        &mut self,
+        args: &rustc_hir::GenericArgs,
+    ) -> Result<(), ErrorGuaranteed> {
+        args.args
+            .iter()
+            .copied()
+            .try_for_each_exhaust(|arg| self.collect_from_generic_arg(&arg))?;
+
+        args.bindings
+            .iter()
+            .copied()
+            .try_for_each_exhaust(|binding| self.collect_from_type_binding(&binding))?;
+        Ok(())
+    }
+
     fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result<(), ErrorGuaranteed> {
         let key = ResKey::from_hir_path(self.sess, path)?;
         let res = self.res_from_hir_res(path.res, path.span);
         self.insert(key, res);
 
         if let [.., PathSegment { args, .. }] = path.segments {
-            args.map(|args| args.args)
-                .iter()
-                .copied()
-                .flatten()
-                .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
+            if let Some(args) = args {
+                self.collect_from_generic_args(args)?;
+            }
+            // args.map(|args| args.args)
+            //     .iter()
+            //     .copied()
+            //     .flatten()
+            //     .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
 
-            args.map(|args| args.bindings)
-                .iter()
-                .copied()
-                .flatten()
-                .try_for_each_exhaust(|binding| self.collect_from_type_binding(binding))?;
+            // args.map(|args| args.bindings)
+            //     .iter()
+            //     .copied()
+            //     .flatten()
+            //     .try_for_each_exhaust(|binding| self.collect_from_type_binding(binding))?;
         }
         Ok(())
     }
@@ -581,6 +616,10 @@ impl ResKey {
         }
         let s = path.segments.iter().map(|segment| segment.ident).join("::");
         Ok(ResKey { s })
+    }
+
+    fn from_lang_item(item: hir::LangItem) -> Self {
+        ResKey { s: format!("{:?}", item) }
     }
 }
 
