@@ -122,7 +122,24 @@ pub FnSig: surface::FnSig = {
         let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
-    }
+    },
+     <lo:@L>
+    "async" "fn"
+    <params:("<" <RefineParams<"!">> ">")?>
+    "(" <args:Args> ")"
+    <returns:("->" <Ty>)>
+    <requires:("requires" <Expr>)?>
+    <ensures:("ensures" <Ensures>)?>
+    <predicates:("where" <Predicates>)?>
+    <hi:@R>
+    => {
+        let ensures = ensures.unwrap_or_default();
+        let params = params.unwrap_or_default();
+        let predicates = predicates.unwrap_or_default();
+        let returns = Some(surface::async_return_ty(returns));
+        surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
+    },
+
 }
 
 pub Variant: surface::VariantDef = {
@@ -453,6 +470,7 @@ extern {
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
+        "async" => Token::Async,
         "type" => Token::Type,
         "ref" => Token::Ref,
         "@"  => Token::At,

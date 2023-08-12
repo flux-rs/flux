@@ -372,3 +372,13 @@ impl fmt::Debug for BinOp {
         }
     }
 }
+
+pub fn async_return_ty(ty: Ty) -> Ty {
+    let span = ty.span;
+    let segments = vec![Ident::from_str_and_span("Future", span)];
+    let output_ident = Ident::from_str_and_span("Output", span);
+    let generics = vec![GenericArg::Constraint(output_ident, ty)];
+    let bound = Path { segments, generics, refine: vec![], span, res: () };
+    let kind = TyKind::Opaque((), None, vec![bound]);
+    Ty { kind, span }
+}
