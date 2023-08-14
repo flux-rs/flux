@@ -257,7 +257,7 @@ fn get_impl_source<'tcx>(
     impl_source
 }
 
-/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item
+/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item>
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
 
@@ -272,6 +272,9 @@ fn normalize_with_impl<'tcx>(
         bug!("unexpected {alias_ty:?}")
     };
     let elem = alias_ty.def_id;
+
+    println!("TRACE: normalize_with_impl: {impl_rty:?} as {elem:?}");
+
     // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
     let impl_source = get_impl_source(genv, elem, impl_rty, param_env);
 
