@@ -201,7 +201,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let args = iter::zip(&generics.params, alias_ty.substs.iter())
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        Ok(rty::AliasTy::new(def_id, args))
+        let res = rty::AliasTy::new(def_id, args);
+        Ok(res)
     }
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {

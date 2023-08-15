@@ -135,7 +135,6 @@ impl<'sess> Resolver<'sess> {
     }
 
     fn resolve_bounds(&self, bounds: surface::Bounds) -> Result<Bounds<Res>, ErrorGuaranteed> {
-        // println!("TRACE: resolve_bounds {bounds:?}");
         let bounds = bounds
             .into_iter()
             .map(|bound| self.resolve_path(bound))
@@ -234,7 +233,6 @@ impl<'sess> Resolver<'sess> {
             }
             surface::TyKind::Hole => surface::TyKind::Hole,
             surface::TyKind::Opaque(_, _, bounds) => {
-                // println!("TRACE: resolve_bounds {bounds:#?}");
                 let bounds = self.resolve_bounds(bounds)?;
                 let (res, arity) = self.resolve_opaque_impl(ty.span)?;
                 let span = ty.span;
@@ -432,7 +430,6 @@ impl<'sess> NameResTable<'sess> {
             }
             hir::GenericBound::LangItemTrait(lang_item, _span, _hir_id, args) => {
                 let key = ResKey::from_lang_item(*lang_item);
-                // println!("TRACE: collect_from_lang_item {key:?}");
                 let res = Res::LangTrait(*lang_item);
                 self.insert(key, res);
 
@@ -445,13 +442,11 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
-        // println!("TRACE: collect_from_opaque_impls {:?}", self.opaque);
         if let Some((did, _arity)) = self.opaque {
             let owner_id = OwnerId { def_id: did };
             let item_id = hir::ItemId { owner_id };
             let item_kind = tcx.hir().item(item_id).kind;
             if let ItemKind::OpaqueTy(opaque_ty) = item_kind {
-                // println!("TRACE: collect_from_opaque_impls opaque_ty = {opaque_ty:#?}");
                 self.collect_from_generic_bounds(opaque_ty.bounds)?;
             }
         }

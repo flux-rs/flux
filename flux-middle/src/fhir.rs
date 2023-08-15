@@ -1281,7 +1281,9 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
-            TyKind::OpaqueDef(_, _, _) => write!(f, "impl trait"),
+            TyKind::OpaqueDef(def_id, args, _) => {
+                write!(f, "impl trait <def_id = {def_id:?}, args = {args:?}>")
+            }
         }
     }
 }

@@ -406,16 +406,6 @@ impl GenericArgs {
     }
 }
 
-// impl Binder<GeneratorObligPredicate> {
-//     pub fn to_fn_sig(&self) -> PolyFnSig {
-//         let pred = self.skip_binder();
-//         let def_id = pred.def_id;
-//         let args = pred.args;
-//         println!("TRACE: to_fn_sig {pred:?}");
-//         todo!("TODO: to_fn_sig")
-//     }
-// }
-
 impl Binder<FnTraitPredicate> {
     pub fn self_ty(&self) -> Binder<Ty> {
         self.as_ref()
@@ -454,8 +444,6 @@ impl Binder<FnTraitPredicate> {
             .chain(pred.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
 
-        // println!("TRACE: to_closure_sig: inputs={:?}", inputs);
-
         let fn_sig = FnSig::new(
             vec![],
             inputs,
@@ -483,7 +471,6 @@ impl Binder<GeneratorObligPredicate> {
         let resume_ty = pred_args.resume_ty();
         let requires = vec![];
 
-        // println!("TRACE:generator_fn_sig {env_ty:?}");
         let inputs = vec![env_ty, resume_ty];
 
         let output = Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty());
@@ -1815,7 +1802,8 @@ mod pretty {
                             ^assoc_name
                         )
                     } else {
-                        w!("Alias({:?}, {:?})", kind, alias_ty.def_id)
+                        // let str = format!("{:?}", alias_ty.def_id);
+                        w!("Alias({:?}, {:?})", kind, ^alias_ty.def_id)
                     }
                 }
             }

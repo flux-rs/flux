@@ -6,6 +6,7 @@ use std::ops::ControlFlow;
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
+use rustc_hir::def_id::DefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
@@ -19,7 +20,7 @@ use super::{
 };
 use crate::{
     intern::{Internable, List},
-    rty::{Var, VariantSig},
+    rty::{AliasKind, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -187,6 +188,28 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectFreeVars(FxHashSet::default());
+        self.visit_with(&mut collector);
+        collector.0
+    }
+
+    /// Returns the set of all free variables.
+    /// For example, `Vec<i32[n]>{v : v > m}` returns `{n, m}`.
+    fn opaque_def_ids(&self) -> FxHashSet<DefId> {
+        struct CollectOpaqueDefIds(FxHashSet<DefId>);
+
+        impl TypeVisitor for CollectOpaqueDefIds {
+            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<Self::BreakTy> {
+                match bty {
+                    BaseTy::Alias(AliasKind::Opaque, alias_ty) => {
+                        let _ = self.0.insert(alias_ty.def_id);
+                        alias_ty.args.visit_with(self)
+                    }
+                    _ => ControlFlow::Continue(()),
+                }
+            }
+        }
+
+        let mut collector = CollectOpaqueDefIds(FxHashSet::default());
         self.visit_with(&mut collector);
         collector.0
     }
@@ -802,7 +825,9 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
             BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
-            BaseTy::Generator(did, args) => BaseTy::Generator(*did, args.try_fold_with(folder)?),
+            BaseTy::Generator(did, substs) => {
+                BaseTy::Generator(*did, substs.try_fold_with(folder)?)
+            }
             BaseTy::GeneratorWitness(args) => BaseTy::GeneratorWitness(args.try_fold_with(folder)?),
         };
         Ok(bty)
