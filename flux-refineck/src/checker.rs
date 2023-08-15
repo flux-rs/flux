@@ -315,6 +315,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(())
     }
 
+    fn check_assign_ty(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        place: &Place,
+        ty: Ty,
+        source_info: rustc_mir::SourceInfo,
+    ) -> Result<(), CheckerError> {
+        let ty = rcx.unpack(&ty);
+        let gen = &mut self.constr_gen(rcx, source_info.span);
+        env.assign(rcx, gen, place, ty).with_src_info(source_info)
+    }
+
     fn check_statement(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -325,10 +338,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
-                let ty = rcx.unpack(&ty);
-                let gen = &mut self.constr_gen(rcx, stmt_span);
-                env.assign(rcx, gen, place, ty)
-                    .with_src_info(stmt.source_info)?;
+                // println!(
+                //     "TRACE: check_statement_assign {place:?} <- {rvalue:?} ({ty:?}) ENV = {env:?}"
+                // );
+                self.check_assign_ty(rcx, env, place, ty, stmt.source_info)?;
+
+                // let ty = rcx.unpack(&ty);
+                // println!(
+                //     "TRACE: check_statement_assign {place:?} <- {rvalue:?} ({ty:?}) ENV = {env:?}"
+                // );
+                // let gen = &mut self.constr_gen(rcx, stmt_span);
+                // env.assign(rcx, gen, place, ty)
+                //     .with_src_info(stmt.source_info)?;
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double check here that the place is unfolded to
@@ -371,7 +392,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         terminator: &Terminator<'tcx>,
         last_stmt_span: Option<Span>,
     ) -> Result<Vec<(BasicBlock, Guard)>, CheckerError> {
-        let terminator_span = terminator.source_info.span;
+        let source_info = terminator.source_info;
+        let terminator_span = source_info.span;
         match &terminator.kind {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
@@ -384,7 +406,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
+            TerminatorKind::GeneratorDrop => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
+            TerminatorKind::Yield { resume, resume_arg, .. } => {
+                // TODO(RJ): FIX with proper semantics for yield!
+                // [NOTE:YIELD] per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
+                //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
+                //    to the `resume_arg` place..."
+                if let Some(resume_local) = self.body.resume_local() {
+                    let resume_ty = env
+                        .lookup_local(self.genv, rcx, resume_local)
+                        .with_src_info(source_info)?;
+                    self.check_assign_ty(rcx, env, resume_arg, resume_ty, source_info)?;
+                }
+                Ok(vec![(*resume, Guard::None)])
+            }
             TerminatorKind::SwitchInt { discr, targets } => {
                 let discr_ty = self.check_operand(rcx, env, terminator_span, discr)?;
                 if discr_ty.is_integral() || discr_ty.is_bool() {

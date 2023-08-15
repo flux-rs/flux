@@ -30,7 +30,7 @@ type AliasTyKey = String;
 
 impl AliasTy {
     fn key(&self) -> AliasTyKey {
-        // TODO: super janky hack, Nico -- why is the plain hasher not working? Maybe List<GenericArg> is not *really* hashable?
+        // TODO:ALIASKEYHACK: super janky hack, Nico -- why is the plain hasher not working? Maybe List<GenericArg> is not *really* hashable?
         format!("{:?}", self)
         // without_constrs(&self)
         // let args = self.args.iter().map(|arg| arg.clone()).collect();
@@ -83,6 +83,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let alias_ty = without_constrs(alias_ty);
         let key = alias_ty.key();
         let res = self.preds.get(&key).cloned();
+        // TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn't get found in impl_trait02.rs)
         // println!(
         //     "TRACE: normalize_with_preds: {:?} || {alias_ty:?} ({key:?}) => {res:?}",
         //     self.preds

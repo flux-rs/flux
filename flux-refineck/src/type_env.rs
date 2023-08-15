@@ -82,6 +82,16 @@ impl TypeEnv<'_> {
         Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
     }
 
+    pub(crate) fn lookup_local(
+        &mut self,
+        genv: &GlobalEnv,
+        rcx: &mut RefineCtxt,
+        local: Local,
+    ) -> Result<Ty, CheckerErrKind> {
+        let place = Place::new(local, vec![]);
+        self.lookup_place(genv, rcx, &place)
+    }
+
     pub(crate) fn get(&mut self, path: &Path) -> Ty {
         self.bindings.get(path)
     }
@@ -385,8 +395,8 @@ impl BasicBlockEnvShape {
             BaseTy::Slice(ty) => BaseTy::Slice(Self::pack_ty(scope, ty)),
             BaseTy::Ref(r, ty, mutbl) => BaseTy::Ref(*r, Self::pack_ty(scope, ty), *mutbl),
             BaseTy::Array(ty, c) => BaseTy::Array(Self::pack_ty(scope, ty), c.clone()),
-            BaseTy::Alias(..) => tracked_span_bug!("packing of `AliasTy` is not implemented"),
-            BaseTy::Int(_)
+            BaseTy::Alias(..) // => tracked_span_bug!("packing of `AliasTy` is not implemented"),
+            | BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool

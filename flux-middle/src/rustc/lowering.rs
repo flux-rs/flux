@@ -271,11 +271,22 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::TerminatorKind::FalseUnwind { real_target, unwind } => {
                 TerminatorKind::FalseUnwind { real_target: *real_target, unwind: *unwind }
             }
+            rustc_mir::TerminatorKind::Yield { value, resume, resume_arg, drop } => {
+                TerminatorKind::Yield {
+                    value: self
+                        .lower_operand(value)
+                        .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                        .emit(self.sess)?,
+                    resume: *resume,
+                    resume_arg: lower_place(resume_arg)
+                        .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                        .emit(self.sess)?,
+                    drop: *drop,
+                }
+            }
+            rustc_mir::TerminatorKind::GeneratorDrop => TerminatorKind::GeneratorDrop,
             rustc_mir::TerminatorKind::Resume => TerminatorKind::Resume,
-            rustc_mir::TerminatorKind::Terminate
-            | rustc_mir::TerminatorKind::Yield { .. }
-            | rustc_mir::TerminatorKind::GeneratorDrop
-            | rustc_mir::TerminatorKind::InlineAsm { .. } => {
+            rustc_mir::TerminatorKind::Terminate | rustc_mir::TerminatorKind::InlineAsm { .. } => {
                 return Err(errors::UnsupportedMir::from(terminator)).emit(self.sess);
             }
         };

@@ -316,6 +316,9 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
             TerminatorKind::Goto { target } => {
                 self.goto(bb, *target, env)?;
             }
+            TerminatorKind::Yield { resume, .. } => {
+                self.goto(bb, *resume, env)?;
+            }
             TerminatorKind::Drop { place, target, .. } => {
                 M::projection(self, &mut env, place, ProjKind::Other)?;
                 self.goto(bb, *target, env)?;
@@ -330,7 +333,9 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 self.goto(bb, *real_target, env)?;
             }
-            TerminatorKind::Unreachable | TerminatorKind::Resume => {}
+            TerminatorKind::Unreachable
+            | TerminatorKind::Resume
+            | TerminatorKind::GeneratorDrop => {}
         }
         Ok(())
     }

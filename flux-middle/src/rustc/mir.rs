@@ -113,6 +113,13 @@ pub enum TerminatorKind<'tcx> {
         real_target: BasicBlock,
         unwind: UnwindAction,
     },
+    Yield {
+        value: Operand,
+        resume: BasicBlock,
+        resume_arg: Place,
+        drop: Option<BasicBlock>,
+    },
+    GeneratorDrop,
     Resume,
 }
 
@@ -265,6 +272,11 @@ impl<'tcx> Body<'tcx> {
 
     pub fn inner(&self) -> &mir::Body<'tcx> {
         &self.body_with_facts.body
+    }
+
+    /// see [NOTE:YIELD]
+    pub fn resume_local(&self) -> Option<Local> {
+        self.args_iter().nth(1)
     }
 
     #[inline]
@@ -512,6 +524,13 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
                 write!(f, "falseUnwind -> [real: {real_target:?}, cleanup: {unwind:?}]")
             }
             TerminatorKind::Resume => write!(f, "resume"),
+            TerminatorKind::GeneratorDrop => write!(f, "generator_drop"),
+            TerminatorKind::Yield { value, resume, drop, resume_arg } => {
+                write!(
+                    f,
+                    "{resume_arg:?} = yield({value:?}) -> [resume: {resume:?}, drop: {drop:?}]"
+                )
+            }
         }
     }
 }
