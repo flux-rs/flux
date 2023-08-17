@@ -1710,7 +1710,7 @@ mod pretty {
                     )
                 }
                 GenericArg::Lifetime(re) => w!("{:?}", re),
-                GenericArg::Const(_) => w!("const"), // TODO: wierd type error with impl Pretty for Const!
+                GenericArg::Const(c) => w!("{:?}", c),
             }
         }
     }
