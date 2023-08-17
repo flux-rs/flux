@@ -129,6 +129,7 @@ impl<'tcx> Queries<'tcx> {
     ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
             let fn_sig = genv.tcx.fn_sig(def_id);
+            println!("TRACE: lower_fn_sig {def_id:?} {fn_sig:?}");
             let param_env = genv.tcx.param_env(def_id);
             let result = genv
                 .tcx

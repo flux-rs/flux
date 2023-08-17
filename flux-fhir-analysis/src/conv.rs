@@ -443,7 +443,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(self.conv_ty(env, ty)?, rty::Const { val: len.val }))
+                Ok(rty::Ty::array(self.conv_ty(env, ty)?, rty::Const::from(len)))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {

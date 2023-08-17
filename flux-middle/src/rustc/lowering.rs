@@ -22,7 +22,7 @@ use super::{
     ty::{
         AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Clause,
         ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, PolyFnSig, Ty, VariantDef,
+        GenericPredicates, Generics, ParamConst, PolyFnSig, Ty, ValueConst, VariantDef,
     },
 };
 use crate::{
@@ -191,7 +191,10 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let (func, substs) = match func.ty(self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_generic_args(self.tcx, substs)
-                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
+                            .map_err(|err| {
+                                panic!("BLAHAR: {err:?}");
+                                errors::UnsupportedMir::from(terminator)
+                            })
                             .emit(self.sess)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
@@ -587,10 +590,38 @@ pub(crate) fn lower_bound_vars(
     Ok(List::from_vec(vars))
 }
 
+fn lower_const<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    c: rustc_ty::Const<'tcx>,
+) -> Result<Const, UnsupportedReason> {
+    match c.kind() {
+        rustc_type_ir::ConstKind::Param(param_const) => {
+            Ok(Const::Param(ParamConst { name: param_const.name, index: param_const.index }))
+        }
+        rustc_type_ir::ConstKind::Value(value_const) => {
+            let val = value_const.try_to_target_usize(tcx).ok_or_else(|| UnsupportedReason::new(format!("unsupported const value {value_const:?}")))?;
+            Ok(Const::Value(ValueConst { val: val as usize }))
+
+        }
+        _ => Err(UnsupportedReason::new(format!("unsupported const {c:?}")))
+        // rustc_type_ir::ConstKind::Infer(_) => todo!(),
+        // rustc_type_ir::ConstKind::Bound(_, _) => todo!(),
+        // rustc_type_ir::ConstKind::Placeholder(_) => todo!(),
+        // rustc_type_ir::ConstKind::Unevaluated(_) => todo!(),
+        // rustc_type_ir::ConstKind::Error(_) => todo!(),
+        // rustc_type_ir::ConstKind::Expr(_) => todo!(),
+    }
+    //  let len = len
+    //                 .to_valtree()
+    //                 .try_to_target_usize(tcx)
+    //                 .ok_or_else(|| UnsupportedReason::new(format!("unsupported array len {len:?}")))?;
+}
+
 pub(crate) fn lower_ty<'tcx>(
     tcx: TyCtxt<'tcx>,
     ty: rustc_ty::Ty<'tcx>,
 ) -> Result<Ty, UnsupportedReason> {
+    println!("TRACE: lower_ty {ty:?}");
     match ty.kind() {
         rustc_ty::Ref(region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_region(region)?, lower_ty(tcx, *ty)?, *mutability))
@@ -612,11 +643,10 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_tuple(tys))
         }
         rustc_ty::Array(ty, len) => {
-            let len = len
-                .to_valtree()
-                .try_to_target_usize(tcx)
-                .ok_or_else(|| UnsupportedReason::new(format!("unsupported array len {len:?}")))?;
-            Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val: len as usize }))
+            println!("TRACE: lower_ty / Array with {len:?}");
+            // let len = lower_const(tcx, len)?;
+            Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *len)?))
+            // Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val: len as usize }))
         }
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
         rustc_ty::RawPtr(t) => {
@@ -680,9 +710,7 @@ fn lower_generic_arg<'tcx>(
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
         GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(lower_region(&region)?)),
-        GenericArgKind::Const(_) => {
-            Err(UnsupportedReason::new(format!("unsupported generic const `{arg:?}`")))
-        }
+        GenericArgKind::Const(c) => Ok(GenericArg::Const(lower_const(tcx, c)?)),
     }
 }
 
@@ -883,7 +911,7 @@ mod errors {
         fn from(terminator: &'a rustc_mir::Terminator<'tcx>) -> Self {
             Self::terminator(
                 terminator.source_info.span,
-                UnsupportedReason::new(format!("{terminator:?}")),
+                UnsupportedReason::new(format!("{terminator:?}",)),
             )
         }
     }
