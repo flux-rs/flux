@@ -191,10 +191,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let (func, substs) = match func.ty(self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_generic_args(self.tcx, substs)
-                            .map_err(|_err| {
-                                // panic!("BLAHAR: {err:?}");
-                                errors::UnsupportedMir::from(terminator)
-                            })
+                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
                             .emit(self.sess)?;
                         (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
                     }
