@@ -629,11 +629,7 @@ pub(crate) fn lower_ty<'tcx>(
             let tys = List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()?);
             Ok(Ty::mk_tuple(tys))
         }
-        rustc_ty::Array(ty, len) => {
-            // let len = lower_const(tcx, len)?;
-            Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *len)?))
-            // Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val: len as usize }))
-        }
+        rustc_ty::Array(ty, len) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *len)?)),
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
         rustc_ty::RawPtr(t) => {
             let mutbl = t.mutbl;
