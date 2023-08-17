@@ -596,22 +596,13 @@ fn lower_const<'tcx>(
             Ok(Const::Param(ParamConst { name: param_const.name, index: param_const.index }))
         }
         rustc_type_ir::ConstKind::Value(value_const) => {
-            let val = value_const.try_to_target_usize(tcx).ok_or_else(|| UnsupportedReason::new(format!("unsupported const value {value_const:?}")))?;
+            let val = value_const.try_to_target_usize(tcx).ok_or_else(|| {
+                UnsupportedReason::new(format!("unsupported const value {value_const:?}"))
+            })?;
             Ok(Const::Value(ValueConst { val: val as usize }))
-
         }
-        _ => Err(UnsupportedReason::new(format!("unsupported const {c:?}")))
-        // rustc_type_ir::ConstKind::Infer(_) => todo!(),
-        // rustc_type_ir::ConstKind::Bound(_, _) => todo!(),
-        // rustc_type_ir::ConstKind::Placeholder(_) => todo!(),
-        // rustc_type_ir::ConstKind::Unevaluated(_) => todo!(),
-        // rustc_type_ir::ConstKind::Error(_) => todo!(),
-        // rustc_type_ir::ConstKind::Expr(_) => todo!(),
+        _ => Err(UnsupportedReason::new(format!("unsupported const {c:?}"))),
     }
-    //  let len = len
-    //                 .to_valtree()
-    //                 .try_to_target_usize(tcx)
-    //                 .ok_or_else(|| UnsupportedReason::new(format!("unsupported array len {len:?}")))?;
 }
 
 pub(crate) fn lower_ty<'tcx>(
