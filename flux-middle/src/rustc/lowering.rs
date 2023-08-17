@@ -191,8 +191,8 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let (func, substs) = match func.ty(self.rustc_mir, self.tcx).kind() {
                     rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
                         let lowered_substs = lower_generic_args(self.tcx, substs)
-                            .map_err(|err| {
-                                panic!("BLAHAR: {err:?}");
+                            .map_err(|_err| {
+                                // panic!("BLAHAR: {err:?}");
                                 errors::UnsupportedMir::from(terminator)
                             })
                             .emit(self.sess)?;
@@ -621,7 +621,6 @@ pub(crate) fn lower_ty<'tcx>(
     tcx: TyCtxt<'tcx>,
     ty: rustc_ty::Ty<'tcx>,
 ) -> Result<Ty, UnsupportedReason> {
-    println!("TRACE: lower_ty {ty:?}");
     match ty.kind() {
         rustc_ty::Ref(region, ty, mutability) => {
             Ok(Ty::mk_ref(lower_region(region)?, lower_ty(tcx, *ty)?, *mutability))
@@ -643,7 +642,6 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_tuple(tys))
         }
         rustc_ty::Array(ty, len) => {
-            println!("TRACE: lower_ty / Array with {len:?}");
             // let len = lower_const(tcx, len)?;
             Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *len)?))
             // Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val: len as usize }))
@@ -767,6 +765,9 @@ fn lower_generic_param_def(
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
+        rustc_ty::GenericParamDefKind::Const { has_default } => {
+            GenericParamDefKind::Const { has_default }
+        }
         _ => return Err(UnsupportedReason::new("unsupported generic param")),
     };
     Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })

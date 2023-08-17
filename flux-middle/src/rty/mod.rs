@@ -71,6 +71,7 @@ pub enum GenericParamDefKind {
     Type { has_default: bool },
     BaseTy,
     Lifetime,
+    Const { has_default: bool },
 }
 
 #[derive(Debug, Clone)]
@@ -316,6 +317,7 @@ pub enum GenericArg {
     Ty(Ty),
     BaseTy(Binder<Ty>),
     Lifetime(Region),
+    Const(Const),
 }
 
 impl Clause {
@@ -1684,6 +1686,16 @@ mod pretty {
         }
     }
 
+    impl Pretty for Const {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                Const::Param(p) => w!("{}", ^p.name.as_str()),
+                Const::Value(v) => w!("^{}", ^v.val),
+            }
+        }
+    }
+
     impl Pretty for GenericArg {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1698,6 +1710,7 @@ mod pretty {
                     )
                 }
                 GenericArg::Lifetime(re) => w!("{:?}", re),
+                GenericArg::Const(_) => w!("const"), // TODO: wierd type error with impl Pretty for Const!
             }
         }
     }

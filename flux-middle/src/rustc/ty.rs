@@ -62,6 +62,7 @@ pub struct GenericParamDef {
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
+    Const { has_default: bool },
 }
 
 #[derive(Debug)]

@@ -94,6 +94,7 @@ fn into_rustc_generic_arg<'tcx>(
             rustc_middle::ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
         }
         GenericArg::Lifetime(_) => todo!(),
+        GenericArg::Const(_) => todo!(),
     }
 }
 fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {

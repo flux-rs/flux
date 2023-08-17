@@ -17,7 +17,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{self, fold::TypeFoldable, refining, ESpan, INNERMOST},
-    rustc::{self, lowering},
+    rustc::{self, lowering, ty::ParamConst},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -362,6 +362,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                                 name: param.name,
                             });
                             rty::GenericArg::Lifetime(re)
+                        }
+                        rty::GenericParamDefKind::Const { .. } => {
+                            let cnst = ParamConst { index: param.index, name: param.name };
+                            rty::GenericArg::Const(rty::Const::Param(cnst))
                         }
                     }
                 })

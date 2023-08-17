@@ -397,7 +397,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .genv
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
-                // println!("TRACE: check_terminator 1: {func_id:?} call_substs: {call_substs:?}");
 
                 let fn_generics = self
                     .genv

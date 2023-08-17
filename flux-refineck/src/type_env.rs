@@ -406,6 +406,7 @@ impl BasicBlockEnvShape {
                 GenericArg::BaseTy(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
             }
             GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
+            GenericArg::Const(c) => GenericArg::Const(c.clone()),
         }
     }
 
