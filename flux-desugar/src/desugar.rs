@@ -487,7 +487,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             let proj = fhir::ProjectionPredicate { projection_ty, term };
             Ok(fhir::ClauseKind::Projection(proj))
         } else {
-            panic!("unexpected path in desugar_bound: {:?}", path.generics)
+            bug!("unexpected path in desugar_bound: {:?}", path.generics)
         }
     }
 
