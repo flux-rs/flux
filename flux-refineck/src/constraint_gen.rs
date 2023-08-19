@@ -362,7 +362,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        Ok(Ty::array(arr_ty, Const { val: args.len() }))
+        Ok(Ty::array(arr_ty, Const::from(args.len())))
     }
 
     fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
