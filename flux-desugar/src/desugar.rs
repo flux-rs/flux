@@ -478,7 +478,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Res::LangTrait(LangItem::Future) => {
                 self.early_cx.tcx.lang_items().future_trait().unwrap()
             }
-            _ => panic!("unexpected trait {:?}", path.res),
+            _ => span_bug!(path.span, "unexpected trait {:?}", path.res),
         };
         if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
             let item_id = self.lookup_item_id(trait_def_id, *ident)?;
