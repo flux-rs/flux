@@ -322,6 +322,32 @@ impl GenericArg {
     }
 }
 
+impl GeneratorSubsts {
+    pub fn tupled_upvars_ty(&self) -> &Ty {
+        self.split().tupled_upvars_ty.expect_type()
+    }
+
+    pub fn upvar_tys(&self) -> impl Iterator<Item = &Ty> {
+        self.tupled_upvars_ty().tuple_fields().iter()
+    }
+
+    fn split(&self) -> GeneratorSubstsParts<GenericArg> {
+        match &self.substs[..] {
+            [ref parent_substs @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+                GeneratorSubstsParts {
+                    parent_substs,
+                    resume_ty,
+                    yield_ty,
+                    return_ty,
+                    witness,
+                    tupled_upvars_ty,
+                }
+            }
+            _ => bug!("generator substs missing synthetics"),
+        }
+    }
+}
+
 impl ClosureSubsts {
     pub fn tupled_upvars_ty(&self) -> &Ty {
         self.split().tupled_upvars_ty.expect_type()

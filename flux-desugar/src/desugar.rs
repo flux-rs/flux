@@ -593,7 +593,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
-            surface::TyKind::Opaque(res, args, bounds) => {
+            surface::TyKind::ImplTrait(res, args, bounds) => {
                 if let Res::OpaqueTy(def_id) = res &&
                    let Some(local_def_id) = def_id.as_local() &&
                    let Some(args) = args
@@ -1259,7 +1259,7 @@ impl Binders {
                 self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
             surface::TyKind::Hole => Ok(()),
-            surface::TyKind::Opaque(_, args, bounds) => {
+            surface::TyKind::ImplTrait(_, args, bounds) => {
                 if let Some(args) = args {
                     for arg in args {
                         self.gather_params_generic_arg(early_cx, arg, pos)?;

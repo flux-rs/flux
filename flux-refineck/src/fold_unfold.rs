@@ -510,7 +510,13 @@ impl PlaceNode {
                         fields
                     }
                     TyKind::Closure(def_id, substs) => {
-                        let fields = generic_args_fields(substs);
+                        // let fields = generic_args_fields(substs);
+                        let fields = substs
+                            .as_closure()
+                            .upvar_tys()
+                            .cloned()
+                            .map(PlaceNode::Ty)
+                            .collect_vec();
                         *self = PlaceNode::Closure(*def_id, substs.clone(), fields);
                         let PlaceNode::Closure(.., fields) = self else { unreachable!() };
                         fields
@@ -522,7 +528,13 @@ impl PlaceNode {
                         fields
                     }
                     TyKind::Generator(def_id, substs) => {
-                        let fields = generic_args_fields(substs);
+                        // let fields = generic_args_fields(substs);
+                        let fields = substs
+                            .as_generator()
+                            .upvar_tys()
+                            .cloned()
+                            .map(PlaceNode::Ty)
+                            .collect_vec();
                         *self = PlaceNode::Generator(*def_id, substs.clone(), fields);
                         let PlaceNode::Generator(.., fields) = self else { unreachable!() };
                         fields
@@ -756,16 +768,6 @@ impl PlaceNode {
             place.projection.pop();
         }
     }
-}
-
-fn generic_args_fields(substs: &Substs) -> Vec<PlaceNode> {
-    let fields = substs
-        .as_closure()
-        .upvar_tys()
-        .cloned()
-        .map(PlaceNode::Ty)
-        .collect_vec();
-    fields
 }
 
 impl FoldUnfolds {

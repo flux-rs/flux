@@ -222,7 +222,7 @@ TyKind: surface::TyKind = {
         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
 
-    "impl" <bounds:Bounds> => surface::TyKind::Opaque((), None, bounds),
+    "impl" <bounds:Bounds> => surface::TyKind::ImplTrait((), None, bounds),
 }
 
 #[inline]

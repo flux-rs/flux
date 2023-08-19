@@ -232,12 +232,12 @@ impl<'sess> Resolver<'sess> {
                 surface::TyKind::Array(Box::new(ty), len)
             }
             surface::TyKind::Hole => surface::TyKind::Hole,
-            surface::TyKind::Opaque(_, _, bounds) => {
+            surface::TyKind::ImplTrait(_, _, bounds) => {
                 let bounds = self.resolve_bounds(bounds)?;
                 let (res, arity) = self.resolve_opaque_impl(ty.span)?;
                 let span = ty.span;
                 let args = mk_generic_args_with_hole(arity, span);
-                surface::TyKind::Opaque(res, Some(args), bounds)
+                surface::TyKind::ImplTrait(res, Some(args), bounds)
             },
         };
         Ok(surface::Ty { kind, span: ty.span })

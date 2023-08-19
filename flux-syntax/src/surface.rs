@@ -195,7 +195,7 @@ pub enum TyKind<R = ()> {
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
-    Opaque(R, Option<Vec<GenericArg<R>>>, Bounds<R>),
+    ImplTrait(R, Option<Vec<GenericArg<R>>>, Bounds<R>),
     Hole,
 }
 
@@ -379,6 +379,6 @@ pub fn async_return_ty(ty: Ty) -> Ty {
     let output_ident = Ident::from_str_and_span("Output", span);
     let generics = vec![GenericArg::Constraint(output_ident, ty)];
     let bound = Path { segments, generics, refine: vec![], span, res: () };
-    let kind = TyKind::Opaque((), None, vec![bound]);
+    let kind = TyKind::ImplTrait((), None, vec![bound]);
     Ty { kind, span }
 }
