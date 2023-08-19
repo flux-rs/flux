@@ -59,6 +59,7 @@ impl Subst for GenericArg {
         }
     }
 }
+
 impl Subst for Const {
     fn subst(&self, substs: &[GenericArg]) -> Self {
         match self {
