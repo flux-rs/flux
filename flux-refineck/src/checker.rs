@@ -58,6 +58,8 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     /// [`Generics`] of the function being checked.
     generics: Generics,
     body: &'ck Body<'tcx>,
+    /// The type used for the `resume` argument of a generator.
+    resume_ty: Option<Ty>,
     ghost_stmts: &'ck FxHashMap<DefId, GhostStatements>,
     output: Binder<FnOutput>,
     mode: &'ck mut M,
@@ -204,12 +206,21 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
+        // [NOTE:YIELD] per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
+        //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
+        //    to the `resume_arg` place..."
+        let resume_ty = if genv.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Generator {
+            Some(fn_sig.args()[1].clone())
+        } else {
+            None
+        };
         let mut ck = Checker {
             def_id,
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
             body: &body,
+            resume_ty,
             ghost_stmts: extra_data,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
@@ -409,15 +420,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::GeneratorDrop => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::Yield { resume, resume_arg, .. } => {
-                // TODO(RJ): FIX with proper semantics for yield!
-                // [NOTE:YIELD] per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
-                //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
-                //    to the `resume_arg` place..."
-                if let Some(resume_local) = self.body.resume_local() {
-                    let resume_ty = env
-                        .lookup_local(self.genv, rcx, resume_local)
-                        .with_src_info(source_info)?;
+                if let Some(resume_ty) = self.resume_ty.clone() {
                     self.check_assign_ty(rcx, env, resume_arg, resume_ty, source_info)?;
+                } else {
+                    bug!("yield in non-generator function")
                 }
                 Ok(vec![(*resume, Guard::None)])
             }

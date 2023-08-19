@@ -82,16 +82,6 @@ impl TypeEnv<'_> {
         Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
     }
 
-    pub(crate) fn lookup_local(
-        &mut self,
-        genv: &GlobalEnv,
-        rcx: &mut RefineCtxt,
-        local: Local,
-    ) -> Result<Ty, CheckerErrKind> {
-        let place = Place::new(local, vec![]);
-        self.lookup_place(genv, rcx, &place)
-    }
-
     pub(crate) fn get(&mut self, path: &Path) -> Ty {
         self.bindings.get(path)
     }
