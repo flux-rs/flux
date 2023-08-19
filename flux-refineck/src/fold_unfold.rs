@@ -316,7 +316,8 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
             TerminatorKind::Goto { target } => {
                 self.goto(bb, *target, env)?;
             }
-            TerminatorKind::Yield { resume, .. } => {
+            TerminatorKind::Yield { resume, resume_arg, .. } => {
+                M::projection(self, &mut env, resume_arg, ProjKind::Other)?;
                 self.goto(bb, *resume, env)?;
             }
             TerminatorKind::Drop { place, target, .. } => {
