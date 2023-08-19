@@ -321,7 +321,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_pred(infcx, pred)
             }
             fhir::TyKind::OpaqueDef(_item_id, args, _) => {
-                // TODO: self.check_item_id(infcx, *item_id)?;
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
             }
