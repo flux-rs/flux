@@ -601,7 +601,7 @@ impl ResKey {
     }
 
     fn from_lang_item(item: hir::LangItem) -> Self {
-        ResKey { s: format!("{:?}", item) }
+        ResKey { s: item.name().to_string() }
     }
 }
 
