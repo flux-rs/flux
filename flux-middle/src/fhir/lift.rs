@@ -356,7 +356,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 }
             }
         }
-        //}
         Ok(lifted)
     }
 
