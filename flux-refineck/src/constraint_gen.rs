@@ -362,7 +362,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        Ok(Ty::array(arr_ty, Const { val: args.len() }))
+        Ok(Ty::array(arr_ty, Const::from(args.len())))
     }
 
     fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
@@ -554,7 +554,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
-                debug_assert_eq!(len1.val, len2.val);
+                debug_assert_eq!(len1, len2);
                 self.subtyping(rcx, ty1, ty2);
             }
             (BaseTy::Param(param1), BaseTy::Param(param2)) => {

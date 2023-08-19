@@ -27,6 +27,9 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
                 rustc::ty::GenericParamDefKind::Type { has_default } => {
                     rty::GenericParamDefKind::Type { has_default }
                 }
+                rustc::ty::GenericParamDefKind::Const { has_default } => {
+                    rty::GenericParamDefKind::Const { has_default }
+                }
             };
             rty::GenericParamDef {
                 kind,
@@ -178,6 +181,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) => {
                 Ok(rty::GenericArg::Lifetime(*re))
             }
+            (rty::GenericParamDefKind::Const { .. }, rustc::ty::GenericArg::Const(ct)) => {
+                Ok(rty::GenericArg::Const(ct.clone()))
+            }
             _ => bug!("mismatched generic arg `{arg:?}` `{param:?}`"),
         }
     }
@@ -263,6 +269,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime => bug!(),
+                    rty::GenericParamDefKind::Const { .. } => bug!(),
                 }
             }
             rustc::ty::TyKind::Adt(adt_def, substs) => {
