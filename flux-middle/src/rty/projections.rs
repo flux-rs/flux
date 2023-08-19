@@ -94,6 +94,7 @@ fn into_rustc_generic_arg<'tcx>(
             rustc_middle::ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
         }
         GenericArg::Lifetime(_) => todo!(),
+        GenericArg::Const(_) => todo!(),
     }
 }
 fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
@@ -119,9 +120,7 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
             let ts = tys.iter().map(|ty| into_rustc_ty(tcx, ty)).collect_vec();
             rustc_middle::ty::Ty::new_tup(*tcx, &ts)
         }
-        BaseTy::Array(ty, c) => {
-            rustc_middle::ty::Ty::new_array(*tcx, into_rustc_ty(tcx, ty), c.val as u64)
-        }
+        BaseTy::Array(_, _) => todo!(),
         BaseTy::Never => todo!(),
         BaseTy::Closure(_, _) => todo!(),
         BaseTy::Alias(_, _) => todo!(),

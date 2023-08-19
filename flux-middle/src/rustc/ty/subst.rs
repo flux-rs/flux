@@ -1,4 +1,4 @@
-use super::{AliasKind, Binder, FnSig, GenericArg, Region, Ty, TyKind};
+use super::{AliasKind, Binder, Const, FnSig, GenericArg, Region, Ty, TyKind};
 use crate::intern::{Internable, List};
 
 pub(super) trait Subst {
@@ -55,6 +55,16 @@ impl Subst for GenericArg {
         match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.subst(substs)),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.subst(substs)),
+            GenericArg::Const(c) => GenericArg::Const(c.subst(substs)),
+        }
+    }
+}
+
+impl Subst for Const {
+    fn subst(&self, substs: &[GenericArg]) -> Self {
+        match self {
+            Const::Param(param_const) => substs[param_const.index as usize].expect_const().clone(),
+            Const::Value(v) => Const::Value(v.clone()),
         }
     }
 }

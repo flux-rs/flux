@@ -22,7 +22,7 @@ use super::{
     ty::{
         AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Clause,
         ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, PolyFnSig, Ty, VariantDef,
+        GenericPredicates, Generics, ParamConst, PolyFnSig, Ty, ValueConst, VariantDef,
     },
 };
 use crate::{
@@ -587,6 +587,24 @@ pub(crate) fn lower_bound_vars(
     Ok(List::from_vec(vars))
 }
 
+fn lower_const<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    c: rustc_ty::Const<'tcx>,
+) -> Result<Const, UnsupportedReason> {
+    match c.kind() {
+        rustc_type_ir::ConstKind::Param(param_const) => {
+            Ok(Const::Param(ParamConst { name: param_const.name, index: param_const.index }))
+        }
+        rustc_type_ir::ConstKind::Value(value_const) => {
+            let val = value_const.try_to_target_usize(tcx).ok_or_else(|| {
+                UnsupportedReason::new(format!("unsupported const value {value_const:?}"))
+            })?;
+            Ok(Const::Value(ValueConst { val: val as usize }))
+        }
+        _ => Err(UnsupportedReason::new(format!("unsupported const {c:?}"))),
+    }
+}
+
 pub(crate) fn lower_ty<'tcx>(
     tcx: TyCtxt<'tcx>,
     ty: rustc_ty::Ty<'tcx>,
@@ -611,13 +629,7 @@ pub(crate) fn lower_ty<'tcx>(
             let tys = List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()?);
             Ok(Ty::mk_tuple(tys))
         }
-        rustc_ty::Array(ty, len) => {
-            let len = len
-                .to_valtree()
-                .try_to_target_usize(tcx)
-                .ok_or_else(|| UnsupportedReason::new(format!("unsupported array len {len:?}")))?;
-            Ok(Ty::mk_array(lower_ty(tcx, *ty)?, Const { val: len as usize }))
-        }
+        rustc_ty::Array(ty, len) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *len)?)),
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
         rustc_ty::RawPtr(t) => {
             let mutbl = t.mutbl;
@@ -680,9 +692,7 @@ fn lower_generic_arg<'tcx>(
     match arg.unpack() {
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
         GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(lower_region(&region)?)),
-        GenericArgKind::Const(_) => {
-            Err(UnsupportedReason::new(format!("unsupported generic const `{arg:?}`")))
-        }
+        GenericArgKind::Const(c) => Ok(GenericArg::Const(lower_const(tcx, c)?)),
     }
 }
 
@@ -739,6 +749,9 @@ fn lower_generic_param_def(
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
+        rustc_ty::GenericParamDefKind::Const { has_default } => {
+            GenericParamDefKind::Const { has_default }
+        }
         _ => return Err(UnsupportedReason::new("unsupported generic param")),
     };
     Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
@@ -883,7 +896,7 @@ mod errors {
         fn from(terminator: &'a rustc_mir::Terminator<'tcx>) -> Self {
             Self::terminator(
                 terminator.source_info.span,
-                UnsupportedReason::new(format!("{terminator:?}")),
+                UnsupportedReason::new(format!("{terminator:?}",)),
             )
         }
     }

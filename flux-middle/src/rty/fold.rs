@@ -801,6 +801,7 @@ impl TypeVisitable for GenericArg {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
             GenericArg::BaseTy(ty) => ty.visit_with(visitor),
             GenericArg::Lifetime(_) => ControlFlow::Continue(()),
+            GenericArg::Const(_) => ControlFlow::Continue(()),
         }
     }
 }
@@ -811,6 +812,7 @@ impl TypeFoldable for GenericArg {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
             GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
+            GenericArg::Const(c) => GenericArg::Const(c.clone()),
         };
         Ok(arg)
     }

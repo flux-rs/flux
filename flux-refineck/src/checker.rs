@@ -10,8 +10,8 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr, Float, FnOutput, FnSig,
-        FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
+        self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
+        FnSig, FnTraitPredicate, GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig,
         Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
@@ -397,7 +397,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .genv
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
-                // println!("TRACE: check_terminator 1: {func_id:?} call_substs: {call_substs:?}");
 
                 let fn_generics = self
                     .genv
@@ -766,7 +765,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => {
-                Index::from(Expr::constant(rty::Constant::from(len.val)))
+                if let Const::Value(value) = len {
+                    Index::from(Expr::constant(rty::Constant::from(value.val)))
+                } else {
+                    tracked_span_bug!("unexpected array length")
+                }
             }
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),

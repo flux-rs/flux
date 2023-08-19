@@ -61,6 +61,7 @@ pub struct GenericParamDef {
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
+    Const { has_default: bool },
 }
 
 #[derive(Debug)]
@@ -157,14 +158,33 @@ pub enum AliasKind {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub struct Const {
+pub struct ValueConst {
     pub val: usize,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub struct ParamConst {
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum Const {
+    Param(ParamConst),
+    Value(ValueConst),
+}
+
+impl From<usize> for Const {
+    fn from(val: usize) -> Self {
+        Const::Value(ValueConst { val })
+    }
 }
 
 #[derive(PartialEq, Eq, Hash)]
 pub enum GenericArg {
     Ty(Ty),
     Lifetime(Region),
+    Const(Const),
 }
 
 pub type Substs = List<GenericArg>;
@@ -299,6 +319,14 @@ impl GenericArg {
             *re
         } else {
             bug!("expected `GenericArg::Lifetime`, found {:?}", self)
+        }
+    }
+
+    fn expect_const(&self) -> &Const {
+        if let GenericArg::Const(c) = self {
+            c
+        } else {
+            bug!("expected `GenericArg::Const`, found {:?}", self)
         }
     }
 }
@@ -503,6 +531,7 @@ impl fmt::Debug for GenericArg {
         match self {
             GenericArg::Ty(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(region) => write!(f, "{region:?}"),
+            GenericArg::Const(c) => write!(f, "Const({c:?})"),
         }
     }
 }
