@@ -49,7 +49,6 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
     let resolver = table_resolver::Resolver::new(early_cx.tcx, early_cx.sess, owner_id.def_id)?;
     let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
-    // println!("TRACE: resolved-fn-sig {fn_sig:#?}");
     desugar::desugar_fn_sig(early_cx, owner_id, &fn_sig)
 }
 
