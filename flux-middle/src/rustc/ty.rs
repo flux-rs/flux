@@ -22,7 +22,6 @@ use rustc_span::{symbol::kw, Symbol};
 
 use self::subst::Subst;
 use crate::{
-    fhir::ArrayLen,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     pretty::def_id_to_string,
 };
@@ -173,12 +172,6 @@ pub struct ParamConst {
 pub enum Const {
     Param(ParamConst),
     Value(ValueConst),
-}
-
-impl From<&ArrayLen> for Const {
-    fn from(len: &ArrayLen) -> Self {
-        Const::Value(ValueConst { val: len.val })
-    }
 }
 
 impl From<usize> for Const {
