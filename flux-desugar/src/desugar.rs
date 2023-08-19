@@ -1,7 +1,7 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter, slice};
 
-use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug, tracked_span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -15,7 +15,12 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
-use rustc_span::{def_id::DefId, sym, symbol::kw, BytePos, Span, Symbol, DUMMY_SP};
+use rustc_span::{
+    def_id::DefId,
+    sym::{self},
+    symbol::kw,
+    BytePos, Span, Symbol, DUMMY_SP,
+};
 
 pub fn desugar_qualifier(
     early_cx: &EarlyCtxt,
@@ -593,14 +598,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
-            surface::TyKind::ImplTrait(res, args, bounds) => {
+            surface::TyKind::ImplTrait(res, bounds) => {
                 if let Res::OpaqueTy(def_id) = res &&
-                   let Some(local_def_id) = def_id.as_local() &&
-                   let Some(args) = args
+                   let Some(local_def_id) = def_id.as_local()
                 {
                     let owner_id = OwnerId { def_id: local_def_id };
                     let item_id = hir::ItemId { owner_id };
-                    let args = self.desugar_generic_args(*res, args, binders)?;
+
+                    let arity = self.early_cx.tcx.generics_of(local_def_id).params.len();
+                    let args = Self::mk_generic_args_with_hole(arity, span);
+                    let args = self.desugar_generic_args(*res, &args, binders)?;
+
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
                     let self_ty =fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id,  span };
                     let predicates = self.desugar_bounds(bounds, self_ty, binders)?;
@@ -608,11 +616,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     kind
 
                 } else {
-                    panic!("produce error for opaque type")
+                    tracked_span_bug!("unexpected opaque type")
                 }
             }
         };
         Ok(fhir::Ty { kind, fhir_id: ty_fhir_id, span })
+    }
+
+    fn mk_generic_args_with_hole(arity: usize, span: Span) -> Vec<surface::GenericArg<Res>> {
+        (0..arity)
+            .map(|_| surface::GenericArg::Type(surface::Ty { kind: surface::TyKind::Hole, span }))
+            .collect()
     }
 
     fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
@@ -1259,12 +1273,7 @@ impl Binders {
                 self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
             surface::TyKind::Hole => Ok(()),
-            surface::TyKind::ImplTrait(_, args, bounds) => {
-                if let Some(args) = args {
-                    for arg in args {
-                        self.gather_params_generic_arg(early_cx, arg, pos)?;
-                    }
-                }
+            surface::TyKind::ImplTrait(_, bounds) => {
                 for path in bounds {
                     self.gather_params_path(early_cx, path, pos)?;
                 }

@@ -232,12 +232,10 @@ impl<'sess> Resolver<'sess> {
                 surface::TyKind::Array(Box::new(ty), len)
             }
             surface::TyKind::Hole => surface::TyKind::Hole,
-            surface::TyKind::ImplTrait(_, _, bounds) => {
+            surface::TyKind::ImplTrait(_, bounds) => {
                 let bounds = self.resolve_bounds(bounds)?;
-                let (res, arity) = self.resolve_opaque_impl(ty.span)?;
-                let span = ty.span;
-                let args = mk_generic_args_with_hole(arity, span);
-                surface::TyKind::ImplTrait(res, Some(args), bounds)
+                let res = self.resolve_opaque_impl(ty.span)?.0;
+                surface::TyKind::ImplTrait(res, bounds)
             },
         };
         Ok(surface::Ty { kind, span: ty.span })
@@ -303,12 +301,6 @@ impl<'sess> Resolver<'sess> {
             }
         }
     }
-}
-
-fn mk_generic_args_with_hole(arity: usize, span: Span) -> Vec<surface::GenericArg<Res>> {
-    (0..arity)
-        .map(|_| surface::GenericArg::Type(surface::Ty { kind: surface::TyKind::Hole, span }))
-        .collect()
 }
 
 impl<'sess> NameResTable<'sess> {
@@ -600,8 +592,13 @@ impl ResKey {
         Ok(ResKey { s })
     }
 
+    // NOTE: we use the format! instead of `item.name().to_string()` or `to_ident_string()` because the latter
+    // produce "future_trait" instead of "Future"...
     fn from_lang_item(item: hir::LangItem) -> Self {
-        ResKey { s: item.name().to_string() }
+        let s = format!("{:?}", item);
+        // let s = item.name().to_ident_string();
+        // println!("TRACE: from_lang_item({:?}) -> {:?}", item, s);
+        ResKey { s }
     }
 }
 

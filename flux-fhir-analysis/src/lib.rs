@@ -299,7 +299,12 @@ pub fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     for def_id in genv.tcx.hir_crate_items(()).definitions() {
         match genv.tcx.def_kind(def_id) {
-            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::Fn | DefKind::AssocFn => {
+            DefKind::TyAlias
+            | DefKind::Struct
+            | DefKind::Enum
+            | DefKind::Fn
+            | DefKind::AssocFn
+            | DefKind::OpaqueTy => {
                 err = genv.check_wf(def_id).emit(genv.sess).err().or(err);
             }
             _ => {}
