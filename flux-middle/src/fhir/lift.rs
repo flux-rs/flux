@@ -338,7 +338,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         args: &[hir::GenericArg<'_>],
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut lifted = vec![];
-        // if let Some(args) = args {
         for arg in args {
             match arg {
                 hir::GenericArg::Lifetime(lft) => {
