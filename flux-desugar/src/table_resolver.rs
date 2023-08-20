@@ -237,6 +237,11 @@ impl<'sess> Resolver<'sess> {
                 let res = self.resolve_opaque_impl(ty.span)?.0;
                 surface::TyKind::ImplTrait(res, bounds)
             },
+            surface::TyKind::Async(_, ty) => {
+                let res = self.resolve_opaque_impl(ty.span)?.0;
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::Async(res, Box::new(ty))
+            },
         };
         Ok(surface::Ty { kind, span: ty.span })
     }

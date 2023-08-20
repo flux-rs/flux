@@ -196,6 +196,7 @@ pub enum TyKind<R = ()> {
     Array(Box<Ty<R>>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
     ImplTrait(R, Bounds<R>),
+    Async(R, Box<Ty<R>>),
     Hole,
 }
 
@@ -375,10 +376,11 @@ impl fmt::Debug for BinOp {
 
 pub fn async_return_ty(ty: Ty) -> Ty {
     let span = ty.span;
-    let segments = vec![Ident::from_str_and_span("Future", span)];
-    let output_ident = Ident::from_str_and_span("Output", span);
-    let generics = vec![GenericArg::Constraint(output_ident, ty)];
-    let bound = Path { segments, generics, refine: vec![], span, res: () };
-    let kind = TyKind::ImplTrait((), vec![bound]);
+    // TODO:CUT let segments = vec![Ident::from_str_and_span("Future", span)];
+    // TODO:CUT let output_ident = Ident::from_str_and_span("Output", span);
+    // TODO:CUT let generics = vec![GenericArg::Constraint(output_ident, ty)];
+    // TODO:CUT let bound = Path { segments, generics, refine: vec![], span, res: () };
+    // TODO:CUT let kind = TyKind::ImplTrait((), vec![bound]);
+    let kind = TyKind::Async((), Box::new(ty));
     Ty { kind, span }
 }

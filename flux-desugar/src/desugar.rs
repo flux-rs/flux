@@ -474,7 +474,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_bound(
         &mut self,
-        substs: &fhir::Ty,
+        args: &fhir::Ty,
         path: &surface::Path<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
@@ -487,13 +487,28 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         };
         if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
             let item_id = self.lookup_item_id(trait_def_id, *ident)?;
-            let projection_ty = fhir::AliasTy { args: substs.clone(), def_id: item_id };
+            let projection_ty = fhir::AliasTy { args: args.clone(), def_id: item_id };
             let term = self.desugar_ty(None, ty, binders)?;
             let proj = fhir::ProjectionPredicate { projection_ty, term };
             Ok(fhir::ClauseKind::Projection(proj))
         } else {
             bug!("unexpected path in desugar_bound: {:?}", path.generics)
         }
+    }
+
+    fn desugar_async_out_ty(
+        &mut self,
+        out_ty: &surface::Ty<Res>,
+        args: fhir::Ty,
+        binders: &mut Binders,
+    ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
+        let trait_def_id = self.early_cx.tcx.lang_items().future_trait().unwrap();
+        let ident = fhir::SurfaceIdent::from_str("Output"); // TODO: less stringy way?
+        let item_id = self.lookup_item_id(trait_def_id, ident)?;
+        let projection_ty = fhir::AliasTy { args: args.clone(), def_id: item_id };
+        let term = self.desugar_ty(None, out_ty, binders)?;
+        let proj = fhir::ProjectionPredicate { projection_ty, term };
+        Ok(fhir::ClauseKind::Projection(proj))
     }
 
     fn desugar_ty(
@@ -599,23 +614,50 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
             surface::TyKind::ImplTrait(res, bounds) => {
-                if let Res::OpaqueTy(def_id) = res &&
-                   let Some(local_def_id) = def_id.as_local()
-                {
-                    let owner_id = OwnerId { def_id: local_def_id };
-                    let item_id = hir::ItemId { owner_id };
+                if let Some(item_id) = Self::mk_res_impl_item_id(res) {
                     let args = self.desugar_generic_args(*res, &[], binders)?;
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
-                    let self_ty =fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id,  span };
+                    let self_ty = fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id, span };
                     let predicates = self.desugar_bounds(bounds, self_ty, binders)?;
-                    self.opaque_impls.insert(local_def_id, fhir::GenericPredicates { parent: None, predicates } );
+                    self.opaque_impls.insert(
+                        item_id.owner_id.def_id,
+                        fhir::GenericPredicates { parent: None, predicates },
+                    );
                     kind
                 } else {
                     tracked_span_bug!("unexpected opaque type")
                 }
             }
+            surface::TyKind::Async(res, out_ty) => {
+                if let Some(item_id) = Self::mk_res_impl_item_id(res) {
+                    let args = self.desugar_generic_args(*res, &[], binders)?;
+                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
+                    let self_ty = fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id, span };
+                    let predicates = vec![self.desugar_async_out_ty(out_ty, self_ty, binders)?];
+                    self.opaque_impls.insert(
+                        item_id.owner_id.def_id,
+                        fhir::GenericPredicates { parent: None, predicates },
+                    );
+                    kind
+                } else {
+                    tracked_span_bug!("unexpected async type")
+                }
+            }
         };
         Ok(fhir::Ty { kind, fhir_id: ty_fhir_id, span })
+    }
+
+    fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
+        if let Res::OpaqueTy(def_id) = res &&
+           let Some(local_def_id) = def_id.as_local()
+        {
+            let owner_id = OwnerId { def_id: local_def_id };
+            let item_id = hir::ItemId { owner_id };
+            Some(item_id)
+
+        } else {
+            None
+        }
     }
 
     fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
@@ -1267,6 +1309,9 @@ impl Binders {
                     self.gather_params_path(early_cx, path, pos)?;
                 }
                 Ok(())
+            }
+            surface::TyKind::Async(_, ty) => {
+                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
         }
     }
