@@ -185,7 +185,6 @@ pub fn lift_fn_sig(
         span: fn_sig.span,
     };
     Ok(fn_sig)
-    // Ok(fhir::FnInfo { fn_sig, fn_preds, fn_impls })
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
