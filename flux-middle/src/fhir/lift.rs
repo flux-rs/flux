@@ -307,12 +307,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             None => vec![],
         };
 
-        let path = fhir::Path {
-            res,
-            generics,
-            refine: vec![],
-            span: path.span,
-        };
+        let path = fhir::Path { res, generics, refine: vec![], span: path.span };
         let self_ty = self_ty
             .map(|ty| Ok(Box::new(self.lift_ty(ty)?)))
             .transpose()?;
