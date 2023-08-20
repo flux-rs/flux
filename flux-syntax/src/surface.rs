@@ -376,11 +376,6 @@ impl fmt::Debug for BinOp {
 
 pub fn async_return_ty(ty: Ty) -> Ty {
     let span = ty.span;
-    // TODO:CUT let segments = vec![Ident::from_str_and_span("Future", span)];
-    // TODO:CUT let output_ident = Ident::from_str_and_span("Output", span);
-    // TODO:CUT let generics = vec![GenericArg::Constraint(output_ident, ty)];
-    // TODO:CUT let bound = Path { segments, generics, refine: vec![], span, res: () };
-    // TODO:CUT let kind = TyKind::ImplTrait((), vec![bound]);
     let kind = TyKind::Async((), Box::new(ty));
     Ty { kind, span }
 }
