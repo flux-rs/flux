@@ -309,7 +309,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
         let path = fhir::Path {
             res,
-            generics, // : self.lift_generic_args(path.segments.last().unwrap().args)?,
+            generics,
             refine: vec![],
             span: path.span,
         };
