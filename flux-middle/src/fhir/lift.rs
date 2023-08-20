@@ -333,7 +333,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn lift_generic_args(
         &self,
-        // args: Option<&hir::GenericArgs>,
         args: &[hir::GenericArg<'_>],
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut lifted = vec![];
