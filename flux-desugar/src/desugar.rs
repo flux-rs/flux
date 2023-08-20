@@ -605,12 +605,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     let owner_id = OwnerId { def_id: local_def_id };
                     let item_id = hir::ItemId { owner_id };
 
-                    let arity = self.early_cx.tcx.generics_of(local_def_id).params.len();
-                    let args = Self::mk_generic_args_with_hole(arity, span);
-                    let args = self.desugar_generic_args(*res, &args, binders)?;
+                    // TODO: CUT let arity = self.early_cx.tcx.generics_of(local_def_id).params.len();
+                    // TODO: CUT let args = Self::mk_generic_args_with_hole(arity, span);
+                    // TODO: CUT let args = self.desugar_generic_args(*res, &args, binders)?;
+                    let args = self.desugar_generic_args(*res, &[], binders)?;
 
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
-                    let self_ty = fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id,  span };
+                    let self_ty =fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id,  span };
                     let predicates = self.desugar_bounds(bounds, self_ty, binders)?;
                     self.opaque_impls.insert(local_def_id, fhir::GenericPredicates { parent: None, predicates } );
                     kind
@@ -623,11 +624,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         Ok(fhir::Ty { kind, fhir_id: ty_fhir_id, span })
     }
 
-    fn mk_generic_args_with_hole(arity: usize, span: Span) -> Vec<surface::GenericArg<Res>> {
-        (0..arity)
-            .map(|_| surface::GenericArg::Type(surface::Ty { kind: surface::TyKind::Hole, span }))
-            .collect()
-    }
+    // TODO:CUT fn mk_generic_args_with_hole(arity: usize, span: Span) -> Vec<surface::GenericArg<Res>> {
+    // TODO:CUT     (0..arity)
+    // TODO:CUT         .map(|_| surface::GenericArg::Type(surface::Ty { kind: surface::TyKind::Hole, span }))
+    // TODO:CUT         .collect()
+    // TODO:CUT }
 
     fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
         let ident = surface::Ident { name: kw::UnderscoreLifetime, span };
