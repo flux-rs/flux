@@ -424,6 +424,7 @@ impl<'sess> NameResTable<'sess> {
             hir::GenericBound::Trait(poly_trait_ref, _) => {
                 self.collect_from_path(poly_trait_ref.trait_ref.path)
             }
+
             hir::GenericBound::LangItemTrait(lang_item, _span, _hir_id, args) => {
                 let key = ResKey::from_lang_item(*lang_item);
                 let res = Res::LangTrait(*lang_item);
