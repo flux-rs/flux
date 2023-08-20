@@ -610,7 +610,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     let args = self.desugar_generic_args(*res, &args, binders)?;
 
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
-                    let self_ty =fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id,  span };
+                    let self_ty = fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id,  span };
                     let predicates = self.desugar_bounds(bounds, self_ty, binders)?;
                     self.opaque_impls.insert(local_def_id, fhir::GenericPredicates { parent: None, predicates } );
                     kind
