@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface;
-use hir::{ItemKind, LangItem};
+use hir::ItemKind;
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -480,9 +480,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
         let trait_def_id = match path.res {
             Res::Trait(trait_def_id) => trait_def_id,
-            Res::LangTrait(LangItem::Future) => {
-                self.early_cx.tcx.lang_items().future_trait().unwrap()
-            }
             _ => span_bug!(path.span, "unexpected trait {:?}", path.res),
         };
         if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {

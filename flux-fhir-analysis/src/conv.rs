@@ -602,7 +602,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
-            fhir::Res::Trait(_) | fhir::Res::OpaqueTy(_) | fhir::Res::LangTrait(_) => {
+            fhir::Res::Trait(_) | fhir::Res::OpaqueTy(_) => {
                 bug!("unexpected res in conv_path: {:?}", path.res)
             }
         };

@@ -424,15 +424,14 @@ impl<'sess> NameResTable<'sess> {
             hir::GenericBound::Trait(poly_trait_ref, _) => {
                 self.collect_from_path(poly_trait_ref.trait_ref.path)
             }
-            hir::GenericBound::LangItemTrait(lang_item, _span, _hir_id, args) => {
-                let key = ResKey::from_lang_item(*lang_item);
-                let res = Res::LangTrait(*lang_item);
-                self.insert(key, res);
+            // hir::GenericBound::LangItemTrait(lang_item, _span, _hir_id, args) => {
+            //     let key = ResKey::from_lang_item(*lang_item);
+            //     let res = Res::LangTrait(*lang_item);
+            //     self.insert(key, res);
 
-                self.collect_from_generic_args(args)?;
-                Ok(())
-            }
-
+            //     self.collect_from_generic_args(args)?;
+            //     Ok(())
+            // }
             _ => Ok(()),
         }
     }
@@ -602,15 +601,6 @@ impl ResKey {
         }
         let s = path.segments.iter().map(|segment| segment.ident).join("::");
         Ok(ResKey { s })
-    }
-
-    // NOTE: we use the format! instead of `item.name().to_string()` or `to_ident_string()` because the latter
-    // produce "future_trait" instead of "Future"...
-    fn from_lang_item(item: hir::LangItem) -> Self {
-        let s = format!("{:?}", item);
-        // let s = item.name().to_ident_string();
-        // println!("TRACE: from_lang_item({:?}) -> {:?}", item, s);
-        ResKey { s }
     }
 }
 

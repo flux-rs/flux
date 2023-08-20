@@ -136,7 +136,6 @@ pub FnSig: surface::FnSig = {
         let ensures = ensures.unwrap_or_default();
         let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
-        // let returns = Some(surface::async_return_ty(returns));
         let return_span = returns.span;
         let returns = Some(surface::Ty { kind: surface::TyKind::Async((), Box::new(returns)), span: return_span });
         surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
