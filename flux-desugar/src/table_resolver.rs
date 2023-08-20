@@ -493,8 +493,16 @@ impl<'sess> NameResTable<'sess> {
                 self.collect_from_path(path)
             }
             hir::TyKind::OpaqueDef(item_id, args, _) => {
-                self.opaque = Some((item_id.owner_id.def_id, args.len()));
-                Ok(())
+                assert!(self.opaque.is_none());
+                if self.opaque.is_some() {
+                    Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                        ty.span,
+                        "duplicate opaque types in signature",
+                    )))
+                } else {
+                    self.opaque = Some((item_id.owner_id.def_id, args.len()));
+                    Ok(())
+                }
             }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
