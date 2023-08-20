@@ -276,7 +276,6 @@ impl<'sess> Resolver<'sess> {
 
     fn resolve_path(&self, path: Path) -> Result<Path<Res>, ErrorGuaranteed> {
         let Some(res) = self.table.get(&ResKey::from_path(&path)) else {
-            // panic!("Unresolved path {:?} {:?}", path.segments.iter().join("::"), path.generics);
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(&path)));
         };
         match res {

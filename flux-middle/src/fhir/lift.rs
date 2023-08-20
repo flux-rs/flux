@@ -185,7 +185,6 @@ pub fn lift_fn_sig(
         span: fn_sig.span,
     };
     Ok(fn_sig)
-    // Ok(fhir::FnInfo { fn_sig, fn_preds, fn_impls })
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
@@ -310,7 +309,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
         let path = fhir::Path {
             res,
-            generics, // : self.lift_generic_args(path.segments.last().unwrap().args)?,
+            generics,
             refine: vec![],
             span: path.span,
         };
@@ -334,7 +333,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn lift_generic_args(
         &self,
-        // args: Option<&hir::GenericArgs>,
         args: &[hir::GenericArg<'_>],
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut lifted = vec![];
