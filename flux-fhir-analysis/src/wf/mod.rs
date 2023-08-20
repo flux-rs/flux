@@ -399,7 +399,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::PrimTy(..)
             | fhir::Res::Param(_)
             | fhir::Res::Trait(_)
-            | fhir::Res::LangTrait(_)
             | fhir::Res::AssocTy(_)
             | fhir::Res::OpaqueTy(_) => {}
         }

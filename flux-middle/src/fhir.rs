@@ -30,7 +30,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
-    ItemId, LangItem, OwnerId,
+    ItemId, OwnerId,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -421,7 +421,6 @@ pub enum Res {
     AssocTy(DefId),
     Trait(DefId),
     OpaqueTy(DefId),
-    LangTrait(LangItem),
 }
 
 #[derive(Debug, Clone)]
@@ -615,7 +614,6 @@ impl Res {
             Res::AssocTy(_) => "associated type",
             Res::Trait(_) => "trait",
             Res::OpaqueTy(_) => "opaque type",
-            Res::LangTrait(_) => "lang item",
         }
     }
 }
@@ -1342,9 +1340,6 @@ impl fmt::Debug for Path {
             | Res::Trait(def_id)
             | Res::OpaqueTy(def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
-            }
-            Res::LangTrait(item) => {
-                write!(f, "{:?}", item)?;
             }
         }
         if !self.generics.is_empty() {
