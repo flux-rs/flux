@@ -233,7 +233,7 @@ impl TVarSubst {
 
     fn infer_from_arg(&mut self, src: &rustc_middle::ty::GenericArg, dst: &GenericArg) {
         if let GenericArg::Ty(dst) = dst {
-            self.infer_from_ty(&src.as_type().unwrap(), dst)
+            self.infer_from_ty(&src.as_type().unwrap(), dst);
         }
     }
 
@@ -251,31 +251,31 @@ impl TVarSubst {
                         iter::zip(src_subst, &dst_subst)
                             .for_each(|(src_arg, dst_arg)| self.infer_from_arg(&src_arg, dst_arg));
                    } else {
-                        bug!("unexpected base_ty")
+                        bug!("unexpected base_ty");
                    }
             }
             ty::TyKind::Array(src, _) => {
                 if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(&src, dst)
+                    self.infer_from_ty(&src, dst);
                 } else {
-                    bug!("unexpected base_ty")
+                    bug!("unexpected base_ty");
                 }
             }
 
             ty::TyKind::Slice(src) => {
                 if let Some(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(&src, dst)
+                    self.infer_from_ty(&src, dst);
                 } else {
-                    bug!("unexpected base_ty")
+                    bug!("unexpected base_ty");
                 }
             }
             ty::TyKind::Tuple(src_tys) => {
                 if let Some(BaseTy::Tuple(dst_tys)) = dst.as_bty_skipping_existentials() {
                     debug_assert_eq!(src_tys.len(), dst_tys.len());
                     iter::zip(src_tys.iter(), dst_tys.iter())
-                        .for_each(|(src, dst)| self.infer_from_ty(&src, dst))
+                        .for_each(|(src, dst)| self.infer_from_ty(&src, dst));
                 } else {
-                    bug!("unexpected base_ty")
+                    bug!("unexpected base_ty");
                 }
             }
             _ => {}
@@ -323,11 +323,7 @@ fn normalize_with_impl<'tcx>(
     param_env: rustc_middle::ty::ParamEnv<'tcx>,
     alias_ty: &AliasTy,
 ) -> Ty {
-    let impl_rty = if let GenericArg::Ty(impl_ty) = &alias_ty.args[0] {
-        impl_ty
-    } else {
-        bug!("unexpected {alias_ty:?}")
-    };
+    let GenericArg::Ty(impl_rty) = &alias_ty.args[0] else { bug!("unexpected {alias_ty:?}") };
     let elem = alias_ty.def_id;
 
     // println!("TRACE: normalize_with_impl: {impl_rty:?} as {elem:?}");

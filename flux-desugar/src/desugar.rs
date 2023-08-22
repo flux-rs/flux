@@ -478,9 +478,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-        let trait_def_id = match path.res {
-            Res::Trait(trait_def_id) => trait_def_id,
-            _ => span_bug!(path.span, "unexpected trait {:?}", path.res),
+        let Res::Trait(trait_def_id) = path.res else {
+            span_bug!(path.span, "unexpected trait {:?}", path.res);
         };
         if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
             let item_id = self.lookup_item_id(trait_def_id, *ident)?;
