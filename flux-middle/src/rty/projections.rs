@@ -84,10 +84,6 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let key = alias_ty.key();
         let res = self.preds.get(&key).cloned();
         // TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn't get found in impl_trait02.rs)
-        // println!(
-        //     "TRACE: normalize_with_preds: {:?} || {alias_ty:?} ({key:?}) => {res:?}",
-        //     self.preds
-        // );
         res
     }
 
@@ -325,8 +321,6 @@ fn normalize_with_impl<'tcx>(
 ) -> Ty {
     let GenericArg::Ty(impl_rty) = &alias_ty.args[0] else { bug!("unexpected {alias_ty:?}") };
     let elem = alias_ty.def_id;
-
-    // println!("TRACE: normalize_with_impl: {impl_rty:?} as {elem:?}");
 
     // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
     let impl_source = get_impl_source(genv, elem, impl_rty, param_env);

@@ -465,6 +465,7 @@ fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = OwnerId> + '_ {
                 | DefKind::Fn
                 | DefKind::Impl { .. }
                 | DefKind::TyAlias
+                | DefKind::AssocTy
                 | DefKind::AssocFn => Some(OwnerId { def_id }),
                 _ => None,
             }

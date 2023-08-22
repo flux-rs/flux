@@ -350,18 +350,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 let ty = self.check_rvalue(rcx, env, stmt_span, rvalue)?;
-                // println!(
-                //     "TRACE: check_statement_assign {place:?} <- {rvalue:?} ({ty:?}) ENV = {env:?}"
-                // );
                 self.check_assign_ty(rcx, env, place, ty, stmt.source_info)?;
-
-                // let ty = rcx.unpack(&ty);
-                // println!(
-                //     "TRACE: check_statement_assign {place:?} <- {rvalue:?} ({ty:?}) ENV = {env:?}"
-                // );
-                // let gen = &mut self.constr_gen(rcx, stmt_span);
-                // env.assign(rcx, gen, place, ty)
-                //     .with_src_info(stmt.source_info)?;
             }
             StatementKind::SetDiscriminant { .. } => {
                 // TODO(nilehmann) double check here that the place is unfolded to
