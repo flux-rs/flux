@@ -146,8 +146,10 @@ pub struct FnSig<R = ()> {
 pub struct WhereBoundPredicate<R = ()> {
     pub span: Span,
     pub bounded_ty: Ty<R>,
-    pub bounds: Vec<Path<R>>,
+    pub bounds: Bounds<R>,
 }
+
+pub type Bounds<R = ()> = Vec<Path<R>>;
 
 #[derive(Debug)]
 pub enum Arg<R = ()> {
@@ -192,6 +194,9 @@ pub enum TyKind<R = ()> {
     Constr(Expr, Box<Ty<R>>),
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
+    /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
+    ImplTrait(R, Bounds<R>),
+    Async(R, Box<Ty<R>>),
     Hole,
 }
 
@@ -367,4 +372,10 @@ impl fmt::Debug for BinOp {
             BinOp::Div => write!(f, "/"),
         }
     }
+}
+
+pub fn async_return_ty(ty: Ty) -> Ty {
+    let span = ty.span;
+    let kind = TyKind::Async((), Box::new(ty));
+    Ty { kind, span }
 }

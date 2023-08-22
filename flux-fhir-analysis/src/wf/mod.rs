@@ -179,6 +179,20 @@ pub(crate) fn check_fn_sig(
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_generic_predicates(
+    early_cx: &EarlyCtxt,
+    predicates: &fhir::GenericPredicates,
+    owner_id: OwnerId,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    predicates
+        .predicates
+        .iter()
+        .try_for_each_exhaust(|clause| wf.check_clause_kind(&mut infcx, clause))?;
+    Ok(infcx.into_results())
+}
+
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
         Wf { early_cx, modes: Default::default(), xi: Default::default() }
@@ -306,8 +320,43 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)
             }
+            fhir::TyKind::OpaqueDef(_item_id, args, _) => {
+                args.iter()
+                    .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
+            }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
+        }
+    }
+
+    fn check_clause_kind(
+        &mut self,
+        env: &mut InferCtxt,
+        clause: &fhir::ClauseKind,
+    ) -> Result<(), ErrorGuaranteed> {
+        let fhir::ClauseKind::Projection(proj) = clause;
+        self.check_alias_ty(env, &proj.projection_ty)?;
+        self.check_type(env, &proj.term)?;
+        Ok(())
+    }
+
+    fn check_alias_ty(
+        &mut self,
+        env: &mut InferCtxt,
+        alias_ty: &fhir::AliasTy,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.check_type(env, &alias_ty.args)
+    }
+
+    fn check_generic_arg(
+        &mut self,
+        env: &mut InferCtxt,
+        arg: &fhir::GenericArg,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let fhir::GenericArg::Type(ty) = arg {
+            self.check_type(env, ty)
+        } else {
+            Ok(())
         }
     }
 
@@ -350,16 +399,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::PrimTy(..)
             | fhir::Res::Param(_)
             | fhir::Res::Trait(_)
-            | fhir::Res::AssocTy(_) => {}
+            | fhir::Res::AssocTy(_)
+            | fhir::Res::OpaqueTy(_) => {}
         }
         let snapshot = self.xi.snapshot();
-        let res = path.generics.iter().try_for_each_exhaust(|arg| {
-            if let fhir::GenericArg::Type(ty) = arg {
-                self.check_type(env, ty)
-            } else {
-                Ok(())
-            }
-        });
+        let res = path
+            .generics
+            .iter()
+            .try_for_each_exhaust(|arg| self.check_generic_arg(env, arg));
         if !self.early_cx.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }

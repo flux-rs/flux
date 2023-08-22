@@ -30,7 +30,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
-    OwnerId,
+    ItemId, OwnerId,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -91,6 +91,8 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
+pub type ItemPredicates = FxHashMap<LocalDefId, GenericPredicates>;
+
 #[derive(Debug, Clone)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
@@ -110,7 +112,7 @@ pub struct ProjectionPredicate {
 
 #[derive(Debug, Clone)]
 pub struct AliasTy {
-    pub substs: Ty,
+    pub args: Ty,
     pub def_id: DefId,
 }
 
@@ -120,7 +122,8 @@ pub struct AliasTy {
 #[derive(Default, Debug)]
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
-    predicates: FxHashMap<LocalDefId, GenericPredicates>,
+    predicates: ItemPredicates,
+    item_bounds: ItemPredicates,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,
@@ -199,6 +202,13 @@ pub struct VariantRet {
     pub idx: RefineArg,
 }
 
+#[derive(Debug)]
+pub struct FnInfo {
+    pub fn_sig: FnSig,
+    pub fn_preds: GenericPredicates,
+    pub fn_impls: ItemPredicates,
+}
+
 pub struct FnSig {
     /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<RefineParam>,
@@ -249,6 +259,7 @@ pub enum TyKind {
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
+    OpaqueDef(ItemId, Vec<GenericArg>, bool),
     Never,
     Hole,
 }
@@ -409,6 +420,7 @@ pub enum Res {
     Param(DefId),
     AssocTy(DefId),
     Trait(DefId),
+    OpaqueTy(DefId),
 }
 
 #[derive(Debug, Clone)]
@@ -601,6 +613,7 @@ impl Res {
             Res::Param(_) => "type parameter",
             Res::AssocTy(_) => "associated type",
             Res::Trait(_) => "trait",
+            Res::OpaqueTy(_) => "opaque type",
         }
     }
 }
@@ -850,6 +863,9 @@ impl Map {
     pub fn insert_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
         self.predicates.insert(def_id, predicates);
     }
+    pub fn insert_item_bounds(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
+        self.item_bounds.insert(def_id, predicates);
+    }
 
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
         self.generics.get(&def_id)
@@ -857,6 +873,10 @@ impl Map {
 
     pub fn get_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
         self.predicates.get(&def_id)
+    }
+
+    pub fn get_item_bounds(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
+        self.item_bounds.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -1259,6 +1279,9 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
+            TyKind::OpaqueDef(def_id, args, _) => {
+                write!(f, "impl trait <def_id = {def_id:?}, args = {args:?}>")
+            }
         }
     }
 }
@@ -1314,7 +1337,8 @@ impl fmt::Debug for Path {
             | Res::Enum(def_id)
             | Res::Param(def_id)
             | Res::AssocTy(def_id)
-            | Res::Trait(def_id) => {
+            | Res::Trait(def_id)
+            | Res::OpaqueTy(def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
         }

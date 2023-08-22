@@ -1,19 +1,20 @@
-use std::iter;
+use std::{iter, ops::ControlFlow};
 
 #[allow(unused_imports)]
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSourceUserDefinedData, ObligationCause},
     ty::{ParamTy, ToPredicate, TraitRef, TyCtxt},
 };
+use rustc_span::Span;
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitor},
     AliasKind, AliasTy, BaseTy, ClauseKind, GenericArg, Ty, TyKind,
 };
 use crate::{
@@ -23,22 +24,54 @@ use crate::{
     rustc::{self},
 };
 
+// type AliasTyKey = (DefId, Vec<GenericArg>);
+// type AliasTyKey = AliasTy;
+type AliasTyKey = String;
+
+impl AliasTy {
+    fn key(&self) -> AliasTyKey {
+        // TODO:ALIASKEYHACK: super janky hack, Nico -- why is the plain hasher not working? Maybe List<GenericArg> is not *really* hashable?
+        format!("{:?}", self)
+        // without_constrs(&self)
+        // let args = self.args.iter().map(|arg| arg.clone()).collect();
+        // (self.def_id, args)
+    }
+}
+
 struct ProjectionTable<'sess, 'tcx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
     def_id: DefId,
-    preds: FxHashMap<AliasTy, Ty>,
+    // preds: FxHashMap<AliasTy, Ty>,
+    preds: FxHashMap<AliasTyKey, Ty>,
 }
 
 impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
-    fn new(genv: &'sess GlobalEnv<'sess, 'tcx>, def_id: DefId) -> Result<Self, QueryErr> {
-        let predicates = genv.predicates_of(def_id)?.skip_binder();
+    fn new<T: TypeVisitable>(
+        genv: &'sess GlobalEnv<'sess, 'tcx>,
+        def_id: DefId,
+        t: &T,
+        span: Span,
+    ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
-        for pred in &predicates.predicates {
-            if pred.kind.vars().is_empty() {
-                if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
-                    match preds.insert(proj_pred.alias_ty, proj_pred.term) {
-                        None => (),
-                        Some(_) => bug!("duplicate projection predicate"),
+
+        let mut gps = vec![];
+        // 1. Insert generic predicates of the callsite `def_id`
+        gps.push(genv.predicates_of(def_id)?.skip_binder());
+        // 2. Insert generic predicates of the opaque-types
+        let opaque_dids = opaque_def_ids(t);
+
+        for did in opaque_dids.iter() {
+            gps.push(genv.item_bounds(*did, span)?.skip_binder());
+        }
+
+        for predicates in gps {
+            for pred in &predicates.predicates {
+                if pred.kind.vars().is_empty() {
+                    if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
+                        match preds.insert(proj_pred.alias_ty.key(), proj_pred.term) {
+                            None => (),
+                            Some(_) => bug!("duplicate projection predicate"),
+                        }
                     }
                 }
             }
@@ -48,7 +81,14 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
 
     fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let alias_ty = without_constrs(alias_ty);
-        self.preds.get(&alias_ty).cloned()
+        let key = alias_ty.key();
+        let res = self.preds.get(&key).cloned();
+        // TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn't get found in impl_trait02.rs)
+        // println!(
+        //     "TRACE: normalize_with_preds: {:?} || {alias_ty:?} ({key:?}) => {res:?}",
+        //     self.preds
+        // );
+        res
     }
 
     fn normalize_with_impl(&self, alias_ty: &AliasTy) -> Option<Ty> {
@@ -56,7 +96,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         Some(normalize_with_impl(self.genv, param_env, alias_ty))
     }
 
-    fn normalize(&self, alias_ty: &AliasTy) -> Ty {
+    fn normalize_projection(&self, alias_ty: &AliasTy) -> Ty {
         self.normalize_with_preds(alias_ty)
             .or_else(|| self.normalize_with_impl(alias_ty))
             .unwrap_or_else(|| {
@@ -80,6 +120,24 @@ fn without_constrs<T: TypeFoldable>(t: &T) -> T {
     t.fold_with(&mut WithoutConstrs)
 }
 
+struct OpaquesVisitor(FxHashSet<DefId>);
+
+impl TypeVisitor for OpaquesVisitor {
+    fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!, ()> {
+        if let BaseTy::Alias(AliasKind::Opaque, alias_ty) = bty {
+            let _ = self.0.insert(alias_ty.def_id);
+            alias_ty.args.visit_with(self);
+        }
+        bty.super_visit_with(self)
+    }
+}
+
+fn opaque_def_ids<T: TypeVisitable>(t: &T) -> FxHashSet<DefId> {
+    let mut visitor = OpaquesVisitor(FxHashSet::default());
+    t.visit_with(&mut visitor);
+    visitor.0
+}
+
 // -----------------------------------------------------------------------------------------------------
 // Code for normalizing `AliasTy` using impl -----------------------------------------------------------
 // -----------------------------------------------------------------------------------------------------
@@ -97,6 +155,7 @@ fn into_rustc_generic_arg<'tcx>(
         GenericArg::Const(_) => todo!(),
     }
 }
+
 fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
     match bty {
         BaseTy::Int(i) => rustc_middle::ty::Ty::new_int(*tcx, *i), // rustc_middle::ty::Ty::mk_int(*tcx, int_ty),
@@ -123,6 +182,13 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         BaseTy::Array(_, _) => todo!(),
         BaseTy::Never => todo!(),
         BaseTy::Closure(_, _) => todo!(),
+        BaseTy::Generator(def_id, args) => {
+            todo!("Generator {:?} {:?}", def_id, args)
+            // let args = args.iter().map(|ty| into_rustc_ty(tcx, ty));
+            // let args = tcx.mk_args_from_iter(args);
+            // rustc_middle::ty::Ty::new_generator(*tcx, *def_id, args, mov)
+        }
+        BaseTy::GeneratorWitness(_) => todo!(),
         BaseTy::Alias(_, _) => todo!(),
     }
 }
@@ -248,7 +314,7 @@ fn get_impl_source<'tcx>(
     impl_source
 }
 
-/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item
+/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item>
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
 
@@ -263,6 +329,9 @@ fn normalize_with_impl<'tcx>(
         bug!("unexpected {alias_ty:?}")
     };
     let elem = alias_ty.def_id;
+
+    // println!("TRACE: normalize_with_impl: {impl_rty:?} as {elem:?}");
+
     // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
     let impl_source = get_impl_source(genv, elem, impl_rty, param_env);
 
@@ -308,18 +377,20 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
                 // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
-                self.normalize(alias_ty)
+                self.normalize_projection(alias_ty)
             }
             _ => ty.super_fold_with(self),
         }
     }
 }
 
-pub fn normalize<'sess, T: TypeFoldable>(
+pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
     def_id: DefId,
     t: &T,
+    span: Span,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, def_id)?;
+    // add opaques to table then normalize_from_preds will "just work"?
+    let mut table = ProjectionTable::new(genv, def_id, t, span)?;
     Ok(t.fold_with(&mut table))
 }

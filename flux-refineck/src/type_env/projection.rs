@@ -186,7 +186,7 @@ impl PlacesTree {
                         TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
                             ty = mode.downcast_struct(adt, substs, idx)?[f.as_usize()].clone();
                         }
-                        _ => tracked_span_bug!("invalid field access `{ty:?}`"),
+                        _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
                     };
                 }
                 PlaceElem::Index(_) => {

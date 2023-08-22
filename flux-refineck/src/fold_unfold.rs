@@ -188,6 +188,7 @@ enum PlaceNode {
     Deref(Ty, Box<PlaceNode>),
     Downcast(AdtDef, Substs, VariantIdx, Vec<PlaceNode>),
     Closure(DefId, Substs, Vec<PlaceNode>),
+    Generator(DefId, Substs, Vec<PlaceNode>),
     Tuple(List<Ty>, Vec<PlaceNode>),
     Ty(Ty),
 }
@@ -315,6 +316,10 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
             TerminatorKind::Goto { target } => {
                 self.goto(bb, *target, env)?;
             }
+            TerminatorKind::Yield { resume, resume_arg, .. } => {
+                M::projection(self, &mut env, resume_arg, ProjKind::Other)?;
+                self.goto(bb, *resume, env)?;
+            }
             TerminatorKind::Drop { place, target, .. } => {
                 M::projection(self, &mut env, place, ProjKind::Other)?;
                 self.goto(bb, *target, env)?;
@@ -329,7 +334,9 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 self.goto(bb, *real_target, env)?;
             }
-            TerminatorKind::Unreachable | TerminatorKind::Resume => {}
+            TerminatorKind::Unreachable
+            | TerminatorKind::Resume
+            | TerminatorKind::GeneratorDrop => {}
         }
         Ok(())
     }
@@ -504,6 +511,7 @@ impl PlaceNode {
                         fields
                     }
                     TyKind::Closure(def_id, substs) => {
+                        // let fields = generic_args_fields(substs);
                         let fields = substs
                             .as_closure()
                             .upvar_tys()
@@ -520,13 +528,26 @@ impl PlaceNode {
                         let PlaceNode::Tuple(.., fields) = self else { unreachable!() };
                         fields
                     }
+                    TyKind::Generator(def_id, substs) => {
+                        // let fields = generic_args_fields(substs);
+                        let fields = substs
+                            .as_generator()
+                            .upvar_tys()
+                            .cloned()
+                            .map(PlaceNode::Ty)
+                            .collect_vec();
+                        *self = PlaceNode::Generator(*def_id, substs.clone(), fields);
+                        let PlaceNode::Generator(.., fields) = self else { unreachable!() };
+                        fields
+                    }
                     _ => tracked_span_bug!("implicit downcast of non-struct: `{ty:?}`"),
                 };
                 Ok((fields, true))
             }
             PlaceNode::Downcast(.., fields)
             | PlaceNode::Tuple(.., fields)
-            | PlaceNode::Closure(.., fields) => Ok((fields, false)),
+            | PlaceNode::Closure(.., fields)
+            | PlaceNode::Generator(.., fields) => Ok((fields, false)),
             PlaceNode::Deref(..) => {
                 tracked_span_bug!("projection field of non-adt non-tuple place: `{self:?}`")
             }
@@ -545,6 +566,10 @@ impl PlaceNode {
             }
             PlaceNode::Closure(did, substs, _) => {
                 *self = PlaceNode::Ty(Ty::mk_closure(*did, substs.clone()));
+                true
+            }
+            PlaceNode::Generator(did, substs, _) => {
+                *self = PlaceNode::Ty(Ty::mk_generator(*did, substs.clone()));
                 true
             }
             PlaceNode::Tuple(fields, ..) => {
@@ -571,6 +596,9 @@ impl PlaceNode {
             }
             (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
             (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
+                (fields1, fields2)
+            }
+            (PlaceNode::Generator(.., fields1), PlaceNode::Generator(.., fields2)) => {
                 (fields1, fields2)
             }
             (
@@ -600,11 +628,12 @@ impl PlaceNode {
                 modified2 |= m;
                 (fields1, fields2)
             }
-            (PlaceNode::Closure(.., fields1), _) => {
+            (PlaceNode::Closure(.., fields1), _) | (PlaceNode::Generator(.., fields1), _) => {
                 let (fields2, m) = other.fields(genv)?;
                 modified2 |= m;
                 (fields1, fields2)
             }
+
             (PlaceNode::Downcast(adt, substs, .., fields1), _) => {
                 if adt.is_struct() && !in_mut_ref {
                     let (fields2, m) = other.fields(genv)?;
@@ -638,7 +667,8 @@ impl PlaceNode {
                 return;
             }
             (PlaceNode::Tuple(_, fields1), PlaceNode::Tuple(_, fields2)) => (fields1, fields2),
-            (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2)) => {
+            (PlaceNode::Closure(.., fields1), PlaceNode::Closure(.., fields2))
+            | (PlaceNode::Generator(.., fields1), PlaceNode::Generator(.., fields2)) => {
                 (fields1, fields2)
             }
             (
@@ -687,8 +717,9 @@ impl PlaceNode {
                 }
                 fields
             }
-            PlaceNode::Closure(_, _, fields) => fields,
-            PlaceNode::Tuple(_, fields) => fields,
+            PlaceNode::Closure(_, _, fields)
+            | PlaceNode::Generator(_, _, fields)
+            | PlaceNode::Tuple(_, fields) => fields,
         };
         let mut all_leafs = true;
         for (i, node) in fields.iter().enumerate() {
@@ -724,8 +755,9 @@ impl PlaceNode {
                 }
                 fields
             }
-            PlaceNode::Closure(_, _, fields) => fields,
-            PlaceNode::Tuple(_, fields) => fields,
+            PlaceNode::Closure(_, _, fields)
+            | PlaceNode::Generator(_, _, fields)
+            | PlaceNode::Tuple(_, fields) => fields,
             PlaceNode::Ty(_) => return,
         };
         for (i, node) in fields.iter().enumerate() {
@@ -830,7 +862,17 @@ impl fmt::Debug for PlaceNode {
                 Ok(())
             }
             PlaceNode::Closure(did, substs, fields) => {
-                write!(f, "{}", def_id_to_string(*did))?;
+                write!(f, "Closure {}", def_id_to_string(*did))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
+                }
+                if !fields.is_empty() {
+                    write!(f, "({:?})", fields.iter().format(", "),)?;
+                }
+                Ok(())
+            }
+            PlaceNode::Generator(did, substs, fields) => {
+                write!(f, "Generator {}", def_id_to_string(*did))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "),)?;
                 }

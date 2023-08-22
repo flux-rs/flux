@@ -1,4 +1,4 @@
-use super::{AliasKind, Binder, Const, FnSig, GenericArg, Region, Ty, TyKind};
+use super::{Binder, Const, FnSig, GenericArg, Region, Ty, TyKind};
 use crate::intern::{Internable, List};
 
 pub(super) trait Subst {
@@ -28,13 +28,13 @@ impl Subst for Ty {
             TyKind::Ref(re, ty, mutbl) => Ty::mk_ref(*re, ty.subst(substs), *mutbl),
             TyKind::Tuple(tys) => Ty::mk_tuple(tys.subst(substs)),
             TyKind::Slice(ty) => Ty::mk_slice(ty.subst(substs)),
-            TyKind::Closure(def_id, closure_substs) => {
-                Ty::mk_closure(*def_id, closure_substs.subst(substs))
-            }
-            TyKind::Alias(AliasKind::Projection, alias_ty) => {
+            TyKind::Closure(def_id, args) => Ty::mk_closure(*def_id, args.subst(substs)),
+            TyKind::Generator(def_id, args) => Ty::mk_generator(*def_id, args.subst(substs)),
+            TyKind::GeneratorWitness(args) => Ty::mk_generator_witness(args.subst(substs)),
+            TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;
                 let alias_substs = &alias_ty.substs;
-                Ty::mk_projection(def_id, alias_substs.subst(substs))
+                Ty::mk_alias(*kind, def_id, alias_substs.subst(substs))
             }
             TyKind::RawPtr(ty, mutbl) => Ty::mk_raw_ptr(ty.subst(substs), *mutbl),
             TyKind::Param(param_ty) => substs[param_ty.index as usize].expect_type().clone(),

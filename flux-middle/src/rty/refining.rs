@@ -9,7 +9,13 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::ParamTy;
 
 use super::fold::TypeFoldable;
-use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
+use crate::{
+    global_env::GlobalEnv,
+    intern::List,
+    queries::QueryResult,
+    rty,
+    rustc::{self, ty::Substs},
+};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -120,20 +126,44 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Ok(rty::Binder::new(value, List::empty()))
     }
 
+    pub(crate) fn refine_binders<S, T, F>(
+        &self,
+        thing: &rustc::ty::Binder<S>,
+        mut f: F,
+    ) -> QueryResult<rty::Binder<T>>
+    where
+        F: FnMut(&S) -> QueryResult<T>,
+    {
+        let vars = refine_bound_variables(thing.vars());
+        let inner = thing.as_ref().skip_binder();
+        let inner = f(inner)?;
+        Ok(rty::Binder::new(inner, vars))
+    }
+
     pub(crate) fn refine_poly_fn_sig(
         &self,
         fn_sig: &rustc::ty::PolyFnSig,
     ) -> QueryResult<rty::PolyFnSig> {
-        let vars = refine_bound_variables(fn_sig.vars());
-        let fn_sig = fn_sig.as_ref().skip_binder();
-        let args = fn_sig
-            .inputs()
-            .iter()
-            .map(|ty| self.refine_ty(ty))
-            .try_collect_vec()?;
-        let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-        let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
-        Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
+        self.refine_binders(fn_sig, |fn_sig| {
+            let args = fn_sig
+                .inputs()
+                .iter()
+                .map(|ty| self.refine_ty(ty))
+                .try_collect_vec()?;
+            let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
+            let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+            Ok(rty::FnSig::new(vec![], args, output))
+        })
+        // let vars = refine_bound_variables(fn_sig.vars());
+        // let fn_sig = fn_sig.as_ref().skip_binder();
+        // let args = fn_sig
+        //     .inputs()
+        //     .iter()
+        //     .map(|ty| self.refine_ty(ty))
+        //     .try_collect_vec()?;
+        // let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
+        // let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
+        // Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -158,15 +188,28 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
+    pub(crate) fn refine_generic_arg_raw(
+        &self,
+        arg: &rustc::ty::GenericArg,
+    ) -> QueryResult<rty::GenericArg> {
+        match arg {
+            rustc::ty::GenericArg::Ty(ty) => Ok(rty::GenericArg::Ty(self.refine_ty(ty)?)),
+            rustc::ty::GenericArg::Lifetime(re) => Ok(rty::GenericArg::Lifetime(*re)),
+            rustc::ty::GenericArg::Const(c) => Ok(rty::GenericArg::Const(c.clone())),
+        }
+    }
+
     pub(crate) fn refine_alias_ty(
         &self,
         alias_ty: &rustc::ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
-        let substs = iter::zip(&self.generics_of(def_id)?.params, alias_ty.substs.iter())
+        let generics = self.generics_of(def_id)?;
+        let args = iter::zip(&generics.params, alias_ty.substs.iter())
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        Ok(rty::AliasTy::new(def_id, substs))
+        let res = rty::AliasTy::new(def_id, args);
+        Ok(res)
     }
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
@@ -179,18 +222,34 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             _ => Ok(rty::Ty::exists(ty)),
         }
     }
+    fn refine_alias_kind(kind: &rustc::ty::AliasKind) -> rty::AliasKind {
+        match kind {
+            rustc::ty::AliasKind::Projection => rty::AliasKind::Projection,
+            rustc::ty::AliasKind::Opaque => rty::AliasKind::Opaque,
+        }
+    }
+
+    fn refine_generic_args(&self, args: &Substs) -> QueryResult<List<rty::Ty>> {
+        if let rustc::ty::GenericArg::Ty(ty) = &args[args.len() - 1] &&
+           let rustc::ty::TyKind::Tuple(tys) = ty.kind()
+        {
+          tys.iter().map(|ty| self.refine_ty(ty)).try_collect()
+        } else {
+            bug!()
+        }
+    }
 
     fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
-            rustc::ty::TyKind::Closure(did, substs) => {
-                if let rustc::ty::GenericArg::Ty(ty) = &substs[substs.len() - 1] &&
-                   let rustc::ty::TyKind::Tuple(tys) = ty.kind()
-                {
-                   let tys = tys.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
-                   rty::BaseTy::Closure(*did, tys)
-                } else {
-                    bug!()
-                }
+            rustc::ty::TyKind::Closure(did, args) => {
+                rty::BaseTy::Closure(*did, self.refine_generic_args(args)?)
+            }
+            rustc::ty::TyKind::Generator(did, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.refine_generic_arg_raw(arg))
+                    .try_collect()?;
+                rty::BaseTy::Generator(*did, args)
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {
@@ -207,10 +266,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } => {
-                        return Ok(rty::Binder::new(
-                            rty::Ty::param(*param_ty),
-                            List::empty(),
-                        ));
+                        return Ok(rty::Binder::new(rty::Ty::param(*param_ty), List::empty()));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime => bug!(),
@@ -224,11 +280,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     .try_collect_vec()?;
                 rty::BaseTy::adt(adt_def, substs)
             }
-            rustc::ty::TyKind::Alias(rustc::ty::AliasKind::Projection, alias_ty) => {
+            rustc::ty::TyKind::Alias(kind, alias_ty) => {
+                let kind = Self::refine_alias_kind(kind);
                 let alias_ty = self.refine_alias_ty(alias_ty)?;
-                rty::BaseTy::projection(alias_ty)
-
+                rty::BaseTy::alias(kind, alias_ty)
             }
+
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
@@ -238,6 +295,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
+            }
+            rustc::ty::TyKind::GeneratorWitness(args) => {
+                let args = self.refine_binders(args, |tys| {
+                    Ok(List::from_vec(tys.iter().map(|ty| self.refine_ty(ty)).try_collect_vec()?))
+                })?;
+                rty::BaseTy::GeneratorWitness(args)
             }
         };
         Ok((self.refine)(bty))

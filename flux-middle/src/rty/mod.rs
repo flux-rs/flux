@@ -41,7 +41,11 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Internable, Interned, List},
     queries::QueryResult,
-    rustc::{self, mir::Place, ty::VariantDef},
+    rustc::{
+        self,
+        mir::Place,
+        ty::{GeneratorSubstsParts, VariantDef},
+    },
 };
 pub use crate::{
     fhir::InferMode,
@@ -80,7 +84,7 @@ pub struct GenericPredicates {
     pub predicates: List<Clause>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
@@ -89,6 +93,7 @@ pub struct Clause {
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
     Projection(ProjectionPredicate),
+    GeneratorOblig(GeneratorObligPredicate),
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
@@ -103,6 +108,13 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct GeneratorObligPredicate {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+    pub output: Ty,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -295,6 +307,8 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
+    Generator(DefId, GenericArgs),
+    GeneratorWitness(Binder<List<Ty>>),
     Param(ParamTy),
     Alias(AliasKind, AliasTy),
 }
@@ -305,19 +319,30 @@ pub struct AliasTy {
     pub def_id: DefId,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum AliasKind {
     Projection,
+    Opaque,
 }
 
 pub type GenericArgs = List<GenericArg>;
 
-#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
     BaseTy(Binder<Ty>),
     Lifetime(Region),
     Const(Const),
+}
+
+impl GenericArg {
+    pub fn expect_type(&self) -> &Ty {
+        if let GenericArg::Ty(ty) = self {
+            ty
+        } else {
+            bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
+        }
+    }
 }
 
 impl Clause {
@@ -327,6 +352,59 @@ impl Clause {
 
     pub fn kind(&self) -> Binder<ClauseKind> {
         self.kind.clone()
+    }
+}
+
+pub struct GeneratorSubsts {
+    pub substs: GenericArgs,
+}
+
+impl GeneratorSubsts {
+    pub fn new(parts: GeneratorSubstsParts<GenericArg>) -> Self {
+        let substs = parts
+            .parent_substs
+            .iter()
+            .cloned()
+            .chain([
+                parts.resume_ty.clone(),
+                parts.yield_ty.clone(),
+                parts.return_ty.clone(),
+                parts.witness.clone(),
+                parts.tupled_upvars_ty.clone(),
+            ])
+            .collect();
+        GeneratorSubsts { substs }
+    }
+    pub fn resume_ty(&self) -> Ty {
+        self.split().resume_ty.expect_type().clone()
+    }
+
+    pub fn tupled_upvars_ty(&self) -> Ty {
+        self.split().tupled_upvars_ty.expect_type().clone()
+    }
+}
+
+impl GeneratorSubsts {
+    pub fn split(&self) -> GeneratorSubstsParts<GenericArg> {
+        match &self.substs[..] {
+            [ref parent_substs @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+                GeneratorSubstsParts {
+                    parent_substs,
+                    resume_ty,
+                    yield_ty,
+                    return_ty,
+                    witness,
+                    tupled_upvars_ty,
+                }
+            }
+            _ => bug!("generator substs missing synthetics"),
+        }
+    }
+}
+
+impl GenericArgs {
+    pub fn as_generator(&self) -> GeneratorSubsts {
+        GeneratorSubsts { substs: self.clone() }
     }
 }
 
@@ -375,6 +453,31 @@ impl Binder<FnTraitPredicate> {
         );
 
         PolyFnSig::new(fn_sig, vars)
+    }
+}
+
+impl Binder<GeneratorObligPredicate> {
+    pub fn to_closure_sig(&self) -> PolyFnSig {
+        let vars = self.vars().iter().cloned().collect();
+        let pred = self.as_ref().skip_binder();
+        let pred_args = pred.args.as_generator();
+
+        let tys = pred_args
+            .tupled_upvars_ty()
+            .expect_tuple()
+            .iter()
+            .cloned()
+            .collect_vec();
+
+        let env_ty = Ty::closure(pred.def_id, tys);
+        let resume_ty = pred_args.resume_ty();
+        let requires = vec![];
+
+        let inputs = vec![env_ty, resume_ty];
+
+        let output = Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty());
+
+        PolyFnSig::new(FnSig::new(requires, inputs, output), vars)
     }
 }
 
@@ -956,6 +1059,10 @@ impl Ty {
         BaseTy::Closure(did, tys.into()).into_ty()
     }
 
+    pub fn generator(did: DefId, args: impl Into<List<GenericArg>>) -> Ty {
+        BaseTy::Generator(did, args.into()).into_ty()
+    }
+
     pub fn never() -> Ty {
         BaseTy::Never.into_ty()
     }
@@ -1083,8 +1190,8 @@ impl TyS {
 }
 
 impl AliasTy {
-    pub fn new(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Self {
-        AliasTy { def_id, args: substs.into() }
+    pub fn new(def_id: DefId, args: impl Into<List<GenericArg>>) -> Self {
+        AliasTy { def_id, args: args.into() }
     }
 }
 
@@ -1093,8 +1200,12 @@ impl BaseTy {
         BaseTy::Adt(adt_def, substs.into())
     }
 
+    pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> BaseTy {
+        BaseTy::Alias(kind, alias_ty)
+    }
+
     pub fn projection(alias_ty: AliasTy) -> BaseTy {
-        BaseTy::Alias(AliasKind::Projection, alias_ty)
+        Self::alias(AliasKind::Projection, alias_ty)
     }
 
     pub fn slice(ty: Ty) -> BaseTy {
@@ -1165,6 +1276,8 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
+            | BaseTy::Generator(_, _)
+            | BaseTy::GeneratorWitness(_)
             | BaseTy::Never
             | BaseTy::Alias(..) => Sort::unit(),
         }
@@ -1340,8 +1453,9 @@ mod pretty {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(_cx, f);
             match self {
-                ClauseKind::FnTrait(fn_trait_pred) => w!("FnTrait ({fn_trait_pred:?})"),
-                ClauseKind::Projection(proj_pred) => w!("Projection ({proj_pred:?})"),
+                ClauseKind::FnTrait(pred) => w!("FnTrait ({pred:?})"),
+                ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
+                ClauseKind::GeneratorOblig(pred) => w!("Projection ({pred:?})"),
             }
         }
     }
@@ -1599,6 +1713,27 @@ mod pretty {
         }
     }
 
+    impl Pretty for AliasKind {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                AliasKind::Projection => w!("Projection"),
+                AliasKind::Opaque => w!("Opaque"),
+            }
+        }
+    }
+
+    impl Pretty for List<Ty> {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if let [ty] = &self[..] {
+                w!("({:?},)", ty)
+            } else {
+                w!("({:?})", join!(", ", self))
+            }
+        }
+    }
+
     impl Pretty for BaseTy {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1619,17 +1754,6 @@ mod pretty {
                     }
                     Ok(())
                 }
-                // BaseTy::Projection(did, substs) => {
-                //     w!("{:?}", did)?;
-                //     let substs = substs
-                //         .iter()
-                //         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                //         .collect_vec();
-                //     if !substs.is_empty() {
-                //         w!("<{:?}>", join!(", ", substs))?;
-                //     }
-                //     Ok(())
-                // }
                 BaseTy::Param(param) => w!("{}", ^param),
                 BaseTy::Float(float_ty) => w!("{}", ^float_ty.name_str()),
                 BaseTy::Slice(ty) => w!("[{:?}]", ty),
@@ -1652,34 +1776,36 @@ mod pretty {
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
                 BaseTy::Closure(did, substs) => {
-                    w!("{:?}", did)?;
+                    w!("Closure {:?}<{:?}>", did, substs)
+                }
+                BaseTy::Generator(did, substs) => {
+                    w!("Generator {:?}", did)?;
+                    let substs = substs
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                        .collect_vec();
                     if !substs.is_empty() {
                         w!("<{:?}>", join!(", ", substs))?;
                     }
                     Ok(())
                 }
-                BaseTy::Alias(AliasKind::Projection, alias_ty) => {
+                BaseTy::GeneratorWitness(args) => {
+                    w!("GeneratorWitness<{:?}>", args)
+                }
+                BaseTy::Alias(kind, alias_ty) => {
                     let assoc_name = cx.tcx.item_name(alias_ty.def_id);
                     let trait_ref = cx.tcx.parent(alias_ty.def_id);
-                    // let alias_ty_subst = alias_ty.substs[0]
-                    // let substs = alias_ty
-                    //     .substs
-                    //     .iter()
-                    //     .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                    //     .collect_vec();
                     if !alias_ty.args.is_empty() {
                         w!(
-                            "<{:?} as {:?}>::{}",
+                            "({:?})<{:?} as {:?}>::{}",
+                            kind,
                             &alias_ty.args[0],
                             trait_ref,
                             ^assoc_name
                         )
                     } else {
-                        w!(
-                            "<??? as {:?}>::{}",
-                            trait_ref,
-                            ^assoc_name
-                        )
+                        // let str = format!("{:?}", alias_ty.def_id);
+                        w!("Alias({:?}, {:?})", kind, ^alias_ty.def_id)
                     }
                 }
             }

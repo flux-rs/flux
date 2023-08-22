@@ -10,8 +10,8 @@ use flux_middle::{
         fold::TypeFoldable,
         refining::refine_default,
         BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GenericArg, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref,
-        Sort, TupleTree, Ty, TyKind, Var,
+        FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode, Mutability, Path,
+        PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -34,6 +34,7 @@ use crate::{
 
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
+    def_id: DefId,
     kvar_gen: Box<dyn KVarGen + 'a>,
     rvid_gen: &'a IndexGen<RegionVid>,
     span: Span,
@@ -51,11 +52,13 @@ pub trait KVarGen {
 
 struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
+    def_id: DefId,
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
     rvid_gen: &'a IndexGen<RegionVid>,
     tag: Tag,
     scopes: FxIndexMap<EVarCxId, Scope>,
+    obligs: Vec<rty::Clause>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
@@ -92,6 +95,7 @@ pub enum ConstrReason {
 impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         kvar_gen: G,
         rvid_gen: &'a IndexGen<RegionVid>,
         span: Span,
@@ -99,7 +103,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, def_id, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
     }
 
     pub(crate) fn check_pred(
@@ -119,7 +123,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         reason: ConstrReason,
     ) {
         let mut infcx = self.infcx(rcx, reason);
-        infcx.subtyping(rcx, ty1, ty2);
+        let _ = infcx.subtyping(rcx, ty1, ty2);
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
@@ -148,7 +152,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         callsite_def_id: DefId,
-        did: Option<DefId>,
+        callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         substs: &[GenericArg],
         actuals: &[Ty],
@@ -178,6 +182,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let genv = self.genv;
 
+        let span = self.span;
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
         // Replace holes in generic arguments with fresh kvars
@@ -194,10 +199,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
+        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig, span)?;
 
-        let obligs =
-            if let Some(did) = did { mk_obligations(genv, did, &substs)? } else { List::empty() };
+        let obligs = if let Some(did) = callee_def_id {
+            mk_obligations(genv, did, &substs)?
+        } else {
+            List::empty()
+        };
 
         // Check requires predicates and collect type constraints
         let mut requires = FxHashMap::default();
@@ -227,13 +235,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env.block_with(path, bound.clone());
-                    infcx.subtyping(rcx, &ty, bound);
+                    infcx.subtyping(rcx, &ty, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     let ty = env.get(path).unblocked();
-                    infcx.subtyping(rcx, &ty, bound);
+                    infcx.subtyping(rcx, &ty, bound)?
                 }
-                _ => infcx.subtyping(rcx, actual, &formal),
+                _ => infcx.subtyping(rcx, actual, &formal)?,
             }
         }
 
@@ -242,12 +250,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
                 let proj_ty = refine_default(BaseTy::projection(projection_pred.alias_ty));
-                let impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty)?
-                    .skip_binder();
+                let impl_elem =
+                    rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty, span)?
+                        .skip_binder();
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                infcx.subtyping(rcx, &impl_elem, &projection_pred.term);
-                infcx.subtyping(rcx, &projection_pred.term, &impl_elem);
+                infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
+                infcx.subtyping(rcx, &projection_pred.term, &impl_elem)?;
             }
         }
         // Replace evars
@@ -263,24 +272,29 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        def_id: DefId,
         output: &Binder<FnOutput>,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
+
+        let output = rty::projections::normalize(self.genv, def_id, output, self.span)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output =
             output.replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
 
-        infcx.subtyping(rcx, &ret_place_ty, &output.ret);
+        infcx.subtyping(rcx, &ret_place_ty, &output.ret)?;
         for constraint in &output.ensures {
             infcx.check_constraint(rcx, env, constraint)?;
         }
 
+        let obligs = infcx.obligations();
+
         let evars_sol = infcx.solve()?;
         rcx.replace_evars(&evars_sol);
 
-        Ok(())
+        Ok(Obligations::new(obligs.into(), rcx.snapshot()))
     }
 
     pub(crate) fn check_constructor(
@@ -289,7 +303,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         variant: EarlyBinder<PolyVariant>,
         substs: &[GenericArg],
         fields: &[Ty],
-    ) -> Result<Ty, UnsolvedEvar> {
+    ) -> Result<Ty, CheckerErrKind> {
         // rn we are only calling `check_constructor` from path_tree when folding so we mark this
         // as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
@@ -307,7 +321,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
-            infcx.subtyping(rcx, actual, formal);
+            infcx.subtyping(rcx, actual, formal)?;
         }
 
         // Replace evars
@@ -336,14 +350,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env.block_with(path, bound.clone());
-                    infcx.subtyping(rcx, &ty, bound);
+                    infcx.subtyping(rcx, &ty, bound)?
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     // TODO(pack-closure): why is this not put into `infcx.subtyping`?
                     let ty = env.get(path);
-                    infcx.subtyping(rcx, &ty, bound);
+                    infcx.subtyping(rcx, &ty, bound)?
                 }
-                _ => infcx.subtyping(rcx, ty, &arr_ty),
+                _ => infcx.subtyping(rcx, ty, &arr_ty)?,
             }
         }
         rcx.replace_evars(&infcx.solve()?);
@@ -354,6 +368,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
         InferCtxt::new(
             self.genv,
+            self.def_id,
             rcx,
             &mut self.kvar_gen,
             self.rvid_gen,
@@ -365,6 +380,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
+        def_id: DefId,
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
         rvid_gen: &'a IndexGen<RegionVid>,
@@ -373,7 +389,18 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, kvar_gen, evar_gen, rvid_gen, tag, scopes }
+        Self { genv, def_id, kvar_gen, evar_gen, rvid_gen, tag, scopes, obligs: Vec::new() }
+    }
+
+    fn obligations(&self) -> Vec<rty::Clause> {
+        self.obligs.clone()
+    }
+
+    fn insert_obligations(&mut self, obligs: List<rty::Clause>) {
+        for oblig in obligs.into_iter() {
+            self.obligs.push(oblig.clone());
+        }
+        // self.obligs.extend(obligs.clone().into_iter());
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -407,6 +434,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
+    fn span(&self) -> Span {
+        self.tag.src_span
+    }
+
     fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
@@ -419,8 +450,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         ty: &Ty,
     ) -> Result<(), CheckerErrKind> {
         let actual_ty = env.get(path);
-        self.subtyping(rcx, &actual_ty, ty);
-        Ok(())
+        self.subtyping(rcx, &actual_ty, ty)
     }
 
     fn check_constraint(
@@ -439,110 +469,188 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) {
+    fn subtyping(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        ty1: &Ty,
+        ty2: &Ty,
+    ) -> Result<(), CheckerErrKind> {
         let rcx = &mut rcx.branch();
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(ty1), _) => {
                 let ty1 = ty1.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
-                self.subtyping(rcx, &ty1, ty2);
+                self.subtyping(rcx, &ty1, ty2)
             }
             (TyKind::Constr(p1, ty1), _) => {
                 rcx.assume_pred(p1);
-                self.subtyping(rcx, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2)
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
                 let ty2 =
                     ty2.replace_bound_exprs_with(|sort, mode| self.fresh_evars_or_kvar(sort, mode));
-                self.subtyping(rcx, ty1, &ty2);
+                self.subtyping(rcx, ty1, &ty2)?;
                 self.pop_scope();
+                Ok(())
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                self.bty_subtyping(rcx, bty1, bty2);
+                self.bty_subtyping(rcx, bty1, bty2)?;
                 self.idx_subtyping(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
+                Ok(())
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
                 debug_assert_eq!(pk1, pk2);
                 debug_assert_eq!(path1, path2);
+                Ok(())
             }
             (TyKind::Param(param_ty1), TyKind::Param(param_ty2)) => {
                 debug_assert_eq!(param_ty1, param_ty2);
+                Ok(())
             }
             (_, TyKind::Uninit) => {
                 // FIXME: we should rethink in which situation this is sound.
+                Ok(())
             }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2, self.tag);
-                self.subtyping(rcx, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2)
             }
             (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) => {
                 debug_assert_eq!(fields1.len(), fields2.len());
                 for (field1, field2) in iter::zip(fields1, fields2) {
-                    self.subtyping(rcx, field1, field2);
+                    self.subtyping(rcx, field1, field2)?;
                 }
+                Ok(())
             }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
 
-    fn bty_subtyping(&mut self, rcx: &mut RefineCtxt, bty1: &BaseTy, bty2: &BaseTy) {
+    fn bty_subtyping(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        bty1: &BaseTy,
+        bty2: &BaseTy,
+    ) -> Result<(), CheckerErrKind> {
         match (bty1, bty2) {
             (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
+                Ok(())
             }
             (BaseTy::Uint(uint_ty1), BaseTy::Uint(uint_ty2)) => {
                 debug_assert_eq!(uint_ty1, uint_ty2);
+                Ok(())
             }
             (BaseTy::Adt(adt1, substs1), BaseTy::Adt(adt2, substs2)) => {
                 debug_assert_eq!(adt1.did(), adt2.did());
                 debug_assert_eq!(substs1.len(), substs2.len());
                 let variances = self.genv.variances_of(adt1.did());
                 for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
-                    self.generic_arg_subtyping(rcx, *variance, ty1, ty2);
+                    self.generic_arg_subtyping(rcx, *variance, ty1, ty2)?;
                 }
+                Ok(())
             }
             (BaseTy::Float(float_ty1), BaseTy::Float(float_ty2)) => {
                 debug_assert_eq!(float_ty1, float_ty2);
+                Ok(())
             }
 
-            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => {
-                self.subtyping(rcx, ty1, ty2);
-            }
+            (BaseTy::Slice(ty1), BaseTy::Slice(ty2)) => self.subtyping(rcx, ty1, ty2),
             (BaseTy::Ref(_, ty1, Mutability::Mut), BaseTy::Ref(_, ty2, Mutability::Mut)) => {
-                self.subtyping(rcx, ty1, ty2);
-                self.subtyping(rcx, ty2, ty1);
+                self.subtyping(rcx, ty1, ty2)?;
+                self.subtyping(rcx, ty2, ty1)
             }
             (BaseTy::Ref(_, ty1, Mutability::Not), BaseTy::Ref(_, ty2, Mutability::Not)) => {
-                self.subtyping(rcx, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2)
             }
             (BaseTy::Tuple(tys1), BaseTy::Tuple(tys2)) => {
                 debug_assert_eq!(tys1.len(), tys2.len());
                 for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    self.subtyping(rcx, ty1, ty2);
+                    self.subtyping(rcx, ty1, ty2)?;
                 }
+                Ok(())
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
                 debug_assert_eq!(len1, len2);
-                self.subtyping(rcx, ty1, ty2);
+                self.subtyping(rcx, ty1, ty2)
             }
             (BaseTy::Param(param1), BaseTy::Param(param2)) => {
                 debug_assert_eq!(param1, param2);
+                Ok(())
             }
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
-            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => {}
+            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
             (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) if did1 == did2 => {
                 debug_assert_eq!(tys1.len(), tys2.len());
                 for (ty1, ty2) in iter::zip(tys1, tys2) {
-                    self.subtyping(rcx, ty1, ty2);
+                    self.subtyping(rcx, ty1, ty2)?;
                 }
+                Ok(())
+            }
+            (BaseTy::Generator(def_id, args), BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                // TODO: use alias_ty.args
+                let obligs = mk_generator_obligations(
+                    self.genv,
+                    def_id,
+                    args,
+                    &alias_ty.def_id,
+                    self.span(),
+                )?;
+                self.insert_obligations(obligs);
+                Ok(())
+            }
+            (_, BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                // TODO: use alias_ty.args
+                self.opaque_subtyping(rcx, bty1, alias_ty.def_id)
             }
             _ => {
-                tracked_span_bug!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
+                panic!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
         }
+    }
+
+    fn opaque_predicates(
+        &mut self,
+        opaque_def_id: DefId,
+        span: Span,
+    ) -> Result<Vec<rty::ProjectionPredicate>, CheckerErrKind> {
+        let bounds = self.genv.item_bounds(opaque_def_id, span)?.skip_binder();
+        let mut res = vec![];
+        for pred in &bounds.predicates {
+            if let rty::ClauseKind::Projection(pred) = pred.kind().skip_binder() {
+                res.push(pred);
+            }
+        }
+        Ok(res)
+    }
+
+    fn project_bty(&mut self, bty: &BaseTy, def_id: DefId) -> Ty {
+        let args = vec![GenericArg::Ty(refine_default(bty.clone()).skip_binder())];
+        let alias_ty = rty::AliasTy::new(def_id, args);
+        let proj_ty = refine_default(BaseTy::projection(alias_ty));
+        rty::projections::normalize(self.genv, self.def_id, &proj_ty, self.span())
+            .unwrap()
+            .skip_binder()
+    }
+
+    fn opaque_subtyping(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        bty: &BaseTy,
+        opaque_def_id: DefId,
+    ) -> Result<(), CheckerErrKind> {
+        // TODO(RJ): odd hack because a malformed predicate makes the `item_bounds` query return `Err` which cannot be `unwrapped` in `self.opaque_predicates`
+        // instead: we return a `none` there and skip subtyping, to replicate, see error_messages/predicate01.rs
+        let predicates = self.opaque_predicates(opaque_def_id, self.span())?;
+        for pred in predicates {
+            let ty1 = self.project_bty(bty, pred.alias_ty.def_id);
+            let ty2 = pred.term;
+            self.subtyping(rcx, &ty1, &ty2)?;
+        }
+        Ok(())
     }
 
     fn generic_arg_subtyping(
@@ -551,25 +659,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         variance: Variance,
         arg1: &GenericArg,
         arg2: &GenericArg,
-    ) {
+    ) -> Result<(), CheckerErrKind> {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
                 match variance {
                     Variance::Covariant => self.subtyping(rcx, ty1, ty2),
                     Variance::Invariant => {
-                        self.subtyping(rcx, ty1, ty2);
-                        self.subtyping(rcx, ty2, ty1);
+                        self.subtyping(rcx, ty1, ty2)?;
+                        self.subtyping(rcx, ty2, ty1)
                     }
                     Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
-                    Variance::Bivariant => {}
+                    Variance::Bivariant => Ok(()),
                 }
             }
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
                 tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
             }
-            (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => {}
+            (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => Ok(()),
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
-        };
+        }
     }
 
     fn idx_subtyping(
@@ -641,6 +749,26 @@ impl Obligations {
     fn new(predicates: List<rty::Clause>, snapshot: Snapshot) -> Self {
         Self { predicates, snapshot }
     }
+}
+
+fn mk_generator_obligations(
+    genv: &GlobalEnv<'_, '_>,
+    generator_did: &DefId,
+    generator_args: &GenericArgs,
+    opaque_def_id: &DefId,
+    span: Span,
+) -> Result<List<rty::Clause>, CheckerErrKind> {
+    let bounds = genv.item_bounds(*opaque_def_id, span)?;
+    let pred = if let rty::ClauseKind::Projection(proj) =
+        bounds.skip_binder().predicates[0].kind().skip_binder()
+    {
+        let output = proj.term;
+        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
+    } else {
+        panic!("mk_generator_obligations: unexpected bounds")
+    };
+    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred), List::empty());
+    Ok(List::from_vec(vec![clause]))
 }
 
 fn mk_obligations(

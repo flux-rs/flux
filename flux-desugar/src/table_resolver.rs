@@ -1,8 +1,8 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Ty};
-use hir::{ItemKind, PathSegment};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, Bounds, Ident, Path, Ty};
+use hir::{ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -15,13 +15,14 @@ pub struct Resolver<'genv> {
     table: NameResTable<'genv>,
 }
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Debug)]
 pub struct ResKey {
     s: String,
 }
 
 struct NameResTable<'sess> {
     res: FxHashMap<ResKey, ResEntry>,
+    opaque: Option<(LocalDefId, usize)>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     sess: &'sess FluxSession,
 }
 
@@ -124,38 +125,21 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::VariantRet { path, indices: ret.indices })
     }
 
-    // fn resolve_projection_predicate(
-    //     &self,
-    //     bound: surface::ProjectionPredicate,
-    // ) -> Result<surface::ProjectionPredicate<Res>, ErrorGuaranteed> {
-    //     let item = self.resolve_path(bound.item)?;
-    //     let term = self.resolve_ty(bound.term)?;
-    //     Ok(surface::ProjectionPredicate { item, term })
-    // }
-
-    // fn resolve_generic_bound(
-    //     &self,
-    //     bound: surface::GenericBound,
-    // ) -> Result<surface::GenericBound<Res>, ErrorGuaranteed> {
-    //     match bound {
-    //         surface::GenericBound::Projection(pred) => {
-    //             let pred = self.resolve_projection_predicate(pred)?;
-    //             Ok(surface::GenericBound::Projection(pred))
-    //         }
-    //     }
-    // }
-
     fn resolve_where_bound_predicate(
         &self,
         pred: surface::WhereBoundPredicate,
     ) -> Result<surface::WhereBoundPredicate<Res>, ErrorGuaranteed> {
         let bounded_ty = self.resolve_ty(pred.bounded_ty)?;
-        let bounds = pred
-            .bounds
+        let bounds = self.resolve_bounds(pred.bounds)?;
+        Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+    }
+
+    fn resolve_bounds(&self, bounds: surface::Bounds) -> Result<Bounds<Res>, ErrorGuaranteed> {
+        let bounds = bounds
             .into_iter()
             .map(|bound| self.resolve_path(bound))
             .try_collect_exhaust()?;
-        Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+        Ok(bounds)
     }
 
     #[allow(dead_code)]
@@ -248,8 +232,28 @@ impl<'sess> Resolver<'sess> {
                 surface::TyKind::Array(Box::new(ty), len)
             }
             surface::TyKind::Hole => surface::TyKind::Hole,
+            surface::TyKind::ImplTrait(_, bounds) => {
+                let bounds = self.resolve_bounds(bounds)?;
+                let res = self.resolve_opaque_impl(ty.span)?.0;
+                surface::TyKind::ImplTrait(res, bounds)
+            },
+            surface::TyKind::Async(_, ty) => {
+                let res = self.resolve_opaque_impl(ty.span)?.0;
+                let ty = self.resolve_ty(*ty)?;
+                surface::TyKind::Async(res, Box::new(ty))
+            },
         };
         Ok(surface::Ty { kind, span: ty.span })
+    }
+
+    fn resolve_opaque_impl(&self, span: Span) -> Result<(Res, usize), ErrorGuaranteed> {
+        if let Some((opaque, arity)) = self.table.opaque {
+            Ok((Res::OpaqueTy(opaque.to_def_id()), arity))
+        } else {
+            Err(self
+                .sess
+                .emit_err(errors::UnresolvedPath { span, path: "opaque type".into() }))
+        }
     }
 
     fn resolve_bty(&self, bty: BaseTy) -> Result<BaseTy<Res>, ErrorGuaranteed> {
@@ -334,6 +338,7 @@ impl<'sess> NameResTable<'sess> {
             ItemKind::Fn(fn_sig, generics, ..) => {
                 table.collect_from_fn_sig(fn_sig)?;
                 table.collect_from_generics(generics)?;
+                table.collect_from_opaque_impls(tcx)?;
             }
             _ => {}
         }
@@ -364,6 +369,7 @@ impl<'sess> NameResTable<'sess> {
         match &impl_item.kind {
             rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
                 table.collect_from_fn_sig(fn_sig)?;
+                table.collect_from_opaque_impls(tcx)?;
             }
             rustc_hir::ImplItemKind::Const(_, _) | rustc_hir::ImplItemKind::Type(_) => {}
         }
@@ -372,7 +378,7 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
-        NameResTable { sess, res: FxHashMap::default() }
+        NameResTable { sess, opaque: None, res: FxHashMap::default() }
     }
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {
@@ -395,11 +401,18 @@ impl<'sess> NameResTable<'sess> {
     ) -> Result<(), ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = clause {
             self.collect_from_ty(bound.bounded_ty)?;
-            bound
-                .bounds
-                .iter()
-                .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
+            self.collect_from_generic_bounds(bound.bounds)?;
         }
+        Ok(())
+    }
+
+    fn collect_from_generic_bounds(
+        &mut self,
+        bounds: &[hir::GenericBound<'_>],
+    ) -> Result<(), ErrorGuaranteed> {
+        bounds
+            .iter()
+            .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
         Ok(())
     }
 
@@ -411,8 +424,23 @@ impl<'sess> NameResTable<'sess> {
             hir::GenericBound::Trait(poly_trait_ref, _) => {
                 self.collect_from_path(poly_trait_ref.trait_ref.path)
             }
+            hir::GenericBound::LangItemTrait(_lang_item, _span, _hir_id, args) => {
+                self.collect_from_generic_args(args)
+            }
             _ => Ok(()),
         }
+    }
+
+    fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
+        if let Some((did, _arity)) = self.opaque {
+            let owner_id = OwnerId { def_id: did };
+            let item_id = hir::ItemId { owner_id };
+            let item_kind = tcx.hir().item(item_id).kind;
+            if let ItemKind::OpaqueTy(opaque_ty) = item_kind {
+                self.collect_from_generic_bounds(opaque_ty.bounds)?;
+            }
+        }
+        Ok(())
     }
 
     fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<(), ErrorGuaranteed> {
@@ -462,9 +490,20 @@ impl<'sess> NameResTable<'sess> {
                 };
                 self.collect_from_path(path)
             }
+            hir::TyKind::OpaqueDef(item_id, args, _) => {
+                assert!(self.opaque.is_none());
+                if self.opaque.is_some() {
+                    Err(self.sess.emit_err(errors::UnsupportedSignature::new(
+                        ty.span,
+                        "duplicate opaque types in signature",
+                    )))
+                } else {
+                    self.opaque = Some((item_id.owner_id.def_id, args.len()));
+                    Ok(())
+                }
+            }
             hir::TyKind::BareFn(_)
             | hir::TyKind::Never
-            | hir::TyKind::OpaqueDef(..)
             | hir::TyKind::TraitObject(..)
             | hir::TyKind::Typeof(_)
             | hir::TyKind::Infer
@@ -472,23 +511,29 @@ impl<'sess> NameResTable<'sess> {
         }
     }
 
+    fn collect_from_generic_args(
+        &mut self,
+        args: &rustc_hir::GenericArgs,
+    ) -> Result<(), ErrorGuaranteed> {
+        args.args
+            .iter()
+            .copied()
+            .try_for_each_exhaust(|arg| self.collect_from_generic_arg(&arg))?;
+
+        args.bindings
+            .iter()
+            .copied()
+            .try_for_each_exhaust(|binding| self.collect_from_type_binding(&binding))?;
+        Ok(())
+    }
+
     fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result<(), ErrorGuaranteed> {
         let key = ResKey::from_hir_path(self.sess, path)?;
         let res = self.res_from_hir_res(path.res, path.span);
         self.insert(key, res);
 
-        if let [.., PathSegment { args, .. }] = path.segments {
-            args.map(|args| args.args)
-                .iter()
-                .copied()
-                .flatten()
-                .try_for_each_exhaust(|arg| self.collect_from_generic_arg(arg))?;
-
-            args.map(|args| args.bindings)
-                .iter()
-                .copied()
-                .flatten()
-                .try_for_each_exhaust(|binding| self.collect_from_type_binding(binding))?;
+        if let [.., PathSegment { args: Some(args), .. }] = path.segments {
+            self.collect_from_generic_args(args)?;
         }
         Ok(())
     }

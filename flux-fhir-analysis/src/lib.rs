@@ -53,6 +53,7 @@ pub fn provide(providers: &mut Providers) {
         fn_sig,
         generics_of,
         predicates_of,
+        item_bounds,
     };
 }
 
@@ -127,6 +128,18 @@ fn predicates_of(
     }
 }
 
+fn item_bounds(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
+    let wfckresults = genv.check_wf(local_id)?;
+    if let Some(predicates) = genv.map().get_item_bounds(local_id) {
+        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
+    } else {
+        Ok(None)
+    }
+}
+
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
@@ -134,7 +147,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
     let generics = genv.map().get_generics(local_id).unwrap_or_else(|| {
         genv.map()
             .get_generics(genv.tcx.local_parent(local_id))
-            .unwrap()
+            .unwrap_or_else(|| panic!("no generics for {:?}", def_id))
     });
     Ok(conv::conv_generics(&rustc_generics, generics))
 }
@@ -254,11 +267,28 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
             }
         }
         DefKind::Fn | DefKind::AssocFn => {
-            let fn_sig = genv.map().get_fn_sig(def_id);
             let owner_id = OwnerId { def_id };
+
+            // 1. check the actual FnSig
+            let fn_sig = genv.map().get_fn_sig(def_id);
             let mut wfckresults = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
+
+            // 2. check the predicates (stashed in `where` clauses); we don't 'zip' these because the orders are jumbled :-(
+            if let Some(predicates) = genv.map().get_predicates(def_id) {
+                wf::check_generic_predicates(genv.early_cx(), predicates, owner_id)?;
+            }
             Ok(wfckresults)
+        }
+        DefKind::OpaqueTy => {
+            let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
+            let owner = genv.hir().get_parent_item(hir_id);
+            if let Some(predicates) = genv.map().get_item_bounds(def_id) {
+                let wfckresults = wf::check_generic_predicates(genv.early_cx(), predicates, owner)?;
+                Ok(wfckresults)
+            } else {
+                Ok(fhir::WfckResults::new(fhir::FluxOwnerId::from(owner)))
+            }
         }
         kind => panic!("unexpected def kind `{kind:?}`"),
     }
@@ -269,7 +299,12 @@ pub fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     for def_id in genv.tcx.hir_crate_items(()).definitions() {
         match genv.tcx.def_kind(def_id) {
-            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::Fn | DefKind::AssocFn => {
+            DefKind::TyAlias
+            | DefKind::Struct
+            | DefKind::Enum
+            | DefKind::Fn
+            | DefKind::AssocFn
+            | DefKind::OpaqueTy => {
                 err = genv.check_wf(def_id).emit(genv.sess).err().or(err);
             }
             _ => {}

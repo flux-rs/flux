@@ -141,8 +141,9 @@ pub enum TyKind {
     Slice(Ty),
     FnPtr(PolyFnSig),
     Closure(DefId, Substs),
+    Generator(DefId, Substs),
+    GeneratorWitness(Binder<List<Ty>>),
     Alias(AliasKind, AliasTy),
-    // Projection(DefId, Substs),
     RawPtr(Ty, Mutability),
 }
 
@@ -152,9 +153,10 @@ pub struct AliasTy {
     pub def_id: DefId,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum AliasKind {
     Projection,
+    Opaque,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -193,6 +195,13 @@ impl Substs {
     pub fn as_closure(&self) -> ClosureSubsts {
         ClosureSubsts { substs: self.clone() }
     }
+
+    pub fn as_generator(&self) -> GeneratorSubsts {
+        GeneratorSubsts { substs: self.clone() }
+    }
+}
+pub struct GeneratorSubsts {
+    pub substs: Substs,
 }
 
 pub struct ClosureSubsts {
@@ -205,6 +214,16 @@ pub struct ClosureSubstsParts<'a, T> {
     closure_kind_ty: &'a T,
     closure_sig_as_fn_ptr_ty: &'a T,
     tupled_upvars_ty: &'a T,
+}
+
+#[derive(Debug)]
+pub struct GeneratorSubstsParts<'a, T> {
+    pub parent_substs: &'a [T],
+    pub resume_ty: &'a T,
+    pub yield_ty: &'a T,
+    pub return_ty: &'a T,
+    pub witness: &'a T,
+    pub tupled_upvars_ty: &'a T,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -331,6 +350,32 @@ impl GenericArg {
     }
 }
 
+impl GeneratorSubsts {
+    pub fn tupled_upvars_ty(&self) -> &Ty {
+        self.split().tupled_upvars_ty.expect_type()
+    }
+
+    pub fn upvar_tys(&self) -> impl Iterator<Item = &Ty> {
+        self.tupled_upvars_ty().tuple_fields().iter()
+    }
+
+    fn split(&self) -> GeneratorSubstsParts<GenericArg> {
+        match &self.substs[..] {
+            [ref parent_substs @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+                GeneratorSubstsParts {
+                    parent_substs,
+                    resume_ty,
+                    yield_ty,
+                    return_ty,
+                    witness,
+                    tupled_upvars_ty,
+                }
+            }
+            _ => bug!("generator substs missing synthetics"),
+        }
+    }
+}
+
 impl ClosureSubsts {
     pub fn tupled_upvars_ty(&self) -> &Ty {
         self.split().tupled_upvars_ty.expect_type()
@@ -423,9 +468,17 @@ impl Ty {
         TyKind::Closure(def_id, substs.into()).intern()
     }
 
-    pub fn mk_projection(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
+    pub fn mk_generator(def_id: DefId, args: impl Into<List<GenericArg>>) -> Ty {
+        TyKind::Generator(def_id, args.into()).intern()
+    }
+
+    pub fn mk_generator_witness(args: Binder<List<Ty>>) -> Ty {
+        TyKind::GeneratorWitness(args).intern()
+    }
+
+    pub fn mk_alias(kind: AliasKind, def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
         let alias_ty = AliasTy { substs: substs.into(), def_id };
-        TyKind::Alias(AliasKind::Projection, alias_ty).intern()
+        TyKind::Alias(kind, alias_ty).intern()
     }
 
     pub fn mk_array(ty: Ty, c: Const) -> Ty {
@@ -561,6 +614,7 @@ impl fmt::Debug for AliasKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AliasKind::Projection => write!(f, "Projection"),
+            AliasKind::Opaque => write!(f, "Opaque"),
         }
     }
 }
@@ -602,11 +656,21 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
             TyKind::Closure(did, substs) => {
-                write!(f, "{}", def_id_to_string(*did))?;
+                write!(f, "Closure {}", def_id_to_string(*did))?;
                 if !substs.is_empty() {
                     write!(f, "<{:?}>", substs.iter().format(", "))?;
                 }
                 Ok(())
+            }
+            TyKind::Generator(did, substs) => {
+                write!(f, "Generator {}", def_id_to_string(*did))?;
+                if !substs.is_empty() {
+                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                }
+                Ok(())
+            }
+            TyKind::GeneratorWitness(args) => {
+                write!(f, "GeneratorWitness {:?}", args)
             }
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;

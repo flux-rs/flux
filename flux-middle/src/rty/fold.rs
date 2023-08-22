@@ -6,6 +6,7 @@ use std::ops::ControlFlow;
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
+use rustc_hir::def_id::DefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
@@ -13,12 +14,13 @@ use super::{
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Index, Invariant, KVar, Name,
-    Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, Ty, TyKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
+    Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound,
+    Region, Sort, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
-    rty::{Var, VariantSig},
+    rty::{AliasKind, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -186,6 +188,28 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectFreeVars(FxHashSet::default());
+        self.visit_with(&mut collector);
+        collector.0
+    }
+
+    /// Returns the set of all free variables.
+    /// For example, `Vec<i32[n]>{v : v > m}` returns `{n, m}`.
+    fn opaque_def_ids(&self) -> FxHashSet<DefId> {
+        struct CollectOpaqueDefIds(FxHashSet<DefId>);
+
+        impl TypeVisitor for CollectOpaqueDefIds {
+            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<Self::BreakTy> {
+                match bty {
+                    BaseTy::Alias(AliasKind::Opaque, alias_ty) => {
+                        let _ = self.0.insert(alias_ty.def_id);
+                        alias_ty.args.visit_with(self)
+                    }
+                    _ => ControlFlow::Continue(()),
+                }
+            }
+        }
+
+        let mut collector = CollectOpaqueDefIds(FxHashSet::default());
         self.visit_with(&mut collector);
         collector.0
     }
@@ -375,6 +399,7 @@ impl TypeVisitable for ClauseKind {
         match self {
             ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
+            ClauseKind::GeneratorOblig(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -384,7 +409,27 @@ impl TypeFoldable for ClauseKind {
         match self {
             ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
             ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
+            ClauseKind::GeneratorOblig(pred) => {
+                Ok(ClauseKind::GeneratorOblig(pred.try_fold_with(folder)?))
+            }
         }
+    }
+}
+
+impl TypeVisitable for GeneratorObligPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.args.visit_with(visitor)?;
+        self.output.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for GeneratorObligPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(GeneratorObligPredicate {
+            def_id: self.def_id,
+            args: self.args.try_fold_with(folder)?,
+            output: self.output.try_fold_with(folder)?,
+        })
     }
 }
 
@@ -743,6 +788,8 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Closure(_, _)
+            | BaseTy::Generator(_, _)
+            | BaseTy::GeneratorWitness(_)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
         }
@@ -778,6 +825,10 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
             BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
+            BaseTy::Generator(did, substs) => {
+                BaseTy::Generator(*did, substs.try_fold_with(folder)?)
+            }
+            BaseTy::GeneratorWitness(args) => BaseTy::GeneratorWitness(args.try_fold_with(folder)?),
         };
         Ok(bty)
     }

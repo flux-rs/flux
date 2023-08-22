@@ -119,9 +119,10 @@ fn conv_alias_ty(
     alias_ty: &fhir::AliasTy,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::AliasTy> {
-    let ty = conv_ty(genv, &alias_ty.substs, wfckresults)?.skip_binder();
+    let ty = conv_ty(genv, &alias_ty.args, wfckresults)?.skip_binder();
     let args = List::singleton(rty::GenericArg::Ty(ty));
-    Ok(rty::AliasTy { args, def_id: alias_ty.def_id })
+    let res = rty::AliasTy { args, def_id: alias_ty.def_id };
+    Ok(res)
 }
 
 pub(crate) fn conv_generics(
@@ -468,6 +469,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
                 self.conv_ty(env, ty)
             }
+            fhir::TyKind::OpaqueDef(item_id, args0, _in_trait) => {
+                let def_id = item_id.owner_id.to_def_id();
+                let args = self.conv_generic_args(env, def_id, args0)?;
+                let alias_ty = rty::AliasTy::new(def_id, args);
+                let bty = rty::BaseTy::alias(rty::AliasKind::Opaque, alias_ty);
+                Ok(rty::Ty::indexed(bty, rty::Expr::unit()))
+            }
         }
     }
 
@@ -594,7 +602,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
-            fhir::Res::Trait(def_id) => bug!("unexpected res in conv_path: Trait {def_id:?}"),
+            fhir::Res::Trait(_) | fhir::Res::OpaqueTy(_) => {
+                bug!("unexpected res in conv_path: {:?}", path.res)
+            }
         };
         Ok(rty::Ty::indexed(bty, idx))
     }

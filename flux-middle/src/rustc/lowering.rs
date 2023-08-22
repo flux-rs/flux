@@ -12,6 +12,7 @@ use rustc_middle::{
     mir as rustc_mir,
     ty::{self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamEnv, TyCtxt},
 };
+use rustc_span::Span;
 
 use super::{
     mir::{
@@ -20,9 +21,10 @@ use super::{
         StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, AdtDefData, Binder, BoundRegion, BoundRegionKind, BoundVariableKind, Clause,
-        ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, ParamConst, PolyFnSig, Ty, ValueConst, VariantDef,
+        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
+        Clause, ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef,
+        GenericParamDefKind, GenericPredicates, Generics, ParamConst, PolyFnSig, Ty, ValueConst,
+        VariantDef,
     },
 };
 use crate::{
@@ -270,11 +272,22 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::TerminatorKind::FalseUnwind { real_target, unwind } => {
                 TerminatorKind::FalseUnwind { real_target: *real_target, unwind: *unwind }
             }
+            rustc_mir::TerminatorKind::Yield { value, resume, resume_arg, drop } => {
+                TerminatorKind::Yield {
+                    value: self
+                        .lower_operand(value)
+                        .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                        .emit(self.sess)?,
+                    resume: *resume,
+                    resume_arg: lower_place(resume_arg)
+                        .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                        .emit(self.sess)?,
+                    drop: *drop,
+                }
+            }
+            rustc_mir::TerminatorKind::GeneratorDrop => TerminatorKind::GeneratorDrop,
             rustc_mir::TerminatorKind::Resume => TerminatorKind::Resume,
-            rustc_mir::TerminatorKind::Terminate
-            | rustc_mir::TerminatorKind::Yield { .. }
-            | rustc_mir::TerminatorKind::GeneratorDrop
-            | rustc_mir::TerminatorKind::InlineAsm { .. } => {
+            rustc_mir::TerminatorKind::Terminate | rustc_mir::TerminatorKind::InlineAsm { .. } => {
                 return Err(errors::UnsupportedMir::from(terminator)).emit(self.sess);
             }
         };
@@ -402,7 +415,11 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let lowered_substs = lower_generic_args(self.tcx, substs)?;
                 Ok(AggregateKind::Closure(*did, lowered_substs))
             }
-            rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::Generator(_, _, _) => {
+            rustc_mir::AggregateKind::Generator(did, substs, _mov) => {
+                let lowered_substs = lower_generic_args(self.tcx, substs)?;
+                Ok(AggregateKind::Generator(*did, lowered_substs))
+            }
+            rustc_mir::AggregateKind::Adt(..) => {
                 Err(UnsupportedReason::new(format!(
                     "unsupported aggregate kind `{aggregate_kind:?}`"
                 )))
@@ -640,16 +657,36 @@ pub(crate) fn lower_ty<'tcx>(
             let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
             Ok(Ty::mk_fn_ptr(fn_sig))
         }
-        rustc_ty::Closure(did, substs) => {
-            let substs = lower_generic_args(tcx, substs)?;
-            Ok(Ty::mk_closure(*did, substs))
+        rustc_ty::Closure(did, args) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_closure(*did, args))
         }
 
-        rustc_ty::Alias(rustc_ty::AliasKind::Projection, alias_ty) => {
+        rustc_ty::Alias(kind, alias_ty) => {
+            let kind = lower_alias_kind(kind)?;
             let substs = lower_generic_args(tcx, alias_ty.args)?;
-            Ok(Ty::mk_projection(alias_ty.def_id, substs))
+            Ok(Ty::mk_alias(kind, alias_ty.def_id, substs))
         }
+        rustc_ty::Generator(did, args, _) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_generator(*did, args))
+        }
+        rustc_ty::GeneratorWitness(tys) => {
+            let tys = lower_binder(*tys, |tys| {
+                Ok(List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()?))
+            })?;
+            Ok(Ty::mk_generator_witness(tys))
+        }
+        rustc_ty::GeneratorWitnessMIR(_, _) => todo!(),
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
+    }
+}
+
+fn lower_alias_kind(kind: &rustc_ty::AliasKind) -> Result<AliasKind, UnsupportedReason> {
+    match kind {
+        rustc_type_ir::AliasKind::Projection => Ok(AliasKind::Projection),
+        rustc_type_ir::AliasKind::Opaque => Ok(AliasKind::Opaque),
+        _ => Err(UnsupportedReason::new(format!("unsupported alias kind `{kind:?}`"))),
     }
 }
 
@@ -675,11 +712,10 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
 
 fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
-    substs: rustc_middle::ty::GenericArgsRef<'tcx>,
+    args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Result<List<GenericArg>, UnsupportedReason> {
     Ok(List::from_vec(
-        substs
-            .iter()
+        args.iter()
             .map(|arg| lower_generic_arg(tcx, arg))
             .try_collect()?,
     ))
@@ -835,6 +871,87 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
     Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
+}
+
+#[allow(clippy::mutable_key_type)] // False positive `List` is not mutable
+pub(crate) fn lower_generic_predicates_clauses<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    sess: &FluxSession,
+    parent: Option<DefId>,
+    generic_predicates: &[(rustc_ty::Clause<'tcx>, Span)],
+) -> Result<GenericPredicates, ErrorGuaranteed> {
+    let mut fn_trait_refs = FxHashMap::default();
+    let mut fn_output_proj = FxHashMap::default();
+    let mut predicates = vec![];
+
+    for (predicate, span) in generic_predicates {
+        let bound_vars = predicate.kind().bound_vars();
+        let kind = predicate.kind().skip_binder();
+
+        match kind {
+            rustc_ty::ClauseKind::Trait(trait_pred) => {
+                let trait_ref = trait_pred.trait_ref;
+                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
+                if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
+                    match fn_trait_refs.entry(substs) {
+                        hash_map::Entry::Occupied(_) => todo!(),
+                        hash_map::Entry::Vacant(entry) => {
+                            entry.insert((closure_kind, *span));
+                        }
+                    }
+                }
+            }
+            rustc_ty::ClauseKind::Projection(proj_pred) => {
+                let proj_ty = proj_pred.projection_ty;
+                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
+                if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
+                    match fn_output_proj.entry(substs) {
+                        hash_map::Entry::Occupied(_) => todo!(),
+                        hash_map::Entry::Vacant(entry) => {
+                            entry.insert(proj_pred.term.ty().unwrap());
+                        }
+                    };
+                } else if let Some(ty) = proj_pred.term.ty() &&
+                          let Some(substs) = substs.no_bound_vars(){
+                    let substs = lower_generic_args(tcx, substs)
+                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
+                        .emit(sess)?;
+
+                    let projection_ty = AliasTy { substs, def_id: proj_ty.def_id };
+                    let term = lower_ty(tcx, ty)
+                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
+                        .emit(sess)?;
+                    let kind = ClauseKind::Projection(ProjectionPredicate { projection_ty, term });
+                    predicates.push(Clause::new(Binder::bind_with_vars(kind, List::empty())));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for (substs, (kind, span)) in fn_trait_refs {
+        let output = fn_output_proj.get(&substs).unwrap();
+
+        let vars = substs.bound_vars();
+        let substs = substs.skip_binder().into_type_list(tcx);
+        let bounded_ty = lower_ty(tcx, substs[0])
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+        let tupled_args = lower_ty(tcx, substs[1])
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+        let output = lower_ty(tcx, *output)
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+
+        let vars = lower_bound_vars(vars)
+            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+            .emit(sess)?;
+
+        let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
+        predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
+    }
+    Ok(GenericPredicates { parent, predicates: List::from_vec(predicates) })
 }
 
 mod errors {

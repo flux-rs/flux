@@ -122,7 +122,25 @@ pub FnSig: surface::FnSig = {
         let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
-    }
+    },
+     <lo:@L>
+    "async" "fn"
+    <params:("<" <RefineParams<"!">> ">")?>
+    "(" <args:Args> ")"
+    <returns:("->" <Ty>)>
+    <requires:("requires" <Expr>)?>
+    <ensures:("ensures" <Ensures>)?>
+    <predicates:("where" <Predicates>)?>
+    <hi:@R>
+    => {
+        let ensures = ensures.unwrap_or_default();
+        let params = params.unwrap_or_default();
+        let predicates = predicates.unwrap_or_default();
+        let return_span = returns.span;
+        let returns = Some(surface::Ty { kind: surface::TyKind::Async((), Box::new(returns)), span: return_span });
+        surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
+    },
+
 }
 
 pub Variant: surface::VariantDef = {
@@ -154,15 +172,18 @@ Args    = <Comma<Arg>>;
 Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
-
 WhereBoundPredicate: surface::WhereBoundPredicate = {
-    <lo:@L> <bounded_ty:Ty> ":" <bound:Path>  <hi:@R> => {
+    <lo:@L> <bounded_ty:Ty> ":" <bounds:Bounds>  <hi:@R> => {
         surface::WhereBoundPredicate {
             span: mk_span(lo, hi),
             bounded_ty,
-            bounds:vec![bound],
+            bounds,
         }
     }
+}
+
+Bounds: surface::Bounds = {
+    <bound:Path> => vec![bound]
 }
 
 Arg: surface::Arg = {
@@ -201,6 +222,8 @@ TyKind: surface::TyKind = {
         }
         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
+
+    "impl" <bounds:Bounds> => surface::TyKind::ImplTrait((), bounds),
 }
 
 #[inline]
@@ -439,6 +462,7 @@ extern {
         "requires" => Token::Requires,
         "ensures" => Token::Ensures,
         "where" => Token::Where,
+        "impl" => Token::Impl,
         "qualifier" => Token::Qualifier,
         "sort" => Token::Sort,
         "opaque" => Token::Opaque,
@@ -447,6 +471,7 @@ extern {
         "literal" => Token::Literal(<Lit>),
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
+        "async" => Token::Async,
         "type" => Token::Type,
         "ref" => Token::Ref,
         "@"  => Token::At,

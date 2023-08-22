@@ -7,6 +7,7 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_middle::ty::{TyCtxt, Variance};
+use rustc_span::Span;
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
@@ -141,6 +142,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.predicates_of(self, def_id)
     }
 
+    pub fn item_bounds(
+        &self,
+        def_id: DefId,
+        span: Span,
+    ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+        self.queries.item_bounds(self, def_id, span)
+    }
+
     pub fn type_of(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
         self.queries.type_of(self, def_id)
     }
@@ -182,6 +191,19 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
         self.early_cx.early_bound_sorts_of(def_id)
+    }
+
+    pub fn refine_default_generic_args(
+        &self,
+        generics: &rty::Generics,
+        args: &ty::Substs,
+    ) -> QueryResult<rty::GenericArgs> {
+        let refiner = Refiner::default(self, generics);
+        let mut res = vec![];
+        for arg in args.iter() {
+            res.push(refiner.refine_generic_arg_raw(arg)?);
+        }
+        Ok(res.into())
     }
 
     pub fn refine_default(
