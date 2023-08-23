@@ -109,6 +109,7 @@ Sort: surface::Sort = {
 
 pub FnSig: surface::FnSig = {
     <lo:@L>
+    <asyncness:Async>
     "fn"
     <params:("<" <RefineParams<"!">> ">")?>
     "(" <args:Args> ")"
@@ -121,25 +122,28 @@ pub FnSig: surface::FnSig = {
         let ensures = ensures.unwrap_or_default();
         let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
-        surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
+        surface::FnSig {
+            asyncness,
+            params,
+            args,
+            returns,
+            ensures,
+            requires,
+            predicates,
+            span: mk_span(lo, hi)
+        }
     },
-     <lo:@L>
-    "async" "fn"
-    <params:("<" <RefineParams<"!">> ">")?>
-    "(" <args:Args> ")"
-    <returns:("->" <Ty>)>
-    <requires:("requires" <Expr>)?>
-    <ensures:("ensures" <Ensures>)?>
-    <predicates:("where" <Predicates>)?>
-    <hi:@R>
-    => {
-        let ensures = ensures.unwrap_or_default();
-        let params = params.unwrap_or_default();
-        let predicates = predicates.unwrap_or_default();
-        let return_span = returns.span;
-        let returns = Some(surface::Ty { kind: surface::TyKind::Async((), Box::new(returns)), span: return_span });
-        surface::FnSig { params, args, returns, ensures, requires, predicates, span: mk_span(lo, hi) }
-    },
+
+}
+
+Async: surface::Async = {
+    <lo:@L> <asyncness:"async"?> <hi:@R> => {
+        if asyncness.is_some() {
+            surface::Async::Yes { res: (), span: mk_span(lo, hi) }
+        } else {
+            surface::Async::No
+        }
+    }
 
 }
 

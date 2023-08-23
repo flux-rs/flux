@@ -126,6 +126,7 @@ pub struct ConstSig {
 
 #[derive(Debug)]
 pub struct FnSig<R = ()> {
+    pub asyncness: Async<R>,
     /// List of explicit refinement parameters
     pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
@@ -140,6 +141,12 @@ pub struct FnSig<R = ()> {
     pub predicates: Vec<WhereBoundPredicate<R>>,
     /// source span
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum Async<R = ()> {
+    Yes { res: R, span: Span },
+    No,
 }
 
 #[derive(Debug)]
