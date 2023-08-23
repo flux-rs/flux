@@ -239,7 +239,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     let ty = env.get(path).unblocked();
-                    infcx.subtyping(rcx, &ty, bound)?
+                    infcx.subtyping(rcx, &ty, bound)?;
                 }
                 _ => infcx.subtyping(rcx, actual, &formal)?,
             }
@@ -350,12 +350,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env.block_with(path, bound.clone());
-                    infcx.subtyping(rcx, &ty, bound)?
+                    infcx.subtyping(rcx, &ty, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
                     // TODO(pack-closure): why is this not put into `infcx.subtyping`?
                     let ty = env.get(path);
-                    infcx.subtyping(rcx, &ty, bound)?
+                    infcx.subtyping(rcx, &ty, bound)?;
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty)?,
             }

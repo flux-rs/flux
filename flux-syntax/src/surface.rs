@@ -126,6 +126,7 @@ pub struct ConstSig {
 
 #[derive(Debug)]
 pub struct FnSig<R = ()> {
+    pub asyncness: Async<R>,
     /// List of explicit refinement parameters
     pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
@@ -140,6 +141,12 @@ pub struct FnSig<R = ()> {
     pub predicates: Vec<WhereBoundPredicate<R>>,
     /// source span
     pub span: Span,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Async<R = ()> {
+    Yes { res: R, span: Span },
+    No,
 }
 
 #[derive(Debug)]
@@ -196,7 +203,6 @@ pub enum TyKind<R = ()> {
     Array(Box<Ty<R>>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
     ImplTrait(R, Bounds<R>),
-    Async(R, Box<Ty<R>>),
     Hole,
 }
 
@@ -372,10 +378,4 @@ impl fmt::Debug for BinOp {
             BinOp::Div => write!(f, "/"),
         }
     }
-}
-
-pub fn async_return_ty(ty: Ty) -> Ty {
-    let span = ty.span;
-    let kind = TyKind::Async((), Box::new(ty));
-    Ty { kind, span }
 }

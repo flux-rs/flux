@@ -413,7 +413,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 if let Some(resume_ty) = self.resume_ty.clone() {
                     self.check_assign_ty(rcx, env, resume_arg, resume_ty, source_info)?;
                 } else {
-                    bug!("yield in non-generator function")
+                    bug!("yield in non-generator function");
                 }
                 Ok(vec![(*resume, Guard::None)])
             }
@@ -582,11 +582,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match kind.skip_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
                     let fn_trait_pred = Binder::new(fn_trait_pred, vars);
-                    self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?
+                    self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
                 }
                 rty::ClauseKind::GeneratorOblig(gen_pred) => {
                     let gen_pred = Binder::new(gen_pred, vars);
-                    self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?
+                    self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?;
                 }
                 rty::ClauseKind::Projection(_) => (),
             }

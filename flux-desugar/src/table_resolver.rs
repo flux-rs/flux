@@ -22,7 +22,7 @@ pub struct ResKey {
 
 struct NameResTable<'sess> {
     res: FxHashMap<ResKey, ResEntry>,
-    opaque: Option<(LocalDefId, usize)>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
+    opaque: Option<LocalDefId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     sess: &'sess FluxSession,
 }
 
@@ -147,6 +147,8 @@ impl<'sess> Resolver<'sess> {
         &self,
         fn_sig: surface::FnSig,
     ) -> Result<surface::FnSig<Res>, ErrorGuaranteed> {
+        let asyncness = self.resolve_asyncness(fn_sig.asyncness);
+
         let args = fn_sig
             .args
             .into_iter()
@@ -171,6 +173,7 @@ impl<'sess> Resolver<'sess> {
         let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
 
         Ok(surface::FnSig {
+            asyncness: asyncness?,
             params: fn_sig.params,
             requires: fn_sig.requires,
             args: args?,
@@ -179,6 +182,19 @@ impl<'sess> Resolver<'sess> {
             predicates: predicates?,
             span: fn_sig.span,
         })
+    }
+
+    fn resolve_asyncness(
+        &self,
+        asyncness: surface::Async,
+    ) -> Result<surface::Async<Res>, ErrorGuaranteed> {
+        match asyncness {
+            surface::Async::Yes { span, .. } => {
+                let res = self.resolve_opaque_impl(span)?;
+                Ok(surface::Async::Yes { res, span })
+            }
+            surface::Async::No => Ok(surface::Async::No),
+        }
     }
 
     fn resolve_arg(&self, arg: surface::Arg) -> Result<surface::Arg<Res>, ErrorGuaranteed> {
@@ -234,21 +250,16 @@ impl<'sess> Resolver<'sess> {
             surface::TyKind::Hole => surface::TyKind::Hole,
             surface::TyKind::ImplTrait(_, bounds) => {
                 let bounds = self.resolve_bounds(bounds)?;
-                let res = self.resolve_opaque_impl(ty.span)?.0;
+                let res = self.resolve_opaque_impl(ty.span)?;
                 surface::TyKind::ImplTrait(res, bounds)
-            },
-            surface::TyKind::Async(_, ty) => {
-                let res = self.resolve_opaque_impl(ty.span)?.0;
-                let ty = self.resolve_ty(*ty)?;
-                surface::TyKind::Async(res, Box::new(ty))
             },
         };
         Ok(surface::Ty { kind, span: ty.span })
     }
 
-    fn resolve_opaque_impl(&self, span: Span) -> Result<(Res, usize), ErrorGuaranteed> {
-        if let Some((opaque, arity)) = self.table.opaque {
-            Ok((Res::OpaqueTy(opaque.to_def_id()), arity))
+    fn resolve_opaque_impl(&self, span: Span) -> Result<Res, ErrorGuaranteed> {
+        if let Some(opaque) = self.table.opaque {
+            Ok(Res::OpaqueTy(opaque.to_def_id()))
         } else {
             Err(self
                 .sess
@@ -432,7 +443,7 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result<(), ErrorGuaranteed> {
-        if let Some((did, _arity)) = self.opaque {
+        if let Some(did) = self.opaque {
             let owner_id = OwnerId { def_id: did };
             let item_id = hir::ItemId { owner_id };
             let item_kind = tcx.hir().item(item_id).kind;
@@ -490,7 +501,7 @@ impl<'sess> NameResTable<'sess> {
                 };
                 self.collect_from_path(path)
             }
-            hir::TyKind::OpaqueDef(item_id, args, _) => {
+            hir::TyKind::OpaqueDef(item_id, ..) => {
                 assert!(self.opaque.is_none());
                 if self.opaque.is_some() {
                     Err(self.sess.emit_err(errors::UnsupportedSignature::new(
@@ -498,7 +509,7 @@ impl<'sess> NameResTable<'sess> {
                         "duplicate opaque types in signature",
                     )))
                 } else {
-                    self.opaque = Some((item_id.owner_id.def_id, args.len()));
+                    self.opaque = Some(item_id.owner_id.def_id);
                     Ok(())
                 }
             }

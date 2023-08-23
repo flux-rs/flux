@@ -294,7 +294,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             if let Some((fn_preds, fn_impls)) = preds {
                 early_cx.map.insert_predicates(def_id, fn_preds);
                 for (def_id, predicates) in fn_impls {
-                    early_cx.map.insert_item_bounds(def_id, predicates)
+                    early_cx.map.insert_item_bounds(def_id, predicates);
                 }
             }
             if let Some(quals) = spec.qual_names {
