@@ -8,6 +8,18 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
+GenericParam: surface::GenericParam = {
+    <name:Ident> => surface::GenericParam { name, kind: surface::GenericParamKind::Type },
+    <name:Ident> "as" <lo:@L> <kind:Ident> <hi:@R> =>? {
+        let kind = match kind.as_str() {
+            "type" => surface::GenericParamKind::Type,
+            "base" => surface::GenericParamKind::Base,
+            _ => return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        };
+        Ok(surface::GenericParam { name, kind })
+    }
+}
+
 pub TyAlias: surface::TyAlias = {
     <lo:@L>
     "type"
@@ -113,17 +125,19 @@ pub FnSig: surface::FnSig = {
     "fn"
     <params:("<" <RefineParams<"!">> ">")?>
     "(" <args:Args> ")"
-    <returns:("->" <Ty>)?>
+    <mut returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
     <ensures:("ensures" <Ensures>)?>
     <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
+        let generics = None;
         let ensures = ensures.unwrap_or_default();
         let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         surface::FnSig {
             asyncness,
+            generics,
             params,
             args,
             returns,
@@ -478,6 +492,7 @@ extern {
         "async" => Token::Async,
         "type" => Token::Type,
         "ref" => Token::Ref,
+        "as" => Token::As,
         "@"  => Token::At,
         "#"  => Token::Pound,
         "==" => Token::EqEq,
@@ -513,6 +528,6 @@ extern {
         "%"  => Token::Percent,
         "if"   => Token::If,
         "else" => Token::Else,
-        "::" => Token::ModSep
+        "::" => Token::ModSep,
     }
 }

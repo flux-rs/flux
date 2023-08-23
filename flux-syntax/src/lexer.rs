@@ -62,6 +62,7 @@ pub enum Token {
     Opaque,
     Local,
     BitVec,
+    As,
 }
 
 pub(crate) struct Cursor {
@@ -156,6 +157,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == kw::If => Token::If,
             TokenKind::Ident(symb, _) if symb == kw::Else => Token::Else,
             TokenKind::Ident(symb, _) if symb == kw::Async => Token::Async,
+            TokenKind::Ident(symb, _) if symb == kw::As => Token::As,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,

@@ -40,6 +40,24 @@ pub struct FuncDef {
 }
 
 #[derive(Debug)]
+pub struct Generics {
+    pub params: Vec<GenericParam>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct GenericParam {
+    pub name: Ident,
+    pub kind: GenericParamKind,
+}
+
+#[derive(Debug)]
+pub enum GenericParamKind {
+    Type,
+    Base,
+}
+
+#[derive(Debug)]
 pub struct TyAlias<R = ()> {
     pub ident: Ident,
     pub generics: Vec<Ty>,
@@ -127,6 +145,7 @@ pub struct ConstSig {
 #[derive(Debug)]
 pub struct FnSig<R = ()> {
     pub asyncness: Async<R>,
+    pub generics: Option<Generics>,
     /// List of explicit refinement parameters
     pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
