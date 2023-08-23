@@ -143,7 +143,7 @@ pub struct FnSig<R = ()> {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Async<R = ()> {
     Yes { res: R, span: Span },
     No,
@@ -203,7 +203,6 @@ pub enum TyKind<R = ()> {
     Array(Box<Ty<R>>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
     ImplTrait(R, Bounds<R>),
-    Async(R, Box<Ty<R>>),
     Hole,
 }
 
@@ -379,10 +378,4 @@ impl fmt::Debug for BinOp {
             BinOp::Div => write!(f, "/"),
         }
     }
-}
-
-pub fn async_return_ty(ty: Ty) -> Ty {
-    let span = ty.span;
-    let kind = TyKind::Async((), Box::new(ty));
-    Ty { kind, span }
 }

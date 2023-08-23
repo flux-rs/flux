@@ -1,7 +1,7 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 use std::{borrow::Borrow, iter, slice};
 
-use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
@@ -238,6 +238,7 @@ pub fn desugar_fn_sig(
             Ok(fhir::Ty { kind, fhir_id: cx.next_fhir_id(), span })
         }
     };
+    let ret = cx.desugar_asyncness(fn_sig.asyncness, ret?, &mut binders);
     let ensures = fn_sig
         .ensures
         .iter()
@@ -492,18 +493,45 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         }
     }
 
+    fn desugar_asyncness(
+        &mut self,
+        asyncness: surface::Async<Res>,
+        output: fhir::Ty,
+        binders: &mut Binders,
+    ) -> Result<fhir::Ty, ErrorGuaranteed> {
+        match asyncness {
+            surface::Async::Yes { res, span } => {
+                if let Some(item_id) = Self::mk_res_impl_item_id(&res) {
+                    let args = self.desugar_generic_args(res, &[], binders)?;
+                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
+                    let self_ty = fhir::Ty { kind, fhir_id: self.next_fhir_id(), span };
+                    let predicates = vec![self.desugar_async_out_ty(output, self_ty.clone())?];
+                    self.opaque_impls.insert(
+                        item_id.owner_id.def_id,
+                        // TODO(nilehmann): parent should be the current function being desugared
+                        fhir::GenericPredicates { parent: None, predicates },
+                    );
+                    Ok(self_ty)
+                } else {
+                    span_bug!(span, "invalid resolution for asyncness")
+                }
+            }
+            surface::Async::No => Ok(output),
+        }
+    }
+
     fn desugar_async_out_ty(
         &mut self,
-        out_ty: &surface::Ty<Res>,
+        out_ty: fhir::Ty,
         args: fhir::Ty,
-        binders: &mut Binders,
     ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-        let trait_def_id = self.early_cx.tcx.lang_items().future_trait().unwrap();
-        let ident = fhir::SurfaceIdent::from_str("Output"); // TODO: less stringy way?
-        let item_id = self.lookup_item_id(trait_def_id, ident)?;
-        let projection_ty = fhir::AliasTy { args: args.clone(), def_id: item_id };
-        let term = self.desugar_ty(None, out_ty, binders)?;
-        let proj = fhir::ProjectionPredicate { projection_ty, term };
+        let future_output = self
+            .early_cx
+            .tcx
+            .get_diagnostic_item(sym::FutureOutput)
+            .unwrap();
+        let projection_ty = fhir::AliasTy { args: args.clone(), def_id: future_output };
+        let proj = fhir::ProjectionPredicate { projection_ty, term: out_ty };
         Ok(fhir::ClauseKind::Projection(proj))
     }
 
@@ -621,22 +649,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     );
                     kind
                 } else {
-                    tracked_span_bug!("unexpected opaque type")
-                }
-            }
-            surface::TyKind::Async(res, out_ty) => {
-                if let Some(item_id) = Self::mk_res_impl_item_id(res) {
-                    let args = self.desugar_generic_args(*res, &[], binders)?;
-                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
-                    let self_ty = fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id, span };
-                    let predicates = vec![self.desugar_async_out_ty(out_ty, self_ty, binders)?];
-                    self.opaque_impls.insert(
-                        item_id.owner_id.def_id,
-                        fhir::GenericPredicates { parent: None, predicates },
-                    );
-                    kind
-                } else {
-                    tracked_span_bug!("unexpected async type")
+                    span_bug!(ty.span, "unexpected opaque type")
                 }
             }
         };
@@ -1305,9 +1318,6 @@ impl Binders {
                     self.gather_params_path(early_cx, path, pos)?;
                 }
                 Ok(())
-            }
-            surface::TyKind::Async(_, ty) => {
-                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
             }
         }
     }
