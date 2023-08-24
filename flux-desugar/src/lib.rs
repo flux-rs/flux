@@ -16,7 +16,9 @@ fluent_messages! { "../locales/en-US.ftl" }
 mod desugar;
 mod table_resolver;
 
-pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
+pub use desugar::{
+    desugar_defn, desugar_generics, desugar_qualifier, desugar_refined_by, func_def_to_func_decl,
+};
 use flux_middle::{early_ctxt::EarlyCtxt, fhir};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;

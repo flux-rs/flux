@@ -174,7 +174,7 @@ impl<'sess> Resolver<'sess> {
 
         Ok(surface::FnSig {
             asyncness: asyncness?,
-            params: fn_sig.params,
+            generics: fn_sig.generics,
             requires: fn_sig.requires,
             args: args?,
             returns: returns?,
@@ -319,6 +319,10 @@ impl<'sess> Resolver<'sess> {
 }
 
 impl<'sess> NameResTable<'sess> {
+    fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
+        NameResTable { sess, opaque: None, res: FxHashMap::default() }
+    }
+
     fn from_item(
         tcx: TyCtxt,
         sess: &'sess FluxSession,
@@ -356,10 +360,6 @@ impl<'sess> NameResTable<'sess> {
         Ok(table)
     }
 
-    fn insert(&mut self, key: ResKey, res: impl Into<ResEntry>) {
-        self.res.insert(key, res.into());
-    }
-
     fn from_impl_item(
         tcx: TyCtxt,
         sess: &'sess FluxSession,
@@ -388,8 +388,8 @@ impl<'sess> NameResTable<'sess> {
         Ok(table)
     }
 
-    fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
-        NameResTable { sess, opaque: None, res: FxHashMap::default() }
+    fn insert(&mut self, key: ResKey, res: impl Into<ResEntry>) {
+        self.res.insert(key, res.into());
     }
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {

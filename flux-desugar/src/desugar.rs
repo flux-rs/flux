@@ -15,6 +15,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     def_id::DefId,
     sym::{self},
@@ -100,6 +101,44 @@ pub fn desugar_refined_by(
         .try_collect_exhaust()?;
 
     Ok(fhir::RefinedBy::new(owner_id.def_id, early_bound_params, index_params, refined_by.span))
+}
+
+pub fn desugar_generics(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    owner_id: OwnerId,
+    generics: &surface::Generics,
+) -> Result<fhir::Generics, ErrorGuaranteed> {
+    let hir_generics = tcx.hir().get_generics(owner_id.def_id).unwrap();
+    let generics_map: FxHashMap<_, _> = hir_generics
+        .params
+        .iter()
+        .flat_map(|param| {
+            if let hir::ParamName::Plain(name) = param.name {
+                Some((name, param.def_id))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let mut params = vec![];
+    for param in &generics.params {
+        let kind = match &param.kind {
+            surface::GenericParamKind::Type => fhir::GenericParamDefKind::Type { default: None },
+            surface::GenericParamKind::Base => fhir::GenericParamDefKind::BaseTy,
+            surface::GenericParamKind::Refine { .. } => {
+                continue;
+            }
+        };
+
+        let def_id = *generics_map
+            .get(&param.name)
+            .ok_or_else(|| sess.emit_err(errors::UnresolvedGenericParam::new(param.name)))?;
+
+        params.push(fhir::GenericParamDef { def_id, kind });
+    }
+    Ok(fhir::Generics { params })
 }
 
 pub fn desugar_type_alias(
@@ -1195,13 +1234,14 @@ impl Binders {
         early_cx: &EarlyCtxt,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        for param in &fn_sig.params {
+        for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
+            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
             self.insert_binder(
                 early_cx.sess,
                 param.name,
                 Binder::Refined(
                     self.fresh(),
-                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &param.sort)?,
+                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), sort)?,
                     false,
                 ),
             )?;
@@ -1736,6 +1776,20 @@ mod errors {
     impl RefinedUnrefinableType {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_unresolved_generic_param, code = "FLUX")]
+    #[note]
+    pub(super) struct UnresolvedGenericParam {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnresolvedGenericParam {
+        pub(super) fn new(param: Ident) -> Self {
+            Self { span: param.span }
         }
     }
 }

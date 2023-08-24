@@ -76,3 +76,7 @@ desugar_unsupported_signature =
 desugar_unresolved_path =
     cannot resolve `{$path}`
     .help = flux can only resolve a path if it is present in the definition being refined
+
+desugar_unresolved_generic_param =
+    cannot resolve generic param
+    .note = generic parameters in refined signature must much rust signature

@@ -6,7 +6,7 @@ fn assert(_: bool) {}
 
 #[flux::trusted]
 #[flux::sig(
-    fn(x: &strg T[@n], y: &strg T[@m])
+    fn<T as base>(x: &strg T[@n], y: &strg T[@m])
     ensures x: T[m], y: T[n]
 )]
 fn swap<T>(x: &mut T, y: &mut T) {
@@ -21,7 +21,7 @@ fn test00() {
     assert(y == 1); //~ ERROR refinement type error
 }
 
-#[flux::sig(fn(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])]
+#[flux::sig(fn<T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])]
 fn choose<T>(b: bool, x: T, y: T) -> T {
     if b {
         x

@@ -62,6 +62,8 @@ pub enum Token {
     Opaque,
     Local,
     BitVec,
+    As,
+    Refine,
 }
 
 pub(crate) struct Cursor {
@@ -82,6 +84,7 @@ struct Symbols {
     opaque: Symbol,
     local: Symbol,
     bitvec: Symbol,
+    refine: Symbol,
 }
 
 struct Frame {
@@ -109,6 +112,7 @@ impl Cursor {
                 bitvec: Symbol::intern("bitvec"),
                 opaque: Symbol::intern("opaque"),
                 local: Symbol::intern("local"),
+                refine: Symbol::intern("refine"),
             },
         }
     }
@@ -149,6 +153,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == self.symbs.opaque => Token::Opaque,
             TokenKind::Ident(symb, _) if symb == self.symbs.local => Token::Local,
             TokenKind::Ident(symb, _) if symb == self.symbs.bitvec => Token::BitVec,
+            TokenKind::Ident(symb, _) if symb == self.symbs.refine => Token::Refine,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
             TokenKind::Ident(symb, _) if symb == kw::Impl => Token::Impl,
@@ -156,6 +161,7 @@ impl Cursor {
             TokenKind::Ident(symb, _) if symb == kw::If => Token::If,
             TokenKind::Ident(symb, _) if symb == kw::Else => Token::Else,
             TokenKind::Ident(symb, _) if symb == kw::Async => Token::Async,
+            TokenKind::Ident(symb, _) if symb == kw::As => Token::As,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
             TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
             TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,

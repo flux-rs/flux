@@ -53,6 +53,7 @@ pub(crate) struct Specs {
     pub extern_specs: FxHashMap<DefId, LocalDefId>,
 }
 
+#[derive(Debug)]
 pub(crate) struct FnSpec {
     pub fn_sig: Option<surface::FnSig>,
     pub trusted: bool,

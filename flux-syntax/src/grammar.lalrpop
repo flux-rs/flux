@@ -8,6 +8,30 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
+Generics: surface::Generics = {
+    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
+        surface::Generics {
+            params,
+            span: mk_span(lo, hi),
+        }
+    }
+}
+
+GenericParam: surface::GenericParam = {
+    <name:Ident> => surface::GenericParam { name, kind: surface::GenericParamKind::Type },
+    <name:Ident> "as" <lo:@L> <kind:Ident> <hi:@R> =>? {
+        let kind = match kind.as_str() {
+            "type" => surface::GenericParamKind::Type,
+            "base" => surface::GenericParamKind::Base,
+            _ => return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        };
+        Ok(surface::GenericParam { name, kind })
+    },
+    "refine" <name:Ident> ":" <sort:Sort> => {
+        surface::GenericParam { name, kind: surface::GenericParamKind::Refine{ sort } }
+    },
+}
+
 pub TyAlias: surface::TyAlias = {
     <lo:@L>
     "type"
@@ -111,20 +135,19 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
-    <params:("<" <RefineParams<"!">> ">")?>
+    <generics:Generics?>
     "(" <args:Args> ")"
-    <returns:("->" <Ty>)?>
+    <mut returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
     <ensures:("ensures" <Ensures>)?>
     <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
         let ensures = ensures.unwrap_or_default();
-        let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         surface::FnSig {
             asyncness,
-            params,
+            generics,
             args,
             returns,
             ensures,
@@ -478,6 +501,8 @@ extern {
         "async" => Token::Async,
         "type" => Token::Type,
         "ref" => Token::Ref,
+        "refine" => Token::Refine,
+        "as" => Token::As,
         "@"  => Token::At,
         "#"  => Token::Pound,
         "==" => Token::EqEq,
@@ -513,6 +538,6 @@ extern {
         "%"  => Token::Percent,
         "if"   => Token::If,
         "else" => Token::Else,
-        "::" => Token::ModSep
+        "::" => Token::ModSep,
     }
 }
