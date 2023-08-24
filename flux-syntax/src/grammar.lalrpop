@@ -8,6 +8,15 @@ use lalrpop_util::ParseError;
 
 grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
 
+Generics: surface::Generics = {
+    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
+        surface::Generics {
+            params,
+            span: mk_span(lo, hi),
+        }
+    }
+}
+
 GenericParam: surface::GenericParam = {
     <name:Ident> => surface::GenericParam { name, kind: surface::GenericParamKind::Type },
     <name:Ident> "as" <lo:@L> <kind:Ident> <hi:@R> =>? {
@@ -123,7 +132,8 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
-    <params:("<" <RefineParams<"!">> ">")?>
+    <generics:Generics?>
+    <params:("[" <RefineParams<"!">> "]")?>
     "(" <args:Args> ")"
     <mut returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
