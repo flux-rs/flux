@@ -175,7 +175,6 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::FnSig {
             asyncness: asyncness?,
             generics: fn_sig.generics,
-            params: fn_sig.params,
             requires: fn_sig.requires,
             args: args?,
             returns: returns?,

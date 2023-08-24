@@ -124,14 +124,18 @@ pub fn desugar_generics(
 
     let mut params = vec![];
     for param in &generics.params {
+        let kind = match &param.kind {
+            surface::GenericParamKind::Type => fhir::GenericParamDefKind::Type { default: None },
+            surface::GenericParamKind::Base => fhir::GenericParamDefKind::BaseTy,
+            surface::GenericParamKind::Refine { .. } => {
+                continue;
+            }
+        };
+
         let def_id = *generics_map
             .get(&param.name)
             .ok_or_else(|| sess.emit_err(errors::UnresolvedGenericParam::new(param.name)))?;
 
-        let kind = match param.kind {
-            surface::GenericParamKind::Type => fhir::GenericParamDefKind::Type { default: None },
-            surface::GenericParamKind::Base => fhir::GenericParamDefKind::BaseTy,
-        };
         params.push(fhir::GenericParamDef { def_id, kind });
     }
     Ok(fhir::Generics { params })
@@ -1230,13 +1234,14 @@ impl Binders {
         early_cx: &EarlyCtxt,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        for param in &fn_sig.params {
+        for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
+            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
             self.insert_binder(
                 early_cx.sess,
                 param.name,
                 Binder::Refined(
                     self.fresh(),
-                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &param.sort)?,
+                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), sort)?,
                     false,
                 ),
             )?;

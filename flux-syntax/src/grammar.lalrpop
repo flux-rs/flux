@@ -26,7 +26,10 @@ GenericParam: surface::GenericParam = {
             _ => return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         };
         Ok(surface::GenericParam { name, kind })
-    }
+    },
+    "refine" <name:Ident> ":" <sort:Sort> => {
+        surface::GenericParam { name, kind: surface::GenericParamKind::Refine{ sort } }
+    },
 }
 
 pub TyAlias: surface::TyAlias = {
@@ -133,7 +136,6 @@ pub FnSig: surface::FnSig = {
     <asyncness:Async>
     "fn"
     <generics:Generics?>
-    <params:("[" <RefineParams<"!">> "]")?>
     "(" <args:Args> ")"
     <mut returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
@@ -142,12 +144,10 @@ pub FnSig: surface::FnSig = {
     <hi:@R>
     => {
         let ensures = ensures.unwrap_or_default();
-        let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         surface::FnSig {
             asyncness,
             generics,
-            params,
             args,
             returns,
             ensures,
@@ -501,6 +501,7 @@ extern {
         "async" => Token::Async,
         "type" => Token::Type,
         "ref" => Token::Ref,
+        "refine" => Token::Refine,
         "as" => Token::As,
         "@"  => Token::At,
         "#"  => Token::Pound,

@@ -55,6 +55,7 @@ pub struct GenericParam {
 pub enum GenericParamKind {
     Type,
     Base,
+    Refine { sort: Sort },
 }
 
 #[derive(Debug)]
@@ -146,8 +147,6 @@ pub struct ConstSig {
 pub struct FnSig<R = ()> {
     pub asyncness: Async<R>,
     pub generics: Option<Generics>,
-    /// List of explicit refinement parameters
-    pub params: Vec<RefineParam>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
