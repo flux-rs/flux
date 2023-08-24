@@ -37,7 +37,7 @@ pub fn lift_generics(
         .map(|param| {
             let kind = match param.kind {
                 hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
-                hir::GenericParamKind::Type { default, .. } => {
+                hir::GenericParamKind::Type { default, synthetic: false } => {
                     match def_kind {
                         DefKind::AssocFn | DefKind::Fn | DefKind::Impl { .. } => {
                             debug_assert!(default.is_none());
@@ -49,6 +49,13 @@ pub fn lift_generics(
                             }
                         }
                     }
+                }
+                hir::GenericParamKind::Type { synthetic: true, .. } => {
+                    return Err(sess.emit_err(errors::UnsupportedHir::new(
+                        tcx,
+                        param.def_id,
+                        "`impl Trait` in argument position not supported",
+                    )))
                 }
                 hir::GenericParamKind::Const { .. } => {
                     return Err(sess.emit_err(errors::UnsupportedHir::new(

@@ -137,6 +137,20 @@ fn build_stage1_fhir_map(
     }
 
     // Register Generics and Predicates
+    err = specs
+        .fn_sigs
+        .iter()
+        .try_for_each_exhaust(|(owner_id, spec)| {
+            let generics = if let Some(fn_sig) = &spec.fn_sig && let Some(generics) = &fn_sig.generics {
+                desugar::desugar_generics(tcx, sess, *owner_id, generics)?
+            } else {
+                fhir::lift::lift_generics(tcx, sess, *owner_id)?
+            };
+            map.insert_generics(owner_id.def_id, generics);
+            Ok(())
+        })
+        .err()
+        .or(err);
     err = defs_with_generics(tcx)
         .try_for_each_exhaust(|owner_id| {
             let generics = fhir::lift::lift_generics(tcx, sess, owner_id)?;
@@ -281,6 +295,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             if spec.trusted {
                 early_cx.map.add_trusted(def_id);
             }
+
             let (fn_sig, preds) = if let Some(fn_sig) = spec.fn_sig {
                 let fn_info = desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?;
                 (fn_info.fn_sig, Some((fn_info.fn_preds, fn_info.fn_impls)))
@@ -290,6 +305,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             if config::dump_fhir() {
                 dbg::dump_item_info(tcx, def_id, "fhir", &fn_sig).unwrap();
             }
+
             early_cx.map.insert_fn_sig(def_id, fn_sig);
             if let Some((fn_preds, fn_impls)) = preds {
                 early_cx.map.insert_predicates(def_id, fn_preds);
@@ -462,11 +478,9 @@ fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = OwnerId> + '_ {
             match tcx.def_kind(def_id) {
                 DefKind::Struct
                 | DefKind::Enum
-                | DefKind::Fn
                 | DefKind::Impl { .. }
                 | DefKind::TyAlias
-                | DefKind::AssocTy
-                | DefKind::AssocFn => Some(OwnerId { def_id }),
+                | DefKind::AssocTy => Some(OwnerId { def_id }),
                 _ => None,
             }
         })
