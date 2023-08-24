@@ -141,7 +141,6 @@ pub FnSig: surface::FnSig = {
     <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
-        let generics = None;
         let ensures = ensures.unwrap_or_default();
         let params = params.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
