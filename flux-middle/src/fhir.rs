@@ -581,26 +581,6 @@ impl BaseTy {
             None
         }
     }
-
-    #[track_caller]
-    pub fn expect_param(&self) -> DefId {
-        if let BaseTyKind::Path(QPath::Resolved(_, path)) = &self.kind
-           && let Res::Param(def_id) = path.res
-        {
-            def_id
-        } else {
-            panic!("expected param")
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_path(&self) -> &QPath {
-        if let BaseTyKind::Path(qpath) = &self.kind {
-            qpath
-        } else {
-            panic!("expected `BaseTyKind::Path`")
-        }
-    }
 }
 
 impl Res {

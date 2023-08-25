@@ -319,7 +319,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
         let args = rty::Index::from(cx.conv_refine_arg(&mut env, &variant.ret.idx));
-        let ret = cx.conv_base_ty(&mut env, &variant.ret.bty, args)?;
+        let ret = cx.conv_indexed_type(&mut env, &variant.ret.bty, args)?;
         let variant = rty::VariantSig::new(fields, ret);
 
         Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars()))
@@ -401,37 +401,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => {
-                if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind
-                    && let fhir::Res::AssocTy(def_id) = path.res
-                {
-                    let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
-                    assert!(path.generics.is_empty(), "generic associated types are not supported");
-                    let args = List::singleton(rty::GenericArg::Ty(self_ty));
-                    let alias_ty = rty::AliasTy { args, def_id };
-                    Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
-                }  else if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) = &bty.kind
-                    && let fhir::Res::Param(def_id) = path.res
-                {
-                    Ok(rty::Ty::param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local())))
-                } else {
-                    let sort = conv_sort(self.early_cx(), &self.genv.early_cx().sort_of_bty(bty).unwrap());
-
-                    if sort.is_unit() {
-                        let idx = rty::Index::from(rty::Expr::unit());
-                        self.conv_base_ty(env, bty, idx)
-                    } else {
-                        env.push_layer(Layer::empty());
-                        let idx = rty::Index::from(rty::Expr::nu());
-                        let ty = self.conv_base_ty(env, bty, idx)?;
-                        env.pop_layer();
-                        Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
-                    }
-                }
-            }
+            fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
                 let idxs = rty::Index::from(self.conv_refine_arg(env, idx));
-                self.conv_base_ty(env, bty, idxs)
+                self.conv_indexed_type(env, bty, idxs)
             }
             fhir::TyKind::Exists(params, ty) => {
                 let layer = Layer::list(self, 0, params, false);
@@ -485,6 +458,34 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let alias_ty = rty::AliasTy::new(def_id, args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
             }
+        }
+    }
+
+    fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
+        if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
+            if let fhir::Res::AssocTy(def_id) = path.res {
+                assert!(path.generics.is_empty(), "generic associated types are not supported");
+                let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
+                let args = List::singleton(rty::GenericArg::Ty(self_ty));
+                let alias_ty = rty::AliasTy { args, def_id };
+                return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
+            }
+            if let fhir::Res::Param(def_id) = path.res {
+                let param_ty = def_id_to_param_ty(self.genv.tcx, def_id.expect_local());
+                return Ok(rty::Ty::param(param_ty));
+            }
+        }
+
+        let sort = conv_sort(self.early_cx(), &self.genv.early_cx().sort_of_bty(bty).unwrap());
+        if sort.is_unit() {
+            let idx = rty::Index::from(rty::Expr::unit());
+            self.conv_indexed_type(env, bty, idx)
+        } else {
+            env.push_layer(Layer::empty());
+            let idx = rty::Index::from(rty::Expr::nu());
+            let ty = self.conv_indexed_type(env, bty, idx)?;
+            env.pop_layer();
+            Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
         }
     }
 
@@ -546,7 +547,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_base_ty(
+    fn conv_indexed_type(
         &self,
         env: &mut Env,
         bty: &fhir::BaseTy,
@@ -554,7 +555,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<rty::Ty> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => {
-                self.conv_path(env, path, idx)
+                self.conv_indexed_path(env, path, idx)
             }
             fhir::BaseTyKind::Slice(ty) => {
                 let slice = rty::BaseTy::slice(self.conv_ty(env, ty)?);
@@ -563,7 +564,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_path(&self, env: &mut Env, path: &fhir::Path, idx: rty::Index) -> QueryResult<rty::Ty> {
+    fn conv_indexed_path(
+        &self,
+        env: &mut Env,
+        path: &fhir::Path,
+        idx: rty::Index,
+    ) -> QueryResult<rty::Ty> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
