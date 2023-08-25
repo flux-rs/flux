@@ -8,10 +8,9 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        refining::refine_default,
-        BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode, Mutability, Path,
-        PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
+        AliasTy, BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr,
+        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode,
+        Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::{
         mir::{BasicBlock, Place},
@@ -249,10 +248,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
-                let proj_ty = refine_default(BaseTy::projection(projection_pred.alias_ty));
+                let proj_ty = Ty::projection(projection_pred.alias_ty);
                 let impl_elem =
-                    rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty, span)?
-                        .skip_binder();
+                    rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty, span)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
@@ -523,6 +521,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
                 Ok(())
             }
+            (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                self.opaque_subtyping(rcx, ty1, alias_ty)
+            }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
@@ -590,65 +591,41 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
                 Ok(())
             }
-            (BaseTy::Generator(def_id, args), BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
-                // TODO: use alias_ty.args
-                let obligs = mk_generator_obligations(
-                    self.genv,
-                    def_id,
-                    args,
-                    &alias_ty.def_id,
-                    self.span(),
-                )?;
-                self.insert_obligations(obligs);
-                Ok(())
-            }
-            (_, BaseTy::Alias(rty::AliasKind::Opaque, alias_ty)) => {
-                // TODO: use alias_ty.args
-                self.opaque_subtyping(rcx, bty1, alias_ty.def_id)
-            }
             _ => {
                 panic!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
             }
         }
     }
 
-    fn opaque_predicates(
-        &mut self,
-        opaque_def_id: DefId,
-        span: Span,
-    ) -> Result<Vec<rty::ProjectionPredicate>, CheckerErrKind> {
-        let bounds = self.genv.item_bounds(opaque_def_id, span)?.skip_binder();
-        let mut res = vec![];
-        for pred in &bounds.predicates {
-            if let rty::ClauseKind::Projection(pred) = pred.kind().skip_binder() {
-                res.push(pred);
-            }
-        }
-        Ok(res)
-    }
-
-    fn project_bty(&mut self, bty: &BaseTy, def_id: DefId) -> Ty {
-        let args = vec![GenericArg::Ty(refine_default(bty.clone()).skip_binder())];
+    fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Ty {
+        let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args);
-        let proj_ty = refine_default(BaseTy::projection(alias_ty));
-        rty::projections::normalize(self.genv, self.def_id, &proj_ty, self.span())
-            .unwrap()
-            .skip_binder()
+        let proj_ty = Ty::projection(alias_ty);
+        rty::projections::normalize(self.genv, self.def_id, &proj_ty, self.span()).unwrap()
     }
 
     fn opaque_subtyping(
         &mut self,
         rcx: &mut RefineCtxt,
-        bty: &BaseTy,
-        opaque_def_id: DefId,
+        ty: &Ty,
+        alias_ty: &AliasTy,
     ) -> Result<(), CheckerErrKind> {
-        // TODO(RJ): odd hack because a malformed predicate makes the `item_bounds` query return `Err` which cannot be `unwrapped` in `self.opaque_predicates`
-        // instead: we return a `none` there and skip subtyping, to replicate, see error_messages/predicate01.rs
-        let predicates = self.opaque_predicates(opaque_def_id, self.span())?;
-        for pred in predicates {
-            let ty1 = self.project_bty(bty, pred.alias_ty.def_id);
-            let ty2 = pred.term;
-            self.subtyping(rcx, &ty1, &ty2)?;
+        if let Some(BaseTy::Generator(def_id, args)) = ty.as_bty_skipping_existentials() {
+            let obligs =
+                mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id, self.span())?;
+            self.insert_obligations(obligs);
+        } else {
+            let bounds = self
+                .genv
+                .item_bounds(alias_ty.def_id, self.span())?
+                .skip_binder();
+            for clause in &bounds.predicates {
+                if let rty::ClauseKind::Projection(pred) = clause.kind().skip_binder() {
+                    let ty1 = self.project_bty(ty, pred.alias_ty.def_id);
+                    let ty2 = pred.term;
+                    self.subtyping(rcx, &ty1, &ty2)?;
+                }
+            }
         }
         Ok(())
     }

@@ -1,9 +1,9 @@
-use std::{iter, ops::ControlFlow};
+use std::iter;
 
 #[allow(unused_imports)]
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
@@ -14,7 +14,7 @@ use rustc_span::Span;
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitor},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
     AliasKind, AliasTy, BaseTy, ClauseKind, GenericArg, Ty, TyKind,
 };
 use crate::{
@@ -58,7 +58,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         // 1. Insert generic predicates of the callsite `def_id`
         gps.push(genv.predicates_of(def_id)?.skip_binder());
         // 2. Insert generic predicates of the opaque-types
-        let opaque_dids = opaque_def_ids(t);
+        let opaque_dids = t.opaque_def_ids();
 
         for did in opaque_dids.iter() {
             gps.push(genv.item_bounds(*did, span)?.skip_binder());
@@ -116,24 +116,6 @@ fn without_constrs<T: TypeFoldable>(t: &T) -> T {
     t.fold_with(&mut WithoutConstrs)
 }
 
-struct OpaquesVisitor(FxHashSet<DefId>);
-
-impl TypeVisitor for OpaquesVisitor {
-    fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!, ()> {
-        if let BaseTy::Alias(AliasKind::Opaque, alias_ty) = bty {
-            let _ = self.0.insert(alias_ty.def_id);
-            alias_ty.args.visit_with(self);
-        }
-        bty.super_visit_with(self)
-    }
-}
-
-fn opaque_def_ids<T: TypeVisitable>(t: &T) -> FxHashSet<DefId> {
-    let mut visitor = OpaquesVisitor(FxHashSet::default());
-    t.visit_with(&mut visitor);
-    visitor.0
-}
-
 // -----------------------------------------------------------------------------------------------------
 // Code for normalizing `AliasTy` using impl -----------------------------------------------------------
 // -----------------------------------------------------------------------------------------------------
@@ -185,7 +167,6 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
             // rustc_middle::ty::Ty::new_generator(*tcx, *def_id, args, mov)
         }
         BaseTy::GeneratorWitness(_) => todo!(),
-        BaseTy::Alias(_, _) => todo!(),
     }
 }
 
@@ -200,6 +181,7 @@ fn into_rustc_ty<'tcx>(tcx: &TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx
         TyKind::Discr(_, _) => todo!(),
         TyKind::Downcast(_, _, _, _, _) => todo!(),
         TyKind::Blocked(_) => todo!(),
+        TyKind::Alias(_, _) => todo!(),
     }
 }
 
@@ -364,12 +346,10 @@ fn normalize_with_impl<'tcx>(
 
 impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(AliasKind::Projection, alias_ty), _idx) => {
-                // TODO(RJ): ignoring the idx -- but shouldn't `Projection` be a TyKind and not in BaseTy?
-                self.normalize_projection(alias_ty)
-            }
-            _ => ty.super_fold_with(self),
+        if let TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
+            self.normalize_projection(alias_ty)
+        } else {
+            ty.super_fold_with(self)
         }
     }
 }
