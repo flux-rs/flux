@@ -192,19 +192,17 @@ pub trait TypeVisitable: Sized {
         collector.0
     }
 
-    /// Returns the set of all free variables.
-    /// For example, `Vec<i32[n]>{v : v > m}` returns `{n, m}`.
+    /// Returns the set of all opaque type aliases def ids
     fn opaque_def_ids(&self) -> FxHashSet<DefId> {
         struct CollectOpaqueDefIds(FxHashSet<DefId>);
 
         impl TypeVisitor for CollectOpaqueDefIds {
-            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<Self::BreakTy> {
-                match bty {
-                    BaseTy::Alias(AliasKind::Opaque, alias_ty) => {
-                        let _ = self.0.insert(alias_ty.def_id);
-                        alias_ty.args.visit_with(self)
-                    }
-                    _ => ControlFlow::Continue(()),
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
+                if let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
+                    let _ = self.0.insert(alias_ty.def_id);
+                    alias_ty.args.visit_with(self)
+                } else {
+                    ty.super_visit_with(self)
                 }
             }
         }
@@ -689,6 +687,7 @@ impl TypeSuperVisitable for Ty {
                 fields.visit_with(visitor)
             }
             TyKind::Blocked(ty) => ty.visit_with(visitor),
+            TyKind::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => ControlFlow::Continue(()),
         }
     }
@@ -735,6 +734,7 @@ impl TypeSuperFoldable for Ty {
                 )
             }
             TyKind::Blocked(ty) => Ty::blocked(ty.try_fold_with(folder)?),
+            TyKind::Alias(kind, alias_ty) => Ty::alias(*kind, alias_ty.try_fold_with(folder)?),
             TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => self.clone(),
         };
         Ok(ty)
@@ -780,7 +780,6 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.iter().try_for_each(|ty| ty.visit_with(visitor)),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -815,7 +814,6 @@ impl TypeSuperFoldable for BaseTy {
             }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
             BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
-            BaseTy::Alias(kind, alias_ty) => BaseTy::Alias(*kind, alias_ty.try_fold_with(folder)?),
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)

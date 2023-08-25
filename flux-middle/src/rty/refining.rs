@@ -283,9 +283,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Alias(kind, alias_ty) => {
                 let kind = Self::refine_alias_kind(kind);
                 let alias_ty = self.refine_alias_ty(alias_ty)?;
-                rty::BaseTy::alias(kind, alias_ty)
+                return Ok(rty::Binder::new(rty::Ty::alias(kind, alias_ty), List::empty()));
             }
-
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             rustc::ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
@@ -323,7 +322,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 }
 
-pub fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
+fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::Ty> {
     let sort = bty.sort();
     rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu()), sort)
 }

@@ -3,6 +3,7 @@
 
 use std::borrow::Borrow;
 
+use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use rustc_errors::IntoDiagnostic;
 use rustc_hir::{def_id::LocalDefId, PrimTy};
@@ -102,7 +103,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::Alias(def_id) | fhir::Res::Enum(def_id) | fhir::Res::Struct(def_id) => {
                 fhir::Sort::Record(def_id)
             }
-            fhir::Res::AssocTy(_) => fhir::Sort::Unit,
             fhir::Res::Param(def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
@@ -111,7 +111,8 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     | fhir::GenericParamDefKind::Lifetime => return None,
                 }
             }
-            _ => panic!("unexpected res {:?}", res),
+            fhir::Res::AssocTy(_) | fhir::Res::OpaqueTy(_) => return None,
+            fhir::Res::Trait(_) => bug!("unexpected res {res:?}"),
         };
         Some(sort)
     }
