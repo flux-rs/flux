@@ -462,6 +462,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
+        let sort = self.genv.early_cx().sort_of_bty(bty);
+
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::AssocTy(def_id) = path.res {
                 assert!(path.generics.is_empty(), "generic associated types are not supported");
@@ -470,13 +472,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let alias_ty = rty::AliasTy { args, def_id };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
-            if let fhir::Res::Param(def_id) = path.res {
+            // If it is a type parameter with no no sort, it means it is of kind `Type`
+            if let fhir::Res::Param(def_id) = path.res && sort.is_none() {
                 let param_ty = def_id_to_param_ty(self.genv.tcx, def_id.expect_local());
                 return Ok(rty::Ty::param(param_ty));
             }
         }
 
-        let sort = conv_sort(self.early_cx(), &self.genv.early_cx().sort_of_bty(bty).unwrap());
+        let sort = conv_sort(self.early_cx(), &sort.unwrap());
         if sort.is_unit() {
             let idx = rty::Index::from(rty::Expr::unit());
             self.conv_indexed_type(env, bty, idx)
