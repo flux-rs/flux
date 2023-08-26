@@ -5,7 +5,7 @@ use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, FhirId, FluxOwnerId, ItemPredicates, Res},
+    fhir::{self, FhirId, FluxOwnerId, Res},
     intern::List,
 };
 use flux_syntax::surface;
@@ -17,7 +17,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
-    def_id::DefId,
+    def_id::LocalDefId,
     sym::{self},
     symbol::kw,
     BytePos, Span, Symbol, DUMMY_SP,
@@ -304,16 +304,16 @@ pub fn desugar_fn_sig(
         lifted: false,
     };
 
-    let hir_opaque_impls = cx.opaque_impls;
+    let hir_opaque_impls = cx.opaque_tys;
 
-    Ok(fhir::FnInfo { fn_sig: hir_fn_sig, fn_preds: hir_predicates, fn_impls: hir_opaque_impls })
+    Ok(fhir::FnInfo { fn_sig: hir_fn_sig, fn_preds: hir_predicates, opaque_tys: hir_opaque_impls })
 }
 
 pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
     requires: Vec<fhir::Constraint>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
-    opaque_impls: ItemPredicates,
+    opaque_tys: FxHashMap<LocalDefId, fhir::OpaqueTy>,
     owner: OwnerId,
 }
 
@@ -371,7 +371,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             requires: vec![],
             owner,
             local_id_gen: IndexGen::new(),
-            opaque_impls: FxHashMap::default(),
+            opaque_tys: FxHashMap::default(),
         }
     }
 
@@ -424,7 +424,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
-                let bty = self.desugar_path(path, binders)?;
+                let bty = self.desugar_path_to_bty(path, binders)?;
                 let pred = self.as_expr_ctxt().desugar_expr(binders, pred)?;
 
                 let ty = if let Some(idx) = self.ident_into_refine_arg(*bind, binders)? {
@@ -466,9 +466,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
         let mut res = vec![];
         for pred in predicates {
-            for clause in self.desugar_predicate(pred, binders)? {
-                res.push(clause);
-            }
+            res.push(self.desugar_predicate(pred, binders)?);
         }
         let parent = Some(owner_id.def_id.to_def_id());
         Ok(fhir::GenericPredicates { parent, predicates: res })
@@ -478,59 +476,59 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         pred: &surface::WhereBoundPredicate<Res>,
         binders: &mut Binders,
-    ) -> Result<Vec<fhir::ClauseKind>, ErrorGuaranteed> {
-        let args = self.desugar_ty(None, &pred.bounded_ty, binders)?;
-        self.desugar_bounds(&pred.bounds, args, binders)
+    ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
+        let bounded_ty = self.desugar_ty(None, &pred.bounded_ty, binders)?;
+        let bounds = self.desugar_generic_bounds(&pred.bounds, binders)?;
+        Ok(fhir::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
     }
 
-    fn desugar_bounds(
+    fn desugar_generic_bounds(
         &mut self,
-        bounds: &surface::Bounds<Res>,
-        args: fhir::Ty,
+        bounds: &surface::GenericBounds<Res>,
         binders: &mut Binders,
-    ) -> Result<Vec<fhir::ClauseKind>, ErrorGuaranteed> {
+    ) -> Result<fhir::GenericBounds, ErrorGuaranteed> {
         bounds
             .iter()
-            .map(|b| self.desugar_bound(&args, b, binders))
+            .map(|bound| self.desugar_path(bound, binders))
             .try_collect_exhaust()
     }
 
-    fn lookup_item_id(
-        &mut self,
-        trait_id: DefId,
-        ident: fhir::SurfaceIdent,
-    ) -> Result<DefId, ErrorGuaranteed> {
-        let item = self
-            .early_cx
-            .tcx
-            .associated_items(trait_id)
-            .filter_by_name_unhygienic(ident.name)
-            .next();
-        match item {
-            Some(item) => Ok(item.def_id),
-            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(ident))),
-        }
-    }
+    // fn lookup_item_id(
+    //     &mut self,
+    //     trait_id: DefId,
+    //     ident: fhir::SurfaceIdent,
+    // ) -> Result<DefId, ErrorGuaranteed> {
+    //     let item = self
+    //         .early_cx
+    //         .tcx
+    //         .associated_items(trait_id)
+    //         .filter_by_name_unhygienic(ident.name)
+    //         .next();
+    //     match item {
+    //         Some(item) => Ok(item.def_id),
+    //         None => Err(self.emit_err(errors::UnresolvedVar::from_ident(ident))),
+    //     }
+    // }
 
-    fn desugar_bound(
-        &mut self,
-        args: &fhir::Ty,
-        path: &surface::Path<Res>,
-        binders: &mut Binders,
-    ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-        let Res::Trait(trait_def_id) = path.res else {
-            span_bug!(path.span, "unexpected trait {:?}", path.res);
-        };
-        if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
-            let item_id = self.lookup_item_id(trait_def_id, *ident)?;
-            let projection_ty = fhir::AliasTy { args: args.clone(), def_id: item_id };
-            let term = self.desugar_ty(None, ty, binders)?;
-            let proj = fhir::ProjectionPredicate { projection_ty, term };
-            Ok(fhir::ClauseKind::Projection(proj))
-        } else {
-            bug!("unexpected path in desugar_bound: {:?}", path.generics)
-        }
-    }
+    // fn desugar_generic_bound(
+    //     &mut self,
+    //     args: &fhir::Ty,
+    //     path: &surface::Path<Res>,
+    //     binders: &mut Binders,
+    // ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
+    //     let Res::Trait(trait_def_id) = path.res else {
+    //         span_bug!(path.span, "unexpected trait {:?}", path.res);
+    //     };
+    //     if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
+    //         let item_id = self.lookup_item_id(trait_def_id, *ident)?;
+    //         let projection_ty = fhir::AliasTy { args: args.clone(), def_id: item_id };
+    //         let term = self.desugar_ty(None, ty, binders)?;
+    //         let proj = fhir::ProjectionPredicate { projection_ty, term };
+    //         Ok(fhir::ClauseKind::Projection(proj))
+    //     } else {
+    //         bug!("unexpected path in desugar_bound: {:?}", path.generics)
+    //     }
+    // }
 
     fn desugar_asyncness(
         &mut self,
@@ -540,38 +538,20 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match asyncness {
             surface::Async::Yes { res, span } => {
-                if let Some(item_id) = Self::mk_res_impl_item_id(&res) {
-                    let args = self.desugar_generic_args(res, &[], binders)?;
-                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
-                    let self_ty = fhir::Ty { kind, fhir_id: self.next_fhir_id(), span };
-                    let predicates = vec![self.desugar_async_out_ty(output, self_ty.clone())?];
-                    self.opaque_impls.insert(
+                if let Some(item_id) = mk_res_impl_item_id(&res) {
+                    self.opaque_tys.insert(
                         item_id.owner_id.def_id,
-                        // TODO(nilehmann): parent should be the current function being desugared
-                        fhir::GenericPredicates { parent: None, predicates },
+                        mk_opaque_ty_for_async(self.early_cx.tcx, output)?,
                     );
-                    Ok(self_ty)
+                    let (args, _) = self.desugar_generic_args(res, &[], binders)?;
+                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
+                    Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
                 } else {
                     span_bug!(span, "invalid resolution for asyncness")
                 }
             }
             surface::Async::No => Ok(output),
         }
-    }
-
-    fn desugar_async_out_ty(
-        &mut self,
-        out_ty: fhir::Ty,
-        args: fhir::Ty,
-    ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-        let future_output = self
-            .early_cx
-            .tcx
-            .get_diagnostic_item(sym::FutureOutput)
-            .unwrap();
-        let projection_ty = fhir::AliasTy { args: args.clone(), def_id: future_output };
-        let proj = fhir::ProjectionPredicate { projection_ty, term: out_ty };
-        Ok(fhir::ClauseKind::Projection(proj))
     }
 
     fn desugar_ty(
@@ -581,7 +561,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         let span = ty.span;
-        let ty_fhir_id = self.next_fhir_id();
         let kind = match &ty.kind {
             surface::TyKind::Base(bty) => return self.desugar_bty_bind(bind, bty, binders),
             surface::TyKind::Indexed { bty, indices } => {
@@ -677,35 +656,19 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
             surface::TyKind::ImplTrait(res, bounds) => {
-                if let Some(item_id) = Self::mk_res_impl_item_id(res) {
-                    let args = self.desugar_generic_args(*res, &[], binders)?;
-                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
-                    let self_ty = fhir::Ty { kind: kind.clone(), fhir_id: ty_fhir_id, span };
-                    let predicates = self.desugar_bounds(bounds, self_ty, binders)?;
-                    self.opaque_impls.insert(
-                        item_id.owner_id.def_id,
-                        fhir::GenericPredicates { parent: None, predicates },
-                    );
-                    kind
+                if let Some(item_id) = mk_res_impl_item_id(res) {
+                    let bounds = self.desugar_generic_bounds(bounds, binders)?;
+                    self.opaque_tys
+                        .insert(item_id.owner_id.def_id, fhir::OpaqueTy { bounds });
+
+                    let (args, _) = self.desugar_generic_args(*res, &[], binders)?;
+                    fhir::TyKind::OpaqueDef(item_id, args, false)
                 } else {
                     span_bug!(ty.span, "unexpected opaque type")
                 }
             }
         };
-        Ok(fhir::Ty { kind, fhir_id: ty_fhir_id, span })
-    }
-
-    fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
-        if let Res::OpaqueTy(def_id) = res &&
-           let Some(local_def_id) = def_id.as_local()
-        {
-            let owner_id = OwnerId { def_id: local_def_id };
-            let item_id = hir::ItemId { owner_id };
-            Some(item_id)
-
-        } else {
-            None
-        }
+        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
     }
 
     fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
@@ -791,7 +754,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
         match &bty.kind {
-            surface::BaseTyKind::Path(path) => self.desugar_path(path, binders),
+            surface::BaseTyKind::Path(path) => self.desugar_path_to_bty(path, binders),
             surface::BaseTyKind::Slice(ty) => {
                 let kind = fhir::BaseTyKind::Slice(Box::new(self.desugar_ty(None, ty, binders)?));
                 Ok(fhir::BaseTy { kind, span: bty.span })
@@ -803,11 +766,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         path: &surface::Path<Res>,
         binders: &mut Binders,
-    ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
-        let generics = self.desugar_generic_args(path.res, &path.generics, binders)?;
+    ) -> Result<fhir::Path, ErrorGuaranteed> {
+        let (args, bindings) = self.desugar_generic_args(path.res, &path.generics, binders)?;
         let refine = self.desugar_refine_args(&path.refine, binders)?;
-        let path = fhir::Path { res: path.res, generics, refine, span: path.span };
-        Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, path)))
+        Ok(fhir::Path { res: path.res, args, bindings, refine, span: path.span })
+    }
+
+    fn desugar_path_to_bty(
+        &mut self,
+        path: &surface::Path<Res>,
+        binders: &mut Binders,
+    ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
+        Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, self.desugar_path(path, binders)?)))
     }
 
     fn desugar_generic_args(
@@ -815,8 +785,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         res: Res,
         substs: &[surface::GenericArg<Res>],
         binders: &mut Binders,
-    ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
+    ) -> Result<(Vec<fhir::GenericArg>, Vec<fhir::TypeBinding>), ErrorGuaranteed> {
         let mut args = vec![];
+        let mut bindings = vec![];
         if let Res::Alias(def_id)
         | Res::Struct(def_id)
         | Res::Enum(def_id)
@@ -835,12 +806,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 surface::GenericArg::Type(ty) => {
                     args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
                 }
-                surface::GenericArg::Constraint(ident, _) => {
-                    return Err(self.emit_err(errors::InvalidUnrefinedParam::new(*ident)));
+                surface::GenericArg::Constraint(ident, ty) => {
+                    bindings.push(fhir::TypeBinding {
+                        ident: *ident,
+                        term: self.desugar_ty(None, ty, binders)?,
+                    });
                 }
             }
         }
-        Ok(args)
+        Ok((args, bindings))
     }
 
     fn desugar_bty_bind(
@@ -864,7 +838,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         ret: &surface::VariantRet<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::VariantRet, ErrorGuaranteed> {
-        let bty = self.desugar_path(&ret.path, binders)?;
+        let bty = self.desugar_path_to_bty(&ret.path, binders)?;
         let idx = self.desugar_indices(&bty, &ret.indices, binders)?;
         Ok(fhir::VariantRet { bty, idx })
     }
@@ -1558,6 +1532,37 @@ fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sor
         early_cx.index_sorts_of(*def_id)
     } else {
         slice::from_ref(sort)
+    }
+}
+
+fn mk_opaque_ty_for_async(
+    tcx: TyCtxt,
+    output: fhir::Ty,
+) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+    let future_trait = tcx.lang_items().future_trait().unwrap();
+    let bound = fhir::Path {
+        span: DUMMY_SP,
+        args: vec![],
+        bindings: vec![fhir::TypeBinding {
+            ident: surface::Ident::with_dummy_span(sym::Output),
+            term: output,
+        }],
+        refine: vec![],
+        res: Res::Trait(future_trait),
+    };
+    Ok(fhir::OpaqueTy { bounds: vec![bound] })
+}
+
+fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
+    if let Res::OpaqueTy(def_id) = res
+        && let Some(local_def_id) = def_id.as_local()
+    {
+        let owner_id = OwnerId { def_id: local_def_id };
+        let item_id = hir::ItemId { owner_id };
+        Some(item_id)
+
+    } else {
+        None
     }
 }
 

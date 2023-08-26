@@ -95,35 +95,36 @@ pub(crate) fn conv_generic_predicates(
     predicates: &fhir::GenericPredicates,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::GenericPredicates> {
-    let parent = predicates.parent;
-    let mut preds = vec![];
-    for fhir::ClauseKind::Projection(proj) in &predicates.predicates {
-        let ck = rty::ClauseKind::Projection(conv_projection_predicate(genv, proj, wfckresults)?);
-        preds.push(rty::Clause::new(ck, List::empty()));
-    }
-    Ok(rty::GenericPredicates { parent, predicates: List::from_vec(preds) })
+    todo!()
+    // let parent = predicates.parent;
+    // let mut preds = vec![];
+    // for fhir::ClauseKind::Projection(proj) in &predicates.predicates {
+    //     let ck = rty::ClauseKind::Projection(conv_projection_predicate(genv, proj, wfckresults)?);
+    //     preds.push(rty::Clause::new(ck, List::empty()));
+    // }
+    // Ok(rty::GenericPredicates { parent, predicates: List::from_vec(preds) })
 }
 
-fn conv_projection_predicate(
-    genv: &GlobalEnv,
-    proj: &fhir::ProjectionPredicate,
-    wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::ProjectionPredicate> {
-    let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
-    let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
-    Ok(rty::ProjectionPredicate { term: ty, alias_ty: projection_ty })
-}
+// fn conv_projection_predicate(
+//     genv: &GlobalEnv,
+//     proj: &fhir::ProjectionPredicate,
+//     wfckresults: &fhir::WfckResults,
+// ) -> QueryResult<rty::ProjectionPredicate> {
+//     let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
+//     let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
+//     Ok(rty::ProjectionPredicate { term: ty, alias_ty: projection_ty })
+// }
 
-fn conv_alias_ty(
-    genv: &GlobalEnv,
-    alias_ty: &fhir::AliasTy,
-    wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::AliasTy> {
-    let ty = conv_ty(genv, &alias_ty.args, wfckresults)?.skip_binder();
-    let args = List::singleton(rty::GenericArg::Ty(ty));
-    let res = rty::AliasTy { args, def_id: alias_ty.def_id };
-    Ok(res)
-}
+// fn conv_alias_ty(
+//     genv: &GlobalEnv,
+//     alias_ty: &fhir::AliasTy,
+//     wfckresults: &fhir::WfckResults,
+// ) -> QueryResult<rty::AliasTy> {
+//     let ty = conv_ty(genv, &alias_ty.args, wfckresults)?.skip_binder();
+//     let args = List::singleton(rty::GenericArg::Ty(ty));
+//     let res = rty::AliasTy { args, def_id: alias_ty.def_id };
+//     Ok(res)
+// }
 
 pub(crate) fn conv_generics(
     rust_generics: &rustc::ty::Generics,
@@ -466,7 +467,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::AssocTy(def_id) = path.res {
-                assert!(path.generics.is_empty(), "generic associated types are not supported");
+                assert!(path.args.is_empty(), "generic associated types are not supported");
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
                 let alias_ty = rty::AliasTy { args, def_id };
@@ -588,14 +589,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, &path.generics)?;
+                let args = self.conv_generic_args(env, *did, &path.args)?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Param(def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
             fhir::Res::Alias(def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, &path.generics)?;
+                let generics = self.conv_generic_args(env, *def_id, &path.args)?;
                 let refine = path
                     .refine
                     .iter()

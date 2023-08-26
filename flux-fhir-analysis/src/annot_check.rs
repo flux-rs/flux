@@ -306,11 +306,11 @@ impl<'zip> Zipper<'zip> {
         if path.res != expected_path.res {
             return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
-        if path.generics.len() != expected_path.generics.len() {
+        if path.args.len() != expected_path.args.len() {
             return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
         }
 
-        iter::zip(&path.generics, &expected_path.generics)
+        iter::zip(&path.args, &expected_path.args)
             .try_for_each_exhaust(|(arg, expected)| self.zip_generic_arg(arg, expected))
     }
 
@@ -424,8 +424,8 @@ mod errors {
         pub(super) fn new(path: &fhir::Path, expected_path: &fhir::Path) -> Self {
             GenericArgCountMismatch {
                 span: path.span,
-                found: path.generics.len(),
-                expected: expected_path.generics.len(),
+                found: path.args.len(),
+                expected: expected_path.args.len(),
                 def_descr: path.res.descr(),
                 expected_span: expected_path.span,
             }

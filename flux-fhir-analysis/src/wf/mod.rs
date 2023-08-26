@@ -189,7 +189,7 @@ pub(crate) fn check_generic_predicates(
     predicates
         .predicates
         .iter()
-        .try_for_each_exhaust(|clause| wf.check_clause_kind(&mut infcx, clause))?;
+        .try_for_each_exhaust(|pred| wf.check_generic_predicate(&mut infcx, pred))?;
     Ok(infcx.into_results())
 }
 
@@ -329,23 +329,17 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn check_clause_kind(
+    fn check_generic_predicate(
         &mut self,
         env: &mut InferCtxt,
-        clause: &fhir::ClauseKind,
+        predicate: &fhir::WhereBoundPredicate,
     ) -> Result<(), ErrorGuaranteed> {
-        let fhir::ClauseKind::Projection(proj) = clause;
-        self.check_alias_ty(env, &proj.projection_ty)?;
-        self.check_type(env, &proj.term)?;
-        Ok(())
-    }
-
-    fn check_alias_ty(
-        &mut self,
-        env: &mut InferCtxt,
-        alias_ty: &fhir::AliasTy,
-    ) -> Result<(), ErrorGuaranteed> {
-        self.check_type(env, &alias_ty.args)
+        self.check_type(env, &predicate.bounded_ty)?;
+        predicate
+            .bounds
+            .iter()
+            .map(|bound| self.check_path(env, bound))
+            .try_collect_exhaust()
     }
 
     fn check_generic_arg(
@@ -404,7 +398,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
         let snapshot = self.xi.snapshot();
         let res = path
-            .generics
+            .args
             .iter()
             .try_for_each_exhaust(|arg| self.check_generic_arg(env, arg));
         if !self.early_cx.is_box(path.res) {

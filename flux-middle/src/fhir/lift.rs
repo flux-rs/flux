@@ -135,7 +135,8 @@ pub fn lift_enum_variant_def(
 
     let path = fhir::Path {
         res: fhir::Res::Enum(enum_id.to_def_id()),
-        generics: cx.generic_params_into_args(generics)?,
+        args: cx.generic_params_into_args(generics)?,
+        bindings: vec![],
         refine: vec![],
         // FIXME(nilehmann) the span should also include the generic arguments
         span: ident.span,
@@ -299,12 +300,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 ));
             }
         };
-        let generics = match path.segments.last().unwrap().args {
-            Some(args) => self.lift_generic_args(args.args)?,
-            None => vec![],
+        let (args, bindings) = match path.segments.last().unwrap().args {
+            Some(args) => {
+                (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
+            }
+            None => (vec![], vec![]),
         };
 
-        let path = fhir::Path { res, generics, refine: vec![], span: path.span };
+        let path = fhir::Path { res, args, bindings, refine: vec![], span: path.span };
         let self_ty = self_ty
             .map(|ty| Ok(Box::new(self.lift_ty(ty)?)))
             .transpose()?;
@@ -349,6 +352,24 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(lifted)
     }
 
+    fn lift_type_bindings(
+        &self,
+        bindings: &[hir::TypeBinding<'_>],
+    ) -> Result<Vec<fhir::TypeBinding>, ErrorGuaranteed> {
+        let mut lifted = vec![];
+        for binding in bindings {
+            let hir::TypeBindingKind::Equality { term } = binding.kind else {
+                return self.emit_unsupported("unsupported type binding");
+            };
+            let hir::Term::Ty(term) = term else {
+                return self.emit_unsupported("unsupported type binding");
+            };
+            let term = self.lift_ty(term)?;
+            lifted.push(fhir::TypeBinding { ident: binding.ident, term });
+        }
+        Ok(lifted)
+    }
+
     fn lift_array_len(&self, len: &hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.tcx.hir().body(anon_const.body),
@@ -372,8 +393,13 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
                     let res = fhir::Res::Param(param.def_id.to_def_id());
-                    let path =
-                        fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
+                    let path = fhir::Path {
+                        res,
+                        args: vec![],
+                        bindings: vec![],
+                        refine: vec![],
+                        span: param.span,
+                    };
                     let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
                     let ty = fhir::Ty {
                         kind: fhir::TyKind::BaseTy(bty),

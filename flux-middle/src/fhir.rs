@@ -93,27 +93,24 @@ pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
 pub type ItemPredicates = FxHashMap<LocalDefId, GenericPredicates>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
-    pub predicates: Vec<ClauseKind>,
+    pub predicates: Vec<WhereBoundPredicate>,
 }
 
-#[derive(Debug, Clone)]
-pub enum ClauseKind {
-    Projection(ProjectionPredicate),
+#[derive(Debug)]
+pub struct WhereBoundPredicate {
+    pub span: Span,
+    pub bounded_ty: Ty,
+    pub bounds: GenericBounds,
 }
 
-#[derive(Debug, Clone)]
-pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
-    pub term: Ty,
-}
+pub type GenericBounds = Vec<Path>;
 
-#[derive(Debug, Clone)]
-pub struct AliasTy {
-    pub args: Ty,
-    pub def_id: DefId,
+#[derive(Debug)]
+pub struct OpaqueTy {
+    pub bounds: GenericBounds,
 }
 
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
@@ -123,7 +120,7 @@ pub struct AliasTy {
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
     predicates: ItemPredicates,
-    item_bounds: ItemPredicates,
+    opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,
@@ -206,7 +203,7 @@ pub struct VariantRet {
 pub struct FnInfo {
     pub fn_sig: FnSig,
     pub fn_preds: GenericPredicates,
-    pub fn_impls: ItemPredicates,
+    pub opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
 }
 
 pub struct FnSig {
@@ -399,9 +396,16 @@ pub enum QPath {
 #[derive(Clone)]
 pub struct Path {
     pub res: Res,
-    pub generics: Vec<GenericArg>,
+    pub args: Vec<GenericArg>,
+    pub bindings: Vec<TypeBinding>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
+}
+
+#[derive(Clone)]
+pub struct TypeBinding {
+    pub ident: SurfaceIdent,
+    pub term: Ty,
 }
 
 #[derive(Clone)]
@@ -840,11 +844,12 @@ impl Map {
         self.generics.insert(def_id, generics);
     }
 
-    pub fn insert_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
+    pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
         self.predicates.insert(def_id, predicates);
     }
-    pub fn insert_item_bounds(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
-        self.item_bounds.insert(def_id, predicates);
+
+    pub fn insert_opaque_tys(&mut self, opaque_tys: FxHashMap<LocalDefId, OpaqueTy>) {
+        self.opaque_tys.extend(opaque_tys);
     }
 
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
@@ -855,8 +860,8 @@ impl Map {
         self.predicates.get(&def_id)
     }
 
-    pub fn get_item_bounds(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
-        self.item_bounds.get(&def_id)
+    pub fn get_item_bounds(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
+        self.opaque_tys.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -1322,8 +1327,8 @@ impl fmt::Debug for Path {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
         }
-        if !self.generics.is_empty() {
-            write!(f, "<{:?}>", self.generics.iter().format(", "))?;
+        if !self.args.is_empty() {
+            write!(f, "<{:?}>", self.args.iter().format(", "))?;
         }
         if !self.refine.is_empty() {
             write!(f, "({:?})", self.refine.iter().format(", "))?;

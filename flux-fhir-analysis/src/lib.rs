@@ -133,7 +133,7 @@ fn item_bounds(
     local_id: LocalDefId,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
     let wfckresults = genv.check_wf(local_id)?;
-    if let Some(predicates) = genv.map().get_item_bounds(local_id) {
+    if let Some(opaque_ty) = genv.map().get_item_bounds(local_id) {
         Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
     } else {
         Ok(None)

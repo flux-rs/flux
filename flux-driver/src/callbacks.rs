@@ -296,9 +296,9 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
                 early_cx.map.add_trusted(def_id);
             }
 
-            let (fn_sig, preds) = if let Some(fn_sig) = spec.fn_sig {
+            let (fn_sig, data) = if let Some(fn_sig) = spec.fn_sig {
                 let fn_info = desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?;
-                (fn_info.fn_sig, Some((fn_info.fn_preds, fn_info.fn_impls)))
+                (fn_info.fn_sig, Some((fn_info.fn_preds, fn_info.opaque_tys)))
             } else {
                 (fhir::lift::lift_fn_sig(tcx, sess, owner_id)?, None)
             };
@@ -307,12 +307,11 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             }
 
             early_cx.map.insert_fn_sig(def_id, fn_sig);
-            if let Some((fn_preds, fn_impls)) = preds {
-                early_cx.map.insert_predicates(def_id, fn_preds);
-                for (def_id, predicates) in fn_impls {
-                    early_cx.map.insert_item_bounds(def_id, predicates);
-                }
+            if let Some((fn_preds, opaque_tys)) = data {
+                early_cx.map.insert_generic_predicates(def_id, fn_preds);
+                early_cx.map.insert_opaque_tys(opaque_tys);
             }
+
             if let Some(quals) = spec.qual_names {
                 early_cx.map.insert_fn_quals(def_id, quals.names);
             }

@@ -171,10 +171,10 @@ pub enum Async<R = ()> {
 pub struct WhereBoundPredicate<R = ()> {
     pub span: Span,
     pub bounded_ty: Ty<R>,
-    pub bounds: Bounds<R>,
+    pub bounds: GenericBounds<R>,
 }
 
-pub type Bounds<R = ()> = Vec<Path<R>>;
+pub type GenericBounds<R = ()> = Vec<Path<R>>;
 
 #[derive(Debug)]
 pub enum Arg<R = ()> {
@@ -220,7 +220,7 @@ pub enum TyKind<R = ()> {
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
-    ImplTrait(R, Bounds<R>),
+    ImplTrait(R, GenericBounds<R>),
     Hole,
 }
 
