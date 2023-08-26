@@ -134,7 +134,7 @@ fn item_bounds(
 ) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
     let wfckresults = genv.check_wf(local_id)?;
     if let Some(opaque_ty) = genv.map().get_item_bounds(local_id) {
-        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
+        Ok(Some(rty::EarlyBinder(conv::conv_opaque_ty(genv, opaque_ty, &wfckresults)?)))
     } else {
         Ok(None)
     }
@@ -283,8 +283,8 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
         DefKind::OpaqueTy => {
             let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
             let owner = genv.hir().get_parent_item(hir_id);
-            if let Some(predicates) = genv.map().get_item_bounds(def_id) {
-                let wfckresults = wf::check_generic_predicates(genv.early_cx(), predicates, owner)?;
+            if let Some(opaque_ty) = genv.map().get_item_bounds(def_id) {
+                let wfckresults = wf::check_opaque_ty(genv.early_cx(), opaque_ty, owner)?;
                 Ok(wfckresults)
             } else {
                 Ok(fhir::WfckResults::new(fhir::FluxOwnerId::from(owner)))

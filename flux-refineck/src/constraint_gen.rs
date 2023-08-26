@@ -394,11 +394,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.obligs.clone()
     }
 
-    fn insert_obligations(&mut self, obligs: List<rty::Clause>) {
-        for oblig in obligs.into_iter() {
-            self.obligs.push(oblig.clone());
-        }
-        // self.obligs.extend(obligs.clone().into_iter());
+    fn insert_obligations(&mut self, obligs: Vec<rty::Clause>) {
+        self.obligs.extend(obligs);
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -734,7 +731,7 @@ fn mk_generator_obligations(
     generator_args: &GenericArgs,
     opaque_def_id: &DefId,
     span: Span,
-) -> Result<List<rty::Clause>, CheckerErrKind> {
+) -> Result<Vec<rty::Clause>, CheckerErrKind> {
     let bounds = genv.item_bounds(*opaque_def_id, span)?;
     let pred = if let rty::ClauseKind::Projection(proj) =
         bounds.skip_binder().predicates[0].kind().skip_binder()
@@ -745,7 +742,7 @@ fn mk_generator_obligations(
         panic!("mk_generator_obligations: unexpected bounds")
     };
     let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred), List::empty());
-    Ok(List::from_vec(vec![clause]))
+    Ok(vec![clause])
 }
 
 fn mk_obligations(

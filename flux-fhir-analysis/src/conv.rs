@@ -95,36 +95,28 @@ pub(crate) fn conv_generic_predicates(
     predicates: &fhir::GenericPredicates,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::GenericPredicates> {
-    todo!()
-    // let parent = predicates.parent;
-    // let mut preds = vec![];
-    // for fhir::ClauseKind::Projection(proj) in &predicates.predicates {
-    //     let ck = rty::ClauseKind::Projection(conv_projection_predicate(genv, proj, wfckresults)?);
-    //     preds.push(rty::Clause::new(ck, List::empty()));
-    // }
-    // Ok(rty::GenericPredicates { parent, predicates: List::from_vec(preds) })
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let env = &mut Env::new(&[]);
+
+    let mut clauses = vec![];
+    for pred in &predicates.predicates {
+        for clause in cx.conv_generic_bounds(env, Some(&pred.bounded_ty), &pred.bounds)? {
+            clauses.push(clause);
+        }
+    }
+    Ok(rty::GenericPredicates { parent: predicates.parent, predicates: List::from_vec(clauses) })
 }
 
-// fn conv_projection_predicate(
-//     genv: &GlobalEnv,
-//     proj: &fhir::ProjectionPredicate,
-//     wfckresults: &fhir::WfckResults,
-// ) -> QueryResult<rty::ProjectionPredicate> {
-//     let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
-//     let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
-//     Ok(rty::ProjectionPredicate { term: ty, alias_ty: projection_ty })
-// }
-
-// fn conv_alias_ty(
-//     genv: &GlobalEnv,
-//     alias_ty: &fhir::AliasTy,
-//     wfckresults: &fhir::WfckResults,
-// ) -> QueryResult<rty::AliasTy> {
-//     let ty = conv_ty(genv, &alias_ty.args, wfckresults)?.skip_binder();
-//     let args = List::singleton(rty::GenericArg::Ty(ty));
-//     let res = rty::AliasTy { args, def_id: alias_ty.def_id };
-//     Ok(res)
-// }
+pub(crate) fn conv_opaque_ty(
+    genv: &GlobalEnv,
+    opaque_ty: &fhir::OpaqueTy,
+    wfckresults: &fhir::WfckResults,
+) -> QueryResult<rty::GenericPredicates> {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let env = &mut Env::new(&[]);
+    cx.conv_generic_bounds(env, None, &opaque_ty.bounds)
+        .map(|clauses| rty::GenericPredicates { parent: None, predicates: clauses.into() })
+}
 
 pub(crate) fn conv_generics(
     rust_generics: &rustc::ty::Generics,
@@ -270,6 +262,42 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a fhir::WfckResults) -> Self {
         let late_bound_vars_map = mk_late_bound_vars_map(genv.tcx, wfckresults.owner);
         Self { genv, late_bound_vars_map, wfckresults }
+    }
+
+    fn conv_generic_bounds(
+        &self,
+        env: &mut Env,
+        bounded_ty: Option<&fhir::Ty>,
+        bounds: &fhir::GenericBounds,
+    ) -> QueryResult<Vec<rty::Clause>> {
+        let self_ty = bounded_ty.map(|ty| self.conv_ty(env, ty)).transpose()?;
+        let mut clauses = vec![];
+        for bound in bounds {
+            let fhir::Res::Trait(trait_def_id) = bound.res else {
+                span_bug!(bound.span, "unexpected resolution {:?}", bound.res);
+            };
+            for binding in &bound.bindings {
+                let assoc_item = self
+                    .genv
+                    .tcx
+                    .associated_items(trait_def_id)
+                    .filter_by_name_unhygienic(binding.ident.name)
+                    .next()
+                    .unwrap();
+                let args = if let Some(self_ty) = &self_ty {
+                    List::singleton(rty::GenericArg::Ty(self_ty.clone()))
+                } else {
+                    List::empty()
+                };
+                let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
+                let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
+                    alias_ty,
+                    term: self.conv_ty(env, &binding.term)?,
+                });
+                clauses.push(rty::Clause::new(kind, List::empty()));
+            }
+        }
+        Ok(clauses)
     }
 
     fn conv_fn_output(

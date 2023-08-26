@@ -193,6 +193,20 @@ pub(crate) fn check_generic_predicates(
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_opaque_ty(
+    early_cx: &EarlyCtxt,
+    opaque_ty: &fhir::OpaqueTy,
+    owner_id: OwnerId,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    opaque_ty
+        .bounds
+        .iter()
+        .try_for_each_exhaust(|bound| wf.check_path(&mut infcx, bound))?;
+    Ok(infcx.into_results())
+}
+
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
         Wf { early_cx, modes: Default::default(), xi: Default::default() }
