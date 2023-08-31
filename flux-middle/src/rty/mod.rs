@@ -1426,6 +1426,7 @@ macro_rules! _Ref {
 pub use crate::_Ref as Ref;
 
 mod pretty {
+    use rustc_hir::def::DefKind;
     use rustc_middle::ty::TyCtxt;
     use rustc_type_ir::DebruijnIndex;
 
@@ -1653,20 +1654,17 @@ mod pretty {
                     Ok(())
                 }
                 TyKind::Blocked(ty) => w!("†{:?}", ty),
-                TyKind::Alias(kind, alias_ty) => {
+                TyKind::Alias(AliasKind::Projection, alias_ty) => {
                     let assoc_name = cx.tcx.item_name(alias_ty.def_id);
                     let trait_ref = cx.tcx.parent(alias_ty.def_id);
-                    if !alias_ty.args.is_empty() {
-                        w!(
-                            "({:?})<{:?} as {:?}>::{}",
-                            kind,
-                            &alias_ty.args[0],
-                            trait_ref,
-                            ^assoc_name
-                        )
-                    } else {
-                        w!("Alias({:?}, {:?})", kind, ^alias_ty.def_id)
+                    w!("<{:?} as {:?}>::{:?}", &alias_ty.args[0], trait_ref, ^assoc_name)?;
+                    if alias_ty.args.len() > 1 {
+                        w!("<{:?}>", join!(", ", &alias_ty.args[1..]))?;
                     }
+                    Ok(())
+                }
+                TyKind::Alias(AliasKind::Opaque, alias_ty) => {
+                    w!("Alias(Opaque, {:?}, [{:?}]) ", alias_ty.def_id, join!(", ", &alias_ty.args))
                 }
             }
         }

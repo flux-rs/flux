@@ -493,43 +493,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             .try_collect_exhaust()
     }
 
-    // fn lookup_item_id(
-    //     &mut self,
-    //     trait_id: DefId,
-    //     ident: fhir::SurfaceIdent,
-    // ) -> Result<DefId, ErrorGuaranteed> {
-    //     let item = self
-    //         .early_cx
-    //         .tcx
-    //         .associated_items(trait_id)
-    //         .filter_by_name_unhygienic(ident.name)
-    //         .next();
-    //     match item {
-    //         Some(item) => Ok(item.def_id),
-    //         None => Err(self.emit_err(errors::UnresolvedVar::from_ident(ident))),
-    //     }
-    // }
-
-    // fn desugar_generic_bound(
-    //     &mut self,
-    //     args: &fhir::Ty,
-    //     path: &surface::Path<Res>,
-    //     binders: &mut Binders,
-    // ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-    //     let Res::Trait(trait_def_id) = path.res else {
-    //         span_bug!(path.span, "unexpected trait {:?}", path.res);
-    //     };
-    //     if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
-    //         let item_id = self.lookup_item_id(trait_def_id, *ident)?;
-    //         let projection_ty = fhir::AliasTy { args: args.clone(), def_id: item_id };
-    //         let term = self.desugar_ty(None, ty, binders)?;
-    //         let proj = fhir::ProjectionPredicate { projection_ty, term };
-    //         Ok(fhir::ClauseKind::Projection(proj))
-    //     } else {
-    //         bug!("unexpected path in desugar_bound: {:?}", path.generics)
-    //     }
-    // }
-
     fn desugar_asyncness(
         &mut self,
         asyncness: surface::Async<Res>,

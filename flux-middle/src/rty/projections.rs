@@ -82,6 +82,8 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let alias_ty = without_constrs(alias_ty);
         let key = alias_ty.key();
+        println!("{:#?}", self.preds);
+        println!("{:?}", alias_ty);
         let res = self.preds.get(&key).cloned();
         // TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn't get found in impl_trait02.rs)
         res
@@ -93,6 +95,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     }
 
     fn normalize_projection(&self, alias_ty: &AliasTy) -> Ty {
+        println!("\nnormalize");
         self.normalize_with_preds(alias_ty)
             .or_else(|| self.normalize_with_impl(alias_ty))
             .unwrap_or_else(|| {
