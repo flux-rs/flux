@@ -134,7 +134,7 @@ pub fn lift_enum_variant_def(
         .try_collect_exhaust()?;
 
     let path = fhir::Path {
-        res: fhir::Res::Enum(enum_id.to_def_id()),
+        res: fhir::Res::Def(DefKind::Enum, enum_id.to_def_id()),
         generics: cx.generic_params_into_args(generics)?,
         refine: vec![],
         // FIXME(nilehmann) the span should also include the generic arguments
@@ -282,12 +282,8 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         path: &hir::Path,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         let res = match path.res {
-            hir::def::Res::Def(DefKind::Struct, def_id) => fhir::Res::Struct(def_id),
-            hir::def::Res::Def(DefKind::Enum, def_id) => fhir::Res::Enum(def_id),
-            hir::def::Res::Def(DefKind::TyAlias, def_id) => fhir::Res::Alias(def_id),
+            hir::def::Res::Def(kind, def_id) => fhir::Res::Def(kind, def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
-            hir::def::Res::Def(DefKind::TyParam, def_id) => fhir::Res::Param(def_id),
-            hir::def::Res::Def(DefKind::AssocTy, def_id) => fhir::Res::AssocTy(def_id),
             hir::def::Res::SelfTyAlias { alias_to, .. } => {
                 return self.lift_self_ty_alias(alias_to)
             }
@@ -371,7 +367,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         for param in generics.params.iter() {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
-                    let res = fhir::Res::Param(param.def_id.to_def_id());
+                    let res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());
                     let path =
                         fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
                     let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));

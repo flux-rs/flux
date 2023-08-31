@@ -6,7 +6,7 @@ use std::borrow::Borrow;
 use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use rustc_errors::IntoDiagnostic;
-use rustc_hir::{def_id::LocalDefId, PrimTy};
+use rustc_hir::{def::DefKind, def_id::LocalDefId, PrimTy};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{def_id::DefId, Symbol};
 
@@ -100,10 +100,10 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
             fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
             fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
-            fhir::Res::Alias(def_id) | fhir::Res::Enum(def_id) | fhir::Res::Struct(def_id) => {
+            fhir::Res::Def(DefKind::TyAlias | DefKind::Enum | DefKind::Struct, def_id) => {
                 fhir::Sort::Record(def_id)
             }
-            fhir::Res::Param(def_id) => {
+            fhir::Res::Def(DefKind::TyParam, def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
                     fhir::GenericParamDefKind::BaseTy => fhir::Sort::Param(def_id),
@@ -111,8 +111,8 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
                     | fhir::GenericParamDefKind::Lifetime => return None,
                 }
             }
-            fhir::Res::AssocTy(_) | fhir::Res::OpaqueTy(_) => return None,
-            fhir::Res::Trait(_) => bug!("unexpected res {res:?}"),
+            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => return None,
+            fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
         };
         Some(sort)
     }
@@ -160,7 +160,7 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
-        if let fhir::Res::Struct(def_id) = res {
+        if let fhir::Res::Def(DefKind::Struct, def_id) = res {
             self.tcx.adt_def(def_id).is_box()
         } else {
             false

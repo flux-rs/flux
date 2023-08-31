@@ -2,7 +2,7 @@ use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
 use flux_syntax::surface::{self, BaseTy, BaseTyKind, Bounds, Ident, Path, Ty};
-use hir::{ItemKind, OwnerId, PathSegment};
+use hir::{def::DefKind, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -258,8 +258,8 @@ impl<'sess> Resolver<'sess> {
     }
 
     fn resolve_opaque_impl(&self, span: Span) -> Result<Res, ErrorGuaranteed> {
-        if let Some(opaque) = self.table.opaque {
-            Ok(Res::OpaqueTy(opaque.to_def_id()))
+        if let Some(def_id) = self.table.opaque {
+            Ok(Res::Def(DefKind::OpaqueTy, def_id.to_def_id()))
         } else {
             Err(self
                 .sess
@@ -335,14 +335,20 @@ impl<'sess> NameResTable<'sess> {
                 table.collect_from_ty(ty)?;
             }
             ItemKind::Struct(data, _) => {
-                table.insert(ResKey::from_ident(item.ident), Res::Struct(def_id.to_def_id()));
+                table.insert(
+                    ResKey::from_ident(item.ident),
+                    Res::Def(DefKind::Struct, def_id.to_def_id()),
+                );
 
                 for field in data.fields() {
                     table.collect_from_ty(field.ty)?;
                 }
             }
             ItemKind::Enum(data, _) => {
-                table.insert(ResKey::from_ident(item.ident), Res::Enum(def_id.to_def_id()));
+                table.insert(
+                    ResKey::from_ident(item.ident),
+                    Res::Def(DefKind::Enum, def_id.to_def_id()),
+                );
 
                 for variant in data.variants {
                     for field in variant.data.fields() {
@@ -469,16 +475,8 @@ impl<'sess> NameResTable<'sess> {
 
     fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
         match res {
-            hir::def::Res::Def(hir::def::DefKind::TyParam, did) => ResEntry::Res(Res::Param(did)),
-            hir::def::Res::Def(hir::def::DefKind::Struct, did) => ResEntry::Res(Res::Struct(did)),
-            hir::def::Res::Def(hir::def::DefKind::Enum, did) => ResEntry::Res(Res::Enum(did)),
+            hir::def::Res::Def(kind, did) => ResEntry::Res(Res::Def(kind, did)),
             hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
-            hir::def::Res::Def(hir::def::DefKind::TyAlias, def_id) => {
-                ResEntry::Res(Res::Alias(def_id))
-            }
-            hir::def::Res::Def(hir::def::DefKind::Trait, def_id) => {
-                ResEntry::Res(Res::Trait(def_id))
-            }
             _ => {
                 ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
             }

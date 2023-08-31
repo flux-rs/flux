@@ -16,7 +16,7 @@ use flux_middle::{
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::OwnerId;
+use rustc_hir::{def::DefKind, OwnerId};
 use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
@@ -382,7 +382,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         path: &fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
-            fhir::Res::Alias(def_id) => {
+            fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 let sorts = self.early_cx.early_bound_sorts_of(*def_id);
                 if path.refine.len() != sorts.len() {
                     return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
@@ -394,13 +394,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 iter::zip(&path.refine, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
             }
-            fhir::Res::Enum(_)
-            | fhir::Res::Struct(_)
-            | fhir::Res::PrimTy(..)
-            | fhir::Res::Param(_)
-            | fhir::Res::Trait(_)
-            | fhir::Res::AssocTy(_)
-            | fhir::Res::OpaqueTy(_) => {}
+            fhir::Res::Def(..) | fhir::Res::PrimTy(..) => {}
         }
         let snapshot = self.xi.snapshot();
         let res = path

@@ -29,6 +29,7 @@ use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
+    def::DefKind,
     def_id::{DefId, LocalDefId},
     ItemId, OwnerId,
 };
@@ -413,14 +414,8 @@ pub enum GenericArg {
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Res {
+    Def(DefKind, DefId),
     PrimTy(PrimTy),
-    Alias(DefId),
-    Struct(DefId),
-    Enum(DefId),
-    Param(DefId),
-    AssocTy(DefId),
-    Trait(DefId),
-    OpaqueTy(DefId),
 }
 
 #[derive(Debug, Clone)]
@@ -574,7 +569,7 @@ impl BaseTy {
 
     pub fn is_refined_by_record(&self) -> Option<DefId> {
         if let BaseTyKind::Path(QPath::Resolved(_, path)) = &self.kind
-           && let Res::Struct(def_id) | Res::Enum(def_id) | Res::Alias(def_id) = path.res
+           && let Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id)  = path.res
         {
             Some(def_id)
         } else {
@@ -587,13 +582,7 @@ impl Res {
     pub fn descr(&self) -> &'static str {
         match self {
             Res::PrimTy(_) => "builtin type",
-            Res::Alias(_) => "type alias",
-            Res::Struct(_) => "struct",
-            Res::Enum(_) => "enum",
-            Res::Param(_) => "type parameter",
-            Res::AssocTy(_) => "associated type",
-            Res::Trait(_) => "trait",
-            Res::OpaqueTy(_) => "opaque type",
+            Res::Def(kind, def_id) => kind.descr(*def_id),
         }
     }
 }
@@ -1312,13 +1301,7 @@ impl fmt::Debug for Path {
             Res::PrimTy(PrimTy::Bool) => write!(f, "bool")?,
             Res::PrimTy(PrimTy::Str) => write!(f, "str")?,
             Res::PrimTy(PrimTy::Char) => write!(f, "char")?,
-            Res::Alias(def_id)
-            | Res::Struct(def_id)
-            | Res::Enum(def_id)
-            | Res::Param(def_id)
-            | Res::AssocTy(def_id)
-            | Res::Trait(def_id)
-            | Res::OpaqueTy(def_id) => {
+            Res::Def(_, def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
         }
