@@ -17,7 +17,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{self, fold::TypeFoldable, refining, ESpan, INNERMOST},
-    rustc::{self, lowering, ty::ParamConst},
+    rustc::{self, lowering},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -100,7 +100,8 @@ pub(crate) fn conv_generic_predicates(
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
-        for clause in cx.conv_generic_bounds(env, Some(&pred.bounded_ty), &pred.bounds)? {
+        let bounded_ty = cx.conv_ty(env, &pred.bounded_ty)?;
+        for clause in cx.conv_generic_bounds(env, bounded_ty, &pred.bounds)? {
             clauses.push(clause);
         }
     }
@@ -111,11 +112,15 @@ pub(crate) fn conv_opaque_ty(
     genv: &GlobalEnv,
     opaque_ty: &fhir::OpaqueTy,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::GenericPredicates> {
+) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let env = &mut Env::new(&[]);
-    cx.conv_generic_bounds(env, None, &opaque_ty.bounds)
-        .map(|clauses| rty::GenericPredicates { parent: None, predicates: clauses.into() })
+    let args = rty::GenericArgs::identity_for_item(genv, opaque_ty.def_id)?;
+    let self_ty = rty::Ty::opaque(opaque_ty.def_id, args);
+    Ok(cx
+        .conv_generic_bounds(env, self_ty, &opaque_ty.bounds)?
+        .into_iter()
+        .collect())
 }
 
 pub(crate) fn conv_generics(
@@ -267,10 +272,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn conv_generic_bounds(
         &self,
         env: &mut Env,
-        bounded_ty: Option<&fhir::Ty>,
+        bounded_ty: rty::Ty,
         bounds: &fhir::GenericBounds,
     ) -> QueryResult<Vec<rty::Clause>> {
-        let self_ty = bounded_ty.map(|ty| self.conv_ty(env, ty)).transpose()?;
         let mut clauses = vec![];
         for bound in bounds {
             let fhir::Res::Trait(trait_def_id) = bound.res else {
@@ -284,11 +288,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .filter_by_name_unhygienic(binding.ident.name)
                     .next()
                     .unwrap();
-                let args = if let Some(self_ty) = &self_ty {
-                    List::singleton(rty::GenericArg::Ty(self_ty.clone()))
-                } else {
-                    List::empty()
-                };
+                let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
                 let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
                 let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
                     alias_ty,
@@ -370,36 +370,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .map(|field_def| cx.conv_ty(&mut env, &field_def.ty))
                 .try_collect()?;
 
-            let args = genv
-                .generics_of(def_id)?
-                .params
-                .iter()
-                .map(|param| {
-                    match param.kind {
-                        rty::GenericParamDefKind::Type { .. } => {
-                            let param_ty = rty::ParamTy { index: param.index, name: param.name };
-                            rty::GenericArg::Ty(rty::Ty::param(param_ty))
-                        }
-                        rty::GenericParamDefKind::BaseTy => {
-                            bug!("generic base type in struct definition not suported")
-                        }
-                        rty::GenericParamDefKind::Lifetime => {
-                            let def_id = param.def_id;
-                            let index = def_id_to_param_index(genv.tcx, def_id.expect_local());
-                            let re = rty::ReEarlyBound(rty::EarlyBoundRegion {
-                                def_id,
-                                index,
-                                name: param.name,
-                            });
-                            rty::GenericArg::Lifetime(re)
-                        }
-                        rty::GenericParamDefKind::Const { .. } => {
-                            let cnst = ParamConst { index: param.index, name: param.name };
-                            rty::GenericArg::Const(rty::Const::Param(cnst))
-                        }
-                    }
-                })
-                .collect_vec();
+            let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
 
             let vars = env.pop_layer().into_bound_vars();
             let idx = rty::Expr::tuple(

@@ -24,6 +24,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_middle::ty::ParamConst;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -335,12 +336,65 @@ pub enum GenericArg {
     Const(Const),
 }
 
+impl GenericArgs {
+    pub fn identity_for_item(genv: &GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+        let mut args = vec![];
+        let generics = genv.generics_of(def_id)?;
+        Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
+            GenericArg::from_param_def(param)
+        })?;
+        Ok(List::from_vec(args))
+    }
+
+    fn fill_item<F>(
+        genv: &GlobalEnv,
+        args: &mut Vec<GenericArg>,
+        generics: &Generics,
+        mk_kind: &mut F,
+    ) -> QueryResult<()>
+    where
+        F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
+    {
+        if let Some(def_id) = generics.parent {
+            let parent_generics = genv.generics_of(def_id)?;
+            Self::fill_item(genv, args, &parent_generics, mk_kind)?;
+        }
+        for param in &generics.params {
+            let kind = mk_kind(param, args);
+            assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
+            args.push(kind);
+        }
+        Ok(())
+    }
+}
+
 impl GenericArg {
     pub fn expect_type(&self) -> &Ty {
         if let GenericArg::Ty(ty) = self {
             ty
         } else {
             bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
+        }
+    }
+
+    fn from_param_def(param: &GenericParamDef) -> Self {
+        match param.kind {
+            GenericParamDefKind::Type { .. } => {
+                let param_ty = ParamTy { index: param.index, name: param.name };
+                GenericArg::Ty(Ty::param(param_ty))
+            }
+            GenericParamDefKind::Lifetime => {
+                let region =
+                    EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
+                GenericArg::Lifetime(Region::ReEarlyBound(region))
+            }
+            GenericParamDefKind::Const { .. } => {
+                let param_const = ParamConst { index: param.index, name: param.name };
+                GenericArg::Const(Const::Param(param_const))
+            }
+            GenericParamDefKind::BaseTy => {
+                bug!("")
+            }
         }
     }
 }
@@ -967,6 +1021,10 @@ impl Ty {
         TyKind::Alias(kind, alias_ty).intern()
     }
 
+    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs) -> Ty {
+        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args }).intern()
+    }
+
     pub fn projection(alias_ty: AliasTy) -> Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
@@ -1426,7 +1484,6 @@ macro_rules! _Ref {
 pub use crate::_Ref as Ref;
 
 mod pretty {
-    use rustc_hir::def::DefKind;
     use rustc_middle::ty::TyCtxt;
     use rustc_type_ir::DebruijnIndex;
 

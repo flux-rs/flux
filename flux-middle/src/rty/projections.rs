@@ -54,18 +54,18 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
 
-        let mut gps = vec![];
+        let mut vec = vec![];
         // 1. Insert generic predicates of the callsite `def_id`
-        gps.push(genv.predicates_of(def_id)?.skip_binder());
+        vec.push(genv.predicates_of(def_id)?.skip_binder().predicates);
         // 2. Insert generic predicates of the opaque-types
         let opaque_dids = t.opaque_def_ids();
 
         for did in opaque_dids.iter() {
-            gps.push(genv.item_bounds(*did, span)?.skip_binder());
+            vec.push(genv.item_bounds(*did, span)?.skip_binder());
         }
 
-        for predicates in gps {
-            for pred in &predicates.predicates {
+        for clauses in vec {
+            for pred in &clauses {
                 if pred.kind.vars().is_empty() {
                     if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
                         match preds.insert(proj_pred.alias_ty.key(), proj_pred.term) {
@@ -82,8 +82,6 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
         let alias_ty = without_constrs(alias_ty);
         let key = alias_ty.key();
-        println!("{:#?}", self.preds);
-        println!("{:?}", alias_ty);
         let res = self.preds.get(&key).cloned();
         // TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn't get found in impl_trait02.rs)
         res
@@ -95,7 +93,6 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     }
 
     fn normalize_projection(&self, alias_ty: &AliasTy) -> Ty {
-        println!("\nnormalize");
         self.normalize_with_preds(alias_ty)
             .or_else(|| self.normalize_with_impl(alias_ty))
             .unwrap_or_else(|| {
@@ -363,7 +360,6 @@ pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     t: &T,
     span: Span,
 ) -> Result<T, QueryErr> {
-    // add opaques to table then normalize_from_preds will "just work"?
     let mut table = ProjectionTable::new(genv, def_id, t, span)?;
     Ok(t.fold_with(&mut table))
 }

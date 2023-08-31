@@ -110,6 +110,7 @@ pub type GenericBounds = Vec<Path>;
 
 #[derive(Debug)]
 pub struct OpaqueTy {
+    pub def_id: LocalDefId,
     pub bounds: GenericBounds,
 }
 
@@ -860,7 +861,7 @@ impl Map {
         self.predicates.get(&def_id)
     }
 
-    pub fn get_item_bounds(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
+    pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
         self.opaque_tys.get(&def_id)
     }
 

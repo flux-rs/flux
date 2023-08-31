@@ -504,7 +504,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 if let Some(item_id) = mk_res_impl_item_id(&res) {
                     self.opaque_tys.insert(
                         item_id.owner_id.def_id,
-                        mk_opaque_ty_for_async(self.early_cx.tcx, output)?,
+                        mk_opaque_ty_for_async(self.early_cx.tcx, item_id.owner_id.def_id, output)?,
                     );
                     let (args, _) = self.desugar_generic_args(res, &[], binders)?;
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
@@ -621,8 +621,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::ImplTrait(res, bounds) => {
                 if let Some(item_id) = mk_res_impl_item_id(res) {
                     let bounds = self.desugar_generic_bounds(bounds, binders)?;
-                    self.opaque_tys
-                        .insert(item_id.owner_id.def_id, fhir::OpaqueTy { bounds });
+                    self.opaque_tys.insert(
+                        item_id.owner_id.def_id,
+                        fhir::OpaqueTy { def_id: item_id.owner_id.def_id, bounds },
+                    );
 
                     let (args, _) = self.desugar_generic_args(*res, &[], binders)?;
                     fhir::TyKind::OpaqueDef(item_id, args, false)
@@ -1500,6 +1502,7 @@ fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sor
 
 fn mk_opaque_ty_for_async(
     tcx: TyCtxt,
+    def_id: LocalDefId,
     output: fhir::Ty,
 ) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
     let future_trait = tcx.lang_items().future_trait().unwrap();
@@ -1513,7 +1516,7 @@ fn mk_opaque_ty_for_async(
         refine: vec![],
         res: Res::Trait(future_trait),
     };
-    Ok(fhir::OpaqueTy { bounds: vec![bound] })
+    Ok(fhir::OpaqueTy { def_id, bounds: vec![bound] })
 }
 
 fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
