@@ -61,6 +61,23 @@ pub fn lift_generics(
     Ok(fhir::Generics { params })
 }
 
+pub fn lift_generic_predicates(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    owner_id: OwnerId,
+) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+    let hir_generics = tcx.hir().get_generics(def_id).unwrap();
+    let cx = LiftCtxt::new(tcx, sess, owner_id);
+
+    let predicates = hir_generics
+        .predicates
+        .iter()
+        .map(|pred| cx.lift_where_predicate(pred))
+        .try_collect_exhaust()?;
+    Ok(fhir::GenericPredicates { predicates })
+}
+
 pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
     let def_id = owner_id.def_id;
     let item = tcx.hir().expect_item(def_id);
@@ -192,6 +209,38 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+    }
+
+    fn lift_where_predicate(
+        &self,
+        pred: &hir::WherePredicate,
+    ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
+        if let hir::WherePredicate::BoundPredicate(bound) = pred {
+            if bound.bound_generic_params.is_empty() {
+                return self.emit_unsupported(&format!("unsupported where predicate: `{bound:?}`"));
+            }
+            let bounded_ty = self.lift_ty(bound.bounded_ty)?;
+            let bounds = bound
+                .bounds
+                .iter()
+                .map(|bound| self.lift_generic_bound(bound))
+                .try_collect()?;
+
+            Ok(fhir::WhereBoundPredicate { bounded_ty, bounds, span: bound.span })
+        } else {
+            self.emit_unsupported(&format!("unsupported where predicate: `{pred:?}`"))
+        }
+    }
+
+    fn lift_generic_bound(&self, bound: &hir::GenericBound) -> Result<fhir::Path, ErrorGuaranteed> {
+        if let hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) = bound
+            && poly_trait_ref.bound_generic_params.is_empty()
+        {
+            todo!()
+            // self.lift_path(None, &poly_trait_ref.trait_ref.path)
+        } else {
+            self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`"))
+        }
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {

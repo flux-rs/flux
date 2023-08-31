@@ -95,7 +95,6 @@ pub type ItemPredicates = FxHashMap<LocalDefId, GenericPredicates>;
 
 #[derive(Debug)]
 pub struct GenericPredicates {
-    pub parent: Option<DefId>,
     pub predicates: Vec<WhereBoundPredicate>,
 }
 
