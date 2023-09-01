@@ -344,15 +344,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), fhir_id: self.next_fhir_id(), span })
     }
 
-    // fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
-    //     let hir = self.tcx.hir();
-    //     let def_id = alias_to.expect_local();
-    //     match hir.expect_item(def_id).kind {
-    //         hir::ItemKind::Impl(parent_impl) => self.lift_ty(parent_impl.self_ty),
-    //         _ => bug!("self types for structs and enums are not yet implemented"),
-    //     }
-    // }
-
     fn lift_generic_args(
         &self,
         args: &[hir::GenericArg<'_>],
