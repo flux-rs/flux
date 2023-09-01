@@ -150,6 +150,18 @@ pub(crate) fn check_fn_sig(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(early_cx, owner_id.into());
     let mut wf = Wf::new(early_cx);
+
+    for opaque_ty_id in early_cx.tcx.opaque_types_defined_by(owner_id.def_id) {
+        let opaque_ty = early_cx.map.get_opaque_ty(*opaque_ty_id).unwrap();
+        wf.check_opaque_ty(&mut infcx, opaque_ty)?;
+    }
+
+    let predicates = early_cx
+        .map
+        .get_generic_predicates(owner_id.def_id)
+        .unwrap();
+    wf.check_generic_predicates(&mut infcx, predicates)?;
+
     for param in &fn_sig.params {
         wf.modes.insert(param.ident.name, param.infer_mode());
     }
@@ -179,34 +191,6 @@ pub(crate) fn check_fn_sig(
     Ok(infcx.into_results())
 }
 
-pub(crate) fn check_generic_predicates(
-    early_cx: &EarlyCtxt,
-    predicates: &fhir::GenericPredicates,
-    owner_id: OwnerId,
-) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
-    let mut wf = Wf::new(early_cx);
-    predicates
-        .predicates
-        .iter()
-        .try_for_each_exhaust(|pred| wf.check_generic_predicate(&mut infcx, pred))?;
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_opaque_ty(
-    early_cx: &EarlyCtxt,
-    opaque_ty: &fhir::OpaqueTy,
-    owner_id: OwnerId,
-) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
-    let mut wf = Wf::new(early_cx);
-    opaque_ty
-        .bounds
-        .iter()
-        .try_for_each_exhaust(|bound| wf.check_path(&mut infcx, bound))?;
-    Ok(infcx.into_results())
-}
-
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
         Wf { early_cx, modes: Default::default(), xi: Default::default() }
@@ -224,6 +208,28 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             Ok(())
         })
+    }
+
+    fn check_generic_predicates(
+        &mut self,
+        infcx: &mut InferCtxt,
+        predicates: &fhir::GenericPredicates,
+    ) -> Result<(), ErrorGuaranteed> {
+        predicates
+            .predicates
+            .iter()
+            .try_for_each_exhaust(|pred| self.check_generic_predicate(infcx, pred))
+    }
+
+    fn check_opaque_ty(
+        &mut self,
+        infcx: &mut InferCtxt,
+        opaque_ty: &fhir::OpaqueTy,
+    ) -> Result<(), ErrorGuaranteed> {
+        opaque_ty
+            .bounds
+            .iter()
+            .try_for_each_exhaust(|bound| self.check_path(infcx, bound))
     }
 
     fn check_variant(
@@ -345,24 +351,24 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_generic_predicate(
         &mut self,
-        env: &mut InferCtxt,
+        infcx: &mut InferCtxt,
         predicate: &fhir::WhereBoundPredicate,
     ) -> Result<(), ErrorGuaranteed> {
-        self.check_type(env, &predicate.bounded_ty)?;
+        self.check_type(infcx, &predicate.bounded_ty)?;
         predicate
             .bounds
             .iter()
-            .map(|bound| self.check_path(env, bound))
+            .map(|bound| self.check_path(infcx, bound))
             .try_collect_exhaust()
     }
 
     fn check_generic_arg(
         &mut self,
-        env: &mut InferCtxt,
+        infcx: &mut InferCtxt,
         arg: &fhir::GenericArg,
     ) -> Result<(), ErrorGuaranteed> {
         if let fhir::GenericArg::Type(ty) = arg {
-            self.check_type(env, ty)
+            self.check_type(infcx, ty)
         } else {
             Ok(())
         }
@@ -370,23 +376,23 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_base_ty(
         &mut self,
-        env: &mut InferCtxt,
+        infcx: &mut InferCtxt,
         bty: &fhir::BaseTy,
     ) -> Result<(), ErrorGuaranteed> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) => {
                 if let Some(self_ty) = self_ty {
-                    self.check_type(env, self_ty)?;
+                    self.check_type(infcx, self_ty)?;
                 }
-                self.check_path(env, path)
+                self.check_path(infcx, path)
             }
-            fhir::BaseTyKind::Slice(ty) => self.check_type(env, ty),
+            fhir::BaseTyKind::Slice(ty) => self.check_type(infcx, ty),
         }
     }
 
     fn check_path(
         &mut self,
-        env: &mut InferCtxt,
+        infcx: &mut InferCtxt,
         path: &fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
@@ -400,7 +406,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     ));
                 }
                 iter::zip(&path.refine, sorts)
-                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(env, arg, sort))?;
+                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(infcx, arg, sort))?;
             }
             fhir::Res::SelfTyAlias { .. } | fhir::Res::Def(..) | fhir::Res::PrimTy(..) => {}
         }
@@ -408,7 +414,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let res = path
             .args
             .iter()
-            .try_for_each_exhaust(|arg| self.check_generic_arg(env, arg));
+            .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg));
         if !self.early_cx.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }
@@ -437,7 +443,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_refine_arg(
         &mut self,
-        env: &InferCtxt,
+        infcx: &InferCtxt,
         arg: &fhir::RefineArg,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
@@ -445,14 +451,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 if let fhir::ExprKind::Var(var) = &expr.kind {
                     self.xi.insert(var.name);
                 } else {
-                    self.check_param_uses_expr(env, expr, false)?;
+                    self.check_param_uses_expr(infcx, expr, false)?;
                 }
                 Ok(())
             }
-            fhir::RefineArg::Abs(_, body, ..) => self.check_param_uses_expr(env, body, true),
+            fhir::RefineArg::Abs(_, body, ..) => self.check_param_uses_expr(infcx, body, true),
             fhir::RefineArg::Record(_, flds, ..) => {
                 flds.iter()
-                    .try_for_each_exhaust(|arg| self.check_param_uses_refine_arg(env, arg))
+                    .try_for_each_exhaust(|arg| self.check_param_uses_refine_arg(infcx, arg))
             }
         }
     }
@@ -460,7 +466,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_expr(
         &self,
-        env: &InferCtxt,
+        infcx: &InferCtxt,
         expr: &fhir::Expr,
         is_top_level_conj: bool,
     ) -> Result<(), ErrorGuaranteed> {
@@ -469,21 +475,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 let is_pred = is_top_level_conj && matches!(bin_op, fhir::BinOp::And);
                 exprs
                     .iter()
-                    .try_for_each_exhaust(|e| self.check_param_uses_expr(env, e, is_pred))
+                    .try_for_each_exhaust(|e| self.check_param_uses_expr(infcx, e, is_pred))
             }
-            fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses_expr(env, e, false),
+            fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses_expr(infcx, e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
                    && let fhir::Func::Var(var, _) = func
                    && let fhir::InferMode::KVar = self.modes[&var.name]
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(var.span(), &env[var.name]));
+                    return self.emit_err(errors::InvalidParamPos::new(var.span(), &infcx[var.name]));
                 }
                 args.iter()
-                    .try_for_each_exhaust(|arg| self.check_param_uses_expr(env, arg, false))
+                    .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
             }
             fhir::ExprKind::Var(var) => {
-                if let sort @ fhir::Sort::Func(_) = &env[var.name] {
+                if let sort @ fhir::Sort::Func(_) = &infcx[var.name] {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
@@ -491,11 +497,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::ExprKind::IfThenElse(exprs) => {
                 exprs
                     .iter()
-                    .try_for_each_exhaust(|e| self.check_param_uses_expr(env, e, false))
+                    .try_for_each_exhaust(|e| self.check_param_uses_expr(infcx, e, false))
             }
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
             fhir::ExprKind::Dot(var, _) => {
-                if let sort @ fhir::Sort::Func(_) = &env[var.name] {
+                if let sort @ fhir::Sort::Func(_) = &infcx[var.name] {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
@@ -503,11 +509,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn infer_mode(&self, env: &InferCtxt, name: fhir::Name) -> fhir::InferMode {
+    fn infer_mode(&self, infcx: &InferCtxt, name: fhir::Name) -> fhir::InferMode {
         self.modes
             .get(&name)
             .copied()
-            .unwrap_or_else(|| env[name].default_infer_mode())
+            .unwrap_or_else(|| infcx[name].default_infer_mode())
     }
 
     fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {

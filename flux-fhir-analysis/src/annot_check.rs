@@ -26,8 +26,8 @@ pub fn check_fn_sig(
         return Ok(());
     }
     let self_ty = lift::lift_self_ty(early_cx.tcx, early_cx.sess, owner_id)?;
-    Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref())
-        .zip_fn_sig(fn_sig, &lift::lift_fn_sig(early_cx.tcx, early_cx.sess, owner_id)?)
+    let expected_fn_sig = &lift::lift_fn(early_cx.tcx, early_cx.sess, owner_id)?.fn_sig;
+    Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
 }
 
 pub fn check_alias(

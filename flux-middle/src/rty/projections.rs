@@ -24,24 +24,18 @@ use crate::{
     rustc::{self},
 };
 
-// type AliasTyKey = (DefId, Vec<GenericArg>);
-// type AliasTyKey = AliasTy;
 type AliasTyKey = String;
 
 impl AliasTy {
     fn key(&self) -> AliasTyKey {
         // TODO:ALIASKEYHACK: super janky hack, Nico -- why is the plain hasher not working? Maybe List<GenericArg> is not *really* hashable?
         format!("{:?}", self)
-        // without_constrs(&self)
-        // let args = self.args.iter().map(|arg| arg.clone()).collect();
-        // (self.def_id, args)
     }
 }
 
 struct ProjectionTable<'sess, 'tcx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
     def_id: DefId,
-    // preds: FxHashMap<AliasTy, Ty>,
     preds: FxHashMap<AliasTyKey, Ty>,
 }
 

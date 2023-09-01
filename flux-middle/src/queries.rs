@@ -42,7 +42,7 @@ pub enum QueryErr {
 pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<fhir::WfckResults>,
+    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(
@@ -165,10 +165,7 @@ impl<'tcx> Queries<'tcx> {
         genv: &GlobalEnv,
         flux_id: FluxLocalDefId,
     ) -> QueryResult<Rc<fhir::WfckResults>> {
-        run_with_cache(&self.check_wf, flux_id, || {
-            let wfckresults = (self.providers.check_wf)(genv, flux_id)?;
-            Ok(Rc::new(wfckresults))
-        })
+        run_with_cache(&self.check_wf, flux_id, || (self.providers.check_wf)(genv, flux_id))
     }
 
     pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {

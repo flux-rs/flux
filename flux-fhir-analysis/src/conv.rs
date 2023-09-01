@@ -113,13 +113,14 @@ pub(crate) fn conv_generic_predicates(
 
 pub(crate) fn conv_opaque_ty(
     genv: &GlobalEnv,
+    def_id: DefId,
     opaque_ty: &fhir::OpaqueTy,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let env = &mut Env::new(&[]);
-    let args = rty::GenericArgs::identity_for_item(genv, opaque_ty.def_id)?;
-    let self_ty = rty::Ty::opaque(opaque_ty.def_id, args);
+    let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
+    let self_ty = rty::Ty::opaque(def_id, args);
     Ok(cx
         .conv_generic_bounds(env, self_ty, &opaque_ty.bounds)?
         .into_iter()
