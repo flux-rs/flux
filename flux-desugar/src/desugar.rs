@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface;
-use hir::ItemKind;
+use hir::{def::DefKind, ItemKind};
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -293,7 +293,7 @@ pub fn desugar_fn_sig(
         ensures: ensures?,
     };
 
-    let hir_predicates = cx.desugar_predicates(owner_id, &fn_sig.predicates, &mut binders)?;
+    let hir_predicates = cx.desugar_predicates(&fn_sig.predicates, &mut binders)?;
 
     let hir_fn_sig = fhir::FnSig {
         params: binders.pop_layer().into_params(&cx),
@@ -460,7 +460,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_predicates(
         &mut self,
-        owner_id: OwnerId,
         predicates: &Vec<surface::WhereBoundPredicate<Res>>,
         binders: &mut Binders,
     ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
@@ -468,8 +467,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         for pred in predicates {
             res.push(self.desugar_predicate(pred, binders)?);
         }
-        let parent = Some(owner_id.def_id.to_def_id());
-        Ok(fhir::GenericPredicates { parent, predicates: res })
+        Ok(fhir::GenericPredicates { predicates: res })
     }
 
     fn desugar_predicate(
@@ -651,7 +649,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
                 .unwrap()
-        } else if let Some(def_id) = bty.is_refined_by_record() {
+        } else if let Some(fhir::Sort::Record(def_id)) = self.early_cx.sort_of_bty(bty) {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
             Ok(fhir::RefineArg::Record(def_id, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
@@ -753,10 +751,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<(Vec<fhir::GenericArg>, Vec<fhir::TypeBinding>), ErrorGuaranteed> {
         let mut args = vec![];
         let mut bindings = vec![];
-        if let Res::Alias(def_id)
-        | Res::Struct(def_id)
-        | Res::Enum(def_id)
-        | Res::OpaqueTy(def_id) = res
+        if let Res::Def(
+            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
+            def_id,
+        ) = res
         {
             let generics = self.early_cx.tcx.generics_of(def_id);
             for param in &generics.params {
@@ -1514,13 +1512,13 @@ fn mk_opaque_ty_for_async(
             term: output,
         }],
         refine: vec![],
-        res: Res::Trait(future_trait),
+        res: Res::Def(DefKind::Trait, future_trait),
     };
     Ok(fhir::OpaqueTy { def_id, bounds: vec![bound] })
 }
 
 fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
-    if let Res::OpaqueTy(def_id) = res
+    if let Res::Def(DefKind::OpaqueTy, def_id) = res
         && let Some(local_def_id) = def_id.as_local()
     {
         let owner_id = OwnerId { def_id: local_def_id };

@@ -282,6 +282,10 @@ impl<T> EarlyBinder<T> {
     pub fn skip_binder(self) -> T {
         self.0
     }
+
+    pub fn instantiate_identity(self) -> T {
+        self.0
+    }
 }
 
 impl EarlyBinder<Ty> {

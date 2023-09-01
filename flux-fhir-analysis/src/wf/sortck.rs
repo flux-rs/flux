@@ -505,6 +505,7 @@ impl<'a> InferCtxt<'a, '_> {
 }
 
 impl InferCtxt<'_, '_> {
+    #[track_caller]
     fn emit_sort_mismatch(
         &mut self,
         span: Span,

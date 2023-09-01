@@ -1,5 +1,5 @@
 #![warn(unused_extern_crates)]
-#![feature(rustc_private, let_chains, box_patterns, if_let_guard)]
+#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -23,7 +23,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
-    rty::{self, fold::TypeFoldable},
+    rty::{self, fold::TypeFoldable, refining::Refiner},
     rustc::lowering,
 };
 use itertools::Itertools;
@@ -122,7 +122,12 @@ fn predicates_of(
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let wfckresults = genv.check_wf(local_id)?;
     let predicates = genv.map().get_predicates(local_id).unwrap();
-    Ok(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?))
+    Ok(rty::EarlyBinder(conv::conv_generic_predicates(
+        genv,
+        local_id.to_def_id(),
+        predicates,
+        &wfckresults,
+    )?))
 }
 
 fn item_bounds(
@@ -161,6 +166,11 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
                 }
                 _ => bug!("non-type def"),
             }
+        }
+        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum => {
+            let generics = genv.generics_of(def_id)?;
+            let self_ty = genv.lower_type_of(def_id)?.skip_binder();
+            Refiner::default(genv, &generics).refine_poly_ty(&self_ty)?
         }
         kind => {
             bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))

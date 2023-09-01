@@ -10,7 +10,7 @@ use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, WfckResults},
+    fhir::{self, lift, WfckResults},
 };
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
@@ -25,8 +25,9 @@ pub fn check_fn_sig(
     if fn_sig.lifted {
         return Ok(());
     }
-    Zipper::new(early_cx.sess, wfckresults)
-        .zip_fn_sig(fn_sig, &fhir::lift::lift_fn_sig(early_cx.tcx, early_cx.sess, owner_id)?)
+    let self_ty = lift::lift_self_ty(early_cx.tcx, early_cx.sess, owner_id)?;
+    Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref())
+        .zip_fn_sig(fn_sig, &lift::lift_fn_sig(early_cx.tcx, early_cx.sess, owner_id)?)
 }
 
 pub fn check_alias(
@@ -37,9 +38,9 @@ pub fn check_alias(
     if ty_alias.lifted {
         return Ok(());
     }
-    Zipper::new(early_cx.sess, wfckresults).zip_ty(
+    Zipper::new(early_cx.sess, wfckresults, None).zip_ty(
         &ty_alias.ty,
-        &fhir::lift::lift_type_alias(early_cx.tcx, early_cx.sess, ty_alias.owner_id)?.ty,
+        &lift::lift_type_alias(early_cx.tcx, early_cx.sess, ty_alias.owner_id)?.ty,
     )
 }
 
@@ -54,9 +55,10 @@ pub fn check_struct_def(
                 if field.lifted {
                     return Ok(());
                 }
-                Zipper::new(early_cx.sess, wfckresults).zip_ty(
+                let self_ty = lift::lift_self_ty(early_cx.tcx, early_cx.sess, struct_def.owner_id)?;
+                Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref()).zip_ty(
                     &field.ty,
-                    &fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)?.ty,
+                    &lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)?.ty,
                 )
             })
         }
@@ -73,9 +75,10 @@ pub fn check_enum_def(
         if variant.lifted {
             return Ok(());
         }
-        Zipper::new(early_cx.sess, wfckresults).zip_enum_variant(
+        let self_ty = lift::lift_self_ty(early_cx.tcx, early_cx.sess, enum_def.owner_id)?;
+        Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref()).zip_enum_variant(
             variant,
-            &fhir::lift::lift_enum_variant_def(early_cx.tcx, early_cx.sess, variant.def_id)?,
+            &lift::lift_enum_variant_def(early_cx.tcx, early_cx.sess, variant.def_id)?,
         )
     })
 }
@@ -84,13 +87,18 @@ struct Zipper<'zip> {
     sess: &'zip FluxSession,
     wfckresults: &'zip mut WfckResults,
     locs: LocsMap<'zip>,
+    self_ty: Option<&'zip fhir::Ty>,
 }
 
 type LocsMap<'a> = FxHashMap<fhir::Name, &'a fhir::Ty>;
 
 impl<'zip> Zipper<'zip> {
-    fn new(sess: &'zip FluxSession, wfckresults: &'zip mut WfckResults) -> Self {
-        Self { sess, wfckresults, locs: LocsMap::default() }
+    fn new(
+        sess: &'zip FluxSession,
+        wfckresults: &'zip mut WfckResults,
+        self_ty: Option<&'zip fhir::Ty>,
+    ) -> Self {
+        Self { sess, wfckresults, locs: LocsMap::default(), self_ty }
     }
 
     fn zip_enum_variant(
@@ -304,6 +312,13 @@ impl<'zip> Zipper<'zip> {
         expected_path: &'zip fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         if path.res != expected_path.res {
+            if let fhir::Res::SelfTyAlias { .. } = expected_path.res
+                && let Some(self_ty) = self.self_ty
+                && let Some(expected_path) = self_ty.as_path()
+            {
+                return self.zip_path(path, expected_path);
+            }
+
             return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
         if path.args.len() != expected_path.args.len() {
@@ -314,6 +329,7 @@ impl<'zip> Zipper<'zip> {
             .try_for_each_exhaust(|(arg, expected)| self.zip_generic_arg(arg, expected))
     }
 
+    #[track_caller]
     fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         self.sess.emit_err(err)
     }
