@@ -281,27 +281,64 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<Vec<rty::Clause>> {
         let mut clauses = vec![];
         for bound in bounds {
-            let fhir::Res::Def(DefKind::Trait, trait_def_id) = bound.res else {
-                span_bug!(bound.span, "unexpected resolution {:?}", bound.res);
-            };
-            for binding in &bound.bindings {
-                let assoc_item = self
-                    .genv
-                    .tcx
-                    .associated_items(trait_def_id)
-                    .filter_by_name_unhygienic(binding.ident.name)
-                    .next()
-                    .unwrap();
-                let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
-                let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
-                let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-                    alias_ty,
-                    term: self.conv_ty(env, &binding.term)?,
-                });
-                clauses.push(rty::Clause::new(kind, List::empty()));
-            }
+            self.conv_generic_bound(env, &bounded_ty, bound, &mut clauses)?;
         }
         Ok(clauses)
+    }
+
+    fn conv_generic_bound(
+        &self,
+        env: &mut Env,
+        bounded_ty: &rty::Ty,
+        bound: &fhir::GenericBound,
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        match bound {
+            fhir::GenericBound::Trait(trait_ref) => {
+                let fhir::Res::Def(DefKind::Trait, trait_def_id) = trait_ref.res else {
+                    span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
+                };
+                self.conv_type_bindings(
+                    env,
+                    bounded_ty,
+                    trait_def_id,
+                    &trait_ref.bindings,
+                    clauses,
+                )?;
+            }
+            fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
+                let trait_def_id = self.genv.tcx.require_lang_item(*lang_item, None);
+                self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn conv_type_bindings(
+        &self,
+        env: &mut Env,
+        bounded_ty: &rty::Ty,
+        trait_def_id: DefId,
+        bindings: &[fhir::TypeBinding],
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        for binding in bindings {
+            let assoc_item = self
+                .genv
+                .tcx
+                .associated_items(trait_def_id)
+                .filter_by_name_unhygienic(binding.ident.name)
+                .next()
+                .unwrap();
+            let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
+            let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
+                alias_ty,
+                term: self.conv_ty(env, &binding.term)?,
+            });
+            clauses.push(rty::Clause::new(kind, List::empty()));
+        }
+        Ok(())
     }
 
     fn conv_fn_output(

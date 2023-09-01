@@ -2,7 +2,7 @@
 //!
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use hir::{def::DefKind, LangItem, OwnerId};
+use hir::{def::DefKind, OwnerId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
@@ -267,15 +267,22 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_generic_bound(&self, bound: &hir::GenericBound) -> Result<fhir::Path, ErrorGuaranteed> {
+    fn lift_generic_bound(
+        &self,
+        bound: &hir::GenericBound,
+    ) -> Result<fhir::GenericBound, ErrorGuaranteed> {
         match bound {
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None)
                 if poly_trait_ref.bound_generic_params.is_empty() =>
             {
-                self.lift_path(poly_trait_ref.trait_ref.path)
+                Ok(fhir::GenericBound::Trait(self.lift_path(poly_trait_ref.trait_ref.path)?))
             }
-            hir::GenericBound::LangItemTrait(LangItem::Future, .., args) => {
-                todo!("{args:?}");
+            hir::GenericBound::LangItemTrait(lang_item, .., args) => {
+                Ok(fhir::GenericBound::LangItemTrait(
+                    *lang_item,
+                    self.lift_generic_args(args.args)?,
+                    self.lift_type_bindings(args.bindings)?,
+                ))
             }
             _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
         }

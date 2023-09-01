@@ -31,7 +31,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, OwnerId,
+    ItemId, LangItem, OwnerId,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -106,7 +106,13 @@ pub struct WhereBoundPredicate {
     pub bounds: GenericBounds,
 }
 
-pub type GenericBounds = Vec<Path>;
+pub type GenericBounds = Vec<GenericBound>;
+
+#[derive(Debug)]
+pub enum GenericBound {
+    Trait(Path),
+    LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
+}
 
 #[derive(Debug)]
 pub struct OpaqueTy {
@@ -402,7 +408,7 @@ pub struct Path {
     pub span: Span,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeBinding {
     pub ident: SurfaceIdent,
     pub term: Ty,

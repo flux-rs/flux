@@ -221,6 +221,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_for_each_exhaust(|pred| self.check_generic_predicate(infcx, pred))
     }
 
+    fn check_generic_bound(
+        &mut self,
+        infcx: &mut InferCtxt,
+        bound: &fhir::GenericBound,
+    ) -> Result<(), ErrorGuaranteed> {
+        match bound {
+            fhir::GenericBound::Trait(trait_ref) => self.check_path(infcx, trait_ref),
+            fhir::GenericBound::LangItemTrait(_, args, bindings) => {
+                self.check_generic_args(infcx, args)?;
+                self.check_type_bindings(infcx, bindings)?;
+                Ok(())
+            }
+        }
+    }
+
     fn check_opaque_ty(
         &mut self,
         infcx: &mut InferCtxt,
@@ -229,7 +244,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         opaque_ty
             .bounds
             .iter()
-            .try_for_each_exhaust(|bound| self.check_path(infcx, bound))
+            .try_for_each_exhaust(|bound| self.check_generic_bound(infcx, bound))
     }
 
     fn check_variant(
@@ -340,10 +355,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)
             }
-            fhir::TyKind::OpaqueDef(_item_id, args, _) => {
-                args.iter()
-                    .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
-            }
+            fhir::TyKind::OpaqueDef(_, args, _) => self.check_generic_args(infcx, args),
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
         }
@@ -358,8 +370,17 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         predicate
             .bounds
             .iter()
-            .map(|bound| self.check_path(infcx, bound))
+            .map(|bound| self.check_generic_bound(infcx, bound))
             .try_collect_exhaust()
+    }
+
+    fn check_generic_args(
+        &mut self,
+        infcx: &mut InferCtxt,
+        args: &[fhir::GenericArg],
+    ) -> Result<(), ErrorGuaranteed> {
+        args.iter()
+            .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
     }
 
     fn check_generic_arg(
@@ -372,6 +393,16 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         } else {
             Ok(())
         }
+    }
+
+    fn check_type_bindings(
+        &mut self,
+        infcx: &mut InferCtxt,
+        bindings: &[fhir::TypeBinding],
+    ) -> Result<(), ErrorGuaranteed> {
+        bindings
+            .iter()
+            .try_for_each_exhaust(|binding| self.check_type(infcx, &binding.term))
     }
 
     fn check_base_ty(
@@ -411,14 +442,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::Res::SelfTyAlias { .. } | fhir::Res::Def(..) | fhir::Res::PrimTy(..) => {}
         }
         let snapshot = self.xi.snapshot();
-        let res = path
-            .args
-            .iter()
-            .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg));
+        let args = self.check_generic_args(infcx, &path.args);
+        let bindings = self.check_type_bindings(infcx, &path.bindings);
         if !self.early_cx.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }
-        res
+        args?;
+        bindings?;
+        Ok(())
     }
 
     fn check_refine_arg(

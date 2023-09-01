@@ -487,7 +487,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::GenericBounds, ErrorGuaranteed> {
         bounds
             .iter()
-            .map(|bound| self.desugar_path(bound, binders))
+            .map(|bound| Ok(fhir::GenericBound::Trait(self.desugar_path(bound, binders)?)))
             .try_collect_exhaust()
     }
 
@@ -500,10 +500,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         match asyncness {
             surface::Async::Yes { res, span } => {
                 if let Some(item_id) = mk_res_impl_item_id(&res) {
-                    self.opaque_tys.insert(
-                        item_id.owner_id.def_id,
-                        mk_opaque_ty_for_async(self.early_cx.tcx, output)?,
-                    );
+                    self.opaque_tys
+                        .insert(item_id.owner_id.def_id, mk_opaque_ty_for_async(output)?);
                     let (args, _) = self.desugar_generic_args(res, &[], binders)?;
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
                     Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
@@ -1496,21 +1494,15 @@ fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sor
     }
 }
 
-fn mk_opaque_ty_for_async(
-    tcx: TyCtxt,
-    output: fhir::Ty,
-) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
-    let future_trait = tcx.lang_items().future_trait().unwrap();
-    let bound = fhir::Path {
-        span: DUMMY_SP,
-        args: vec![],
-        bindings: vec![fhir::TypeBinding {
+fn mk_opaque_ty_for_async(output: fhir::Ty) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+    let bound = fhir::GenericBound::LangItemTrait(
+        hir::LangItem::Future,
+        vec![],
+        vec![fhir::TypeBinding {
             ident: surface::Ident::with_dummy_span(sym::Output),
             term: output,
         }],
-        refine: vec![],
-        res: Res::Def(DefKind::Trait, future_trait),
-    };
+    );
     Ok(fhir::OpaqueTy { bounds: vec![bound] })
 }
 
