@@ -103,6 +103,14 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::Def(DefKind::TyAlias | DefKind::Enum | DefKind::Struct, def_id) => {
                 fhir::Sort::Record(def_id)
             }
+            fhir::Res::SelfTyAlias { alias_to, .. } => {
+                let self_ty = self.tcx.type_of(alias_to).skip_binder();
+                if let rustc_type_ir::TyKind::Adt(adt_def, _) = self_ty.kind() {
+                    fhir::Sort::Record(adt_def.did())
+                } else {
+                    bug!("unexpected res {res:?}")
+                }
+            }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {

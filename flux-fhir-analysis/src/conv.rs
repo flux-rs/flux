@@ -595,6 +595,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::Def(DefKind::TyParam, def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
+            fhir::Res::SelfTyAlias { alias_to, .. } => {
+                return Ok(self
+                    .genv
+                    .type_of(*alias_to)?
+                    .instantiate_identity()
+                    .replace_bound_expr(&idx.expr))
+            }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.generics)?;
                 let refine = path

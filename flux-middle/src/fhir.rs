@@ -416,6 +416,7 @@ pub enum GenericArg {
 pub enum Res {
     Def(DefKind, DefId),
     PrimTy(PrimTy),
+    SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
 }
 
 #[derive(Debug, Clone)]
@@ -456,14 +457,6 @@ pub enum SortCtor {
     },
 }
 
-impl SortCtor {
-    pub fn arity(&self) -> usize {
-        match self {
-            SortCtor::Set => 1,
-            SortCtor::User { arity, .. } => *arity,
-        }
-    }
-}
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -559,22 +552,32 @@ impl From<OwnerId> for FluxOwnerId {
     }
 }
 
+impl SortCtor {
+    pub fn arity(&self) -> usize {
+        match self {
+            SortCtor::Set => 1,
+            SortCtor::User { arity, .. } => *arity,
+        }
+    }
+}
+
+impl Ty {
+    pub fn as_path(&self) -> Option<&Path> {
+        match &self.kind {
+            TyKind::BaseTy(BaseTy {
+                kind: BaseTyKind::Path(QPath::Resolved(None, path)), ..
+            }) => Some(path),
+            _ => None,
+        }
+    }
+}
+
 impl BaseTy {
     pub fn is_bool(&self) -> bool {
         matches!(
             self.kind,
             BaseTyKind::Path(QPath::Resolved(_, Path { res: Res::PrimTy(PrimTy::Bool), .. }))
         )
-    }
-
-    pub fn is_refined_by_record(&self) -> Option<DefId> {
-        if let BaseTyKind::Path(QPath::Resolved(_, path)) = &self.kind
-           && let Res::Def(DefKind::Struct | DefKind::Enum | DefKind::TyAlias, def_id)  = path.res
-        {
-            Some(def_id)
-        } else {
-            None
-        }
     }
 }
 
@@ -583,6 +586,7 @@ impl Res {
         match self {
             Res::PrimTy(_) => "builtin type",
             Res::Def(kind, def_id) => kind.descr(*def_id),
+            Res::SelfTyAlias { .. } => "self type",
         }
     }
 }
@@ -1304,6 +1308,7 @@ impl fmt::Debug for Path {
             Res::Def(_, def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
+            Res::SelfTyAlias { .. } => write!(f, "Self")?,
         }
         if !self.generics.is_empty() {
             write!(f, "<{:?}>", self.generics.iter().format(", "))?;
