@@ -2,7 +2,7 @@
 //!
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use hir::{def::DefKind, def_id::DefId, OwnerId};
+use hir::{def::DefKind, OwnerId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
@@ -118,8 +118,8 @@ pub fn lift_enum_variant_def(
     let node = tcx.hir().get(hir_id);
     let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
     let enum_id = tcx.hir().get_parent_item(hir_id);
-    let hir::OwnerNode::Item(hir::Item { ident, kind: hir::ItemKind::Enum(_, generics), .. }) =
-        tcx.hir().owner(enum_id)
+    let hir::Item { ident, kind: hir::ItemKind::Enum(..), .. } =
+        tcx.hir().expect_item(enum_id.def_id)
     else {
         bug!("expected an enum")
     };
@@ -133,12 +133,13 @@ pub fn lift_enum_variant_def(
         .map(|field| cx.lift_field_def(field))
         .try_collect_exhaust()?;
 
+    // FIXME(nilehmann) the span should also include the generic arguments
+    let span = ident.span;
     let path = fhir::Path {
-        res: fhir::Res::Def(DefKind::Enum, enum_id.to_def_id()),
-        generics: cx.generic_params_into_args(generics)?,
+        res: fhir::Res::SelfTyAlias { alias_to: enum_id.to_def_id(), is_trait_impl: false },
+        generics: vec![],
         refine: vec![],
-        // FIXME(nilehmann) the span should also include the generic arguments
-        span: ident.span,
+        span,
     };
     let ret = fhir::VariantRet {
         bty: fhir::BaseTy::from(fhir::QPath::Resolved(None, path)),
@@ -182,6 +183,39 @@ pub fn lift_fn_sig(
         span: fn_sig.span,
     };
     Ok(fn_sig)
+}
+
+pub fn lift_self_ty(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    owner_id: OwnerId,
+) -> Result<Option<fhir::Ty>, ErrorGuaranteed> {
+    let cx = LiftCtxt::new(tcx, sess, owner_id);
+    if let Some(def_id) = tcx.impl_of_method(owner_id.to_def_id()) {
+        let local_id = def_id.expect_local();
+        let hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = tcx.hir().expect_item(local_id)
+        else {
+            bug!("expected an impl")
+        };
+        let self_ty = cx.lift_ty(impl_.self_ty)?;
+        Ok(Some(self_ty))
+    } else if let def_kind @ (DefKind::Struct | DefKind::Enum) = tcx.def_kind(owner_id) {
+        let generics = tcx.hir().get_generics(owner_id.def_id).unwrap();
+        let item = tcx.hir().expect_item(owner_id.def_id);
+
+        // FIXME(nilehmann) the span should also include the generic arguments
+        let span = item.ident.span;
+        let path = fhir::Path {
+            res: fhir::Res::Def(def_kind, owner_id.to_def_id()),
+            generics: cx.generic_params_into_args(generics)?,
+            refine: vec![],
+            span,
+        };
+        let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
+        Ok(Some(fhir::Ty { fhir_id: cx.next_fhir_id(), span, kind: fhir::TyKind::BaseTy(bty) }))
+    } else {
+        Ok(None)
+    }
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
@@ -284,8 +318,8 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let res = match path.res {
             hir::def::Res::Def(kind, def_id) => fhir::Res::Def(kind, def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
-            hir::def::Res::SelfTyAlias { alias_to, .. } => {
-                return self.lift_self_ty_alias(alias_to)
+            hir::def::Res::SelfTyAlias { alias_to, is_trait_impl, forbid_generic: false } => {
+                fhir::Res::SelfTyAlias { alias_to, is_trait_impl }
             }
             _ => {
                 return self.emit_unsupported(&format!(
@@ -308,15 +342,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let bty = fhir::BaseTy::from(qpath);
         let span = bty.span;
         Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), fhir_id: self.next_fhir_id(), span })
-    }
-
-    fn lift_self_ty_alias(&self, alias_to: DefId) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let hir = self.tcx.hir();
-        let def_id = alias_to.expect_local();
-        match hir.expect_item(def_id).kind {
-            hir::ItemKind::Impl(parent_impl) => self.lift_ty(parent_impl.self_ty),
-            _ => bug!("self types for structs and enums are not yet implemented"),
-        }
     }
 
     fn lift_generic_args(

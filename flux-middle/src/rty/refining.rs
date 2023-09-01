@@ -42,7 +42,7 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     rty::Generics { params, parent_count: generics.orig.parent_count, parent: generics.orig.parent }
 }
 
-pub(crate) struct Refiner<'a, 'tcx> {
+pub struct Refiner<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     generics: &'a rty::Generics,
     refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
@@ -57,7 +57,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         Self { genv, generics, refine }
     }
 
-    pub(crate) fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
+    pub fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
         Self { genv, generics, refine: refine_default }
     }
 
@@ -154,16 +154,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
             Ok(rty::FnSig::new(vec![], args, output))
         })
-        // let vars = refine_bound_variables(fn_sig.vars());
-        // let fn_sig = fn_sig.as_ref().skip_binder();
-        // let args = fn_sig
-        //     .inputs()
-        //     .iter()
-        //     .map(|ty| self.refine_ty(ty))
-        //     .try_collect_vec()?;
-        // let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
-        // let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
-        // Ok(rty::PolyFnSig::new(rty::FnSig::new(vec![], args, output), vars))
     }
 
     pub(crate) fn refine_generic_arg(
@@ -239,7 +229,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
-    fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
+    pub fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, args) => {
                 rty::BaseTy::Closure(*did, self.refine_generic_args(args)?)

@@ -723,7 +723,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
                 .unwrap()
-        } else if let Some(def_id) = bty.is_refined_by_record() {
+        } else if let Some(fhir::Sort::Record(def_id)) = self.early_cx.sort_of_bty(bty) {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
             Ok(fhir::RefineArg::Record(def_id, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
