@@ -115,7 +115,7 @@ pub enum GenericBound {
     LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum TraitBoundModifier {
     None,
     Maybe,

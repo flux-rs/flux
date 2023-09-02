@@ -27,9 +27,9 @@ struct Wf<'a, 'tcx> {
     xi: XiCtxt,
 }
 
-/// Keeps track of all refinement parameters that were used as an index such that their value is fully
-/// determined. The context is called Xi because in the paper [Focusing on Liquid Refinement Typing], the
-/// well-formedness judgment uses an uppercase Xi (Ξ) for a context that is similar in purpose.
+/// Keeps track of all refinement parameters that are used as an index such that their value is fully
+/// determined. The context is called Xi because in the paper [Focusing on Liquid Refinement Typing],
+/// the well-formedness judgment uses an uppercase Xi (Ξ) for a context that is similar in purpose.
 ///
 /// This is basically a set of [`fhir::Name`] implemented with a snapshot map such that elements
 /// can be removed in batch when there's a change in polarity.
@@ -151,9 +151,16 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(early_cx, owner_id.into());
     let mut wf = Wf::new(early_cx);
 
-    for opaque_ty_id in early_cx.tcx.opaque_types_defined_by(owner_id.def_id) {
-        let opaque_ty = early_cx.map.get_opaque_ty(*opaque_ty_id).unwrap();
-        wf.check_opaque_ty(&mut infcx, opaque_ty)?;
+    // FIXME(nilehmann) we should move opaque types outside functions as they are their own item
+    if early_cx
+        .hir()
+        .maybe_body_owned_by(owner_id.def_id)
+        .is_some()
+    {
+        for opaque_ty_id in early_cx.tcx.opaque_types_defined_by(owner_id.def_id) {
+            let opaque_ty = early_cx.map.get_opaque_ty(*opaque_ty_id).unwrap();
+            wf.check_opaque_ty(&mut infcx, opaque_ty)?;
+        }
     }
 
     let predicates = early_cx

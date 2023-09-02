@@ -6,6 +6,7 @@ use hir::{def::DefKind, OwnerId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
+use rustc_hash::FxHashMap;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
@@ -178,16 +179,20 @@ pub fn lift_fn(
 
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
     let fn_preds = cx.lift_generic_predicates(generics)?;
-    let opaque_tys = tcx
-        .opaque_types_defined_by(def_id)
-        .iter()
-        .map(|opaque_ty_id| {
-            let hir::ItemKind::OpaqueTy(opaque_ty) = hir.expect_item(*opaque_ty_id).kind else {
-                bug!("expected opaque type")
-            };
-            Ok((*opaque_ty_id, cx.lift_opaque_ty(opaque_ty)?))
-        })
-        .try_collect()?;
+    // FIXME(nilehmann) this only works for RPIT. We should generalize it for other `impl Trait` origins
+    let opaque_tys = if tcx.hir().maybe_body_owned_by(def_id).is_some() {
+        tcx.opaque_types_defined_by(def_id)
+            .iter()
+            .map(|opaque_ty_id| {
+                let hir::ItemKind::OpaqueTy(opaque_ty) = hir.expect_item(*opaque_ty_id).kind else {
+                    bug!("expected opaque type")
+                };
+                Ok((*opaque_ty_id, cx.lift_opaque_ty(opaque_ty)?))
+            })
+            .try_collect()?
+    } else {
+        FxHashMap::default()
+    };
     Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
 }
 
