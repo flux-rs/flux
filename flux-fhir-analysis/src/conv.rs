@@ -23,6 +23,7 @@ use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
+    def::DefKind,
     def_id::{DefId, LocalDefId},
     PrimTy,
 };
@@ -465,7 +466,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let sort = self.genv.early_cx().sort_of_bty(bty);
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
-            if let fhir::Res::AssocTy(def_id) = path.res {
+            if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
                 assert!(path.generics.is_empty(), "generic associated types are not supported");
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
@@ -473,7 +474,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
             // If it is a type parameter with no no sort, it means it is of kind `Type`
-            if let fhir::Res::Param(def_id) = path.res && sort.is_none() {
+            if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res && sort.is_none() {
                 let param_ty = def_id_to_param_ty(self.genv.tcx, def_id.expect_local());
                 return Ok(rty::Ty::param(param_ty));
             }
@@ -586,15 +587,22 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Float(float_ty)) => {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
-            fhir::Res::Struct(did) | fhir::Res::Enum(did) => {
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
                 let adt_def = self.genv.adt_def(*did)?;
                 let args = self.conv_generic_args(env, *did, &path.generics)?;
                 rty::BaseTy::adt(adt_def, args)
             }
-            fhir::Res::Param(def_id) => {
+            fhir::Res::Def(DefKind::TyParam, def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
-            fhir::Res::Alias(def_id) => {
+            fhir::Res::SelfTyAlias { alias_to, .. } => {
+                return Ok(self
+                    .genv
+                    .type_of(*alias_to)?
+                    .instantiate_identity()
+                    .replace_bound_expr(&idx.expr))
+            }
+            fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.generics)?;
                 let refine = path
                     .refine
@@ -607,8 +615,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
-            fhir::Res::AssocTy(_) | fhir::Res::Trait(_) | fhir::Res::OpaqueTy(_) => {
-                bug!("unexpected res in conv_path: {:?}", path.res)
+            fhir::Res::Def(..) => {
+                span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)
             }
         };
         Ok(rty::Ty::indexed(bty, idx))

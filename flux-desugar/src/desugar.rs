@@ -9,7 +9,7 @@ use flux_middle::{
     intern::List,
 };
 use flux_syntax::surface;
-use hir::ItemKind;
+use hir::{def::DefKind, ItemKind};
 use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -518,8 +518,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         path: &surface::Path<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::ClauseKind, ErrorGuaranteed> {
-        let Res::Trait(trait_def_id) = path.res else {
-            span_bug!(path.span, "unexpected trait {:?}", path.res);
+        let Res::Def(DefKind::Trait, trait_def_id) = path.res else {
+            span_bug!(path.span, "unexpected non-trait resolution `{:?}`", path.res);
         };
         if let [surface::GenericArg::Constraint(ident, ty)] = path.generics.as_slice() {
             let item_id = self.lookup_item_id(trait_def_id, *ident)?;
@@ -528,7 +528,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             let proj = fhir::ProjectionPredicate { projection_ty, term };
             Ok(fhir::ClauseKind::Projection(proj))
         } else {
-            bug!("unexpected path in desugar_bound: {:?}", path.generics)
+            span_bug!(path.span, "unexpected path in desugar_bound: {:?}", path.generics)
         }
     }
 
@@ -696,7 +696,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
-        if let Res::OpaqueTy(def_id) = res &&
+        if let Res::Def(DefKind::OpaqueTy, def_id) = res &&
            let Some(local_def_id) = def_id.as_local()
         {
             let owner_id = OwnerId { def_id: local_def_id };
@@ -723,7 +723,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
                 .unwrap()
-        } else if let Some(def_id) = bty.is_refined_by_record() {
+        } else if let Some(fhir::Sort::Record(def_id)) = self.early_cx.sort_of_bty(bty) {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
             Ok(fhir::RefineArg::Record(def_id, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
@@ -817,10 +817,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut args = vec![];
-        if let Res::Alias(def_id)
-        | Res::Struct(def_id)
-        | Res::Enum(def_id)
-        | Res::OpaqueTy(def_id) = res
+        if let Res::Def(
+            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
+            def_id,
+        ) = res
         {
             let generics = self.early_cx.tcx.generics_of(def_id);
             for param in &generics.params {
