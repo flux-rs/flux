@@ -146,3 +146,11 @@ fhir_analysis_field_count_mismatch =
 fhir_analysis_definition_cycle =
     cycle in definitions
     .label = {$msg}
+
+# Conv errors
+
+fhir_analysis_assoc_type_not_found =
+    associated type not found
+    .label = cannot resolve this associated type
+    .note = flux cannot resolved associated types if they are defined in a super trait
+

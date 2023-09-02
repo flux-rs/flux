@@ -27,7 +27,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
     PrimTy,
 };
-use rustc_middle::ty::{BoundVar, TyCtxt};
+use rustc_middle::ty::{AssocItem, AssocKind, BoundVar, TyCtxt};
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
@@ -324,12 +324,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<()> {
         for binding in bindings {
             let assoc_item = self
-                .genv
-                .tcx
-                .associated_items(trait_def_id)
-                .filter_by_name_unhygienic(binding.ident.name)
-                .next()
-                .unwrap();
+                .trait_defines_associated_item_named(trait_def_id, AssocKind::Type, binding.ident)
+                .ok_or_else(|| {
+                    self.genv
+                        .sess
+                        .emit_err(errors::AssocTypeNotFound::new(binding.ident))
+                })?;
             let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
             let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
             let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
@@ -339,6 +339,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             clauses.push(rty::Clause::new(kind, List::empty()));
         }
         Ok(())
+    }
+
+    fn trait_defines_associated_item_named(
+        &self,
+        trait_def_id: DefId,
+        assoc_kind: AssocKind,
+        assoc_name: SurfaceIdent,
+    ) -> Option<&AssocItem> {
+        self.genv
+            .tcx
+            .associated_items(trait_def_id)
+            .find_by_name_and_kind(self.genv.tcx, assoc_name, assoc_kind, trait_def_id)
     }
 
     fn conv_fn_output(
@@ -1049,4 +1061,25 @@ fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId
             }
         })
         .collect()
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use flux_middle::fhir::SurfaceIdent;
+    use rustc_span::Span;
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_assoc_type_not_found, code = "FLUX")]
+    #[note]
+    pub(super) struct AssocTypeNotFound {
+        #[primary_span]
+        #[label]
+        span: Span,
+    }
+
+    impl AssocTypeNotFound {
+        pub(super) fn new(ident: SurfaceIdent) -> Self {
+            Self { span: ident.span }
+        }
+    }
 }
