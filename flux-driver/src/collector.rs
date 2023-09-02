@@ -100,6 +100,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             };
         }
 
+        for trait_item_id in crate_items.trait_items() {
+            if let rustc_hir::TraitItemKind::Fn(_, _) = tcx.hir().trait_item(trait_item_id).kind {
+                collector.parse_fn_spec(trait_item_id.owner_id, &[])?;
+            }
+        }
+
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
             let owner_id = impl_item.owner_id;
@@ -145,6 +151,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
         Ok(())
     }
+
+    // fn parse_impl_spec(&mut self, imp: &Impl) -> Result<(), ErrorGuaranteed> {
+    //     let attrs = self.tcx.hir().attrs(imp.hir_id);
+    //     let mut attrs = self.parse_flux_attrs(attrs)?;
+    //     self.specs.extend_items(attrs.items());
+    //     Ok(())
+    // }
 
     fn parse_const_spec(
         &mut self,
