@@ -17,6 +17,7 @@ use crate::fhir;
 struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
+    opaque_tys: FxHashMap<LocalDefId, fhir::OpaqueTy>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -28,7 +29,7 @@ pub fn lift_generics(
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
     let hir_generics = tcx.hir().get_generics(def_id).unwrap();
-    let cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
 
     let params = hir_generics
         .params
@@ -85,7 +86,7 @@ pub fn lift_type_alias(
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
-    let cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
         owner_id,
@@ -125,7 +126,7 @@ pub fn lift_enum_variant_def(
         bug!("expected an enum")
     };
 
-    let cx = LiftCtxt::new(tcx, sess, enum_id);
+    let mut cx = LiftCtxt::new(tcx, sess, enum_id);
 
     let fields = variant
         .data
@@ -167,7 +168,7 @@ pub fn lift_fn(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
-    let cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
 
     let def_id = owner_id.def_id;
     let hir = tcx.hir();
@@ -179,21 +180,8 @@ pub fn lift_fn(
 
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
     let fn_preds = cx.lift_generic_predicates(generics)?;
-    // FIXME(nilehmann) this only works for RPIT. We should generalize it for other `impl Trait` origins
-    let opaque_tys = if tcx.hir().maybe_body_owned_by(def_id).is_some() {
-        tcx.opaque_types_defined_by(def_id)
-            .iter()
-            .map(|opaque_ty_id| {
-                let hir::ItemKind::OpaqueTy(opaque_ty) = hir.expect_item(*opaque_ty_id).kind else {
-                    bug!("expected opaque type")
-                };
-                Ok((*opaque_ty_id, cx.lift_opaque_ty(opaque_ty)?))
-            })
-            .try_collect()?
-    } else {
-        FxHashMap::default()
-    };
-    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
+
+    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys: cx.opaque_tys })
 }
 
 pub fn lift_self_ty(
@@ -201,7 +189,7 @@ pub fn lift_self_ty(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<Option<fhir::Ty>, ErrorGuaranteed> {
-    let cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
     if let Some(def_id) = tcx.impl_of_method(owner_id.to_def_id()) {
         let local_id = def_id.expect_local();
         let hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = tcx.hir().expect_item(local_id)
@@ -232,7 +220,7 @@ pub fn lift_self_ty(
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, owner: OwnerId) -> Self {
-        Self { tcx, sess, local_id_gen: IndexGen::new(), owner }
+        Self { tcx, sess, opaque_tys: FxHashMap::default(), local_id_gen: IndexGen::new(), owner }
     }
 
     fn next_fhir_id(&self) -> FhirId {
@@ -240,7 +228,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     pub fn lift_generic_predicates(
-        &self,
+        &mut self,
         generics: &hir::Generics,
     ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
         let predicates = generics
@@ -252,7 +240,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_where_predicate(
-        &self,
+        &mut self,
         pred: &hir::WherePredicate,
     ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = pred {
@@ -273,7 +261,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_generic_bound(
-        &self,
+        &mut self,
         bound: &hir::GenericBound,
     ) -> Result<fhir::GenericBound, ErrorGuaranteed> {
         match bound {
@@ -304,17 +292,23 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_opaque_ty(&self, opaque_ty: &hir::OpaqueTy) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
-        Ok(fhir::OpaqueTy {
+    fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<(), ErrorGuaranteed> {
+        let hir::ItemKind::OpaqueTy(opaque_ty) = self.tcx.hir().item(item_id).kind else {
+            bug!("expected opaque type")
+        };
+
+        let opaque_ty = fhir::OpaqueTy {
             bounds: opaque_ty
                 .bounds
                 .iter()
                 .map(|bound| self.lift_generic_bound(bound))
                 .try_collect()?,
-        })
+        };
+        self.opaque_tys.insert(item_id.owner_id.def_id, opaque_ty);
+        Ok(())
     }
 
-    fn lift_fn_sig(&self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig, ErrorGuaranteed> {
+    fn lift_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig, ErrorGuaranteed> {
         let args = fn_sig
             .decl
             .inputs
@@ -339,7 +333,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(fn_sig)
     }
 
-    fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn lift_fn_ret_ty(&mut self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
         match ret_ty {
             hir::FnRetTy::DefaultReturn(_) => {
                 let kind = fhir::TyKind::Tuple(vec![]);
@@ -349,12 +343,15 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_field_def(&self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef, ErrorGuaranteed> {
+    fn lift_field_def(
+        &mut self,
+        field_def: &hir::FieldDef,
+    ) -> Result<fhir::FieldDef, ErrorGuaranteed> {
         let ty = self.lift_ty(field_def.ty)?;
         Ok(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: true })
     }
 
-    fn lift_ty(&self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
         let kind = match &ty.kind {
             hir::TyKind::Slice(ty) => {
                 let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
@@ -380,6 +377,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 fhir::TyKind::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
             }
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
+                self.lift_opaque_ty(*item_id)?;
                 let args = self.lift_generic_args(args)?;
                 fhir::TyKind::OpaqueDef(*item_id, args, *in_trait_def)
             }
@@ -406,11 +404,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(fhir::Lifetime { fhir_id: self.next_fhir_id(), ident: lft.ident, res })
     }
 
-    fn lift_mut_ty(&self, mut_ty: &hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
+    fn lift_mut_ty(&mut self, mut_ty: &hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
         Ok(fhir::MutTy { ty: Box::new(self.lift_ty(mut_ty.ty)?), mutbl: mut_ty.mutbl })
     }
 
-    fn lift_qpath(&self, qpath: &hir::QPath) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn lift_qpath(&mut self, qpath: &hir::QPath) -> Result<fhir::Ty, ErrorGuaranteed> {
         match qpath {
             hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(*self_ty, path),
             hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
@@ -422,7 +420,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_path(&self, path: &hir::Path) -> Result<fhir::Path, ErrorGuaranteed> {
+    fn lift_path(&mut self, path: &hir::Path) -> Result<fhir::Path, ErrorGuaranteed> {
         let res = match path.res {
             hir::def::Res::Def(kind, def_id) => fhir::Res::Def(kind, def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
@@ -448,7 +446,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_path_to_ty(
-        &self,
+        &mut self,
         self_ty: Option<&hir::Ty>,
         path: &hir::Path,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -463,7 +461,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_generic_args(
-        &self,
+        &mut self,
         args: &[hir::GenericArg<'_>],
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut lifted = vec![];
@@ -489,7 +487,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_type_bindings(
-        &self,
+        &mut self,
         bindings: &[hir::TypeBinding<'_>],
     ) -> Result<Vec<fhir::TypeBinding>, ErrorGuaranteed> {
         let mut lifted = vec![];

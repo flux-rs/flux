@@ -304,8 +304,8 @@ pub fn desugar_fn_sig(
 
 pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
-    local_id_gen: IndexGen<fhir::ItemLocalId>,
     opaque_tys: FxHashMap<LocalDefId, fhir::OpaqueTy>,
+    local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
 
@@ -823,7 +823,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
-        self.early_cx.emit_err(err)
+        self.sess().emit_err(err)
     }
 }
 
