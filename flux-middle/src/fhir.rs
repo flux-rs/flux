@@ -23,6 +23,7 @@ use std::{
     fmt,
 };
 
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -408,7 +409,7 @@ pub struct Path {
     pub span: Span,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TypeBinding {
     pub ident: SurfaceIdent,
     pub term: Ty,
@@ -828,6 +829,16 @@ impl rustc_errors::IntoDiagnosticArg for &Ty {
 impl rustc_errors::IntoDiagnosticArg for &Path {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
+}
+
+impl GenericArg {
+    pub fn expect_type(&self) -> &Ty {
+        if let GenericArg::Type(ty) = self {
+            ty
+        } else {
+            bug!("expected `GenericArg::Type`")
+        }
     }
 }
 
@@ -1320,8 +1331,14 @@ impl fmt::Debug for Path {
             }
             Res::SelfTyAlias { .. } => write!(f, "Self")?,
         }
-        if !self.args.is_empty() {
-            write!(f, "<{:?}>", self.args.iter().format(", "))?;
+        let args: Vec<_> = self
+            .args
+            .iter()
+            .map(|a| a as &dyn std::fmt::Debug)
+            .chain(self.bindings.iter().map(|b| b as &dyn std::fmt::Debug))
+            .collect();
+        if !args.is_empty() {
+            write!(f, "{:?}", args)?;
         }
         if !self.refine.is_empty() {
             write!(f, "({:?})", self.refine.iter().format(", "))?;
@@ -1336,6 +1353,12 @@ impl fmt::Debug for GenericArg {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
         }
+    }
+}
+
+impl fmt::Debug for TypeBinding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} = {:?}", self.ident, self.term)
     }
 }
 

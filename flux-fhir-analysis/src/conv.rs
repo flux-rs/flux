@@ -298,19 +298,40 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let fhir::Res::Def(DefKind::Trait, trait_def_id) = trait_ref.res else {
                     span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
                 };
-                self.conv_type_bindings(
-                    env,
-                    bounded_ty,
-                    trait_def_id,
-                    &trait_ref.bindings,
-                    clauses,
-                )?;
+                if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_def_id) {
+                    self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
+                } else {
+                    self.conv_type_bindings(
+                        env,
+                        bounded_ty,
+                        trait_def_id,
+                        &trait_ref.bindings,
+                        clauses,
+                    )
+                }
             }
             fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
                 let trait_def_id = self.genv.tcx.require_lang_item(*lang_item, None);
-                self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)?;
+                self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)
             }
         }
+    }
+
+    fn conv_fn_bound(
+        &self,
+        env: &mut Env,
+        self_ty: &rty::Ty,
+        trait_ref: &fhir::Path,
+        kind: rty::ClosureKind,
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        let pred = rty::FnTraitPredicate {
+            self_ty: self_ty.clone(),
+            tupled_args: self.conv_ty(env, trait_ref.args[0].expect_type())?,
+            output: self.conv_ty(env, &trait_ref.bindings[0].term)?,
+            kind,
+        };
+        clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred), List::empty()));
         Ok(())
     }
 
