@@ -100,6 +100,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             };
         }
 
+        for trait_item_id in crate_items.trait_items() {
+            if let rustc_hir::TraitItemKind::Fn(_, _) = tcx.hir().trait_item(trait_item_id).kind {
+                collector.parse_fn_spec(trait_item_id.owner_id, &[])?;
+            }
+        }
+
         for impl_item_id in crate_items.impl_items() {
             let impl_item = tcx.hir().impl_item(impl_item_id);
             let owner_id = impl_item.owner_id;
