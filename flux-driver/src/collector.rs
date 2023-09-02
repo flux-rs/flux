@@ -152,13 +152,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    // fn parse_impl_spec(&mut self, imp: &Impl) -> Result<(), ErrorGuaranteed> {
-    //     let attrs = self.tcx.hir().attrs(imp.hir_id);
-    //     let mut attrs = self.parse_flux_attrs(attrs)?;
-    //     self.specs.extend_items(attrs.items());
-    //     Ok(())
-    // }
-
     fn parse_const_spec(
         &mut self,
         item: &Item,

@@ -892,11 +892,7 @@ impl Map {
     }
 
     pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
-        // &self.fns[&def_id]
-        match &self.fns.get(&def_id) {
-            Some(fn_sig) => fn_sig,
-            None => panic!("TRACE: get_fn_sig({:?}), {:?}", def_id, self.fns.keys()),
-        }
+        &self.fns[&def_id]
     }
 
     pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
