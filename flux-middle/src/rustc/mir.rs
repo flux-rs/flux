@@ -177,6 +177,7 @@ pub enum CastKind {
 #[derive(Copy, Clone)]
 pub enum PointerCast {
     MutToConstPointer,
+    Unsize,
 }
 
 #[derive(Debug)]
@@ -246,6 +247,8 @@ pub enum Constant {
     /// We only support opaque chars, so no data stored here for now
     Char,
     Unit,
+    /// General catch-all for constants of a given Ty
+    Opaque(Ty),
 }
 
 pub enum FakeReadCause {
@@ -634,6 +637,7 @@ impl fmt::Debug for PointerCast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PointerCast::MutToConstPointer => write!(f, "MutToConstPointer"),
+            PointerCast::Unsize => write!(f, "Unsize"),
         }
     }
 }
@@ -669,6 +673,7 @@ impl fmt::Debug for Constant {
             Constant::Unit => write!(f, "()"),
             Constant::Str => write!(f, "\"<opaque str>\""),
             Constant::Char => write!(f, "\"<opaque char>\""),
+            Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
         }
     }
 }

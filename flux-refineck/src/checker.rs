@@ -972,7 +972,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
-            | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
+            | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
+            | CastKind::Pointer(mir::PointerCast::Unsize) => {
                 self.genv
                     .refine_default(&self.generics, to)
                     .with_span(self.body.span())?
@@ -1004,29 +1005,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => env.lookup_place(self.genv, rcx, p).with_span(source_span)?,
             Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
-            Operand::Constant(c) => Self::check_constant(c),
+            Operand::Constant(c) => self.check_constant(c)?,
         };
         Ok(rcx.unpack(&ty))
     }
 
-    fn check_constant(c: &Constant) -> Ty {
+    fn check_constant(&mut self, c: &Constant) -> Result<Ty, CheckerError> {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
-                Ty::indexed(BaseTy::Int(*int_ty), idx)
+                Ok(Ty::indexed(BaseTy::Int(*int_ty), idx))
             }
             Constant::Uint(n, uint_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
-                Ty::indexed(BaseTy::Uint(*uint_ty), idx)
+                Ok(Ty::indexed(BaseTy::Uint(*uint_ty), idx))
             }
             Constant::Bool(b) => {
                 let idx = Expr::constant(rty::Constant::from(*b));
-                Ty::indexed(BaseTy::Bool, idx)
+                Ok(Ty::indexed(BaseTy::Bool, idx))
             }
-            Constant::Float(_, float_ty) => Ty::float(*float_ty),
-            Constant::Unit => Ty::unit(),
-            Constant::Str => Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not),
-            Constant::Char => Ty::char(),
+            Constant::Float(_, float_ty) => Ok(Ty::float(*float_ty)),
+            Constant::Unit => Ok(Ty::unit()),
+            Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
+            Constant::Char => Ok(Ty::char()),
+            Constant::Opaque(ty) => {
+                self.genv
+                    .refine_default(&self.generics, ty)
+                    .with_span(self.body.span())
+            }
         }
     }
 
