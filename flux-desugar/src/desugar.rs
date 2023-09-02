@@ -504,9 +504,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match asyncness {
             surface::Async::Yes { res, span } => {
-                if let Some(item_id) = mk_res_impl_item_id(&res) {
+                if let Res::Def(DefKind::OpaqueTy, def_id) = res {
+                    let def_id = def_id.expect_local();
+                    let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
                     self.opaque_tys
-                        .insert(item_id.owner_id.def_id, mk_opaque_ty_for_async(output)?);
+                        .insert(def_id, mk_opaque_ty_for_async(output));
                     let (args, _) = self.desugar_generic_args(res, &[], binders)?;
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
                     Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
@@ -620,10 +622,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
             surface::TyKind::ImplTrait(res, bounds) => {
-                if let Some(item_id) = mk_res_impl_item_id(res) {
+                if let Res::Def(DefKind::OpaqueTy, def_id) = res {
+                    let def_id = def_id.expect_local();
+                    let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
                     let bounds = self.desugar_generic_bounds(bounds, binders)?;
-                    self.opaque_tys
-                        .insert(item_id.owner_id.def_id, fhir::OpaqueTy { bounds });
+                    self.opaque_tys.insert(def_id, fhir::OpaqueTy { bounds });
 
                     let (args, _) = self.desugar_generic_args(*res, &[], binders)?;
                     fhir::TyKind::OpaqueDef(item_id, args, false)
@@ -1499,7 +1502,7 @@ fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sor
     }
 }
 
-fn mk_opaque_ty_for_async(output: fhir::Ty) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+fn mk_opaque_ty_for_async(output: fhir::Ty) -> fhir::OpaqueTy {
     let bound = fhir::GenericBound::LangItemTrait(
         hir::LangItem::Future,
         vec![],
@@ -1508,20 +1511,7 @@ fn mk_opaque_ty_for_async(output: fhir::Ty) -> Result<fhir::OpaqueTy, ErrorGuara
             term: output,
         }],
     );
-    Ok(fhir::OpaqueTy { bounds: vec![bound] })
-}
-
-fn mk_res_impl_item_id(res: &Res) -> Option<hir::ItemId> {
-    if let Res::Def(DefKind::OpaqueTy, def_id) = res
-        && let Some(local_def_id) = def_id.as_local()
-    {
-        let owner_id = OwnerId { def_id: local_def_id };
-        let item_id = hir::ItemId { owner_id };
-        Some(item_id)
-
-    } else {
-        None
-    }
+    fhir::OpaqueTy { bounds: vec![bound] }
 }
 
 trait DesugarContext<'a, 'tcx> {
