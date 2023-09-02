@@ -10,7 +10,7 @@ use rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 use rustc_hir::def_id::DefId;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{AdtFlags, ClosureKind};
+use rustc_middle::ty::{AdtFlags, ClosureKind, ParamConst};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -164,13 +164,7 @@ pub struct ValueConst {
     pub val: usize,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub struct ParamConst {
-    pub index: u32,
-    pub name: Symbol,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Const {
     Param(ParamConst),
     Value(ValueConst),

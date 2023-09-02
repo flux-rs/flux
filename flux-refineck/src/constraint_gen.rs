@@ -394,11 +394,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.obligs.clone()
     }
 
-    fn insert_obligations(&mut self, obligs: List<rty::Clause>) {
-        for oblig in obligs.into_iter() {
-            self.obligs.push(oblig.clone());
-        }
-        // self.obligs.extend(obligs.clone().into_iter());
+    fn insert_obligations(&mut self, obligs: Vec<rty::Clause>) {
+        self.obligs.extend(obligs);
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
@@ -619,7 +616,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .genv
                 .item_bounds(alias_ty.def_id, self.span())?
                 .skip_binder();
-            for clause in &bounds.predicates {
+            for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind().skip_binder() {
                     let ty1 = self.project_bty(ty, pred.alias_ty.def_id);
                     let ty2 = pred.term;
@@ -734,18 +731,17 @@ fn mk_generator_obligations(
     generator_args: &GenericArgs,
     opaque_def_id: &DefId,
     span: Span,
-) -> Result<List<rty::Clause>, CheckerErrKind> {
+) -> Result<Vec<rty::Clause>, CheckerErrKind> {
     let bounds = genv.item_bounds(*opaque_def_id, span)?;
-    let pred = if let rty::ClauseKind::Projection(proj) =
-        bounds.skip_binder().predicates[0].kind().skip_binder()
-    {
-        let output = proj.term;
-        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
-    } else {
-        panic!("mk_generator_obligations: unexpected bounds")
-    };
+    let pred =
+        if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind().skip_binder() {
+            let output = proj.term;
+            GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
+        } else {
+            panic!("mk_generator_obligations: unexpected bounds")
+        };
     let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred), List::empty());
-    Ok(List::from_vec(vec![clause]))
+    Ok(vec![clause])
 }
 
 fn mk_obligations(

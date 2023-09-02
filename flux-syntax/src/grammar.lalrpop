@@ -200,7 +200,7 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {
-    <lo:@L> <bounded_ty:Ty> ":" <bounds:Bounds>  <hi:@R> => {
+    <lo:@L> <bounded_ty:Ty> ":" <bounds:GenericBounds>  <hi:@R> => {
         surface::WhereBoundPredicate {
             span: mk_span(lo, hi),
             bounded_ty,
@@ -209,7 +209,7 @@ WhereBoundPredicate: surface::WhereBoundPredicate = {
     }
 }
 
-Bounds: surface::Bounds = {
+GenericBounds: surface::GenericBounds = {
     <bound:Path> => vec![bound]
 }
 
@@ -250,7 +250,7 @@ TyKind: surface::TyKind = {
         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
 
-    "impl" <bounds:Bounds> => surface::TyKind::ImplTrait((), bounds),
+    "impl" <bounds:GenericBounds> => surface::TyKind::ImplTrait((), bounds),
 }
 
 #[inline]

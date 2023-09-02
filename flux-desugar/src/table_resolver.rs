@@ -1,7 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, Bounds, Ident, Path, Ty};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, Ty};
 use hir::{def::DefKind, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -134,7 +134,10 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
     }
 
-    fn resolve_bounds(&self, bounds: surface::Bounds) -> Result<Bounds<Res>, ErrorGuaranteed> {
+    fn resolve_bounds(
+        &self,
+        bounds: surface::GenericBounds,
+    ) -> Result<GenericBounds<Res>, ErrorGuaranteed> {
         let bounds = bounds
             .into_iter()
             .map(|bound| self.resolve_path(bound))

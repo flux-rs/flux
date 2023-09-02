@@ -6,6 +6,7 @@ use hir::{def::DefKind, OwnerId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
 use rustc_errors::IntoDiagnostic;
+use rustc_hash::FxHashMap;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
@@ -137,7 +138,8 @@ pub fn lift_enum_variant_def(
     let span = ident.span;
     let path = fhir::Path {
         res: fhir::Res::SelfTyAlias { alias_to: enum_id.to_def_id(), is_trait_impl: false },
-        generics: vec![],
+        args: vec![],
+        bindings: vec![],
         refine: vec![],
         span,
     };
@@ -148,41 +150,50 @@ pub fn lift_enum_variant_def(
     Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
 }
 
-pub fn lift_fn_sig(
+// FIXME(nilehmann) this is wrong, we should lift generic predicates in the same `LiftCtxt` than
+// then owned item to generate appropriate `FluxOwnerId`s
+pub fn lift_generic_predicates(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
-) -> Result<fhir::FnSig, ErrorGuaranteed> {
+) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
+    let generics = tcx.hir().get_generics(def_id).unwrap();
+    LiftCtxt::new(tcx, sess, owner_id).lift_generic_predicates(generics)
+}
+
+pub fn lift_fn(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    owner_id: OwnerId,
+) -> Result<fhir::FnInfo, ErrorGuaranteed> {
     let cx = LiftCtxt::new(tcx, sess, owner_id);
-    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-    let fn_sig = tcx
-        .hir()
+
+    let def_id = owner_id.def_id;
+    let hir = tcx.hir();
+    let hir_id = hir.local_def_id_to_hir_id(def_id);
+    let fn_sig = hir
         .fn_sig_by_hir_id(hir_id)
         .expect("item does not have a `FnDecl`");
+    let generics = tcx.hir().get_generics(def_id).unwrap();
 
-    let args = fn_sig
-        .decl
-        .inputs
-        .iter()
-        .map(|ty| cx.lift_ty(ty))
-        .try_collect_exhaust()?;
-
-    let output = fhir::FnOutput {
-        params: vec![],
-        ensures: vec![],
-        ret: cx.lift_fn_ret_ty(&fn_sig.decl.output)?,
+    let fn_sig = cx.lift_fn_sig(fn_sig)?;
+    let fn_preds = cx.lift_generic_predicates(generics)?;
+    // FIXME(nilehmann) this only works for RPIT. We should generalize it for other `impl Trait` origins
+    let opaque_tys = if tcx.hir().maybe_body_owned_by(def_id).is_some() {
+        tcx.opaque_types_defined_by(def_id)
+            .iter()
+            .map(|opaque_ty_id| {
+                let hir::ItemKind::OpaqueTy(opaque_ty) = hir.expect_item(*opaque_ty_id).kind else {
+                    bug!("expected opaque type")
+                };
+                Ok((*opaque_ty_id, cx.lift_opaque_ty(opaque_ty)?))
+            })
+            .try_collect()?
+    } else {
+        FxHashMap::default()
     };
-
-    let fn_sig = fhir::FnSig {
-        params: vec![],
-        requires: vec![],
-        args,
-        output,
-        lifted: true,
-        span: fn_sig.span,
-    };
-    Ok(fn_sig)
+    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
 }
 
 pub fn lift_self_ty(
@@ -207,7 +218,8 @@ pub fn lift_self_ty(
         let span = item.ident.span;
         let path = fhir::Path {
             res: fhir::Res::Def(def_kind, owner_id.to_def_id()),
-            generics: cx.generic_params_into_args(generics)?,
+            args: cx.generic_params_into_args(generics)?,
+            bindings: vec![],
             refine: vec![],
             span,
         };
@@ -225,6 +237,106 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+    }
+
+    pub fn lift_generic_predicates(
+        &self,
+        generics: &hir::Generics,
+    ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
+        let predicates = generics
+            .predicates
+            .iter()
+            .map(|pred| self.lift_where_predicate(pred))
+            .try_collect_exhaust()?;
+        Ok(fhir::GenericPredicates { predicates })
+    }
+
+    fn lift_where_predicate(
+        &self,
+        pred: &hir::WherePredicate,
+    ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
+        if let hir::WherePredicate::BoundPredicate(bound) = pred {
+            if !bound.bound_generic_params.is_empty() {
+                return self.emit_unsupported(&format!("unsupported where predicate: `{bound:?}`"));
+            }
+            let bounded_ty = self.lift_ty(bound.bounded_ty)?;
+            let bounds = bound
+                .bounds
+                .iter()
+                .map(|bound| self.lift_generic_bound(bound))
+                .try_collect()?;
+
+            Ok(fhir::WhereBoundPredicate { bounded_ty, bounds, span: bound.span })
+        } else {
+            self.emit_unsupported(&format!("unsupported where predicate: `{pred:?}`"))
+        }
+    }
+
+    fn lift_generic_bound(
+        &self,
+        bound: &hir::GenericBound,
+    ) -> Result<fhir::GenericBound, ErrorGuaranteed> {
+        match bound {
+            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None)
+                if poly_trait_ref.bound_generic_params.is_empty() =>
+            {
+                Ok(fhir::GenericBound::Trait(
+                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    fhir::TraitBoundModifier::None,
+                ))
+            }
+            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe)
+                if poly_trait_ref.bound_generic_params.is_empty() =>
+            {
+                Ok(fhir::GenericBound::Trait(
+                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    fhir::TraitBoundModifier::Maybe,
+                ))
+            }
+            hir::GenericBound::LangItemTrait(lang_item, .., args) => {
+                Ok(fhir::GenericBound::LangItemTrait(
+                    *lang_item,
+                    self.lift_generic_args(args.args)?,
+                    self.lift_type_bindings(args.bindings)?,
+                ))
+            }
+            _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
+        }
+    }
+
+    fn lift_opaque_ty(&self, opaque_ty: &hir::OpaqueTy) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+        Ok(fhir::OpaqueTy {
+            bounds: opaque_ty
+                .bounds
+                .iter()
+                .map(|bound| self.lift_generic_bound(bound))
+                .try_collect()?,
+        })
+    }
+
+    fn lift_fn_sig(&self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig, ErrorGuaranteed> {
+        let args = fn_sig
+            .decl
+            .inputs
+            .iter()
+            .map(|ty| self.lift_ty(ty))
+            .try_collect_exhaust()?;
+
+        let output = fhir::FnOutput {
+            params: vec![],
+            ensures: vec![],
+            ret: self.lift_fn_ret_ty(&fn_sig.decl.output)?,
+        };
+
+        let fn_sig = fhir::FnSig {
+            params: vec![],
+            requires: vec![],
+            args,
+            output,
+            lifted: true,
+            span: fn_sig.span,
+        };
+        Ok(fn_sig)
     }
 
     fn lift_fn_ret_ty(&self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -300,7 +412,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn lift_qpath(&self, qpath: &hir::QPath) -> Result<fhir::Ty, ErrorGuaranteed> {
         match qpath {
-            hir::QPath::Resolved(self_ty, path) => self.lift_path(*self_ty, path),
+            hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(*self_ty, path),
             hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
                 self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
@@ -310,11 +422,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_path(
-        &self,
-        self_ty: Option<&hir::Ty>,
-        path: &hir::Path,
-    ) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn lift_path(&self, path: &hir::Path) -> Result<fhir::Path, ErrorGuaranteed> {
         let res = match path.res {
             hir::def::Res::Def(kind, def_id) => fhir::Res::Def(kind, def_id),
             hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
@@ -329,12 +437,22 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 ));
             }
         };
-        let generics = match path.segments.last().unwrap().args {
-            Some(args) => self.lift_generic_args(args.args)?,
-            None => vec![],
+        let (args, bindings) = match path.segments.last().unwrap().args {
+            Some(args) => {
+                (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
+            }
+            None => (vec![], vec![]),
         };
 
-        let path = fhir::Path { res, generics, refine: vec![], span: path.span };
+        Ok(fhir::Path { res, args, bindings, refine: vec![], span: path.span })
+    }
+
+    fn lift_path_to_ty(
+        &self,
+        self_ty: Option<&hir::Ty>,
+        path: &hir::Path,
+    ) -> Result<fhir::Ty, ErrorGuaranteed> {
+        let path = self.lift_path(path)?;
         let self_ty = self_ty
             .map(|ty| Ok(Box::new(self.lift_ty(ty)?)))
             .transpose()?;
@@ -370,6 +488,24 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(lifted)
     }
 
+    fn lift_type_bindings(
+        &self,
+        bindings: &[hir::TypeBinding<'_>],
+    ) -> Result<Vec<fhir::TypeBinding>, ErrorGuaranteed> {
+        let mut lifted = vec![];
+        for binding in bindings {
+            let hir::TypeBindingKind::Equality { term } = binding.kind else {
+                return self.emit_unsupported("unsupported type binding");
+            };
+            let hir::Term::Ty(term) = term else {
+                return self.emit_unsupported("unsupported type binding");
+            };
+            let term = self.lift_ty(term)?;
+            lifted.push(fhir::TypeBinding { ident: binding.ident, term });
+        }
+        Ok(lifted)
+    }
+
     fn lift_array_len(&self, len: &hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.tcx.hir().body(anon_const.body),
@@ -393,8 +529,13 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
                     let res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());
-                    let path =
-                        fhir::Path { res, generics: vec![], refine: vec![], span: param.span };
+                    let path = fhir::Path {
+                        res,
+                        args: vec![],
+                        bindings: vec![],
+                        refine: vec![],
+                        span: param.span,
+                    };
                     let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
                     let ty = fhir::Ty {
                         kind: fhir::TyKind::BaseTy(bty),

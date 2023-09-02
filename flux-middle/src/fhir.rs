@@ -23,6 +23,7 @@ use std::{
     fmt,
 };
 
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -31,7 +32,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, OwnerId,
+    ItemId, LangItem, OwnerId,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -94,27 +95,35 @@ pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
 pub type ItemPredicates = FxHashMap<LocalDefId, GenericPredicates>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GenericPredicates {
-    pub parent: Option<DefId>,
-    pub predicates: Vec<ClauseKind>,
+    pub predicates: Vec<WhereBoundPredicate>,
 }
 
-#[derive(Debug, Clone)]
-pub enum ClauseKind {
-    Projection(ProjectionPredicate),
+#[derive(Debug)]
+pub struct WhereBoundPredicate {
+    pub span: Span,
+    pub bounded_ty: Ty,
+    pub bounds: GenericBounds,
 }
 
-#[derive(Debug, Clone)]
-pub struct ProjectionPredicate {
-    pub projection_ty: AliasTy,
-    pub term: Ty,
+pub type GenericBounds = Vec<GenericBound>;
+
+#[derive(Debug)]
+pub enum GenericBound {
+    Trait(Path, TraitBoundModifier),
+    LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
 }
 
-#[derive(Debug, Clone)]
-pub struct AliasTy {
-    pub args: Ty,
-    pub def_id: DefId,
+#[derive(Debug, Copy, Clone)]
+pub enum TraitBoundModifier {
+    None,
+    Maybe,
+}
+
+#[derive(Debug)]
+pub struct OpaqueTy {
+    pub bounds: GenericBounds,
 }
 
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
@@ -124,7 +133,7 @@ pub struct AliasTy {
 pub struct Map {
     generics: FxHashMap<LocalDefId, Generics>,
     predicates: ItemPredicates,
-    item_bounds: ItemPredicates,
+    opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: FxHashMap<Symbol, SortDecl>,
     flux_items: FxHashMap<Symbol, FluxItem>,
@@ -207,7 +216,7 @@ pub struct VariantRet {
 pub struct FnInfo {
     pub fn_sig: FnSig,
     pub fn_preds: GenericPredicates,
-    pub fn_impls: ItemPredicates,
+    pub opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
 }
 
 pub struct FnSig {
@@ -400,9 +409,16 @@ pub enum QPath {
 #[derive(Clone)]
 pub struct Path {
     pub res: Res,
-    pub generics: Vec<GenericArg>,
+    pub args: Vec<GenericArg>,
+    pub bindings: Vec<TypeBinding>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
+}
+
+#[derive(Clone)]
+pub struct TypeBinding {
+    pub ident: SurfaceIdent,
+    pub term: Ty,
 }
 
 #[derive(Clone)]
@@ -822,6 +838,16 @@ impl rustc_errors::IntoDiagnosticArg for &Path {
     }
 }
 
+impl GenericArg {
+    pub fn expect_type(&self) -> &Ty {
+        if let GenericArg::Type(ty) = self {
+            ty
+        } else {
+            bug!("expected `GenericArg::Type`")
+        }
+    }
+}
+
 impl Map {
     pub fn new() -> Self {
         let mut me = Self::default();
@@ -833,23 +859,24 @@ impl Map {
         self.generics.insert(def_id, generics);
     }
 
-    pub fn insert_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
+    pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
         self.predicates.insert(def_id, predicates);
     }
-    pub fn insert_item_bounds(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
-        self.item_bounds.insert(def_id, predicates);
+
+    pub fn insert_opaque_tys(&mut self, opaque_tys: FxHashMap<LocalDefId, OpaqueTy>) {
+        self.opaque_tys.extend(opaque_tys);
     }
 
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
         self.generics.get(&def_id)
     }
 
-    pub fn get_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
+    pub fn get_generic_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
         self.predicates.get(&def_id)
     }
 
-    pub fn get_item_bounds(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
-        self.item_bounds.get(&def_id)
+    pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
+        self.opaque_tys.get(&def_id)
     }
 
     pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
@@ -1310,8 +1337,14 @@ impl fmt::Debug for Path {
             }
             Res::SelfTyAlias { .. } => write!(f, "Self")?,
         }
-        if !self.generics.is_empty() {
-            write!(f, "<{:?}>", self.generics.iter().format(", "))?;
+        let args: Vec<_> = self
+            .args
+            .iter()
+            .map(|a| a as &dyn std::fmt::Debug)
+            .chain(self.bindings.iter().map(|b| b as &dyn std::fmt::Debug))
+            .collect();
+        if !args.is_empty() {
+            write!(f, "{:?}", args)?;
         }
         if !self.refine.is_empty() {
             write!(f, "({:?})", self.refine.iter().format(", "))?;
@@ -1326,6 +1359,12 @@ impl fmt::Debug for GenericArg {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
         }
+    }
+}
+
+impl fmt::Debug for TypeBinding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} = {:?}", self.ident, self.term)
     }
 }
 

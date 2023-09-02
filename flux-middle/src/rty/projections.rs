@@ -24,24 +24,18 @@ use crate::{
     rustc::{self},
 };
 
-// type AliasTyKey = (DefId, Vec<GenericArg>);
-// type AliasTyKey = AliasTy;
 type AliasTyKey = String;
 
 impl AliasTy {
     fn key(&self) -> AliasTyKey {
         // TODO:ALIASKEYHACK: super janky hack, Nico -- why is the plain hasher not working? Maybe List<GenericArg> is not *really* hashable?
         format!("{:?}", self)
-        // without_constrs(&self)
-        // let args = self.args.iter().map(|arg| arg.clone()).collect();
-        // (self.def_id, args)
     }
 }
 
 struct ProjectionTable<'sess, 'tcx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
     def_id: DefId,
-    // preds: FxHashMap<AliasTy, Ty>,
     preds: FxHashMap<AliasTyKey, Ty>,
 }
 
@@ -54,18 +48,18 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
 
-        let mut gps = vec![];
+        let mut vec = vec![];
         // 1. Insert generic predicates of the callsite `def_id`
-        gps.push(genv.predicates_of(def_id)?.skip_binder());
+        vec.push(genv.predicates_of(def_id)?.skip_binder().predicates);
         // 2. Insert generic predicates of the opaque-types
         let opaque_dids = t.opaque_def_ids();
 
         for did in opaque_dids.iter() {
-            gps.push(genv.item_bounds(*did, span)?.skip_binder());
+            vec.push(genv.item_bounds(*did, span)?.skip_binder());
         }
 
-        for predicates in gps {
-            for pred in &predicates.predicates {
+        for clauses in vec {
+            for pred in &clauses {
                 if pred.kind.vars().is_empty() {
                     if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
                         match preds.insert(proj_pred.alias_ty.key(), proj_pred.term) {
@@ -360,7 +354,6 @@ pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     t: &T,
     span: Span,
 ) -> Result<T, QueryErr> {
-    // add opaques to table then normalize_from_preds will "just work"?
     let mut table = ProjectionTable::new(genv, def_id, t, span)?;
     Ok(t.fold_with(&mut table))
 }

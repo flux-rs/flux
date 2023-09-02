@@ -17,7 +17,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{self, fold::TypeFoldable, refining, ESpan, INNERMOST},
-    rustc::{self, lowering, ty::ParamConst},
+    rustc::{self, lowering},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -27,7 +27,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
     PrimTy,
 };
-use rustc_middle::ty::{BoundVar, TyCtxt};
+use rustc_middle::ty::{AssocItem, AssocKind, BoundVar, TyCtxt};
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
@@ -93,37 +93,38 @@ pub(crate) fn expand_type_alias(
 
 pub(crate) fn conv_generic_predicates(
     genv: &GlobalEnv,
+    def_id: DefId,
     predicates: &fhir::GenericPredicates,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::GenericPredicates> {
-    let parent = predicates.parent;
-    let mut preds = vec![];
-    for fhir::ClauseKind::Projection(proj) in &predicates.predicates {
-        let ck = rty::ClauseKind::Projection(conv_projection_predicate(genv, proj, wfckresults)?);
-        preds.push(rty::Clause::new(ck, List::empty()));
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let env = &mut Env::new(&[]);
+
+    let mut clauses = vec![];
+    for pred in &predicates.predicates {
+        let bounded_ty = cx.conv_ty(env, &pred.bounded_ty)?;
+        for clause in cx.conv_generic_bounds(env, bounded_ty, &pred.bounds)? {
+            clauses.push(clause);
+        }
     }
-    Ok(rty::GenericPredicates { parent, predicates: List::from_vec(preds) })
+    let parent = genv.tcx.opt_parent(def_id);
+    Ok(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) })
 }
 
-fn conv_projection_predicate(
+pub(crate) fn conv_opaque_ty(
     genv: &GlobalEnv,
-    proj: &fhir::ProjectionPredicate,
+    def_id: DefId,
+    opaque_ty: &fhir::OpaqueTy,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::ProjectionPredicate> {
-    let ty = conv_ty(genv, &proj.term, wfckresults)?.skip_binder();
-    let projection_ty = conv_alias_ty(genv, &proj.projection_ty, wfckresults)?;
-    Ok(rty::ProjectionPredicate { term: ty, alias_ty: projection_ty })
-}
-
-fn conv_alias_ty(
-    genv: &GlobalEnv,
-    alias_ty: &fhir::AliasTy,
-    wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::AliasTy> {
-    let ty = conv_ty(genv, &alias_ty.args, wfckresults)?.skip_binder();
-    let args = List::singleton(rty::GenericArg::Ty(ty));
-    let res = rty::AliasTy { args, def_id: alias_ty.def_id };
-    Ok(res)
+) -> QueryResult<List<rty::Clause>> {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let env = &mut Env::new(&[]);
+    let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
+    let self_ty = rty::Ty::opaque(def_id, args);
+    Ok(cx
+        .conv_generic_bounds(env, self_ty, &opaque_ty.bounds)?
+        .into_iter()
+        .collect())
 }
 
 pub(crate) fn conv_generics(
@@ -272,6 +273,110 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Self { genv, late_bound_vars_map, wfckresults }
     }
 
+    fn conv_generic_bounds(
+        &self,
+        env: &mut Env,
+        bounded_ty: rty::Ty,
+        bounds: &fhir::GenericBounds,
+    ) -> QueryResult<Vec<rty::Clause>> {
+        let mut clauses = vec![];
+        for bound in bounds {
+            self.conv_generic_bound(env, &bounded_ty, bound, &mut clauses)?;
+        }
+        Ok(clauses)
+    }
+
+    fn conv_generic_bound(
+        &self,
+        env: &mut Env,
+        bounded_ty: &rty::Ty,
+        bound: &fhir::GenericBound,
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        match bound {
+            fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
+                let fhir::Res::Def(DefKind::Trait, trait_def_id) = trait_ref.res else {
+                    span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
+                };
+                if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_def_id) {
+                    self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
+                } else {
+                    self.conv_type_bindings(
+                        env,
+                        bounded_ty,
+                        trait_def_id,
+                        &trait_ref.bindings,
+                        clauses,
+                    )
+                }
+            }
+            // Maybe bounds are only supported for `?Sized`, and the effect is just to relax the
+            // default which is `Sized`, so we just skip it here.
+            fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => Ok(()),
+            fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
+                let trait_def_id = self.genv.tcx.require_lang_item(*lang_item, None);
+                self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)
+            }
+        }
+    }
+
+    fn conv_fn_bound(
+        &self,
+        env: &mut Env,
+        self_ty: &rty::Ty,
+        trait_ref: &fhir::Path,
+        kind: rty::ClosureKind,
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        let pred = rty::FnTraitPredicate {
+            self_ty: self_ty.clone(),
+            tupled_args: self.conv_ty(env, trait_ref.args[0].expect_type())?,
+            output: self.conv_ty(env, &trait_ref.bindings[0].term)?,
+            kind,
+        };
+        clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred), List::empty()));
+        Ok(())
+    }
+
+    fn conv_type_bindings(
+        &self,
+        env: &mut Env,
+        bounded_ty: &rty::Ty,
+        trait_def_id: DefId,
+        bindings: &[fhir::TypeBinding],
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        for binding in bindings {
+            let assoc_item = self
+                .trait_defines_associated_item_named(trait_def_id, AssocKind::Type, binding.ident)
+                .ok_or_else(|| {
+                    self.genv
+                        .sess
+                        .emit_err(errors::AssocTypeNotFound::new(binding.ident))
+                })?;
+            let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
+            let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
+                alias_ty,
+                term: self.conv_ty(env, &binding.term)?,
+            });
+            clauses.push(rty::Clause::new(kind, List::empty()));
+        }
+        Ok(())
+    }
+
+    fn trait_defines_associated_item_named(
+        &self,
+        trait_def_id: DefId,
+        assoc_kind: AssocKind,
+        assoc_name: SurfaceIdent,
+    ) -> Option<&AssocItem> {
+        self.genv
+            .tcx
+            .associated_items(trait_def_id)
+            .find_by_name_and_kind(self.genv.tcx, assoc_name, assoc_kind, trait_def_id)
+    }
+
     fn conv_fn_output(
         &self,
         env: &mut Env,
@@ -342,36 +447,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .map(|field_def| cx.conv_ty(&mut env, &field_def.ty))
                 .try_collect()?;
 
-            let args = genv
-                .generics_of(def_id)?
-                .params
-                .iter()
-                .map(|param| {
-                    match param.kind {
-                        rty::GenericParamDefKind::Type { .. } => {
-                            let param_ty = rty::ParamTy { index: param.index, name: param.name };
-                            rty::GenericArg::Ty(rty::Ty::param(param_ty))
-                        }
-                        rty::GenericParamDefKind::BaseTy => {
-                            bug!("generic base type in struct definition not suported")
-                        }
-                        rty::GenericParamDefKind::Lifetime => {
-                            let def_id = param.def_id;
-                            let index = def_id_to_param_index(genv.tcx, def_id.expect_local());
-                            let re = rty::ReEarlyBound(rty::EarlyBoundRegion {
-                                def_id,
-                                index,
-                                name: param.name,
-                            });
-                            rty::GenericArg::Lifetime(re)
-                        }
-                        rty::GenericParamDefKind::Const { .. } => {
-                            let cnst = ParamConst { index: param.index, name: param.name };
-                            rty::GenericArg::Const(rty::Const::Param(cnst))
-                        }
-                    }
-                })
-                .collect_vec();
+            let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
 
             let vars = env.pop_layer().into_bound_vars();
             let idx = rty::Expr::tuple(
@@ -467,7 +543,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
-                assert!(path.generics.is_empty(), "generic associated types are not supported");
+                assert!(path.args.is_empty(), "generic associated types are not supported");
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
                 let alias_ty = rty::AliasTy { args, def_id };
@@ -589,7 +665,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, &path.generics)?;
+                let args = self.conv_generic_args(env, *did, &path.args)?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
@@ -603,7 +679,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .replace_bound_expr(&idx.expr))
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, &path.generics)?;
+                let generics = self.conv_generic_args(env, *def_id, &path.args)?;
                 let refine = path
                     .refine
                     .iter()
@@ -1009,4 +1085,25 @@ fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId
             }
         })
         .collect()
+}
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use flux_middle::fhir::SurfaceIdent;
+    use rustc_span::Span;
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_assoc_type_not_found, code = "FLUX")]
+    #[note]
+    pub(super) struct AssocTypeNotFound {
+        #[primary_span]
+        #[label]
+        span: Span,
+    }
+
+    impl AssocTypeNotFound {
+        pub(super) fn new(ident: SurfaceIdent) -> Self {
+            Self { span: ident.span }
+        }
+    }
 }
