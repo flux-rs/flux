@@ -11,15 +11,15 @@ pub struct MyTy;
 impl MyTrait for MyTy {
     #[flux::sig(fn () -> i32[10])]
     fn foo() -> i32 {
-        10
+        1 //~ ERROR refinement type
     }
 
     fn bar() {}
 }
 
-#[flux::sig(fn () -> i32[10])]
+#[flux::sig(fn () -> i32[100])]
 pub fn test() -> i32 {
     let n = MyTy::foo();
     MyTy::bar();
-    n
+    n //~ ERROR refinement type
 }
