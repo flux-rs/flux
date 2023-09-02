@@ -294,7 +294,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult<()> {
         match bound {
-            fhir::GenericBound::Trait(trait_ref) => {
+            fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
                 let fhir::Res::Def(DefKind::Trait, trait_def_id) = trait_ref.res else {
                     span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
                 };
@@ -310,6 +310,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     )
                 }
             }
+            // Maybe bounds are only supported for `?Sized`, and the effect is just to relax the
+            // default which is `Sized`, so we just skip it here.
+            fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => Ok(()),
             fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
                 let trait_def_id = self.genv.tcx.require_lang_item(*lang_item, None);
                 self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)

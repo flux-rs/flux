@@ -111,8 +111,14 @@ pub type GenericBounds = Vec<GenericBound>;
 
 #[derive(Debug)]
 pub enum GenericBound {
-    Trait(Path),
+    Trait(Path, TraitBoundModifier),
     LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
+}
+
+#[derive(Debug)]
+pub enum TraitBoundModifier {
+    None,
+    Maybe,
 }
 
 #[derive(Debug)]

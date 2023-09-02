@@ -487,7 +487,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::GenericBounds, ErrorGuaranteed> {
         bounds
             .iter()
-            .map(|bound| Ok(fhir::GenericBound::Trait(self.desugar_path(bound, binders)?)))
+            .map(|bound| {
+                Ok(fhir::GenericBound::Trait(
+                    self.desugar_path(bound, binders)?,
+                    fhir::TraitBoundModifier::None,
+                ))
+            })
             .try_collect_exhaust()
     }
 

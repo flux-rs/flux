@@ -275,7 +275,18 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None)
                 if poly_trait_ref.bound_generic_params.is_empty() =>
             {
-                Ok(fhir::GenericBound::Trait(self.lift_path(poly_trait_ref.trait_ref.path)?))
+                Ok(fhir::GenericBound::Trait(
+                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    fhir::TraitBoundModifier::None,
+                ))
+            }
+            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe)
+                if poly_trait_ref.bound_generic_params.is_empty() =>
+            {
+                Ok(fhir::GenericBound::Trait(
+                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    fhir::TraitBoundModifier::Maybe,
+                ))
             }
             hir::GenericBound::LangItemTrait(lang_item, .., args) => {
                 Ok(fhir::GenericBound::LangItemTrait(
