@@ -173,7 +173,7 @@ impl<'sess> Resolver<'sess> {
             })
             .try_collect_exhaust();
 
-        let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
+        let returns = self.resolve_fn_ret_ty(fn_sig.returns);
 
         Ok(surface::FnSig {
             asyncness: asyncness?,
@@ -207,6 +207,16 @@ impl<'sess> Resolver<'sess> {
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(bind, ty) => Ok(surface::Arg::Ty(bind, self.resolve_ty(ty)?)),
+        }
+    }
+
+    fn resolve_fn_ret_ty(
+        &self,
+        returns: surface::FnRetTy,
+    ) -> Result<surface::FnRetTy<Res>, ErrorGuaranteed> {
+        match returns {
+            surface::FnRetTy::Default(span) => Ok(surface::FnRetTy::Default(span)),
+            surface::FnRetTy::Ty(ty) => Ok(surface::FnRetTy::Ty(self.resolve_ty(ty)?)),
         }
     }
 

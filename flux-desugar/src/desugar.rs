@@ -249,6 +249,7 @@ pub fn desugar_fn_sig(
     fn_sig: &surface::FnSig<Res>,
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
     let mut binders = Binders::new();
+    let mut requires = vec![];
 
     // Desugar inputs
     binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
@@ -256,28 +257,20 @@ pub fn desugar_fn_sig(
 
     if let Some(e) = &fn_sig.requires {
         let pred = cx.as_expr_ctxt().desugar_expr(&binders, e)?;
-        cx.requires.push(fhir::Constraint::Pred(pred));
+        requires.push(fhir::Constraint::Pred(pred));
     }
 
     // Bail out if there's an error in the arguments to avoid confusing error messages
     let args = fn_sig
         .args
         .iter()
-        .map(|arg| cx.desugar_fun_arg(arg, &mut binders))
+        .map(|arg| cx.desugar_fun_arg(arg, &mut binders, &mut requires))
         .try_collect_exhaust()?;
 
     // Desugar output
     binders.push_layer();
     binders.gather_output_params_fn_sig(early_cx, fn_sig)?;
-    let ret = match &fn_sig.returns {
-        Some(returns) => cx.desugar_ty(None, returns, &mut binders),
-        None => {
-            let kind = fhir::TyKind::Tuple(vec![]);
-            let span = fn_sig.span.with_lo(fn_sig.span.hi());
-            Ok(fhir::Ty { kind, fhir_id: cx.next_fhir_id(), span })
-        }
-    };
-    let ret = cx.desugar_asyncness(fn_sig.asyncness, ret?, &mut binders);
+    let ret = cx.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, &mut binders);
     let ensures = fn_sig
         .ensures
         .iter()
@@ -297,7 +290,7 @@ pub fn desugar_fn_sig(
 
     let hir_fn_sig = fhir::FnSig {
         params: binders.pop_layer().into_params(&cx),
-        requires: cx.requires,
+        requires,
         args,
         output,
         span: fn_sig.span,
@@ -311,7 +304,6 @@ pub fn desugar_fn_sig(
 
 pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
-    requires: Vec<fhir::Constraint>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     opaque_tys: FxHashMap<LocalDefId, fhir::OpaqueTy>,
     owner: OwnerId,
@@ -368,7 +360,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, owner: OwnerId) -> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt {
             early_cx,
-            requires: vec![],
             owner,
             local_id_gen: IndexGen::new(),
             opaque_tys: FxHashMap::default(),
@@ -421,6 +412,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         arg: &surface::Arg<Res>,
         binders: &mut Binders,
+        requires: &mut Vec<fhir::Constraint>,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
@@ -449,7 +441,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let span = loc.span;
                 let loc = self.as_expr_ctxt().resolve_loc(binders, *loc)?;
                 let ty = self.desugar_ty(None, ty, binders)?;
-                self.requires.push(fhir::Constraint::Type(loc, ty));
+                requires.push(fhir::Constraint::Type(loc, ty));
                 let lft = self.mk_lifetime_hole(DUMMY_SP);
                 let kind = fhir::TyKind::Ptr(lft, loc);
                 Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
@@ -499,7 +491,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_asyncness(
         &mut self,
         asyncness: surface::Async<Res>,
-        output: fhir::Ty,
+        returns: &surface::FnRetTy<Res>,
         binders: &mut Binders,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match asyncness {
@@ -507,6 +499,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 if let Res::Def(DefKind::OpaqueTy, def_id) = res {
                     let def_id = def_id.expect_local();
                     let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
+                    let output = self.desugar_fn_ret_ty(returns, binders)?;
                     self.opaque_tys
                         .insert(def_id, mk_opaque_ty_for_async(output));
                     let (args, _) = self.desugar_generic_args(res, &[], binders)?;
@@ -516,7 +509,21 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     span_bug!(span, "invalid resolution for asyncness")
                 }
             }
-            surface::Async::No => Ok(output),
+            surface::Async::No => Ok(self.desugar_fn_ret_ty(returns, binders)?),
+        }
+    }
+
+    fn desugar_fn_ret_ty(
+        &mut self,
+        returns: &surface::FnRetTy<Res>,
+        binders: &mut Binders,
+    ) -> Result<fhir::Ty, ErrorGuaranteed> {
+        match returns {
+            surface::FnRetTy::Ty(ty) => self.desugar_ty(None, ty, binders),
+            surface::FnRetTy::Default(span) => {
+                let kind = fhir::TyKind::Tuple(vec![]);
+                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: *span })
+            }
         }
     }
 
@@ -1199,8 +1206,8 @@ impl Binders {
         early_cx: &EarlyCtxt,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(ret_ty) = &fn_sig.returns {
-            self.gather_params_ty(early_cx, None, ret_ty, TypePos::Output)?;
+        if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
+            self.gather_params_ty(early_cx, None, ty, TypePos::Output)?;
         }
         for (_, ty) in &fn_sig.ensures {
             self.gather_params_ty(early_cx, None, ty, TypePos::Output)?;
