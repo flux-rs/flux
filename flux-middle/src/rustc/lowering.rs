@@ -496,10 +496,11 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 scalar_int_to_constant(tcx, scalar, ty)
             }
-            (
-                /* ConstantKind::Val(ConstValue::Slice { .. }, _)*/ _,
-                TyKind::Ref(_, ref_ty, _),
-            ) if ref_ty.is_str() => Some(Constant::Str),
+            (ConstantKind::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
+                if ref_ty.is_str() =>
+            {
+                Some(Constant::Str)
+            }
             (ConstantKind::Ty(c), _) => {
                 if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
                     scalar_int_to_constant(tcx, scalar, c.ty())
@@ -508,11 +509,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
-            (_, _) => {
-                // panic!("lower_constant: {kind:#?} {ty:#?}")
-                // let ty = lower_ty(tcx, ty)?;
-                Some(Constant::Opaque(lower_ty(tcx, ty)?))
-            }
+            (_, _) => Some(Constant::Opaque(lower_ty(tcx, ty)?)),
         }
         .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
     }
