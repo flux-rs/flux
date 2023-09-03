@@ -146,7 +146,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         def_id: DefId,
         span: Span,
-    ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+    ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.queries.item_bounds(self, def_id, span)
     }
 

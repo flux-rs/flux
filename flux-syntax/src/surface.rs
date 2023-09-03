@@ -152,13 +152,19 @@ pub struct FnSig<R = ()> {
     /// example: `i32<@n>`
     pub args: Vec<Arg<R>>,
     /// example `i32{v:v >= 0}`
-    pub returns: Option<Ty<R>>,
+    pub returns: FnRetTy<R>,
     /// example: `*x: i32{v. v = n+1}`
     pub ensures: Vec<(Ident, Ty<R>)>,
     /// example: `where I: Iterator<Item = i32{v:0<=v}>`
     pub predicates: Vec<WhereBoundPredicate<R>>,
     /// source span
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum FnRetTy<R = ()> {
+    Default(Span),
+    Ty(Ty<R>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -171,10 +177,10 @@ pub enum Async<R = ()> {
 pub struct WhereBoundPredicate<R = ()> {
     pub span: Span,
     pub bounded_ty: Ty<R>,
-    pub bounds: Bounds<R>,
+    pub bounds: GenericBounds<R>,
 }
 
-pub type Bounds<R = ()> = Vec<Path<R>>;
+pub type GenericBounds<R = ()> = Vec<Path<R>>;
 
 #[derive(Debug)]
 pub enum Arg<R = ()> {
@@ -220,7 +226,7 @@ pub enum TyKind<R = ()> {
     Tuple(Vec<Ty<R>>),
     Array(Box<Ty<R>>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
-    ImplTrait(R, Bounds<R>),
+    ImplTrait(R, GenericBounds<R>),
     Hole,
 }
 

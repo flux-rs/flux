@@ -78,12 +78,21 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         &self,
         generics: &rustc::ty::GenericPredicates,
     ) -> QueryResult<rty::GenericPredicates> {
-        let predicates = generics
-            .predicates
+        Ok(rty::GenericPredicates {
+            parent: generics.parent,
+            predicates: self.refine_clauses(&generics.predicates)?,
+        })
+    }
+
+    pub(crate) fn refine_clauses(
+        &self,
+        clauses: &[rustc::ty::Clause],
+    ) -> QueryResult<List<rty::Clause>> {
+        let clauses = clauses
             .iter()
-            .map(|pred| -> QueryResult<rty::Clause> {
-                let vars = refine_bound_variables(pred.kind.vars());
-                let kind = match pred.kind.as_ref().skip_binder() {
+            .map(|clause| -> QueryResult<rty::Clause> {
+                let vars = refine_bound_variables(clause.kind.vars());
+                let kind = match clause.kind.as_ref().skip_binder() {
                     rustc::ty::ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
                             self_ty: self.refine_ty(bounded_ty)?,
@@ -105,7 +114,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             })
             .try_collect()?;
 
-        Ok(rty::GenericPredicates { parent: generics.parent, predicates })
+        Ok(clauses)
     }
 
     pub(crate) fn refine_variant_def(

@@ -1,7 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, Bounds, Ident, Path, Ty};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, Ty};
 use hir::{def::DefKind, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -37,13 +37,17 @@ impl<'sess> Resolver<'sess> {
         sess: &'sess FluxSession,
         def_id: LocalDefId,
     ) -> Result<Self, ErrorGuaranteed> {
-        let table = match tcx.def_kind(def_id) {
-            hir::def::DefKind::Struct
-            | hir::def::DefKind::Enum
-            | hir::def::DefKind::Fn
-            | hir::def::DefKind::TyAlias => NameResTable::from_item(tcx, sess, def_id)?,
-            hir::def::DefKind::AssocFn => NameResTable::from_impl_item(tcx, sess, def_id)?,
-            kind => bug!("unsupported kind {kind:?}"),
+        let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+        let node = tcx.hir().get(hir_id);
+        let table = match node {
+            hir::Node::Item(item) => NameResTable::from_item(tcx, sess, item)?,
+            hir::Node::ImplItem(impl_item) => NameResTable::from_impl_item(tcx, sess, impl_item)?,
+            hir::Node::TraitItem(trait_item) => {
+                NameResTable::from_trait_item(tcx, sess, trait_item)?
+            }
+            _ => {
+                bug!("unsupported node {node:?}")
+            }
         };
 
         Ok(Self { sess, table })
@@ -134,7 +138,10 @@ impl<'sess> Resolver<'sess> {
         Ok(surface::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
     }
 
-    fn resolve_bounds(&self, bounds: surface::Bounds) -> Result<Bounds<Res>, ErrorGuaranteed> {
+    fn resolve_bounds(
+        &self,
+        bounds: surface::GenericBounds,
+    ) -> Result<GenericBounds<Res>, ErrorGuaranteed> {
         let bounds = bounds
             .into_iter()
             .map(|bound| self.resolve_path(bound))
@@ -170,7 +177,7 @@ impl<'sess> Resolver<'sess> {
             })
             .try_collect_exhaust();
 
-        let returns = fn_sig.returns.map(|ty| self.resolve_ty(ty)).transpose();
+        let returns = self.resolve_fn_ret_ty(fn_sig.returns);
 
         Ok(surface::FnSig {
             asyncness: asyncness?,
@@ -204,6 +211,16 @@ impl<'sess> Resolver<'sess> {
             }
             surface::Arg::StrgRef(loc, ty) => Ok(surface::Arg::StrgRef(loc, self.resolve_ty(ty)?)),
             surface::Arg::Ty(bind, ty) => Ok(surface::Arg::Ty(bind, self.resolve_ty(ty)?)),
+        }
+    }
+
+    fn resolve_fn_ret_ty(
+        &self,
+        returns: surface::FnRetTy,
+    ) -> Result<surface::FnRetTy<Res>, ErrorGuaranteed> {
+        match returns {
+            surface::FnRetTy::Default(span) => Ok(surface::FnRetTy::Default(span)),
+            surface::FnRetTy::Ty(ty) => Ok(surface::FnRetTy::Ty(self.resolve_ty(ty)?)),
         }
     }
 
@@ -326,10 +343,10 @@ impl<'sess> NameResTable<'sess> {
     fn from_item(
         tcx: TyCtxt,
         sess: &'sess FluxSession,
-        def_id: LocalDefId,
+        item: &hir::Item,
     ) -> Result<Self, ErrorGuaranteed> {
-        let item = tcx.hir().expect_item(def_id);
         let mut table = Self::new(sess);
+        let def_id = item.owner_id.def_id;
         match &item.kind {
             ItemKind::TyAlias(ty, _) => {
                 table.collect_from_ty(ty)?;
@@ -369,9 +386,9 @@ impl<'sess> NameResTable<'sess> {
     fn from_impl_item(
         tcx: TyCtxt,
         sess: &'sess FluxSession,
-        def_id: LocalDefId,
+        impl_item: &hir::ImplItem,
     ) -> Result<Self, ErrorGuaranteed> {
-        let impl_item = tcx.hir().expect_impl_item(def_id);
+        let def_id = impl_item.owner_id.def_id;
 
         let mut table = Self::new(sess);
 
@@ -389,6 +406,34 @@ impl<'sess> NameResTable<'sess> {
                 table.collect_from_opaque_impls(tcx)?;
             }
             rustc_hir::ImplItemKind::Const(_, _) | rustc_hir::ImplItemKind::Type(_) => {}
+        }
+
+        Ok(table)
+    }
+
+    fn from_trait_item(
+        tcx: TyCtxt,
+        sess: &'sess FluxSession,
+        trait_item: &hir::TraitItem,
+    ) -> Result<Self, ErrorGuaranteed> {
+        let def_id = trait_item.owner_id.def_id;
+
+        let mut table = Self::new(sess);
+
+        // Insert generics from parent trait
+        if let Some(parent_impl_did) = tcx.trait_of_item(def_id.to_def_id()) {
+            let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
+            if let ItemKind::Impl(parent) = &parent_impl_item.kind {
+                table.collect_from_ty(parent.self_ty)?;
+            }
+        }
+
+        match &trait_item.kind {
+            rustc_hir::TraitItemKind::Fn(fn_sig, _) => {
+                table.collect_from_fn_sig(fn_sig)?;
+                table.collect_from_opaque_impls(tcx)?;
+            }
+            rustc_hir::TraitItemKind::Const(..) | rustc_hir::TraitItemKind::Type(..) => {}
         }
 
         Ok(table)

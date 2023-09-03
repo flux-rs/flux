@@ -10,7 +10,10 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     mir as rustc_mir,
-    ty::{self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamEnv, TyCtxt},
+    ty::{
+        self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
+        TyCtxt,
+    },
 };
 use rustc_span::Span;
 
@@ -23,8 +26,7 @@ use super::{
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
         Clause, ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef,
-        GenericParamDefKind, GenericPredicates, Generics, ParamConst, PolyFnSig, Ty, ValueConst,
-        VariantDef,
+        GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, Ty, ValueConst, VariantDef,
     },
 };
 use crate::{
@@ -877,9 +879,8 @@ pub(crate) fn lower_generic_predicates<'tcx>(
 pub(crate) fn lower_generic_predicates_clauses<'tcx>(
     tcx: TyCtxt<'tcx>,
     sess: &FluxSession,
-    parent: Option<DefId>,
     generic_predicates: &[(rustc_ty::Clause<'tcx>, Span)],
-) -> Result<GenericPredicates, ErrorGuaranteed> {
+) -> Result<List<Clause>, ErrorGuaranteed> {
     let mut fn_trait_refs = FxHashMap::default();
     let mut fn_output_proj = FxHashMap::default();
     let mut predicates = vec![];
@@ -951,7 +952,7 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
         let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
         predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
     }
-    Ok(GenericPredicates { parent, predicates: List::from_vec(predicates) })
+    Ok(predicates.into())
 }
 
 mod errors {
