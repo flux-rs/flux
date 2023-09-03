@@ -4,8 +4,8 @@ use std::{borrow::Borrow, iter, slice};
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
-    early_ctxt::EarlyCtxt,
     fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
+    global_env::GlobalEnv,
     intern::List,
 };
 use flux_syntax::surface;
@@ -24,12 +24,12 @@ use rustc_span::{
 };
 
 pub fn desugar_qualifier(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, &qualifier.args)?;
+    let mut binders = Binders::from_params(genv, &qualifier.args)?;
     let index_gen = IndexGen::new();
-    let cx = ExprCtxt::new(early_cx, FluxOwnerId::Flux(qualifier.name.name), &index_gen);
+    let cx = ExprCtxt::new(genv, FluxOwnerId::Flux(qualifier.name.name), &index_gen);
     let expr = cx.desugar_expr(&binders, &qualifier.expr);
 
     Ok(fhir::Qualifier {
@@ -41,16 +41,16 @@ pub fn desugar_qualifier(
 }
 
 pub fn desugar_defn(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     defn: surface::FuncDef,
 ) -> Result<Option<fhir::Defn>, ErrorGuaranteed> {
     if let Some(body) = defn.body {
-        let mut binders = Binders::from_params(early_cx, &defn.args)?;
+        let mut binders = Binders::from_params(genv, &defn.args)?;
         let local_id_gen = IndexGen::new();
-        let cx = ExprCtxt::new(early_cx, FluxOwnerId::Flux(defn.name.name), &local_id_gen);
+        let cx = ExprCtxt::new(genv, FluxOwnerId::Flux(defn.name.name), &local_id_gen);
         let expr = cx.desugar_expr(&binders, &body)?;
         let name = defn.name.name;
-        let sort = resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &defn.output)?;
+        let sort = resolve_sort(genv.sess, genv.map().sort_decls(), &defn.output)?;
         let args = binders.pop_layer().into_params(&cx);
         Ok(Some(fhir::Defn { name, args, sort, expr }))
     } else {
@@ -142,12 +142,12 @@ pub fn desugar_generics(
 }
 
 pub fn desugar_type_alias(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     owner_id: OwnerId,
     alias: surface::TyAlias<Res>,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
-    let mut binders = Binders::from_params(early_cx, alias.refined_by.all_params())?;
-    let mut cx = DesugarCtxt::new(early_cx, owner_id, None);
+    let mut binders = Binders::from_params(genv, alias.refined_by.all_params())?;
+    let mut cx = DesugarCtxt::new(genv, owner_id, None);
     let ty = cx.desugar_ty(None, &alias.ty, &mut binders)?;
 
     let mut early_bound_params = binders.pop_layer().into_params(&cx);
@@ -163,19 +163,19 @@ pub fn desugar_type_alias(
 }
 
 pub fn desugar_struct_def(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     owner_id: OwnerId,
     struct_def: surface::StructDef<Res>,
 ) -> Result<fhir::StructDef, ErrorGuaranteed> {
     let mut binders = Binders::from_params(
-        early_cx,
+        genv,
         struct_def
             .refined_by
             .iter()
             .flat_map(surface::RefinedBy::all_params),
     )?;
 
-    let mut cx = DesugarCtxt::new(early_cx, owner_id, None);
+    let mut cx = DesugarCtxt::new(genv, owner_id, None);
 
     let invariants = struct_def
         .invariants
@@ -186,8 +186,7 @@ pub fn desugar_struct_def(
     let kind = if struct_def.opaque {
         fhir::StructKind::Opaque
     } else {
-        let hir::ItemKind::Struct(variant_data, _) =
-            &early_cx.hir().expect_item(owner_id.def_id).kind
+        let hir::ItemKind::Struct(variant_data, _) = &genv.hir().expect_item(owner_id.def_id).kind
         else {
             bug!("expected struct")
         };
@@ -211,12 +210,12 @@ pub fn desugar_struct_def(
 }
 
 pub fn desugar_enum_def(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     owner_id: OwnerId,
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let mut cx = DesugarCtxt::new(early_cx, owner_id, None);
-    let ItemKind::Enum(hir_enum, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
+    let mut cx = DesugarCtxt::new(genv, owner_id, None);
+    let ItemKind::Enum(hir_enum, _) = &genv.hir().expect_item(owner_id.def_id).kind else {
         bug!("expected enum");
     };
     let variants = iter::zip(&enum_def.variants, hir_enum.variants)
@@ -224,7 +223,7 @@ pub fn desugar_enum_def(
         .try_collect_exhaust()?;
 
     let mut binders = Binders::from_params(
-        early_cx,
+        genv,
         enum_def
             .refined_by
             .iter()
@@ -245,7 +244,7 @@ pub fn desugar_enum_def(
 }
 
 pub fn desugar_fn_sig(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     owner_id: OwnerId,
     fn_sig: &surface::FnSig<Res>,
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
@@ -254,8 +253,8 @@ pub fn desugar_fn_sig(
     let mut opaque_tys = FxHashMap::default();
 
     // Desugar inputs
-    binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
-    let mut cx = DesugarCtxt::new(early_cx, owner_id, Some(&mut opaque_tys));
+    binders.gather_input_params_fn_sig(genv, fn_sig)?;
+    let mut cx = DesugarCtxt::new(genv, owner_id, Some(&mut opaque_tys));
 
     if let Some(e) = &fn_sig.requires {
         let pred = cx.as_expr_ctxt().desugar_expr(&binders, e)?;
@@ -271,7 +270,7 @@ pub fn desugar_fn_sig(
 
     // Desugar output
     binders.push_layer();
-    binders.gather_output_params_fn_sig(early_cx, fn_sig)?;
+    binders.gather_output_params_fn_sig(genv, fn_sig)?;
     let ret = cx.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, &mut binders);
     let ensures = fn_sig
         .ensures
@@ -303,7 +302,7 @@ pub fn desugar_fn_sig(
 }
 
 pub struct DesugarCtxt<'a, 'tcx> {
-    early_cx: &'a EarlyCtxt<'a, 'tcx>,
+    genv: &'a GlobalEnv<'a, 'tcx>,
     opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
@@ -340,7 +339,7 @@ enum Binder {
 }
 
 struct ExprCtxt<'a, 'tcx> {
-    early_cx: &'a EarlyCtxt<'a, 'tcx>,
+    genv: &'a GlobalEnv<'a, 'tcx>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: FluxOwnerId,
 }
@@ -358,21 +357,21 @@ enum QPathRes<'a> {
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn new(
-        early_cx: &'a EarlyCtxt<'a, 'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         owner: OwnerId,
         opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { early_cx, owner, local_id_gen: IndexGen::new(), opaque_tys }
+        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), opaque_tys }
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> DesugarCtxt<'b, 'tcx> {
-        DesugarCtxt::new(self.early_cx, owner, self.opaque_tys.as_deref_mut())
+        DesugarCtxt::new(self.genv, owner, self.opaque_tys.as_deref_mut())
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
         LiftCtxt::new(
-            self.early_cx.tcx,
-            self.early_cx.sess,
+            self.genv.tcx,
+            self.genv.sess,
             self.owner,
             &self.local_id_gen,
             self.opaque_tys.as_deref_mut(),
@@ -380,7 +379,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
-        ExprCtxt::new(self.early_cx, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
+        ExprCtxt::new(self.genv, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
     }
 
     fn desugar_enum_variant_def(
@@ -391,7 +390,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let mut binders = Binders::new();
 
         if let Some(variant_def) = variant_def {
-            binders.gather_params_variant(self.early_cx, variant_def)?;
+            binders.gather_params_variant(self.genv, variant_def)?;
             let fields = iter::zip(&variant_def.fields, hir_variant.data.fields())
                 .map(|(ty, hir_field)| {
                     Ok(fhir::FieldDef {
@@ -575,7 +574,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty_span = ty.span;
                 let bty_span = bty.span;
 
-                let Some(sort) = index_sort(self.early_cx, bty) else {
+                let Some(sort) = index_sort(self.genv, bty) else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
                 };
 
@@ -613,7 +612,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 for param in params {
                     let fresh = binders.fresh();
                     let sort =
-                        resolve_sort(self.sess(), self.early_cx.map.sort_decls(), &param.sort)?;
+                        resolve_sort(self.sess(), self.genv.map().sort_decls(), &param.sort)?;
                     let binder = Binder::Refined(fresh, sort.clone(), false);
                     binders.insert_binder(self.sess(), param.name, binder)?;
                 }
@@ -703,7 +702,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
                 .unwrap()
-        } else if let Some(fhir::Sort::Record(def_id)) = self.early_cx.sort_of_bty(bty) {
+        } else if let Some(fhir::Sort::Record(def_id)) = self.genv.sort_of_bty(bty) {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
             Ok(fhir::RefineArg::Record(def_id, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
@@ -741,7 +740,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::RefineArg::Abs(params, body, span) => {
                 binders.push_layer();
-                binders.insert_params(self.early_cx, params)?;
+                binders.insert_params(self.genv, params)?;
                 let body = self.as_expr_ctxt().desugar_expr(binders, body)?;
                 let params = binders.pop_layer().into_params(self);
                 Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
@@ -810,7 +809,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             def_id,
         ) = res
         {
-            let generics = self.early_cx.tcx.generics_of(def_id);
+            let generics = self.genv.tcx.generics_of(def_id);
             for param in &generics.params {
                 if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
                     let lft = self.mk_lifetime_hole(DUMMY_SP);
@@ -868,7 +867,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     fn sess(&self) -> &'a FluxSession {
-        self.early_cx.sess
+        self.genv.sess
     }
 
     #[track_caller]
@@ -879,11 +878,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
 impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     fn new(
-        early_cx: &'a EarlyCtxt<'a, 'tcx>,
+        genv: &'a GlobalEnv<'a, 'tcx>,
         owner: FluxOwnerId,
         local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     ) -> Self {
-        Self { early_cx, local_id_gen, owner }
+        Self { genv, local_id_gen, owner }
     }
 
     fn desugar_expr(
@@ -997,7 +996,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
             None => {}
         };
-        if let Some(decl) = self.early_cx.func_decl(func.name) {
+        if let Some(decl) = self.genv.func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::from_ident(func)))
@@ -1019,7 +1018,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                     }
                     None => {}
                 };
-                if let Some(const_info) = self.early_cx.const_by_name(var.name) {
+                if let Some(const_info) = self.genv.const_by_name(var.name) {
                     return Ok(QPathRes::Const(const_info));
                 }
                 Err(self.emit_err(errors::UnresolvedVar::from_ident(*var)))
@@ -1046,7 +1045,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
-        self.early_cx.emit_err(err)
+        self.genv.sess.emit_err(err)
     }
 }
 
@@ -1145,26 +1144,26 @@ impl Binders {
     }
 
     fn from_params<'a>(
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result<Self, ErrorGuaranteed> {
         let mut binders = Self::new();
-        binders.insert_params(early_cx, params)?;
+        binders.insert_params(genv, params)?;
         Ok(binders)
     }
 
     fn insert_params<'a>(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result<(), ErrorGuaranteed> {
         for param in params {
             self.insert_binder(
-                early_cx.sess,
+                genv.sess,
                 param.name,
                 Binder::Refined(
                     self.fresh(),
-                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), &param.sort)?,
+                    resolve_sort(genv.sess, genv.map().sort_decls(), &param.sort)?,
                     false,
                 ),
             )?;
@@ -1191,14 +1190,14 @@ impl Binders {
 
     fn gather_params_variant(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         variant_def: &surface::VariantDef<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         for ty in &variant_def.fields {
-            self.gather_params_ty(early_cx, None, ty, TypePos::Input)?;
+            self.gather_params_ty(genv, None, ty, TypePos::Input)?;
         }
         // Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
-        self.gather_params_variant_ret(early_cx, &variant_def.ret)?;
+        self.gather_params_variant_ret(genv, &variant_def.ret)?;
 
         // Check binders in `VariantRet`
         variant_def
@@ -1208,7 +1207,7 @@ impl Binders {
             .iter()
             .try_for_each_exhaust(|idx| {
                 if let surface::RefineArg::Bind(_, kind, span) = idx {
-                    Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)))
+                    Err(genv.sess.emit_err(errors::IllegalBinder::new(*span, *kind)))
                 } else {
                     Ok(())
                 }
@@ -1217,35 +1216,37 @@ impl Binders {
 
     fn gather_params_variant_ret(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         ret: &surface::VariantRet<Res>,
     ) -> Result<(), ErrorGuaranteed> {
-        self.gather_params_path(early_cx, &ret.path, TypePos::Other)?;
-        let Some(sort) = early_cx.sort_of_res(ret.path.res) else {
-            return Err(early_cx.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
+        self.gather_params_path(genv, &ret.path, TypePos::Other)?;
+        let Some(sort) = genv.sort_of_res(ret.path.res) else {
+            return Err(genv
+                .sess
+                .emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
         };
-        self.gather_params_indices(early_cx, sort, &ret.indices, TypePos::Other)
+        self.gather_params_indices(genv, sort, &ret.indices, TypePos::Other)
     }
 
     fn gather_input_params_fn_sig(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
             let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
             self.insert_binder(
-                early_cx.sess,
+                genv.sess,
                 param.name,
                 Binder::Refined(
                     self.fresh(),
-                    resolve_sort(early_cx.sess, early_cx.map.sort_decls(), sort)?,
+                    resolve_sort(genv.sess, genv.map().sort_decls(), sort)?,
                     false,
                 ),
             )?;
         }
         for arg in &fn_sig.args {
-            self.gather_params_fun_arg(early_cx, arg)?;
+            self.gather_params_fun_arg(genv, arg)?;
         }
 
         Ok(())
@@ -1253,37 +1254,37 @@ impl Binders {
 
     fn gather_output_params_fn_sig(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         fn_sig: &surface::FnSig<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
-            self.gather_params_ty(early_cx, None, ty, TypePos::Output)?;
+            self.gather_params_ty(genv, None, ty, TypePos::Output)?;
         }
         for (_, ty) in &fn_sig.ensures {
-            self.gather_params_ty(early_cx, None, ty, TypePos::Output)?;
+            self.gather_params_ty(genv, None, ty, TypePos::Output)?;
         }
         Ok(())
     }
 
     fn gather_params_fun_arg(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         arg: &surface::Arg<Res>,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_binder(early_cx.sess, *bind, self.binder_from_res(early_cx, path.res))?;
+                self.insert_binder(genv.sess, *bind, self.binder_from_res(genv, path.res))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(
-                    early_cx.sess,
+                    genv.sess,
                     *loc,
                     Binder::Refined(self.fresh(), fhir::Sort::Loc, false),
                 )?;
-                self.gather_params_ty(early_cx, None, ty, TypePos::Input)?;
+                self.gather_params_ty(genv, None, ty, TypePos::Input)?;
             }
             surface::Arg::Ty(bind, ty) => {
-                self.gather_params_ty(early_cx, *bind, ty, TypePos::Input)?;
+                self.gather_params_ty(genv, *bind, ty, TypePos::Input)?;
             }
         }
         Ok(())
@@ -1291,7 +1292,7 @@ impl Binders {
 
     fn gather_params_ty(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         bind: Option<surface::Ident>,
         ty: &surface::Ty<Res>,
         pos: TypePos,
@@ -1299,61 +1300,63 @@ impl Binders {
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                    self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                let Some(sort) = index_sort(early_cx, bty) else {
-                    return Err(early_cx.emit_err(errors::RefinedUnrefinableType::new(ty.span)));
+                let Some(sort) = index_sort(genv, bty) else {
+                    return Err(genv
+                        .sess
+                        .emit_err(errors::RefinedUnrefinableType::new(ty.span)));
                 };
-                self.gather_params_indices(early_cx, sort, indices, pos)?;
-                self.gather_params_bty(early_cx, bty, pos)
+                self.gather_params_indices(genv, sort, indices, pos)?;
+                self.gather_params_bty(genv, bty, pos)
             }
             surface::TyKind::Base(bty) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, self.binder_from_bty(early_cx, bty))?;
+                    self.insert_binder(genv.sess, bind, self.binder_from_bty(genv, bty))?;
                 }
-                self.gather_params_bty(early_cx, bty, pos)
+                self.gather_params_bty(genv, bty, pos)
             }
 
             surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                    self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_ty(early_cx, None, ty, pos)
+                self.gather_params_ty(genv, None, ty, pos)
             }
             surface::TyKind::Tuple(tys) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                    self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
                 for ty in tys {
-                    self.gather_params_ty(early_cx, None, ty, pos)?;
+                    self.gather_params_ty(genv, None, ty, pos)?;
                 }
                 Ok(())
             }
             surface::TyKind::Array(ty, _) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                    self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
+                self.gather_params_ty(genv, None, ty, TypePos::Other)
             }
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                    self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_bty(early_cx, bty, pos)
+                self.gather_params_bty(genv, bty, pos)
             }
             surface::TyKind::GeneralExists { ty, .. } => {
                 if let Some(bind) = bind {
-                    self.insert_binder(early_cx.sess, bind, Binder::Unrefined)?;
+                    self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
                 // Declaring parameters with @ inside and existential has weird behavior if names
                 // are being shadowed. Thus, we don't allow it to keep things simple. We could eventually
                 // allow it if we resolve the weird behavior by detecting shadowing.
-                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
+                self.gather_params_ty(genv, None, ty, TypePos::Other)
             }
             surface::TyKind::Hole => Ok(()),
             surface::TyKind::ImplTrait(_, bounds) => {
                 for path in bounds {
-                    self.gather_params_path(early_cx, path, pos)?;
+                    self.gather_params_path(genv, path, pos)?;
                 }
                 Ok(())
             }
@@ -1362,20 +1365,20 @@ impl Binders {
 
     fn gather_params_indices(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         sort: fhir::Sort,
         indices: &surface::Indices,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
             if !pos.is_binder_allowed(kind) {
-                return Err(early_cx.emit_err(errors::IllegalBinder::new(span, kind)));
+                return Err(genv.sess.emit_err(errors::IllegalBinder::new(span, kind)));
             }
-            self.insert_binder(early_cx.sess, ident, self.binder_from_sort(sort))?;
+            self.insert_binder(genv.sess, ident, self.binder_from_sort(sort))?;
         } else {
-            let sorts = as_tuple(early_cx, &sort);
+            let sorts = as_tuple(genv, &sort);
             if sorts.len() != indices.indices.len() {
-                return Err(early_cx.emit_err(errors::RefineArgCountMismatch::new(
+                return Err(genv.sess.emit_err(errors::RefineArgCountMismatch::new(
                     indices.span,
                     sorts.len(),
                     indices.indices.len(),
@@ -1385,9 +1388,9 @@ impl Binders {
             for (idx, sort) in iter::zip(&indices.indices, sorts) {
                 if let surface::RefineArg::Bind(ident, kind, span) = idx {
                     if !pos.is_binder_allowed(*kind) {
-                        return Err(early_cx.emit_err(errors::IllegalBinder::new(*span, *kind)));
+                        return Err(genv.sess.emit_err(errors::IllegalBinder::new(*span, *kind)));
                     }
-                    self.insert_binder(early_cx.sess, *ident, self.binder_from_sort(sort.clone()))?;
+                    self.insert_binder(genv.sess, *ident, self.binder_from_sort(sort.clone()))?;
                 }
             }
         }
@@ -1396,41 +1399,37 @@ impl Binders {
 
     fn gather_params_path(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         path: &surface::Path<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
-        let pos = if early_cx.is_box(path.res) { pos } else { TypePos::Other };
+        let pos = if genv.is_box(path.res) { pos } else { TypePos::Other };
         path.generics
             .iter()
-            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(early_cx, arg, pos))
+            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(genv, arg, pos))
     }
 
     fn gather_params_generic_arg(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         arg: &surface::GenericArg<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
-            surface::GenericArg::Type(ty) => self.gather_params_ty(early_cx, None, ty, pos),
-            surface::GenericArg::Constraint(_, ty) => {
-                self.gather_params_ty(early_cx, None, ty, pos)
-            }
+            surface::GenericArg::Type(ty) => self.gather_params_ty(genv, None, ty, pos),
+            surface::GenericArg::Constraint(_, ty) => self.gather_params_ty(genv, None, ty, pos),
         }
     }
 
     fn gather_params_bty(
         &mut self,
-        early_cx: &EarlyCtxt,
+        genv: &GlobalEnv,
         bty: &surface::BaseTy<Res>,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         match &bty.kind {
-            surface::BaseTyKind::Path(path) => self.gather_params_path(early_cx, path, pos),
-            surface::BaseTyKind::Slice(ty) => {
-                self.gather_params_ty(early_cx, None, ty, TypePos::Other)
-            }
+            surface::BaseTyKind::Path(path) => self.gather_params_path(genv, path, pos),
+            surface::BaseTyKind::Slice(ty) => self.gather_params_ty(genv, None, ty, TypePos::Other),
         }
     }
 
@@ -1454,16 +1453,16 @@ impl Binders {
         Binder::Refined(self.fresh(), sort, true)
     }
 
-    fn binder_from_res(&self, early_cx: &EarlyCtxt, res: fhir::Res) -> Binder {
-        if let Some(sort) = early_cx.sort_of_res(res) {
+    fn binder_from_res(&self, genv: &GlobalEnv, res: fhir::Res) -> Binder {
+        if let Some(sort) = genv.sort_of_res(res) {
             self.binder_from_sort(sort)
         } else {
             Binder::Unrefined
         }
     }
 
-    fn binder_from_bty(&self, early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Binder {
-        if let Some(sort) = index_sort(early_cx, bty) {
+    fn binder_from_bty(&self, genv: &GlobalEnv, bty: &surface::BaseTy<Res>) -> Binder {
+        if let Some(sort) = index_sort(genv, bty) {
             self.binder_from_sort(sort)
         } else {
             Binder::Unrefined
@@ -1544,16 +1543,16 @@ impl Layer {
     }
 }
 
-fn index_sort(early_cx: &EarlyCtxt, bty: &surface::BaseTy<Res>) -> Option<fhir::Sort> {
+fn index_sort(genv: &GlobalEnv, bty: &surface::BaseTy<Res>) -> Option<fhir::Sort> {
     match &bty.kind {
-        surface::BaseTyKind::Path(path) => early_cx.sort_of_res(path.res),
+        surface::BaseTyKind::Path(path) => genv.sort_of_res(path.res),
         surface::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
     }
 }
 
-fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sort] {
+fn as_tuple<'a>(genv: &'a GlobalEnv, sort: &'a fhir::Sort) -> &'a [fhir::Sort] {
     if let fhir::Sort::Record(def_id) = sort {
-        early_cx.index_sorts_of(*def_id)
+        genv.index_sorts_of(*def_id)
     } else {
         slice::from_ref(sort)
     }

@@ -5,8 +5,7 @@ use flux_desugar as desugar;
 use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
-    early_ctxt::EarlyCtxt,
-    fhir::{self, lift, ConstInfo},
+    fhir::{lift, ConstInfo},
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
@@ -89,11 +88,12 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
             return Ok(());
         }
 
-        let map = build_stage1_fhir_map(tcx, sess, &mut specs)?;
-        let early_cx = build_stage2_fhir_map(tcx, sess, map, cstore, &mut specs)?;
+        let mut genv = GlobalEnv::new(tcx, sess, Box::new(cstore));
 
-        let mut genv = GlobalEnv::new(early_cx);
         flux_fhir_analysis::provide(genv.providers());
+
+        build_stage1_fhir_map(&mut genv, &mut specs)?;
+        build_stage2_fhir_map(&mut genv, &mut specs)?;
 
         flux_fhir_analysis::check_crate_wf(&genv)?;
 
@@ -121,14 +121,11 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn build_stage1_fhir_map(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    specs: &mut Specs,
-) -> Result<fhir::Map, ErrorGuaranteed> {
+fn build_stage1_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
-
-    let mut map = fhir::Map::new();
+    let tcx = genv.tcx;
+    let sess = genv.sess;
+    let map = genv.map_mut();
 
     // Register Sorts
     for sort_decl in std::mem::take(&mut specs.sort_decls) {
@@ -206,27 +203,20 @@ fn build_stage1_fhir_map(
     if let Some(err) = err {
         Err(err)
     } else {
-        Ok(map)
+        Ok(())
     }
 }
 
-fn build_stage2_fhir_map<'sess, 'tcx>(
-    tcx: TyCtxt<'tcx>,
-    sess: &'sess FluxSession,
-    map: fhir::Map,
-    cstore: CStore,
-    specs: &mut Specs,
-) -> Result<EarlyCtxt<'sess, 'tcx>, ErrorGuaranteed> {
+fn build_stage2_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
-    let mut early_cx = EarlyCtxt::new(tcx, sess, Box::new(cstore), map);
 
     // Register Defns
     err = std::mem::take(&mut specs.func_defs)
         .into_iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            if let Some(defn) = desugar::desugar_defn(&early_cx, defn)? {
-                early_cx.map.insert_defn(name.name, defn);
+            if let Some(defn) = desugar::desugar_defn(genv, defn)? {
+                genv.map_mut().insert_defn(name.name, defn);
             }
             Ok(())
         })
@@ -238,8 +228,8 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         .qualifs
         .iter()
         .try_for_each_exhaust(|qualifier| {
-            let qualifier = desugar::desugar_qualifier(&early_cx, qualifier)?;
-            early_cx.map.insert_qualifier(qualifier);
+            let qualifier = desugar::desugar_qualifier(genv, qualifier)?;
+            genv.map_mut().insert_qualifier(qualifier);
             Ok(())
         })
         .err()
@@ -250,11 +240,11 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         .into_iter()
         .try_for_each_exhaust(|(owner_id, alias)| {
             let alias = if let Some(alias) = alias {
-                desugar::desugar_type_alias(&early_cx, owner_id, alias)?
+                desugar::desugar_type_alias(genv, owner_id, alias)?
             } else {
-                lift::lift_type_alias(tcx, sess, owner_id)?
+                lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
             };
-            early_cx.map.insert_type_alias(owner_id.def_id, alias);
+            genv.map_mut().insert_type_alias(owner_id.def_id, alias);
             Ok(())
         })
         .err()
@@ -264,11 +254,11 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     err = std::mem::take(&mut specs.structs)
         .into_iter()
         .try_for_each_exhaust(|(owner_id, struct_def)| {
-            let struct_def = desugar::desugar_struct_def(&early_cx, owner_id, struct_def)?;
+            let struct_def = desugar::desugar_struct_def(genv, owner_id, struct_def)?;
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, owner_id, "fhir", &struct_def).unwrap();
+                dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
             }
-            early_cx.map.insert_struct(owner_id.def_id, struct_def);
+            genv.map_mut().insert_struct(owner_id.def_id, struct_def);
             Ok(())
         })
         .err()
@@ -278,11 +268,11 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     err = std::mem::take(&mut specs.enums)
         .into_iter()
         .try_for_each_exhaust(|(owner_id, enum_def)| {
-            let enum_def = desugar::desugar_enum_def(&early_cx, owner_id, enum_def)?;
+            let enum_def = desugar::desugar_enum_def(genv, owner_id, enum_def)?;
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
+                dbg::dump_item_info(genv.tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
             }
-            early_cx.map.insert_enum(owner_id.def_id, enum_def);
+            genv.map_mut().insert_enum(owner_id.def_id, enum_def);
             Ok(())
         })
         .err()
@@ -294,19 +284,19 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
         .try_for_each_exhaust(|(owner_id, spec)| {
             let def_id = owner_id.def_id;
             if spec.trusted {
-                early_cx.map.add_trusted(def_id);
+                genv.map_mut().add_trusted(def_id);
             }
 
             let info = if let Some(fn_sig) = spec.fn_sig {
-                desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?
+                desugar::desugar_fn_sig(genv, owner_id, fn_sig)?
             } else {
-                lift::lift_fn(tcx, sess, owner_id)?
+                lift::lift_fn(genv.tcx, genv.sess, owner_id)?
             };
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, def_id, "fhir", &info.fn_sig).unwrap();
+                dbg::dump_item_info(genv.tcx, def_id, "fhir", &info.fn_sig).unwrap();
             }
 
-            let map = &mut early_cx.map;
+            let map = genv.map_mut();
             map.insert_fn_sig(def_id, info.fn_sig);
             map.insert_generic_predicates(def_id, info.fn_preds);
             map.insert_opaque_tys(info.opaque_tys);
@@ -321,7 +311,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
     if let Some(err) = err {
         Err(err)
     } else {
-        Ok(early_cx)
+        Ok(())
     }
 }
 

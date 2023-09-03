@@ -178,7 +178,7 @@ impl<'tcx> Queries<'tcx> {
 
     pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
-            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
             } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
@@ -196,7 +196,7 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Generics> {
         run_with_cache(&self.generics_of, def_id, || {
-            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
@@ -218,7 +218,7 @@ impl<'tcx> Queries<'tcx> {
         span: Span,
     ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         run_with_cache(&self.item_bounds, def_id, || {
-            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
 
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.item_bounds)(genv, local_id)
@@ -249,7 +249,7 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
-            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
 
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.predicates_of)(genv, local_id)
@@ -325,7 +325,7 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.fn_sig, def_id, || {
             // If it's an extern_fn, resolve it to its local fn_sig's def_id,
             // otherwise don't change it.
-            let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
             } else if let Some(fn_sig) = genv.cstore().fn_sig(def_id) {

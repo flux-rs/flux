@@ -81,6 +81,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     tags_inv: FxHashMap<T, TagIdx>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
+    // FIXME(nilehmann) this should be a `LocalDefId`.
     def_id: DefId,
 }
 
@@ -190,7 +191,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(self.def_id)?
+            .qualifiers(self.def_id.expect_local())?
             .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
             .collect();
 

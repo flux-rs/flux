@@ -926,6 +926,14 @@ impl Map {
         self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
     }
 
+    pub fn get_fn_quals(&self, def_id: LocalDefId) -> impl Iterator<Item = SurfaceIdent> + '_ {
+        self.fn_quals
+            .get(&def_id)
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .copied()
+    }
+
     pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
         self.trusted.contains(&def_id)
     }
@@ -934,8 +942,8 @@ impl Map {
         self.externs.insert(extern_def_id, local_def_id);
     }
 
-    pub fn externs(&self) -> &FxHashMap<DefId, LocalDefId> {
-        &self.externs
+    pub fn get_extern(&self, extern_def_id: DefId) -> Option<LocalDefId> {
+        self.externs.get(&extern_def_id).copied()
     }
 
     // ADT
