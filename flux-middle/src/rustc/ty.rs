@@ -159,12 +159,12 @@ pub enum AliasKind {
     Opaque,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable, Debug)]
 pub struct ValueConst {
     pub val: usize,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable, Debug)]
 pub struct ParamConst {
     pub index: u32,
     pub name: Symbol,
@@ -692,7 +692,10 @@ impl fmt::Debug for Ty {
 
 impl fmt::Debug for Const {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "_")
+        match self {
+            Const::Param(param_const) => write!(f, "{:?}", param_const),
+            Const::Value(value_const) => write!(f, "{:?}", value_const),
+        }
     }
 }
 

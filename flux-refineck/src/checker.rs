@@ -970,29 +970,42 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     }
                 }
             }
+            // See [NOTE:unsize]
             CastKind::Pointer(mir::PointerCast::Unsize) => {
-                if let TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Not), _) = from.kind() {
-                    self.cast_ty(to)?
+                if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind() &&
+                   let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _src_ix) = src_ty.kind() &&
+                   let rustc::ty::TyKind::Ref(dst_reg, dst_ty, dst_mut) = to.kind() &&
+                   let rustc::ty::TyKind::Slice(_dst_slice_ty) = dst_ty.kind() &&
+                   src_mut == dst_mut
+                {
+                    let dst_ix = Index::from(src_n.clone());
+                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), dst_ix);
+                    Ty::mk_ref(*dst_reg, dst_slice, *dst_mut)
                 } else {
                     tracked_span_bug!("unsupported Unsize cast")
                 }
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
-            | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => self.cast_ty(to)?,
+            | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
+                self
+                  .genv
+                  .refine_default(&self.generics, to)
+                  .with_span(self.body.span())?
+            }
         };
         Ok(ty)
     }
 
-    fn cast_ty(
-        &self,
-        to: &rustc::ty::Ty,
-    ) -> Result<flux_middle::intern::Interned<rty::TyS>, CheckerError> {
-        Ok(self
-            .genv
-            .refine_default(&self.generics, to)
-            .with_span(self.body.span())?)
-    }
+    /* [NOTE:unsize]  https://github.com/flux-rs/flux/pull/490#discussion_r1313923883
+
+    This is unsound for mir::PointerCast::Unsize. As implemented, you can use it to coerce a &mut [i32{v: v > 0}; 10] to a &mut [i32]. I tried to implement this once but got caught up in the many details because there are other forms of unsized coercions .
+    We should make sure this is only being applied for unsizing of arrays into slices (I think this is enough for panic) and that the semantics is
+
+        &mut [T; n] -> &mut [T][n]
+        &[T;n] -> &[T][n]
+
+    */
 
     fn check_operands(
         &mut self,

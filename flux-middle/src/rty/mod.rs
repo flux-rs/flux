@@ -44,7 +44,7 @@ use crate::{
     rustc::{
         self,
         mir::Place,
-        ty::{GeneratorSubstsParts, VariantDef},
+        ty::{GeneratorSubstsParts, ValueConst, VariantDef},
     },
 };
 pub use crate::{
@@ -802,6 +802,14 @@ impl Index {
     }
 }
 
+impl From<ValueConst> for Index {
+    fn from(value: ValueConst) -> Self {
+        let c = Constant::Int(flux_fixpoint::Sign::Positive, value.val.try_into().unwrap());
+        let expr = Expr::constant(c);
+        Index { expr, is_binder: TupleTree::Leaf(false) }
+    }
+}
+
 impl From<Expr> for Index {
     fn from(expr: Expr) -> Self {
         let is_binder = TupleTree::Leaf(false);
@@ -1053,6 +1061,10 @@ impl Ty {
 
     pub fn mk_ref(region: Region, ty: Ty, mutbl: Mutability) -> Ty {
         BaseTy::Ref(region, ty, mutbl).into_ty()
+    }
+
+    pub fn mk_slice(ty: Ty) -> Ty {
+        BaseTy::Slice(ty).into_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
