@@ -259,7 +259,7 @@ pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Index),
     Exists(Binder<Ty>),

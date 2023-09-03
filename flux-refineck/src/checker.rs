@@ -970,16 +970,28 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     }
                 }
             }
+            CastKind::Pointer(mir::PointerCast::Unsize) => {
+                if let TyKind::Indexed(BaseTy::Ref(_, _, Mutability::Not), _) = from.kind() {
+                    self.cast_ty(to)?
+                } else {
+                    tracked_span_bug!("unsupported Unsize cast")
+                }
+            }
             CastKind::FloatToInt
             | CastKind::IntToFloat
-            | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
-            | CastKind::Pointer(mir::PointerCast::Unsize) => {
-                self.genv
-                    .refine_default(&self.generics, to)
-                    .with_span(self.body.span())?
-            }
+            | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => self.cast_ty(to)?,
         };
         Ok(ty)
+    }
+
+    fn cast_ty(
+        &self,
+        to: &rustc::ty::Ty,
+    ) -> Result<flux_middle::intern::Interned<rty::TyS>, CheckerError> {
+        Ok(self
+            .genv
+            .refine_default(&self.generics, to)
+            .with_span(self.body.span())?)
     }
 
     fn check_operands(
