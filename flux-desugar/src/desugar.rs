@@ -413,11 +413,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 lifted: false,
             })
         } else {
-            fhir::lift::lift_enum_variant_def(
-                self.early_cx.tcx,
-                self.early_cx.sess,
-                hir_variant.def_id,
-            )
+            self.as_lift_cx().lift_enum_variant(hir_variant)
         }
     }
 

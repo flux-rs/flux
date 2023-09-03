@@ -676,7 +676,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .genv
                     .type_of(*alias_to)?
                     .instantiate_identity()
-                    .replace_bound_expr(&idx.expr))
+                    .replace_bound_expr(&idx.expr));
             }
             fhir::Res::Def(DefKind::TyAlias, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.args)?;
