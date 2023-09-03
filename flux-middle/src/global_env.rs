@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{borrow::Borrow, rc::Rc};
 
 use flux_errors::FluxSession;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -11,6 +11,7 @@ use rustc_span::Span;
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
+    cstore::CrateStoreDyn,
     early_ctxt::EarlyCtxt,
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
@@ -22,7 +23,6 @@ use crate::{
 pub struct GlobalEnv<'sess, 'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub sess: &'sess FluxSession,
-    func_decls: FxHashMap<Symbol, rty::FuncDecl>,
     /// Names of 'local' qualifiers to be used when checking a given `DefId`.
     fn_quals: FxHashMap<DefId, FxHashSet<Symbol>>,
     early_cx: EarlyCtxt<'sess, 'tcx>,
@@ -31,10 +31,7 @@ pub struct GlobalEnv<'sess, 'tcx> {
 }
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn new(
-        early_cx: EarlyCtxt<'sess, 'tcx>,
-        func_decls: FxHashMap<Symbol, rty::FuncDecl>,
-    ) -> Self {
+    pub fn new(early_cx: EarlyCtxt<'sess, 'tcx>) -> Self {
         let mut fn_quals = FxHashMap::default();
         for (def_id, names) in early_cx.map.fn_quals() {
             let names = names.iter().map(|ident| ident.name).collect();
@@ -50,7 +47,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             tcx: early_cx.tcx,
             sess: early_cx.sess,
             early_cx,
-            func_decls,
             fn_quals,
             queries: Queries::default(),
             extern_specs: externs,
@@ -86,7 +82,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn func_decls(&self) -> impl Iterator<Item = &rty::FuncDecl> {
-        self.func_decls.values()
+        self.queries.func_decls(self).values()
     }
 
     pub fn variances_of(&self, did: DefId) -> &[Variance] {
@@ -185,12 +181,77 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.lower_late_bound_vars(self, def_id)
     }
 
+    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParamDef {
+        let owner = self.hir().ty_param_owner(def_id);
+        self.map().get_generics(owner).unwrap().get_param(def_id)
+    }
+
+    pub fn is_box(&self, res: fhir::Res) -> bool {
+        self.early_cx.is_box(res)
+    }
+
+    pub fn func_decl(&self, name: impl Borrow<Symbol>) -> Option<&fhir::FuncDecl> {
+        self.early_cx.func_decl(name)
+    }
+
+    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
+        self.early_cx.sort_of_bty(bty)
+    }
+
     pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {
         self.early_cx.index_sorts_of(def_id.into())
     }
 
     pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
         self.early_cx.early_bound_sorts_of(def_id)
+    }
+
+    /// Whether values of this sort can be compared for equality.
+    pub fn has_equality(&self, sort: &fhir::Sort) -> bool {
+        match sort {
+            fhir::Sort::Int
+            | fhir::Sort::Bool
+            | fhir::Sort::Real
+            | fhir::Sort::Unit
+            | fhir::Sort::BitVec(_) => true,
+            fhir::Sort::Record(def_id) => {
+                self.index_sorts_of(*def_id)
+                    .iter()
+                    .all(|sort| self.has_equality(sort))
+            }
+            fhir::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
+            fhir::Sort::Loc
+            | fhir::Sort::Func(_)
+            | fhir::Sort::Param(_)
+            | fhir::Sort::Wildcard
+            | fhir::Sort::Infer(_) => false,
+        }
+    }
+
+    /// For now all sort constructors have equality if all the generic arguments do. In the
+    /// future we may have a more fine-grained notion of equality for sort constructors.
+    fn ctor_has_equality(&self, _: &fhir::SortCtor, args: &[fhir::Sort]) -> bool {
+        args.iter().all(|sort| self.has_equality(sort))
+    }
+
+    pub fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&fhir::Sort> {
+        if let Some(local_id) = def_id.as_local() {
+            self.map().refined_by(local_id).field_sort(fld)
+        } else {
+            self.cstore()
+                .refined_by(def_id)
+                .and_then(|refined_by| refined_by.field_sort(fld))
+        }
+    }
+
+    pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
+        if let Some(local_id) = def_id.as_local() {
+            self.map().refined_by(local_id).field_index(fld)
+        } else {
+            self.cstore()
+                .refined_by(def_id)
+                .and_then(|refined_by| refined_by.field_index(fld))
+        }
     }
 
     pub fn refine_default_generic_args(
@@ -248,8 +309,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }
 
-    pub fn early_cx(&self) -> &EarlyCtxt<'sess, 'tcx> {
-        &self.early_cx
+    pub(crate) fn cstore(&self) -> &CrateStoreDyn {
+        &*self.early_cx.cstore
     }
 
     pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {

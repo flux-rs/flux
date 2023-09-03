@@ -92,8 +92,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         let map = build_stage1_fhir_map(tcx, sess, &mut specs)?;
         let early_cx = build_stage2_fhir_map(tcx, sess, map, cstore, &mut specs)?;
 
-        let func_decls = flux_fhir_analysis::conv_func_decls(&early_cx);
-        let mut genv = GlobalEnv::new(early_cx, func_decls);
+        let mut genv = GlobalEnv::new(early_cx);
         flux_fhir_analysis::provide(genv.providers());
 
         flux_fhir_analysis::check_crate_wf(&genv)?;

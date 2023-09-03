@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
@@ -42,6 +42,7 @@ pub enum QueryErr {
 pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
+    pub func_decls: fn(&GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl>,
     pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
@@ -66,6 +67,7 @@ impl Default for Providers {
     fn default() -> Self {
         Self {
             defns: |_| empty_query!(),
+            func_decls: |_| empty_query!(),
             qualifiers: |_| empty_query!(),
             check_wf: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
@@ -86,6 +88,7 @@ pub struct Queries<'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
+    func_decls: OnceCell<FxHashMap<Symbol, rty::FuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
@@ -153,6 +156,11 @@ impl<'tcx> Queries<'tcx> {
             .map_err(Clone::clone)
     }
 
+    pub(crate) fn func_decls(&self, genv: &GlobalEnv) -> &FxHashMap<Symbol, rty::FuncDecl> {
+        self.func_decls
+            .get_or_init(|| (self.providers.func_decls)(genv))
+    }
+
     pub(crate) fn qualifiers(&self, genv: &GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
         self.qualifiers
             .get_or_init(|| (self.providers.qualifiers)(genv))
@@ -173,7 +181,7 @@ impl<'tcx> Queries<'tcx> {
             let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
-            } else if let Some(adt_def) = genv.early_cx().cstore.adt_def(def_id) {
+            } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
                 Ok(adt_def.clone())
             } else {
                 let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(def_id));
@@ -267,7 +275,7 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.type_of, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.type_of)(genv, local_id)
-            } else if let Some(ty) = genv.early_cx().cstore.type_of(def_id) {
+            } else if let Some(ty) = genv.cstore().type_of(def_id) {
                 Ok(ty.clone())
             } else {
                 let rustc_ty = genv.lower_type_of(def_id)?.skip_binder();
@@ -285,7 +293,7 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.variants_of, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.variants_of)(genv, local_id)
-            } else if let Some(variants) = genv.early_cx().cstore.variants(def_id) {
+            } else if let Some(variants) = genv.cstore().variants(def_id) {
                 Ok(variants.map(|variants| variants.map(List::from)))
             } else {
                 let variants = genv
@@ -320,7 +328,7 @@ impl<'tcx> Queries<'tcx> {
             let def_id = *genv.lookup_extern(&def_id).unwrap_or(&def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
-            } else if let Some(fn_sig) = genv.early_cx().cstore.fn_sig(def_id) {
+            } else if let Some(fn_sig) = genv.cstore().fn_sig(def_id) {
                 Ok(fn_sig)
             } else {
                 let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();

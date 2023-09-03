@@ -66,26 +66,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
         }
     }
 
-    pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
-        if let Some(local_id) = def_id.as_local() {
-            self.map.refined_by(local_id).field_index(fld)
-        } else {
-            self.cstore
-                .refined_by(def_id)
-                .and_then(|refined_by| refined_by.field_index(fld))
-        }
-    }
-
-    pub fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&fhir::Sort> {
-        if let Some(local_id) = def_id.as_local() {
-            self.map.refined_by(local_id).field_sort(fld)
-        } else {
-            self.cstore
-                .refined_by(def_id)
-                .and_then(|refined_by| refined_by.field_sort(fld))
-        }
-    }
-
     #[track_caller]
     pub fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
         self.sess.emit_err(err)
@@ -123,34 +103,6 @@ impl<'a, 'tcx> EarlyCtxt<'a, 'tcx> {
             fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
         };
         Some(sort)
-    }
-
-    /// Whether values of this sort can be compared for equality.
-    pub fn has_equality(&self, sort: &fhir::Sort) -> bool {
-        match sort {
-            fhir::Sort::Int
-            | fhir::Sort::Bool
-            | fhir::Sort::Real
-            | fhir::Sort::Unit
-            | fhir::Sort::BitVec(_) => true,
-            fhir::Sort::Record(def_id) => {
-                self.index_sorts_of(*def_id)
-                    .iter()
-                    .all(|sort| self.has_equality(sort))
-            }
-            fhir::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
-            fhir::Sort::Loc
-            | fhir::Sort::Func(_)
-            | fhir::Sort::Param(_)
-            | fhir::Sort::Wildcard
-            | fhir::Sort::Infer(_) => false,
-        }
-    }
-
-    // For now all sort constructors have equality if all the generic arguments do. In the
-    // future we may have a more fine-grained notion of equality for sort constructors.
-    fn ctor_has_equality(&self, _: &fhir::SortCtor, args: &[fhir::Sort]) -> bool {
-        args.iter().all(|sort| self.has_equality(sort))
     }
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
