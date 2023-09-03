@@ -858,7 +858,7 @@ impl Index {
 
 impl From<ValueConst> for Index {
     fn from(value: ValueConst) -> Self {
-        let c = Constant::Int(flux_fixpoint::Sign::Positive, value.val.try_into().unwrap());
+        let c = Constant::from(value.val);
         let expr = Expr::constant(c);
         Index { expr, is_binder: TupleTree::Leaf(false) }
     }
