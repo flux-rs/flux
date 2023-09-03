@@ -282,7 +282,12 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
             wfckresults
         }
-        DefKind::OpaqueTy | DefKind::Closure | DefKind::Generator => {
+        DefKind::OpaqueTy => {
+            let owner_id = OwnerId { def_id };
+            let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
+            wf::check_opaque_ty(genv.early_cx(), opaque_ty, owner_id)?
+        }
+        DefKind::Closure | DefKind::Generator => {
             let parent = genv.tcx.local_parent(def_id);
             return genv.check_wf(parent);
         }

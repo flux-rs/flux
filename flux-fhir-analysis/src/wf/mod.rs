@@ -143,6 +143,17 @@ pub(crate) fn check_enum_def(
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_opaque_ty(
+    early_cx: &EarlyCtxt,
+    opaque_ty: &fhir::OpaqueTy,
+    owner_id: OwnerId,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
+    let mut wf = Wf::new(early_cx);
+    wf.check_opaque_ty(&mut infcx, opaque_ty)?;
+    Ok(infcx.into_results())
+}
+
 pub(crate) fn check_fn_sig(
     early_cx: &EarlyCtxt,
     fn_sig: &fhir::FnSig,
@@ -150,18 +161,6 @@ pub(crate) fn check_fn_sig(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(early_cx, owner_id.into());
     let mut wf = Wf::new(early_cx);
-
-    // FIXME(nilehmann) we should move opaque types outside functions as they are their own item
-    if early_cx
-        .hir()
-        .maybe_body_owned_by(owner_id.def_id)
-        .is_some()
-    {
-        for opaque_ty_id in early_cx.tcx.opaque_types_defined_by(owner_id.def_id) {
-            let opaque_ty = early_cx.map.get_opaque_ty(*opaque_ty_id).unwrap();
-            wf.check_opaque_ty(&mut infcx, opaque_ty)?;
-        }
-    }
 
     let predicates = early_cx
         .map

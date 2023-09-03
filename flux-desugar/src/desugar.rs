@@ -147,7 +147,7 @@ pub fn desugar_type_alias(
     alias: surface::TyAlias<Res>,
 ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
     let mut binders = Binders::from_params(early_cx, alias.refined_by.all_params())?;
-    let mut cx = DesugarCtxt::new(early_cx, owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id, None);
     let ty = cx.desugar_ty(None, &alias.ty, &mut binders)?;
 
     let mut early_bound_params = binders.pop_layer().into_params(&cx);
@@ -175,7 +175,7 @@ pub fn desugar_struct_def(
             .flat_map(surface::RefinedBy::all_params),
     )?;
 
-    let mut cx = DesugarCtxt::new(early_cx, owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id, None);
 
     let invariants = struct_def
         .invariants
@@ -214,7 +214,7 @@ pub fn desugar_enum_def(
     owner_id: OwnerId,
     enum_def: &surface::EnumDef<Res>,
 ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
-    let mut cx = DesugarCtxt::new(early_cx, owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id, None);
     let ItemKind::Enum(hir_enum, _) = &early_cx.hir().expect_item(owner_id.def_id).kind else {
         bug!("expected enum");
     };
@@ -250,10 +250,11 @@ pub fn desugar_fn_sig(
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
     let mut binders = Binders::new();
     let mut requires = vec![];
+    let mut opaque_tys = FxHashMap::default();
 
     // Desugar inputs
     binders.gather_input_params_fn_sig(early_cx, fn_sig)?;
-    let mut cx = DesugarCtxt::new(early_cx, owner_id);
+    let mut cx = DesugarCtxt::new(early_cx, owner_id, Some(&mut opaque_tys));
 
     if let Some(e) = &fn_sig.requires {
         let pred = cx.as_expr_ctxt().desugar_expr(&binders, e)?;
@@ -286,9 +287,9 @@ pub fn desugar_fn_sig(
         ensures: ensures?,
     };
 
-    let hir_predicates = cx.desugar_predicates(&fn_sig.predicates, &mut binders)?;
+    let fn_preds = cx.desugar_predicates(&fn_sig.predicates, &mut binders)?;
 
-    let hir_fn_sig = fhir::FnSig {
+    let fn_sig = fhir::FnSig {
         params: binders.pop_layer().into_params(&cx),
         requires,
         args,
@@ -297,14 +298,12 @@ pub fn desugar_fn_sig(
         lifted: false,
     };
 
-    let hir_opaque_impls = cx.opaque_tys;
-
-    Ok(fhir::FnInfo { fn_sig: hir_fn_sig, fn_preds: hir_predicates, opaque_tys: hir_opaque_impls })
+    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
 }
 
 pub struct DesugarCtxt<'a, 'tcx> {
     early_cx: &'a EarlyCtxt<'a, 'tcx>,
-    opaque_tys: FxHashMap<LocalDefId, fhir::OpaqueTy>,
+    opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -357,13 +356,16 @@ enum QPathRes<'a> {
 }
 
 impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, owner: OwnerId) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt {
-            early_cx,
-            owner,
-            local_id_gen: IndexGen::new(),
-            opaque_tys: FxHashMap::default(),
-        }
+    fn new(
+        early_cx: &'a EarlyCtxt<'a, 'tcx>,
+        owner: OwnerId,
+        opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+    ) -> DesugarCtxt<'a, 'tcx> {
+        DesugarCtxt { early_cx, owner, local_id_gen: IndexGen::new(), opaque_tys }
+    }
+
+    fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> DesugarCtxt<'b, 'tcx> {
+        DesugarCtxt::new(self.early_cx, owner, self.opaque_tys.as_deref_mut())
     }
 
     fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
@@ -498,11 +500,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::Async::Yes { res, span } => {
                 if let Res::Def(DefKind::OpaqueTy, def_id) = res {
                     let def_id = def_id.expect_local();
-                    let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                    let output = self.desugar_fn_ret_ty(returns, binders)?;
-                    self.opaque_tys
-                        .insert(def_id, mk_opaque_ty_for_async(output));
+                    let owner_id = hir::OwnerId { def_id };
+
+                    let opaque_ty = self
+                        .with_new_owner(owner_id)
+                        .desugar_opaque_ty_for_async(returns, binders)?;
+                    self.insert_opaque_ty(def_id, opaque_ty);
+
                     let (args, _) = self.desugar_generic_args(res, &[], binders)?;
+                    let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
                     let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
                     Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
                 } else {
@@ -511,6 +517,23 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::Async::No => Ok(self.desugar_fn_ret_ty(returns, binders)?),
         }
+    }
+
+    fn desugar_opaque_ty_for_async(
+        &mut self,
+        returns: &surface::FnRetTy<Res>,
+        binders: &mut Binders,
+    ) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+        let output = self.desugar_fn_ret_ty(returns, binders)?;
+        let bound = fhir::GenericBound::LangItemTrait(
+            hir::LangItem::Future,
+            vec![],
+            vec![fhir::TypeBinding {
+                ident: surface::Ident::with_dummy_span(sym::Output),
+                term: output,
+            }],
+        );
+        Ok(fhir::OpaqueTy { bounds: vec![bound] })
     }
 
     fn desugar_fn_ret_ty(
@@ -631,10 +654,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::ImplTrait(res, bounds) => {
                 if let Res::Def(DefKind::OpaqueTy, def_id) = res {
                     let def_id = def_id.expect_local();
-                    let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                    let bounds = self.desugar_generic_bounds(bounds, binders)?;
-                    self.opaque_tys.insert(def_id, fhir::OpaqueTy { bounds });
+                    let owner_id = hir::OwnerId { def_id };
 
+                    let opaque_ty = self
+                        .with_new_owner(owner_id)
+                        .desugar_opaque_ty_for_impl_trait(bounds, binders)?;
+                    self.insert_opaque_ty(def_id, opaque_ty);
+
+                    let item_id = hir::ItemId { owner_id };
                     let (args, _) = self.desugar_generic_args(*res, &[], binders)?;
                     fhir::TyKind::OpaqueDef(item_id, args, false)
                 } else {
@@ -643,6 +670,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
         };
         Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+    }
+
+    fn desugar_opaque_ty_for_impl_trait(
+        &mut self,
+        bounds: &surface::GenericBounds<Res>,
+        binders: &mut Binders,
+    ) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+        let bounds = self.desugar_generic_bounds(bounds, binders)?;
+        Ok(fhir::OpaqueTy { bounds })
     }
 
     fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
@@ -815,6 +851,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let bty = self.desugar_path_to_bty(&ret.path, binders)?;
         let idx = self.desugar_indices(&bty, &ret.indices, binders)?;
         Ok(fhir::VariantRet { bty, idx })
+    }
+
+    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy) {
+        self.opaque_tys
+            .as_mut()
+            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
+            .insert(def_id, opaque_ty);
     }
 
     fn sess(&self) -> &'a FluxSession {
@@ -1507,18 +1550,6 @@ fn as_tuple<'a>(early_cx: &'a EarlyCtxt, sort: &'a fhir::Sort) -> &'a [fhir::Sor
     } else {
         slice::from_ref(sort)
     }
-}
-
-fn mk_opaque_ty_for_async(output: fhir::Ty) -> fhir::OpaqueTy {
-    let bound = fhir::GenericBound::LangItemTrait(
-        hir::LangItem::Future,
-        vec![],
-        vec![fhir::TypeBinding {
-            ident: surface::Ident::with_dummy_span(sym::Output),
-            term: output,
-        }],
-    );
-    fhir::OpaqueTy { bounds: vec![bound] }
 }
 
 trait DesugarContext<'a, 'tcx> {

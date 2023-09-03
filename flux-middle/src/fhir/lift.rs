@@ -17,7 +17,7 @@ use crate::fhir;
 struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
-    opaque_tys: FxHashMap<LocalDefId, fhir::OpaqueTy>,
+    opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -29,7 +29,7 @@ pub fn lift_generics(
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
     let hir_generics = tcx.hir().get_generics(def_id).unwrap();
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
 
     let params = hir_generics
         .params
@@ -86,7 +86,7 @@ pub fn lift_type_alias(
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
         owner_id,
@@ -107,7 +107,7 @@ pub fn lift_field_def(
     let node = tcx.hir().get(hir_id);
     let hir::Node::Field(field_def) = node else { bug!("expected a field") };
     let struct_id = tcx.hir().get_parent_item(hir_id);
-    let ty = LiftCtxt::new(tcx, sess, struct_id).lift_ty(field_def.ty)?;
+    let ty = LiftCtxt::new(tcx, sess, struct_id, None).lift_ty(field_def.ty)?;
     Ok(fhir::FieldDef { def_id, ty, lifted: true })
 }
 
@@ -126,7 +126,7 @@ pub fn lift_enum_variant_def(
         bug!("expected an enum")
     };
 
-    let mut cx = LiftCtxt::new(tcx, sess, enum_id);
+    let mut cx = LiftCtxt::new(tcx, sess, enum_id, None);
 
     let fields = variant
         .data
@@ -160,7 +160,7 @@ pub fn lift_generic_predicates(
 ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
     let generics = tcx.hir().get_generics(def_id).unwrap();
-    LiftCtxt::new(tcx, sess, owner_id).lift_generic_predicates(generics)
+    LiftCtxt::new(tcx, sess, owner_id, None).lift_generic_predicates(generics)
 }
 
 pub fn lift_fn(
@@ -168,7 +168,8 @@ pub fn lift_fn(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut opaque_tys = FxHashMap::default();
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, Some(&mut opaque_tys));
 
     let def_id = owner_id.def_id;
     let hir = tcx.hir();
@@ -181,7 +182,7 @@ pub fn lift_fn(
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
     let fn_preds = cx.lift_generic_predicates(generics)?;
 
-    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys: cx.opaque_tys })
+    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
 }
 
 pub fn lift_self_ty(
@@ -189,7 +190,7 @@ pub fn lift_self_ty(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<Option<fhir::Ty>, ErrorGuaranteed> {
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id);
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
     if let Some(def_id) = tcx.impl_of_method(owner_id.to_def_id()) {
         let local_id = def_id.expect_local();
         let hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = tcx.hir().expect_item(local_id)
@@ -219,8 +220,17 @@ pub fn lift_self_ty(
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
-    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, owner: OwnerId) -> Self {
-        Self { tcx, sess, opaque_tys: FxHashMap::default(), local_id_gen: IndexGen::new(), owner }
+    fn new(
+        tcx: TyCtxt<'tcx>,
+        sess: &'a FluxSession,
+        owner: OwnerId,
+        opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+    ) -> Self {
+        Self { tcx, sess, opaque_tys, local_id_gen: IndexGen::new(), owner }
+    }
+
+    fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> LiftCtxt<'b, 'tcx> {
+        LiftCtxt::new(self.tcx, self.sess, owner, self.opaque_tys.as_deref_mut())
     }
 
     fn next_fhir_id(&self) -> FhirId {
@@ -292,7 +302,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<(), ErrorGuaranteed> {
+    fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
         let hir::ItemKind::OpaqueTy(opaque_ty) = self.tcx.hir().item(item_id).kind else {
             bug!("expected opaque type")
         };
@@ -304,8 +314,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 .map(|bound| self.lift_generic_bound(bound))
                 .try_collect()?,
         };
-        self.opaque_tys.insert(item_id.owner_id.def_id, opaque_ty);
-        Ok(())
+        Ok(opaque_ty)
     }
 
     fn lift_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig, ErrorGuaranteed> {
@@ -377,7 +386,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 fhir::TyKind::RawPtr(Box::new(self.lift_ty(mut_ty.ty)?), mut_ty.mutbl)
             }
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
-                self.lift_opaque_ty(*item_id)?;
+                let opaque_ty = self
+                    .with_new_owner(item_id.owner_id)
+                    .lift_opaque_ty(*item_id)?;
+                self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
+
                 let args = self.lift_generic_args(args)?;
                 fhir::TyKind::OpaqueDef(*item_id, args, *in_trait_def)
             }
@@ -556,6 +569,13 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
         }
         Ok(args)
+    }
+
+    fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy) {
+        self.opaque_tys
+            .as_mut()
+            .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
+            .insert(def_id, opaque_ty);
     }
 
     #[track_caller]
