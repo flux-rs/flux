@@ -14,14 +14,29 @@ use rustc_middle::ty::TyCtxt;
 use super::{FhirId, FluxOwnerId};
 use crate::fhir;
 
-struct LiftCtxt<'a, 'tcx> {
+pub struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
-    local_id_gen: IndexGen<fhir::ItemLocalId>,
+    local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
 
+pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
+    let def_id = owner_id.def_id;
+    let item = tcx.hir().expect_item(def_id);
+    match item.kind {
+        hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
+            fhir::RefinedBy::new(def_id, [], [], item.ident.span)
+        }
+        _ => {
+            bug!("expected struct, enum or type alias");
+        }
+    }
+}
+
+// FIXME(nilehmann) this is wrong, we should lift generics in the same context that its owner to
+// generate appropriate `FhirId`s
 pub fn lift_generics(
     tcx: TyCtxt,
     sess: &FluxSession,
@@ -29,7 +44,8 @@ pub fn lift_generics(
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
     let hir_generics = tcx.hir().get_generics(def_id).unwrap();
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
+    let local_id_gen = IndexGen::new();
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
 
     let params = hir_generics
         .params
@@ -63,17 +79,16 @@ pub fn lift_generics(
     Ok(fhir::Generics { params })
 }
 
-pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
+// FIXME(nilehmann) this is wrong, we should lift generics in the same context that its owner to
+// generate appropriate `FhirId`s
+pub fn lift_generic_predicates(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    owner_id: OwnerId,
+) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
-    let item = tcx.hir().expect_item(def_id);
-    match item.kind {
-        hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-            fhir::RefinedBy::new(def_id, [], [], item.ident.span)
-        }
-        _ => {
-            bug!("expected struct, enum or type alias");
-        }
-    }
+    let generics = tcx.hir().get_generics(def_id).unwrap();
+    LiftCtxt::new(tcx, sess, owner_id, &IndexGen::new(), None).lift_generic_predicates(generics)
 }
 
 pub fn lift_type_alias(
@@ -86,7 +101,8 @@ pub fn lift_type_alias(
     let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
         bug!("expected type alias");
     };
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
+    let local_id_gen = IndexGen::new();
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
         owner_id,
@@ -98,78 +114,14 @@ pub fn lift_type_alias(
     })
 }
 
-pub fn lift_field_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    def_id: LocalDefId,
-) -> Result<fhir::FieldDef, ErrorGuaranteed> {
-    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-    let node = tcx.hir().get(hir_id);
-    let hir::Node::Field(field_def) = node else { bug!("expected a field") };
-    let struct_id = tcx.hir().get_parent_item(hir_id);
-    let ty = LiftCtxt::new(tcx, sess, struct_id, None).lift_ty(field_def.ty)?;
-    Ok(fhir::FieldDef { def_id, ty, lifted: true })
-}
-
-pub fn lift_enum_variant_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    def_id: LocalDefId,
-) -> Result<fhir::VariantDef, ErrorGuaranteed> {
-    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-    let node = tcx.hir().get(hir_id);
-    let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
-    let enum_id = tcx.hir().get_parent_item(hir_id);
-    let hir::Item { ident, kind: hir::ItemKind::Enum(..), .. } =
-        tcx.hir().expect_item(enum_id.def_id)
-    else {
-        bug!("expected an enum")
-    };
-
-    let mut cx = LiftCtxt::new(tcx, sess, enum_id, None);
-
-    let fields = variant
-        .data
-        .fields()
-        .iter()
-        .map(|field| cx.lift_field_def(field))
-        .try_collect_exhaust()?;
-
-    // FIXME(nilehmann) the span should also include the generic arguments
-    let span = ident.span;
-    let path = fhir::Path {
-        res: fhir::Res::SelfTyAlias { alias_to: enum_id.to_def_id(), is_trait_impl: false },
-        args: vec![],
-        bindings: vec![],
-        refine: vec![],
-        span,
-    };
-    let ret = fhir::VariantRet {
-        bty: fhir::BaseTy::from(fhir::QPath::Resolved(None, path)),
-        idx: fhir::RefineArg::Record(enum_id.to_def_id(), vec![], ident.span),
-    };
-    Ok(fhir::VariantDef { def_id, params: vec![], fields, ret, span: variant.span, lifted: true })
-}
-
-// FIXME(nilehmann) this is wrong, we should lift generic predicates in the same `LiftCtxt` than
-// then owned item to generate appropriate `FluxOwnerId`s
-pub fn lift_generic_predicates(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    owner_id: OwnerId,
-) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-    let generics = tcx.hir().get_generics(def_id).unwrap();
-    LiftCtxt::new(tcx, sess, owner_id, None).lift_generic_predicates(generics)
-}
-
 pub fn lift_fn(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<fhir::FnInfo, ErrorGuaranteed> {
     let mut opaque_tys = FxHashMap::default();
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, Some(&mut opaque_tys));
+    let local_id_gen = IndexGen::new();
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, Some(&mut opaque_tys));
 
     let def_id = owner_id.def_id;
     let hir = tcx.hir();
@@ -185,13 +137,19 @@ pub fn lift_fn(
     Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
 }
 
+// HACK(nilehmann) this is used during annot check to allow an explicit type to refine `Self`.
+// For example, in `impl List<T> { fn foo(&self) }` the type of `self` is `&Self` and we want to
+// allow a refinement using `&List<T>`.
+// Do not use this outside of annot check because the `FhirId`s will be wrong.
 pub fn lift_self_ty(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<Option<fhir::Ty>, ErrorGuaranteed> {
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
     if let Some(def_id) = tcx.impl_of_method(owner_id.to_def_id()) {
+        let owner_id = OwnerId { def_id: def_id.expect_local() };
+        let local_id_gen = IndexGen::new();
+        let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
         let local_id = def_id.expect_local();
         let hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = tcx.hir().expect_item(local_id)
         else {
@@ -202,9 +160,10 @@ pub fn lift_self_ty(
     } else if let def_kind @ (DefKind::Struct | DefKind::Enum) = tcx.def_kind(owner_id) {
         let generics = tcx.hir().get_generics(owner_id.def_id).unwrap();
         let item = tcx.hir().expect_item(owner_id.def_id);
+        let local_id_gen = IndexGen::new();
+        let cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
 
-        // FIXME(nilehmann) the span should also include the generic arguments
-        let span = item.ident.span;
+        let span = item.ident.span.to(generics.span);
         let path = fhir::Path {
             res: fhir::Res::Def(def_kind, owner_id.to_def_id()),
             args: cx.generic_params_into_args(generics)?,
@@ -220,17 +179,18 @@ pub fn lift_self_ty(
 }
 
 impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
-    fn new(
+    pub fn new(
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
         owner: OwnerId,
+        local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
         opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> Self {
-        Self { tcx, sess, opaque_tys, local_id_gen: IndexGen::new(), owner }
+        Self { tcx, sess, opaque_tys, local_id_gen, owner }
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> LiftCtxt<'b, 'tcx> {
-        LiftCtxt::new(self.tcx, self.sess, owner, self.opaque_tys.as_deref_mut())
+        LiftCtxt::new(self.tcx, self.sess, owner, self.local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
     fn next_fhir_id(&self) -> FhirId {
@@ -352,12 +312,76 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
-    fn lift_field_def(
+    pub fn lift_field_def_id(
+        &mut self,
+        def_id: LocalDefId,
+    ) -> Result<fhir::FieldDef, ErrorGuaranteed> {
+        let hir = self.tcx.hir();
+        let hir_id = hir.local_def_id_to_hir_id(def_id);
+        let hir::Node::Field(field_def) = hir.get(hir_id) else { bug!("expected a field") };
+        Ok(fhir::FieldDef { def_id, ty: self.lift_ty(field_def.ty)?, lifted: true })
+    }
+
+    pub fn lift_field_def(
         &mut self,
         field_def: &hir::FieldDef,
     ) -> Result<fhir::FieldDef, ErrorGuaranteed> {
         let ty = self.lift_ty(field_def.ty)?;
         Ok(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: true })
+    }
+
+    pub fn lift_enum_variant_id(
+        &mut self,
+        def_id: LocalDefId,
+    ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
+        let hir_id = self.tcx.hir().local_def_id_to_hir_id(def_id);
+        let node = self.tcx.hir().get(hir_id);
+        let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
+        self.lift_enum_variant(variant)
+    }
+
+    pub fn lift_enum_variant(
+        &mut self,
+        variant: &hir::Variant,
+    ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
+        let item = self.tcx.hir().expect_item(self.owner.def_id);
+        let hir::ItemKind::Enum(_, generics) = &item.kind else {
+            bug!("expected an enum or struct")
+        };
+
+        let fields = variant
+            .data
+            .fields()
+            .iter()
+            .map(|field| self.lift_field_def(field))
+            .try_collect_exhaust()?;
+
+        let span = item.ident.span.to(generics.span);
+        let path = fhir::Path {
+            res: fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false },
+            args: vec![],
+            bindings: vec![],
+            refine: vec![],
+            span,
+        };
+        let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
+        let ret = fhir::VariantRet {
+            bty,
+            idx: fhir::RefineArg::Record(
+                self.owner.to_def_id(),
+                vec![],
+                generics.span.shrink_to_hi(),
+            ),
+        };
+
+        Ok(fhir::VariantDef {
+            def_id: variant.def_id,
+            params: vec![],
+            fields,
+            ret,
+            span: variant.span,
+            lifted: true,
+        })
     }
 
     fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {

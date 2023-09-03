@@ -5,7 +5,7 @@ use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, FhirId, FluxOwnerId, Res},
+    fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
     intern::List,
 };
 use flux_syntax::surface;
@@ -191,6 +191,7 @@ pub fn desugar_struct_def(
         else {
             bug!("expected struct")
         };
+        debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
         let fields = iter::zip(&struct_def.fields, variant_data.fields())
             .map(|(ty, hir_field)| {
                 if let Some(ty) = ty {
@@ -200,7 +201,7 @@ pub fn desugar_struct_def(
                         lifted: false,
                     })
                 } else {
-                    fhir::lift::lift_field_def(early_cx.tcx, early_cx.sess, hir_field.def_id)
+                    cx.as_lift_cx().lift_field_def(hir_field)
                 }
             })
             .try_collect_exhaust()?;
@@ -368,6 +369,16 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt::new(self.early_cx, owner, self.opaque_tys.as_deref_mut())
     }
 
+    fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
+        LiftCtxt::new(
+            self.early_cx.tcx,
+            self.early_cx.sess,
+            self.owner,
+            &self.local_id_gen,
+            self.opaque_tys.as_deref_mut(),
+        )
+    }
+
     fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
         ExprCtxt::new(self.early_cx, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
     }
@@ -402,11 +413,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 lifted: false,
             })
         } else {
-            fhir::lift::lift_enum_variant_def(
-                self.early_cx.tcx,
-                self.early_cx.sess,
-                hir_variant.def_id,
-            )
+            self.as_lift_cx().lift_enum_variant(hir_variant)
         }
     }
 

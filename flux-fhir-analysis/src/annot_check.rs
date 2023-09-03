@@ -6,11 +6,15 @@
 //! [`lift`]: flux_middle::fhir::lift
 use std::iter;
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, lift, WfckResults},
+    fhir::{
+        self,
+        lift::{self, LiftCtxt},
+        WfckResults,
+    },
 };
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
@@ -51,15 +55,21 @@ pub fn check_struct_def(
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
+            let local_id_gen = IndexGen::new();
+            let mut liftcx = LiftCtxt::new(
+                early_cx.tcx,
+                early_cx.sess,
+                struct_def.owner_id,
+                &local_id_gen,
+                None,
+            );
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
                 }
                 let self_ty = lift::lift_self_ty(early_cx.tcx, early_cx.sess, struct_def.owner_id)?;
-                Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref()).zip_ty(
-                    &field.ty,
-                    &lift::lift_field_def(early_cx.tcx, early_cx.sess, field.def_id)?.ty,
-                )
+                Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref())
+                    .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })
         }
         _ => Ok(()),
@@ -71,15 +81,16 @@ pub fn check_enum_def(
     wfckresults: &mut WfckResults,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
+    let local_id_gen = IndexGen::new();
+    let mut liftcx =
+        LiftCtxt::new(early_cx.tcx, early_cx.sess, enum_def.owner_id, &local_id_gen, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
         }
         let self_ty = lift::lift_self_ty(early_cx.tcx, early_cx.sess, enum_def.owner_id)?;
-        Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref()).zip_enum_variant(
-            variant,
-            &lift::lift_enum_variant_def(early_cx.tcx, early_cx.sess, variant.def_id)?,
-        )
+        Zipper::new(early_cx.sess, wfckresults, self_ty.as_ref())
+            .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
     })
 }
 
