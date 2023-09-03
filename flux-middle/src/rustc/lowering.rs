@@ -20,8 +20,8 @@ use rustc_span::Span;
 use super::{
     mir::{
         AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BorrowKind, CallSubsts,
-        CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, PointerCast,
+        Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
@@ -389,14 +389,28 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         }
     }
 
+    fn lower_pointer_coercion(
+        &self,
+        coercion: rustc_adjustment::PointerCoercion,
+    ) -> Option<PointerCast> {
+        match coercion {
+            rustc_adjustment::PointerCoercion::MutToConstPointer => {
+                Some(crate::rustc::mir::PointerCast::MutToConstPointer)
+            }
+            rustc_adjustment::PointerCoercion::Unsize => {
+                Some(crate::rustc::mir::PointerCast::Unsize)
+            }
+            _ => None,
+        }
+    }
     fn lower_cast_kind(&self, kind: rustc_mir::CastKind) -> Option<CastKind> {
         match kind {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
-            rustc_mir::CastKind::PointerCoercion(
-                rustc_adjustment::PointerCoercion::MutToConstPointer,
-            ) => Some(CastKind::Pointer(crate::rustc::mir::PointerCast::MutToConstPointer)),
+            rustc_mir::CastKind::PointerCoercion(ptr_coercion) => {
+                Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
+            }
             _ => None,
         }
     }
@@ -479,7 +493,8 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         // HACK(nilehmann) we evaluate the constant to support u32::MAX
         // we should instead lower it as is and refine its type.
         let kind = constant.literal.eval(tcx, ParamEnv::empty());
-        match (kind, constant.ty().kind()) {
+        let ty = constant.ty();
+        match (kind, ty.kind()) {
             (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 scalar_int_to_constant(tcx, scalar, ty)
             }
@@ -496,7 +511,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
-            _ => None,
+            (_, _) => Some(Constant::Opaque(lower_ty(tcx, ty)?)),
         }
         .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
     }
