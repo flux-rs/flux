@@ -6,7 +6,7 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
     early_ctxt::EarlyCtxt,
-    fhir::{self, ConstInfo},
+    fhir::{self, lift, ConstInfo},
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
@@ -144,7 +144,7 @@ fn build_stage1_fhir_map(
             let generics = if let Some(fn_sig) = &spec.fn_sig && let Some(generics) = &fn_sig.generics {
                 desugar::desugar_generics(tcx, sess, *owner_id, generics)?
             } else {
-                fhir::lift::lift_generics(tcx, sess, *owner_id)?
+                lift::lift_generics(tcx, sess, *owner_id)?
             };
             map.insert_generics(owner_id.def_id, generics);
             Ok(())
@@ -153,8 +153,10 @@ fn build_stage1_fhir_map(
         .or(err);
     err = defs_with_generics(tcx)
         .try_for_each_exhaust(|owner_id| {
-            let generics = fhir::lift::lift_generics(tcx, sess, owner_id)?;
+            let generics = lift::lift_generics(tcx, sess, owner_id)?;
+            let predicates = lift::lift_generic_predicates(tcx, sess, owner_id)?;
             map.insert_generics(owner_id.def_id, generics);
+            map.insert_generic_predicates(owner_id.def_id, predicates);
             Ok(())
         })
         .err()
@@ -187,7 +189,7 @@ fn build_stage1_fhir_map(
             let refined_by = if let Some(refined_by) = refined_by {
                 desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, refined_by)?
             } else {
-                fhir::lift::lift_refined_by(tcx, owner_id)
+                lift::lift_refined_by(tcx, owner_id)
             };
             map.insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
@@ -251,7 +253,7 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
             let alias = if let Some(alias) = alias {
                 desugar::desugar_type_alias(&early_cx, owner_id, alias)?
             } else {
-                fhir::lift::lift_type_alias(tcx, sess, owner_id)?
+                lift::lift_type_alias(tcx, sess, owner_id)?
             };
             early_cx.map.insert_type_alias(owner_id.def_id, alias);
             Ok(())
@@ -296,25 +298,21 @@ fn build_stage2_fhir_map<'sess, 'tcx>(
                 early_cx.map.add_trusted(def_id);
             }
 
-            let (fn_sig, preds) = if let Some(fn_sig) = spec.fn_sig {
-                let fn_info = desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?;
-                (fn_info.fn_sig, Some((fn_info.fn_preds, fn_info.fn_impls)))
+            let info = if let Some(fn_sig) = spec.fn_sig {
+                desugar::desugar_fn_sig(&early_cx, owner_id, fn_sig)?
             } else {
-                (fhir::lift::lift_fn_sig(tcx, sess, owner_id)?, None)
+                lift::lift_fn(tcx, sess, owner_id)?
             };
             if config::dump_fhir() {
-                dbg::dump_item_info(tcx, def_id, "fhir", &fn_sig).unwrap();
+                dbg::dump_item_info(tcx, def_id, "fhir", &info.fn_sig).unwrap();
             }
 
-            early_cx.map.insert_fn_sig(def_id, fn_sig);
-            if let Some((fn_preds, fn_impls)) = preds {
-                early_cx.map.insert_predicates(def_id, fn_preds);
-                for (def_id, predicates) in fn_impls {
-                    early_cx.map.insert_item_bounds(def_id, predicates);
-                }
-            }
+            let map = &mut early_cx.map;
+            map.insert_fn_sig(def_id, info.fn_sig);
+            map.insert_generic_predicates(def_id, info.fn_preds);
+            map.insert_opaque_tys(info.opaque_tys);
             if let Some(quals) = spec.qual_names {
-                early_cx.map.insert_fn_quals(def_id, quals.names);
+                map.insert_fn_quals(def_id, quals.names);
             }
             Ok(())
         })
@@ -474,12 +472,14 @@ fn is_tool_registered(tcx: TyCtxt) -> bool {
 fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = OwnerId> + '_ {
     tcx.hir_crate_items(())
         .definitions()
+        .chain(tcx.hir().body_owners())
         .flat_map(move |def_id| {
             match tcx.def_kind(def_id) {
                 DefKind::Struct
                 | DefKind::Enum
                 | DefKind::Impl { .. }
                 | DefKind::TyAlias
+                | DefKind::OpaqueTy
                 | DefKind::AssocTy => Some(OwnerId { def_id }),
                 _ => None,
             }

@@ -137,7 +137,8 @@ pub FnSig: surface::FnSig = {
     "fn"
     <generics:Generics?>
     "(" <args:Args> ")"
-    <mut returns:("->" <Ty>)?>
+    <ret_lo:@L> <ret_hi:@R>
+    <returns:("->" <Ty>)?>
     <requires:("requires" <Expr>)?>
     <ensures:("ensures" <Ensures>)?>
     <predicates:("where" <Predicates>)?>
@@ -145,6 +146,11 @@ pub FnSig: surface::FnSig = {
     => {
         let ensures = ensures.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
+        let returns = if let Some(ty) = returns {
+            surface::FnRetTy::Ty(ty)
+        } else {
+            surface::FnRetTy::Default(mk_span(ret_lo, ret_hi))
+        };
         surface::FnSig {
             asyncness,
             generics,
@@ -200,7 +206,7 @@ Ensures = <Comma<(<Ident> ":" <Ty>)>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {
-    <lo:@L> <bounded_ty:Ty> ":" <bounds:Bounds>  <hi:@R> => {
+    <lo:@L> <bounded_ty:Ty> ":" <bounds:GenericBounds>  <hi:@R> => {
         surface::WhereBoundPredicate {
             span: mk_span(lo, hi),
             bounded_ty,
@@ -209,7 +215,7 @@ WhereBoundPredicate: surface::WhereBoundPredicate = {
     }
 }
 
-Bounds: surface::Bounds = {
+GenericBounds: surface::GenericBounds = {
     <bound:Path> => vec![bound]
 }
 
@@ -250,7 +256,7 @@ TyKind: surface::TyKind = {
         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
 
-    "impl" <bounds:Bounds> => surface::TyKind::ImplTrait((), bounds),
+    "impl" <bounds:GenericBounds> => surface::TyKind::ImplTrait((), bounds),
 }
 
 #[inline]

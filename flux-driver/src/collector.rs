@@ -101,8 +101,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
 
         for trait_item_id in crate_items.trait_items() {
+            let attrs = tcx.hir().attrs(trait_item_id.hir_id());
             if let rustc_hir::TraitItemKind::Fn(_, _) = tcx.hir().trait_item(trait_item_id).kind {
-                collector.parse_fn_spec(trait_item_id.owner_id, &[])?;
+                collector.parse_fn_spec(trait_item_id.owner_id, attrs)?;
             }
         }
 

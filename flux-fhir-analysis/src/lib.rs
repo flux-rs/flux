@@ -13,6 +13,8 @@ mod annot_check;
 mod conv;
 mod wf;
 
+use std::rc::Rc;
+
 use flux_common::{bug, dbg};
 use flux_config as config;
 use flux_errors::ResultExt;
@@ -119,31 +121,33 @@ fn adt_def(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
 fn predicates_of(
     genv: &GlobalEnv,
     local_id: LocalDefId,
-) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
-    let wfckresults = genv.check_wf(local_id)?;
-    if let Some(predicates) = genv.map().get_predicates(local_id) {
-        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
+) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
+    let predicates = if let Some(predicates) = genv.map().get_generic_predicates(local_id) {
+        let wfckresults = genv.check_wf(local_id)?;
+        conv::conv_generic_predicates(genv, local_id.to_def_id(), predicates, &wfckresults)?
     } else {
-        Ok(None)
-    }
+        rty::GenericPredicates {
+            parent: genv.tcx.opt_parent(local_id.to_def_id()),
+            predicates: List::empty(),
+        }
+    };
+    Ok(rty::EarlyBinder(predicates))
 }
 
 fn item_bounds(
     genv: &GlobalEnv,
     local_id: LocalDefId,
-) -> QueryResult<Option<rty::EarlyBinder<rty::GenericPredicates>>> {
+) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
     let wfckresults = genv.check_wf(local_id)?;
-    if let Some(predicates) = genv.map().get_item_bounds(local_id) {
-        Ok(Some(rty::EarlyBinder(conv::conv_generic_predicates(genv, predicates, &wfckresults)?)))
-    } else {
-        Ok(None)
-    }
+    let opaque_ty = genv.map().get_opaque_ty(local_id).unwrap();
+    Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id.to_def_id(), opaque_ty, &wfckresults)?))
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
         .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+    // FIXME(nilehmann) we are returning the wrong generics for closures and generators
     let generics = genv.map().get_generics(local_id).unwrap_or_else(|| {
         genv.map()
             .get_generics(genv.tcx.local_parent(local_id))
@@ -222,48 +226,47 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
     Ok(rty::EarlyBinder(fn_sig))
 }
 
-fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<fhir::WfckResults> {
+fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
     match flux_id {
         FluxLocalDefId::Flux(sym) => check_wf_flux_item(genv, sym),
         FluxLocalDefId::Rust(def_id) => check_wf_rust_item(genv, def_id),
     }
 }
 
-fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<fhir::WfckResults> {
+fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<Rc<fhir::WfckResults>> {
     let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
         fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv.early_cx(), qualifier)?,
         fhir::FluxItem::Defn(defn) => wf::check_defn(genv.early_cx(), defn)?,
     };
-    Ok(wfckresults)
+    Ok(Rc::new(wfckresults))
 }
 
-fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir::WfckResults> {
-    match genv.tcx.def_kind(def_id) {
+fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
+    let wfckresults = match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias => {
             let alias = genv.map().get_type_alias(def_id);
             let mut wfckresults = wf::check_ty_alias(genv.early_cx(), alias)?;
             annot_check::check_alias(genv.early_cx(), &mut wfckresults, alias)?;
-            Ok(wfckresults)
+            wfckresults
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
             let mut wfckresults = wf::check_struct_def(genv.early_cx(), struct_def)?;
             annot_check::check_struct_def(genv.early_cx(), &mut wfckresults, struct_def)?;
-            Ok(wfckresults)
+            wfckresults
         }
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
             let mut wfckresults = wf::check_enum_def(genv.early_cx(), enum_def)?;
             annot_check::check_enum_def(genv.early_cx(), &mut wfckresults, enum_def)?;
-            Ok(wfckresults)
+            wfckresults
         }
         DefKind::TyParam => {
             match &genv.early_cx().get_generic_param(def_id).kind {
                 fhir::GenericParamDefKind::Type { default: Some(ty) } => {
                     let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
                     let owner = genv.hir().get_parent_item(hir_id);
-                    let wfckresults = wf::check_type(genv.early_cx(), ty, owner)?;
-                    Ok(wfckresults)
+                    wf::check_type(genv.early_cx(), ty, owner)?
                 }
                 fhir::GenericParamDefKind::Type { default: None } => {
                     bug!("type parameter without default")
@@ -274,29 +277,23 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<fhir:
         DefKind::Fn | DefKind::AssocFn => {
             let owner_id = OwnerId { def_id };
 
-            // 1. check the actual FnSig
             let fn_sig = genv.map().get_fn_sig(def_id);
             let mut wfckresults = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
-
-            // 2. check the predicates (stashed in `where` clauses); we don't 'zip' these because the orders are jumbled :-(
-            if let Some(predicates) = genv.map().get_predicates(def_id) {
-                wf::check_generic_predicates(genv.early_cx(), predicates, owner_id)?;
-            }
-            Ok(wfckresults)
+            wfckresults
         }
         DefKind::OpaqueTy => {
-            let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
-            let owner = genv.hir().get_parent_item(hir_id);
-            if let Some(predicates) = genv.map().get_item_bounds(def_id) {
-                let wfckresults = wf::check_generic_predicates(genv.early_cx(), predicates, owner)?;
-                Ok(wfckresults)
-            } else {
-                Ok(fhir::WfckResults::new(fhir::FluxOwnerId::from(owner)))
-            }
+            let owner_id = OwnerId { def_id };
+            let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
+            wf::check_opaque_ty(genv.early_cx(), opaque_ty, owner_id)?
+        }
+        DefKind::Closure | DefKind::Generator => {
+            let parent = genv.tcx.local_parent(def_id);
+            return genv.check_wf(parent);
         }
         kind => panic!("unexpected def kind `{kind:?}`"),
-    }
+    };
+    Ok(Rc::new(wfckresults))
 }
 
 pub fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
