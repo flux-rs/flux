@@ -46,7 +46,7 @@ pub(crate) struct Specs {
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
     pub sort_decls: Vec<surface::SortDecl>,
-    pub aliases: FxHashMap<OwnerId, Option<surface::TyAlias>>,
+    pub ty_aliases: FxHashMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: Ignores,
     pub consts: FxHashMap<LocalDefId, ConstSig>,
     pub crate_config: Option<config::CrateConfig>,
@@ -186,7 +186,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
-        self.specs.aliases.insert(owner_id, attrs.alias());
+        self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
         Ok(())
     }
 
@@ -500,7 +500,7 @@ impl Specs {
             qualifs: Vec::default(),
             sort_decls: Vec::default(),
             func_defs: Vec::default(),
-            aliases: FxHashMap::default(),
+            ty_aliases: FxHashMap::default(),
             ignores: FxHashSet::default(),
             consts: FxHashMap::default(),
             crate_config: None,
@@ -528,7 +528,7 @@ impl Specs {
             .iter()
             .map(|(owner_id, enum_def)| (*owner_id, enum_def.refined_by.as_ref()));
         let aliases = self
-            .aliases
+            .ty_aliases
             .iter()
             .map(|(owner_id, alias)| (*owner_id, alias.as_ref().map(|alias| &alias.refined_by)));
         itertools::chain!(structs, enums, aliases)
@@ -634,7 +634,7 @@ impl FluxAttrs {
         read_attr!(self, QualNames)
     }
 
-    fn alias(&mut self) -> Option<surface::TyAlias> {
+    fn ty_alias(&mut self) -> Option<surface::TyAlias> {
         read_attr!(self, TypeAlias)
     }
 
