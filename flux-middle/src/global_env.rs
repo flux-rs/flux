@@ -296,7 +296,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn refine_default_generic_args(
         &self,
         generics: &rty::Generics,
-        args: &ty::Substs,
+        args: &ty::GenericArgs,
     ) -> QueryResult<rty::GenericArgs> {
         let refiner = Refiner::default(self, generics);
         let mut res = vec![];

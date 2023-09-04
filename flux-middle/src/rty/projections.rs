@@ -137,12 +137,12 @@ fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::T
         BaseTy::Bool => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Bool),
         BaseTy::Char => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Char),
         BaseTy::Str => tcx.types.str_,
-        BaseTy::Adt(adt_def, substs) => {
+        BaseTy::Adt(adt_def, args) => {
             let did = adt_def.did();
             let adt_def = tcx.adt_def(did);
-            let substs = substs.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-            let substs = tcx.mk_args_from_iter(substs);
-            rustc_middle::ty::Ty::new_adt(*tcx, adt_def, substs)
+            let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
+            let args = tcx.mk_args_from_iter(args);
+            rustc_middle::ty::Ty::new_adt(*tcx, adt_def, args)
         }
         BaseTy::Float(f) => rustc_middle::ty::Ty::new_float(*tcx, *f),
         BaseTy::RawPtr(_, _) => todo!(),

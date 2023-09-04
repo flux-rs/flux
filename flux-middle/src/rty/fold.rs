@@ -682,8 +682,8 @@ impl TypeSuperVisitable for Ty {
                 pred.visit_with(visitor)?;
                 ty.visit_with(visitor)
             }
-            TyKind::Downcast(.., substs, _, fields) => {
-                substs.visit_with(visitor)?;
+            TyKind::Downcast(.., args, _, fields) => {
+                args.visit_with(visitor)?;
                 fields.visit_with(visitor)
             }
             TyKind::Blocked(ty) => ty.visit_with(visitor),
@@ -724,10 +724,10 @@ impl TypeSuperFoldable for Ty {
             TyKind::Constr(pred, ty) => {
                 Ty::constr(pred.try_fold_with(folder)?, ty.try_fold_with(folder)?)
             }
-            TyKind::Downcast(adt, substs, ty, variant, fields) => {
+            TyKind::Downcast(adt, args, ty, variant, fields) => {
                 Ty::downcast(
                     adt.clone(),
-                    substs.clone(),
+                    args.clone(),
                     ty.clone(),
                     *variant,
                     fields.try_fold_with(folder)?,
@@ -774,11 +774,11 @@ impl TypeVisitable for BaseTy {
 impl TypeSuperVisitable for BaseTy {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
-            BaseTy::Adt(_, substs) => substs.iter().try_for_each(|ty| ty.visit_with(visitor)),
+            BaseTy::Adt(_, args) => args.visit_with(visitor),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
-            BaseTy::Tuple(tys) => tys.iter().try_for_each(|ty| ty.visit_with(visitor)),
+            BaseTy::Tuple(tys) => tys.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
             BaseTy::Int(_)
             | BaseTy::Uint(_)
@@ -804,9 +804,7 @@ impl TypeFoldable for BaseTy {
 impl TypeSuperFoldable for BaseTy {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let bty = match self {
-            BaseTy::Adt(adt_def, substs) => {
-                BaseTy::adt(adt_def.clone(), substs.try_fold_with(folder)?)
-            }
+            BaseTy::Adt(adt_def, args) => BaseTy::adt(adt_def.clone(), args.try_fold_with(folder)?),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.try_fold_with(folder)?),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.try_fold_with(folder)?, *mu),
             BaseTy::Ref(re, ty, mutbl) => {
@@ -822,10 +820,8 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
-            BaseTy::Closure(did, substs) => BaseTy::Closure(*did, substs.try_fold_with(folder)?),
-            BaseTy::Generator(did, substs) => {
-                BaseTy::Generator(*did, substs.try_fold_with(folder)?)
-            }
+            BaseTy::Closure(did, args) => BaseTy::Closure(*did, args.try_fold_with(folder)?),
+            BaseTy::Generator(did, args) => BaseTy::Generator(*did, args.try_fold_with(folder)?),
             BaseTy::GeneratorWitness(args) => BaseTy::GeneratorWitness(args.try_fold_with(folder)?),
         };
         Ok(bty)

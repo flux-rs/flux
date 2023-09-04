@@ -12,7 +12,7 @@ use flux_middle::{
             Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
             FIRST_VARIANT,
         },
-        ty::{AdtDef, Substs, Ty, TyKind},
+        ty::{AdtDef, GenericArgs, Ty, TyKind},
     },
 };
 use itertools::Itertools;
@@ -186,9 +186,9 @@ impl Mode for Elaboration<'_> {
 #[derive(Clone)]
 enum PlaceNode {
     Deref(Ty, Box<PlaceNode>),
-    Downcast(AdtDef, Substs, VariantIdx, Vec<PlaceNode>),
-    Closure(DefId, Substs, Vec<PlaceNode>),
-    Generator(DefId, Substs, Vec<PlaceNode>),
+    Downcast(AdtDef, GenericArgs, VariantIdx, Vec<PlaceNode>),
+    Closure(DefId, GenericArgs, Vec<PlaceNode>),
+    Generator(DefId, GenericArgs, Vec<PlaceNode>),
     Tuple(List<Ty>, Vec<PlaceNode>),
     Ty(Ty),
 }
@@ -478,9 +478,9 @@ impl PlaceNode {
                 Ok((self, false))
             }
             PlaceNode::Ty(ty) => {
-                if let TyKind::Adt(adt_def, substs) = ty.kind() {
-                    let fields = downcast(genv, adt_def, substs, idx)?;
-                    *self = PlaceNode::Downcast(adt_def.clone(), substs.clone(), idx, fields);
+                if let TyKind::Adt(adt_def, args) = ty.kind() {
+                    let fields = downcast(genv, adt_def, args, idx)?;
+                    *self = PlaceNode::Downcast(adt_def.clone(), args.clone(), idx, fields);
                     Ok((self, true))
                 } else {
                     tracked_span_bug!("invalid downcast `{self:?}`");
@@ -499,26 +499,25 @@ impl PlaceNode {
         match self {
             PlaceNode::Ty(ty) => {
                 let fields = match ty.kind() {
-                    TyKind::Adt(adt_def, substs) => {
-                        let fields = downcast_struct(genv, adt_def, substs)?;
+                    TyKind::Adt(adt_def, args) => {
+                        let fields = downcast_struct(genv, adt_def, args)?;
                         *self = PlaceNode::Downcast(
                             adt_def.clone(),
-                            substs.clone(),
+                            args.clone(),
                             FIRST_VARIANT,
                             fields,
                         );
                         let PlaceNode::Downcast(.., fields) = self else { unreachable!() };
                         fields
                     }
-                    TyKind::Closure(def_id, substs) => {
-                        // let fields = generic_args_fields(substs);
-                        let fields = substs
+                    TyKind::Closure(def_id, args) => {
+                        let fields = args
                             .as_closure()
                             .upvar_tys()
                             .cloned()
                             .map(PlaceNode::Ty)
                             .collect_vec();
-                        *self = PlaceNode::Closure(*def_id, substs.clone(), fields);
+                        *self = PlaceNode::Closure(*def_id, args.clone(), fields);
                         let PlaceNode::Closure(.., fields) = self else { unreachable!() };
                         fields
                     }
@@ -528,15 +527,14 @@ impl PlaceNode {
                         let PlaceNode::Tuple(.., fields) = self else { unreachable!() };
                         fields
                     }
-                    TyKind::Generator(def_id, substs) => {
-                        // let fields = generic_args_fields(substs);
-                        let fields = substs
+                    TyKind::Generator(def_id, args) => {
+                        let fields = args
                             .as_generator()
                             .upvar_tys()
                             .cloned()
                             .map(PlaceNode::Ty)
                             .collect_vec();
-                        *self = PlaceNode::Generator(*def_id, substs.clone(), fields);
+                        *self = PlaceNode::Generator(*def_id, args.clone(), fields);
                         let PlaceNode::Generator(.., fields) = self else { unreachable!() };
                         fields
                     }
@@ -560,16 +558,16 @@ impl PlaceNode {
                 *self = PlaceNode::Ty(ty.clone());
                 true
             }
-            PlaceNode::Downcast(adt, substs, ..) => {
-                *self = PlaceNode::Ty(Ty::mk_adt(adt.clone(), substs.clone()));
+            PlaceNode::Downcast(adt, args, ..) => {
+                *self = PlaceNode::Ty(Ty::mk_adt(adt.clone(), args.clone()));
                 true
             }
-            PlaceNode::Closure(did, substs, _) => {
-                *self = PlaceNode::Ty(Ty::mk_closure(*did, substs.clone()));
+            PlaceNode::Closure(did, args, _) => {
+                *self = PlaceNode::Ty(Ty::mk_closure(*did, args.clone()));
                 true
             }
-            PlaceNode::Generator(did, substs, _) => {
-                *self = PlaceNode::Ty(Ty::mk_generator(*did, substs.clone()));
+            PlaceNode::Generator(did, args, _) => {
+                *self = PlaceNode::Ty(Ty::mk_generator(*did, args.clone()));
                 true
             }
             PlaceNode::Tuple(fields, ..) => {
@@ -602,15 +600,15 @@ impl PlaceNode {
                 (fields1, fields2)
             }
             (
-                PlaceNode::Downcast(adt1, substs1, variant1, fields1),
-                PlaceNode::Downcast(adt2, substs2, variant2, fields2),
+                PlaceNode::Downcast(adt1, args1, variant1, fields1),
+                PlaceNode::Downcast(adt2, args2, variant2, fields2),
             ) => {
                 debug_assert_eq!(adt1, adt2);
                 if variant1 == variant2 {
                     (fields1, fields2)
                 } else {
-                    *self = PlaceNode::Ty(Ty::mk_adt(adt1.clone(), substs1.clone()));
-                    *other = PlaceNode::Ty(Ty::mk_adt(adt2.clone(), substs2.clone()));
+                    *self = PlaceNode::Ty(Ty::mk_adt(adt1.clone(), args1.clone()));
+                    *other = PlaceNode::Ty(Ty::mk_adt(adt2.clone(), args2.clone()));
                     return Ok((true, true));
                 }
             }
@@ -634,13 +632,13 @@ impl PlaceNode {
                 (fields1, fields2)
             }
 
-            (PlaceNode::Downcast(adt, substs, .., fields1), _) => {
+            (PlaceNode::Downcast(adt, args, .., fields1), _) => {
                 if adt.is_struct() && !in_mut_ref {
                     let (fields2, m) = other.fields(genv)?;
                     modified2 |= m;
                     (fields1, fields2)
                 } else {
-                    *self = PlaceNode::Ty(Ty::mk_adt(adt.clone(), substs.clone()));
+                    *self = PlaceNode::Ty(Ty::mk_adt(adt.clone(), args.clone()));
                     return Ok((true, false));
                 }
             }
@@ -804,7 +802,7 @@ impl FoldUnfoldsAt<'_> {
 fn downcast(
     genv: &GlobalEnv,
     adt_def: &AdtDef,
-    substs: &Substs,
+    args: &GenericArgs,
     variant: VariantIdx,
 ) -> QueryResult<Vec<PlaceNode>> {
     adt_def
@@ -812,7 +810,7 @@ fn downcast(
         .fields
         .iter()
         .map(|field| {
-            let ty = genv.lower_type_of(field.did)?.subst(substs);
+            let ty = genv.lower_type_of(field.did)?.subst(args);
             QueryResult::Ok(PlaceNode::Ty(ty))
         })
         .try_collect()
@@ -821,14 +819,14 @@ fn downcast(
 fn downcast_struct(
     genv: &GlobalEnv,
     adt_def: &AdtDef,
-    substs: &Substs,
+    args: &GenericArgs,
 ) -> QueryResult<Vec<PlaceNode>> {
     adt_def
         .non_enum_variant()
         .fields
         .iter()
         .map(|field| {
-            let ty = genv.lower_type_of(field.did)?.subst(substs);
+            let ty = genv.lower_type_of(field.did)?.subst(args);
             QueryResult::Ok(PlaceNode::Ty(ty))
         })
         .try_collect()
@@ -850,10 +848,10 @@ impl fmt::Debug for PlaceNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PlaceNode::Deref(_, node) => write!(f, "*({:?})", node),
-            PlaceNode::Downcast(adt, substs, variant, fields) => {
+            PlaceNode::Downcast(adt, args, variant, fields) => {
                 write!(f, "{}", def_id_to_string(adt.did()))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "),)?;
                 }
                 write!(f, "::{}", adt.variant(*variant).name)?;
                 if !fields.is_empty() {
@@ -861,20 +859,20 @@ impl fmt::Debug for PlaceNode {
                 }
                 Ok(())
             }
-            PlaceNode::Closure(did, substs, fields) => {
+            PlaceNode::Closure(did, args, fields) => {
                 write!(f, "Closure {}", def_id_to_string(*did))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "),)?;
                 }
                 if !fields.is_empty() {
                     write!(f, "({:?})", fields.iter().format(", "),)?;
                 }
                 Ok(())
             }
-            PlaceNode::Generator(did, substs, fields) => {
+            PlaceNode::Generator(did, args, fields) => {
                 write!(f, "Generator {}", def_id_to_string(*did))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "),)?;
                 }
                 if !fields.is_empty() {
                     write!(f, "({:?})", fields.iter().format(", "),)?;

@@ -45,7 +45,7 @@ use crate::{
     rustc::{
         self,
         mir::Place,
-        ty::{GeneratorSubstsParts, ValueConst, VariantDef},
+        ty::{GeneratorArgsParts, ValueConst, VariantDef},
     },
 };
 pub use crate::{
@@ -409,14 +409,14 @@ impl Clause {
     }
 }
 
-pub struct GeneratorSubsts {
-    pub substs: GenericArgs,
+pub struct GeneratorArgs {
+    pub args: GenericArgs,
 }
 
-impl GeneratorSubsts {
-    pub fn new(parts: GeneratorSubstsParts<GenericArg>) -> Self {
-        let substs = parts
-            .parent_substs
+impl GeneratorArgs {
+    pub fn new(parts: GeneratorArgsParts<GenericArg>) -> Self {
+        let args = parts
+            .parent_args
             .iter()
             .cloned()
             .chain([
@@ -427,8 +427,9 @@ impl GeneratorSubsts {
                 parts.tupled_upvars_ty.clone(),
             ])
             .collect();
-        GeneratorSubsts { substs }
+        GeneratorArgs { args }
     }
+
     pub fn resume_ty(&self) -> Ty {
         self.split().resume_ty.expect_type().clone()
     }
@@ -438,12 +439,12 @@ impl GeneratorSubsts {
     }
 }
 
-impl GeneratorSubsts {
-    pub fn split(&self) -> GeneratorSubstsParts<GenericArg> {
-        match &self.substs[..] {
-            [ref parent_substs @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
-                GeneratorSubstsParts {
-                    parent_substs,
+impl GeneratorArgs {
+    pub fn split(&self) -> GeneratorArgsParts<GenericArg> {
+        match &self.args[..] {
+            [ref parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+                GeneratorArgsParts {
+                    parent_args,
                     resume_ty,
                     yield_ty,
                     return_ty,
@@ -451,14 +452,14 @@ impl GeneratorSubsts {
                     tupled_upvars_ty,
                 }
             }
-            _ => bug!("generator substs missing synthetics"),
+            _ => bug!("generator args missing synthetics"),
         }
     }
 }
 
 impl GenericArgs {
-    pub fn as_generator(&self) -> GeneratorSubsts {
-        GeneratorSubsts { substs: self.clone() }
+    pub fn as_generator(&self) -> GeneratorArgs {
+        GeneratorArgs { args: self.clone() }
     }
 }
 
@@ -1188,8 +1189,8 @@ impl TyS {
 
     #[track_caller]
     pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Index) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, substs), idx) = self.kind() {
-            (adt_def, substs, idx)
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
+            (adt_def, args, idx)
         } else {
             bug!("expected adt")
         }
@@ -1268,14 +1269,14 @@ impl TyS {
 }
 
 impl AliasTy {
-    pub fn new(def_id: DefId, args: impl Into<List<GenericArg>>) -> Self {
+    pub fn new(def_id: DefId, args: impl Into<GenericArgs>) -> Self {
         AliasTy { def_id, args: args.into() }
     }
 }
 
 impl BaseTy {
-    pub fn adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> BaseTy {
-        BaseTy::Adt(adt_def, substs.into())
+    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
+        BaseTy::Adt(adt_def, args.into())
     }
 
     pub fn slice(ty: Ty) -> BaseTy {
@@ -1361,8 +1362,8 @@ impl Binder<Expr> {
 }
 
 #[track_caller]
-pub fn box_args(substs: &GenericArgs) -> (&Ty, &Ty) {
-    if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &substs[..] {
+pub fn box_args(args: &GenericArgs) -> (&Ty, &Ty) {
+    if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &args[..] {
         (boxed, alloc)
     } else {
         bug!("invalid generic arguments for box");
@@ -1824,14 +1825,14 @@ mod pretty {
                 BaseTy::Bool => w!("bool"),
                 BaseTy::Str => w!("str"),
                 BaseTy::Char => w!("char"),
-                BaseTy::Adt(adt_def, substs) => {
+                BaseTy::Adt(adt_def, args) => {
                     w!("{:?}", adt_def.did())?;
-                    let substs = substs
+                    let args = args
                         .iter()
                         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
                         .collect_vec();
-                    if !substs.is_empty() {
-                        w!("<{:?}>", join!(", ", substs))?;
+                    if !args.is_empty() {
+                        w!("<{:?}>", join!(", ", args))?;
                     }
                     Ok(())
                 }
@@ -1856,17 +1857,17 @@ mod pretty {
                 }
                 BaseTy::Array(ty, c) => w!("[{:?}; {:?}]", ty, ^c),
                 BaseTy::Never => w!("!"),
-                BaseTy::Closure(did, substs) => {
-                    w!("Closure {:?}<{:?}>", did, substs)
+                BaseTy::Closure(did, args) => {
+                    w!("Closure {:?}<{:?}>", did, args)
                 }
-                BaseTy::Generator(did, substs) => {
+                BaseTy::Generator(did, args) => {
                     w!("Generator {:?}", did)?;
-                    let substs = substs
+                    let args = args
                         .iter()
                         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
                         .collect_vec();
-                    if !substs.is_empty() {
-                        w!("<{:?}>", join!(", ", substs))?;
+                    if !args.is_empty() {
+                        w!("<{:?}>", join!(", ", args))?;
                     }
                     Ok(())
                 }

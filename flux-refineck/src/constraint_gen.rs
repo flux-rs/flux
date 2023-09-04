@@ -153,7 +153,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         callsite_def_id: DefId,
         callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
-        substs: &[GenericArg],
+        generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
         // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
@@ -186,14 +186,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Replace holes in generic arguments with fresh kvars
         let snapshot = rcx.snapshot();
-        let substs = substs
+        let generic_args = generic_args
             .iter()
             .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
-        let inst_fn_sig = fn_sig.instantiate(&substs, &[]).replace_bound_vars(
+        let inst_fn_sig = fn_sig.instantiate(&generic_args, &[]).replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
@@ -201,7 +201,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig, span)?;
 
         let obligs = if let Some(did) = callee_def_id {
-            mk_obligations(genv, did, &substs)?
+            mk_obligations(genv, did, &generic_args)?
         } else {
             List::empty()
         };
@@ -299,7 +299,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         variant: EarlyBinder<PolyVariant>,
-        substs: &[GenericArg],
+        generic_args: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty, CheckerErrKind> {
         // rn we are only calling `check_constructor` from path_tree when folding so we mark this
@@ -307,14 +307,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
         // Replace holes in generic arguments with fresh kvars
-        let substs = substs
+        let generic_args = generic_args
             .iter()
             .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
-            .instantiate(&substs, &[])
+            .instantiate(&generic_args, &[])
             .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
 
         // Check arguments
@@ -540,11 +540,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 debug_assert_eq!(uint_ty1, uint_ty2);
                 Ok(())
             }
-            (BaseTy::Adt(adt1, substs1), BaseTy::Adt(adt2, substs2)) => {
+            (BaseTy::Adt(adt1, args1), BaseTy::Adt(adt2, args2)) => {
                 debug_assert_eq!(adt1.did(), adt2.did());
-                debug_assert_eq!(substs1.len(), substs2.len());
+                debug_assert_eq!(args1.len(), args2.len());
                 let variances = self.genv.variances_of(adt1.did());
-                for (variance, ty1, ty2) in izip!(variances, substs1.iter(), substs2.iter()) {
+                for (variance, ty1, ty2) in izip!(variances, args1.iter(), args2.iter()) {
                     self.generic_arg_subtyping(rcx, *variance, ty1, ty2)?;
                 }
                 Ok(())

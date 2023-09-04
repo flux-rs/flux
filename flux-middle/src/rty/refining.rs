@@ -14,7 +14,7 @@ use crate::{
     intern::List,
     queries::QueryResult,
     rty,
-    rustc::{self, ty::Substs},
+    rustc::{self, ty::GenericArgs},
 };
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
@@ -123,13 +123,13 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         ret: &rustc::ty::Ty,
     ) -> QueryResult<rty::PolyVariant> {
         let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
-        let rustc::ty::TyKind::Adt(adt_def, substs) = ret.kind() else {
+        let rustc::ty::TyKind::Adt(adt_def, args) = ret.kind() else {
             bug!();
         };
-        let substs = iter::zip(&self.generics.params, substs)
+        let args = iter::zip(&self.generics.params, args)
             .map(|(param, arg)| self.refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, substs);
+        let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, args);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantSig::new(fields, ret);
         Ok(rty::Binder::new(value, List::empty()))
@@ -204,7 +204,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
         let generics = self.generics_of(def_id)?;
-        let args = iter::zip(&generics.params, alias_ty.substs.iter())
+        let args = iter::zip(&generics.params, alias_ty.args.iter())
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;
         let res = rty::AliasTy::new(def_id, args);
@@ -228,7 +228,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
-    fn refine_generic_args(&self, args: &Substs) -> QueryResult<List<rty::Ty>> {
+    fn refine_generic_args(&self, args: &GenericArgs) -> QueryResult<List<rty::Ty>> {
         if let rustc::ty::GenericArg::Ty(ty) = &args[args.len() - 1] &&
            let rustc::ty::TyKind::Tuple(tys) = ty.kind()
         {
@@ -272,12 +272,12 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     rty::GenericParamDefKind::Const { .. } => bug!(),
                 }
             }
-            rustc::ty::TyKind::Adt(adt_def, substs) => {
+            rustc::ty::TyKind::Adt(adt_def, args) => {
                 let adt_def = self.genv.adt_def(adt_def.did())?;
-                let substs = iter::zip(&self.generics_of(adt_def.did())?.params, substs)
+                let args = iter::zip(&self.generics_of(adt_def.did())?.params, args)
                     .map(|(param, arg)| self.refine_generic_arg(param, arg))
                     .try_collect_vec()?;
-                rty::BaseTy::adt(adt_def, substs)
+                rty::BaseTy::adt(adt_def, args)
             }
             rustc::ty::TyKind::Alias(kind, alias_ty) => {
                 let kind = Self::refine_alias_kind(kind);
