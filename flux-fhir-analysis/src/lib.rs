@@ -157,7 +157,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
     let ty = match genv.tcx.def_kind(def_id) {
-        DefKind::TyAlias => {
+        DefKind::TyAlias { .. } => {
             let alias = genv.map().get_type_alias(def_id);
             let wfckresults = genv.check_wf(def_id)?;
             conv::expand_type_alias(genv, alias, &wfckresults)?
@@ -242,7 +242,7 @@ fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<Rc<fhir::Wfc
 
 fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
     let wfckresults = match genv.tcx.def_kind(def_id) {
-        DefKind::TyAlias => {
+        DefKind::TyAlias { .. } => {
             let alias = genv.map().get_type_alias(def_id);
             let mut wfckresults = wf::check_ty_alias(genv, alias)?;
             annot_check::check_alias(genv.tcx, genv.sess, &mut wfckresults, alias)?;
@@ -300,7 +300,7 @@ pub fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     for def_id in genv.tcx.hir_crate_items(()).definitions() {
         match genv.tcx.def_kind(def_id) {
-            DefKind::TyAlias
+            DefKind::TyAlias { .. }
             | DefKind::Struct
             | DefKind::Enum
             | DefKind::Fn

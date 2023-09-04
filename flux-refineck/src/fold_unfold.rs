@@ -335,7 +335,7 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
                 self.goto(bb, *real_target, env)?;
             }
             TerminatorKind::Unreachable
-            | TerminatorKind::Resume
+            | TerminatorKind::UnwindResume
             | TerminatorKind::GeneratorDrop => {}
         }
         Ok(())

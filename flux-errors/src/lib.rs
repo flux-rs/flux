@@ -38,7 +38,7 @@ impl FluxSession {
         fallback_bundle: LazyFallbackBundle,
     ) -> Self {
         let emitter = emitter(opts, source_map.clone(), fallback_bundle);
-        let handler = rustc_errors::Handler::with_emitter(true, None, emitter, None);
+        let handler = rustc_errors::Handler::with_emitter(emitter);
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
@@ -72,7 +72,7 @@ fn emitter(
     opts: &config::Options,
     source_map: Rc<SourceMap>,
     fallback_bundle: LazyFallbackBundle,
-) -> Box<dyn Emitter + sync::Send> {
+) -> Box<dyn Emitter + sync::DynSend> {
     let bundle = None;
     let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
@@ -89,18 +89,19 @@ fn emitter(
                 );
                 Box::new(emitter)
             } else {
-                let emitter = EmitterWriter::stderr(
-                    color_config,
-                    Some(source_map),
-                    bundle,
-                    fallback_bundle,
-                    short,
-                    false,
-                    None,
-                    false,
-                    track_diagnostics,
-                    opts.unstable_opts.terminal_urls,
-                );
+                // let emitter = EmitterWriter::stderr(
+                //     color_config,
+                //     Some(source_map),
+                //     bundle,
+                //     fallback_bundle,
+                //     short,
+                //     false,
+                //     None,
+                //     false,
+                //     track_diagnostics,
+                //     opts.unstable_opts.terminal_urls,
+                // );
+                let emitter = EmitterWriter::stderr(color_config, fallback_bundle);
                 Box::new(emitter)
             }
         }

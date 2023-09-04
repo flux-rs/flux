@@ -430,7 +430,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         path: &fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
-            fhir::Res::Def(DefKind::TyAlias, def_id) => {
+            fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let sorts = self.genv.early_bound_sorts_of(*def_id);
                 if path.refine.len() != sorts.len() {
                     return self.emit_err(errors::EarlyBoundArgCountMismatch::new(

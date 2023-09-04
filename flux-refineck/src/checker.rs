@@ -485,7 +485,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 Ok(vec![(*real_target, Guard::None)])
             }
-            TerminatorKind::Resume => todo!("implement checking of cleanup code"),
+            TerminatorKind::UnwindResume => todo!("implement checking of cleanup code"),
         }
     }
 
