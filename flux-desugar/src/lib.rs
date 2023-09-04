@@ -9,7 +9,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use desugar::{Binders, DesugarCtxt};
-use flux_common::dbg;
+use flux_common::{dbg, index::IndexGen};
 use flux_config as config;
 use flux_macros::fluent_messages;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
@@ -19,11 +19,12 @@ fluent_messages! { "../locales/en-US.ftl" }
 mod desugar;
 mod table_resolver;
 
-pub use desugar::{
-    desugar_defn, desugar_generics, desugar_qualifier, desugar_refined_by, func_def_to_func_decl,
-};
+pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 use flux_middle::{
-    fhir::{self, lift},
+    fhir::{
+        self,
+        lift::{self, LiftCtxt},
+    },
     global_env::GlobalEnv,
 };
 use flux_syntax::surface;
@@ -32,23 +33,89 @@ use rustc_hash::FxHashMap;
 use rustc_hir::OwnerId;
 
 pub fn desugar_struct_def(
-    genv: &GlobalEnv,
+    genv: &mut GlobalEnv,
     owner_id: OwnerId,
     struct_def: surface::StructDef,
-) -> Result<fhir::StructDef, ErrorGuaranteed> {
-    let resolver = table_resolver::Resolver::new(genv.tcx, genv.sess, owner_id.def_id)?;
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+
+    let resolver = table_resolver::Resolver::new(genv.tcx, genv.sess, def_id)?;
     let struct_def = resolver.resolve_struct_def(struct_def)?;
-    desugar::desugar_struct_def(genv, owner_id, struct_def)
+
+    let mut cx = DesugarCtxt::new(genv, owner_id, None);
+
+    let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+    genv.map().insert_generics(def_id, generics);
+
+    let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
+    if config::dump_fhir() {
+        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
+    }
+    genv.map_mut().insert_generic_predicates(def_id, predicates);
+    genv.map_mut().insert_struct(def_id, struct_def);
+
+    Ok(())
 }
 
 pub fn desugar_enum_def(
-    genv: &GlobalEnv,
+    genv: &mut GlobalEnv,
     owner_id: OwnerId,
     enum_def: surface::EnumDef,
-) -> Result<fhir::EnumDef, ErrorGuaranteed> {
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+
     let resolver = table_resolver::Resolver::new(genv.tcx, genv.sess, owner_id.def_id)?;
     let enum_def = resolver.resolve_enum_def(enum_def)?;
-    desugar::desugar_enum_def(genv, owner_id, &enum_def)
+
+    let mut cx = DesugarCtxt::new(genv, owner_id, None);
+
+    let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+    genv.map().insert_generics(def_id, generics);
+
+    let enum_def = cx.desugar_enum_def(&enum_def, &mut Binders::new())?;
+    if config::dump_fhir() {
+        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
+    }
+    genv.map_mut().insert_generic_predicates(def_id, predicates);
+    genv.map_mut().insert_enum(def_id, enum_def);
+
+    Ok(())
+}
+
+pub fn desugar_type_alias(
+    genv: &mut GlobalEnv,
+    owner_id: OwnerId,
+    ty_alias: Option<surface::TyAlias>,
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+
+    if let Some(ty_alias) = ty_alias {
+        let resolver = table_resolver::Resolver::new(genv.tcx, genv.sess, def_id)?;
+        let ty_alias = resolver.resolve_type_alias(ty_alias)?;
+
+        let mut cx = DesugarCtxt::new(genv, owner_id, None);
+
+        let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+        genv.map().insert_generics(def_id, generics);
+
+        let ty_alias = cx.desugar_type_alias(ty_alias, &mut Binders::new())?;
+        if config::dump_fhir() {
+            dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
+        }
+        genv.map_mut().insert_generic_predicates(def_id, predicates);
+        genv.map_mut().insert_type_alias(def_id, ty_alias);
+    } else {
+        let (generics, predicates, ty_alias) =
+            lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?;
+        if config::dump_fhir() {
+            dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
+        }
+        genv.map().insert_generics(def_id, generics);
+        genv.map_mut().insert_generic_predicates(def_id, predicates);
+        genv.map_mut().insert_type_alias(def_id, ty_alias);
+    }
+
+    Ok(())
 }
 
 pub fn desugar_fn_sig(
@@ -95,16 +162,19 @@ pub fn desugar_fn_sig(
     Ok(())
 }
 
-pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
-    fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
+pub fn desugar_generics_and_predicates(
+    genv: &mut GlobalEnv,
+    owner_id: OwnerId,
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+    let local_id_gen = IndexGen::new();
+    let (generics, predicates) = LiftCtxt::new(genv.tcx, genv.sess, owner_id, &local_id_gen, None)
+        .lift_generics_with_predicates()?;
+    genv.map().insert_generics(def_id, generics);
+    genv.map_mut().insert_generic_predicates(def_id, predicates);
+    Ok(())
 }
 
-pub fn desugar_type_alias(
-    genv: &GlobalEnv,
-    owner_id: OwnerId,
-    alias: surface::TyAlias,
-) -> Result<fhir::TyAlias, ErrorGuaranteed> {
-    let resolver = table_resolver::Resolver::new(genv.tcx, genv.sess, owner_id.def_id)?;
-    let alias = resolver.resolve_type_alias(alias)?;
-    desugar::desugar_type_alias(genv, owner_id, alias)
+pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
+    fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
 }

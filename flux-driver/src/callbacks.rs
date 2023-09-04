@@ -5,7 +5,10 @@ use flux_desugar as desugar;
 use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
-    fhir::{lift, ConstInfo},
+    fhir::{
+        lift::{self, LiftCtxt},
+        ConstInfo,
+    },
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
@@ -236,43 +239,26 @@ fn desugar_item(
             desugar_fn_sig(genv, specs, owner_id)?;
         }
         hir::ItemKind::TyAlias(..) => {
-            lift_generics(genv, owner_id)?;
-
             let ty_alias = specs.ty_aliases.remove(&owner_id).unwrap();
-            let ty_alias = if let Some(ty_alias) = ty_alias {
-                desugar::desugar_type_alias(genv, owner_id, ty_alias)?
-            } else {
-                lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
-            };
-            genv.map_mut().insert_type_alias(owner_id.def_id, ty_alias);
+            desugar::desugar_type_alias(genv, owner_id, ty_alias)?;
         }
-        hir::ItemKind::OpaqueTy(_) => lift_generics(genv, owner_id)?,
+        hir::ItemKind::OpaqueTy(_) => desugar::desugar_generics_and_predicates(genv, owner_id)?,
         hir::ItemKind::Enum(..) => {
-            lift_generics(genv, owner_id)?;
             let enum_def = specs.enums.remove(&owner_id).unwrap();
-            let enum_def = desugar::desugar_enum_def(genv, owner_id, enum_def)?;
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
-            }
-            genv.map_mut().insert_enum(owner_id.def_id, enum_def);
+            desugar::desugar_enum_def(genv, owner_id, enum_def)?;
         }
         hir::ItemKind::Struct(..) => {
-            lift_generics(genv, owner_id)?;
             let struct_def = specs.structs.remove(&owner_id).unwrap();
-            let struct_def = desugar::desugar_struct_def(genv, owner_id, struct_def)?;
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
-            }
-            genv.map_mut().insert_struct(owner_id.def_id, struct_def);
+            desugar::desugar_struct_def(genv, owner_id, struct_def)?;
         }
         hir::ItemKind::Trait(.., items) => {
-            lift_generics(genv, owner_id)?;
+            desugar::desugar_generics_and_predicates(genv, owner_id)?;
             items
                 .iter()
                 .try_for_each_exhaust(|trait_item| desugar_trait_item(genv, specs, trait_item))?;
         }
         hir::ItemKind::Impl(impl_) => {
-            lift_generics(genv, owner_id)?;
+            desugar::desugar_generics_and_predicates(genv, owner_id)?;
             impl_
                 .items
                 .iter()
@@ -321,15 +307,6 @@ fn desugar_fn_sig(
     if let Some(quals) = spec.qual_names {
         genv.map_mut().insert_fn_quals(def_id, quals.names);
     }
-    Ok(())
-}
-
-fn lift_generics(genv: &mut GlobalEnv, owner_id: OwnerId) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-    let generics = lift::lift_generics(genv.tcx, genv.sess, owner_id)?;
-    let predicates = lift::lift_generic_predicates(genv.tcx, genv.sess, owner_id)?;
-    genv.map_mut().insert_generics(def_id, generics);
-    genv.map_mut().insert_generic_predicates(def_id, predicates);
     Ok(())
 }
 

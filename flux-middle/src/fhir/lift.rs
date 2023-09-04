@@ -35,50 +35,32 @@ pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
     }
 }
 
-// FIXME(nilehmann) this is wrong, we should lift generics in the same context that its owner to
-// generate appropriate `FhirId`s
-pub fn lift_generics(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    owner_id: OwnerId,
-) -> Result<fhir::Generics, ErrorGuaranteed> {
-    let local_id_gen = IndexGen::new();
-    LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None).lift_generics()
-}
-
-// FIXME(nilehmann) this is wrong, we should lift generics in the same context that its owner to
-// generate appropriate `FhirId`s
-pub fn lift_generic_predicates(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    owner_id: OwnerId,
-) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-    let generics = tcx.hir().get_generics(def_id).unwrap();
-    LiftCtxt::new(tcx, sess, owner_id, &IndexGen::new(), None).lift_generic_predicates(generics)
-}
-
 pub fn lift_type_alias(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
-) -> Result<fhir::TyAlias, ErrorGuaranteed> {
+) -> Result<(fhir::Generics, fhir::GenericPredicates, fhir::TyAlias), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
     let item = tcx.hir().expect_item(def_id);
-    let hir::ItemKind::TyAlias(ty, _) = &item.kind else {
+    let hir::ItemKind::TyAlias(ty, hir_generics) = item.kind else {
         bug!("expected type alias");
     };
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
+
+    let generics = cx.lift_generics_inner(hir_generics)?;
+    let predicates = cx.lift_generic_predicates(hir_generics)?;
     let ty = cx.lift_ty(ty)?;
-    Ok(fhir::TyAlias {
+    let ty_alias = fhir::TyAlias {
         owner_id,
         early_bound_params: vec![],
         index_params: vec![],
         ty,
         span: item.span,
         lifted: true,
-    })
+    };
+
+    Ok((generics, predicates, ty_alias))
 }
 
 pub fn lift_fn(
@@ -164,6 +146,13 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+    }
+
+    pub fn lift_generics_with_predicates(
+        &mut self,
+    ) -> Result<(fhir::Generics, fhir::GenericPredicates), ErrorGuaranteed> {
+        let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
+        Ok((self.lift_generics_inner(generics)?, self.lift_generic_predicates(generics)?))
     }
 
     pub fn lift_generics(&mut self) -> Result<fhir::Generics, ErrorGuaranteed> {

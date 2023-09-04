@@ -42,8 +42,8 @@ pub fn check_alias(
     if ty_alias.lifted {
         return Ok(());
     }
-    Zipper::new(sess, wfckresults, None)
-        .zip_ty(&ty_alias.ty, &lift::lift_type_alias(tcx, sess, ty_alias.owner_id)?.ty)
+    let (.., expected_ty_alias) = lift::lift_type_alias(tcx, sess, ty_alias.owner_id)?;
+    Zipper::new(sess, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
 pub fn check_struct_def(
