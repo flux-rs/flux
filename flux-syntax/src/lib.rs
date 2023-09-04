@@ -31,35 +31,35 @@ macro_rules! parse {
     }};
 }
 
-pub fn parse_refined_by(tokens: TokenStream, span: Span) -> ParseResult<surface::RefinedBy> {
+pub fn parse_refined_by(tokens: &TokenStream, span: Span) -> ParseResult<surface::RefinedBy> {
     parse!(grammar::RefinedByParser, tokens, span)
 }
 
-pub fn parse_type_alias(tokens: TokenStream, span: Span) -> ParseResult<surface::TyAlias> {
+pub fn parse_type_alias(tokens: &TokenStream, span: Span) -> ParseResult<surface::TyAlias> {
     parse!(grammar::TyAliasParser, tokens, span)
 }
 
-pub fn parse_fn_surface_sig(tokens: TokenStream, span: Span) -> ParseResult<surface::FnSig> {
+pub fn parse_fn_surface_sig(tokens: &TokenStream, span: Span) -> ParseResult<surface::FnSig> {
     parse!(grammar::FnSigParser, tokens, span)
 }
 
-pub fn parse_qual_names(tokens: TokenStream, span: Span) -> ParseResult<surface::QualNames> {
+pub fn parse_qual_names(tokens: &TokenStream, span: Span) -> ParseResult<surface::QualNames> {
     parse!(grammar::QualNamesParser, tokens, span)
 }
 
-pub fn parse_flux_item(tokens: TokenStream, span: Span) -> ParseResult<Vec<surface::Item>> {
+pub fn parse_flux_item(tokens: &TokenStream, span: Span) -> ParseResult<Vec<surface::Item>> {
     parse!(grammar::ItemsParser, tokens, span)
 }
 
-pub fn parse_ty(tokens: TokenStream, span: Span) -> ParseResult<surface::Ty> {
+pub fn parse_ty(tokens: &TokenStream, span: Span) -> ParseResult<surface::Ty> {
     parse!(grammar::TyParser, tokens, span)
 }
 
-pub fn parse_variant(tokens: TokenStream, span: Span) -> ParseResult<surface::VariantDef> {
+pub fn parse_variant(tokens: &TokenStream, span: Span) -> ParseResult<surface::VariantDef> {
     parse!(grammar::VariantParser, tokens, span)
 }
 
-pub fn parse_expr(tokens: TokenStream, span: Span) -> ParseResult<surface::Expr> {
+pub fn parse_expr(tokens: &TokenStream, span: Span) -> ParseResult<surface::Expr> {
     parse!(grammar::ExprParser, tokens, span)
 }
 

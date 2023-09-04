@@ -288,8 +288,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 }
             }
             rustc_mir::TerminatorKind::GeneratorDrop => TerminatorKind::GeneratorDrop,
-            rustc_mir::TerminatorKind::Resume => TerminatorKind::Resume,
-            rustc_mir::TerminatorKind::Terminate | rustc_mir::TerminatorKind::InlineAsm { .. } => {
+            rustc_mir::TerminatorKind::UnwindResume => TerminatorKind::UnwindResume,
+            rustc_mir::TerminatorKind::UnwindTerminate(..)
+            | rustc_mir::TerminatorKind::InlineAsm { .. } => {
                 return Err(errors::UnsupportedMir::from(terminator)).emit(self.sess);
             }
         };

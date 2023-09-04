@@ -352,7 +352,11 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
     /// any enclosing mod has been marked as `ignore`
     fn is_ignored(&self, def_id: LocalDefId) -> bool {
-        let parent_def_id = self.genv.tcx.parent_module_from_def_id(def_id);
+        let parent_def_id = self
+            .genv
+            .tcx
+            .parent_module_from_def_id(def_id)
+            .to_local_def_id();
         if parent_def_id == def_id {
             false
         } else {
@@ -467,7 +471,7 @@ fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = OwnerId> + '_ {
                 DefKind::Struct
                 | DefKind::Enum
                 | DefKind::Impl { .. }
-                | DefKind::TyAlias
+                | DefKind::TyAlias { .. }
                 | DefKind::OpaqueTy
                 | DefKind::AssocTy => Some(OwnerId { def_id }),
                 _ => None,

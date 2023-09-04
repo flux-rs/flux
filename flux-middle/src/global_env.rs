@@ -209,7 +209,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
             fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
             fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
-            fhir::Res::Def(DefKind::TyAlias | DefKind::Enum | DefKind::Struct, def_id) => {
+            fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 fhir::Sort::Record(def_id)
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => {

@@ -120,7 +120,7 @@ pub enum TerminatorKind<'tcx> {
         drop: Option<BasicBlock>,
     },
     GeneratorDrop,
-    Resume,
+    UnwindResume,
 }
 
 #[derive(Debug)]
@@ -526,7 +526,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
             TerminatorKind::FalseUnwind { real_target, unwind } => {
                 write!(f, "falseUnwind -> [real: {real_target:?}, cleanup: {unwind:?}]")
             }
-            TerminatorKind::Resume => write!(f, "resume"),
+            TerminatorKind::UnwindResume => write!(f, "resume"),
             TerminatorKind::GeneratorDrop => write!(f, "generator_drop"),
             TerminatorKind::Yield { value, resume, drop, resume_arg } => {
                 write!(

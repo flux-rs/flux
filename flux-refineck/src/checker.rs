@@ -485,7 +485,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 Ok(vec![(*real_target, Guard::None)])
             }
-            TerminatorKind::Resume => todo!("implement checking of cleanup code"),
+            TerminatorKind::UnwindResume => todo!("implement checking of cleanup code"),
         }
     }
 
@@ -970,19 +970,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     }
                 }
             }
-            // See [NOTE:unsize]
+            // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
             CastKind::Pointer(mir::PointerCast::Unsize) => {
                 if // src is an array
-                   let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind() &&
-                   let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _src_ix) = src_ty.kind() &&
+                   let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
+                   && let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _) = src_ty.kind()
                    // dst is a slice
-                   let rustc::ty::TyKind::Ref(dst_reg, dst_ty, dst_mut) = to.kind() &&
-                   let rustc::ty::TyKind::Slice(_dst_slice_ty) = dst_ty.kind() &&
-                   src_mut == dst_mut
+                   && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+                   && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
+                   && src_mut == dst_mut
                 {
                     let dst_ix = Index::from(src_n.clone());
                     let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), dst_ix);
-                    Ty::mk_ref(*dst_reg, dst_slice, *dst_mut)
+                    Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {
                     tracked_span_bug!("unsupported Unsize cast")
                 }
@@ -997,18 +997,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         };
         Ok(ty)
     }
-
-    /* [NOTE:unsize]  https://github.com/flux-rs/flux/pull/490#discussion_r1313923883
-
-    This is unsound for mir::PointerCast::Unsize. As implemented, you can use it to
-    coerce a &mut [i32{v: v > 0}; 10] to a &mut [i32]. We should make sure this is
-    only being applied for unsizing of arrays into slices (I think this is enough for panic)
-    and that the semantics is
-
-        &mut [T; n] -> &mut [T][n]
-        &[T;n] -> &[T][n]
-
-    */
 
     fn check_operands(
         &mut self,

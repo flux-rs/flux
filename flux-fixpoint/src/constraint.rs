@@ -391,7 +391,9 @@ impl fmt::Display for Func {
 }
 
 pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|| {
-    // Unary
+    // -----
+    // UNARY
+    // -----
 
     // (qualif EqZero ((v int)) (v == 0))
     let eqzero = Qualifier {
@@ -433,7 +435,9 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
         global: true,
     };
 
-    // Binary
+    // ------
+    // BINARY
+    // ------
 
     // (qualif Eq ((a int) (b int)) (a == b))
     let eq = Qualifier {
