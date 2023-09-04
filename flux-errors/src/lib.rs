@@ -89,19 +89,11 @@ fn emitter(
                 );
                 Box::new(emitter)
             } else {
-                // let emitter = EmitterWriter::stderr(
-                //     color_config,
-                //     Some(source_map),
-                //     bundle,
-                //     fallback_bundle,
-                //     short,
-                //     false,
-                //     None,
-                //     false,
-                //     track_diagnostics,
-                //     opts.unstable_opts.terminal_urls,
-                // );
-                let emitter = EmitterWriter::stderr(color_config, fallback_bundle);
+                let emitter = EmitterWriter::stderr(color_config, fallback_bundle)
+                    .sm(Some(source_map))
+                    .short_message(short)
+                    .track_diagnostics(track_diagnostics)
+                    .terminal_url(opts.unstable_opts.terminal_urls);
                 Box::new(emitter)
             }
         }

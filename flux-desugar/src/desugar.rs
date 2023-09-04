@@ -805,7 +805,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let mut args = vec![];
         let mut bindings = vec![];
         if let Res::Def(
-            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
+            DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
             def_id,
         ) = res
         {
