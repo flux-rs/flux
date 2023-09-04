@@ -277,7 +277,7 @@ impl<'tcx> Body<'tcx> {
         &self.body_with_facts.body
     }
 
-    /// see [NOTE:YIELD]
+    /// see (NOTE:YIELD)
     pub fn resume_local(&self) -> Option<Local> {
         self.args_iter().nth(1)
     }

@@ -181,7 +181,7 @@ pub struct FieldDef {
     pub ty: Ty,
     /// Whether this field was [lifted] from a `hir` field
     ///
-    /// [lifted]: lift::lift_field_def
+    /// [lifted]: lift::LiftCtxt::lift_field_def
     pub lifted: bool,
 }
 
@@ -202,7 +202,7 @@ pub struct VariantDef {
     pub span: Span,
     /// Whether this variant was [lifted] from a hir variant
     ///
-    /// [lifted]: lift::lift_enum_variant_def
+    /// [lifted]: lift::LiftCtxt::lift_enum_variant
     pub lifted: bool,
 }
 
@@ -229,7 +229,7 @@ pub struct FnSig {
     pub output: FnOutput,
     /// Whether the sig was [lifted] from a hir signature
     ///
-    /// [lifted]: lift::lift_fn_sig
+    /// [lifted]: lift::LiftCtxt::lift_fn_sig
     pub lifted: bool,
     pub span: Span,
 }

@@ -207,7 +207,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
-        // [NOTE:YIELD] per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
+        // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
         let resume_ty = if genv.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Generator {
