@@ -19,7 +19,7 @@ use rustc_span::Span;
 
 use super::{
     mir::{
-        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BorrowKind, CallSubsts,
+        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BorrowKind, CallArgs,
         CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, PointerCast,
         Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
@@ -192,12 +192,12 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
-                let (func, substs) = match func.ty(self.rustc_mir, self.tcx).kind() {
-                    rustc_middle::ty::TyKind::FnDef(fn_def, substs) => {
-                        let lowered_substs = lower_generic_args(self.tcx, substs)
+                let (func, generic_args) = match func.ty(self.rustc_mir, self.tcx).kind() {
+                    rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
+                        let lowered = lower_generic_args(self.tcx, args)
                             .map_err(|_err| errors::UnsupportedMir::from(terminator))
                             .emit(self.sess)?;
-                        (*fn_def, CallSubsts { orig: substs, lowered: lowered_substs })
+                        (*fn_def, CallArgs { orig: args, lowered })
                     }
                     _ => Err(errors::UnsupportedMir::from(terminator)).emit(self.sess)?,
                 };
@@ -209,13 +209,13 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     .emit(self.sess)?;
 
                 let resolved_call = self
-                    .resolve_call(func, substs.orig)
+                    .resolve_call(func, generic_args.orig)
                     .map_err(|reason| errors::UnsupportedMir::new(span, "terminator call", reason))
                     .emit(self.sess)?;
 
                 TerminatorKind::Call {
                     func,
-                    substs,
+                    generic_args,
                     destination,
                     target: *target,
                     args: args
@@ -300,28 +300,26 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     fn resolve_call(
         &self,
         callee_id: DefId,
-        substs: rustc_middle::ty::GenericArgsRef<'tcx>,
-    ) -> Result<(DefId, CallSubsts<'tcx>), UnsupportedReason> {
+        args: rustc_middle::ty::GenericArgsRef<'tcx>,
+    ) -> Result<(DefId, CallArgs<'tcx>), UnsupportedReason> {
         // NOTE(nilehmann) tcx.resolve_instance used to panic without this check but none of the tests
         // are failing now. Leaving it here in case the problem comes back.
-        // if substs.needs_infer() {
+        // if args.needs_infer() {
         //     return Ok(None);
         // }
 
         // this produced erased regions in the substitution for early bound regions
         let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
-        let (resolved_id, resolved_substs) = self
+        let (resolved_id, resolved_args) = self
             .tcx
-            .resolve_instance(param_env.and((callee_id, substs)))
+            .resolve_instance(param_env.and((callee_id, args)))
             .ok()
             .flatten()
-            .map_or_else(|| (callee_id, substs), |instance| (instance.def_id(), instance.args));
+            .map_or_else(|| (callee_id, args), |instance| (instance.def_id(), instance.args));
 
-        let call_substs = CallSubsts {
-            lowered: lower_generic_args(self.tcx, resolved_substs)?,
-            orig: resolved_substs,
-        };
-        Ok((resolved_id, call_substs))
+        let call_args =
+            CallArgs { lowered: lower_generic_args(self.tcx, resolved_args)?, orig: resolved_args };
+        Ok((resolved_id, call_args))
     }
 
     fn lower_rvalue(&self, rvalue: &rustc_mir::Rvalue<'tcx>) -> Result<Rvalue, UnsupportedReason> {
@@ -421,20 +419,20 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, UnsupportedReason> {
         match aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, substs, None, None) => {
-                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_generic_args(self.tcx, substs)?))
+            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, None, None) => {
+                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_generic_args(self.tcx, args)?))
             }
             rustc_mir::AggregateKind::Array(ty) => {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
             }
             rustc_mir::AggregateKind::Tuple => Ok(AggregateKind::Tuple),
-            rustc_mir::AggregateKind::Closure(did, substs) => {
-                let lowered_substs = lower_generic_args(self.tcx, substs)?;
-                Ok(AggregateKind::Closure(*did, lowered_substs))
+            rustc_mir::AggregateKind::Closure(did, args) => {
+                let args = lower_generic_args(self.tcx, args)?;
+                Ok(AggregateKind::Closure(*did, args))
             }
-            rustc_mir::AggregateKind::Generator(did, substs, _mov) => {
-                let lowered_substs = lower_generic_args(self.tcx, substs)?;
-                Ok(AggregateKind::Generator(*did, lowered_substs))
+            rustc_mir::AggregateKind::Generator(did, args, _mov) => {
+                let args = lower_generic_args(self.tcx, args)?;
+                Ok(AggregateKind::Generator(*did, args))
             }
             rustc_mir::AggregateKind::Adt(..) => {
                 Err(UnsupportedReason::new(format!(
@@ -653,9 +651,9 @@ pub(crate) fn lower_ty<'tcx>(
         rustc_ty::Uint(uint_ty) => Ok(Ty::mk_uint(*uint_ty)),
         rustc_ty::Float(float_ty) => Ok(Ty::mk_float(*float_ty)),
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
-        rustc_ty::Adt(adt_def, substs) => {
-            let substs = lower_generic_args(tcx, substs)?;
-            Ok(Ty::mk_adt(lower_adt_def(adt_def), substs))
+        rustc_ty::Adt(adt_def, args) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_adt(lower_adt_def(adt_def), args))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
@@ -682,8 +680,8 @@ pub(crate) fn lower_ty<'tcx>(
 
         rustc_ty::Alias(kind, alias_ty) => {
             let kind = lower_alias_kind(kind)?;
-            let substs = lower_generic_args(tcx, alias_ty.args)?;
-            Ok(Ty::mk_alias(kind, alias_ty.def_id, substs))
+            let args = lower_generic_args(tcx, alias_ty.args)?;
+            Ok(Ty::mk_alias(kind, alias_ty.def_id, args))
         }
         rustc_ty::Generator(did, args, _) => {
             let args = lower_generic_args(tcx, args)?;
@@ -828,9 +826,9 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         match kind {
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
-                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
+                let args = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
-                    match fn_trait_refs.entry(substs) {
+                    match fn_trait_refs.entry(args) {
                         hash_map::Entry::Occupied(_) => todo!(),
                         hash_map::Entry::Vacant(entry) => {
                             entry.insert((closure_kind, *span));
@@ -840,21 +838,21 @@ pub(crate) fn lower_generic_predicates<'tcx>(
             }
             rustc_ty::ClauseKind::Projection(proj_pred) => {
                 let proj_ty = proj_pred.projection_ty;
-                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
+                let args = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
                 if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
-                    match fn_output_proj.entry(substs) {
+                    match fn_output_proj.entry(args) {
                         hash_map::Entry::Occupied(_) => todo!(),
                         hash_map::Entry::Vacant(entry) => {
                             entry.insert(proj_pred.term.ty().unwrap());
                         }
                     };
                 } else if let Some(ty) = proj_pred.term.ty() &&
-                          let Some(substs) = substs.no_bound_vars(){
-                    let substs = lower_generic_args(tcx, substs)
+                          let Some(args) = args.no_bound_vars(){
+                    let args = lower_generic_args(tcx, args)
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
 
-                    let projection_ty = AliasTy { substs, def_id: proj_ty.def_id };
+                    let projection_ty = AliasTy { args, def_id: proj_ty.def_id };
                     let term = lower_ty(tcx, ty)
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
@@ -866,15 +864,15 @@ pub(crate) fn lower_generic_predicates<'tcx>(
         }
     }
 
-    for (substs, (kind, span)) in fn_trait_refs {
-        let output = fn_output_proj.get(&substs).unwrap();
+    for (args, (kind, span)) in fn_trait_refs {
+        let output = fn_output_proj.get(&args).unwrap();
 
-        let vars = substs.bound_vars();
-        let substs = substs.skip_binder().into_type_list(tcx);
-        let bounded_ty = lower_ty(tcx, substs[0])
+        let vars = args.bound_vars();
+        let args = args.skip_binder().into_type_list(tcx);
+        let bounded_ty = lower_ty(tcx, args[0])
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
-        let tupled_args = lower_ty(tcx, substs[1])
+        let tupled_args = lower_ty(tcx, args[1])
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
         let output = lower_ty(tcx, *output)
@@ -908,9 +906,9 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
         match kind {
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
-                let substs = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
+                let args = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
-                    match fn_trait_refs.entry(substs) {
+                    match fn_trait_refs.entry(args) {
                         hash_map::Entry::Occupied(_) => todo!(),
                         hash_map::Entry::Vacant(entry) => {
                             entry.insert((closure_kind, *span));
@@ -920,21 +918,21 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
             }
             rustc_ty::ClauseKind::Projection(proj_pred) => {
                 let proj_ty = proj_pred.projection_ty;
-                let substs = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
+                let args = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
                 if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
-                    match fn_output_proj.entry(substs) {
+                    match fn_output_proj.entry(args) {
                         hash_map::Entry::Occupied(_) => todo!(),
                         hash_map::Entry::Vacant(entry) => {
                             entry.insert(proj_pred.term.ty().unwrap());
                         }
                     };
                 } else if let Some(ty) = proj_pred.term.ty() &&
-                          let Some(substs) = substs.no_bound_vars(){
-                    let substs = lower_generic_args(tcx, substs)
+                          let Some(args) = args.no_bound_vars(){
+                    let args = lower_generic_args(tcx, args)
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
 
-                    let projection_ty = AliasTy { substs, def_id: proj_ty.def_id };
+                    let projection_ty = AliasTy { args, def_id: proj_ty.def_id };
                     let term = lower_ty(tcx, ty)
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
@@ -946,15 +944,15 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
         }
     }
 
-    for (substs, (kind, span)) in fn_trait_refs {
-        let output = fn_output_proj.get(&substs).unwrap();
+    for (args, (kind, span)) in fn_trait_refs {
+        let output = fn_output_proj.get(&args).unwrap();
 
-        let vars = substs.bound_vars();
-        let substs = substs.skip_binder().into_type_list(tcx);
-        let bounded_ty = lower_ty(tcx, substs[0])
+        let vars = args.bound_vars();
+        let args = args.skip_binder().into_type_list(tcx);
+        let bounded_ty = lower_ty(tcx, args[0])
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
-        let tupled_args = lower_ty(tcx, substs[1])
+        let tupled_args = lower_ty(tcx, args[1])
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
         let output = lower_ty(tcx, *output)
