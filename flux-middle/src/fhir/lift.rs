@@ -42,41 +42,8 @@ pub fn lift_generics(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-    let hir_generics = tcx.hir().get_generics(def_id).unwrap();
     let local_id_gen = IndexGen::new();
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
-
-    let params = hir_generics
-        .params
-        .iter()
-        .map(|param| {
-            let kind = match param.kind {
-                hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
-                hir::GenericParamKind::Type { default, synthetic: false } => {
-                    fhir::GenericParamDefKind::Type {
-                        default: default.map(|ty| cx.lift_ty(ty)).transpose()?,
-                    }
-                }
-                hir::GenericParamKind::Type { synthetic: true, .. } => {
-                    return Err(sess.emit_err(errors::UnsupportedHir::new(
-                        tcx,
-                        param.def_id,
-                        "`impl Trait` in argument position not supported",
-                    )))
-                }
-                hir::GenericParamKind::Const { .. } => {
-                    return Err(sess.emit_err(errors::UnsupportedHir::new(
-                        tcx,
-                        param.def_id,
-                        "const generics are not supported",
-                    )))
-                }
-            };
-            Ok(fhir::GenericParamDef { def_id: param.def_id, kind })
-        })
-        .try_collect_exhaust()?;
-    Ok(fhir::Generics { params })
+    LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None).lift_generics()
 }
 
 // FIXME(nilehmann) this is wrong, we should lift generics in the same context that its owner to
@@ -118,23 +85,25 @@ pub fn lift_fn(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
-) -> Result<fhir::FnInfo, ErrorGuaranteed> {
+) -> Result<(fhir::Generics, fhir::FnInfo), ErrorGuaranteed> {
     let mut opaque_tys = FxHashMap::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, Some(&mut opaque_tys));
 
     let def_id = owner_id.def_id;
-    let hir = tcx.hir();
-    let hir_id = hir.local_def_id_to_hir_id(def_id);
-    let fn_sig = hir
+    let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
+
+    let hir_generics = tcx.hir().get_generics(def_id).unwrap();
+    let fn_sig = tcx
+        .hir()
         .fn_sig_by_hir_id(hir_id)
         .expect("item does not have a `FnDecl`");
-    let generics = tcx.hir().get_generics(def_id).unwrap();
 
+    let generics = cx.lift_generics_inner(hir_generics)?;
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
-    let fn_preds = cx.lift_generic_predicates(generics)?;
+    let fn_preds = cx.lift_generic_predicates(hir_generics)?;
 
-    Ok(fhir::FnInfo { fn_sig, fn_preds, opaque_tys })
+    Ok((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
 }
 
 // HACK(nilehmann) this is used during annot check to allow an explicit type to refine `Self`.
@@ -195,6 +164,47 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
+    }
+
+    pub fn lift_generics(&mut self) -> Result<fhir::Generics, ErrorGuaranteed> {
+        let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
+        self.lift_generics_inner(generics)
+    }
+
+    fn lift_generics_inner(
+        &mut self,
+        generics: &hir::Generics,
+    ) -> Result<fhir::Generics, ErrorGuaranteed> {
+        let params = generics
+            .params
+            .iter()
+            .map(|param| {
+                let kind = match param.kind {
+                    hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
+                    hir::GenericParamKind::Type { default, synthetic: false } => {
+                        fhir::GenericParamDefKind::Type {
+                            default: default.map(|ty| self.lift_ty(ty)).transpose()?,
+                        }
+                    }
+                    hir::GenericParamKind::Type { synthetic: true, .. } => {
+                        return self.emit_err(errors::UnsupportedHir::new(
+                            self.tcx,
+                            param.def_id,
+                            "`impl Trait` in argument position not supported",
+                        ))
+                    }
+                    hir::GenericParamKind::Const { .. } => {
+                        return self.emit_err(errors::UnsupportedHir::new(
+                            self.tcx,
+                            param.def_id,
+                            "const generics are not supported",
+                        ))
+                    }
+                };
+                Ok(fhir::GenericParamDef { def_id: param.def_id, kind })
+            })
+            .try_collect_exhaust()?;
+        Ok(fhir::Generics { params })
     }
 
     pub fn lift_generic_predicates(

@@ -316,28 +316,10 @@ fn desugar_fn_sig(
         genv.map_mut().add_trusted(def_id);
     }
 
-    let generics = if let Some(fn_sig) = &spec.fn_sig && let Some(generics) = &fn_sig.generics {
-        desugar::desugar_generics(genv.tcx, genv.sess, owner_id, generics)?
-    } else {
-        lift::lift_generics(genv.tcx, genv.sess, owner_id)?
-    };
-    genv.map_mut().insert_generics(def_id, generics);
+    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig)?;
 
-    let info = if let Some(fn_sig) = spec.fn_sig {
-        desugar::desugar_fn_sig(genv, owner_id, fn_sig)?
-    } else {
-        lift::lift_fn(genv.tcx, genv.sess, owner_id)?
-    };
-    if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, def_id, "fhir", &info.fn_sig).unwrap();
-    }
-
-    let map = genv.map_mut();
-    map.insert_fn_sig(def_id, info.fn_sig);
-    map.insert_generic_predicates(def_id, info.fn_preds);
-    map.insert_opaque_tys(info.opaque_tys);
     if let Some(quals) = spec.qual_names {
-        map.insert_fn_quals(def_id, quals.names);
+        genv.map_mut().insert_fn_quals(def_id, quals.names);
     }
     Ok(())
 }

@@ -29,7 +29,7 @@ pub fn check_fn_sig(
         return Ok(());
     }
     let self_ty = lift::lift_self_ty(tcx, sess, owner_id)?;
-    let expected_fn_sig = &lift::lift_fn(tcx, sess, owner_id)?.fn_sig;
+    let expected_fn_sig = &lift::lift_fn(tcx, sess, owner_id)?.1.fn_sig;
     Zipper::new(sess, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
 }
 

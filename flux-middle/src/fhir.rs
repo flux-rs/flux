@@ -126,12 +126,14 @@ pub struct OpaqueTy {
     pub bounds: GenericBounds,
 }
 
+type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Map {
-    generics: FxHashMap<LocalDefId, Generics>,
+    generics: Cache<LocalDefId, Box<Generics>>,
     predicates: ItemPredicates,
     opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -214,8 +216,8 @@ pub struct VariantRet {
 
 #[derive(Debug)]
 pub struct FnInfo {
+    pub predicates: GenericPredicates,
     pub fn_sig: FnSig,
-    pub fn_preds: GenericPredicates,
     pub opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
 }
 
@@ -855,8 +857,8 @@ impl Map {
         me
     }
 
-    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id, generics);
+    pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
+        self.generics.insert(def_id, Box::new(generics));
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
@@ -877,10 +879,6 @@ impl Map {
 
     pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
         self.opaque_tys.get(&def_id)
-    }
-
-    pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
-        self.generics.iter()
     }
 
     // Qualifiers
