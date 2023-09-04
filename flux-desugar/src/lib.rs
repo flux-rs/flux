@@ -1,3 +1,14 @@
+//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+//!
+//! # NOTE
+//!
+//! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
+//! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
+//! kind because only type parameters of sort `base` can be refined. The essential function implementing
+//! this logic is [`GlobalEnv::sort_of_res`]. This function requires the generics for the item being
+//! desugared to be register in [`fhir::Map`], thus we need to make sure that when desugaring an item,
+//! generics are registered before desugaring the rest of the item.
+
 #![warn(unused_extern_crates)]
 #![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains)]
 
@@ -45,6 +56,7 @@ pub fn desugar_struct_def(
     let mut cx = DesugarCtxt::new(genv, owner_id, None);
 
     let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+    // See crate level comment
     genv.map().insert_generics(def_id, generics);
 
     let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
@@ -70,6 +82,7 @@ pub fn desugar_enum_def(
     let mut cx = DesugarCtxt::new(genv, owner_id, None);
 
     let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+    // See crate level comment
     genv.map().insert_generics(def_id, generics);
 
     let enum_def = cx.desugar_enum_def(&enum_def, &mut Binders::new())?;
@@ -96,6 +109,7 @@ pub fn desugar_type_alias(
         let mut cx = DesugarCtxt::new(genv, owner_id, None);
 
         let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+        // See crate level comment
         genv.map().insert_generics(def_id, generics);
 
         let ty_alias = cx.desugar_type_alias(ty_alias, &mut Binders::new())?;
@@ -136,6 +150,7 @@ pub fn desugar_fn_sig(
         } else {
             cx.as_lift_cx().lift_generics()?
         };
+        // See crate level comment
         genv.map().insert_generics(def_id, generics);
 
         let (generic_preds, fn_sig) = cx.desugar_fn_sig(&fn_sig, &mut Binders::new())?;
@@ -162,6 +177,9 @@ pub fn desugar_fn_sig(
     Ok(())
 }
 
+/// HACK(nilehmann) this is a bit of a hack we use it to properly register generics and predicates
+/// for items that don't have surface syntax (impl blocks, traits). In this cases we just [lift] them
+/// from hir.
 pub fn desugar_generics_and_predicates(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,

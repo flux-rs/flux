@@ -5,10 +5,7 @@ use flux_desugar as desugar;
 use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
-    fhir::{
-        lift::{self, LiftCtxt},
-        ConstInfo,
-    },
+    fhir::{lift, ConstInfo},
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
