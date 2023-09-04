@@ -13,7 +13,7 @@ use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
+use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::{config::OutputType, EarlyErrorHandler};
@@ -92,8 +92,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         flux_fhir_analysis::provide(genv.providers());
 
-        build_stage1_fhir_map(&mut genv, &mut specs)?;
-        build_stage2_fhir_map(&mut genv, &mut specs)?;
+        stage1_desugar(&mut genv, &mut specs)?;
+        stage2_desugar(&mut genv, &mut specs)?;
 
         flux_fhir_analysis::check_crate_wf(&genv)?;
 
@@ -121,7 +121,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn build_stage1_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
+fn stage1_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
     let tcx = genv.tcx;
     let sess = genv.sess;
@@ -131,32 +131,6 @@ fn build_stage1_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), 
     for sort_decl in std::mem::take(&mut specs.sort_decls) {
         map.insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
     }
-
-    // Register Generics and Predicates
-    err = specs
-        .fn_sigs
-        .iter()
-        .try_for_each_exhaust(|(owner_id, spec)| {
-            let generics = if let Some(fn_sig) = &spec.fn_sig && let Some(generics) = &fn_sig.generics {
-                desugar::desugar_generics(tcx, sess, *owner_id, generics)?
-            } else {
-                lift::lift_generics(tcx, sess, *owner_id)?
-            };
-            map.insert_generics(owner_id.def_id, generics);
-            Ok(())
-        })
-        .err()
-        .or(err);
-    err = defs_with_generics(tcx)
-        .try_for_each_exhaust(|owner_id| {
-            let generics = lift::lift_generics(tcx, sess, owner_id)?;
-            let predicates = lift::lift_generic_predicates(tcx, sess, owner_id)?;
-            map.insert_generics(owner_id.def_id, generics);
-            map.insert_generic_predicates(owner_id.def_id, predicates);
-            Ok(())
-        })
-        .err()
-        .or(err);
 
     // Register Consts
     for (def_id, const_sig) in std::mem::take(&mut specs.consts) {
@@ -207,10 +181,10 @@ fn build_stage1_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), 
     }
 }
 
-fn build_stage2_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
+fn stage2_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
-    // Register Defns
+    // Defns
     err = std::mem::take(&mut specs.func_defs)
         .into_iter()
         .try_for_each_exhaust(|defn| {
@@ -235,76 +209,11 @@ fn build_stage2_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), 
         .err()
         .or(err);
 
-    // Aliases
-    err = std::mem::take(&mut specs.aliases)
-        .into_iter()
-        .try_for_each_exhaust(|(owner_id, alias)| {
-            let alias = if let Some(alias) = alias {
-                desugar::desugar_type_alias(genv, owner_id, alias)?
-            } else {
-                lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
-            };
-            genv.map_mut().insert_type_alias(owner_id.def_id, alias);
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    // Structs
-    err = std::mem::take(&mut specs.structs)
-        .into_iter()
-        .try_for_each_exhaust(|(owner_id, struct_def)| {
-            let struct_def = desugar::desugar_struct_def(genv, owner_id, struct_def)?;
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
-            }
-            genv.map_mut().insert_struct(owner_id.def_id, struct_def);
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    // Enums
-    err = std::mem::take(&mut specs.enums)
-        .into_iter()
-        .try_for_each_exhaust(|(owner_id, enum_def)| {
-            let enum_def = desugar::desugar_enum_def(genv, owner_id, enum_def)?;
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
-            }
-            genv.map_mut().insert_enum(owner_id.def_id, enum_def);
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    // FnSigs
-    err = std::mem::take(&mut specs.fn_sigs)
-        .into_iter()
-        .try_for_each_exhaust(|(owner_id, spec)| {
-            let def_id = owner_id.def_id;
-            if spec.trusted {
-                genv.map_mut().add_trusted(def_id);
-            }
-
-            let info = if let Some(fn_sig) = spec.fn_sig {
-                desugar::desugar_fn_sig(genv, owner_id, fn_sig)?
-            } else {
-                lift::lift_fn(genv.tcx, genv.sess, owner_id)?
-            };
-            if config::dump_fhir() {
-                dbg::dump_item_info(genv.tcx, def_id, "fhir", &info.fn_sig).unwrap();
-            }
-
-            let map = genv.map_mut();
-            map.insert_fn_sig(def_id, info.fn_sig);
-            map.insert_generic_predicates(def_id, info.fn_preds);
-            map.insert_opaque_tys(info.opaque_tys);
-            if let Some(quals) = spec.qual_names {
-                map.insert_fn_quals(def_id, quals.names);
-            }
-            Ok(())
-        })
+    err = genv
+        .tcx
+        .hir_crate_items(())
+        .items()
+        .try_for_each_exhaust(|item_id| desugar_item(genv, specs, item_id))
         .err()
         .or(err);
 
@@ -313,6 +222,133 @@ fn build_stage2_fhir_map(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), 
     } else {
         Ok(())
     }
+}
+
+fn desugar_item(
+    genv: &mut GlobalEnv,
+    specs: &mut Specs,
+    item_id: hir::ItemId,
+) -> Result<(), ErrorGuaranteed> {
+    let owner_id = item_id.owner_id;
+    let item = genv.hir().item(item_id);
+    match item.kind {
+        hir::ItemKind::Fn(..) => {
+            desugar_fn_sig(genv, specs, owner_id)?;
+        }
+        hir::ItemKind::TyAlias(..) => {
+            lift_generics(genv, owner_id)?;
+
+            let ty_alias = specs.ty_aliases.remove(&owner_id).unwrap();
+            let ty_alias = if let Some(ty_alias) = ty_alias {
+                desugar::desugar_type_alias(genv, owner_id, ty_alias)?
+            } else {
+                lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
+            };
+            genv.map_mut().insert_type_alias(owner_id.def_id, ty_alias);
+        }
+        hir::ItemKind::OpaqueTy(_) => lift_generics(genv, owner_id)?,
+        hir::ItemKind::Enum(..) => {
+            lift_generics(genv, owner_id)?;
+            let enum_def = specs.enums.remove(&owner_id).unwrap();
+            let enum_def = desugar::desugar_enum_def(genv, owner_id, enum_def)?;
+            if config::dump_fhir() {
+                dbg::dump_item_info(genv.tcx, owner_id.to_def_id(), "fhir", &enum_def).unwrap();
+            }
+            genv.map_mut().insert_enum(owner_id.def_id, enum_def);
+        }
+        hir::ItemKind::Struct(..) => {
+            lift_generics(genv, owner_id)?;
+            let struct_def = specs.structs.remove(&owner_id).unwrap();
+            let struct_def = desugar::desugar_struct_def(genv, owner_id, struct_def)?;
+            if config::dump_fhir() {
+                dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
+            }
+            genv.map_mut().insert_struct(owner_id.def_id, struct_def);
+        }
+        hir::ItemKind::Trait(.., items) => {
+            lift_generics(genv, owner_id)?;
+            items
+                .iter()
+                .try_for_each_exhaust(|trait_item| desugar_trait_item(genv, specs, trait_item))?;
+        }
+        hir::ItemKind::Impl(impl_) => {
+            lift_generics(genv, owner_id)?;
+            impl_
+                .items
+                .iter()
+                .try_for_each_exhaust(|impl_item| desugar_impl_item(genv, specs, impl_item))?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn desugar_impl_item(
+    genv: &mut GlobalEnv,
+    specs: &mut Specs,
+    impl_item: &hir::ImplItemRef,
+) -> Result<(), ErrorGuaranteed> {
+    match impl_item.kind {
+        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, impl_item.id.owner_id),
+        hir::AssocItemKind::Const | hir::AssocItemKind::Type => Ok(()),
+    }
+}
+
+fn desugar_trait_item(
+    genv: &mut GlobalEnv,
+    specs: &mut Specs,
+    trait_item: &hir::TraitItemRef,
+) -> Result<(), ErrorGuaranteed> {
+    match trait_item.kind {
+        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, trait_item.id.owner_id),
+        hir::AssocItemKind::Const | hir::AssocItemKind::Type => Ok(()),
+    }
+}
+
+fn desugar_fn_sig(
+    genv: &mut GlobalEnv,
+    specs: &mut Specs,
+    owner_id: OwnerId,
+) -> Result<(), ErrorGuaranteed> {
+    let spec = specs.fn_sigs.remove(&owner_id).unwrap();
+    let def_id = owner_id.def_id;
+    if spec.trusted {
+        genv.map_mut().add_trusted(def_id);
+    }
+
+    let generics = if let Some(fn_sig) = &spec.fn_sig && let Some(generics) = &fn_sig.generics {
+        desugar::desugar_generics(genv.tcx, genv.sess, owner_id, generics)?
+    } else {
+        lift::lift_generics(genv.tcx, genv.sess, owner_id)?
+    };
+    genv.map_mut().insert_generics(def_id, generics);
+
+    let info = if let Some(fn_sig) = spec.fn_sig {
+        desugar::desugar_fn_sig(genv, owner_id, fn_sig)?
+    } else {
+        lift::lift_fn(genv.tcx, genv.sess, owner_id)?
+    };
+    if config::dump_fhir() {
+        dbg::dump_item_info(genv.tcx, def_id, "fhir", &info.fn_sig).unwrap();
+    }
+
+    let map = genv.map_mut();
+    map.insert_fn_sig(def_id, info.fn_sig);
+    map.insert_generic_predicates(def_id, info.fn_preds);
+    map.insert_opaque_tys(info.opaque_tys);
+    if let Some(quals) = spec.qual_names {
+        map.insert_fn_quals(def_id, quals.names);
+    }
+    Ok(())
+}
+
+fn lift_generics(genv: &mut GlobalEnv, owner_id: OwnerId) -> Result<(), ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+    let generics = lift::lift_generics(genv.tcx, genv.sess, owner_id)?;
+    let predicates = lift::lift_generic_predicates(genv.tcx, genv.sess, owner_id)?;
+    genv.map_mut().insert_generics(def_id, generics);
+    genv.map_mut().insert_generic_predicates(def_id, predicates);
+    Ok(())
 }
 
 fn save_metadata(genv: &GlobalEnv) {
@@ -460,21 +496,4 @@ fn is_tool_registered(tcx: TyCtxt) -> bool {
         }
     }
     false
-}
-
-fn defs_with_generics(tcx: TyCtxt) -> impl Iterator<Item = OwnerId> + '_ {
-    tcx.hir_crate_items(())
-        .definitions()
-        .chain(tcx.hir().body_owners())
-        .flat_map(move |def_id| {
-            match tcx.def_kind(def_id) {
-                DefKind::Struct
-                | DefKind::Enum
-                | DefKind::Impl { .. }
-                | DefKind::TyAlias { .. }
-                | DefKind::OpaqueTy
-                | DefKind::AssocTy => Some(OwnerId { def_id }),
-                _ => None,
-            }
-        })
 }

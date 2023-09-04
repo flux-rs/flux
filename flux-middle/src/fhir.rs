@@ -919,7 +919,9 @@ impl Map {
     }
 
     pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
-        &self.fns[&def_id]
+        self.fns
+            .get(&def_id)
+            .unwrap_or_else(|| bug!("no fn_sig found for `{def_id:?}`"))
     }
 
     pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
