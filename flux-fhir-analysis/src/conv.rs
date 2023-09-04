@@ -11,7 +11,6 @@ use std::borrow::Borrow;
 
 use flux_common::{bug, span_bug};
 use flux_middle::{
-    early_ctxt::EarlyCtxt,
     fhir::{self, FhirId, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
@@ -167,8 +166,7 @@ pub(crate) fn adt_def_for_struct(
     invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let sort =
-        rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(struct_def.owner_id)));
+    let sort = rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(struct_def.owner_id)));
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
@@ -178,8 +176,7 @@ pub(crate) fn adt_def_for_enum(
     invariants: Vec<rty::Invariant>,
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
-    let sort =
-        rty::Sort::tuple(conv_sorts(genv.early_cx(), genv.index_sorts_of(enum_def.owner_id)));
+    let sort = rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(enum_def.owner_id)));
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(enum_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, false)
 }
@@ -539,7 +536,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
-        let sort = self.genv.early_cx().sort_of_bty(bty);
+        let sort = self.genv.sort_of_bty(bty);
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
@@ -556,7 +553,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
         }
 
-        let sort = conv_sort(self.early_cx(), &sort.unwrap());
+        let sort = conv_sort(self.genv, &sort.unwrap());
         if sort.is_unit() {
             let idx = rty::Index::from(rty::Expr::unit());
             self.conv_indexed_type(env, bty, idx)
@@ -678,7 +675,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate_identity()
                     .replace_bound_expr(&idx.expr));
             }
-            fhir::Res::Def(DefKind::TyAlias, def_id) => {
+            fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.args)?;
                 let refine = path
                     .refine
@@ -733,10 +730,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 }
             })
             .try_collect()
-    }
-
-    fn early_cx(&self) -> &EarlyCtxt<'a, 'tcx> {
-        self.genv.early_cx()
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> fhir::Sort {
@@ -816,7 +809,7 @@ impl ConvCtxt<'_, '_> {
                     espan,
                 )
             }
-            fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv.early_cx(), *fld),
+            fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv, *fld),
         };
         self.add_coercions(expr, fhir_id)
     }
@@ -873,7 +866,7 @@ impl Layer {
             .iter()
             .map(|param| {
                 let sort = cx.resolve_param_sort(param);
-                let entry = Entry::new(cx.early_cx(), idx, sort, param.infer_mode());
+                let entry = Entry::new(cx.genv, idx, sort, param.infer_mode());
                 if !filter_unit || !matches!(entry, Entry::Unit) {
                     idx += 1;
                 }
@@ -944,8 +937,8 @@ impl Layer {
 }
 
 impl Entry {
-    fn new(early_cx: &EarlyCtxt, idx: u32, sort: fhir::Sort, infer_mode: fhir::InferMode) -> Self {
-        let conv = conv_sort(early_cx, &sort);
+    fn new(genv: &GlobalEnv, idx: u32, sort: fhir::Sort, infer_mode: fhir::InferMode) -> Self {
+        let conv = conv_sort(genv, &sort);
         if conv.is_unit() {
             Entry::Unit
         } else {
@@ -986,9 +979,9 @@ impl LookupResult<'_> {
         })
     }
 
-    fn get_field(&self, early_cx: &EarlyCtxt, fld: SurfaceIdent) -> rty::Expr {
+    fn get_field(&self, genv: &GlobalEnv, fld: SurfaceIdent) -> rty::Expr {
         if let Some(def_id) = self.is_record() {
-            let i = early_cx
+            let i = genv
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
             rty::Expr::tuple_proj(self.to_expr(), i as u32, None)
@@ -998,21 +991,21 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_func_decl(early_cx: &EarlyCtxt, uif: &fhir::FuncDecl) -> rty::FuncDecl {
-    rty::FuncDecl { name: uif.name, sort: conv_func_sort(early_cx, &uif.sort), kind: uif.kind }
+pub fn conv_func_decl(genv: &GlobalEnv, uif: &fhir::FuncDecl) -> rty::FuncDecl {
+    rty::FuncDecl { name: uif.name, sort: conv_func_sort(genv, &uif.sort), kind: uif.kind }
 }
 
 fn conv_sorts<'a>(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     sorts: impl IntoIterator<Item = &'a fhir::Sort>,
 ) -> Vec<rty::Sort> {
     sorts
         .into_iter()
-        .map(|sort| conv_sort(early_cx, sort))
+        .map(|sort| conv_sort(genv, sort))
         .collect()
 }
 
-fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
+fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
     match sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,
@@ -1020,17 +1013,17 @@ fn conv_sort(early_cx: &EarlyCtxt, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Unit => rty::Sort::unit(),
-        fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(early_cx, fsort)),
+        fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(genv, fsort)),
         fhir::Sort::Record(def_id) => {
-            rty::Sort::tuple(conv_sorts(early_cx, early_cx.index_sorts_of(*def_id)))
+            rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(*def_id)))
         }
         fhir::Sort::App(ctor, args) => {
             let ctor = conv_sort_ctor(ctor);
-            let args = args.iter().map(|t| conv_sort(early_cx, t)).collect_vec();
+            let args = args.iter().map(|t| conv_sort(genv, t)).collect_vec();
             rty::Sort::app(ctor, args)
         }
         fhir::Sort::Param(def_id) => {
-            rty::Sort::Param(def_id_to_param_ty(early_cx.tcx, def_id.expect_local()))
+            rty::Sort::Param(def_id_to_param_ty(genv.tcx, def_id.expect_local()))
         }
         fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
     }
@@ -1043,8 +1036,8 @@ fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
     }
 }
 
-fn conv_func_sort(early_cx: &EarlyCtxt, fsort: &fhir::FuncSort) -> rty::FuncSort {
-    rty::FuncSort::new(conv_sorts(early_cx, fsort.inputs()), conv_sort(early_cx, fsort.output()))
+fn conv_func_sort(genv: &GlobalEnv, fsort: &fhir::FuncSort) -> rty::FuncSort {
+    rty::FuncSort::new(conv_sorts(genv, fsort.inputs()), conv_sort(genv, fsort.output()))
 }
 
 fn conv_lit(lit: fhir::Lit) -> rty::Constant {

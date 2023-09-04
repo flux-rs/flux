@@ -10,8 +10,8 @@ use std::iter;
 use flux_common::{iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
-    early_ctxt::EarlyCtxt,
     fhir::{self, FluxOwnerId, SurfaceIdent, WfckResults},
+    global_env::GlobalEnv,
 };
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
@@ -22,7 +22,7 @@ use rustc_span::Symbol;
 use self::sortck::InferCtxt;
 
 struct Wf<'a, 'tcx> {
-    early_cx: &'a EarlyCtxt<'a, 'tcx>,
+    genv: &'a GlobalEnv<'a, 'tcx>,
     modes: FxHashMap<fhir::Name, fhir::InferMode>,
     xi: XiCtxt,
 }
@@ -39,33 +39,33 @@ struct Wf<'a, 'tcx> {
 struct XiCtxt(SnapshotMap<fhir::Name, ()>);
 
 pub(crate) fn check_type(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     ty: &fhir::Ty,
     owner: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, owner.into());
-    let mut wf = Wf::new(early_cx);
+    let mut infcx = InferCtxt::new(genv, owner.into());
+    let mut wf = Wf::new(genv);
     wf.check_type(&mut infcx, ty)?;
     Ok(infcx.into_results())
 }
 
 pub(crate) fn check_qualifier(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     qualifier: &fhir::Qualifier,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let owner = FluxOwnerId::Flux(qualifier.name);
-    let mut infcx = InferCtxt::new(early_cx, owner);
+    let mut infcx = InferCtxt::new(genv, owner);
     infcx.push_layer(&qualifier.args);
     infcx.check_expr(&qualifier.expr, &fhir::Sort::Bool)?;
     Ok(infcx.into_results())
 }
 
 pub(crate) fn check_defn(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     defn: &fhir::Defn,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let owner = FluxOwnerId::Flux(defn.name);
-    let mut infcx = InferCtxt::new(early_cx, owner);
+    let mut infcx = InferCtxt::new(genv, owner);
     infcx.push_layer(&defn.args);
     infcx.check_expr(&defn.expr, &defn.sort)?;
     Ok(infcx.into_results())
@@ -86,11 +86,11 @@ pub(crate) fn check_fn_quals(
 }
 
 pub(crate) fn check_ty_alias(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     ty_alias: &fhir::TyAlias,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, ty_alias.owner_id.into());
-    let mut wf = Wf::new(early_cx);
+    let mut infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
+    let mut wf = Wf::new(genv);
     infcx.push_layer(ty_alias.all_params());
     wf.check_type(&mut infcx, &ty_alias.ty)?;
     wf.check_params_are_determined(&infcx, &ty_alias.index_params)?;
@@ -98,11 +98,11 @@ pub(crate) fn check_ty_alias(
 }
 
 pub(crate) fn check_struct_def(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     struct_def: &fhir::StructDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, struct_def.owner_id.into());
-    let mut wf = Wf::new(early_cx);
+    let mut infcx = InferCtxt::new(genv, struct_def.owner_id.into());
+    let mut wf = Wf::new(genv);
     infcx.push_layer(&struct_def.params);
 
     struct_def
@@ -121,11 +121,11 @@ pub(crate) fn check_struct_def(
 }
 
 pub(crate) fn check_enum_def(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     enum_def: &fhir::EnumDef,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, enum_def.owner_id.into());
-    let mut wf = Wf::new(early_cx);
+    let mut infcx = InferCtxt::new(genv, enum_def.owner_id.into());
+    let mut wf = Wf::new(genv);
     infcx.push_layer(&enum_def.params);
 
     enum_def
@@ -144,28 +144,25 @@ pub(crate) fn check_enum_def(
 }
 
 pub(crate) fn check_opaque_ty(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     opaque_ty: &fhir::OpaqueTy,
     owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
-    let mut wf = Wf::new(early_cx);
+    let mut infcx = InferCtxt::new(genv, owner_id.into());
+    let mut wf = Wf::new(genv);
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())
 }
 
 pub(crate) fn check_fn_sig(
-    early_cx: &EarlyCtxt,
+    genv: &GlobalEnv,
     fn_sig: &fhir::FnSig,
     owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(early_cx, owner_id.into());
-    let mut wf = Wf::new(early_cx);
+    let mut infcx = InferCtxt::new(genv, owner_id.into());
+    let mut wf = Wf::new(genv);
 
-    let predicates = early_cx
-        .map
-        .get_generic_predicates(owner_id.def_id)
-        .unwrap();
+    let predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
     wf.check_generic_predicates(&mut infcx, predicates)?;
 
     for param in &fn_sig.params {
@@ -198,8 +195,8 @@ pub(crate) fn check_fn_sig(
 }
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
-    fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>) -> Self {
-        Wf { early_cx, modes: Default::default(), xi: Default::default() }
+    fn new(genv: &'a GlobalEnv<'a, 'tcx>) -> Self {
+        Wf { genv, modes: Default::default(), xi: Default::default() }
     }
 
     fn check_params_are_determined(
@@ -433,8 +430,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         path: &fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
-            fhir::Res::Def(DefKind::TyAlias, def_id) => {
-                let sorts = self.early_cx.early_bound_sorts_of(*def_id);
+            fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
+                let sorts = self.genv.early_bound_sorts_of(*def_id);
                 if path.refine.len() != sorts.len() {
                     return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
                         path.span,
@@ -450,7 +447,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let snapshot = self.xi.snapshot();
         let args = self.check_generic_args(infcx, &path.args);
         let bindings = self.check_type_bindings(infcx, &path.bindings);
-        if !self.early_cx.is_box(path.res) {
+        if !self.genv.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }
         args?;
@@ -554,14 +551,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     }
 
     fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
-        self.early_cx
+        self.genv
             .sort_of_bty(bty)
             .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
     }
 
     #[track_caller]
     fn emit_err<'b, R>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<R, ErrorGuaranteed> {
-        Err(self.early_cx.emit_err(err))
+        Err(self.genv.sess.emit_err(err))
     }
 }
 

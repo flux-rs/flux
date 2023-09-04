@@ -126,12 +126,14 @@ pub struct OpaqueTy {
     pub bounds: GenericBounds,
 }
 
+type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Map {
-    generics: FxHashMap<LocalDefId, Generics>,
+    generics: Cache<LocalDefId, Box<Generics>>,
     predicates: ItemPredicates,
     opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -181,7 +183,7 @@ pub struct FieldDef {
     pub ty: Ty,
     /// Whether this field was [lifted] from a `hir` field
     ///
-    /// [lifted]: lift::lift_field_def
+    /// [lifted]: lift::LiftCtxt::lift_field_def
     pub lifted: bool,
 }
 
@@ -202,7 +204,7 @@ pub struct VariantDef {
     pub span: Span,
     /// Whether this variant was [lifted] from a hir variant
     ///
-    /// [lifted]: lift::lift_enum_variant_def
+    /// [lifted]: lift::LiftCtxt::lift_enum_variant
     pub lifted: bool,
 }
 
@@ -214,8 +216,8 @@ pub struct VariantRet {
 
 #[derive(Debug)]
 pub struct FnInfo {
+    pub predicates: GenericPredicates,
     pub fn_sig: FnSig,
-    pub fn_preds: GenericPredicates,
     pub opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
 }
 
@@ -229,7 +231,7 @@ pub struct FnSig {
     pub output: FnOutput,
     /// Whether the sig was [lifted] from a hir signature
     ///
-    /// [lifted]: lift::lift_fn_sig
+    /// [lifted]: lift::LiftCtxt::lift_fn_sig
     pub lifted: bool,
     pub span: Span,
 }
@@ -855,8 +857,8 @@ impl Map {
         me
     }
 
-    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id, generics);
+    pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
+        self.generics.insert(def_id, Box::new(generics));
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
@@ -877,10 +879,6 @@ impl Map {
 
     pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
         self.opaque_tys.get(&def_id)
-    }
-
-    pub fn generics(&self) -> impl Iterator<Item = (&LocalDefId, &Generics)> {
-        self.generics.iter()
     }
 
     // Qualifiers
@@ -919,15 +917,21 @@ impl Map {
     }
 
     pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
-        // &self.fns[&def_id]
-        match &self.fns.get(&def_id) {
-            Some(fn_sig) => fn_sig,
-            None => panic!("TRACE: get_fn_sig({:?}), {:?}", def_id, self.fns.keys()),
-        }
+        self.fns
+            .get(&def_id)
+            .unwrap_or_else(|| bug!("no fn_sig found for `{def_id:?}`"))
     }
 
     pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
         self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
+    }
+
+    pub fn get_fn_quals(&self, def_id: LocalDefId) -> impl Iterator<Item = SurfaceIdent> + '_ {
+        self.fn_quals
+            .get(&def_id)
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .copied()
     }
 
     pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
@@ -938,8 +942,8 @@ impl Map {
         self.externs.insert(extern_def_id, local_def_id);
     }
 
-    pub fn externs(&self) -> &FxHashMap<DefId, LocalDefId> {
-        &self.externs
+    pub fn get_extern(&self, extern_def_id: DefId) -> Option<LocalDefId> {
+        self.externs.get(&extern_def_id).copied()
     }
 
     // ADT

@@ -374,9 +374,6 @@ impl BindKind {
 }
 
 impl RefinedBy {
-    pub const DUMMY: &RefinedBy =
-        &RefinedBy { index_params: vec![], early_bound_params: vec![], span: rustc_span::DUMMY_SP };
-
     pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
         self.early_bound_params.iter().chain(&self.index_params)
     }

@@ -1,7 +1,6 @@
 use std::{fmt, iter, slice, sync::OnceLock};
 
 use flux_common::bug;
-use flux_fixpoint::Sign;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 use rustc_abi::FieldIdx;
@@ -696,11 +695,7 @@ impl_ops!(Add: add, Sub: sub, Mul: mul, Div: div);
 
 impl From<i32> for Expr {
     fn from(value: i32) -> Self {
-        if value < 0 {
-            Expr::constant(Constant::Int(Sign::Negative, -(value as i64) as u128))
-        } else {
-            Expr::constant(Constant::Int(Sign::Positive, value as u128))
-        }
+        Expr::constant(Constant::from(value))
     }
 }
 

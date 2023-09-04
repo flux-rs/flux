@@ -10,6 +10,8 @@ use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::Symbol;
 
+use crate::big_int::BigInt;
+
 pub enum Constraint<Tag> {
     Pred(Pred, Option<Tag>),
     Conj(Vec<Self>),
@@ -117,15 +119,9 @@ pub enum UnOp {
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
-    Int(Sign, u128),
+    Int(BigInt),
     Real(i128),
     Bool(bool),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-pub enum Sign {
-    Positive,
-    Negative,
 }
 
 newtype_index! {
@@ -395,7 +391,9 @@ impl fmt::Display for Func {
 }
 
 pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|| {
-    // Unary
+    // -----
+    // UNARY
+    // -----
 
     // (qualif EqZero ((v int)) (v == 0))
     let eqzero = Qualifier {
@@ -437,7 +435,9 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|
         global: true,
     };
 
-    // Binary
+    // ------
+    // BINARY
+    // ------
 
     // (qualif Eq ((a int) (b int)) (a == b))
     let eq = Qualifier {
@@ -584,8 +584,7 @@ impl fmt::Debug for UnOp {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Int(Sign::Positive, n) => write!(f, "{n}"),
-            Constant::Int(Sign::Negative, n) => write!(f, "-{n}"),
+            Constant::Int(n) => write!(f, "{n}"),
             Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
         }
@@ -593,8 +592,8 @@ impl fmt::Display for Constant {
 }
 
 impl Constant {
-    pub const ZERO: Constant = Constant::Int(Sign::Positive, 0);
-    pub const ONE: Constant = Constant::Int(Sign::Positive, 1);
+    pub const ZERO: Constant = Constant::Int(BigInt::ZERO);
+    pub const ONE: Constant = Constant::Int(BigInt::ONE);
 
     fn to_bool(self) -> Option<bool> {
         match self {
@@ -605,10 +604,10 @@ impl Constant {
 
     /// Converts to an i128 and returns None if there is an overflow
     fn to_int(self) -> Option<i128> {
-        match self {
-            Constant::Int(Sign::Positive, n) => i128::try_from(n).ok(),
-            Constant::Int(Sign::Negative, n) => Some(-(i128::try_from(n).ok()?)),
-            _ => None,
+        if let Constant::Int(n) = self {
+            n.to_int()
+        } else {
+            None
         }
     }
 
@@ -656,53 +655,49 @@ impl Constant {
         Some(Constant::Bool(n1 >= n2))
     }
 
-    /// Given the bit width of a signed integer type, produces the maximum integer for
-    /// that type, i.e., -2^(bit_width - 1).
+    /// See [`BigInt::int_min`]
     pub fn int_min(bit_width: u32) -> Constant {
-        Constant::Int(Sign::Negative, 1u128 << (bit_width - 1))
+        Constant::Int(BigInt::int_min(bit_width))
     }
 
-    /// Given the bit width of a signed integer type, produces the minimum integer for
-    /// that type, i.e., 2^(bit_width - 1) - 1.
+    /// See [`BigInt::int_max`]
     pub fn int_max(bit_width: u32) -> Constant {
-        (i128::MAX >> (128 - bit_width)).into()
+        Constant::Int(BigInt::int_max(bit_width))
     }
 
-    /// Given the bit width of an unsigned integer type, produces the maximum
-    /// unsigned integer for that type, i.e., 2^bit_width - 1.
+    /// See [`BigInt::uint_max`]
     pub fn uint_max(bit_width: u32) -> Constant {
-        (u128::MAX >> (128 - bit_width)).into()
+        Constant::Int(BigInt::uint_max(bit_width))
+    }
+}
+
+impl From<i32> for Constant {
+    fn from(c: i32) -> Self {
+        Constant::Int(c.into())
     }
 }
 
 impl From<usize> for Constant {
     fn from(u: usize) -> Self {
-        Constant::Int(Sign::Positive, u as u128)
+        Constant::Int(u.into())
     }
 }
 
 impl From<u128> for Constant {
     fn from(c: u128) -> Self {
-        Constant::Int(Sign::Positive, c)
+        Constant::Int(c.into())
     }
 }
 
 impl From<i128> for Constant {
     fn from(c: i128) -> Self {
-        let sign = if c < 0 { Sign::Negative } else { Sign::Positive };
-        Constant::Int(sign, c.unsigned_abs())
+        Constant::Int(c.into())
     }
 }
 
 impl From<bool> for Constant {
     fn from(b: bool) -> Self {
         Constant::Bool(b)
-    }
-}
-
-impl From<i128> for Expr {
-    fn from(c: i128) -> Self {
-        Expr::Constant(Constant::from(c))
     }
 }
 

@@ -4,8 +4,8 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
-    early_ctxt::EarlyCtxt,
     fhir::{self, FhirId, FluxOwnerId, WfckResults},
+    global_env::GlobalEnv,
 };
 use itertools::izip;
 use rustc_errors::IntoDiagnostic;
@@ -16,16 +16,16 @@ use rustc_span::Span;
 use super::errors;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
-    early_cx: &'a EarlyCtxt<'a, 'tcx>,
+    genv: &'a GlobalEnv<'a, 'tcx>,
     sorts: FxHashMap<fhir::Name, fhir::Sort>,
     unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
 }
 
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
-    pub(super) fn new(early_cx: &'a EarlyCtxt<'a, 'tcx>, owner: FluxOwnerId) -> Self {
+    pub(super) fn new(genv: &'a GlobalEnv<'a, 'tcx>, owner: FluxOwnerId) -> Self {
         Self {
-            early_cx,
+            genv,
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
             sorts: FxHashMap::default(),
@@ -91,7 +91,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.early_cx.index_sorts_of(def_id);
+        let sorts = self.genv.index_sorts_of(def_id);
         if args.len() != sorts.len() {
             return Err(self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
@@ -205,7 +205,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let sort = self[var.name].clone();
                 match sort {
                     fhir::Sort::Record(def_id) => {
-                        self.early_cx
+                        self.genv
                             .field_sort(def_id, fld.name)
                             .cloned()
                             .ok_or_else(|| self.emit_field_not_found(&sort, *fld))
@@ -317,7 +317,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             fhir::Func::Global(func, _, span, _) => {
                 Ok(self
-                    .early_cx
+                    .genv
                     .func_decl(func)
                     .unwrap_or_else(|| {
                         span_bug!(*span, "no definition found for uif `{func:?}` - {span:?}")
@@ -486,7 +486,7 @@ impl<'a> InferCtxt<'a, '_> {
 
     fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
         self.resolve_sort(sort).and_then(|s| {
-            if let fhir::Sort::Record(def_id) = s && let [sort] = self.early_cx.index_sorts_of(def_id) {
+            if let fhir::Sort::Record(def_id) = s && let [sort] = self.genv.index_sorts_of(def_id) {
                 Some(sort)
             } else {
                 None
@@ -496,7 +496,7 @@ impl<'a> InferCtxt<'a, '_> {
 
     fn has_equality(&mut self, sort: &fhir::Sort) -> bool {
         self.resolve_sort(sort)
-            .map_or(false, |s| self.early_cx.has_equality(&s))
+            .map_or(false, |s| self.genv.has_equality(&s))
     }
 
     pub(crate) fn into_results(self) -> WfckResults {
@@ -530,7 +530,7 @@ impl InferCtxt<'_, '_> {
 
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
-        self.early_cx.emit_err(err)
+        self.genv.sess.emit_err(err)
     }
 }
 

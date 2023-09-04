@@ -13,6 +13,7 @@
 
 //! This crate contains common type definitions that are used by other crates.
 
+extern crate elsa;
 extern crate rustc_abi;
 extern crate rustc_ast;
 extern crate rustc_borrowck;
@@ -34,7 +35,6 @@ extern crate rustc_type_ir;
 
 pub mod const_eval;
 pub mod cstore;
-pub mod early_ctxt;
 pub mod fhir;
 pub mod global_env;
 pub mod intern;

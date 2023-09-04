@@ -20,7 +20,6 @@ use flux_config as config;
 use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    early_ctxt::EarlyCtxt,
     fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
@@ -36,18 +35,11 @@ use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-pub fn conv_func_decls(early_cx: &EarlyCtxt) -> FxHashMap<Symbol, rty::FuncDecl> {
-    early_cx
-        .map
-        .func_decls()
-        .map(|decl| (decl.name, conv::conv_func_decl(early_cx, decl)))
-        .collect()
-}
-
 pub fn provide(providers: &mut Providers) {
     *providers = Providers {
         defns,
         qualifiers,
+        func_decls,
         check_wf,
         adt_def,
         type_of,
@@ -57,6 +49,13 @@ pub fn provide(providers: &mut Providers) {
         predicates_of,
         item_bounds,
     };
+}
+
+fn func_decls(genv: &GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
+    genv.map()
+        .func_decls()
+        .map(|decl| (decl.name, conv::conv_func_decl(genv, decl)))
+        .collect()
 }
 
 fn defns(genv: &GlobalEnv) -> QueryResult<rty::Defns> {
@@ -158,13 +157,13 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
     let ty = match genv.tcx.def_kind(def_id) {
-        DefKind::TyAlias => {
+        DefKind::TyAlias { .. } => {
             let alias = genv.map().get_type_alias(def_id);
             let wfckresults = genv.check_wf(def_id)?;
             conv::expand_type_alias(genv, alias, &wfckresults)?
         }
         DefKind::TyParam => {
-            match &genv.early_cx().get_generic_param(def_id).kind {
+            match &genv.get_generic_param(def_id).kind {
                 fhir::GenericParamDefKind::Type { default: Some(ty) } => {
                     let wfckresults = genv.check_wf(def_id)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
@@ -235,38 +234,38 @@ fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<fhir::W
 
 fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<Rc<fhir::WfckResults>> {
     let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
-        fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv.early_cx(), qualifier)?,
-        fhir::FluxItem::Defn(defn) => wf::check_defn(genv.early_cx(), defn)?,
+        fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv, qualifier)?,
+        fhir::FluxItem::Defn(defn) => wf::check_defn(genv, defn)?,
     };
     Ok(Rc::new(wfckresults))
 }
 
 fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
     let wfckresults = match genv.tcx.def_kind(def_id) {
-        DefKind::TyAlias => {
+        DefKind::TyAlias { .. } => {
             let alias = genv.map().get_type_alias(def_id);
-            let mut wfckresults = wf::check_ty_alias(genv.early_cx(), alias)?;
-            annot_check::check_alias(genv.early_cx(), &mut wfckresults, alias)?;
+            let mut wfckresults = wf::check_ty_alias(genv, alias)?;
+            annot_check::check_alias(genv.tcx, genv.sess, &mut wfckresults, alias)?;
             wfckresults
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
-            let mut wfckresults = wf::check_struct_def(genv.early_cx(), struct_def)?;
-            annot_check::check_struct_def(genv.early_cx(), &mut wfckresults, struct_def)?;
+            let mut wfckresults = wf::check_struct_def(genv, struct_def)?;
+            annot_check::check_struct_def(genv.tcx, genv.sess, &mut wfckresults, struct_def)?;
             wfckresults
         }
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
-            let mut wfckresults = wf::check_enum_def(genv.early_cx(), enum_def)?;
-            annot_check::check_enum_def(genv.early_cx(), &mut wfckresults, enum_def)?;
+            let mut wfckresults = wf::check_enum_def(genv, enum_def)?;
+            annot_check::check_enum_def(genv.tcx, genv.sess, &mut wfckresults, enum_def)?;
             wfckresults
         }
         DefKind::TyParam => {
-            match &genv.early_cx().get_generic_param(def_id).kind {
+            match &genv.get_generic_param(def_id).kind {
                 fhir::GenericParamDefKind::Type { default: Some(ty) } => {
                     let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
                     let owner = genv.hir().get_parent_item(hir_id);
-                    wf::check_type(genv.early_cx(), ty, owner)?
+                    wf::check_type(genv, ty, owner)?
                 }
                 fhir::GenericParamDefKind::Type { default: None } => {
                     bug!("type parameter without default")
@@ -278,14 +277,14 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             let owner_id = OwnerId { def_id };
 
             let fn_sig = genv.map().get_fn_sig(def_id);
-            let mut wfckresults = wf::check_fn_sig(genv.early_cx(), fn_sig, owner_id)?;
-            annot_check::check_fn_sig(genv.early_cx(), &mut wfckresults, owner_id, fn_sig)?;
+            let mut wfckresults = wf::check_fn_sig(genv, fn_sig, owner_id)?;
+            annot_check::check_fn_sig(genv.tcx, genv.sess, &mut wfckresults, owner_id, fn_sig)?;
             wfckresults
         }
         DefKind::OpaqueTy => {
             let owner_id = OwnerId { def_id };
             let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
-            wf::check_opaque_ty(genv.early_cx(), opaque_ty, owner_id)?
+            wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
         DefKind::Closure | DefKind::Generator => {
             let parent = genv.tcx.local_parent(def_id);
@@ -301,7 +300,7 @@ pub fn check_crate_wf(genv: &GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
     for def_id in genv.tcx.hir_crate_items(()).definitions() {
         match genv.tcx.def_kind(def_id) {
-            DefKind::TyAlias
+            DefKind::TyAlias { .. }
             | DefKind::Struct
             | DefKind::Enum
             | DefKind::Fn

@@ -207,7 +207,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
-        // [NOTE:YIELD] per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
+        // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
         let resume_ty = if genv.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Generator {
@@ -485,7 +485,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 Ok(vec![(*real_target, Guard::None)])
             }
-            TerminatorKind::Resume => todo!("implement checking of cleanup code"),
+            TerminatorKind::UnwindResume => todo!("implement checking of cleanup code"),
         }
     }
 
@@ -970,6 +970,23 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     }
                 }
             }
+            // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
+            CastKind::Pointer(mir::PointerCast::Unsize) => {
+                if // src is an array
+                   let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
+                   && let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _) = src_ty.kind()
+                   // dst is a slice
+                   && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+                   && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
+                   && src_mut == dst_mut
+                {
+                    let dst_ix = Index::from(src_n.clone());
+                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), dst_ix);
+                    Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
+                } else {
+                    tracked_span_bug!("unsupported Unsize cast")
+                }
+            }
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
@@ -1004,29 +1021,34 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => env.lookup_place(self.genv, rcx, p).with_span(source_span)?,
             Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
-            Operand::Constant(c) => Self::check_constant(c),
+            Operand::Constant(c) => self.check_constant(c)?,
         };
         Ok(rcx.unpack(&ty))
     }
 
-    fn check_constant(c: &Constant) -> Ty {
+    fn check_constant(&mut self, c: &Constant) -> Result<Ty, CheckerError> {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
-                Ty::indexed(BaseTy::Int(*int_ty), idx)
+                Ok(Ty::indexed(BaseTy::Int(*int_ty), idx))
             }
             Constant::Uint(n, uint_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
-                Ty::indexed(BaseTy::Uint(*uint_ty), idx)
+                Ok(Ty::indexed(BaseTy::Uint(*uint_ty), idx))
             }
             Constant::Bool(b) => {
                 let idx = Expr::constant(rty::Constant::from(*b));
-                Ty::indexed(BaseTy::Bool, idx)
+                Ok(Ty::indexed(BaseTy::Bool, idx))
             }
-            Constant::Float(_, float_ty) => Ty::float(*float_ty),
-            Constant::Unit => Ty::unit(),
-            Constant::Str => Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not),
-            Constant::Char => Ty::char(),
+            Constant::Float(_, float_ty) => Ok(Ty::float(*float_ty)),
+            Constant::Unit => Ok(Ty::unit()),
+            Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
+            Constant::Char => Ok(Ty::char()),
+            Constant::Opaque(ty) => {
+                self.genv
+                    .refine_default(&self.generics, ty)
+                    .with_span(self.body.span())
+            }
         }
     }
 

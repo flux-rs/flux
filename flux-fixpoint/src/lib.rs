@@ -6,6 +6,7 @@ extern crate rustc_macros;
 extern crate rustc_serialize;
 extern crate rustc_span;
 
+pub mod big_int;
 mod constraint;
 
 use std::{
@@ -19,7 +20,7 @@ use std::{
 
 pub use constraint::{
     BinOp, Const, ConstName, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, Pred, Proj,
-    Qualifier, Sign, Sort, SortCtor, UnOp,
+    Qualifier, Sort, SortCtor, UnOp,
 };
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
