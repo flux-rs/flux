@@ -52,6 +52,11 @@ pub struct Generics {
 }
 
 #[derive(Debug)]
+pub struct RefParams {
+    pub params: Vec<RefineParam>,
+}
+
+#[derive(Debug)]
 pub struct GenericParamDef {
     pub def_id: LocalDefId,
     pub kind: GenericParamDefKind,
@@ -134,6 +139,7 @@ type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_has
 #[derive(Default)]
 pub struct Map {
     generics: Cache<LocalDefId, Box<Generics>>,
+    refparams: Cache<LocalDefId, Box<RefParams>>,
     predicates: ItemPredicates,
     opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -859,6 +865,10 @@ impl Map {
 
     pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
         self.generics.insert(def_id, Box::new(generics));
+    }
+
+    pub fn insert_refparams(&self, def_id: LocalDefId, params: RefParams) {
+        self.refparams.insert(def_id, Box::new(params));
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {

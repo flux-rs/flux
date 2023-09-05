@@ -145,6 +145,7 @@ pub fn desugar_fn_sig(
         let mut opaque_tys = FxHashMap::default();
         let mut cx = DesugarCtxt::new(genv, owner_id, Some(&mut opaque_tys));
 
+        // DESUGAR GENERICS
         let generics = if let Some(generics) = &fn_sig.generics {
             cx.desugar_generics(generics)?
         } else {
@@ -153,7 +154,11 @@ pub fn desugar_fn_sig(
         // See crate level comment
         genv.map().insert_generics(def_id, generics);
 
+        // DESUGAR FN_SIG (needs to happen AFTER desugaring generics)
         let (generic_preds, fn_sig) = cx.desugar_fn_sig(&fn_sig, &mut Binders::new())?;
+
+        let ref_params = fhir::RefParams { params: fn_sig.params.clone() };
+        genv.map().insert_refparams(def_id, ref_params);
 
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();

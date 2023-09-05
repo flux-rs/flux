@@ -162,9 +162,6 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    let predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
-    wf.check_generic_predicates(&mut infcx, predicates)?;
-
     for param in &fn_sig.params {
         wf.modes.insert(param.ident.name, param.infer_mode());
     }
@@ -179,6 +176,9 @@ pub(crate) fn check_fn_sig(
         .requires
         .iter()
         .try_for_each_exhaust(|constr| wf.check_constraint(&mut infcx, constr));
+
+    let predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
+    wf.check_generic_predicates(&mut infcx, predicates)?;
 
     let output = wf.check_fn_output(&mut infcx, &fn_sig.output);
 

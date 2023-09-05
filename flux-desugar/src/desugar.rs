@@ -413,8 +413,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<(fhir::GenericPredicates, fhir::FnSig), ErrorGuaranteed> {
         let mut requires = vec![];
 
-        let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
-
         // Desugar inputs
         binders.push_layer();
         binders.gather_input_params_fn_sig(self.genv, fn_sig)?;
@@ -430,6 +428,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             .iter()
             .map(|arg| self.desugar_fun_arg(arg, binders, &mut requires))
             .try_collect_exhaust()?;
+
+        // Desugar predicates -- after we have gathered the input params
+        let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
 
         // Desugar output
         binders.push_layer();
