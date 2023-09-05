@@ -247,7 +247,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // check (non-closure) obligations -- the closure ones are handled in `checker` since
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
-            if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
+            if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
                 let proj_ty = Ty::projection(projection_pred.alias_ty);
                 let impl_elem =
                     rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty, span)?;
@@ -617,7 +617,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .item_bounds(alias_ty.def_id, self.span())?
                 .skip_binder();
             for clause in &bounds {
-                if let rty::ClauseKind::Projection(pred) = clause.kind().skip_binder() {
+                if let rty::ClauseKind::Projection(pred) = clause.kind() {
                     let ty1 = self.project_bty(ty, pred.alias_ty.def_id);
                     let ty2 = pred.term;
                     self.subtyping(rcx, &ty1, &ty2)?;
@@ -733,14 +733,13 @@ fn mk_generator_obligations(
     span: Span,
 ) -> Result<Vec<rty::Clause>, CheckerErrKind> {
     let bounds = genv.item_bounds(*opaque_def_id, span)?;
-    let pred =
-        if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind().skip_binder() {
-            let output = proj.term;
-            GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
-        } else {
-            panic!("mk_generator_obligations: unexpected bounds")
-        };
-    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred), List::empty());
+    let pred = if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind() {
+        let output = proj.term;
+        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
+    } else {
+        panic!("mk_generator_obligations: unexpected bounds")
+    };
+    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred));
     Ok(vec![clause])
 }
 

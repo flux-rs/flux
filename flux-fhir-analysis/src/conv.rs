@@ -331,7 +331,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             output: self.conv_ty(env, &trait_ref.bindings[0].term)?,
             kind,
         };
-        clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred), List::empty()));
+        clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred)));
         Ok(())
     }
 
@@ -357,7 +357,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 alias_ty,
                 term: self.conv_ty(env, &binding.term)?,
             });
-            clauses.push(rty::Clause::new(kind, List::empty()));
+            clauses.push(rty::Clause::new(kind));
         }
         Ok(())
     }

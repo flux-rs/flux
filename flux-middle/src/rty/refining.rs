@@ -91,8 +91,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let clauses = clauses
             .iter()
             .map(|clause| -> QueryResult<rty::Clause> {
-                let vars = refine_bound_variables(clause.kind.vars());
-                let kind = match clause.kind.as_ref().skip_binder() {
+                let kind = match &clause.kind {
                     rustc::ty::ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
                         let pred = rty::FnTraitPredicate {
                             self_ty: self.refine_ty(bounded_ty)?,
@@ -100,14 +99,14 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                             output: self.refine_ty(output)?,
                             kind: *kind,
                         };
-                        rty::Binder::new(rty::ClauseKind::FnTrait(pred), vars)
+                        rty::ClauseKind::FnTrait(pred)
                     }
                     rustc::ty::ClauseKind::Projection(proj_pred) => {
                         let proj_pred = rty::ProjectionPredicate {
                             alias_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
                             term: self.as_default().refine_ty(&proj_pred.term)?,
                         };
-                        rty::Binder::new(rty::ClauseKind::Projection(proj_pred), vars)
+                        rty::ClauseKind::Projection(proj_pred)
                     }
                 };
                 Ok(rty::Clause { kind })

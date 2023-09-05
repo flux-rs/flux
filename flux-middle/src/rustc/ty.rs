@@ -72,7 +72,7 @@ pub struct GenericPredicates {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Clause {
-    pub kind: Binder<ClauseKind>,
+    pub kind: ClauseKind,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -273,7 +273,7 @@ pub struct BoundRegion {
 }
 
 impl Clause {
-    pub(crate) fn new(kind: Binder<ClauseKind>) -> Clause {
+    pub(crate) fn new(kind: ClauseKind) -> Clause {
         Clause { kind }
     }
 }
