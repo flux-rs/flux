@@ -123,7 +123,7 @@ fn predicates_of(
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let predicates = if let Some(predicates) = genv.map().get_generic_predicates(local_id) {
         let wfckresults = genv.check_wf(local_id)?;
-        conv::conv_generic_predicates(genv, local_id.to_def_id(), predicates, &wfckresults)?
+        conv::conv_generic_predicates(genv, local_id, predicates, &wfckresults)?
     } else {
         rty::GenericPredicates {
             parent: genv.tcx.opt_parent(local_id.to_def_id()),

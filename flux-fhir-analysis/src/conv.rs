@@ -92,12 +92,16 @@ pub(crate) fn expand_type_alias(
 
 pub(crate) fn conv_generic_predicates(
     genv: &GlobalEnv,
-    def_id: DefId,
+    def_id: LocalDefId,
     predicates: &fhir::GenericPredicates,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::GenericPredicates> {
     let cx = ConvCtxt::new(genv, wfckresults);
+    let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
     let env = &mut Env::new(&[]);
+    if let Some(refparams) = genv.map().get_refparams(def_id) {
+        env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &refparams.params, true));
+    }
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
@@ -106,7 +110,7 @@ pub(crate) fn conv_generic_predicates(
             clauses.push(clause);
         }
     }
-    let parent = genv.tcx.opt_parent(def_id);
+    let parent = genv.tcx.opt_parent(def_id.to_def_id());
     Ok(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) })
 }
 

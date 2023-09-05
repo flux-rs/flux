@@ -507,6 +507,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, &actuals)
             .with_span(terminator_span)?;
 
+        // println!("TRACE: check_call: output = {output:?}");
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
         for constr in &output.ensures {
