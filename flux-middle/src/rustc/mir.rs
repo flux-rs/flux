@@ -28,7 +28,7 @@ pub use rustc_middle::{
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 
-use super::ty::{GenericArg, Region, Ty, TyKind};
+use super::ty::{GenericArg, GenericArgs, Region, Ty, TyKind};
 use crate::{
     global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
     rustc::ty::region_to_string,
@@ -62,7 +62,7 @@ pub struct Terminator<'tcx> {
 }
 
 #[derive(Debug)]
-pub struct CallSubsts<'tcx> {
+pub struct CallArgs<'tcx> {
     pub orig: rustc_middle::ty::GenericArgsRef<'tcx>,
     pub lowered: List<GenericArg>,
 }
@@ -71,7 +71,7 @@ pub struct CallSubsts<'tcx> {
 #[derive(Debug)]
 pub struct Instance {
     pub impl_f: DefId,
-    pub substs: List<GenericArg>,
+    pub args: GenericArgs,
 }
 
 #[derive(Debug)]
@@ -79,12 +79,12 @@ pub enum TerminatorKind<'tcx> {
     Return,
     Call {
         func: DefId,
-        substs: CallSubsts<'tcx>,
+        generic_args: CallArgs<'tcx>,
         args: Vec<Operand>,
         destination: Place,
         target: Option<BasicBlock>,
         unwind: UnwindAction,
-        resolved_call: (DefId, CallSubsts<'tcx>),
+        resolved_call: (DefId, CallArgs<'tcx>),
     },
     SwitchInt {
         discr: Operand,
@@ -182,11 +182,11 @@ pub enum PointerCast {
 
 #[derive(Debug)]
 pub enum AggregateKind {
-    Adt(DefId, VariantIdx, List<GenericArg>),
+    Adt(DefId, VariantIdx, GenericArgs),
     Array(Ty),
     Tuple,
-    Closure(DefId, List<GenericArg>),
-    Generator(DefId, List<GenericArg>),
+    Closure(DefId, GenericArgs),
+    Generator(DefId, GenericArgs),
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -407,7 +407,7 @@ impl PlaceTy {
 
     fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
         match self.ty.kind() {
-            TyKind::Adt(adt_def, substs) => {
+            TyKind::Adt(adt_def, args) => {
                 let variant_def = match self.variant_index {
                     None => adt_def.non_enum_variant(),
                     Some(variant_index) => {
@@ -417,7 +417,7 @@ impl PlaceTy {
                 };
                 let field_def = &variant_def.fields[f];
                 let ty = genv.lower_type_of(field_def.did)?;
-                Ok(ty.subst(substs))
+                Ok(ty.subst(args))
             }
             TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
             _ => bug!("extracting field of non-tuple non-adt: {self:?}"),
@@ -480,15 +480,17 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call { func, substs, args, destination, target, unwind, .. } => {
+            TerminatorKind::Call {
+                func, generic_args, args, destination, target, unwind, ..
+            } => {
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
                 });
                 write!(f, "{destination:?} = call {fname}")?;
 
-                if !substs.lowered.is_empty() {
-                    write!(f, "::<{:?}>", substs.lowered.iter().format(", "))?;
+                if !generic_args.lowered.is_empty() {
+                    write!(f, "::<{:?}>", generic_args.lowered.iter().format(", "))?;
                 }
 
                 write!(
@@ -590,35 +592,35 @@ impl fmt::Debug for Rvalue {
                 write!(f, "Checked{bin_op:?}({op1:?}, {op2:?})")
             }
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
                     let fname = tcx.def_path(*def_id).data.iter().join("::");
                     (fname, variant_name)
                 });
                 write!(f, "{fname}::{variant_name}")?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "),)?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "),)?;
                 }
                 if !args.is_empty() {
-                    write!(f, "({:?})", args.iter().format(", "))?;
+                    write!(f, "({:?})", operands.iter().format(", "))?;
                 }
                 Ok(())
             }
-            Rvalue::Aggregate(AggregateKind::Closure(def_id, substs), args) => {
+            Rvalue::Aggregate(AggregateKind::Closure(def_id, args), operands) => {
                 write!(
                     f,
-                    "closure({}, {substs:?}, {:?})",
+                    "closure({}, {args:?}, {:?})",
                     def_id_to_string(*def_id),
-                    args.iter().format(", ")
+                    operands.iter().format(", ")
                 )
             }
-            Rvalue::Aggregate(AggregateKind::Generator(def_id, substs), args) => {
+            Rvalue::Aggregate(AggregateKind::Generator(def_id, args), operands) => {
                 write!(
                     f,
-                    "generator({}, {substs:?}, {:?})",
+                    "generator({}, {args:?}, {:?})",
                     def_id_to_string(*def_id),
-                    args.iter().format(", ")
+                    operands.iter().format(", ")
                 )
             }
             Rvalue::Aggregate(AggregateKind::Array(_), args) => {

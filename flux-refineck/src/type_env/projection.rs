@@ -94,7 +94,7 @@ pub(crate) trait LookupMode {
     fn downcast_struct(
         &mut self,
         adt: &AdtDef,
-        substs: &[GenericArg],
+        args: &[GenericArg],
         idx: &Index,
     ) -> Result<Vec<Ty>, Self::Error>;
 }
@@ -111,10 +111,10 @@ impl LookupMode for Unfold<'_, '_, '_> {
     fn downcast_struct(
         &mut self,
         adt: &AdtDef,
-        substs: &[GenericArg],
+        args: &[GenericArg],
         idx: &Index,
     ) -> Result<Vec<Ty>, Self::Error> {
-        downcast_struct(self.0, adt, substs, idx)
+        downcast_struct(self.0, adt, args, idx)
     }
 }
 
@@ -150,8 +150,8 @@ impl PlacesTree {
             match elem {
                 PlaceElem::Deref => {
                     match ty.kind() {
-                        TyKind::Indexed(BaseTy::Adt(adt, substs), _) if adt.is_box() => {
-                            ty = box_args(substs).0.clone();
+                        TyKind::Indexed(BaseTy::Adt(adt, args), _) if adt.is_box() => {
+                            ty = box_args(args).0.clone();
                         }
                         TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
                             is_strg = false;
@@ -183,8 +183,8 @@ impl PlacesTree {
                         TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
                         }
-                        TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
-                            ty = mode.downcast_struct(adt, substs, idx)?[f.as_usize()].clone();
+                        TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
+                            ty = mode.downcast_struct(adt, args, idx)?[f.as_usize()].clone();
                         }
                         _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
                     };
@@ -408,11 +408,11 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
-        if let TyKind::Indexed(BaseTy::Adt(adt, substs), _) = ty.kind() && adt.is_box() {
+        if let TyKind::Indexed(BaseTy::Adt(adt, args), _) = ty.kind() && adt.is_box() {
             if self.in_ref.is_some() {
                 Ok(ty.clone())
             } else {
-                let (deref_ty, alloc) = box_args(substs);
+                let (deref_ty, alloc) = box_args(args);
                 let loc = self.unfold_box(deref_ty, alloc);
                 Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
@@ -433,14 +433,14 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 self.change_root(path);
                 Ty::ptr(*pk, path.clone())
             }
-            TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
-                let (deref_ty, alloc) = box_args(substs);
+            TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
+                let (deref_ty, alloc) = box_args(args);
                 if self.in_ref.is_some() {
-                    let substs = List::from_arr([
+                    let args = List::from_arr([
                         GenericArg::Ty(deref_ty.try_fold_with(self)?),
                         GenericArg::Ty(alloc.clone()),
                     ]);
-                    Ty::indexed(BaseTy::Adt(adt.clone(), substs), idx.clone())
+                    Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
                 } else {
                     let loc = self.unfold_box(deref_ty, alloc);
                     let path = Path::from(loc);
@@ -478,8 +478,8 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(BaseTy::Closure(*def_id, fields.into()), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
-                let mut fields = downcast_struct(self.genv, adt, substs, idx)?
+            TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
+                let mut fields = downcast_struct(self.genv, adt, args, idx)?
                     .into_iter()
                     .map(|ty| {
                         let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
@@ -488,13 +488,13 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                     })
                     .collect_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                let substs = substs.with_holes();
-                Ty::downcast(adt.clone(), substs, ty.clone(), FIRST_VARIANT, fields.into())
+                let args = args.with_holes();
+                Ty::downcast(adt.clone(), args, ty.clone(), FIRST_VARIANT, fields.into())
             }
-            TyKind::Downcast(adt, substs, ty, variant, fields) => {
+            TyKind::Downcast(adt, args, ty, variant, fields) => {
                 let mut fields = fields.to_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields.into())
+                Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields.into())
             }
             _ => tracked_span_bug!("invalid field access for `{ty:?}`"),
         };
@@ -503,8 +503,8 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
 
     fn downcast(&mut self, ty: &Ty, variant: VariantIdx) -> CheckerResult<Ty> {
         let ty = match ty.kind() {
-            TyKind::Indexed(BaseTy::Adt(adt, substs), idx) => {
-                let fields = downcast(self.genv, self.rcx, adt, substs, variant, idx)?
+            TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
+                let fields = downcast(self.genv, self.rcx, adt, args, variant, idx)?
                     .into_iter()
                     .map(|ty| {
                         let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
@@ -512,7 +512,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                         ty
                     })
                     .collect_vec();
-                Ty::downcast(adt.clone(), substs.with_holes(), ty.clone(), variant, fields.into())
+                Ty::downcast(adt.clone(), args.with_holes(), ty.clone(), variant, fields.into())
             }
             TyKind::Downcast(.., variant2, _) => {
                 debug_assert_eq!(variant, *variant2);
@@ -598,13 +598,13 @@ impl<'a> Updater<'a> {
 
     fn deref(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Indexed(BaseTy::Adt(adt, substs), idx) if adt.is_box() => {
-                let (deref_ty, alloc) = box_args(substs);
-                let substs = List::from_arr([
+            TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
+                let (deref_ty, alloc) = box_args(args);
+                let args = List::from_arr([
                     GenericArg::Ty(deref_ty.fold_with(self)),
                     GenericArg::Ty(alloc.clone()),
                 ]);
-                Ty::indexed(BaseTy::Adt(adt.clone(), substs), idx.clone())
+                Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
             TyKind::Ptr(..) => {
                 tracked_span_bug!("cannot update through pointer");
@@ -624,9 +624,9 @@ impl<'a> Updater<'a> {
                 let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Closure(*def_id, fields), idx.clone())
             }
-            TyKind::Downcast(adt, substs, ty, variant, fields) => {
+            TyKind::Downcast(adt, args, ty, variant, fields) => {
                 let fields = self.fold_field_at(fields, f);
-                Ty::downcast(adt.clone(), substs.clone(), ty.clone(), *variant, fields)
+                Ty::downcast(adt.clone(), args.clone(), ty.clone(), *variant, fields)
             }
             _ => tracked_span_bug!("invalid field projection on `{ty:?}`"),
         }
@@ -697,15 +697,15 @@ pub(crate) fn downcast(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
-    substs: &[GenericArg],
+    args: &[GenericArg],
     variant_idx: VariantIdx,
     idx: &Index,
 ) -> CheckerResult<Vec<Ty>> {
     if adt.is_struct() {
         debug_assert_eq!(variant_idx.as_u32(), 0);
-        downcast_struct(genv, adt, substs, idx)
+        downcast_struct(genv, adt, args, idx)
     } else if adt.is_enum() {
-        downcast_enum(genv, rcx, adt, variant_idx, substs, idx)
+        downcast_enum(genv, rcx, adt, variant_idx, args, idx)
     } else {
         tracked_span_bug!("Downcast without struct or enum!")
     }
@@ -801,7 +801,7 @@ fn fold(
             let deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)?;
             Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
         }
-        TyKind::Downcast(adt, substs, ty, variant_idx, fields) => {
+        TyKind::Downcast(adt, args, ty, variant_idx, fields) => {
             if is_strg {
                 let variant_sig = gen
                     .genv
@@ -817,7 +817,7 @@ fn fold(
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    gen.check_constructor(rcx, variant_sig, substs, &fields)
+                    gen.check_constructor(rcx, variant_sig, args, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
                 };
 

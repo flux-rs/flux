@@ -126,7 +126,7 @@ struct TyS {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TyKind {
-    Adt(AdtDef, Substs),
+    Adt(AdtDef, GenericArgs),
     Array(Ty, Const),
     Bool,
     Str,
@@ -140,8 +140,8 @@ pub enum TyKind {
     Uint(UintTy),
     Slice(Ty),
     FnPtr(PolyFnSig),
-    Closure(DefId, Substs),
-    Generator(DefId, Substs),
+    Closure(DefId, GenericArgs),
+    Generator(DefId, GenericArgs),
     GeneratorWitness(Binder<List<Ty>>),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
@@ -149,7 +149,7 @@ pub enum TyKind {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct AliasTy {
-    pub substs: Substs,
+    pub args: GenericArgs,
     pub def_id: DefId,
 }
 
@@ -183,36 +183,36 @@ pub enum GenericArg {
     Const(Const),
 }
 
-pub type Substs = List<GenericArg>;
+pub type GenericArgs = List<GenericArg>;
 
-impl Substs {
-    pub fn as_closure(&self) -> ClosureSubsts {
-        ClosureSubsts { substs: self.clone() }
+impl GenericArgs {
+    pub fn as_closure(&self) -> ClosureArgs {
+        ClosureArgs { args: self.clone() }
     }
 
-    pub fn as_generator(&self) -> GeneratorSubsts {
-        GeneratorSubsts { substs: self.clone() }
+    pub fn as_generator(&self) -> GeneratorArgs {
+        GeneratorArgs { args: self.clone() }
     }
 }
-pub struct GeneratorSubsts {
-    pub substs: Substs,
+pub struct GeneratorArgs {
+    pub args: GenericArgs,
 }
 
-pub struct ClosureSubsts {
-    pub substs: Substs,
+pub struct ClosureArgs {
+    pub args: GenericArgs,
 }
 
 #[allow(unused)]
-pub struct ClosureSubstsParts<'a, T> {
-    parent_substs: &'a [T],
+pub struct ClosureArgsParts<'a, T> {
+    parent_args: &'a [T],
     closure_kind_ty: &'a T,
     closure_sig_as_fn_ptr_ty: &'a T,
     tupled_upvars_ty: &'a T,
 }
 
 #[derive(Debug)]
-pub struct GeneratorSubstsParts<'a, T> {
-    pub parent_substs: &'a [T],
+pub struct GeneratorArgsParts<'a, T> {
+    pub parent_args: &'a [T],
     pub resume_ty: &'a T,
     pub yield_ty: &'a T,
     pub return_ty: &'a T,
@@ -289,8 +289,8 @@ impl<T> EarlyBinder<T> {
 }
 
 impl EarlyBinder<Ty> {
-    pub fn subst(&self, substs: &[GenericArg]) -> Ty {
-        self.0.subst(substs)
+    pub fn subst(&self, args: &[GenericArg]) -> Ty {
+        self.0.subst(args)
     }
 }
 
@@ -348,7 +348,7 @@ impl GenericArg {
     }
 }
 
-impl GeneratorSubsts {
+impl GeneratorArgs {
     pub fn tupled_upvars_ty(&self) -> &Ty {
         self.split().tupled_upvars_ty.expect_type()
     }
@@ -357,11 +357,11 @@ impl GeneratorSubsts {
         self.tupled_upvars_ty().tuple_fields().iter()
     }
 
-    fn split(&self) -> GeneratorSubstsParts<GenericArg> {
-        match &self.substs[..] {
-            [ref parent_substs @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
-                GeneratorSubstsParts {
-                    parent_substs,
+    fn split(&self) -> GeneratorArgsParts<GenericArg> {
+        match &self.args[..] {
+            [ref parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+                GeneratorArgsParts {
+                    parent_args,
                     resume_ty,
                     yield_ty,
                     return_ty,
@@ -369,12 +369,12 @@ impl GeneratorSubsts {
                     tupled_upvars_ty,
                 }
             }
-            _ => bug!("generator substs missing synthetics"),
+            _ => bug!("generator args missing synthetics"),
         }
     }
 }
 
-impl ClosureSubsts {
+impl ClosureArgs {
     pub fn tupled_upvars_ty(&self) -> &Ty {
         self.split().tupled_upvars_ty.expect_type()
     }
@@ -383,17 +383,17 @@ impl ClosureSubsts {
         self.tupled_upvars_ty().tuple_fields().iter()
     }
 
-    pub fn split(&self) -> ClosureSubstsParts<GenericArg> {
-        match &self.substs[..] {
-            [parent_substs @ .., closure_kind_ty, closure_sig_as_fn_ptr_ty, tupled_upvars_ty] => {
-                ClosureSubstsParts {
-                    parent_substs,
+    pub fn split(&self) -> ClosureArgsParts<GenericArg> {
+        match &self.args[..] {
+            [parent_args @ .., closure_kind_ty, closure_sig_as_fn_ptr_ty, tupled_upvars_ty] => {
+                ClosureArgsParts {
+                    parent_args,
                     closure_kind_ty,
                     closure_sig_as_fn_ptr_ty,
                     tupled_upvars_ty,
                 }
             }
-            _ => bug!("closure substs missing synthetics"),
+            _ => bug!("closure args missing synthetics"),
         }
     }
 }
@@ -458,15 +458,15 @@ impl TyKind {
 }
 
 impl Ty {
-    pub fn mk_adt(adt_def: AdtDef, substs: impl Into<List<GenericArg>>) -> Ty {
-        TyKind::Adt(adt_def, substs.into()).intern()
+    pub fn mk_adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> Ty {
+        TyKind::Adt(adt_def, args.into()).intern()
     }
 
-    pub fn mk_closure(def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
-        TyKind::Closure(def_id, substs.into()).intern()
+    pub fn mk_closure(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
+        TyKind::Closure(def_id, args.into()).intern()
     }
 
-    pub fn mk_generator(def_id: DefId, args: impl Into<List<GenericArg>>) -> Ty {
+    pub fn mk_generator(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
         TyKind::Generator(def_id, args.into()).intern()
     }
 
@@ -474,8 +474,8 @@ impl Ty {
         TyKind::GeneratorWitness(args).intern()
     }
 
-    pub fn mk_alias(kind: AliasKind, def_id: DefId, substs: impl Into<List<GenericArg>>) -> Ty {
-        let alias_ty = AliasTy { substs: substs.into(), def_id };
+    pub fn mk_alias(kind: AliasKind, def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
+        let alias_ty = AliasTy { args: args.into(), def_id };
         TyKind::Alias(kind, alias_ty).intern()
     }
 
@@ -541,7 +541,7 @@ impl Ty {
 
     pub fn deref(&self) -> Ty {
         match self.kind() {
-            TyKind::Adt(adt_def, substs) if adt_def.is_box() => substs[0].expect_type().clone(),
+            TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),
             TyKind::Ref(_, ty, _) | TyKind::RawPtr(ty, _) => ty.clone(),
             _ => bug!("deref projection of non-dereferenceable ty `{self:?}`"),
         }
@@ -558,9 +558,9 @@ impl Ty {
         }
     }
 
-    pub fn expect_adt(&self) -> (&AdtDef, &Substs) {
+    pub fn expect_adt(&self) -> (&AdtDef, &GenericArgs) {
         match self.kind() {
-            TyKind::Adt(adt_def, substs) => (adt_def, substs),
+            TyKind::Adt(adt_def, args) => (adt_def, args),
             _ => bug!("expect_adt called on non-adt"),
         }
     }
@@ -620,14 +620,14 @@ impl fmt::Debug for AliasKind {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
-            TyKind::Adt(adt_def, substs) => {
+            TyKind::Adt(adt_def, args) => {
                 let adt_name = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(adt_def.did());
                     path.data.iter().join("::")
                 });
                 write!(f, "{adt_name}")?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
@@ -653,17 +653,17 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
-            TyKind::Closure(did, substs) => {
+            TyKind::Closure(did, args) => {
                 write!(f, "Closure {}", def_id_to_string(*did))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
-            TyKind::Generator(did, substs) => {
+            TyKind::Generator(did, args) => {
                 write!(f, "Generator {}", def_id_to_string(*did))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
@@ -672,10 +672,10 @@ impl fmt::Debug for Ty {
             }
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;
-                let substs = &alias_ty.substs;
+                let args = &alias_ty.args;
                 write!(f, "Alias ({kind:?}, {}, ", def_id_to_string(def_id))?;
-                if !substs.is_empty() {
-                    write!(f, "<{:?}>", substs.iter().format(", "))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 write!(f, ")")?;
                 Ok(())

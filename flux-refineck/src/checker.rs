@@ -11,7 +11,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
-        FnSig, FnTraitPredicate, GeneratorObligPredicate, GeneratorSubsts, GenericArg, Generics,
+        FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
         Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy,
         VariantIdx,
     },
@@ -22,7 +22,7 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::{GeneratorSubstsParts, RegionVar},
+        ty::{GeneratorArgsParts, RegionVar},
     },
 };
 use itertools::Itertools;
@@ -426,7 +426,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 }
             }
             TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
-                let (func_id, call_substs) = resolved_call;
+                let (func_id, call_args) = resolved_call;
                 let fn_sig = self
                     .genv
                     .fn_sig(*func_id)
@@ -437,7 +437,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-                let substs = call_substs
+                let generic_args = call_args
                     .lowered
                     .iter()
                     .enumerate()
@@ -455,7 +455,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     terminator_span,
                     Some(*func_id),
                     fn_sig,
-                    &substs,
+                    &generic_args,
                     args,
                 )?;
 
@@ -497,14 +497,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         terminator_span: Span,
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
-        substs: &[GenericArg],
-        args: &[Operand],
+        generic_args: &[GenericArg],
+        operands: &[Operand],
     ) -> Result<Ty, CheckerError> {
-        let actuals = self.check_operands(rcx, env, terminator_span, args)?;
+        let actuals = self.check_operands(rcx, env, terminator_span, operands)?;
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, substs, &actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -764,23 +764,23 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, substs), args) => {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) => {
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
                     .to_poly_fn_sig();
                 let adt_generics = &genv.generics_of(*def_id).with_span(stmt_span)?;
-                let substs = iter::zip(&adt_generics.params, substs)
+                let args = iter::zip(&adt_generics.params, args)
                     .map(|(param, arg)| {
                         genv.instantiate_arg_for_constructor(&self.generics, param, arg)
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)?;
-                self.check_call(rcx, env, stmt_span, None, sig, &substs, args)
+                self.check_call(rcx, env, stmt_span, None, sig, &args, operands)
             }
-            Rvalue::Aggregate(AggregateKind::Array(arr_ty), args) => {
-                let args = self.check_operands(rcx, env, stmt_span, args)?;
+            Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
+                let args = self.check_operands(rcx, env, stmt_span, operands)?;
                 let arr_ty = self
                     .genv
                     .refine_with_holes(&self.generics, arr_ty)
@@ -793,25 +793,24 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
-            Rvalue::Aggregate(AggregateKind::Closure(did, _substs), args) => {
-                let tys = self.check_aggregate_args(rcx, env, stmt_span, args)?;
+            Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
+                let tys = self.check_aggregate_operands(rcx, env, stmt_span, operands)?;
                 let res = Ty::closure(*did, tys?);
                 Ok(res)
             }
-            Rvalue::Aggregate(AggregateKind::Generator(did, substs), ops) => {
-                // We need to "update" the parameter-y bits of `substs` with `args`
-                let tys = self.check_aggregate_args(rcx, env, stmt_span, ops)?;
+            Rvalue::Aggregate(AggregateKind::Generator(did, args), ops) => {
+                let tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
                 let generics = genv.generics_of(*did).unwrap();
-                let substs = genv.refine_default_generic_args(&generics, substs).unwrap();
-                let substs = substs.as_generator();
-                let substs = substs.split();
+                let args = genv.refine_default_generic_args(&generics, args).unwrap();
+                let args = args.as_generator();
+                let args = args.split();
 
-                let substs_parts = GeneratorSubstsParts {
+                let args_parts = GeneratorArgsParts {
                     tupled_upvars_ty: &GenericArg::Ty(Ty::tuple(tys?)),
-                    ..substs
+                    ..args
                 };
-                let substs = GeneratorSubsts::new(substs_parts);
-                Ok(Ty::generator(*did, substs.substs))
+                let args = GeneratorArgs::new(args_parts);
+                Ok(Ty::generator(*did, args.args))
             }
 
             Rvalue::Discriminant(place) => {
@@ -829,7 +828,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
     }
 
-    fn check_aggregate_args(
+    fn check_aggregate_operands(
         &mut self,
         rcx: &mut RefineCtxt<'_>,
         env: &mut TypeEnv<'_>,

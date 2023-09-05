@@ -1,6 +1,3 @@
-//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
-//!
-
 use std::{borrow::Borrow, iter, slice};
 
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -810,10 +807,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_generic_args(
         &mut self,
         res: Res,
-        substs: &[surface::GenericArg<Res>],
+        args: &[surface::GenericArg<Res>],
         binders: &mut Binders,
     ) -> Result<(Vec<fhir::GenericArg>, Vec<fhir::TypeBinding>), ErrorGuaranteed> {
-        let mut args = vec![];
+        let mut fhir_args = vec![];
         let mut bindings = vec![];
         if let Res::Def(
             DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
@@ -824,14 +821,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             for param in &generics.params {
                 if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
                     let lft = self.mk_lifetime_hole(DUMMY_SP);
-                    args.push(fhir::GenericArg::Lifetime(lft));
+                    fhir_args.push(fhir::GenericArg::Lifetime(lft));
                 }
             }
         }
-        for ty in substs {
-            match ty {
+        for arg in args {
+            match arg {
                 surface::GenericArg::Type(ty) => {
-                    args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
+                    fhir_args.push(fhir::GenericArg::Type(self.desugar_ty(None, ty, binders)?));
                 }
                 surface::GenericArg::Constraint(ident, ty) => {
                     bindings.push(fhir::TypeBinding {
@@ -841,7 +838,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 }
             }
         }
-        Ok((args, bindings))
+        Ok((fhir_args, bindings))
     }
 
     fn desugar_bty_bind(
