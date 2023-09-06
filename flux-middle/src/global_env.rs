@@ -9,7 +9,6 @@ use rustc_hir::{
     LangItem, PrimTy,
 };
 use rustc_middle::ty::{TyCtxt, Variance};
-use rustc_span::Span;
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
@@ -119,12 +118,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.predicates_of(self, def_id)
     }
 
-    pub fn item_bounds(
-        &self,
-        def_id: DefId,
-        span: Span,
-    ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
-        self.queries.item_bounds(self, def_id, span)
+    pub fn item_bounds(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
+        self.queries.item_bounds(self, def_id)
     }
 
     pub fn type_of(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {

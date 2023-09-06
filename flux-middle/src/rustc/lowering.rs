@@ -812,18 +812,23 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     sess: &FluxSession,
     generics: rustc_ty::GenericPredicates<'tcx>,
 ) -> Result<GenericPredicates, ErrorGuaranteed> {
-    let predicates = lower_generic_predicates_clauses(tcx, sess, generics.predicates)?;
+    let predicates = generics
+        .predicates
+        .iter()
+        .map(|(clause, span)| lower_clause(tcx, sess, clause, *span))
+        .try_collect()?;
     Ok(GenericPredicates { parent: generics.parent, predicates })
 }
 
-pub(crate) fn lower_generic_predicates_clauses<'tcx>(
+pub(crate) fn lower_item_bounds<'tcx>(
     tcx: TyCtxt<'tcx>,
     sess: &FluxSession,
-    generic_predicates: &[(rustc_ty::Clause<'tcx>, Span)],
+    bounds: &[rustc_ty::Clause<'tcx>],
+    span: Span,
 ) -> Result<List<Clause>, ErrorGuaranteed> {
-    generic_predicates
+    bounds
         .iter()
-        .map(|(clause, span)| lower_clause(tcx, sess, clause, *span))
+        .map(|clause| lower_clause(tcx, sess, clause, span))
         .try_collect()
 }
 
