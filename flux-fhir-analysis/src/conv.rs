@@ -55,7 +55,7 @@ enum Entry {
         sort: fhir::Sort,
         infer_mode: rty::InferMode,
         conv: rty::Sort,
-        /// The index of the entry in the layer skipping all [`ListEntry::Unit`] if [`Layer::filter_unit`]
+        /// The index of the entry in the layer skipping all [`Entry::Unit`] if [`Layer::filter_unit`]
         /// is true
         idx: u32,
     },
@@ -292,19 +292,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<()> {
         match bound {
             fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
-                let fhir::Res::Def(DefKind::Trait, trait_def_id) = trait_ref.res else {
+                let fhir::Res::Def(DefKind::Trait, trait_id) = trait_ref.res else {
                     span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
                 };
-                if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_def_id) {
+                if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_id) {
                     self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
                 } else {
-                    self.conv_type_bindings(
-                        env,
-                        bounded_ty,
-                        trait_def_id,
-                        &trait_ref.bindings,
-                        clauses,
-                    )
+                    self.conv_trait_bound(env, bounded_ty, trait_id, &trait_ref.args, clauses)?;
+                    self.conv_type_bindings(env, bounded_ty, trait_id, &trait_ref.bindings, clauses)
                 }
             }
             // Maybe bounds are only supported for `?Sized`, and the effect is just to relax the
@@ -315,6 +310,23 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)
             }
         }
+    }
+
+    fn conv_trait_bound(
+        &self,
+        env: &mut Env,
+        bounded_ty: &rty::Ty,
+        trait_id: DefId,
+        args: &[fhir::GenericArg],
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult<()> {
+        let mut into = vec![rty::GenericArg::Ty(bounded_ty.clone())];
+        self.conv_generic_args_into(env, args, &mut into)?;
+        self.fill_generic_args_defaults(trait_id, &mut into)?;
+        let trait_ref = rty::TraitRef { def_id: trait_id, args: into.into() };
+        let pred = rty::TraitPredicate { trait_ref };
+        clauses.push(rty::Clause::new(rty::ClauseKind::Trait(pred)));
+        Ok(())
     }
 
     fn conv_fn_bound(
@@ -354,7 +366,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
             let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
             let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-                alias_ty,
+                projection_ty: alias_ty,
                 term: self.conv_ty(env, &binding.term)?,
             });
             clauses.push(rty::Clause::new(kind));
@@ -701,35 +713,52 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         def_id: DefId,
         args: &[fhir::GenericArg],
     ) -> QueryResult<Vec<rty::GenericArg>> {
-        let mut i = 0;
-        self.genv
-            .generics_of(def_id)?
-            .params
-            .iter()
-            .map(|param| {
-                if i < args.len() {
-                    i += 1;
-                    match &args[i - 1] {
-                        fhir::GenericArg::Lifetime(lft) => {
-                            Ok(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)))
-                        }
-                        fhir::GenericArg::Type(ty) => {
-                            Ok(rty::GenericArg::Ty(self.conv_ty(env, ty)?))
-                        }
-                    }
-                } else if let rty::GenericParamDefKind::Type { has_default } = param.kind {
-                    debug_assert!(has_default);
-                    let ty = self
-                        .genv
-                        .type_of(param.def_id)?
-                        .instantiate(&[], &[])
-                        .replace_bound_exprs(&[rty::Expr::unit()]);
-                    Ok(rty::GenericArg::Ty(ty))
-                } else {
-                    bug!("unexpected generic param: {param:?}");
+        let mut into = vec![];
+        self.conv_generic_args_into(env, args, &mut into)?;
+        self.fill_generic_args_defaults(def_id, &mut into)?;
+        Ok(into)
+    }
+
+    fn conv_generic_args_into(
+        &self,
+        env: &mut Env,
+        args: &[fhir::GenericArg],
+        into: &mut Vec<rty::GenericArg>,
+    ) -> QueryResult<()> {
+        for arg in args {
+            match arg {
+                fhir::GenericArg::Lifetime(lft) => {
+                    into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
                 }
-            })
-            .try_collect()
+                fhir::GenericArg::Type(ty) => {
+                    into.push(rty::GenericArg::Ty(self.conv_ty(env, ty)?));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn fill_generic_args_defaults(
+        &self,
+        def_id: DefId,
+        into: &mut Vec<rty::GenericArg>,
+    ) -> QueryResult<()> {
+        let generics = self.genv.generics_of(def_id)?;
+        for param in generics.params.iter().skip(into.len()) {
+            if let rty::GenericParamDefKind::Type { has_default } = param.kind {
+                debug_assert!(has_default);
+                let ty = self
+                    .genv
+                    .type_of(param.def_id)?
+                    .instantiate(&[], &[])
+                    .replace_bound_exprs(&[rty::Expr::unit()]);
+                into.push(rty::GenericArg::Ty(ty));
+            } else {
+                bug!("unexpected generic param: {param:?}");
+            }
+        }
+
+        Ok(())
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> fhir::Sort {

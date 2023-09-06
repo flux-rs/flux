@@ -583,6 +583,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?;
                 }
                 rty::ClauseKind::Projection(_) => (),
+                rty::ClauseKind::Trait(_) => (),
             }
         }
         Ok(())

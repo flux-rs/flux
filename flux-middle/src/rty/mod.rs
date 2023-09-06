@@ -93,13 +93,25 @@ pub struct Clause {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
+    Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     GeneratorOblig(GeneratorObligPredicate),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TraitPredicate {
+    pub trait_ref: TraitRef,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ProjectionPredicate {
-    pub alias_ty: AliasTy,
+    pub projection_ty: AliasTy,
     pub term: Ty,
 }
 
@@ -1513,6 +1525,7 @@ mod pretty {
             define_scoped!(_cx, f);
             match self {
                 ClauseKind::FnTrait(pred) => w!("FnTrait ({pred:?})"),
+                ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
                 ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
                 ClauseKind::GeneratorOblig(pred) => w!("Projection ({pred:?})"),
             }
