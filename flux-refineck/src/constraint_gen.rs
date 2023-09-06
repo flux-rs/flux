@@ -248,7 +248,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
-                let proj_ty = Ty::projection(projection_pred.alias_ty);
+                let proj_ty = Ty::projection(projection_pred.projection_ty);
                 let impl_elem =
                     rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty, span)?;
 
@@ -618,7 +618,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .skip_binder();
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
-                    let ty1 = self.project_bty(ty, pred.alias_ty.def_id);
+                    let ty1 = self.project_bty(ty, pred.projection_ty.def_id);
                     let ty2 = pred.term;
                     self.subtyping(rcx, &ty1, &ty2)?;
                 }
