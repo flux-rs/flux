@@ -60,12 +60,10 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
 
         for clauses in vec {
             for pred in &clauses {
-                if pred.kind.vars().is_empty() {
-                    if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
-                        match preds.insert(proj_pred.alias_ty.key(), proj_pred.term) {
-                            None => (),
-                            Some(_) => bug!("duplicate projection predicate"),
-                        }
+                if let ClauseKind::Projection(proj_pred) = pred.kind() {
+                    match preds.insert(proj_pred.alias_ty.key(), proj_pred.term) {
+                        None => (),
+                        Some(_) => bug!("duplicate projection predicate"),
                     }
                 }
             }

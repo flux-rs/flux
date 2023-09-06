@@ -815,78 +815,8 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     sess: &FluxSession,
     generics: rustc_ty::GenericPredicates<'tcx>,
 ) -> Result<GenericPredicates, ErrorGuaranteed> {
-    let mut fn_trait_refs = FxHashMap::default();
-    let mut fn_output_proj = FxHashMap::default();
-    let mut predicates = vec![];
-
-    for (predicate, span) in generics.predicates {
-        let bound_vars = predicate.kind().bound_vars();
-        let kind = predicate.kind().skip_binder();
-
-        match kind {
-            rustc_ty::ClauseKind::Trait(trait_pred) => {
-                let trait_ref = trait_pred.trait_ref;
-                let args = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
-                if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
-                    match fn_trait_refs.entry(args) {
-                        hash_map::Entry::Occupied(_) => todo!(),
-                        hash_map::Entry::Vacant(entry) => {
-                            entry.insert((closure_kind, *span));
-                        }
-                    }
-                }
-            }
-            rustc_ty::ClauseKind::Projection(proj_pred) => {
-                let proj_ty = proj_pred.projection_ty;
-                let args = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
-                if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
-                    match fn_output_proj.entry(args) {
-                        hash_map::Entry::Occupied(_) => todo!(),
-                        hash_map::Entry::Vacant(entry) => {
-                            entry.insert(proj_pred.term.ty().unwrap());
-                        }
-                    };
-                } else if let Some(ty) = proj_pred.term.ty() &&
-                          let Some(args) = args.no_bound_vars(){
-                    let args = lower_generic_args(tcx, args)
-                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
-                        .emit(sess)?;
-
-                    let projection_ty = AliasTy { args, def_id: proj_ty.def_id };
-                    let term = lower_ty(tcx, ty)
-                        .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
-                        .emit(sess)?;
-                    let kind = ClauseKind::Projection(ProjectionPredicate { projection_ty, term });
-                    predicates.push(Clause::new(Binder::bind_with_vars(kind, List::empty())));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    for (args, (kind, span)) in fn_trait_refs {
-        let output = fn_output_proj.get(&args).unwrap();
-
-        let vars = args.bound_vars();
-        let args = args.skip_binder().into_type_list(tcx);
-        let bounded_ty = lower_ty(tcx, args[0])
-            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-            .emit(sess)?;
-        let tupled_args = lower_ty(tcx, args[1])
-            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-            .emit(sess)?;
-        let output = lower_ty(tcx, *output)
-            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-            .emit(sess)?;
-
-        let vars = lower_bound_vars(vars)
-            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-            .emit(sess)?;
-
-        let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
-        predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
-    }
-    Ok(GenericPredicates { parent: generics.parent, predicates: List::from_vec(predicates) })
+    let predicates = lower_generic_predicates_clauses(tcx, sess, generics.predicates)?;
+    Ok(GenericPredicates { parent: generics.parent, predicates })
 }
 
 #[allow(clippy::mutable_key_type)] // False positive `List` is not mutable
@@ -900,13 +830,17 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
     let mut predicates = vec![];
 
     for (predicate, span) in generic_predicates {
-        let bound_vars = predicate.kind().bound_vars();
-        let kind = predicate.kind().skip_binder();
+        let Some(kind) = predicate.kind().no_bound_vars() else {
+            return Err(sess.emit_err(errors::UnsupportedGenericBound::new(
+                *span,
+                "higher-rank trait bounds are not supported",
+            )));
+        };
 
         match kind {
             rustc_ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = trait_pred.trait_ref;
-                let args = rustc_ty::Binder::bind_with_vars(trait_ref.args, bound_vars);
+                let args = trait_ref.args;
                 if let Some(closure_kind) = tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
                     match fn_trait_refs.entry(args) {
                         hash_map::Entry::Occupied(_) => todo!(),
@@ -918,7 +852,7 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
             }
             rustc_ty::ClauseKind::Projection(proj_pred) => {
                 let proj_ty = proj_pred.projection_ty;
-                let args = rustc_ty::Binder::bind_with_vars(proj_ty.args, bound_vars);
+                let args = proj_ty.args;
                 if proj_ty.def_id == tcx.lang_items().fn_once_output().unwrap() {
                     match fn_output_proj.entry(args) {
                         hash_map::Entry::Occupied(_) => todo!(),
@@ -926,8 +860,7 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
                             entry.insert(proj_pred.term.ty().unwrap());
                         }
                     };
-                } else if let Some(ty) = proj_pred.term.ty() &&
-                          let Some(args) = args.no_bound_vars(){
+                } else if let Some(ty) = proj_pred.term.ty() {
                     let args = lower_generic_args(tcx, args)
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
@@ -937,7 +870,7 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
                         .map_err(|err| errors::UnsupportedGenericBound::new(*span, err.descr))
                         .emit(sess)?;
                     let kind = ClauseKind::Projection(ProjectionPredicate { projection_ty, term });
-                    predicates.push(Clause::new(Binder::bind_with_vars(kind, List::empty())));
+                    predicates.push(Clause::new(kind));
                 }
             }
             _ => {}
@@ -947,8 +880,7 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
     for (args, (kind, span)) in fn_trait_refs {
         let output = fn_output_proj.get(&args).unwrap();
 
-        let vars = args.bound_vars();
-        let args = args.skip_binder().into_type_list(tcx);
+        let args = args.into_type_list(tcx);
         let bounded_ty = lower_ty(tcx, args[0])
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
@@ -959,12 +891,8 @@ pub(crate) fn lower_generic_predicates_clauses<'tcx>(
             .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
             .emit(sess)?;
 
-        let vars = lower_bound_vars(vars)
-            .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-            .emit(sess)?;
-
         let kind = ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind };
-        predicates.push(Clause::new(Binder::bind_with_vars(kind, vars)));
+        predicates.push(Clause::new(kind));
     }
     Ok(predicates.into())
 }

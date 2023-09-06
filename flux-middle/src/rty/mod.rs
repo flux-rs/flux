@@ -87,7 +87,7 @@ pub struct GenericPredicates {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
-    kind: Binder<ClauseKind>,
+    kind: ClauseKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -400,11 +400,11 @@ impl GenericArg {
 }
 
 impl Clause {
-    pub fn new(kind: ClauseKind, vars: List<BoundVariableKind>) -> Self {
-        Clause { kind: Binder::new(kind, vars) }
+    pub fn new(kind: ClauseKind) -> Self {
+        Clause { kind }
     }
 
-    pub fn kind(&self) -> Binder<ClauseKind> {
+    pub fn kind(&self) -> ClauseKind {
         self.kind.clone()
     }
 }
@@ -463,25 +463,14 @@ impl GenericArgs {
     }
 }
 
-impl Binder<FnTraitPredicate> {
-    pub fn self_ty(&self) -> Binder<Ty> {
-        self.as_ref()
-            .map(|fn_trait_pred| fn_trait_pred.self_ty.clone())
-    }
-
+impl FnTraitPredicate {
     pub fn to_closure_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
-        let vars: List<BoundVariableKind> = self
-            .vars
-            .iter()
-            .cloned()
-            .chain(std::iter::once(BoundVariableKind::Region(BoundRegionKind::BrEnv)))
-            .collect();
-
-        let pred = self.as_ref().skip_binder();
+        let mut vars = vec![];
 
         let closure_ty = Ty::closure(closure_id, tys);
-        let env_ty = match pred.kind {
+        let env_ty = match self.kind {
             ClosureKind::Fn => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
                 let br = BoundRegion {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
@@ -489,6 +478,7 @@ impl Binder<FnTraitPredicate> {
                 Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
                 let br = BoundRegion {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
@@ -498,24 +488,23 @@ impl Binder<FnTraitPredicate> {
             ClosureKind::FnOnce => closure_ty,
         };
         let inputs = std::iter::once(env_ty)
-            .chain(pred.tupled_args.expect_tuple().iter().cloned())
+            .chain(self.tupled_args.expect_tuple().iter().cloned())
             .collect_vec();
 
         let fn_sig = FnSig::new(
             vec![],
             inputs,
-            Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty()),
+            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
 
-        PolyFnSig::new(fn_sig, vars)
+        PolyFnSig::new(fn_sig, List::from(vars))
     }
 }
 
-impl Binder<GeneratorObligPredicate> {
+impl GeneratorObligPredicate {
     pub fn to_closure_sig(&self) -> PolyFnSig {
-        let vars = self.vars().iter().cloned().collect();
-        let pred = self.as_ref().skip_binder();
-        let pred_args = pred.args.as_generator();
+        let vars = vec![];
+        let pred_args = self.args.as_generator();
 
         let tys = pred_args
             .tupled_upvars_ty()
@@ -524,15 +513,15 @@ impl Binder<GeneratorObligPredicate> {
             .cloned()
             .collect_vec();
 
-        let env_ty = Ty::closure(pred.def_id, tys);
+        let env_ty = Ty::closure(self.def_id, tys);
         let resume_ty = pred_args.resume_ty();
         let requires = vec![];
 
         let inputs = vec![env_ty, resume_ty];
 
-        let output = Binder::new(FnOutput::new(pred.output.clone(), vec![]), List::empty());
+        let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(FnSig::new(requires, inputs, output), vars)
+        PolyFnSig::new(FnSig::new(requires, inputs, output), List::from(vars))
     }
 }
 

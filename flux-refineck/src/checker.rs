@@ -528,14 +528,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         snapshot: &Snapshot,
-        gen_pred: Binder<GeneratorObligPredicate>,
+        gen_pred: GeneratorObligPredicate,
     ) -> Result<(), CheckerError> {
         let poly_sig = gen_pred.to_closure_sig();
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
             self.genv,
             refine_tree,
-            gen_pred.skip_binder().def_id,
+            gen_pred.def_id,
             self.ghost_stmts,
             self.mode,
             poly_sig,
@@ -547,12 +547,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         snapshot: &Snapshot,
-        fn_trait_pred: Binder<FnTraitPredicate>,
+        fn_trait_pred: FnTraitPredicate,
     ) -> Result<(), CheckerError> {
-        if let Some(BaseTy::Closure(def_id, tys)) = fn_trait_pred
-            .self_ty()
-            .skip_binder()
-            .as_bty_skipping_existentials()
+        if let Some(BaseTy::Closure(def_id, tys)) =
+            fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
             let refine_tree = rcx.subtree_at(snapshot).unwrap();
             Checker::run(
@@ -565,7 +563,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.config,
             )?;
         } else {
-            panic!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty());
+            panic!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty);
         }
         Ok(())
     }
@@ -577,15 +575,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         obligs: Obligations,
     ) -> Result<(), CheckerError> {
         for pred in &obligs.predicates {
-            let kind = pred.kind();
-            let vars = kind.vars().clone();
-            match kind.skip_binder() {
+            match pred.kind() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
-                    let fn_trait_pred = Binder::new(fn_trait_pred, vars);
                     self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
                 }
                 rty::ClauseKind::GeneratorOblig(gen_pred) => {
-                    let gen_pred = Binder::new(gen_pred, vars);
                     self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?;
                 }
                 rty::ClauseKind::Projection(_) => (),
