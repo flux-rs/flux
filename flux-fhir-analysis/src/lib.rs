@@ -150,7 +150,7 @@ fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::RefP
         params
             .params
             .iter()
-            .map(|param| conv::conv_sort(genv, &param.sort))
+            .map(|param| conv::conv_refine_param(genv, param))
             .collect_vec()
     } else {
         vec![]

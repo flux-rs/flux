@@ -66,12 +66,18 @@ pub struct Generics {
 
 #[derive(Debug, Clone)]
 pub struct RefParams {
-    pub params: List<Sort>,
+    pub params: Vec<RefineParam>,
     pub parent: Option<DefId>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RefineParam {
+    pub sort: Sort,
+    pub mode: InferMode,
+}
+
 impl RefParams {
-    pub fn new(params: impl Into<List<Sort>>, parent: Option<DefId>) -> Self {
+    pub fn new(params: impl Into<Vec<RefineParam>>, parent: Option<DefId>) -> Self {
         RefParams { params: params.into(), parent }
     }
 }

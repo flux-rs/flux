@@ -1011,7 +1011,13 @@ fn conv_sorts<'a>(
         .collect()
 }
 
-pub(crate) fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
+pub(crate) fn conv_refine_param(genv: &GlobalEnv, param: &fhir::RefineParam) -> rty::RefineParam {
+    let sort = conv_sort(genv, &param.sort);
+    let mode = param.infer_mode();
+    rty::RefineParam { sort, mode }
+}
+
+pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
     match sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,

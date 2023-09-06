@@ -195,6 +195,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let rvid_gen = infcx.rvid_gen;
 
         let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
+        println!("TRACE: exprs = {exprs:?}");
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
@@ -395,7 +396,7 @@ fn inst_exprs(
         params
             .params
             .iter()
-            .map(|sort| infcx.fresh_evars_or_kvar(sort, rty::InferMode::EVar))
+            .map(|param| infcx.fresh_evars_or_kvar(&param.sort, param.mode))
             .collect_vec()
      } else {
         vec![]

@@ -207,7 +207,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let exprs = params
             .params
             .iter()
-            .map(|sort| rcx.define_vars(sort))
+            .map(|param| rcx.define_vars(&param.sort))
             .collect_vec();
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
 
