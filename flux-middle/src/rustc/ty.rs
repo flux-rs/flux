@@ -462,6 +462,19 @@ impl AdtDefData {
     }
 }
 
+impl TraitRef {
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
+    }
+}
+
+impl AliasTy {
+    /// This method work only with associated type projections (i.e., no opaque tpes)
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
+    }
+}
+
 impl TyKind {
     fn intern(self) -> Ty {
         Ty(Interned::new(TyS { kind: self }))

@@ -129,6 +129,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         for clause in clauses {
             if let rustc::ty::ClauseKind::Projection(trait_pred) = &clause.kind
                 && self.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
+                && trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
             {
                 candidates.push(trait_pred);
             }
