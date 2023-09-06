@@ -145,15 +145,16 @@ fn item_bounds(
 
 fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::RefParams> {
     let def_id = local_id.to_def_id();
-    let params = genv
-        .map()
-        .get_refparams(local_id)
-        .unwrap_or_else(|| panic!("no ref_params for {:?}", def_id));
-    let sorts = params
-        .params
-        .iter()
-        .map(|param| conv::conv_sort(genv, &param.sort))
-        .collect_vec();
+    // There are no RefParams inserted for functions without flux-sigs; hence use empty in that case.
+    let sorts = if let Some(params) = genv.map().get_refparams(local_id) {
+        params
+            .params
+            .iter()
+            .map(|param| conv::conv_sort(genv, &param.sort))
+            .collect_vec()
+    } else {
+        vec![]
+    };
     Ok(rty::RefParams::new(sorts, Some(def_id)))
 }
 

@@ -56,6 +56,12 @@ pub struct RefParams {
     pub params: Vec<RefineParam>,
 }
 
+impl Default for RefParams {
+    fn default() -> Self {
+        Self { params: vec![] }
+    }
+}
+
 #[derive(Debug)]
 pub struct GenericParamDef {
     pub def_id: LocalDefId,

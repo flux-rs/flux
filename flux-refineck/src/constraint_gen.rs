@@ -193,10 +193,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
-        let inst_fn_sig = fn_sig.instantiate(&generic_args, &[]).replace_bound_vars(
-            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
-            |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
-        );
+
+        let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
+
+        let inst_fn_sig = fn_sig
+            .instantiate(&generic_args, &exprs)
+            .replace_bound_vars(
+                |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+                |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
+            );
 
         // HEREHEREHERE: DANGLING reference
         // println!("TRACE: inst_fn_sig (1) = {inst_fn_sig:?}");
@@ -375,6 +380,25 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             self.rvid_gen,
             Tag::new(reason, self.span),
         )
+    }
+}
+
+fn inst_exprs(
+    callee_def_id: Option<DefId>,
+    genv: &GlobalEnv<'_, '_>,
+    infcx: &mut InferCtxt<'_, '_>,
+) -> Vec<Expr> {
+    if let Some(callee_id) = callee_def_id &&
+        let Some(callee_local_id) = callee_id.as_local() &&
+        let Ok(params) = genv.refparams_of(callee_local_id)
+     {
+        params
+            .params
+            .iter()
+            .map(|sort| infcx.fresh_evars_or_kvar(sort, rty::InferMode::EVar))
+            .collect_vec()
+     } else {
+        vec![]
     }
 }
 
