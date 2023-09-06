@@ -108,6 +108,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.check_wf(self, flux_id.into())
     }
 
+    pub fn refparams_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::RefParams> {
+        self.queries.refparams_of(self, def_id.into())
+    }
+
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
         self.queries.generics_of(self, def_id.into())
     }

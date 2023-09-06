@@ -64,6 +64,18 @@ pub struct Generics {
     pub parent_count: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct RefParams {
+    pub params: List<Sort>,
+    pub parent: Option<DefId>,
+}
+
+impl RefParams {
+    pub fn new(params: impl Into<List<Sort>>, parent: Option<DefId>) -> Self {
+        RefParams { params: params.into(), parent }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParamDef {
     pub kind: GenericParamDefKind,

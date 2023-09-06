@@ -130,10 +130,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let fn_sig = genv
-                .fn_sig(def_id)
-                .with_span(genv.tcx.def_span(def_id))?
-                .instantiate_identity();
+            let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+            //.instantiate_identity();
 
             Checker::run(
                 genv,
@@ -158,10 +156,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        let fn_sig = genv
-            .fn_sig(def_id)
-            .with_span(genv.tcx.def_span(def_id))?
-            .instantiate_identity();
+        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+        //.instantiate_identity();
         // TODO-EARLY: generate a LIST of free variables for the EarlyBound params
         // substitute the free vars in BOTH (a) FnSig (b) Predicates (to get ParamEnv, used for normalization)
 
@@ -193,18 +189,28 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         def_id: DefId,
         extra_data: &'a FxHashMap<DefId, GhostStatements>,
         mode: &'a mut M,
-        poly_sig: PolyFnSig, // TODO-EARLY: poly_sig : EarlyBinder<PolyFnSig>
+        poly_sig: EarlyBinder<PolyFnSig>, // TODO-EARLY: poly_sig : EarlyBinder<PolyFnSig>
         config: CheckerConfig,
     ) -> Result<(), CheckerError> {
-        let body = genv
-            .mir(def_id.expect_local())
-            .with_span(genv.tcx.def_span(def_id))?;
+        let span = genv.tcx.def_span(def_id);
+
+        let body = genv.mir(def_id.expect_local()).with_span(span)?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let rvid_gen = IndexGen::new();
         // TODO-EARLY: this is where the "free" names are getting generated, want to also
         // use those names in the predicates.
+        let params = genv.refparams_of(def_id.expect_local()).with_span(span)?;
+
+        // println!("TRACE: run: {def_id:?} params = {params:?}");
+        let exprs = params
+            .params
+            .iter()
+            .map(|sort| rcx.define_vars(sort))
+            .collect_vec();
+        let poly_sig = poly_sig.instantiate(&[], &exprs);
+
         let fn_sig = poly_sig.replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
             |sort, _| rcx.define_vars(sort),
@@ -454,7 +460,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .try_collect_vec()
                     .with_src_info(terminator.source_info)?;
 
-                println!("TRACE: check_call {func_id:?}");
+                // println!("TRACE: check_call {func_id:?}");
                 let ret = self.check_call(
                     rcx,
                     env,
@@ -513,12 +519,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, &actuals)
             .with_span(terminator_span)?;
 
-        let boo = output.clone();
-        println!(
-            "TRACE: check_call: output.vars = {:?}, output.ty = {:?}",
-            boo.vars().clone(),
-            boo.skip_binder()
-        );
+        // let boo = output.clone();
+        // println!(
+        //     "TRACE: check_call: output.vars = {:?}, output.ty = {:?}",
+        //     boo.vars().clone(),
+        //     boo.skip_binder()
+        // );
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
@@ -551,7 +557,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             gen_pred.skip_binder().def_id,
             self.ghost_stmts,
             self.mode,
-            poly_sig,
+            EarlyBinder(poly_sig),
             self.config,
         )
     }
@@ -568,13 +574,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .as_bty_skipping_existentials()
         {
             let refine_tree = rcx.subtree_at(snapshot).unwrap();
+            let poly_sig = fn_trait_pred.to_closure_sig(*def_id, tys.clone());
             Checker::run(
                 self.genv,
                 refine_tree,
                 *def_id,
                 self.ghost_stmts,
                 self.mode,
-                fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
+                EarlyBinder(poly_sig),
                 self.config,
             )?;
         } else {

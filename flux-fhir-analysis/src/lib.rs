@@ -46,6 +46,7 @@ pub fn provide(providers: &mut Providers) {
         variants_of,
         fn_sig,
         generics_of,
+        refparams_of,
         predicates_of,
         item_bounds,
     };
@@ -142,6 +143,20 @@ fn item_bounds(
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id.to_def_id(), opaque_ty, &wfckresults)?))
 }
 
+fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::RefParams> {
+    let def_id = local_id.to_def_id();
+    let params = genv
+        .map()
+        .get_refparams(local_id)
+        .unwrap_or_else(|| panic!("no ref_params for {:?}", def_id));
+    let sorts = params
+        .params
+        .iter()
+        .map(|param| conv::conv_sort(genv, &param.sort))
+        .collect_vec();
+    Ok(rty::RefParams::new(sorts, Some(def_id)))
+}
+
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
@@ -217,12 +232,16 @@ fn variants_of(
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let fn_sig = genv.map().get_fn_sig(def_id);
     let wfckresults = genv.check_wf(def_id)?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?.normalize(genv.defns()?);
+    let defns = genv.defns()?;
+    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
+        .map(|fn_sig| fn_sig.normalize(defns));
+
+    // println!("TRACE: conv_fn_sig {def_id:?} = {fn_sig:?}");
 
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
-    Ok(rty::EarlyBinder(fn_sig))
+    Ok(fn_sig)
 }
 
 fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {

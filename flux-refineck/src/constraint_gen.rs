@@ -198,10 +198,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 
-        // HEREHEREHERE: DANGLING reference  
-        println!("TRACE: inst_fn_sig (1) = {inst_fn_sig:?}");
+        // HEREHEREHERE: DANGLING reference
+        // println!("TRACE: inst_fn_sig (1) = {inst_fn_sig:?}");
         let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig, span)?;
-        println!("TRACE: inst_fn_sig (2) = {inst_fn_sig:?}");
+        // println!("TRACE: inst_fn_sig (2) = {inst_fn_sig:?}");
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args)?

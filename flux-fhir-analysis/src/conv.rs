@@ -228,13 +228,15 @@ pub(crate) fn conv_fn_sig(
     def_id: LocalDefId,
     fn_sig: &fhir::FnSig,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::PolyFnSig> {
+) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(&[]);
-    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &fn_sig.params, true));
+    // let mut env = Env::new(&[]);
+    // env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &fn_sig.params, true));
+    let mut env = Env::new(&fn_sig.params);
+    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
@@ -255,7 +257,7 @@ pub(crate) fn conv_fn_sig(
         .collect();
 
     let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
-    Ok(res)
+    Ok(rty::EarlyBinder(res))
 }
 
 pub(crate) fn conv_ty(
@@ -1009,7 +1011,7 @@ fn conv_sorts<'a>(
         .collect()
 }
 
-fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
+pub(crate) fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
     match sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,
