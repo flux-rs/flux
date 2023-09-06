@@ -303,12 +303,13 @@ impl TypeFolder for EVarSubstFolder<'_> {
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
-    generics: &'a [GenericArg],
+    /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
+    generics: Option<&'a [GenericArg]>,
     refine: &'a [Expr],
 }
 
 impl<'a> GenericsSubstFolder<'a> {
-    pub(super) fn new(generics: &'a [GenericArg], refine: &'a [Expr]) -> Self {
+    pub(super) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, generics, refine }
     }
 }
@@ -356,40 +357,58 @@ impl TypeFolder for GenericsSubstFolder<'_> {
 
 impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => {
-                if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
-                    sort.clone()
-                } else {
-                    bug!("unexpected bound variable `{arg:?}`")
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::BaseTy(arg)) => {
+                    if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
+                        sort.clone()
+                    } else {
+                        bug!("unexpected bound variable `{arg:?}`")
+                    }
                 }
+                Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
+                None => bug!("type parameter out of range {param_ty:?}"),
             }
-            Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
-            None => bug!("type parameter out of range {param_ty:?}"),
+        } else {
+            Sort::Param(param_ty)
         }
     }
 
     fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::Ty(ty)) => ty.clone(),
+                Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+                None => bug!("type parameter out of range"),
+            }
+        } else {
+            Ty::param(param_ty)
         }
     }
 
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs(slice::from_ref(&idx.expr)),
-            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::BaseTy(arg)) => {
+                    arg.replace_bound_exprs(slice::from_ref(&idx.expr))
+                }
+                Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+                None => bug!("type parameter out of range"),
+            }
+        } else {
+            Ty::indexed(BaseTy::Param(param_ty), idx.clone())
         }
     }
 
     fn region_for_param(&self, ebr: EarlyBoundRegion) -> Region {
-        match self.generics.get(ebr.index as usize) {
-            Some(GenericArg::Lifetime(re)) => *re,
-            Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
-            None => bug!("region parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(ebr.index as usize) {
+                Some(GenericArg::Lifetime(re)) => *re,
+                Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
+                None => bug!("region parameter out of range"),
+            }
+        } else {
+            ReEarlyBound(ebr)
         }
     }
 

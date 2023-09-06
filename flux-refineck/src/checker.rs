@@ -209,7 +209,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .iter()
             .map(|sort| rcx.define_vars(sort))
             .collect_vec();
-        let poly_sig = poly_sig.instantiate(&[], &exprs);
+        let poly_sig = poly_sig.instantiate_refparams(&exprs);
 
         let fn_sig = poly_sig.replace_bound_vars(
             |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),

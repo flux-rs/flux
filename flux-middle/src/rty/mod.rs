@@ -809,7 +809,12 @@ where
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, generics: &[GenericArg], refine: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
+            .fold_with(&mut subst::GenericsSubstFolder::new(Some(generics), refine))
+    }
+
+    pub fn instantiate_refparams(self, refine: &[Expr]) -> T {
+        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine))
     }
 
     pub fn instantiate_identity(self) -> T {
