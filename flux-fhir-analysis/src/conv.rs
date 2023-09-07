@@ -233,8 +233,6 @@ pub(crate) fn conv_fn_sig(
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    // let mut env = Env::new(&[]);
-    // env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &fn_sig.params, true));
     let mut env = Env::new(&fn_sig.params);
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 

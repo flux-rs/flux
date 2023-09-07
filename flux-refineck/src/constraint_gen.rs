@@ -384,7 +384,6 @@ fn inst_exprs(
     infcx: &mut InferCtxt<'_, '_>,
 ) -> Vec<Expr> {
     if let Some(callee_id) = callee_def_id &&
-       // let Some(callee_local_id) = callee_id.as_local() &&
        let Ok(params) = genv.refparams_of(callee_id)
      {
         params

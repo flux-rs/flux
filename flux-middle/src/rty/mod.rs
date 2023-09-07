@@ -59,7 +59,6 @@ pub use crate::{
 #[derive(Debug, Clone)]
 pub struct Generics {
     pub params: List<GenericParamDef>,
-    // TODO-EARLY: refine_params: List<...>
     pub parent: Option<DefId>,
     pub parent_count: usize,
 }
