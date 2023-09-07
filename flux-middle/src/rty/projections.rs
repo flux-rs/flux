@@ -10,7 +10,6 @@ use rustc_middle::{
     traits::{ImplSourceUserDefinedData, ObligationCause},
     ty::{ParamTy, ToPredicate, TraitRef, TyCtxt},
 };
-use rustc_span::Span;
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -44,7 +43,6 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         genv: &'sess GlobalEnv<'sess, 'tcx>,
         def_id: DefId,
         t: &T,
-        span: Span,
     ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
 
@@ -55,17 +53,15 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let opaque_dids = t.opaque_def_ids();
 
         for did in opaque_dids.iter() {
-            vec.push(genv.item_bounds(*did, span)?.skip_binder());
+            vec.push(genv.item_bounds(*did)?.skip_binder());
         }
 
         for clauses in vec {
             for pred in &clauses {
-                if pred.kind.vars().is_empty() {
-                    if let ClauseKind::Projection(proj_pred) = pred.kind.clone().skip_binder() {
-                        match preds.insert(proj_pred.alias_ty.key(), proj_pred.term) {
-                            None => (),
-                            Some(_) => bug!("duplicate projection predicate"),
-                        }
+                if let ClauseKind::Projection(proj_pred) = pred.kind() {
+                    match preds.insert(proj_pred.projection_ty.key(), proj_pred.term) {
+                        None => (),
+                        Some(_) => bug!("duplicate projection predicate"),
                     }
                 }
             }
@@ -352,8 +348,7 @@ pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
     def_id: DefId,
     t: &T,
-    span: Span,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, def_id, t, span)?;
+    let mut table = ProjectionTable::new(genv, def_id, t)?;
     Ok(t.fold_with(&mut table))
 }

@@ -514,6 +514,7 @@ impl PlaceNode {
                         let fields = args
                             .as_closure()
                             .upvar_tys()
+                            .iter()
                             .cloned()
                             .map(PlaceNode::Ty)
                             .collect_vec();
