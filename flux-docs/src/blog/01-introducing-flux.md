@@ -103,9 +103,9 @@ the input is indeed `true` (as of course, in this case, it is not!)
 
 ## Index Parameters and Expressions
 
-Its not terribly exciting to only talk about _fixed_ values
+It's not terribly exciting to only talk about _fixed_ values
 like `10` or `true`. To be more useful, `flux` lets you index
-types by refinement *parameters*. For example you can write
+types by refinement *parameters*. For example, you can write
 
 ```rust
 #[flux::sig(fn(n:i32) -> bool[0 < n])]
