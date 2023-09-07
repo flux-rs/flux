@@ -14,9 +14,9 @@ use super::{
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound,
-    Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
+    GenericPredicates, Index, Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind,
+    Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -377,6 +377,21 @@ pub trait TypeSuperFoldable: TypeFoldable {
 
     fn super_fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         self.try_super_fold_with(folder).into_ok()
+    }
+}
+
+impl TypeVisitable for GenericPredicates {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.predicates.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for GenericPredicates {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(GenericPredicates {
+            parent: self.parent,
+            predicates: self.predicates.try_fold_with(folder)?,
+        })
     }
 }
 

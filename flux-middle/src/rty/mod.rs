@@ -103,6 +103,9 @@ pub struct GenericPredicates {
     pub predicates: List<Clause>,
 }
 
+/// An alias for the "EarlyBinder-instantiated" GenericPredicates of a DefId
+pub type ParamEnv = GenericPredicates;
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
     kind: ClauseKind,
