@@ -34,7 +34,7 @@ use crate::{
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     def_id: DefId,
-    param_env: &'a rty::ParamEnv,
+    refparams: &'a [Expr],
     kvar_gen: Box<dyn KVarGen + 'a>,
     rvid_gen: &'a IndexGen<RegionVid>,
     span: Span,
@@ -53,7 +53,7 @@ pub trait KVarGen {
 struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     def_id: DefId,
-    param_env: rty::ParamEnv,
+    refparams: &'a [Expr],
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
     rvid_gen: &'a IndexGen<RegionVid>,
@@ -97,7 +97,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        param_env: &'a rty::ParamEnv,
+        refparams: &'a [Expr],
         kvar_gen: G,
         rvid_gen: &'a IndexGen<RegionVid>,
         span: Span,
@@ -105,7 +105,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, def_id, param_env, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, def_id, refparams, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
     }
 
     pub(crate) fn check_pred(
@@ -154,8 +154,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         callsite_def_id: DefId,
-        callee_def_id: Option<DefId>,
-        param_env: &rty::ParamEnv,
+        src_def_id: Option<DefId>,
+        src_refparams: &[Expr],
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -197,7 +197,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
 
-        let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
+        let exprs = inst_exprs(src_def_id, genv, &mut infcx);
 
         // println!("TRACE: check_fn_call {callee_def_id:?} (1) fn_sig = {:?}", fn_sig);
 
@@ -211,11 +211,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
 
         let inst_fn_sig =
-            rty::projections::normalize(genv, callsite_def_id, param_env, &inst_fn_sig)?;
+            rty::projections::normalize(genv, callsite_def_id, src_refparams, &inst_fn_sig)?;
 
         // println!("TRACE: check_fn_call {callee_def_id:?} (3) inst_fn_sig = {:?}", inst_fn_sig);
 
-        let obligs = if let Some(did) = callee_def_id {
+        let obligs = if let Some(did) = src_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
         } else {
             List::empty()
@@ -264,8 +264,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
                 let proj_ty = Ty::projection(projection_pred.projection_ty);
-                let impl_elem =
-                    rty::projections::normalize(infcx.genv, callsite_def_id, param_env, &proj_ty)?;
+                let impl_elem = rty::projections::normalize(
+                    infcx.genv,
+                    callsite_def_id,
+                    src_refparams,
+                    &proj_ty,
+                )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
@@ -291,7 +295,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
         let output =
-            rty::projections::normalize(self.genv, callsite_def_id, self.param_env, output)?;
+            rty::projections::normalize(self.genv, callsite_def_id, self.refparams, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -383,7 +387,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         InferCtxt::new(
             self.genv,
             self.def_id,
-            self.param_env.clone(),
+            self.refparams,
             rcx,
             &mut self.kvar_gen,
             self.rvid_gen,
@@ -414,7 +418,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        param_env: rty::ParamEnv,
+        refparams: &'a [Expr],
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
         rvid_gen: &'a IndexGen<RegionVid>,
@@ -426,7 +430,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Self {
             genv,
             def_id,
-            param_env,
+            refparams,
             kvar_gen,
             evar_gen,
             rvid_gen,
@@ -640,7 +644,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args);
         let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(self.genv, self.def_id, &self.param_env, &proj_ty).unwrap()
+        rty::projections::normalize(self.genv, self.def_id, &self.refparams, &proj_ty).unwrap()
     }
 
     fn opaque_subtyping(

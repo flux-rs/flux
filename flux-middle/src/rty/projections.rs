@@ -14,7 +14,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, ClauseKind, GenericArg, ParamEnv, Ty, TyKind,
+    AliasKind, AliasTy, BaseTy, ClauseKind, Expr, GenericArg, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -42,15 +42,17 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     fn new<T: TypeVisitable>(
         genv: &'sess GlobalEnv<'sess, 'tcx>,
         src_def_id: DefId,
-        param_env: &ParamEnv,
+        src_params: &[Expr],
         t: &T,
     ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
 
         let mut vec = vec![];
-        // 1. Insert generic predicates of the callsite `src_def_id`
-        // TODO-EARLY vec.push(genv.predicates_of(src_def_id)?.skip_binder().predicates);
-        vec.push(param_env.predicates.clone());
+        // 1. Insert generic predicates of the callsite `callsite_def_id`
+        // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
+        let predicates = genv.predicates_of(src_def_id)?;
+        let param_env = predicates.instantiate_refparams(src_params);
+        vec.push(param_env.predicates);
         // 2. Insert generic predicates of the opaque-types
         let opaque_dids = t.opaque_def_ids();
 
@@ -348,10 +350,10 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
 
 pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
-    src_def_id: DefId,
-    param_env: &ParamEnv,
+    callsite_def_id: DefId,
+    src_refparams: &[Expr],
     t: &T,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, src_def_id, param_env, t)?;
+    let mut table = ProjectionTable::new(genv, callsite_def_id, src_refparams, t)?;
     Ok(t.fold_with(&mut table))
 }
