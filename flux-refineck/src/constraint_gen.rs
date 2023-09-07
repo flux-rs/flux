@@ -199,7 +199,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
 
-        println!("TRACE: check_fn_call {callee_def_id:?} (1) fn_sig = {:?}", fn_sig);
+        // println!("TRACE: check_fn_call {callee_def_id:?} (1) fn_sig = {:?}", fn_sig);
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
@@ -208,12 +208,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
-        println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
+        // println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
 
         let inst_fn_sig =
             rty::projections::normalize(genv, callsite_def_id, param_env, &inst_fn_sig)?;
 
-        println!("TRACE: check_fn_call {callee_def_id:?} (3) inst_fn_sig = {:?}", inst_fn_sig);
+        // println!("TRACE: check_fn_call {callee_def_id:?} (3) inst_fn_sig = {:?}", inst_fn_sig);
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
