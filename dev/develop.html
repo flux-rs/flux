@@ -168,12 +168,59 @@
                     <main>
                         <h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
-<p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directory using</p>
-<pre><code class="language-console">$ cargo xtask test
-</code></pre>
-<p>This will build the flux binary and then run it against the entire test suite. You can optionally pass a <em>filter</em> to run tests containing some substring. For example:</p>
+<p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directories using
+<code>cargo xtask test</code></p>
+<p>This will build the flux binary and then run it against the entire test suite.
+You can optionally pass a <em>filter</em> to only run tests containing some substring.
+For example:</p>
 <pre><code class="language-console">$ cargo xtask test impl_trait
+   Compiling xtask v0.1.0 (/path/to/flux/xtask)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.29s
+     Running `target/debug/xtask test impl_trait`
+$ cargo build
+    Finished dev [unoptimized + debuginfo] target(s) in 0.05s
+$ cargo test -p flux-tests -- --test-args impl_trait
+   Compiling flux-tests v0.1.0 (/path/to/flux/flux-tests)
+    Finished test [unoptimized + debuginfo] target(s) in 0.62s
+     Running tests/compiletest.rs (target/debug/deps/compiletest-1241128f1f51caa4)
+
+running 5 tests
+test [ui] pos/surface/impl_trait04.rs ... ok
+test [ui] pos/surface/impl_trait03.rs ... ok
+test [ui] pos/surface/impl_trait01.rs ... ok
+test [ui] pos/surface/impl_trait00.rs ... ok
+test [ui] pos/surface/impl_trait02.rs ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 191 filtered out; finished in 0.10s
+
+
+running 2 tests
+test [compile-fail] neg/surface/impl_trait00.rs ... ok
+test [compile-fail] neg/surface/impl_trait02.rs ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; finished in 0.09s
 </code></pre>
+<h2 id="testing-flux-on-a-file"><a class="header" href="#testing-flux-on-a-file">Testing Flux on a File</a></h2>
+<p>When working on Flux, you may want to test your changes by running it against a test file.
+You can use <code>cargo xtask run &lt;input&gt;</code> to run Flux on a single input file.
+The command will set appropriate flags to be able to use custom Flux attributes and macros,
+plus some extra flags useful for debugging.
+For example:</p>
+<pre><code class="language-console">$ cat test.rs
+#[flux::sig(fn(x: i32) -&gt; i32[x + 1])]
+fn add1(x: i32) -&gt; i32 {
+    x + 1
+}
+$ cargo xtask run test.rs
+</code></pre>
+<p>The command will use a super set of the flags passed when running regression tests<sup class="footnote-reference"><a href="#flags">1</a></sup>.
+Thus, a common workflow is to identify a failing test, copy it to a different file, and then
+run Flux on it with <code>cargo xtask run</code>.</p>
+<p>You may also find useful to create a directory in the root of the project and add it to
+<a href="https://git-scm.com/docs/gitignore"><code>.git/info/exclude</code></a>.
+You can keep files there, outside of version control, and test Flux against them.
+I have a directory called <code>attic/</code> where I keep a file named <code>playground.rs</code>.
+To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 <h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
 <p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
 <p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
@@ -226,6 +273,11 @@ check_crate
     total time:   16995.32ms
 total time: 17014.19ms
 </code></pre>
+<div class="footnote-definition" id="flags"><sup class="footnote-definition-label">1</sup>
+<p><code>cargo xtask run</code> passes extra flags to enable the <code>register_tool</code> and
+<code>custom_inner_attributes</code> features, and to register <code>flux</code> as a tool. So you don't need to
+copy those crate attributes from a test file. We plan to remove those attributes from test files.</p>
+</div>
 
                     </main>
 

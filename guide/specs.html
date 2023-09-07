@@ -218,15 +218,15 @@ have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</c
 Structs only support opaque refinements.</p>
 <h3 id="import-the-procedural-macros"><a class="header" href="#import-the-procedural-macros">Import the procedural macros</a></h3>
 <p>In order to use an extern spec you need to add a dependency on
-<a href="https://github.com/flux-rs/flux/tree/main/flux-attrs-proc-macros"><code>flux_attrs_proc_macros</code></a>.
+<a href="https://github.com/flux-rs/flux/tree/main/flux-rs"><code>flux_rs</code></a>.
 Right now this needs to be done as a local dependency since it is not published.
 Below is an example of how you can include it, although the version may be
 different.</p>
 <pre><code class="language-toml">[dependencies]
-flux-attrs-proc-macros = { path = &quot;path-to-flux/flux/flux-attrs-proc-macros&quot;, version = &quot;0.1.0&quot; }
+flux-rs = { path = &quot;path-to-flux/flux/flux-rs&quot;, version = &quot;0.1.0&quot; }
 </code></pre>
 <p>Then in your code you will need to include the <code>extern_spec</code> attribute macro.</p>
-<pre><code>use flux_attrs_proc_macros::extern_spec;
+<pre><code>use flux_rs::extern_spec;
 </code></pre>
 <h3 id="extern-functions"><a class="header" href="#extern-functions">Extern functions</a></h3>
 <p>An example of refining an extern function can be found
@@ -326,13 +326,13 @@ impl __FluxExternImplStructString {
     #[flux::sig(fn() -&gt; String[0])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_new() -&gt; String {
-       std::string::String::new::&lt;&gt;() 
+       std::string::String::new::&lt;&gt;()
     }
     #[flux::extern_spec]
     #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_len(s: &amp;String) -&gt; usize {
-       std::string::String::len::&lt;&gt;(s) 
+       std::string::String::len::&lt;&gt;(s)
     }
 }
 </code></pre>

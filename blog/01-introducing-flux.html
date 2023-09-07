@@ -247,9 +247,9 @@ it with <code>true</code> as the input. So if you write</p>
 the input is indeed <code>true</code> (as of course, in this case, it is not!)</p>
 <img src="../img/assert.gif" width="100%">
 <h2 id="index-parameters-and-expressions"><a class="header" href="#index-parameters-and-expressions">Index Parameters and Expressions</a></h2>
-<p>Its not terribly exciting to only talk about <em>fixed</em> values
+<p>It's not terribly exciting to only talk about <em>fixed</em> values
 like <code>10</code> or <code>true</code>. To be more useful, <code>flux</code> lets you index
-types by refinement <em>parameters</em>. For example you can write</p>
+types by refinement <em>parameters</em>. For example, you can write</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[flux::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
