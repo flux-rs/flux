@@ -131,7 +131,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
             let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
-            //.instantiate_identity();
 
             Checker::run(
                 genv,
@@ -157,7 +156,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
         let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
-        //.instantiate_identity();
         // TODO-EARLY: generate a LIST of free variables for the EarlyBound params
         // substitute the free vars in BOTH (a) FnSig (b) Predicates (to get ParamEnv, used for normalization)
 
@@ -203,12 +201,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         // use those names in the predicates.
         let params = genv.refparams_of(def_id.expect_local()).with_span(span)?;
 
-        // println!("TRACE: run: {def_id:?} params = {params:?}");
         let exprs = params
             .params
             .iter()
             .map(|param| rcx.define_vars(&param.sort))
             .collect_vec();
+
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
 
         let fn_sig = poly_sig.replace_bound_vars(
@@ -460,7 +458,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .try_collect_vec()
                     .with_src_info(terminator.source_info)?;
 
-                // println!("TRACE: check_call {func_id:?}");
                 let ret = self.check_call(
                     rcx,
                     env,
@@ -518,13 +515,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .constr_gen(rcx, terminator_span)
             .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, &actuals)
             .with_span(terminator_span)?;
-
-        // let boo = output.clone();
-        // println!(
-        //     "TRACE: check_call: output.vars = {:?}, output.ty = {:?}",
-        //     boo.vars().clone(),
-        //     boo.skip_binder()
-        // );
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 

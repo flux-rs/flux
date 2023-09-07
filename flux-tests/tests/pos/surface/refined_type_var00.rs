@@ -22,7 +22,7 @@ pub fn test00() {
 }
 
 #[flux::sig(fn<T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])]
-fn choose<T>(b: bool, x: T, y: T) -> T {
+pub fn choose<T>(b: bool, x: T, y: T) -> T {
     if b {
         x
     } else {

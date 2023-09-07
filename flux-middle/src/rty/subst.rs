@@ -333,7 +333,14 @@ impl TypeFolder for GenericsSubstFolder<'_> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
-            TyKind::Indexed(BaseTy::Param(param_ty), idx) => self.bty_for_param(*param_ty, idx),
+            TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
+                let idx = idx.try_fold_with(self).into_ok();
+                if self.generics.is_some() {
+                    self.bty_for_param(*param_ty, &idx)
+                } else {
+                    Ty::indexed(BaseTy::Param(*param_ty), idx)
+                }
+            }
             _ => ty.super_fold_with(self),
         }
     }

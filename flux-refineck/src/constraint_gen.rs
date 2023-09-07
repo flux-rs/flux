@@ -194,7 +194,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let rvid_gen = infcx.rvid_gen;
 
         let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
-        // println!("TRACE: {callee_def_id:?} exprs = {exprs:?}");
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
@@ -203,10 +202,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
-        // HEREHEREHERE: DANGLING reference
-        // println!("TRACE: inst_fn_sig (1) = {inst_fn_sig:?}");
         let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
-        // println!("TRACE: inst_fn_sig (2) = {inst_fn_sig:?}");
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args)?

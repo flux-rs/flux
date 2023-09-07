@@ -51,15 +51,9 @@ pub struct Generics {
     pub params: Vec<GenericParamDef>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RefParams {
     pub params: Vec<RefineParam>,
-}
-
-impl Default for RefParams {
-    fn default() -> Self {
-        Self { params: vec![] }
-    }
 }
 
 #[derive(Debug)]
