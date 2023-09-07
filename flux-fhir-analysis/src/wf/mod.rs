@@ -148,17 +148,14 @@ pub(crate) fn check_opaque_ty(
     opaque_ty: &fhir::OpaqueTy,
     owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
-    let parent = genv.tcx.parent(owner_id.to_def_id());
-    // println!("TRACE: check_opaque_ty {owner_id:?} with parent {parent:?}");
-
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
+    let parent = genv.tcx.parent(owner_id.to_def_id());
     if let Some(parent_local) = parent.as_local() &&
        let Some(params) = genv.map().get_refparams(parent_local)
     {
         setup_refine_params(&mut infcx, &mut wf, &params.params);
     }
-
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())
 }
@@ -178,11 +175,6 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    // CUT HEREHEREHEREHERE: REFACTOR INTO FUNCTION, use in CHECK-opaque-ty but with PARENT params
-    // CUT for param in &fn_sig.params {
-    // CUT     wf.modes.insert(param.ident.name, param.infer_mode());
-    // CUT }
-    // CUT infcx.push_layer(&fn_sig.params);
     setup_refine_params(&mut infcx, &mut wf, &fn_sig.params);
 
     let args = fn_sig

@@ -154,8 +154,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         callsite_def_id: DefId,
-        src_def_id: Option<DefId>,
-        src_refparams: &[Expr],
+        callee_def_id: Option<DefId>,
+        callsite_refparams: &[Expr],
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -197,7 +197,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
 
-        let exprs = inst_exprs(src_def_id, genv, &mut infcx);
+        let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
 
         // println!("TRACE: check_fn_call {callee_def_id:?} (1) fn_sig = {:?}", fn_sig);
 
@@ -210,12 +210,17 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
 
-        let inst_fn_sig =
-            rty::projections::normalize(genv, callsite_def_id, src_refparams, &inst_fn_sig)?;
+        let inst_fn_sig = rty::projections::normalize(
+            genv,
+            callsite_def_id,
+            callsite_refparams,
+            &exprs,
+            &inst_fn_sig,
+        )?;
 
         // println!("TRACE: check_fn_call {callee_def_id:?} (3) inst_fn_sig = {:?}", inst_fn_sig);
 
-        let obligs = if let Some(did) = src_def_id {
+        let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
         } else {
             List::empty()
@@ -267,7 +272,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 let impl_elem = rty::projections::normalize(
                     infcx.genv,
                     callsite_def_id,
-                    src_refparams,
+                    callsite_refparams,
+                    &exprs,
                     &proj_ty,
                 )?;
 
@@ -294,8 +300,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output =
-            rty::projections::normalize(self.genv, callsite_def_id, self.refparams, output)?;
+        let output = rty::projections::normalize(
+            self.genv,
+            callsite_def_id,
+            self.refparams,
+            self.refparams,
+            output,
+        )?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -644,7 +655,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args);
         let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(self.genv, self.def_id, &self.refparams, &proj_ty).unwrap()
+        rty::projections::normalize(
+            self.genv,
+            self.def_id,
+            &self.refparams,
+            &self.refparams,
+            &proj_ty,
+        )
+        .unwrap()
     }
 
     fn opaque_subtyping(
@@ -657,7 +675,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
             self.insert_obligations(obligs);
         } else {
-            let bounds = self.genv.item_bounds(alias_ty.def_id)?.skip_binder();
+            let bounds = self
+                .genv
+                .item_bounds(alias_ty.def_id)?
+                .instantiate_refparams(self.refparams);
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
                     let ty1 = self.project_bty(ty, pred.projection_ty.def_id);

@@ -43,6 +43,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         genv: &'sess GlobalEnv<'sess, 'tcx>,
         src_def_id: DefId,
         src_params: &[Expr],
+        item_params: &[Expr],
         t: &T,
     ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
@@ -57,7 +58,8 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let opaque_dids = t.opaque_def_ids();
 
         for did in opaque_dids.iter() {
-            vec.push(genv.item_bounds(*did)?.skip_binder());
+            // vec.push(genv.item_bounds(*did)?.skip_binder());
+            vec.push(genv.item_bounds(*did)?.instantiate_refparams(item_params));
         }
 
         for clauses in vec {
@@ -351,9 +353,10 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
 pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
     callsite_def_id: DefId,
-    src_refparams: &[Expr],
+    src_params: &[Expr],
+    item_params: &[Expr],
     t: &T,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, callsite_def_id, src_refparams, t)?;
+    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, item_params, t)?;
     Ok(t.fold_with(&mut table))
 }

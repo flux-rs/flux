@@ -105,6 +105,7 @@ pub(crate) fn conv_generic_predicates(
         .map(|params| &params.params);
 
     let env = &mut Env::new(refparams.unwrap_or(&vec![]));
+
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut clauses = vec![];
@@ -125,7 +126,14 @@ pub(crate) fn conv_opaque_ty(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let env = &mut Env::new(&[]);
+    let parent = genv.tcx.parent(def_id).as_local().unwrap();
+    let refparams = genv
+        .map()
+        .get_refparams(parent)
+        .map(|params| &params.params);
+
+    let env = &mut Env::new(refparams.unwrap_or(&vec![]));
+
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args);
     Ok(cx
