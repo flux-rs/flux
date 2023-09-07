@@ -194,7 +194,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let rvid_gen = infcx.rvid_gen;
 
         let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
-        // println!("TRACE: exprs = {exprs:?}");
+        // println!("TRACE: {callee_def_id:?} exprs = {exprs:?}");
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
@@ -388,8 +388,8 @@ fn inst_exprs(
     infcx: &mut InferCtxt<'_, '_>,
 ) -> Vec<Expr> {
     if let Some(callee_id) = callee_def_id &&
-        let Some(callee_local_id) = callee_id.as_local() &&
-        let Ok(params) = genv.refparams_of(callee_local_id)
+       // let Some(callee_local_id) = callee_id.as_local() &&
+       let Ok(params) = genv.refparams_of(callee_id)
      {
         params
             .params
