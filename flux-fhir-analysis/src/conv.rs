@@ -104,7 +104,7 @@ pub(crate) fn conv_generic_predicates(
         .get_refparams(def_id)
         .map(|params| &params.params);
 
-    let env = &mut Env::new(&refparams.unwrap_or(&vec![]));
+    let env = &mut Env::new(refparams.unwrap_or(&vec![]));
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut clauses = vec![];

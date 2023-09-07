@@ -290,7 +290,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(self.genv, def_id, &self.param_env, output)?;
+        let output = rty::projections::normalize(self.genv, def_id, self.param_env, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
