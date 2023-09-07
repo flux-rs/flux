@@ -5,7 +5,13 @@
 You can run the various regression tests in the `tests/pos` and `tests/neg` directory using
 
 ```console
-$ cargo test -p flux-tests
+$ cargo xtask test
+```
+
+This will build the flux binary and then run it against the entire test suite. You can optionally pass a _filter_ to run tests containing some substring. For example:
+
+```console
+$ cargo xtask test impl_trait
 ```
 
 ## Profiling Flux

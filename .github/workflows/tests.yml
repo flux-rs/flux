@@ -51,7 +51,7 @@ jobs:
           cargo build
       - name: Run tests
         run: |
-          which fixpoint && cargo test -p flux-tests
+          which fixpoint && cargo xtask test
 
   check-fmt:
     runs-on: ubuntu-latest
