@@ -16,6 +16,8 @@ xflags::xflags! {
             /// Input file
             required input: PathBuf
         }
+        /// Install flux binaries to ~/.cargo/bin
+        cmd install { }
     }
 }
 
@@ -38,6 +40,7 @@ fn main() -> anyhow::Result<()> {
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
+        XtaskCmd::Install(args) => install(sh, args),
     }
 }
 
@@ -65,5 +68,11 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
 
     cmd!(sh, "cargo build").run()?;
     cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;
+    Ok(())
+}
+
+fn install(sh: Shell, _: Install) -> anyhow::Result<()> {
+    cmd!(sh, "cargo install --path flux").run()?;
+    cmd!(sh, "cargo install --path flux-bin").run()?;
     Ok(())
 }
