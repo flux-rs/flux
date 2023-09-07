@@ -95,13 +95,17 @@ pub(crate) fn conv_generic_predicates(
     def_id: LocalDefId,
     predicates: &fhir::GenericPredicates,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::GenericPredicates> {
+) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
-    let env = &mut Env::new(&[]);
-    if let Some(refparams) = genv.map().get_refparams(def_id) {
-        env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &refparams.params, true));
-    }
+
+    let refparams = genv
+        .map()
+        .get_refparams(def_id)
+        .map(|params| &params.params);
+
+    let env = &mut Env::new(&refparams.unwrap_or(&vec![]));
+    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
@@ -111,7 +115,7 @@ pub(crate) fn conv_generic_predicates(
         }
     }
     let parent = genv.tcx.opt_parent(def_id.to_def_id());
-    Ok(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) })
+    Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
 }
 
 pub(crate) fn conv_opaque_ty(

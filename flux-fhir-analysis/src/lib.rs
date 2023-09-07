@@ -126,12 +126,12 @@ fn predicates_of(
         let wfckresults = genv.check_wf(local_id)?;
         conv::conv_generic_predicates(genv, local_id, predicates, &wfckresults)?
     } else {
-        rty::GenericPredicates {
+        rty::EarlyBinder(rty::GenericPredicates {
             parent: genv.tcx.opt_parent(local_id.to_def_id()),
             predicates: List::empty(),
-        }
+        })
     };
-    Ok(rty::EarlyBinder(predicates))
+    Ok(predicates)
 }
 
 fn item_bounds(
