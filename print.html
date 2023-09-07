@@ -191,8 +191,7 @@ cd flux
 We pin the version using a <a href="guide//rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
 If you are using <code>rustup</code>, no special action is needed as it should install the correct <code>rustc</code> version and components based on the information on that file.</p>
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
-<pre><code class="language-bash">cargo install --path flux
-cargo install --path flux-bin
+<pre><code class="language-bash">cargo xtask install
 </code></pre>
 <p>This will install <code>flux-driver</code>, <code>rustc-flux</code> and <code>cargo-flux</code>. Note that you should not call <code>flux-driver</code> directly, but rather use <code>rustc-flux</code> and <code>cargo-flux</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
