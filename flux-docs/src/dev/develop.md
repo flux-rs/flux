@@ -2,10 +2,12 @@
 
 ## Regression Tests
 
-You can run the various regression tests in the `tests/pos` and `tests/neg` directory using
+You can run the various regression tests in the `tests/pos` and `tests/neg` directories using
 `cargo xtask test`
 
-This will build the flux binary and then run it against the entire test suite. You can optionally pass a _filter_ to only run tests containing some substring. For example:
+This will build the flux binary and then run it against the entire test suite.
+You can optionally pass a _filter_ to only run tests containing some substring.
+For example:
 
 ```console
 $ cargo xtask test impl_trait
@@ -38,10 +40,11 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; fi
 
 ## Testing Flux on a File
 
-When working on Flux, you may want to test your changes by running it against a test file. You
-can use `cargo xtask run <input>` to run Flux on a single input file. The command will set
-appropriate flags to be able to use custom Flux attributes and macros, plus some flags
-useful for debugging. For example:
+When working on Flux, you may want to test your changes by running it against a test file.
+You can use `cargo xtask run <input>` to run Flux on a single input file.
+The command will set appropriate flags to be able to use custom Flux attributes and macros,
+plus some extra flags useful for debugging.
+For example:
 
 ```console
 $ cat test.rs
@@ -56,9 +59,9 @@ The command will use a super set of the flags passed when running regression tes
 Thus, a common workflow is to identify a failing test, copy it to a different file, and then
 run Flux on it with `cargo xtask run`.
 
-You may also find useful to have a directory in the root of the project and add it to
+You may also find useful to create a directory in the root of the project and add it to
 [`.git/info/exclude`](https://git-scm.com/docs/gitignore).
-You can keep files there outside of version control and test Flux against them.
+You can keep files there, outside of version control, and test Flux against them.
 I have a directory called `attic/` where I keep a file named `playground.rs`.
 To run Flux on it, I do `cargo xtask run attic/playground.rs`.
 
@@ -123,5 +126,5 @@ total time: 17014.19ms
 ```
 
 [^flags]: `cargo xtask run` passes extra flags to enable the `register_tool` and
-`custom_inner_attributes` nightly features and to register `flux` as a tool. So you don't need to
+`custom_inner_attributes` features, and to register `flux` as a tool. So you don't need to
 copy those crate attributes from a test file. We plan to remove those attributes from test files.
