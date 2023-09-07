@@ -88,11 +88,33 @@
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
         <div id="page-wrapper" class="page-wrapper">
 
             <div class="page">
                                 <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky bordered">
+                <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
                         <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
                             <i class="fa fa-bars"></i>
@@ -147,7 +169,10 @@
                         <h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
 <p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directory using</p>
-<pre><code class="language-console">$ cargo test -p flux-tests
+<pre><code class="language-console">$ cargo xtask test
+</code></pre>
+<p>This will build the flux binary and then run it against the entire test suite. You can optionally pass a <em>filter</em> to run tests containing some substring. For example:</p>
+<pre><code class="language-console">$ cargo xtask test impl_trait
 </code></pre>
 <h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
 <p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
