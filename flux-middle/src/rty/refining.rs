@@ -6,16 +6,10 @@ use std::iter;
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::ParamTy;
+use rustc_middle::ty::{ClosureKind, ParamTy};
 
 use super::fold::TypeFoldable;
-use crate::{
-    global_env::GlobalEnv,
-    intern::List,
-    queries::QueryResult,
-    rty,
-    rustc::{self, ty::GenericArgs},
-};
+use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
     let params = generics
@@ -90,31 +84,78 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     ) -> QueryResult<List<rty::Clause>> {
         let clauses = clauses
             .iter()
-            .map(|clause| -> QueryResult<rty::Clause> {
-                let vars = refine_bound_variables(clause.kind.vars());
-                let kind = match clause.kind.as_ref().skip_binder() {
-                    rustc::ty::ClauseKind::FnTrait { bounded_ty, tupled_args, output, kind } => {
-                        let pred = rty::FnTraitPredicate {
-                            self_ty: self.refine_ty(bounded_ty)?,
-                            tupled_args: self.refine_ty(tupled_args)?,
-                            output: self.refine_ty(output)?,
-                            kind: *kind,
-                        };
-                        rty::Binder::new(rty::ClauseKind::FnTrait(pred), vars)
-                    }
-                    rustc::ty::ClauseKind::Projection(proj_pred) => {
-                        let proj_pred = rty::ProjectionPredicate {
-                            alias_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
-                            term: self.as_default().refine_ty(&proj_pred.term)?,
-                        };
-                        rty::Binder::new(rty::ClauseKind::Projection(proj_pred), vars)
-                    }
-                };
-                Ok(rty::Clause { kind })
-            })
+            .flat_map(|clause| self.refine_clause(clauses, clause).transpose())
             .try_collect()?;
 
         Ok(clauses)
+    }
+
+    fn refine_clause(
+        &self,
+        clauses: &[rustc::ty::Clause],
+        clause: &rustc::ty::Clause,
+    ) -> QueryResult<Option<rty::Clause>> {
+        let kind = match &clause.kind {
+            rustc::ty::ClauseKind::Trait(trait_pred) => {
+                let trait_ref = &trait_pred.trait_ref;
+                if let Some(kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
+                    self.refine_fn_trait_pred(clauses, kind, trait_ref)?
+                } else {
+                    let pred = rty::TraitPredicate { trait_ref: self.refine_trait_ref(trait_ref)? };
+                    rty::ClauseKind::Trait(pred)
+                }
+            }
+            rustc::ty::ClauseKind::Projection(proj_pred) => {
+                if self.genv.is_fn_once_output(proj_pred.projection_ty.def_id) {
+                    return Ok(None);
+                }
+                let pred = rty::ProjectionPredicate {
+                    projection_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
+                    term: self.as_default().refine_ty(&proj_pred.term)?,
+                };
+                rty::ClauseKind::Projection(pred)
+            }
+        };
+        Ok(Some(rty::Clause { kind }))
+    }
+
+    fn refine_fn_trait_pred(
+        &self,
+        clauses: &[rustc::ty::Clause],
+        kind: ClosureKind,
+        trait_ref: &rustc::ty::TraitRef,
+    ) -> QueryResult<rty::ClauseKind> {
+        let mut candidates = vec![];
+        for clause in clauses {
+            if let rustc::ty::ClauseKind::Projection(trait_pred) = &clause.kind
+                && self.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
+                && trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
+            {
+                candidates.push(trait_pred);
+            }
+        }
+        assert!(candidates.len() == 1);
+        let pred = candidates.first().unwrap();
+
+        let pred = rty::FnTraitPredicate {
+            kind,
+            self_ty: self.refine_ty(trait_ref.args[0].expect_type())?,
+            tupled_args: self.refine_ty(trait_ref.args[1].expect_type())?,
+            output: self.refine_ty(&pred.term)?,
+        };
+        Ok(rty::ClauseKind::FnTrait(pred))
+    }
+
+    fn refine_trait_ref(&self, trait_ref: &rustc::ty::TraitRef) -> QueryResult<rty::TraitRef> {
+        let trait_ref = rty::TraitRef {
+            def_id: trait_ref.def_id,
+            args: trait_ref
+                .args
+                .iter()
+                .map(|arg| self.refine_generic_arg_raw(arg))
+                .try_collect()?,
+        };
+        Ok(trait_ref)
     }
 
     pub(crate) fn refine_variant_def(
@@ -228,20 +269,16 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
-    fn refine_generic_args(&self, args: &GenericArgs) -> QueryResult<List<rty::Ty>> {
-        if let rustc::ty::GenericArg::Ty(ty) = &args[args.len() - 1] &&
-           let rustc::ty::TyKind::Tuple(tys) = ty.kind()
-        {
-          tys.iter().map(|ty| self.refine_ty(ty)).try_collect()
-        } else {
-            bug!()
-        }
-    }
-
     pub fn refine_poly_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::PolyTy> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, args) => {
-                rty::BaseTy::Closure(*did, self.refine_generic_args(args)?)
+                let args = args.as_closure();
+                let upvar_tys = args
+                    .upvar_tys()
+                    .iter()
+                    .map(|ty| self.refine_ty(ty))
+                    .try_collect()?;
+                rty::BaseTy::Closure(*did, upvar_tys)
             }
             rustc::ty::TyKind::Generator(did, args) => {
                 let args = args

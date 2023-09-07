@@ -181,7 +181,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let genv = self.genv;
 
-        let span = self.span;
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
         // Replace holes in generic arguments with fresh kvars
@@ -206,7 +205,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // HEREHEREHERE: DANGLING reference
         // println!("TRACE: inst_fn_sig (1) = {inst_fn_sig:?}");
-        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig, span)?;
+        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
         // println!("TRACE: inst_fn_sig (2) = {inst_fn_sig:?}");
 
         let obligs = if let Some(did) = callee_def_id {
@@ -256,10 +255,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // check (non-closure) obligations -- the closure ones are handled in `checker` since
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
-            if let rty::ClauseKind::Projection(projection_pred) = pred.kind().skip_binder() {
-                let proj_ty = Ty::projection(projection_pred.alias_ty);
-                let impl_elem =
-                    rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty, span)?;
+            if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
+                let proj_ty = Ty::projection(projection_pred.projection_ty);
+                let impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
@@ -284,7 +282,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(self.genv, def_id, output, self.span)?;
+        let output = rty::projections::normalize(self.genv, def_id, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -457,10 +455,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn span(&self) -> Span {
-        self.tag.src_span
-    }
-
     fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
@@ -626,7 +620,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args);
         let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(self.genv, self.def_id, &proj_ty, self.span()).unwrap()
+        rty::projections::normalize(self.genv, self.def_id, &proj_ty).unwrap()
     }
 
     fn opaque_subtyping(
@@ -636,17 +630,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         alias_ty: &AliasTy,
     ) -> Result<(), CheckerErrKind> {
         if let Some(BaseTy::Generator(def_id, args)) = ty.as_bty_skipping_existentials() {
-            let obligs =
-                mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id, self.span())?;
+            let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
             self.insert_obligations(obligs);
         } else {
-            let bounds = self
-                .genv
-                .item_bounds(alias_ty.def_id, self.span())?
-                .skip_binder();
+            let bounds = self.genv.item_bounds(alias_ty.def_id)?.skip_binder();
             for clause in &bounds {
-                if let rty::ClauseKind::Projection(pred) = clause.kind().skip_binder() {
-                    let ty1 = self.project_bty(ty, pred.alias_ty.def_id);
+                if let rty::ClauseKind::Projection(pred) = clause.kind() {
+                    let ty1 = self.project_bty(ty, pred.projection_ty.def_id);
                     let ty2 = pred.term;
                     self.subtyping(rcx, &ty1, &ty2)?;
                 }
@@ -758,17 +748,15 @@ fn mk_generator_obligations(
     generator_did: &DefId,
     generator_args: &GenericArgs,
     opaque_def_id: &DefId,
-    span: Span,
 ) -> Result<Vec<rty::Clause>, CheckerErrKind> {
-    let bounds = genv.item_bounds(*opaque_def_id, span)?;
-    let pred =
-        if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind().skip_binder() {
-            let output = proj.term;
-            GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
-        } else {
-            panic!("mk_generator_obligations: unexpected bounds")
-        };
-    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred), List::empty());
+    let bounds = genv.item_bounds(*opaque_def_id)?;
+    let pred = if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind() {
+        let output = proj.term;
+        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
+    } else {
+        panic!("mk_generator_obligations: unexpected bounds")
+    };
+    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred));
     Ok(vec![clause])
 }
 

@@ -3,6 +3,10 @@ edition = "2021"
 name = "flux-tests"
 version = "0.1.0"
 
+[lib]
+doctest = false
+test = false
+
 [dev-dependencies]
 compiletest_rs = "0.8"
 itertools = "0.10"

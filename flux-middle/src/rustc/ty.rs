@@ -10,7 +10,7 @@ use rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 use rustc_hir::def_id::DefId;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{AdtFlags, ClosureKind, ParamConst};
+use rustc_middle::ty::{AdtFlags, ParamConst};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -72,13 +72,24 @@ pub struct GenericPredicates {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Clause {
-    pub kind: Binder<ClauseKind>,
+    pub kind: ClauseKind,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum ClauseKind {
-    FnTrait { bounded_ty: Ty, tupled_args: Ty, output: Ty, kind: ClosureKind },
+    Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct TraitPredicate {
+    pub trait_ref: TraitRef,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct TraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -273,7 +284,7 @@ pub struct BoundRegion {
 }
 
 impl Clause {
-    pub(crate) fn new(kind: Binder<ClauseKind>) -> Clause {
+    pub(crate) fn new(kind: ClauseKind) -> Clause {
         Clause { kind }
     }
 }
@@ -379,8 +390,8 @@ impl ClosureArgs {
         self.split().tupled_upvars_ty.expect_type()
     }
 
-    pub fn upvar_tys(&self) -> impl Iterator<Item = &Ty> {
-        self.tupled_upvars_ty().tuple_fields().iter()
+    pub fn upvar_tys(&self) -> &List<Ty> {
+        self.tupled_upvars_ty().tuple_fields()
     }
 
     pub fn split(&self) -> ClosureArgsParts<GenericArg> {
@@ -448,6 +459,19 @@ impl AdtDefData {
         flags: AdtFlags,
     ) -> Self {
         Self { did, variants, flags }
+    }
+}
+
+impl TraitRef {
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
+    }
+}
+
+impl AliasTy {
+    /// This method work only with associated type projections (i.e., no opaque tpes)
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
     }
 }
 

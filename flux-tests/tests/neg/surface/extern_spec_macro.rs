@@ -3,7 +3,7 @@
 
 use std::slice::from_ref;
 
-use flux_attrs_proc_macros::extern_spec;
+use flux_rs::extern_spec;
 
 #[extern_spec]
 #[flux::sig(fn(&T) -> &[T][1])]

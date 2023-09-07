@@ -47,6 +47,8 @@ pub(crate) struct RefineTree {
 ///
 /// [refinement tree]: RefineTree
 pub(crate) struct RefineSubtree<'a> {
+    /// We keep a reference to the underlying [`RefineTree`] to prove statically there's a single
+    /// writer.
     tree: &'a mut RefineTree,
     root: NodePtr,
 }
@@ -150,6 +152,7 @@ impl<'a> RefineSubtree<'a> {
     }
 
     #[allow(clippy::unused_self)]
+    // We take a mutable reference to the subtree to prove statically that there's only one writer.
     pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
@@ -186,14 +189,22 @@ impl RefineCtxt<'_> {
         RefineCtxt { tree: self.tree, ptr }
     }
 
-    /// Defines a fresh refinement variable with the given `sort`. It returns the freshly
-    /// generated name for the variable.
+    /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
+    /// name for the variable.
     pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
         let fresh = self.ptr.name_gen().fresh();
         self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
     }
 
+    /// Given a [`sort`] that may contain nested tuples, it destructs the tuples recursively, generating
+    /// multiple fresh variables instead of a single variable of tuple sort. It returns the "eta-expanded"
+    /// tuple of fresh variables.
+    ///
+    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
+    /// `a0: int`, `a1: bool`, and `a2: int`.
+    ///
+    /// [`sort`]: Sort
     pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
@@ -355,10 +366,6 @@ impl Scope {
         IndexGen::skipping(self.bindings.len())
     }
 
-    pub(crate) fn contains(&self, name: Name) -> bool {
-        name.index() < self.bindings.len()
-    }
-
     /// Whether `t` has any free variables not in this scope
     pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())
@@ -366,6 +373,10 @@ impl Scope {
 
     fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
         iter.into_iter().all(|name| self.contains(name))
+    }
+
+    fn contains(&self, name: Name) -> bool {
+        name.index() < self.bindings.len()
     }
 }
 

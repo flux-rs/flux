@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-use flux_attrs_proc_macros::extern_spec;
+use flux_rs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(len: int)]
@@ -30,7 +30,6 @@ impl String {
     fn as_bytes(s: &String) -> &[u8];
 }
 
-
 #[extern_spec]
 impl<T> [T] {
     #[flux::sig(fn(&[T][@n]) -> usize[n])]
@@ -41,8 +40,7 @@ impl<T> [T] {
 }
 
 #[flux::sig(fn(bool[@b]) requires b)]
-fn assert_true(_: bool) {
-}
+fn assert_true(_: bool) {}
 
 fn test_string() {
     let mut s = String::new();

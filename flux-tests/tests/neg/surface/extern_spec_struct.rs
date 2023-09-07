@@ -1,7 +1,7 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-use flux_attrs_proc_macros::extern_spec;
+use flux_rs::extern_spec;
 
 #[extern_spec(std::string)]
 #[flux::refined_by(len: int)]

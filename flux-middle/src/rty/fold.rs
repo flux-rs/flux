@@ -16,7 +16,7 @@ use super::{
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
     Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound,
-    Region, Sort, Ty, TyKind,
+    Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -396,6 +396,7 @@ impl TypeVisitable for ClauseKind {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
+            ClauseKind::Trait(pred) => pred.visit_with(visitor),
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
             ClauseKind::GeneratorOblig(pred) => pred.visit_with(visitor),
         }
@@ -406,11 +407,36 @@ impl TypeFoldable for ClauseKind {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
             ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
+            ClauseKind::Trait(pred) => Ok(ClauseKind::Trait(pred.try_fold_with(folder)?)),
             ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
             ClauseKind::GeneratorOblig(pred) => {
                 Ok(ClauseKind::GeneratorOblig(pred.try_fold_with(folder)?))
             }
         }
+    }
+}
+
+impl TypeVisitable for TraitPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.trait_ref.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for TraitPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(TraitPredicate { trait_ref: self.trait_ref.try_fold_with(folder)? })
+    }
+}
+
+impl TypeVisitable for TraitRef {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.args.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for TraitRef {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(TraitRef { def_id: self.def_id, args: self.args.try_fold_with(folder)? })
     }
 }
 
@@ -433,7 +459,7 @@ impl TypeFoldable for GeneratorObligPredicate {
 
 impl TypeVisitable for ProjectionPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.alias_ty.visit_with(visitor)?;
+        self.projection_ty.visit_with(visitor)?;
         self.term.visit_with(visitor)
     }
 }
@@ -441,7 +467,7 @@ impl TypeVisitable for ProjectionPredicate {
 impl TypeFoldable for ProjectionPredicate {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(ProjectionPredicate {
-            alias_ty: self.alias_ty.try_fold_with(folder)?,
+            projection_ty: self.projection_ty.try_fold_with(folder)?,
             term: self.term.try_fold_with(folder)?,
         })
     }

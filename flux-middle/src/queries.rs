@@ -233,7 +233,6 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-        span: Span,
     ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         run_with_cache(&self.item_bounds, def_id, || {
             let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
@@ -241,18 +240,14 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.item_bounds)(genv, local_id)
             } else {
-                let clauses = genv
-                    .tcx
-                    .item_bounds(def_id)
-                    .skip_binder()
-                    .iter()
-                    .map(|clause| (clause, span))
-                    .collect_vec();
+                // If there's any error during lowering we blame the span of the definition of
+                // the opaque type i.e. the span of the `impl Trait`
+                let span = genv.tcx.def_span(def_id);
+                let bounds = genv.tcx.item_bounds(def_id).skip_binder();
 
                 // FIXME(nilehmann) we should propagate this error through the query
-                let clauses =
-                    lowering::lower_generic_predicates_clauses(genv.tcx, genv.sess, &clauses)
-                        .unwrap_or_else(|_| FatalError.raise());
+                let clauses = lowering::lower_item_bounds(genv.tcx, genv.sess, bounds, span)
+                    .unwrap_or_else(|_| FatalError.raise());
 
                 let clauses =
                     Refiner::default(genv, &genv.generics_of(def_id)?).refine_clauses(&clauses)?;

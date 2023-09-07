@@ -214,7 +214,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = pred {
             if !bound.bound_generic_params.is_empty() {
-                return self.emit_unsupported(&format!("unsupported where predicate: `{bound:?}`"));
+                return self.emit_unsupported("higher-rank trait bounds are not supported");
             }
             let bounded_ty = self.lift_ty(bound.bounded_ty)?;
             let bounds = bound
@@ -234,17 +234,19 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         bound: &hir::GenericBound,
     ) -> Result<fhir::GenericBound, ErrorGuaranteed> {
         match bound {
-            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None)
-                if poly_trait_ref.bound_generic_params.is_empty() =>
-            {
+            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) => {
+                if !poly_trait_ref.bound_generic_params.is_empty() {
+                    return self.emit_unsupported("higher-rank trait bounds are not supported");
+                }
                 Ok(fhir::GenericBound::Trait(
                     self.lift_path(poly_trait_ref.trait_ref.path)?,
                     fhir::TraitBoundModifier::None,
                 ))
             }
-            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe)
-                if poly_trait_ref.bound_generic_params.is_empty() =>
-            {
+            hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe) => {
+                if !poly_trait_ref.bound_generic_params.is_empty() {
+                    return self.emit_unsupported("higher-rank trait bounds are not supported");
+                }
                 Ok(fhir::GenericBound::Trait(
                     self.lift_path(poly_trait_ref.trait_ref.path)?,
                     fhir::TraitBoundModifier::Maybe,

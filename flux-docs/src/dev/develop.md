@@ -2,11 +2,68 @@
 
 ## Regression Tests
 
-You can run the various regression tests in the `tests/pos` and `tests/neg` directory using
+You can run the various regression tests in the `tests/pos` and `tests/neg` directories using
+`cargo xtask test`
+
+This will build the flux binary and then run it against the entire test suite.
+You can optionally pass a _filter_ to only run tests containing some substring.
+For example:
 
 ```console
-$ cargo test -p flux-tests
+$ cargo xtask test impl_trait
+   Compiling xtask v0.1.0 (/path/to/flux/xtask)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.29s
+     Running `target/debug/xtask test impl_trait`
+$ cargo build
+    Finished dev [unoptimized + debuginfo] target(s) in 0.05s
+$ cargo test -p flux-tests -- --test-args impl_trait
+   Compiling flux-tests v0.1.0 (/path/to/flux/flux-tests)
+    Finished test [unoptimized + debuginfo] target(s) in 0.62s
+     Running tests/compiletest.rs (target/debug/deps/compiletest-1241128f1f51caa4)
+
+running 5 tests
+test [ui] pos/surface/impl_trait04.rs ... ok
+test [ui] pos/surface/impl_trait03.rs ... ok
+test [ui] pos/surface/impl_trait01.rs ... ok
+test [ui] pos/surface/impl_trait00.rs ... ok
+test [ui] pos/surface/impl_trait02.rs ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 191 filtered out; finished in 0.10s
+
+
+running 2 tests
+test [compile-fail] neg/surface/impl_trait00.rs ... ok
+test [compile-fail] neg/surface/impl_trait02.rs ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; finished in 0.09s
 ```
+
+## Testing Flux on a File
+
+When working on Flux, you may want to test your changes by running it against a test file.
+You can use `cargo xtask run <input>` to run Flux on a single input file.
+The command will set appropriate flags to be able to use custom Flux attributes and macros,
+plus some extra flags useful for debugging.
+For example:
+
+```console
+$ cat test.rs
+#[flux::sig(fn(x: i32) -> i32[x + 1])]
+fn add1(x: i32) -> i32 {
+    x + 1
+}
+$ cargo xtask run test.rs
+```
+
+The command will use a super set of the flags passed when running regression tests[^flags].
+Thus, a common workflow is to identify a failing test, copy it to a different file, and then
+run Flux on it with `cargo xtask run`.
+
+You may also find useful to create a directory in the root of the project and add it to
+[`.git/info/exclude`](https://git-scm.com/docs/gitignore).
+You can keep files there, outside of version control, and test Flux against them.
+I have a directory called `attic/` where I keep a file named `playground.rs`.
+To run Flux on it, I do `cargo xtask run attic/playground.rs`.
 
 ## Profiling Flux
 
@@ -67,3 +124,7 @@ check_crate
     total time:   16995.32ms
 total time: 17014.19ms
 ```
+
+[^flags]: `cargo xtask run` passes extra flags to enable the `register_tool` and
+`custom_inner_attributes` features, and to register `flux` as a tool. So you don't need to
+copy those crate attributes from a test file. We plan to remove those attributes from test files.
