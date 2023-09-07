@@ -41,15 +41,15 @@ struct ProjectionTable<'sess, 'tcx> {
 impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     fn new<T: TypeVisitable>(
         genv: &'sess GlobalEnv<'sess, 'tcx>,
-        def_id: DefId,
+        src_def_id: DefId,
         param_env: &ParamEnv,
         t: &T,
     ) -> Result<Self, QueryErr> {
         let mut preds = FxHashMap::default();
 
         let mut vec = vec![];
-        // 1. Insert generic predicates of the callsite `def_id`
-        // TODO-EARLY vec.push(genv.predicates_of(def_id)?.skip_binder().predicates);
+        // 1. Insert generic predicates of the callsite `src_def_id`
+        // TODO-EARLY vec.push(genv.predicates_of(src_def_id)?.skip_binder().predicates);
         vec.push(param_env.predicates.clone());
         // 2. Insert generic predicates of the opaque-types
         let opaque_dids = t.opaque_def_ids();
@@ -68,7 +68,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
                 }
             }
         }
-        Ok(ProjectionTable { genv, def_id, preds })
+        Ok(ProjectionTable { genv, def_id: src_def_id, preds })
     }
 
     fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
@@ -348,10 +348,10 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
 
 pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
-    def_id: DefId,
+    src_def_id: DefId,
     param_env: &ParamEnv,
     t: &T,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, def_id, param_env, t)?;
+    let mut table = ProjectionTable::new(genv, src_def_id, param_env, t)?;
     Ok(t.fold_with(&mut table))
 }

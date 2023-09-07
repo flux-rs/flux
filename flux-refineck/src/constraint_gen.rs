@@ -285,12 +285,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        def_id: DefId,
+        callsite_def_id: DefId,
         output: &Binder<FnOutput>,
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(self.genv, def_id, self.param_env, output)?;
+        let output =
+            rty::projections::normalize(self.genv, callsite_def_id, self.param_env, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
