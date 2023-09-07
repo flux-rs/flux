@@ -208,7 +208,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
-        // println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
+        println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
 
         let inst_fn_sig = rty::projections::normalize(
             genv,
