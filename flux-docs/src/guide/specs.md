@@ -60,20 +60,20 @@ Structs only support opaque refinements.
 ### Import the procedural macros
 
 In order to use an extern spec you need to add a dependency on
-[`flux_attrs_proc_macros`](https://github.com/flux-rs/flux/tree/main/flux-attrs-proc-macros).
+[`flux_rs`](https://github.com/flux-rs/flux/tree/main/flux-rs).
 Right now this needs to be done as a local dependency since it is not published.
 Below is an example of how you can include it, although the version may be
 different.
 
 ```toml
 [dependencies]
-flux-attrs-proc-macros = { path = "path-to-flux/flux/flux-attrs-proc-macros", version = "0.1.0" }
+flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
 ```
 
 Then in your code you will need to include the `extern_spec` attribute macro.
 
 ```
-use flux_attrs_proc_macros::extern_spec;
+use flux_rs::extern_spec;
 ```
 
 ### Extern functions
@@ -196,13 +196,13 @@ impl __FluxExternImplStructString {
     #[flux::sig(fn() -> String[0])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_new() -> String {
-       std::string::String::new::<>() 
+       std::string::String::new::<>()
     }
     #[flux::extern_spec]
     #[flux::sig(fn(&String[@n]) -> usize[n])]
     #[allow(unused, dead_code)]
     fn __flux_extern_spec_len(s: &String) -> usize {
-       std::string::String::len::<>(s) 
+       std::string::String::len::<>(s)
     }
 }
 ```
