@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["run_compiler","sysroot"],"mod":["callbacks","collector"],"static":["DEFAULT_LOCALE_RESOURCE","DEFAULT_LOCALE_RESOURCES"]};

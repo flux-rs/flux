@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_alias","check_enum_def","check_fn_sig","check_struct_def"],"mod":["errors"],"struct":["Zipper"],"type":["LocsMap"]};

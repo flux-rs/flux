@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["NodeKind"],"fn":["children_to_fixpoint","stitch"],"mod":["pretty"],"struct":["Node","NodePtr","ParentsIter","RefineCtxt","RefineSubtree","RefineTree","Scope","Snapshot","UnpackFlags","WeakNodePtr"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FluxAttrKind","IgnoreKey"],"fn":["eval_const"],"macro":["attr_name","read_attr","read_attrs","read_flag","try_read_setting"],"mod":["errors"],"struct":["CFGSetting","ConstSig","FluxAttr","FluxAttrCFG","FluxAttrs","FnSpec","SpecCollector","Specs"],"type":["Ignores"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"derive":["Diagnostic","Subdiagnostic"],"macro":["fluent_messages"],"mod":["diagnostics"]};

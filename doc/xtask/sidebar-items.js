@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["XtaskCmd"],"fn":["install","main","run","test"],"struct":["Install","Run","Test","Xtask"]};

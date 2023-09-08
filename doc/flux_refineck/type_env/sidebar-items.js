@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["pretty","projection"],"struct":["BasicBlockEnv","BasicBlockEnvShape","Generalizer","TypeEnv"]};

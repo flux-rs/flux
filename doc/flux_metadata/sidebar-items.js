@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["METADATA_HEADER","METADATA_VERSION"],"fn":["encode_metadata","filename_for_metadata","flux_metadata_extern_location"],"mod":["decoder","encoder"],"static":["DEFAULT_LOCALE_RESOURCE"],"struct":["AdtMetadata","CStore","CrateMetadata"]};

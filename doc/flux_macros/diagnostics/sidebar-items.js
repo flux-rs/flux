@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["diagnostic_derive","subdiagnostic_derive"],"mod":["diagnostic","diagnostic_builder","error","fluent","subdiagnostic","utils"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["LocKind"],"fn":["downcast","downcast_enum","downcast_struct","fold","struct_variant"],"mod":["pretty"],"opaque":[""],"struct":["Binding","Cursor","LookupResult","NoUnfold","PlacesTree","Unfold","Unfolder","Updater"],"trait":["LookupKey","LookupMode"],"type":["CheckerResult"]};

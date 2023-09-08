@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["mk_neg","mk_signed_bin_ops","mk_unsigned_bin_ops"],"static":["BIN_OPS","UN_OPS"],"type":["E"]};

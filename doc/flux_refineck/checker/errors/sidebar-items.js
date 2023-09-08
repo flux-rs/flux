@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CheckerErrKind"],"struct":["CheckerError"],"trait":["ResultExt"]};
