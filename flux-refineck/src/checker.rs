@@ -10,10 +10,10 @@ use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
-        FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
-        Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        self, fold::TypeVisitable, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder,
+        Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
+        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
+        TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -433,6 +433,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 }
             }
             TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
+                let actuals = self.check_operands(rcx, env, terminator_span, args)?;
+
                 let (func_id, call_args) = resolved_call;
                 let fn_sig = self
                     .genv
@@ -444,14 +446,27 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
+                let mut expanded_actuals = vec![];
+                for ty in actuals.clone() {
+                    match ty.kind() {
+                        TyKind::Ptr(_, loc) => expanded_actuals.push(env.get(loc)),
+                        _ => expanded_actuals.push(ty),
+                    }
+                }
+                let opaque_refine_args = expanded_actuals.opaque_refine_args();
+
                 let generic_args = call_args
                     .lowered
                     .iter()
                     .enumerate()
                     .map(|(idx, arg)| {
                         let param = fn_generics.param_at(idx, self.genv)?;
-                        self.genv
-                            .instantiate_arg_for_fun(&self.generics, &param, arg)
+                        self.genv.instantiate_arg_for_fun(
+                            &self.generics,
+                            &opaque_refine_args,
+                            &param,
+                            arg,
+                        )
                     })
                     .try_collect_vec()
                     .with_src_info(terminator.source_info)?;
@@ -463,7 +478,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     Some(*func_id),
                     fn_sig,
                     &generic_args,
-                    args,
+                    &actuals,
                 )?;
 
                 let ret = rcx.unpack(&ret);
@@ -505,9 +520,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
-        operands: &[Operand],
+        actuals: &[Ty],
     ) -> Result<Ty, CheckerError> {
-        let actuals = self.check_operands(rcx, env, terminator_span, operands)?;
+        // let actuals = self.check_operands(rcx, env, terminator_span, operands)?;
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
@@ -768,6 +783,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) => {
+                let actuals = self.check_operands(rcx, env, stmt_span, operands)?;
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
@@ -780,13 +796,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)?;
-                self.check_call(rcx, env, stmt_span, None, sig, &args, operands)
+                self.check_call(rcx, env, stmt_span, None, sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(rcx, env, stmt_span, operands)?;
                 let arr_ty = self
                     .genv
-                    .refine_with_holes(&self.generics, arr_ty)
+                    .refine_with_holes(&self.generics, None, arr_ty)
                     .with_span(stmt_span)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, arr_ty)

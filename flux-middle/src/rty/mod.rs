@@ -353,6 +353,31 @@ pub enum AliasKind {
 pub type RefineArgs = List<Expr>;
 pub type GenericArgs = List<GenericArg>;
 
+/* [NOTE:Opaque-Refine-Args]
+   A problem: in the `inst_fn_sig` obtained from calling
+
+        .instantiate(&generic_args, &exprs)
+
+   the opaque-alias-ty bits have *no* refine_params,
+   as the corresponding `generic_args` have no refine_params,
+   as they are obtained direcly from lowering and (trivially) refining the rustc generic_args.
+
+   So we have to "fill in the opaque-types' refine_params in the following hacky fashion.
+
+   1. UNIQUE-IMPL-CONDITION (check!) at each call-site that each opaque-impl-DefId appears
+      with a *unique* refine_params that is we don't have multiple arguments with
+      the SAME opaque-impl but DIFFERENT refine_params
+
+   2. Traverse the `actuals` to build a `opaque_params_map` of opaque-id -> refine_params
+      Multiple entries for the same opaque-id indicate show a violation
+      of the UNIQUE-IMPL-CONDITION
+
+   3. Traverse the fn_sig and use the `opaque_params_map` to "fill in" the actual refine_params
+      for each opaque_id.
+*/
+
+pub type OpaqueRefineArgs = FxHashMap<DefId, RefineArgs>;
+
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
@@ -1759,7 +1784,12 @@ mod pretty {
                     Ok(())
                 }
                 TyKind::Alias(AliasKind::Opaque, alias_ty) => {
-                    w!("Alias(Opaque, {:?}, [{:?}]) ", alias_ty.def_id, join!(", ", &alias_ty.args))
+                    w!(
+                        "Alias(Opaque, {:?}, [{:?}], [{:?}]) ",
+                        alias_ty.def_id,
+                        join!(", ", &alias_ty.args),
+                        join!(", ", &alias_ty.refine_args)
+                    )
                 }
             }
         }

@@ -8,7 +8,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
 
-use super::fold::TypeFoldable;
+use super::{fold::TypeFoldable, OpaqueRefineArgs};
 use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
@@ -44,6 +44,8 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
 pub struct Refiner<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     generics: &'a rty::Generics,
+    // see [NOTE:Opaque-Refine-Args]
+    opaque_refine_args: Option<&'a OpaqueRefineArgs>,
     refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
 }
 
@@ -51,19 +53,25 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         generics: &'a rty::Generics,
+        opaque_refine_args: &'a OpaqueRefineArgs,
         refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
     ) -> Self {
-        Self { genv, generics, refine }
+        Self { genv, generics, opaque_refine_args: Some(opaque_refine_args), refine }
     }
 
     pub fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
-        Self { genv, generics, refine: refine_default }
+        Self { genv, generics, opaque_refine_args: None, refine: refine_default }
     }
 
-    pub(crate) fn with_holes(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
+    pub(crate) fn with_holes(
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        generics: &'a rty::Generics,
+        opaque_refine_args: Option<&'a OpaqueRefineArgs>,
+    ) -> Self {
         Self {
             genv,
             generics,
+            opaque_refine_args,
             refine: |bty| {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
@@ -253,7 +261,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let args = iter::zip(&generics.params, alias_ty.args.iter())
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        let res = rty::AliasTy::new(def_id, args, List::empty());
+        let refine_args = self.refine_args_of(def_id);
+        let res = rty::AliasTy::new(def_id, args, refine_args);
         Ok(res)
     }
 
@@ -356,6 +365,14 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     fn generics_of(&self, def_id: DefId) -> QueryResult<rty::Generics> {
         self.genv.generics_of(def_id)
+    }
+
+    fn refine_args_of(&self, def_id: DefId) -> rty::RefineArgs {
+        if let Some(opaque_refine_args) = self.opaque_refine_args {
+            opaque_refine_args.get(&def_id).unwrap().clone()
+        } else {
+            List::empty() // TODO: PANIC?
+        }
     }
 
     fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {

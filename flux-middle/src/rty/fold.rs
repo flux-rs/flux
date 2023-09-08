@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -15,8 +15,9 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
-    GenericPredicates, Index, Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind,
-    Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    GenericPredicates, Index, Invariant, KVar, Name, OpaqueRefineArgs, Opaqueness,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
+    Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},
@@ -188,6 +189,32 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectFreeVars(FxHashSet::default());
+        self.visit_with(&mut collector);
+        collector.0
+    }
+    /// Returns the set of all opaque type aliases def ids
+    fn opaque_refine_args(&self) -> OpaqueRefineArgs {
+        struct CollectOpaqueRefineArgs(OpaqueRefineArgs);
+
+        impl TypeVisitor for CollectOpaqueRefineArgs {
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
+                if let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
+                    match self.0.insert(alias_ty.def_id, alias_ty.refine_args.clone()) {
+                        None => (),
+                        Some(refine_args) => {
+                            if refine_args != alias_ty.refine_args {
+                                bug!("duplicate opaque-refine-arg!")
+                            }
+                        }
+                    }
+                    alias_ty.args.visit_with(self)
+                } else {
+                    ty.super_visit_with(self)
+                }
+            }
+        }
+
+        let mut collector = CollectOpaqueRefineArgs(FxHashMap::default());
         self.visit_with(&mut collector);
         collector.0
     }
@@ -634,6 +661,12 @@ impl<T: TypeVisitable> TypeVisitable for Opaqueness<T> {
 impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         self.as_ref().map(|t| t.try_fold_with(folder)).transpose()
+    }
+}
+
+impl<T: TypeVisitable> TypeVisitable for Vec<T> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.iter().try_for_each(|t| t.visit_with(visitor))
     }
 }
 
