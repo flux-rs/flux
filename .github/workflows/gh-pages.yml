@@ -15,14 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # - uses: actions-rs/toolchain@v1
-      #   with:
-      #     toolchain: stable
-
-      - name: Install mdbook
-        run: cargo install --vers "^0.4" mdbook
+      - name: Install mdBook
+        uses: peaceiris/actions-mdbook@v1.2.0
 
       - run: mdbook build flux-docs
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.2.1
 
       - run: cargo doc --document-private-items --no-deps && mv target/doc flux-docs/book
         env:
