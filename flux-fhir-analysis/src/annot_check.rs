@@ -4,6 +4,7 @@
 //! "zip" them together.
 //!
 //! [`lift`]: flux_middle::fhir::lift
+//! [`fhir`]: flux_middle::fhir
 use std::iter;
 
 use flux_common::{bug, index::IndexGen, iter::IterExt};
