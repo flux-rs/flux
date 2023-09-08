@@ -62,7 +62,7 @@ pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
 }
-
+///
 #[derive(Debug, Clone)]
 pub struct RefParams {
     pub params: Vec<RefineParam>,
