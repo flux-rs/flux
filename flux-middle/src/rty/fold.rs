@@ -877,7 +877,11 @@ impl TypeVisitable for AliasTy {
 
 impl TypeFoldable for AliasTy {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(AliasTy { args: self.args.try_fold_with(folder)?, def_id: self.def_id })
+        Ok(AliasTy {
+            args: self.args.try_fold_with(folder)?,
+            def_id: self.def_id,
+            refine_args: self.refine_args.try_fold_with(folder)?,
+        })
     }
 }
 
