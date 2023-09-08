@@ -198,8 +198,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let rvid_gen = IndexGen::new();
-        // TODO-EARLY: this is where the "free" names are getting generated, want to also
-        // use those names in the predicates.
         let params = genv.refparams_of(def_id.expect_local()).with_span(span)?;
 
         let exprs = params
