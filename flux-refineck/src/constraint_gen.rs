@@ -49,7 +49,7 @@ pub trait KVarGen {
     fn fresh(&mut self, args: &[List<Sort>], kind: KVarEncoding) -> Expr;
 }
 
-struct InferCtxt<'a, 'tcx> {
+pub(crate) struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     def_id: DefId,
     kvar_gen: &'a mut (dyn KVarGen + 'a),
@@ -361,7 +361,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(Ty::array(arr_ty, Const::from(args.len())))
     }
 
-    fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
+    pub(crate) fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
         InferCtxt::new(
             self.genv,
             self.def_id,
@@ -413,7 +413,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: InferMode) -> Expr {
+    pub(crate) fn fresh_evars_or_kvar(&mut self, sort: &Sort, mode: InferMode) -> Expr {
         match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
@@ -427,7 +427,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
+    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
 
@@ -458,7 +458,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn subtyping(
+    pub(crate) fn subtyping(
         &mut self,
         rcx: &mut RefineCtxt,
         ty1: &Ty,
@@ -704,7 +704,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
+    pub(crate) fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
         self.evar_gen.solve()
     }
 }

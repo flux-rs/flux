@@ -599,15 +599,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, terminator_span, cond)?;
-        let pred = if let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() {
-            if expected {
-                idx.expr.clone()
-            } else {
-                idx.expr.not()
-            }
-        } else {
-            tracked_span_bug!("unexpected ty `{ty:?}`")
+        let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() else {
+            tracked_span_bug!("unexpected ty `{ty:?}`");
         };
+        let pred = if expected { idx.expr.clone() } else { idx.expr.not() };
 
         let msg = match msg {
             AssertKind::DivisionByZero => "possible division by zero",

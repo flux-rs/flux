@@ -463,20 +463,27 @@ impl KVarStore {
         rty::Expr::kvar(kvar)
     }
 
+    /// Generate a fresh kvar behind several layers of [binders]. The variables bound in the last
+    /// layer (last element of the `binders` slice) will be used as the self arguments.
+    ///
+    /// Note that the returned expression will have escaping variables and it is up to the caller to
+    /// put it under an appropriate number of binders.
+    ///
+    /// [binders]: rty::Binder
     pub fn fresh_bound<S>(
         &mut self,
-        bound: &[List<rty::Sort>],
+        binders: &[List<rty::Sort>],
         scope: S,
         encoding: KVarEncoding,
     ) -> rty::Expr
     where
         S: IntoIterator<Item = (rty::Name, rty::Sort)>,
     {
-        if bound.is_empty() {
+        if binders.is_empty() {
             return self.fresh(0, [], encoding);
         }
         let args = itertools::chain(
-            bound.iter().rev().enumerate().flat_map(|(level, sorts)| {
+            binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
                 sorts.iter().enumerate().map(move |(idx, sort)| {
                     (
                         rty::Var::LateBound(DebruijnIndex::from_usize(level), idx as u32),
@@ -488,7 +495,7 @@ impl KVarStore {
                 .into_iter()
                 .map(|(name, sort)| (rty::Var::Free(name), sort)),
         );
-        self.fresh(1, args, encoding)
+        self.fresh(binders.last().unwrap().len(), args, encoding)
     }
 }
 
