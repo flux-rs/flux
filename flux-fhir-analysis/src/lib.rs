@@ -158,12 +158,11 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
             .get_generics(genv.tcx.local_parent(local_id))
             .unwrap_or_else(|| panic!("no generics for {:?}", def_id))
     });
-    let emp = vec![];
     let refine_params = genv
         .map()
         .get_refine_params(genv.tcx, local_id)
-        .unwrap_or(&emp); // TODO: yuck
-    Ok(conv::conv_generics(genv, &rustc_generics, generics, &refine_params))
+        .unwrap_or(&[]);
+    Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params))
 }
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {

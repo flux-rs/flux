@@ -100,7 +100,7 @@ pub(crate) fn conv_generic_predicates(
 
     let refparams = genv.map().get_refine_params(genv.tcx, def_id);
 
-    let env = &mut Env::new(refparams.unwrap_or(&vec![]));
+    let env = &mut Env::new(refparams.unwrap_or(&[]));
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
@@ -123,7 +123,7 @@ pub(crate) fn conv_opaque_ty(
     let parent = genv.tcx.parent(def_id).as_local().unwrap();
     let refparams = genv.map().get_refine_params(genv.tcx, parent);
 
-    let env = &mut Env::new(refparams.unwrap_or(&vec![]));
+    let env = &mut Env::new(refparams.unwrap_or(&[]));
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args);
