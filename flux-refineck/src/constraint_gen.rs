@@ -217,7 +217,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             &inst_fn_sig,
         )?;
 
-        // println!("TRACE: check_fn_call {callee_def_id:?} (3) inst_fn_sig = {:?}", inst_fn_sig);
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
