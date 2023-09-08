@@ -303,7 +303,7 @@ impl TypeFolder for EVarSubstFolder<'_> {
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
-    /// We leave this as [`None`] if we only want to substitute the EarlyBound refinement-params
+    /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
     generics: Option<&'a [GenericArg]>,
     refine: &'a [Expr],
 }
@@ -366,11 +366,7 @@ impl TypeFolder for GenericsSubstFolder<'_> {
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 // See [NOTE:index-subst]
                 let idx = idx.try_fold_with(self).into_ok();
-                if self.generics.is_some() {
-                    self.bty_for_param(*param_ty, &idx)
-                } else {
-                    Ty::indexed(BaseTy::Param(*param_ty), idx)
-                }
+                self.bty_for_param(*param_ty, &idx)
             }
             _ => ty.super_fold_with(self),
         }

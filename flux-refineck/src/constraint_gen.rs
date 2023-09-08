@@ -155,7 +155,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         env: &mut TypeEnv,
         callsite_def_id: DefId,
         callee_def_id: Option<DefId>,
-        callsite_refparams: &[Expr],
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -197,7 +196,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
 
-        let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
+        let exprs = infcx.inst_exprs(genv, callee_def_id);
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
@@ -209,7 +208,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let inst_fn_sig = rty::projections::normalize(
             genv,
             callsite_def_id,
-            callsite_refparams,
+            infcx.refparams,
             &exprs,
             &inst_fn_sig,
         )?;
@@ -266,7 +265,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 let impl_elem = rty::projections::normalize(
                     infcx.genv,
                     callsite_def_id,
-                    callsite_refparams,
+                    infcx.refparams,
                     &exprs,
                     &proj_ty,
                 )?;
@@ -401,23 +400,23 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     }
 }
 
-fn inst_exprs(
-    callee_def_id: Option<DefId>,
-    genv: &GlobalEnv<'_, '_>,
-    infcx: &mut InferCtxt<'_, '_>,
-) -> Vec<Expr> {
-    if let Some(callee_id) = callee_def_id &&
-       let Ok(params) = genv.refparams_of(callee_id)
-     {
-        params
-            .params
-            .iter()
-            .map(|param| infcx.fresh_evars_or_kvar(&param.sort, param.mode))
-            .collect_vec()
-     } else {
-        vec![]
-    }
-}
+// fn inst_exprs(
+//     callee_def_id: Option<DefId>,
+//     genv: &GlobalEnv<'_, '_>,
+//     infcx: &mut InferCtxt<'_, '_>,
+// ) -> Vec<Expr> {
+//     if let Some(callee_id) = callee_def_id &&
+//        let Ok(params) = genv.refparams_of(callee_id)
+//      {
+//         params
+//             .params
+//             .iter()
+//             .map(|param| infcx.fresh_evars_or_kvar(&param.sort, param.mode))
+//             .collect_vec()
+//      } else {
+//         vec![]
+//     }
+// }
 
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
@@ -442,6 +441,20 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             tag,
             scopes,
             obligs: Vec::new(),
+        }
+    }
+
+    fn inst_exprs(&mut self, genv: &GlobalEnv, callee_def_id: Option<DefId>) -> Vec<Expr> {
+        if let Some(callee_id) = callee_def_id &&
+           let Ok(params) = genv.refparams_of(callee_id)
+         {
+            params
+                .params
+                .iter()
+                .map(|param| self.fresh_evars_or_kvar(&param.sort, param.mode))
+                .collect_vec()
+         } else {
+            vec![]
         }
     }
 

@@ -157,8 +157,8 @@ pub fn desugar_fn_sig(
         // DESUGAR FN_SIG (needs to happen AFTER desugaring generics)
         let (generic_preds, fn_sig) = cx.desugar_fn_sig(&fn_sig, &mut Binders::new())?;
 
-        let ref_params = fhir::RefParams { params: fn_sig.params.clone() };
-        genv.map().insert_refparams(def_id, ref_params);
+        let refine_params = fhir::RefParams { params: fn_sig.params.clone() };
+        genv.map().insert_refparams(def_id, refine_params);
 
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
