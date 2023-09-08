@@ -435,15 +435,15 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    /// Generate a fresh kvar under several layers of [binders]. The variables bound in the last
-    /// layer (last element of the `binders` slice) are used as the [self arguments]. The rest of
-    /// the binders are appended to the `scope`.
+    /// Generate a fresh [kvar] under several layers of [binders]. The variables bound in the last
+    /// layer (last element of the `binders` slice) are used as the self arguments. The rest of the
+    /// binders are appended to the `scope`.
     ///
     /// Note that the returned expression will have escaping variables and it is up to the caller to
     /// put it under an appropriate number of binders.
     ///
     /// [binders]: rty::Binder
-    /// [self arguments]: rty::expr::KVar
+    /// [kvar]: rty::expr::KVar
     pub fn fresh(
         &mut self,
         binders: &[List<rty::Sort>],
@@ -455,12 +455,12 @@ impl KVarStore {
         }
         let args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
-                sorts.iter().enumerate().map(move |(idx, sort)| {
-                    (
-                        rty::Var::LateBound(DebruijnIndex::from_usize(level), idx as u32),
-                        sort.clone(),
-                    )
-                })
+                let debruijn = DebruijnIndex::from_usize(level);
+                sorts
+                    .iter()
+                    .cloned()
+                    .enumerate()
+                    .map(move |(idx, sort)| (rty::Var::LateBound(debruijn, idx as u32), sort))
             }),
             scope
                 .iter()

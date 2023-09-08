@@ -9,10 +9,7 @@ use flux_middle::{
     rty::{
         box_args,
         evars::EVarSol,
-        fold::{
-            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
-            TypeVisitor,
-        },
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind,
         Ref, Region, Ty, TyKind, INNERMOST,
@@ -614,10 +611,10 @@ impl TypeFolder for Generalizer {
         match ty.kind() {
             TyKind::Exists(ty) => {
                 ty.replace_bound_exprs_with(|sort, mode| {
-                    let idx = self.vars.len() as u32;
+                    let idx = self.vars.len();
                     self.vars
                         .push(BoundVariableKind::Refine(sort.clone(), mode));
-                    Expr::late_bvar(INNERMOST, idx)
+                    Expr::late_bvar(INNERMOST, idx as u32)
                 })
                 .fold_with(self)
             }

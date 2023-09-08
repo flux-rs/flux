@@ -1259,7 +1259,7 @@ impl Mode for RefineMode {
         let gen = &mut ConstrGen::new(
             ck.genv,
             ck.def_id,
-            |sorts: &[_], encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
+            |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,
             terminator_span,
         );
