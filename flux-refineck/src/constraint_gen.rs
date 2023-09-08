@@ -199,7 +199,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
 
-        // println!("TRACE: check_fn_call {callee_def_id:?} (1) fn_sig = {:?}", fn_sig);
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
@@ -218,7 +217,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             &inst_fn_sig,
         )?;
 
-        // println!("TRACE: check_fn_call {callee_def_id:?} (3) inst_fn_sig = {:?}", inst_fn_sig);
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?

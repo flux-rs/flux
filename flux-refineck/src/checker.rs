@@ -159,8 +159,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
         let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
-        // TODO-EARLY: generate a LIST of free variables for the EarlyBound params
-        // substitute the free vars in BOTH (a) FnSig (b) Predicates (to get ParamEnv, used for normalization)
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
@@ -200,8 +198,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let rvid_gen = IndexGen::new();
-        // TODO-EARLY: this is where the "free" names are getting generated, want to also
-        // use those names in the predicates.
         let params = genv.refparams_of(def_id).with_span(span)?;
 
         let exprs = params

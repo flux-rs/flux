@@ -303,7 +303,7 @@ impl TypeFolder for EVarSubstFolder<'_> {
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
-    /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
+    /// We leave this as [`None`] if we only want to substitute the EarlyBound refinement-params
     generics: Option<&'a [GenericArg]>,
     refine: &'a [Expr],
 }
