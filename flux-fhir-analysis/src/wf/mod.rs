@@ -152,9 +152,9 @@ pub(crate) fn check_opaque_ty(
     let mut wf = Wf::new(genv);
     let parent = genv.tcx.parent(owner_id.to_def_id());
     if let Some(parent_local) = parent.as_local() &&
-       let Some(params) = genv.map().get_refparams(parent_local)
+       let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
     {
-        setup_refine_params(&mut infcx, &mut wf, &params.params);
+        setup_refine_params(&mut infcx, &mut wf, params);
     }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())

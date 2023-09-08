@@ -98,10 +98,7 @@ pub(crate) fn conv_generic_predicates(
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let refparams = genv
-        .map()
-        .get_refparams(def_id)
-        .map(|params| &params.params);
+    let refparams = genv.map().get_refine_params(genv.tcx, def_id);
 
     let env = &mut Env::new(refparams.unwrap_or(&vec![]));
 
@@ -124,10 +121,7 @@ pub(crate) fn conv_opaque_ty(
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx.parent(def_id).as_local().unwrap();
-    let refparams = genv
-        .map()
-        .get_refparams(parent)
-        .map(|params| &params.params);
+    let refparams = genv.map().get_refine_params(genv.tcx, parent);
 
     let env = &mut Env::new(refparams.unwrap_or(&vec![]));
 

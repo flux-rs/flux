@@ -37,6 +37,7 @@ use rustc_hir::{
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -49,11 +50,6 @@ use crate::{
 #[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParamDef>,
-}
-
-#[derive(Debug, Default)]
-pub struct RefParams {
-    pub params: Vec<RefineParam>,
 }
 
 #[derive(Debug)]
@@ -139,7 +135,6 @@ type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_has
 #[derive(Default)]
 pub struct Map {
     generics: Cache<LocalDefId, Box<Generics>>,
-    refparams: Cache<LocalDefId, Box<RefParams>>,
     predicates: ItemPredicates,
     opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -867,10 +862,6 @@ impl Map {
         self.generics.insert(def_id, Box::new(generics));
     }
 
-    pub fn insert_refparams(&self, def_id: LocalDefId, params: RefParams) {
-        self.refparams.insert(def_id, Box::new(params));
-    }
-
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
         self.predicates.insert(def_id, predicates);
     }
@@ -883,8 +874,12 @@ impl Map {
         self.generics.get(&def_id)
     }
 
-    pub fn get_refparams(&self, def_id: LocalDefId) -> Option<&RefParams> {
-        self.refparams.get(&def_id)
+    pub fn get_refine_params(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&[RefineParam]> {
+        if matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
+            Some(&self.get_fn_sig(def_id).params)
+        } else {
+            None
+        }
     }
 
     pub fn get_generic_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
