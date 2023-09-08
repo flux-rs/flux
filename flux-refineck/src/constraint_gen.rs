@@ -199,15 +199,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let exprs = inst_exprs(callee_def_id, genv, &mut infcx);
 
-
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
             .replace_bound_vars(
                 |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
-
-        println!("TRACE: check_fn_call {callee_def_id:?} (2) inst_fn_sig = {:?}", inst_fn_sig);
 
         let inst_fn_sig = rty::projections::normalize(
             genv,
@@ -216,7 +213,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             &exprs,
             &inst_fn_sig,
         )?;
-
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
@@ -656,8 +652,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rty::projections::normalize(
             self.genv,
             self.def_id,
-            &self.refparams,
-            &self.refparams,
+            self.refparams,
+            self.refparams,
             &proj_ty,
         )
         .unwrap()
