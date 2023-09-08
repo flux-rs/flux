@@ -330,10 +330,41 @@ impl TypeFolder for GenericsSubstFolder<'_> {
         }
     }
 
+    /*  [NOTE:index-subst]
+
+    Consider
+
+    ```rust
+    fn choose <T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])
+    ```
+
+    and then a client
+
+    ```rust
+    pub fn test01() {
+        assert(choose(true, 0, 1) == 0);
+    }
+    ```
+
+    At the callsite `choose(true, 0, 1)` there are *two* substitutions going on
+    in the signature for `choose` i.e. for the `T[@n]` and `T[@m]`
+
+    1. `T` -> `i32{v: ...}`
+    2. earlybound `n, m` -> fresh-evars.
+
+    The trouble is that if you solely rely on the `bty_for_param` code below,
+    then the `n, m` substitutions "get lost" and so those variables are not
+    "solved for" and you get that pesky instantiation error.
+
+    Instead, we _first_ substitute for the indices, and then let `bty_for_param`
+    do its business.
+
+    */
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
+                // See [NOTE:index-subst]
                 let idx = idx.try_fold_with(self).into_ok();
                 if self.generics.is_some() {
                     self.bty_for_param(*param_ty, &idx)
