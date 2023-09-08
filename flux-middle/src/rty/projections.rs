@@ -282,10 +282,9 @@ fn get_impl_source<'tcx>(
     impl_source
 }
 
-/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item>
+/// QUERY: normalize `<std::vec::IntoIter<Nat> as std::iter::Iterator::Item>`
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
-
 fn normalize_with_impl<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     param_env: rustc_middle::ty::ParamEnv<'tcx>,
