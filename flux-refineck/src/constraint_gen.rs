@@ -400,24 +400,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     }
 }
 
-// fn inst_exprs(
-//     callee_def_id: Option<DefId>,
-//     genv: &GlobalEnv<'_, '_>,
-//     infcx: &mut InferCtxt<'_, '_>,
-// ) -> Vec<Expr> {
-//     if let Some(callee_id) = callee_def_id &&
-//        let Ok(params) = genv.refparams_of(callee_id)
-//      {
-//         params
-//             .params
-//             .iter()
-//             .map(|param| infcx.fresh_evars_or_kvar(&param.sort, param.mode))
-//             .collect_vec()
-//      } else {
-//         vec![]
-//     }
-// }
-
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,

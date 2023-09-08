@@ -108,7 +108,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn refparams_of(&self, def_id: impl Into<DefId>) -> QueryResult<Vec<rty::RefineParam>> {
-        self.queries.refparams_of(self, def_id.into())
+        self.queries.refine_params_of(self, def_id.into())
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {

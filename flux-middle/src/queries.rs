@@ -52,7 +52,7 @@ pub struct Providers {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
-    pub refparams_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<Vec<rty::RefineParam>>,
+    pub refine_params_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<Vec<rty::RefineParam>>,
     pub predicates_of:
         fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub item_bounds: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
@@ -76,7 +76,7 @@ impl Default for Providers {
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
-            refparams_of: |_, _| empty_query!(),
+            refine_params_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
@@ -193,7 +193,7 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-    pub(crate) fn refparams_of(
+    pub(crate) fn refine_params_of(
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
@@ -201,7 +201,7 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.refparams_of, def_id, || {
             let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
-                (self.providers.refparams_of)(genv, local_id)
+                (self.providers.refine_params_of)(genv, local_id)
             } else {
                 Ok(vec![])
             }

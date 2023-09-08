@@ -46,7 +46,7 @@ pub fn provide(providers: &mut Providers) {
         variants_of,
         fn_sig,
         generics_of,
-        refparams_of,
+        refine_params_of,
         predicates_of,
         item_bounds,
     };
@@ -143,7 +143,8 @@ fn item_bounds(
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id.to_def_id(), opaque_ty, &wfckresults)?))
 }
 
-fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<Vec<rty::RefineParam>> {
+// TODO(RJ): using `Vec` instead of `List` due to some inscrutable rustc error
+fn refine_params_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<Vec<rty::RefineParam>> {
     Ok(generics_of(genv, local_id)?.refine_params)
 }
 
