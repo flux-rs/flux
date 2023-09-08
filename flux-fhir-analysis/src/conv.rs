@@ -97,7 +97,6 @@ pub(crate) fn conv_generic_predicates(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
     let refparams = genv
         .map()
@@ -105,8 +104,6 @@ pub(crate) fn conv_generic_predicates(
         .map(|params| &params.params);
 
     let env = &mut Env::new(refparams.unwrap_or(&vec![]));
-
-    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
