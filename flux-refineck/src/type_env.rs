@@ -572,8 +572,7 @@ impl BasicBlockEnvShape {
 
         let outter_sorts = vars.to_sort_list();
 
-        let kvar =
-            kvar_store.fresh_bound(&[outter_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
+        let kvar = kvar_store.fresh(&[outter_sorts.clone()], &self.scope, KVarEncoding::Conj);
         constrs.push(kvar);
 
         // Replace remaning holes by fresh kvars
@@ -581,7 +580,7 @@ impl BasicBlockEnvShape {
             let sorts = std::iter::once(outter_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();
-            kvar_store.fresh_bound(&sorts, self.scope.iter(), KVarEncoding::Conj)
+            kvar_store.fresh(&sorts, &self.scope, KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 

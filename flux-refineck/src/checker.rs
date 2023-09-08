@@ -1230,7 +1230,7 @@ impl Mode for RefineMode {
         ConstrGen::new(
             genv,
             def_id,
-            move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
             rvid_gen,
             span,
         )
@@ -1259,11 +1259,7 @@ impl Mode for RefineMode {
         let gen = &mut ConstrGen::new(
             ck.genv,
             ck.def_id,
-            |sorts: &[_], encoding| {
-                ck.mode
-                    .kvars
-                    .fresh_bound(sorts, bb_env.scope().iter(), encoding)
-            },
+            |sorts: &[_], encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,
             terminator_span,
         );
