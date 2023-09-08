@@ -201,7 +201,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let params = genv.refparams_of(def_id).with_span(span)?;
 
         let exprs = params
-            .params
             .iter()
             .map(|param| rcx.define_vars(&param.sort))
             .collect_vec();

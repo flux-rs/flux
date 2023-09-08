@@ -449,7 +449,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
            let Ok(params) = genv.refparams_of(callee_id)
          {
             params
-                .params
                 .iter()
                 .map(|param| self.fresh_evars_or_kvar(&param.sort, param.mode))
                 .collect_vec()

@@ -52,7 +52,7 @@ pub struct Providers {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
-    pub refparams_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::RefParams>,
+    pub refparams_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<Vec<rty::RefineParam>>,
     pub predicates_of:
         fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub item_bounds: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
@@ -96,7 +96,7 @@ pub struct Queries<'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
-    refparams_of: Cache<DefId, QueryResult<rty::RefParams>>,
+    refparams_of: Cache<DefId, QueryResult<Vec<rty::RefineParam>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -197,13 +197,13 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::RefParams> {
+    ) -> QueryResult<Vec<rty::RefineParam>> {
         run_with_cache(&self.refparams_of, def_id, || {
             let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.refparams_of)(genv, local_id)
             } else {
-                Ok(rty::RefParams::new(vec![], Some(def_id)))
+                Ok(vec![])
             }
         })
     }

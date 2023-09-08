@@ -140,8 +140,10 @@ pub(crate) fn conv_opaque_ty(
 }
 
 pub(crate) fn conv_generics(
+    genv: &GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
+    refine_params: &[fhir::RefineParam],
 ) -> rty::Generics {
     let mut fhir_params = generics.params.iter();
     let params = rust_generics
@@ -167,8 +169,15 @@ pub(crate) fn conv_generics(
                 })
         })
         .collect();
+
+    let refine_params = refine_params
+        .iter()
+        .map(|param| conv_refine_param(genv, param))
+        .collect();
+
     rty::Generics {
         params,
+        refine_params,
         parent_count: rust_generics.orig.parent_count,
         parent: rust_generics.orig.parent,
     }

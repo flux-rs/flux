@@ -143,19 +143,19 @@ fn item_bounds(
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id.to_def_id(), opaque_ty, &wfckresults)?))
 }
 
-fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::RefParams> {
-    let def_id = local_id.to_def_id();
-    // There are no RefParams inserted for functions without flux-sigs; hence use empty in that case.
-    let sorts = if let Some(params) = genv.map().get_refparams(local_id) {
-        params
-            .params
-            .iter()
-            .map(|param| conv::conv_refine_param(genv, param))
-            .collect_vec()
-    } else {
-        vec![]
-    };
-    Ok(rty::RefParams::new(sorts, Some(def_id)))
+fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<Vec<rty::RefineParam>> {
+    Ok(generics_of(genv, local_id)?.refine_params)
+    // // There are no RefParams inserted for functions without flux-sigs; hence use empty in that case.
+    // let sorts = if let Some(params) = genv.map().get_refparams(local_id) {
+    //     params
+    //         .params
+    //         .iter()
+    //         .map(|param| conv::conv_refine_param(genv, param))
+    //         .collect_vec()
+    // } else {
+    //     vec![]
+    // };
+    // Ok(sorts)
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
@@ -168,7 +168,12 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
             .get_generics(genv.tcx.local_parent(local_id))
             .unwrap_or_else(|| panic!("no generics for {:?}", def_id))
     });
-    Ok(conv::conv_generics(&rustc_generics, generics))
+    let refine_params = if let Some(params) = genv.map().get_refparams(local_id) {
+        params.params.clone()
+    } else {
+        vec![]
+    };
+    Ok(conv::conv_generics(genv, &rustc_generics, generics, &refine_params))
 }
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {

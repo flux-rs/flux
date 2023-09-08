@@ -59,15 +59,16 @@ pub use crate::{
 #[derive(Debug, Clone)]
 pub struct Generics {
     pub params: List<GenericParamDef>,
+    pub refine_params: Vec<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
 }
-///
-#[derive(Debug, Clone)]
-pub struct RefParams {
-    pub params: Vec<RefineParam>,
-    pub parent: Option<DefId>,
-}
+
+// #[derive(Debug, Clone)]
+// pub struct RefParams {
+//     pub params: Vec<RefineParam>,
+//     pub parent: Option<DefId>,
+// }
 
 #[derive(Debug, Clone)]
 pub struct RefineParam {
@@ -75,11 +76,11 @@ pub struct RefineParam {
     pub mode: InferMode,
 }
 
-impl RefParams {
-    pub fn new(params: impl Into<Vec<RefineParam>>, parent: Option<DefId>) -> Self {
-        RefParams { params: params.into(), parent }
-    }
-}
+// impl RefParams {
+//     pub fn new(params: impl Into<Vec<RefineParam>>, parent: Option<DefId>) -> Self {
+//         RefParams { params: params.into(), parent }
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParamDef {

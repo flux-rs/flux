@@ -107,7 +107,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.check_wf(self, flux_id.into())
     }
 
-    pub fn refparams_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::RefParams> {
+    pub fn refparams_of(&self, def_id: impl Into<DefId>) -> QueryResult<Vec<rty::RefineParam>> {
         self.queries.refparams_of(self, def_id.into())
     }
 
