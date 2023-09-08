@@ -6,5 +6,5 @@ src = "src"
 title = "Flux Documentation"
 
 [output.html]
+additional-css = ["css/flux.css"]
 additional-js = ["js/flux.js"]
-
