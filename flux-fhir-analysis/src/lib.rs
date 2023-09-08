@@ -145,17 +145,6 @@ fn item_bounds(
 
 fn refparams_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<Vec<rty::RefineParam>> {
     Ok(generics_of(genv, local_id)?.refine_params)
-    // // There are no RefParams inserted for functions without flux-sigs; hence use empty in that case.
-    // let sorts = if let Some(params) = genv.map().get_refparams(local_id) {
-    //     params
-    //         .params
-    //         .iter()
-    //         .map(|param| conv::conv_refine_param(genv, param))
-    //         .collect_vec()
-    // } else {
-    //     vec![]
-    // };
-    // Ok(sorts)
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {

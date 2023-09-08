@@ -64,23 +64,11 @@ pub struct Generics {
     pub parent_count: usize,
 }
 
-// #[derive(Debug, Clone)]
-// pub struct RefParams {
-//     pub params: Vec<RefineParam>,
-//     pub parent: Option<DefId>,
-// }
-
 #[derive(Debug, Clone)]
 pub struct RefineParam {
     pub sort: Sort,
     pub mode: InferMode,
 }
-
-// impl RefParams {
-//     pub fn new(params: impl Into<Vec<RefineParam>>, parent: Option<DefId>) -> Self {
-//         RefParams { params: params.into(), parent }
-//     }
-// }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParamDef {
