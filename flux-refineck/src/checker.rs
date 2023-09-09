@@ -1086,8 +1086,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
-        let dominator = self.dominators().immediate_dominator(bb).unwrap();
-        self.snapshots[dominator].as_ref().unwrap()
+        snapshot_at_dominator(self.body, &self.snapshots, bb)
     }
 
     fn dominators(&self) -> &'a Dominators<BasicBlock> {
@@ -1188,15 +1187,15 @@ impl Mode for ShapeMode {
         terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
-        // TODO(nilehmann) we should only ask for the scope in the vacant branch
-        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-
         let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
         let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(env).with_span(terminator_span)?,
             Entry::Vacant(entry) => {
+                let scope = snapshot_at_dominator(ck.body, &ck.snapshots, target)
+                    .scope()
+                    .unwrap();
                 entry.insert(env.into_infer(scope).with_span(terminator_span)?);
                 true
             }
@@ -1273,6 +1272,16 @@ impl Mode for RefineMode {
         bug!();
     }
 }
+
+fn snapshot_at_dominator<'a>(
+    body: &Body,
+    snapshots: &'a IndexVec<BasicBlock, Option<Snapshot>>,
+    bb: BasicBlock,
+) -> &'a Snapshot {
+    let dominator = body.dominators().immediate_dominator(bb).unwrap();
+    snapshots[dominator].as_ref().unwrap()
+}
+
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
     use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
