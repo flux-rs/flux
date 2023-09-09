@@ -2,20 +2,18 @@ use std::{cmp::Ordering, collections::hash_map, slice};
 
 use flux_common::bug;
 use rustc_data_structures::unord::UnordMap;
+use rustc_middle::ty::RegionVid;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
-use crate::{
-    rty::*,
-    rustc::{self, ty::RegionVar},
-};
+use crate::{rty::*, rustc};
 
 #[derive(Debug)]
 pub struct RegionSubst {
-    map: UnordMap<RegionVar, Region>,
+    map: UnordMap<RegionVid, Region>,
 }
 
 impl RegionSubst {
@@ -29,7 +27,7 @@ impl RegionSubst {
         struct Folder<'a>(&'a RegionSubst);
         impl TypeFolder for Folder<'_> {
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReVar(var) = re && let Some(region) = self.0.map.get(var) {
+                if let ReVar(rvid) = re && let Some(region) = self.0.map.get(rvid) {
                     *region
                 } else {
                     *re
