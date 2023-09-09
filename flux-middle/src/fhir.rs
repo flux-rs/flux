@@ -26,8 +26,11 @@ use std::{
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
+};
+use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
@@ -93,7 +96,7 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
-pub type ItemPredicates = FxHashMap<LocalDefId, GenericPredicates>;
+pub type ItemPredicates = UnordMap<LocalDefId, GenericPredicates>;
 
 #[derive(Debug)]
 pub struct GenericPredicates {
@@ -135,19 +138,19 @@ type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_has
 pub struct Map {
     generics: Cache<LocalDefId, Box<Generics>>,
     predicates: ItemPredicates,
-    opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
+    opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
-    sort_decls: FxHashMap<Symbol, SortDecl>,
+    sort_decls: SortDecls,
     flux_items: FxHashMap<Symbol, FluxItem>,
     consts: FxHashMap<Symbol, ConstInfo>,
-    refined_by: FxHashMap<LocalDefId, RefinedBy>,
+    refined_by: UnordMap<LocalDefId, RefinedBy>,
     type_aliases: FxHashMap<LocalDefId, TyAlias>,
     structs: FxHashMap<LocalDefId, StructDef>,
     enums: FxHashMap<LocalDefId, EnumDef>,
     fns: FxHashMap<LocalDefId, FnSig>,
     fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
-    trusted: FxHashSet<LocalDefId>,
-    externs: FxHashMap<DefId, LocalDefId>,
+    trusted: UnordSet<LocalDefId>,
+    externs: UnordMap<DefId, LocalDefId>,
 }
 
 #[derive(Debug)]
