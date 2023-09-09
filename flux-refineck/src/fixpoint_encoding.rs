@@ -20,7 +20,7 @@ use flux_middle::{
     rty::{self, Constant, ESpan},
 };
 use itertools::{self, Itertools};
-use rustc_data_structures::fx::FxIndexMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -58,8 +58,8 @@ pub enum KVarEncoding {
     Conj,
 }
 
-type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
-type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
+type NameMap = UnordMap<rty::Name, fixpoint::Name>;
+type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxIndexMap<Key, ConstInfo>;
 
 #[derive(Eq, Hash, PartialEq)]
