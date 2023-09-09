@@ -41,17 +41,6 @@ struct Wf<'a, 'tcx> {
 #[derive(Default)]
 struct XiCtxt(SnapshotMap<fhir::Name, ()>);
 
-pub(crate) fn check_type(
-    genv: &GlobalEnv,
-    ty: &fhir::Ty,
-    owner: OwnerId,
-) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(genv, owner.into());
-    let mut wf = Wf::new(genv);
-    wf.check_type(&mut infcx, ty)?;
-    Ok(infcx.into_results())
-}
-
 pub(crate) fn check_qualifier(
     genv: &GlobalEnv,
     qualifier: &fhir::Qualifier,

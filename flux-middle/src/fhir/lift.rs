@@ -88,10 +88,12 @@ pub fn lift_fn(
     Ok((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
 }
 
-// HACK(nilehmann) this is used during annot check to allow an explicit type to refine `Self`.
-// For example, in `impl List<T> { fn foo(&self) }` the type of `self` is `&Self` and we want to
-// allow a refinement using `&List<T>`.
-// Do not use this outside of annot check because the `FhirId`s will be wrong.
+/// HACK(nilehmann) this is used during annot check to allow an explicit type to refine [`Self`].
+/// For example, in `impl List<T> { fn foo(&self) }` the type of `self` is `&Self` and we want to
+/// allow a refinement using `&List<T>`.
+/// Do not use this outside of annot check because the `FhirId`s will be wrong.
+///
+/// [`Self`]: fhir::Res::SelfTyAlias
 pub fn lift_self_ty(
     tcx: TyCtxt,
     sess: &FluxSession,
