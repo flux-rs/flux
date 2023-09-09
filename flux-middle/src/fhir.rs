@@ -51,17 +51,17 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Generics {
-    pub params: Vec<GenericParamDef>,
+    pub params: Vec<GenericParam>,
 }
 
 #[derive(Debug)]
-pub struct GenericParamDef {
+pub struct GenericParam {
     pub def_id: LocalDefId,
-    pub kind: GenericParamDefKind,
+    pub kind: GenericParamKind,
 }
 
 #[derive(Debug)]
-pub enum GenericParamDefKind {
+pub enum GenericParamKind {
     Type { default: Option<Ty> },
     BaseTy,
     Lifetime,
@@ -701,7 +701,7 @@ pub struct Defn {
 }
 
 impl Generics {
-    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParamDef {
+    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParam {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
 }

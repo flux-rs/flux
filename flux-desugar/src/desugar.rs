@@ -205,10 +205,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let mut params = vec![];
         for param in &generics.params {
             let kind = match &param.kind {
-                surface::GenericParamKind::Type => {
-                    fhir::GenericParamDefKind::Type { default: None }
-                }
-                surface::GenericParamKind::Base => fhir::GenericParamDefKind::BaseTy,
+                surface::GenericParamKind::Type => fhir::GenericParamKind::Type { default: None },
+                surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
                 surface::GenericParamKind::Refine { .. } => {
                     continue;
                 }
@@ -218,7 +216,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .get(&param.name)
                 .ok_or_else(|| self.emit_err(errors::UnresolvedGenericParam::new(param.name)))?;
 
-            params.push(fhir::GenericParamDef { def_id, kind });
+            params.push(fhir::GenericParam { def_id, kind });
         }
         Ok(fhir::Generics { params })
     }

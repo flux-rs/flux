@@ -138,11 +138,11 @@ pub(crate) fn conv_generics(
                 .find(|param| rust_param.def_id == param.def_id.to_def_id())
                 .map(|param| {
                     let kind = match &param.kind {
-                        fhir::GenericParamDefKind::Type { default } => {
+                        fhir::GenericParamKind::Type { default } => {
                             rty::GenericParamDefKind::Type { has_default: default.is_some() }
                         }
-                        fhir::GenericParamDefKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                        fhir::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+                        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+                        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
                     };
                     rty::GenericParamDef {
                         kind,

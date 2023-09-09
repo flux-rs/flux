@@ -164,7 +164,7 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
         }
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id).kind {
-                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
+                fhir::GenericParamKind::Type { default: Some(ty) } => {
                     let wfckresults = genv.check_wf(def_id)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
@@ -262,12 +262,12 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
         }
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id).kind {
-                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
+                fhir::GenericParamKind::Type { default: Some(ty) } => {
                     let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
                     let owner = genv.hir().get_parent_item(hir_id);
                     wf::check_type(genv, ty, owner)?
                 }
-                fhir::GenericParamDefKind::Type { default: None } => {
+                fhir::GenericParamKind::Type { default: None } => {
                     bug!("type parameter without default")
                 }
                 _ => bug!("non-type def"),

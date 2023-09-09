@@ -169,9 +169,9 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             .iter()
             .map(|param| {
                 let kind = match param.kind {
-                    hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
+                    hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
                     hir::GenericParamKind::Type { default, synthetic: false } => {
-                        fhir::GenericParamDefKind::Type {
+                        fhir::GenericParamKind::Type {
                             default: default.map(|ty| self.lift_ty(ty)).transpose()?,
                         }
                     }
@@ -190,7 +190,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                         ))
                     }
                 };
-                Ok(fhir::GenericParamDef { def_id: param.def_id, kind })
+                Ok(fhir::GenericParam { def_id: param.def_id, kind })
             })
             .try_collect_exhaust()?;
         Ok(fhir::Generics { params })
