@@ -9,7 +9,10 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind};
-use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
+use rustc_data_structures::{
+    fx::{FxIndexMap, IndexEntry},
+    unord::UnordMap,
+};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
@@ -103,7 +106,7 @@ pub fn desugar_refined_by(
 
 pub(crate) struct DesugarCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -159,7 +162,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         owner: OwnerId,
-        opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), opaque_tys }
     }

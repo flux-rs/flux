@@ -28,7 +28,7 @@ pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::FxIndexMap,
-    unord::{UnordMap, UnordSet},
+    unord::{ExtendUnord, UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
@@ -221,7 +221,7 @@ pub struct VariantRet {
 pub struct FnInfo {
     pub predicates: GenericPredicates,
     pub fn_sig: FnSig,
-    pub opaque_tys: FxHashMap<LocalDefId, OpaqueTy>,
+    pub opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
 }
 
 pub struct FnSig {
@@ -868,8 +868,8 @@ impl Map {
         self.predicates.insert(def_id, predicates);
     }
 
-    pub fn insert_opaque_tys(&mut self, opaque_tys: FxHashMap<LocalDefId, OpaqueTy>) {
-        self.opaque_tys.extend(opaque_tys);
+    pub fn insert_opaque_tys(&mut self, opaque_tys: UnordMap<LocalDefId, OpaqueTy>) {
+        self.opaque_tys.extend_unord(opaque_tys.into_items());
     }
 
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
