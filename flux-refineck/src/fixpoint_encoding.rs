@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::iter;
+use std::{hash::Hash, iter};
 
 use fixpoint::FixpointResult;
 use flux_common::{
@@ -21,7 +21,6 @@ use flux_middle::{
 };
 use itertools::{self, Itertools};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_span::Span;
@@ -68,7 +67,7 @@ enum Key {
     Const(DefId),
 }
 
-pub struct FixpointCtxt<'genv, 'tcx, T> {
+pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: &'genv GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
@@ -78,7 +77,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     name_map: NameMap,
     const_map: ConstMap,
     tags: IndexVec<TagIdx, T>,
-    tags_inv: FxHashMap<T, TagIdx>,
+    tags_inv: UnordMap<T, TagIdx>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     // FIXME(nilehmann) this should be a `LocalDefId`.
@@ -130,7 +129,7 @@ where
             name_map: NameMap::default(),
             const_map,
             tags: IndexVec::new(),
-            tags_inv: FxHashMap::default(),
+            tags_inv: Default::default(),
             def_id,
         }
     }
