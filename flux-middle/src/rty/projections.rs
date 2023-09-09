@@ -20,10 +20,7 @@ use crate::{
     global_env::GlobalEnv,
     queries::QueryErr,
     rty::{fold::TypeVisitable, EarlyBinder},
-    rustc::{
-        self,
-        ty::{BoundRegionKind, RegionVar},
-    },
+    rustc::{self, ty::BoundRegionKind},
 };
 
 type AliasTyKey = String;
@@ -199,7 +196,7 @@ fn into_rustc_region(tcx: TyCtxt, re: Region) -> rustc_middle::ty::Region {
         }
         Region::ReEarlyBound(ebr) => rustc_middle::ty::Region::new_early_bound(tcx, ebr),
         Region::ReStatic => tcx.lifetimes.re_static,
-        Region::ReVar(RegionVar { rvid, .. }) => rustc_middle::ty::Region::new_var(tcx, rvid),
+        Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
         Region::ReErased => tcx.lifetimes.re_erased,
     }
 }

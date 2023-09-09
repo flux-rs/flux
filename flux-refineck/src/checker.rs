@@ -22,13 +22,13 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::{GeneratorArgsParts, RegionVar},
+        ty::GeneratorArgsParts,
     },
 };
 use itertools::Itertools;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir as rustc_mir, ty::RegionVid};
 use rustc_span::Span;
@@ -199,18 +199,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let rvid_gen = IndexGen::new();
-        let fn_sig = poly_sig.replace_bound_vars(
-            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
-            |sort, _| rcx.define_vars(sort),
-        );
+        let rvid_gen = init_region_gen(&body);
+        let fn_sig = poly_sig
+            .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Generator {
+        let resume_ty = if genv.tcx.def_kind(def_id) == DefKind::Generator {
             Some(fn_sig.args()[1].clone())
         } else {
             None
@@ -1280,6 +1278,32 @@ fn snapshot_at_dominator<'a>(
 ) -> &'a Snapshot {
     let dominator = body.dominators().immediate_dominator(bb).unwrap();
     snapshots[dominator].as_ref().unwrap()
+}
+
+/// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
+/// different position in a type. For example, given a function
+///
+/// `fn foo<'a, 'b>(x: &'a S<'a>, y: &'b u32)`
+///
+/// `rustc` will generate variables `?2` and `?3` for the universal regions `'a` and `'b` (the variable
+/// `?0` correspond to `'static` and `?1` to the implicit lifetime of the /// function body). Additionally,
+/// it will assign `x` type &'?4 S<'?5>` and `y` type `&'?6 u32`, together with some constraints relating
+/// region variables.
+///
+/// The exact ids picked for `'a` and `'b` are not too relevant to us, the important part is the regions
+/// used in the types of `x` and `y`. To recover the correct regions, whenever there's an assignment
+/// of a refinement type `T` to a variable with (unrefined) Rust type `S`, we _match_ both types to infer
+/// a region substition. For this to work, we need to give a different variable id to every position
+/// in `T`. To avoid clashes, we need to use fresh ids, so we start enumerating from the last id generated
+/// by borrow checking.
+///
+/// The ids generated during refinement type checking are purely instrumental and they should never
+/// appear in a type bound in the environment. Besides generating ids when checking a function's body,
+/// we also need to generate fresh ids at function calls.
+///
+/// [region variable ids]: RegionVid
+fn init_region_gen(body: &Body) -> IndexGen<RegionVid> {
+    IndexGen::skipping(body.region_inference_context().var_infos.len())
 }
 
 pub(crate) mod errors {

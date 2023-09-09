@@ -12,10 +12,7 @@ use flux_middle::{
         ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode,
         Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
-    rustc::{
-        mir::{BasicBlock, Place},
-        ty::RegionVar,
-    },
+    rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
@@ -193,7 +190,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
         let inst_fn_sig = fn_sig.instantiate(&generic_args, &[]).replace_bound_vars(
-            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+            |_| rty::ReVar(rvid_gen.fresh()),
             |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
         );
 

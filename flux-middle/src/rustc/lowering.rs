@@ -30,7 +30,7 @@ use super::{
 use crate::{
     const_eval::scalar_int_to_constant,
     intern::List,
-    rustc::ty::{AliasTy, ProjectionPredicate, Region, RegionVar},
+    rustc::ty::{AliasTy, ProjectionPredicate, Region},
 };
 
 pub struct LoweringCtxt<'a, 'sess, 'tcx> {
@@ -749,7 +749,7 @@ fn lower_generic_arg<'tcx>(
 fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, UnsupportedReason> {
     use rustc_middle::ty::RegionKind;
     match region.kind() {
-        RegionKind::ReVar(id) => Ok(Region::ReVar(RegionVar { rvid: id, is_nll: true })),
+        RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
         RegionKind::ReLateBound(debruijn, bregion) => {
             Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
         }
