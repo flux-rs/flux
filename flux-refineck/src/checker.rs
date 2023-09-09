@@ -599,15 +599,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, terminator_span, cond)?;
-        let pred = if let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() {
-            if expected {
-                idx.expr.clone()
-            } else {
-                idx.expr.not()
-            }
-        } else {
-            tracked_span_bug!("unexpected ty `{ty:?}`")
+        let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() else {
+            tracked_span_bug!("unexpected ty `{ty:?}`");
         };
+        let pred = if expected { idx.expr.clone() } else { idx.expr.not() };
 
         let msg = match msg {
             AssertKind::DivisionByZero => "possible division by zero",
@@ -1235,7 +1230,7 @@ impl Mode for RefineMode {
         ConstrGen::new(
             genv,
             def_id,
-            move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
             rvid_gen,
             span,
         )
@@ -1264,11 +1259,7 @@ impl Mode for RefineMode {
         let gen = &mut ConstrGen::new(
             ck.genv,
             ck.def_id,
-            |sorts: &[_], encoding| {
-                ck.mode
-                    .kvars
-                    .fresh_bound(sorts, bb_env.scope().iter(), encoding)
-            },
+            |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,
             terminator_span,
         );
