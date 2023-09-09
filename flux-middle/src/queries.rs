@@ -6,6 +6,7 @@ use std::{
 use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{FatalError, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -29,7 +30,7 @@ use crate::{
     },
 };
 
-type Cache<K, V> = RefCell<FxHashMap<K, V>>;
+type Cache<K, V> = RefCell<UnordMap<K, V>>;
 
 pub type QueryResult<T = ()> = Result<T, QueryErr>;
 

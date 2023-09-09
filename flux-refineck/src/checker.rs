@@ -26,7 +26,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::graph::dominators::Dominators;
+use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_index::bit_set::BitSet;
@@ -61,7 +61,7 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument of a generator.
     resume_ty: Option<Ty>,
-    ghost_stmts: &'ck FxHashMap<DefId, GhostStatements>,
+    ghost_stmts: &'ck UnordMap<DefId, GhostStatements>,
     output: Binder<FnOutput>,
     mode: &'ck mut M,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
@@ -124,7 +124,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, GhostStatements>,
+        extra_data: &'a UnordMap<DefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
@@ -154,7 +154,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, GhostStatements>,
+        extra_data: &'a UnordMap<DefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
@@ -188,7 +188,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, GhostStatements>,
+        extra_data: &'a UnordMap<DefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: PolyFnSig,
         config: CheckerConfig,

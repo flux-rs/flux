@@ -3,6 +3,7 @@ use std::iter;
 #[allow(unused_imports)]
 use flux_common::bug;
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
@@ -35,7 +36,7 @@ impl AliasTy {
 struct ProjectionTable<'sess, 'tcx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
     def_id: DefId,
-    preds: FxHashMap<AliasTyKey, Ty>,
+    preds: UnordMap<AliasTyKey, Ty>,
 }
 
 impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
@@ -44,7 +45,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         def_id: DefId,
         t: &T,
     ) -> Result<Self, QueryErr> {
-        let mut preds = FxHashMap::default();
+        let mut preds = UnordMap::default();
 
         let mut vec = vec![];
         // 1. Insert generic predicates of the callsite `def_id`

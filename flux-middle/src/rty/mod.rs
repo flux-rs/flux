@@ -20,7 +20,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -747,7 +747,7 @@ where
         replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
-        let mut exprs = FxHashMap::default();
+        let mut exprs = UnordMap::default();
         let delegate = FnMutDelegate {
             exprs: |idx| {
                 exprs
@@ -1381,7 +1381,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
         }]
     });
 
-    static OVERFLOW: LazyLock<FxHashMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
+    static OVERFLOW: LazyLock<UnordMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
         UINT_TYS
             .into_iter()
             .map(|uint_ty| {
@@ -1413,7 +1413,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
 fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: [Invariant; 0] = [];
 
-    static OVERFLOW: LazyLock<FxHashMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
+    static OVERFLOW: LazyLock<UnordMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
         INT_TYS
             .into_iter()
             .map(|int_ty| {
