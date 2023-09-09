@@ -443,7 +443,7 @@ impl KVarStore {
     /// put it under an appropriate number of binders.
     ///
     /// [binders]: rty::Binder
-    /// [kvar]: rty::expr::KVar
+    /// [kvar]: rty::KVar
     pub fn fresh(
         &mut self,
         binders: &[List<rty::Sort>],

@@ -46,7 +46,7 @@ pub(crate) struct Obligations {
 }
 
 pub trait KVarGen {
-    fn fresh(&mut self, args: &[List<Sort>], kind: KVarEncoding) -> Expr;
+    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr;
 }
 
 pub(crate) struct InferCtxt<'a, 'tcx> {
@@ -744,20 +744,20 @@ impl<F> KVarGen for F
 where
     F: FnMut(&[List<Sort>], KVarEncoding) -> Expr,
 {
-    fn fresh(&mut self, sorts: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (self)(sorts, kind)
+    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
+        (self)(binders, kind)
     }
 }
 
 impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, sorts: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (**self).fresh(sorts, kind)
+    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
+        (**self).fresh(binders, kind)
     }
 }
 
 impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, sorts: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (**self).fresh(sorts, kind)
+    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
+        (**self).fresh(binders, kind)
     }
 }
 

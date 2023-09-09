@@ -18,6 +18,10 @@ xflags::xflags! {
         }
         /// Install flux binaries to ~/.cargo/bin
         cmd install { }
+        /// Build the documentation
+        cmd doc {
+            optional -o,--open
+        }
     }
 }
 
@@ -41,6 +45,7 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
         XtaskCmd::Install(args) => install(sh, args),
+        XtaskCmd::Doc(args) => doc(sh, args),
     }
 }
 
@@ -74,5 +79,14 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
 fn install(sh: Shell, _: Install) -> anyhow::Result<()> {
     cmd!(sh, "cargo install --path flux").run()?;
     cmd!(sh, "cargo install --path flux-bin").run()?;
+    Ok(())
+}
+
+fn doc(sh: Shell, args: Doc) -> anyhow::Result<()> {
+    let _env = sh.push_env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page");
+    cmd!(sh, "cargo doc --document-private-items --no-deps").run()?;
+    if args.open {
+        opener::open("target/doc/index.html")?;
+    }
     Ok(())
 }
