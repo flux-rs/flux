@@ -35,7 +35,7 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
         .collect();
     rty::Generics {
         params,
-        refine_params: vec![],
+        refine_params: List::empty(),
         parent_count: generics.orig.parent_count,
         parent: generics.orig.parent,
     }

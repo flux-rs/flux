@@ -191,7 +191,6 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-
     pub(crate) fn generics_of(
         &self,
         genv: &GlobalEnv,

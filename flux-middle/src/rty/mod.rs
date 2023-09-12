@@ -59,12 +59,12 @@ pub use crate::{
 #[derive(Debug, Clone)]
 pub struct Generics {
     pub params: List<GenericParamDef>,
-    pub refine_params: Vec<RefineParam>,
+    pub refine_params: List<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub struct RefineParam {
     pub sort: Sort,
     pub mode: InferMode,
@@ -1470,6 +1470,7 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     BoundVariableKind,
+    RefineParam,
 );
 
 #[macro_export]

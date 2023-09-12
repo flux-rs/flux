@@ -15,7 +15,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, GenericArg, Region, Expr, Ty, TyKind,
+    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, Expr, GenericArg, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
