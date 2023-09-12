@@ -365,7 +365,7 @@ impl TypeFolder for GenericsSubstFolder<'_> {
             TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 // See [NOTE:index-subst]
-                let idx = idx.try_fold_with(self).into_ok();
+                let idx = idx.fold_with(self);
                 self.bty_for_param(*param_ty, &idx)
             }
             _ => ty.super_fold_with(self),
