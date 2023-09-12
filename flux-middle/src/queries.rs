@@ -190,20 +190,6 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-    pub(crate) fn refine_params_of(
-        &self,
-        genv: &GlobalEnv,
-        def_id: DefId,
-    ) -> QueryResult<Vec<rty::RefineParam>> {
-        run_with_cache(&self.refparams_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.refine_params_of)(genv, local_id)
-            } else {
-                Ok(vec![])
-            }
-        })
-    }
 
     pub(crate) fn generics_of(
         &self,
