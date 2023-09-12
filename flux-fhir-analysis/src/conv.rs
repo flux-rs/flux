@@ -120,7 +120,7 @@ pub(crate) fn conv_opaque_ty(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let parent = genv.tcx.parent(def_id).as_local().unwrap();
+    let parent = genv.tcx.parent(def_id).expect_local();
     let refparams = genv.map().get_refine_params(genv.tcx, parent);
 
     let env = &mut Env::new(refparams.unwrap_or(&[]));
