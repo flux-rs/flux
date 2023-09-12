@@ -9,6 +9,7 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
         FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
@@ -197,7 +198,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let rvid_gen = IndexGen::new();
+        let rvid_gen = init_region_gen(&body);
         let params = genv.refparams_of(def_id).with_span(span)?;
 
         let exprs = params
@@ -206,11 +207,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
 
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
-        let fn_sig = poly_sig.replace_bound_vars(
-            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
-            |sort, _| rcx.define_vars(sort),
-        );
 
+        let fn_sig = poly_sig
+            .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
@@ -227,7 +226,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
-            refparams: exprs,
+            refparams: exprs.into(),
             body: &body,
             resume_ty,
             ghost_stmts: extra_data,
@@ -1241,7 +1240,7 @@ impl Mode for RefineMode {
             genv,
             def_id,
             refparams,
-            move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
             rvid_gen,
             span,
         )
@@ -1271,11 +1270,7 @@ impl Mode for RefineMode {
             ck.genv,
             ck.def_id,
             &ck.refparams,
-            |sorts: &[_], encoding| {
-                ck.mode
-                    .kvars
-                    .fresh_bound(sorts, bb_env.scope().iter(), encoding)
-            },
+            |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,
             terminator_span,
         );

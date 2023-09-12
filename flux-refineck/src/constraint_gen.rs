@@ -198,7 +198,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
             .replace_bound_vars(
-                |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
+                |_| rty::ReVar(rvid_gen.fresh()),
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
