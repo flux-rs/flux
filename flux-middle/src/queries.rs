@@ -75,7 +75,6 @@ impl Default for Providers {
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
-            refine_params_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
