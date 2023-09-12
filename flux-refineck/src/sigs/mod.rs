@@ -1,11 +1,13 @@
 mod default;
 mod overflow;
 
+use std::hash::Hash;
+
 use flux_middle::{
     rty::{self, BaseTy, Expr},
     rustc::mir,
 };
-use rustc_hash::FxHashMap;
+use rustc_data_structures::unord::UnordMap;
 
 use crate::constraint_gen::ConstrReason;
 
@@ -25,8 +27,8 @@ pub(crate) enum Output<const N: usize> {
     Exists(BaseTy, fn(Expr, [Expr; N]) -> Expr),
 }
 
-struct SigTable<T, const N: usize> {
-    map: FxHashMap<(T, [BaseTy; N]), Sig<N>>,
+struct SigTable<T: Eq + Hash, const N: usize> {
+    map: UnordMap<(T, [BaseTy; N]), Sig<N>>,
 }
 
 pub(crate) fn get_bin_op_sig(
@@ -102,9 +104,9 @@ macro_rules! _sig {
 }
 use crate::_sig as s;
 
-impl<T, const N: usize> SigTable<T, N> {
+impl<T: Eq + Hash, const N: usize> SigTable<T, N> {
     fn new() -> Self {
-        Self { map: FxHashMap::default() }
+        Self { map: Default::default() }
     }
 }
 

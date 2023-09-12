@@ -2,99 +2,18 @@ use std::{cmp::Ordering, collections::hash_map, slice};
 
 use flux_common::bug;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_middle::ty::RegionVid;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
-use crate::{
-    rty::*,
-    rustc::{self, ty::RegionVar},
-};
-
-/// A substitution for [free variables]
-///
-/// [free variables]: `crate::rty::Var::Free`
-#[derive(Debug)]
-pub struct FVarSubst {
-    fvar_map: FxHashMap<Name, Expr>,
-}
-
-impl FVarSubst {
-    pub fn empty() -> Self {
-        FVarSubst { fvar_map: FxHashMap::default() }
-    }
-
-    pub fn insert(&mut self, from: Name, to: impl Into<Expr>) -> Option<Expr> {
-        self.fvar_map.insert(from, to.into())
-    }
-
-    pub fn contains(&self, from: Name) -> bool {
-        self.fvar_map.contains_key(&from)
-    }
-
-    pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
-        t.fold_with(&mut FVarSubstFolder { subst: self })
-            .normalize(&Default::default())
-    }
-
-    pub fn infer_from_idxs(&mut self, params: &FxHashSet<Name>, idx1: &Index, idx2: &Index) {
-        self.infer_from_exprs(params, &idx1.expr, &idx2.expr);
-    }
-
-    fn infer_from_exprs(&mut self, params: &FxHashSet<Name>, e1: &Expr, e2: &Expr) {
-        match (e1.kind(), e2.kind()) {
-            (_, ExprKind::Var(Var::Free(name))) if params.contains(name) => {
-                if let Some(old_e) = self.insert(*name, e1.clone()) {
-                    if &old_e != e1 {
-                        bug!(
-                            "ambiguous instantiation for parameter: {:?} -> [{:?}, {:?}]",
-                            *name,
-                            old_e,
-                            e1
-                        );
-                    }
-                }
-            }
-            (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) => {
-                debug_assert_eq!(exprs1.len(), exprs2.len());
-                for (e1, e2) in exprs1.iter().zip(exprs2) {
-                    self.infer_from_exprs(params, e1, e2);
-                }
-            }
-            (ExprKind::PathProj(e1, field1), ExprKind::PathProj(e2, field2))
-                if field1 == field2 =>
-            {
-                self.infer_from_exprs(params, e1, e2);
-            }
-            _ => {}
-        }
-    }
-}
-
-struct FVarSubstFolder<'a> {
-    subst: &'a FVarSubst,
-}
-
-impl TypeFolder for FVarSubstFolder<'_> {
-    fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        if let ExprKind::Var(Var::Free(name)) = expr.kind() {
-            self.subst
-                .fvar_map
-                .get(name)
-                .cloned()
-                .unwrap_or_else(|| expr.clone())
-        } else {
-            expr.super_fold_with(self)
-        }
-    }
-}
+use crate::{rty::*, rustc};
 
 #[derive(Debug)]
 pub struct RegionSubst {
-    map: UnordMap<RegionVar, Region>,
+    map: UnordMap<RegionVid, Region>,
 }
 
 impl RegionSubst {
@@ -108,7 +27,7 @@ impl RegionSubst {
         struct Folder<'a>(&'a RegionSubst);
         impl TypeFolder for Folder<'_> {
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReVar(var) = re && let Some(region) = self.0.map.get(var) {
+                if let ReVar(rvid) = re && let Some(region) = self.0.map.get(rvid) {
                     *region
                 } else {
                     *re
@@ -279,7 +198,7 @@ where
 
 /// Substitution for [existential variables]
 ///
-/// [existential variables]: `crate::rty::Var::EVar`
+/// [existential variables]: crate::rty::Var::EVar
 pub(super) struct EVarSubstFolder<'a> {
     evars: &'a EVarSol,
 }
@@ -303,12 +222,13 @@ impl TypeFolder for EVarSubstFolder<'_> {
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
-    generics: &'a [GenericArg],
+    /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
+    generics: Option<&'a [GenericArg]>,
     refine: &'a [Expr],
 }
 
 impl<'a> GenericsSubstFolder<'a> {
-    pub(super) fn new(generics: &'a [GenericArg], refine: &'a [Expr]) -> Self {
+    pub(super) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, generics, refine }
     }
 }
@@ -329,10 +249,43 @@ impl TypeFolder for GenericsSubstFolder<'_> {
         }
     }
 
+    // [NOTE:index-subst]
+
+    // Consider
+
+    // ```rust
+    // fn choose <T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])
+    // ```
+
+    // and then a client
+
+    // ```rust
+    // pub fn test01() {
+    //     assert(choose(true, 0, 1) == 0);
+    // }
+    // ```
+
+    // At the callsite `choose(true, 0, 1)` there are *two* substitutions going on
+    // in the signature for `choose` i.e. for the `T[@n]` and `T[@m]`
+
+    // 1. `T` -> `i32{v: ...}`
+    // 2. earlybound `n, m` -> fresh-evars.
+
+    // The trouble is that if you solely rely on the `bty_for_param` code below,
+    // then the `n, m` substitutions "get lost" and so those variables are not
+    // "solved for" and you get that pesky instantiation error.
+
+    // Instead, we _first_ substitute for the indices, and then let `bty_for_param`
+    // do its business.
+
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
-            TyKind::Indexed(BaseTy::Param(param_ty), idx) => self.bty_for_param(*param_ty, idx),
+            TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
+                // See [NOTE:index-subst]
+                let idx = idx.fold_with(self);
+                self.bty_for_param(*param_ty, &idx)
+            }
             _ => ty.super_fold_with(self),
         }
     }
@@ -356,40 +309,58 @@ impl TypeFolder for GenericsSubstFolder<'_> {
 
 impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => {
-                if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
-                    sort.clone()
-                } else {
-                    bug!("unexpected bound variable `{arg:?}`")
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::BaseTy(arg)) => {
+                    if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
+                        sort.clone()
+                    } else {
+                        bug!("unexpected bound variable `{arg:?}`")
+                    }
                 }
+                Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
+                None => bug!("type parameter out of range {param_ty:?}"),
             }
-            Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
-            None => bug!("type parameter out of range {param_ty:?}"),
+        } else {
+            Sort::Param(param_ty)
         }
     }
 
     fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::Ty(ty)) => ty.clone(),
+                Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+                None => bug!("type parameter out of range"),
+            }
+        } else {
+            Ty::param(param_ty)
         }
     }
 
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs(slice::from_ref(&idx.expr)),
-            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::BaseTy(arg)) => {
+                    arg.replace_bound_exprs(slice::from_ref(&idx.expr))
+                }
+                Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+                None => bug!("type parameter out of range"),
+            }
+        } else {
+            Ty::indexed(BaseTy::Param(param_ty), idx.clone())
         }
     }
 
     fn region_for_param(&self, ebr: EarlyBoundRegion) -> Region {
-        match self.generics.get(ebr.index as usize) {
-            Some(GenericArg::Lifetime(re)) => *re,
-            Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
-            None => bug!("region parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(ebr.index as usize) {
+                Some(GenericArg::Lifetime(re)) => *re,
+                Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
+                None => bug!("region parameter out of range"),
+            }
+        } else {
+            ReEarlyBound(ebr)
         }
     }
 

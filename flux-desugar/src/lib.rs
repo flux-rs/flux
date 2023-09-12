@@ -40,7 +40,6 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::OwnerId;
 
 pub fn desugar_struct_def(
@@ -142,9 +141,10 @@ pub fn desugar_fn_sig(
         let resolver = table_resolver::Resolver::new(genv.tcx, genv.sess, def_id)?;
         let fn_sig = resolver.resolve_fn_sig(fn_sig)?;
 
-        let mut opaque_tys = FxHashMap::default();
+        let mut opaque_tys = Default::default();
         let mut cx = DesugarCtxt::new(genv, owner_id, Some(&mut opaque_tys));
 
+        // DESUGAR GENERICS
         let generics = if let Some(generics) = &fn_sig.generics {
             cx.desugar_generics(generics)?
         } else {
@@ -153,6 +153,7 @@ pub fn desugar_fn_sig(
         // See crate level comment
         genv.map().insert_generics(def_id, generics);
 
+        // DESUGAR FN_SIG (needs to happen AFTER desugaring generics)
         let (generic_preds, fn_sig) = cx.desugar_fn_sig(&fn_sig, &mut Binders::new())?;
 
         if config::dump_fhir() {

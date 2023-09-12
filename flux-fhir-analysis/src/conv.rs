@@ -19,8 +19,7 @@ use flux_middle::{
     rustc::{self, lowering},
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -31,7 +30,7 @@ use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    late_bound_vars_map: FxHashMap<DefId, BoundVar>,
+    late_bound_vars_map: UnordMap<DefId, BoundVar>,
     wfckresults: &'a fhir::WfckResults,
 }
 
@@ -92,12 +91,15 @@ pub(crate) fn expand_type_alias(
 
 pub(crate) fn conv_generic_predicates(
     genv: &GlobalEnv,
-    def_id: DefId,
+    def_id: LocalDefId,
     predicates: &fhir::GenericPredicates,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::GenericPredicates> {
+) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let env = &mut Env::new(&[]);
+
+    let refparams = genv.map().get_refine_params(genv.tcx, def_id);
+
+    let env = &mut Env::new(refparams.unwrap_or(&[]));
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
@@ -106,8 +108,8 @@ pub(crate) fn conv_generic_predicates(
             clauses.push(clause);
         }
     }
-    let parent = genv.tcx.opt_parent(def_id);
-    Ok(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) })
+    let parent = genv.tcx.opt_parent(def_id.to_def_id());
+    Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
 }
 
 pub(crate) fn conv_opaque_ty(
@@ -117,7 +119,11 @@ pub(crate) fn conv_opaque_ty(
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let env = &mut Env::new(&[]);
+    let parent = genv.tcx.parent(def_id).expect_local();
+    let refparams = genv.map().get_refine_params(genv.tcx, parent);
+
+    let env = &mut Env::new(refparams.unwrap_or(&[]));
+
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args);
     Ok(cx
@@ -127,8 +133,10 @@ pub(crate) fn conv_opaque_ty(
 }
 
 pub(crate) fn conv_generics(
+    genv: &GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
+    refine_params: &[fhir::RefineParam],
 ) -> rty::Generics {
     let mut fhir_params = generics.params.iter();
     let params = rust_generics
@@ -139,11 +147,11 @@ pub(crate) fn conv_generics(
                 .find(|param| rust_param.def_id == param.def_id.to_def_id())
                 .map(|param| {
                     let kind = match &param.kind {
-                        fhir::GenericParamDefKind::Type { default } => {
+                        fhir::GenericParamKind::Type { default } => {
                             rty::GenericParamDefKind::Type { has_default: default.is_some() }
                         }
-                        fhir::GenericParamDefKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                        fhir::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+                        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+                        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
                     };
                     rty::GenericParamDef {
                         kind,
@@ -154,8 +162,15 @@ pub(crate) fn conv_generics(
                 })
         })
         .collect();
+
+    let refine_params = refine_params
+        .iter()
+        .map(|param| conv_refine_param(genv, param))
+        .collect();
+
     rty::Generics {
         params,
+        refine_params,
         parent_count: rust_generics.orig.parent_count,
         parent: rust_generics.orig.parent,
     }
@@ -224,13 +239,13 @@ pub(crate) fn conv_fn_sig(
     def_id: LocalDefId,
     fn_sig: &fhir::FnSig,
     wfckresults: &fhir::WfckResults,
-) -> QueryResult<rty::PolyFnSig> {
+) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(&[]);
-    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &fn_sig.params, true));
+    let mut env = Env::new(&fn_sig.params);
+    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut requires = vec![];
     for constr in &fn_sig.requires {
@@ -251,7 +266,7 @@ pub(crate) fn conv_fn_sig(
         .collect();
 
     let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
-    Ok(res)
+    Ok(rty::EarlyBinder(res))
 }
 
 pub(crate) fn conv_ty(
@@ -1034,7 +1049,13 @@ fn conv_sorts<'a>(
         .collect()
 }
 
-fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
+pub(crate) fn conv_refine_param(genv: &GlobalEnv, param: &fhir::RefineParam) -> rty::RefineParam {
+    let sort = conv_sort(genv, &param.sort);
+    let mode = param.infer_mode();
+    rty::RefineParam { sort, mode }
+}
+
+pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
     match sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,
@@ -1093,13 +1114,13 @@ fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
 // FIXME(nilehmann) we are passing the id of the owner, we should be passing the HirId of the node.
 // For example, if we want to convert a higher ranked where clause we need to pass the HirId of the
 // clause not its owner id.
-fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId, BoundVar> {
-    let FluxOwnerId::Rust(owner_id) = owner_id else { return FxHashMap::default() };
+fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> UnordMap<DefId, BoundVar> {
+    let FluxOwnerId::Rust(owner_id) = owner_id else { return Default::default() };
 
     // HACK(nilehmann) rustc doesn't fill the late bound map for the opaque type itself, only for
     // contained nodes. Thus, we skip it here or else the call to `late_bound_vars` will panic.
     if matches!(tcx.def_kind(owner_id.to_def_id()), DefKind::OpaqueTy) {
-        return FxHashMap::default();
+        return Default::default();
     }
 
     let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);

@@ -13,7 +13,7 @@ fn swap<T>(x: &mut T, y: &mut T) {
     std::mem::swap(x, y)
 }
 
-fn test00() {
+pub fn test00() {
     let mut x = 0;
     let mut y = 1;
     swap(&mut x, &mut y);
@@ -22,7 +22,7 @@ fn test00() {
 }
 
 #[flux::sig(fn<T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])]
-fn choose<T>(b: bool, x: T, y: T) -> T {
+pub fn choose<T>(b: bool, x: T, y: T) -> T {
     if b {
         x
     } else {
@@ -30,7 +30,7 @@ fn choose<T>(b: bool, x: T, y: T) -> T {
     }
 }
 
-fn test01() {
+pub fn test01() {
     assert(choose(true, 0, 1) == 0);
     assert(choose(false, 0, 1) == 1);
 }

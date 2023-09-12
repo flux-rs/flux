@@ -1,6 +1,6 @@
 <img
     src="assets/logo-wide.svg"
-    alt="flux logo">
+    alt="flux logo" class="flux-logo">
 
 `flux` is a refinement type checker for Rust.
 

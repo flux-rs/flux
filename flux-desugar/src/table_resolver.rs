@@ -4,8 +4,8 @@ use flux_middle::fhir::Res;
 use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, Ty};
 use hir::{def::DefKind, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def_id::LocalDefId};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
@@ -21,7 +21,7 @@ pub struct ResKey {
 }
 
 struct NameResTable<'sess> {
-    res: FxHashMap<ResKey, ResEntry>,
+    res: UnordMap<ResKey, ResEntry>,
     opaque: Option<LocalDefId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     sess: &'sess FluxSession,
 }
@@ -337,7 +337,7 @@ impl<'sess> Resolver<'sess> {
 
 impl<'sess> NameResTable<'sess> {
     fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
-        NameResTable { sess, opaque: None, res: FxHashMap::default() }
+        NameResTable { sess, opaque: None, res: UnordMap::default() }
     }
 
     fn from_item(

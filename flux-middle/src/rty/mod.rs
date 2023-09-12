@@ -20,7 +20,7 @@ use flux_common::{bug, index::IndexGen};
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -59,9 +59,15 @@ pub use crate::{
 #[derive(Debug, Clone)]
 pub struct Generics {
     pub params: List<GenericParamDef>,
-    // TODO-EARLY: refine_params: List<...>
+    pub refine_params: List<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+pub struct RefineParam {
+    pub sort: Sort,
+    pub mode: InferMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -85,6 +91,9 @@ pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Clause>,
 }
+
+/// An alias for the "EarlyBinder-instantiated" GenericPredicates of a DefId
+pub type ParamEnv = GenericPredicates;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
@@ -748,7 +757,7 @@ where
         replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
-        let mut exprs = FxHashMap::default();
+        let mut exprs = UnordMap::default();
         let delegate = FnMutDelegate {
             exprs: |idx| {
                 exprs
@@ -798,7 +807,12 @@ where
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, generics: &[GenericArg], refine: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
+            .fold_with(&mut subst::GenericsSubstFolder::new(Some(generics), refine))
+    }
+
+    pub fn instantiate_refparams(self, refine: &[Expr]) -> T {
+        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine))
     }
 
     pub fn instantiate_identity(self) -> T {
@@ -1382,7 +1396,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
         }]
     });
 
-    static OVERFLOW: LazyLock<FxHashMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
+    static OVERFLOW: LazyLock<UnordMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
         UINT_TYS
             .into_iter()
             .map(|uint_ty| {
@@ -1414,7 +1428,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
 fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: [Invariant; 0] = [];
 
-    static OVERFLOW: LazyLock<FxHashMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
+    static OVERFLOW: LazyLock<UnordMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
         INT_TYS
             .into_iter()
             .map(|int_ty| {
@@ -1456,6 +1470,7 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     BoundVariableKind,
+    RefineParam,
 );
 
 #[macro_export]

@@ -8,8 +8,8 @@ use flux_middle::{
     global_env::GlobalEnv,
 };
 use itertools::izip;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
@@ -17,7 +17,7 @@ use super::errors;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    sorts: FxHashMap<fhir::Name, fhir::Sort>,
+    sorts: UnordMap<fhir::Name, fhir::Sort>,
     unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
 }
@@ -28,7 +28,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             genv,
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
-            sorts: FxHashMap::default(),
+            sorts: Default::default(),
         }
     }
 

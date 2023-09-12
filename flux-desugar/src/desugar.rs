@@ -9,7 +9,10 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind};
-use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
+use rustc_data_structures::{
+    fx::{FxIndexMap, IndexEntry},
+    unord::UnordMap,
+};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
@@ -103,7 +106,7 @@ pub fn desugar_refined_by(
 
 pub(crate) struct DesugarCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -159,7 +162,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         owner: OwnerId,
-        opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> DesugarCtxt<'a, 'tcx> {
         DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), opaque_tys }
     }
@@ -202,10 +205,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let mut params = vec![];
         for param in &generics.params {
             let kind = match &param.kind {
-                surface::GenericParamKind::Type => {
-                    fhir::GenericParamDefKind::Type { default: None }
-                }
-                surface::GenericParamKind::Base => fhir::GenericParamDefKind::BaseTy,
+                surface::GenericParamKind::Type => fhir::GenericParamKind::Type { default: None },
+                surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
                 surface::GenericParamKind::Refine { .. } => {
                     continue;
                 }
@@ -215,7 +216,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .get(&param.name)
                 .ok_or_else(|| self.emit_err(errors::UnresolvedGenericParam::new(param.name)))?;
 
-            params.push(fhir::GenericParamDef { def_id, kind });
+            params.push(fhir::GenericParam { def_id, kind });
         }
         Ok(fhir::Generics { params })
     }
@@ -413,11 +414,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<(fhir::GenericPredicates, fhir::FnSig), ErrorGuaranteed> {
         let mut requires = vec![];
 
-        let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
-
         // Desugar inputs
         binders.push_layer();
         binders.gather_input_params_fn_sig(self.genv, fn_sig)?;
+        binders.gather_params_predicates(self.genv, &fn_sig.predicates)?;
+
+        // Desugar predicates -- after we have gathered the input params
+        let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
 
         if let Some(e) = &fn_sig.requires {
             let pred = self.as_expr_ctxt().desugar_expr(binders, e)?;
@@ -1235,6 +1238,20 @@ impl Binders {
                 .emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
         };
         self.gather_params_indices(genv, sort, &ret.indices, TypePos::Other)
+    }
+
+    fn gather_params_predicates(
+        &mut self,
+        genv: &GlobalEnv,
+        predicates: &[surface::WhereBoundPredicate<Res>],
+    ) -> Result<(), ErrorGuaranteed> {
+        for predicate in predicates {
+            self.gather_params_ty(genv, None, &predicate.bounded_ty, TypePos::Other)?;
+            for path in &predicate.bounds {
+                self.gather_params_path(genv, path, TypePos::Other)?;
+            }
+        }
+        Ok(())
     }
 
     fn gather_input_params_fn_sig(
