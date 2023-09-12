@@ -33,7 +33,6 @@ mod fixpoint_encoding;
 mod fold_unfold;
 mod ghost_statements;
 pub mod invariants;
-mod param_infer;
 mod queue;
 mod refine_tree;
 mod sigs;

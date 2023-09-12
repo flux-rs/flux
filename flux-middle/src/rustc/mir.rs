@@ -9,7 +9,7 @@ use flux_common::{
 use itertools::Itertools;
 pub use rustc_abi::FieldIdx;
 pub use rustc_borrowck::borrow_set::BorrowData;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex, RegionInferenceContext};
 use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
@@ -38,7 +38,7 @@ pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
     pub fake_predecessors: IndexVec<BasicBlock, usize>,
-    pub(crate) body_with_facts: BodyWithBorrowckFacts<'tcx>,
+    pub(super) body_with_facts: BodyWithBorrowckFacts<'tcx>,
 }
 
 #[derive(Debug)]
@@ -336,6 +336,10 @@ impl<'tcx> Body<'tcx> {
             &self.body_with_facts.region_inference_context,
             &self.body_with_facts.borrow_set,
         )
+    }
+
+    pub fn region_inference_context(&self) -> &RegionInferenceContext<'tcx> {
+        &self.body_with_facts.region_inference_context
     }
 
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {

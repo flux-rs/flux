@@ -4,6 +4,7 @@
 //! "zip" them together.
 //!
 //! [`lift`]: flux_middle::fhir::lift
+//! [`fhir`]: flux_middle::fhir
 use std::iter;
 
 use flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -13,8 +14,8 @@ use flux_middle::fhir::{
     lift::{self, LiftCtxt},
     WfckResults,
 };
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir::OwnerId;
 use rustc_middle::ty::TyCtxt;
 
@@ -94,7 +95,7 @@ struct Zipper<'zip> {
     self_ty: Option<&'zip fhir::Ty>,
 }
 
-type LocsMap<'a> = FxHashMap<fhir::Name, &'a fhir::Ty>;
+type LocsMap<'a> = UnordMap<fhir::Name, &'a fhir::Ty>;
 
 impl<'zip> Zipper<'zip> {
     fn new(

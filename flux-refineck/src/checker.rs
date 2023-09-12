@@ -9,6 +9,7 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self, fold::TypeVisitable, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder,
         Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
@@ -22,13 +23,13 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::{GeneratorArgsParts, RegionVar},
+        ty::GeneratorArgsParts,
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::graph::dominators::Dominators;
+use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir as rustc_mir, ty::RegionVid};
 use rustc_span::Span;
@@ -59,11 +60,11 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     /// [`Generics`] of the function being checked.
     generics: Generics,
     /// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
-    refparams: Vec<Expr>,
+    refparams: List<Expr>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument of a generator.
     resume_ty: Option<Ty>,
-    ghost_stmts: &'ck FxHashMap<DefId, GhostStatements>,
+    ghost_stmts: &'ck UnordMap<DefId, GhostStatements>,
     output: Binder<FnOutput>,
     mode: &'ck mut M,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
@@ -127,7 +128,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, GhostStatements>,
+        extra_data: &'a UnordMap<DefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
@@ -154,7 +155,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, GhostStatements>,
+        extra_data: &'a UnordMap<DefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
@@ -186,7 +187,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: DefId,
-        extra_data: &'a FxHashMap<DefId, GhostStatements>,
+        extra_data: &'a UnordMap<DefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: EarlyBinder<PolyFnSig>,
         config: CheckerConfig,
@@ -197,7 +198,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let rvid_gen = IndexGen::new();
+        let rvid_gen = init_region_gen(&body);
         let params = genv.refparams_of(def_id).with_span(span)?;
 
         let exprs = params
@@ -206,17 +207,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             .collect_vec();
 
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
-        let fn_sig = poly_sig.replace_bound_vars(
-            |_| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: false }),
-            |sort, _| rcx.define_vars(sort),
-        );
+
+        let fn_sig = poly_sig
+            .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Generator {
+        let resume_ty = if genv.tcx.def_kind(def_id) == DefKind::Generator {
             Some(fn_sig.args()[1].clone())
         } else {
             None
@@ -226,7 +226,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
-            refparams: exprs,
+            refparams: exprs.into(),
             body: &body,
             resume_ty,
             ghost_stmts: extra_data,
@@ -622,15 +622,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         msg: &AssertKind,
     ) -> Result<Guard, CheckerError> {
         let ty = self.check_operand(rcx, env, terminator_span, cond)?;
-        let pred = if let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() {
-            if expected {
-                idx.expr.clone()
-            } else {
-                idx.expr.not()
-            }
-        } else {
-            tracked_span_bug!("unexpected ty `{ty:?}`")
+        let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() else {
+            tracked_span_bug!("unexpected ty `{ty:?}`");
         };
+        let pred = if expected { idx.expr.clone() } else { idx.expr.not() };
 
         let msg = match msg {
             AssertKind::DivisionByZero => "possible division by zero",
@@ -1115,8 +1110,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     #[track_caller]
     fn snapshot_at_dominator(&self, bb: BasicBlock) -> &Snapshot {
-        let dominator = self.dominators().immediate_dominator(bb).unwrap();
-        self.snapshots[dominator].as_ref().unwrap()
+        snapshot_at_dominator(self.body, &self.snapshots, bb)
     }
 
     fn dominators(&self) -> &'a Dominators<BasicBlock> {
@@ -1218,15 +1212,15 @@ impl Mode for ShapeMode {
         terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool, CheckerError> {
-        // TODO(nilehmann) we should only ask for the scope in the vacant branch
-        let scope = ck.snapshot_at_dominator(target).scope().unwrap();
-
         let target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
         let modified = match ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(env).with_span(terminator_span)?,
             Entry::Vacant(entry) => {
+                let scope = snapshot_at_dominator(ck.body, &ck.snapshots, target)
+                    .scope()
+                    .unwrap();
                 entry.insert(env.into_infer(scope).with_span(terminator_span)?);
                 true
             }
@@ -1262,7 +1256,7 @@ impl Mode for RefineMode {
             genv,
             def_id,
             refparams,
-            move |sorts: &[_], encoding| self.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
             rvid_gen,
             span,
         )
@@ -1292,11 +1286,7 @@ impl Mode for RefineMode {
             ck.genv,
             ck.def_id,
             &ck.refparams,
-            |sorts: &[_], encoding| {
-                ck.mode
-                    .kvars
-                    .fresh_bound(sorts, bb_env.scope().iter(), encoding)
-            },
+            |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,
             terminator_span,
         );
@@ -1310,6 +1300,42 @@ impl Mode for RefineMode {
         bug!();
     }
 }
+
+fn snapshot_at_dominator<'a>(
+    body: &Body,
+    snapshots: &'a IndexVec<BasicBlock, Option<Snapshot>>,
+    bb: BasicBlock,
+) -> &'a Snapshot {
+    let dominator = body.dominators().immediate_dominator(bb).unwrap();
+    snapshots[dominator].as_ref().unwrap()
+}
+
+/// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
+/// different position in a type. For example, given a function
+///
+/// `fn foo<'a, 'b>(x: &'a S<'a>, y: &'b u32)`
+///
+/// `rustc` will generate variables `?2` and `?3` for the universal regions `'a` and `'b` (the variable
+/// `?0` correspond to `'static` and `?1` to the implicit lifetime of the /// function body). Additionally,
+/// it will assign `x` type &'?4 S<'?5>` and `y` type `&'?6 u32`, together with some constraints relating
+/// region variables.
+///
+/// The exact ids picked for `'a` and `'b` are not too relevant to us, the important part is the regions
+/// used in the types of `x` and `y`. To recover the correct regions, whenever there's an assignment
+/// of a refinement type `T` to a variable with (unrefined) Rust type `S`, we _match_ both types to infer
+/// a region substition. For this to work, we need to give a different variable id to every position
+/// in `T`. To avoid clashes, we need to use fresh ids, so we start enumerating from the last id generated
+/// by borrow checking.
+///
+/// The ids generated during refinement type checking are purely instrumental and they should never
+/// appear in a type bound in the environment. Besides generating ids when checking a function's body,
+/// we also need to generate fresh ids at function calls.
+///
+/// [region variable ids]: RegionVid
+fn init_region_gen(body: &Body) -> IndexGen<RegionVid> {
+    IndexGen::skipping(body.region_inference_context().var_infos.len())
+}
+
 pub(crate) mod errors {
     use flux_errors::ErrorGuaranteed;
     use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};

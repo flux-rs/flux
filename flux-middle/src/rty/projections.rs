@@ -3,6 +3,7 @@ use std::iter;
 #[allow(unused_imports)]
 use flux_common::bug;
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
@@ -14,13 +15,13 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, ClauseKind, Expr, GenericArg, Ty, TyKind,
+    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, Expr, GenericArg, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::QueryErr,
     rty::{fold::TypeVisitable, EarlyBinder},
-    rustc::{self},
+    rustc::{self, ty::BoundRegionKind},
 };
 
 type AliasTyKey = String;
@@ -35,7 +36,7 @@ impl AliasTy {
 struct ProjectionTable<'sess, 'tcx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
     def_id: DefId,
-    preds: FxHashMap<AliasTyKey, Ty>,
+    preds: UnordMap<AliasTyKey, Ty>,
 }
 
 impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
@@ -46,9 +47,14 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         _item_params: &[Expr],
         t: &T,
     ) -> Result<Self, QueryErr> {
-        let mut preds = FxHashMap::default();
+        let mut preds = UnordMap::default();
 
         let mut vec = vec![];
+        // 1. Insert generic predicates of the callsite `callsite_def_id`
+        // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
+        let predicates = genv.predicates_of(src_def_id)?;
+        let param_env = predicates.instantiate_refparams(src_params);
+        vec.push(param_env.predicates);
         // 1. Insert generic predicates of the callsite `callsite_def_id`
         // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
         let predicates = genv.predicates_of(src_def_id)?;
@@ -119,68 +125,104 @@ fn without_constrs<T: TypeFoldable>(t: &T) -> T {
 // -----------------------------------------------------------------------------------------------------
 
 fn into_rustc_generic_arg<'tcx>(
-    tcx: &TyCtxt<'tcx>,
+    tcx: TyCtxt<'tcx>,
     bty: &GenericArg,
 ) -> rustc_middle::ty::GenericArg<'tcx> {
+    use rustc_middle::ty;
     match bty {
-        GenericArg::Ty(ty) => rustc_middle::ty::GenericArg::from(into_rustc_ty(tcx, ty)),
+        GenericArg::Ty(ty) => ty::GenericArg::from(into_rustc_ty(tcx, ty)),
         GenericArg::BaseTy(bty) => {
-            rustc_middle::ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
+            ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
         }
-        GenericArg::Lifetime(_) => todo!(),
+        GenericArg::Lifetime(re) => ty::GenericArg::from(into_rustc_region(tcx, *re)),
         GenericArg::Const(_) => todo!(),
     }
 }
 
-fn into_rustc_bty<'tcx>(tcx: &TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
+fn into_rustc_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx> {
+    match ty.kind() {
+        TyKind::Indexed(bty, _) => into_rustc_bty(tcx, bty),
+        TyKind::Exists(ty) => into_rustc_ty(tcx, &ty.clone().skip_binder()),
+        TyKind::Constr(_, ty) => into_rustc_ty(tcx, ty),
+        TyKind::Param(pty) => pty.to_ty(tcx),
+        TyKind::Alias(_, _) => todo!(),
+        TyKind::Uninit
+        | TyKind::Ptr(_, _)
+        | TyKind::Discr(_, _)
+        | TyKind::Downcast(_, _, _, _, _)
+        | TyKind::Blocked(_) => bug!(),
+    }
+}
+
+fn into_rustc_bty<'tcx>(tcx: TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
+    use rustc_middle::ty;
     match bty {
-        BaseTy::Int(i) => rustc_middle::ty::Ty::new_int(*tcx, *i), // rustc_middle::ty::Ty::mk_int(*tcx, int_ty),
-        BaseTy::Uint(i) => rustc_middle::ty::Ty::new_uint(*tcx, *i),
-        BaseTy::Param(pty) => pty.to_ty(*tcx),
-        BaseTy::Slice(ty) => rustc_middle::ty::Ty::new_slice(*tcx, into_rustc_ty(tcx, ty)),
-        BaseTy::Bool => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Bool),
-        BaseTy::Char => rustc_middle::ty::Ty::new(*tcx, rustc_middle::ty::TyKind::Char),
+        BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
+        BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
+        BaseTy::Param(pty) => pty.to_ty(tcx),
+        BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, into_rustc_ty(tcx, ty)),
+        BaseTy::Bool => tcx.types.bool,
+        BaseTy::Char => tcx.types.char,
         BaseTy::Str => tcx.types.str_,
         BaseTy::Adt(adt_def, args) => {
             let did = adt_def.did();
             let adt_def = tcx.adt_def(did);
             let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
             let args = tcx.mk_args_from_iter(args);
-            rustc_middle::ty::Ty::new_adt(*tcx, adt_def, args)
+            ty::Ty::new_adt(tcx, adt_def, args)
         }
-        BaseTy::Float(f) => rustc_middle::ty::Ty::new_float(*tcx, *f),
-        BaseTy::RawPtr(_, _) => todo!(),
-        BaseTy::Ref(_, _, _) => todo!(),
+        BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
+        BaseTy::RawPtr(ty, mutbl) => {
+            ty::Ty::new_ptr(tcx, ty::TypeAndMut { ty: into_rustc_ty(tcx, ty), mutbl: *mutbl })
+        }
+        BaseTy::Ref(re, ty, mutbl) => {
+            ty::Ty::new_ref(
+                tcx,
+                into_rustc_region(tcx, *re),
+                ty::TypeAndMut { ty: into_rustc_ty(tcx, ty), mutbl: *mutbl },
+            )
+        }
         BaseTy::Tuple(tys) => {
             let ts = tys.iter().map(|ty| into_rustc_ty(tcx, ty)).collect_vec();
-            rustc_middle::ty::Ty::new_tup(*tcx, &ts)
+            ty::Ty::new_tup(tcx, &ts)
         }
         BaseTy::Array(_, _) => todo!(),
-        BaseTy::Never => todo!(),
+        BaseTy::Never => tcx.types.never,
         BaseTy::Closure(_, _) => todo!(),
         BaseTy::Generator(def_id, args) => {
             todo!("Generator {:?} {:?}", def_id, args)
-            // let args = args.iter().map(|ty| into_rustc_ty(tcx, ty));
+            // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
             // let args = tcx.mk_args_from_iter(args);
-            // rustc_middle::ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            // ty::Ty::new_generator(*tcx, *def_id, args, mov)
         }
         BaseTy::GeneratorWitness(_) => todo!(),
     }
 }
 
-fn into_rustc_ty<'tcx>(tcx: &TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx> {
-    match ty.kind() {
-        TyKind::Indexed(bty, _) => into_rustc_bty(tcx, bty),
-        TyKind::Exists(ty) => into_rustc_ty(tcx, &ty.clone().skip_binder()),
-        TyKind::Constr(_, ty) => into_rustc_ty(tcx, ty),
-        TyKind::Param(pty) => pty.to_ty(*tcx),
-        TyKind::Uninit => todo!(),
-        TyKind::Ptr(_, _) => todo!(),
-        TyKind::Discr(_, _) => todo!(),
-        TyKind::Downcast(_, _, _, _, _) => todo!(),
-        TyKind::Blocked(_) => todo!(),
-        TyKind::Alias(_, _) => todo!(),
+fn into_rustc_region(tcx: TyCtxt, re: Region) -> rustc_middle::ty::Region {
+    match re {
+        Region::ReLateBound(debruijn, bound_region) => {
+            rustc_middle::ty::Region::new_late_bound(
+                tcx,
+                debruijn,
+                into_rustc_bound_region(bound_region),
+            )
+        }
+        Region::ReEarlyBound(ebr) => rustc_middle::ty::Region::new_early_bound(tcx, ebr),
+        Region::ReStatic => tcx.lifetimes.re_static,
+        Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
+        Region::ReErased => tcx.lifetimes.re_erased,
     }
+}
+
+fn into_rustc_bound_region(bound_region: BoundRegion) -> rustc_middle::ty::BoundRegion {
+    use rustc_middle::ty;
+    let kind = match bound_region.kind {
+        BoundRegionKind::BrAnon => ty::BoundRegionKind::BrAnon(None),
+        BoundRegionKind::BrNamed(def_id, sym) => ty::BoundRegionKind::BrNamed(def_id, sym),
+        BoundRegionKind::BrEnv => ty::BoundRegionKind::BrEnv,
+    };
+    ty::BoundRegion { var: bound_region.var, kind }
 }
 
 #[derive(Debug)]
@@ -267,7 +309,7 @@ fn get_impl_source<'tcx>(
 ) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
     // 1a. build up the `Obligation` query
     let trait_def_id = genv.tcx.parent(elem);
-    let trait_ref = TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(&genv.tcx, impl_rty)]);
+    let trait_ref = TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(genv.tcx, impl_rty)]);
     let predicate = trait_ref.to_predicate(genv.tcx);
 
     let oblig = Obligation {
@@ -290,10 +332,9 @@ fn get_impl_source<'tcx>(
     impl_source
 }
 
-/// QUERY: normalize <std::vec::IntoIter<Nat> as std::iter::Iterator::Item>
+/// QUERY: normalize `<std::vec::IntoIter<Nat> as std::iter::Iterator::Item>`
 /// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
 /// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
-
 fn normalize_with_impl<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
     param_env: rustc_middle::ty::ParamEnv<'tcx>,

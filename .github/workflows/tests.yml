@@ -1,38 +1,43 @@
+name: build
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-name: build
-
 jobs:
   check-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Clone fixpoint
         run: |
           git clone https://github.com/ucsd-progsys/liquid-fixpoint
           echo "fixpoint_hash=$(git -C liquid-fixpoint/ rev-parse HEAD)" >> $GITHUB_ENV
           echo "local_binaries_path=$(pwd)/local-binaries" >> $GITHUB_ENV
+
       - name: Cache fixpoint
         uses: actions/cache@v3.3.1
         id: cache-fixpoint
         with:
           path: local-binaries
           key: fixpoint-bin-${{ runner.os }}-${{ env.fixpoint_hash }}
+
       - name: Install Haskell
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
         uses: haskell/actions/setup@v2.3.7
         with:
           enable-stack: true
           stack-version: "latest"
+
       - name: Compile fixpoint
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
         run: |
           cd liquid-fixpoint
           stack install --fast --local-bin-path "$local_binaries_path"
+
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.0.9
         with:
@@ -40,15 +45,18 @@ jobs:
           platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Add Fixpoint to the path
         run: |
           echo "$local_binaries_path" >> $GITHUB_PATH
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
-      # We need to build before running tests for the binary to be ready
+
       - name: Build
         run: |
           cargo build
+
       - name: Run tests
         run: |
           which fixpoint && cargo xtask test
@@ -57,8 +65,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
+
       - name: Rust rustfmt
         run: cargo fmt --check
 
@@ -66,10 +76,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Add clippy
         run: rustup component add clippy
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
+
       - name: Run clippy
         uses: actions-rs/clippy-check@v1.0.7
         with:
