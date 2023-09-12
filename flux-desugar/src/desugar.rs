@@ -414,11 +414,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<(fhir::GenericPredicates, fhir::FnSig), ErrorGuaranteed> {
         let mut requires = vec![];
 
-        let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
-
         // Desugar inputs
         binders.push_layer();
         binders.gather_input_params_fn_sig(self.genv, fn_sig)?;
+        binders.gather_params_predicates(self.genv, &fn_sig.predicates)?;
+
+        // Desugar predicates -- after we have gathered the input params
+        let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
 
         if let Some(e) = &fn_sig.requires {
             let pred = self.as_expr_ctxt().desugar_expr(binders, e)?;
@@ -1236,6 +1238,20 @@ impl Binders {
                 .emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
         };
         self.gather_params_indices(genv, sort, &ret.indices, TypePos::Other)
+    }
+
+    fn gather_params_predicates(
+        &mut self,
+        genv: &GlobalEnv,
+        predicates: &[surface::WhereBoundPredicate<Res>],
+    ) -> Result<(), ErrorGuaranteed> {
+        for predicate in predicates {
+            self.gather_params_ty(genv, None, &predicate.bounded_ty, TypePos::Other)?;
+            for path in &predicate.bounds {
+                self.gather_params_path(genv, path, TypePos::Other)?;
+            }
+        }
+        Ok(())
     }
 
     fn gather_input_params_fn_sig(

@@ -123,14 +123,14 @@ fn predicates_of(
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let predicates = if let Some(predicates) = genv.map().get_generic_predicates(local_id) {
         let wfckresults = genv.check_wf(local_id)?;
-        conv::conv_generic_predicates(genv, local_id.to_def_id(), predicates, &wfckresults)?
+        conv::conv_generic_predicates(genv, local_id, predicates, &wfckresults)?
     } else {
-        rty::GenericPredicates {
+        rty::EarlyBinder(rty::GenericPredicates {
             parent: genv.tcx.opt_parent(local_id.to_def_id()),
             predicates: List::empty(),
-        }
+        })
     };
-    Ok(rty::EarlyBinder(predicates))
+    Ok(predicates)
 }
 
 fn item_bounds(
@@ -142,6 +142,11 @@ fn item_bounds(
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id.to_def_id(), opaque_ty, &wfckresults)?))
 }
 
+// // TODO(RJ): using `Vec` instead of `List` due to some inscrutable rustc error
+// fn refine_params_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<Vec<rty::RefineParam>> {
+//     Ok(generics_of(genv, local_id)?.refine_params)
+// }
+
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
@@ -152,7 +157,11 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
             .get_generics(genv.tcx.local_parent(local_id))
             .unwrap_or_else(|| panic!("no generics for {:?}", def_id))
     });
-    Ok(conv::conv_generics(&rustc_generics, generics))
+    let refine_params = genv
+        .map()
+        .get_refine_params(genv.tcx, local_id)
+        .unwrap_or(&[]);
+    Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params))
 }
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
@@ -217,12 +226,14 @@ fn variants_of(
 fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let fn_sig = genv.map().get_fn_sig(def_id);
     let wfckresults = genv.check_wf(def_id)?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?.normalize(genv.defns()?);
+    let defns = genv.defns()?;
+    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
+        .map(|fn_sig| fn_sig.normalize(defns));
 
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
     }
-    Ok(rty::EarlyBinder(fn_sig))
+    Ok(fn_sig)
 }
 
 fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {

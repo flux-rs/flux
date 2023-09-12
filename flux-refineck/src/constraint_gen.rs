@@ -31,6 +31,7 @@ use crate::{
 pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     def_id: DefId,
+    refparams: &'a [Expr],
     kvar_gen: Box<dyn KVarGen + 'a>,
     rvid_gen: &'a IndexGen<RegionVid>,
     span: Span,
@@ -49,6 +50,7 @@ pub trait KVarGen {
 pub(crate) struct InferCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     def_id: DefId,
+    refparams: &'a [Expr],
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
     rvid_gen: &'a IndexGen<RegionVid>,
@@ -92,6 +94,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub fn new<G>(
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        refparams: &'a [Expr],
         kvar_gen: G,
         rvid_gen: &'a IndexGen<RegionVid>,
         span: Span,
@@ -99,7 +102,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, def_id, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, def_id, refparams, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
     }
 
     pub(crate) fn check_pred(
@@ -189,15 +192,26 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
-        let inst_fn_sig = fn_sig.instantiate(&generic_args, &[]).replace_bound_vars(
-            |_| rty::ReVar(rvid_gen.fresh()),
-            |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
-        );
 
-        let inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, &inst_fn_sig)?;
+        let exprs = infcx.inst_exprs(genv, callee_def_id);
+
+        let inst_fn_sig = fn_sig
+            .instantiate(&generic_args, &exprs)
+            .replace_bound_vars(
+                |_| rty::ReVar(rvid_gen.fresh()),
+                |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
+            );
+
+        let inst_fn_sig = rty::projections::normalize(
+            genv,
+            callsite_def_id,
+            infcx.refparams,
+            &exprs,
+            &inst_fn_sig,
+        )?;
 
         let obligs = if let Some(did) = callee_def_id {
-            mk_obligations(genv, did, &generic_args)?
+            mk_obligations(genv, did, &generic_args, &exprs)?
         } else {
             List::empty()
         };
@@ -245,7 +259,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
                 let proj_ty = Ty::projection(projection_pred.projection_ty);
-                let impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, &proj_ty)?;
+                let impl_elem = rty::projections::normalize(
+                    infcx.genv,
+                    callsite_def_id,
+                    infcx.refparams,
+                    &exprs,
+                    &proj_ty,
+                )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
@@ -265,12 +285,18 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        def_id: DefId,
+        callsite_def_id: DefId,
         output: &Binder<FnOutput>,
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(self.genv, def_id, output)?;
+        let output = rty::projections::normalize(
+            self.genv,
+            callsite_def_id,
+            self.refparams,
+            self.refparams,
+            output,
+        )?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -362,6 +388,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         InferCtxt::new(
             self.genv,
             self.def_id,
+            self.refparams,
             rcx,
             &mut self.kvar_gen,
             self.rvid_gen,
@@ -374,6 +401,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        refparams: &'a [Expr],
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
         rvid_gen: &'a IndexGen<RegionVid>,
@@ -382,7 +410,30 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self { genv, def_id, kvar_gen, evar_gen, rvid_gen, tag, scopes, obligs: Vec::new() }
+        Self {
+            genv,
+            def_id,
+            refparams,
+            kvar_gen,
+            evar_gen,
+            rvid_gen,
+            tag,
+            scopes,
+            obligs: Vec::new(),
+        }
+    }
+
+    fn inst_exprs(&mut self, genv: &GlobalEnv, callee_def_id: Option<DefId>) -> Vec<Expr> {
+        if let Some(callee_id) = callee_def_id &&
+           let Ok(params) = genv.refparams_of(callee_id)
+         {
+            params
+                .iter()
+                .map(|param| self.fresh_evars_or_kvar(&param.sort, param.mode))
+                .collect_vec()
+         } else {
+            vec![]
+        }
     }
 
     fn obligations(&self) -> Vec<rty::Clause> {
@@ -589,7 +640,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args);
         let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(self.genv, self.def_id, &proj_ty).unwrap()
+        rty::projections::normalize(
+            self.genv,
+            self.def_id,
+            self.refparams,
+            self.refparams,
+            &proj_ty,
+        )
+        .unwrap()
     }
 
     fn opaque_subtyping(
@@ -602,7 +660,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
             self.insert_obligations(obligs);
         } else {
-            let bounds = self.genv.item_bounds(alias_ty.def_id)?.skip_binder();
+            let bounds = self
+                .genv
+                .item_bounds(alias_ty.def_id)?
+                .instantiate_refparams(self.refparams);
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
                     let ty1 = self.project_bty(ty, pred.projection_ty.def_id);
@@ -733,8 +794,12 @@ fn mk_obligations(
     genv: &GlobalEnv<'_, '_>,
     did: DefId,
     args: &[GenericArg],
+    refine: &[Expr],
 ) -> Result<List<rty::Clause>, CheckerErrKind> {
-    Ok(genv.predicates_of(did)?.predicates().instantiate(args, &[]))
+    Ok(genv
+        .predicates_of(did)?
+        .predicates()
+        .instantiate(args, refine))
 }
 
 impl<F> KVarGen for F

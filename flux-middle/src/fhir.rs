@@ -40,6 +40,7 @@ use rustc_hir::{
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -874,6 +875,14 @@ impl Map {
 
     pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
         self.generics.get(&def_id)
+    }
+
+    pub fn get_refine_params(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&[RefineParam]> {
+        if matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
+            Some(&self.get_fn_sig(def_id).params)
+        } else {
+            None
+        }
     }
 
     pub fn get_generic_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {

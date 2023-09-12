@@ -59,8 +59,15 @@ pub use crate::{
 #[derive(Debug, Clone)]
 pub struct Generics {
     pub params: List<GenericParamDef>,
+    pub refine_params: List<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+pub struct RefineParam {
+    pub sort: Sort,
+    pub mode: InferMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -84,6 +91,9 @@ pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Clause>,
 }
+
+/// An alias for the "EarlyBinder-instantiated" GenericPredicates of a DefId
+pub type ParamEnv = GenericPredicates;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
@@ -797,7 +807,12 @@ where
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, generics: &[GenericArg], refine: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(generics, refine))
+            .fold_with(&mut subst::GenericsSubstFolder::new(Some(generics), refine))
+    }
+
+    pub fn instantiate_refparams(self, refine: &[Expr]) -> T {
+        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine))
     }
 
     pub fn instantiate_identity(self) -> T {
@@ -1455,6 +1470,7 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     BoundVariableKind,
+    RefineParam,
 );
 
 #[macro_export]

@@ -9,6 +9,7 @@ use flux_common::{
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
         FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
@@ -58,6 +59,8 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     def_id: DefId,
     /// [`Generics`] of the function being checked.
     generics: Generics,
+    /// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
+    refparams: List<Expr>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument of a generator.
     resume_ty: Option<Ty>,
@@ -76,6 +79,7 @@ pub(crate) trait Mode: Sized {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        refparams: &'a [Expr],
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         span: Span,
@@ -130,10 +134,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let fn_sig = genv
-                .fn_sig(def_id)
-                .with_span(genv.tcx.def_span(def_id))?
-                .instantiate_identity();
+            let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
 
             Checker::run(
                 genv,
@@ -158,10 +159,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        let fn_sig = genv
-            .fn_sig(def_id)
-            .with_span(genv.tcx.def_span(def_id))?
-            .instantiate_identity();
+        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
@@ -190,16 +189,25 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         def_id: DefId,
         extra_data: &'a UnordMap<DefId, GhostStatements>,
         mode: &'a mut M,
-        poly_sig: PolyFnSig,
+        poly_sig: EarlyBinder<PolyFnSig>,
         config: CheckerConfig,
     ) -> Result<(), CheckerError> {
-        let body = genv
-            .mir(def_id.expect_local())
-            .with_span(genv.tcx.def_span(def_id))?;
+        let span = genv.tcx.def_span(def_id);
+
+        let body = genv.mir(def_id.expect_local()).with_span(span)?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let rvid_gen = init_region_gen(&body);
+        let params = genv.refparams_of(def_id).with_span(span)?;
+
+        let exprs = params
+            .iter()
+            .map(|param| rcx.define_vars(&param.sort))
+            .collect_vec();
+
+        let poly_sig = poly_sig.instantiate_refparams(&exprs);
+
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));
 
@@ -218,6 +226,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
+            refparams: exprs.into(),
             body: &body,
             resume_ty,
             ghost_stmts: extra_data,
@@ -398,7 +407,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 let obligs = self
                     .mode
-                    .constr_gen(self.genv, self.def_id, &self.rvid_gen, rcx, span)
+                    .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, rcx, span)
                     .check_ret(rcx, env, self.def_id, &self.output)
                     .with_span(span)?;
                 self.check_closure_obligs(rcx, obligs)?;
@@ -536,7 +545,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             gen_pred.def_id,
             self.ghost_stmts,
             self.mode,
-            poly_sig,
+            EarlyBinder(poly_sig),
             self.config,
         )
     }
@@ -551,13 +560,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
             let refine_tree = rcx.subtree_at(snapshot).unwrap();
+            let poly_sig = fn_trait_pred.to_closure_sig(*def_id, tys.clone());
             Checker::run(
                 self.genv,
                 refine_tree,
                 *def_id,
                 self.ghost_stmts,
                 self.mode,
-                fn_trait_pred.to_closure_sig(*def_id, tys.clone()),
+                EarlyBinder(poly_sig),
                 self.config,
             )?;
         } else {
@@ -710,7 +720,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             let obligs = self
                 .mode
-                .constr_gen(self.genv, self.def_id, &self.rvid_gen, &rcx, span)
+                .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, &rcx, span)
                 .check_ret(&mut rcx, &mut env, self.def_id, &self.output)
                 .with_span(span)?;
             self.check_closure_obligs(&mut rcx, obligs)?;
@@ -1079,7 +1089,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
         self.mode
-            .constr_gen(self.genv, self.def_id, &self.rvid_gen, rcx, span)
+            .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, rcx, span)
     }
 
     #[track_caller]
@@ -1163,11 +1173,12 @@ impl Mode for ShapeMode {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        refparams: &'a [Expr],
         rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, def_id, |_: &[_], _| Expr::hole(), rvid_gen, span)
+        ConstrGen::new(genv, def_id, refparams, |_: &[_], _| Expr::hole(), rvid_gen, span)
     }
 
     fn enter_basic_block<'a>(
@@ -1219,6 +1230,7 @@ impl Mode for RefineMode {
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
         def_id: DefId,
+        refparams: &'a [Expr],
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         span: Span,
@@ -1227,6 +1239,7 @@ impl Mode for RefineMode {
         ConstrGen::new(
             genv,
             def_id,
+            refparams,
             move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
             rvid_gen,
             span,
@@ -1256,6 +1269,7 @@ impl Mode for RefineMode {
         let gen = &mut ConstrGen::new(
             ck.genv,
             ck.def_id,
+            &ck.refparams,
             |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,
             terminator_span,

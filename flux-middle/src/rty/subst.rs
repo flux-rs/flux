@@ -222,12 +222,13 @@ impl TypeFolder for EVarSubstFolder<'_> {
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 pub(super) struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
-    generics: &'a [GenericArg],
+    /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
+    generics: Option<&'a [GenericArg]>,
     refine: &'a [Expr],
 }
 
 impl<'a> GenericsSubstFolder<'a> {
-    pub(super) fn new(generics: &'a [GenericArg], refine: &'a [Expr]) -> Self {
+    pub(super) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, generics, refine }
     }
 }
@@ -248,10 +249,43 @@ impl TypeFolder for GenericsSubstFolder<'_> {
         }
     }
 
+    // [NOTE:index-subst]
+
+    // Consider
+
+    // ```rust
+    // fn choose <T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])
+    // ```
+
+    // and then a client
+
+    // ```rust
+    // pub fn test01() {
+    //     assert(choose(true, 0, 1) == 0);
+    // }
+    // ```
+
+    // At the callsite `choose(true, 0, 1)` there are *two* substitutions going on
+    // in the signature for `choose` i.e. for the `T[@n]` and `T[@m]`
+
+    // 1. `T` -> `i32{v: ...}`
+    // 2. earlybound `n, m` -> fresh-evars.
+
+    // The trouble is that if you solely rely on the `bty_for_param` code below,
+    // then the `n, m` substitutions "get lost" and so those variables are not
+    // "solved for" and you get that pesky instantiation error.
+
+    // Instead, we _first_ substitute for the indices, and then let `bty_for_param`
+    // do its business.
+
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
-            TyKind::Indexed(BaseTy::Param(param_ty), idx) => self.bty_for_param(*param_ty, idx),
+            TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
+                // See [NOTE:index-subst]
+                let idx = idx.fold_with(self);
+                self.bty_for_param(*param_ty, &idx)
+            }
             _ => ty.super_fold_with(self),
         }
     }
@@ -275,40 +309,58 @@ impl TypeFolder for GenericsSubstFolder<'_> {
 
 impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => {
-                if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
-                    sort.clone()
-                } else {
-                    bug!("unexpected bound variable `{arg:?}`")
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::BaseTy(arg)) => {
+                    if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
+                        sort.clone()
+                    } else {
+                        bug!("unexpected bound variable `{arg:?}`")
+                    }
                 }
+                Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
+                None => bug!("type parameter out of range {param_ty:?}"),
             }
-            Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
-            None => bug!("type parameter out of range {param_ty:?}"),
+        } else {
+            Sort::Param(param_ty)
         }
     }
 
     fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::Ty(ty)) => ty.clone(),
+                Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+                None => bug!("type parameter out of range"),
+            }
+        } else {
+            Ty::param(param_ty)
         }
     }
 
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
-        match self.generics.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs(slice::from_ref(&idx.expr)),
-            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
-            None => bug!("type parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(param_ty.index as usize) {
+                Some(GenericArg::BaseTy(arg)) => {
+                    arg.replace_bound_exprs(slice::from_ref(&idx.expr))
+                }
+                Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+                None => bug!("type parameter out of range"),
+            }
+        } else {
+            Ty::indexed(BaseTy::Param(param_ty), idx.clone())
         }
     }
 
     fn region_for_param(&self, ebr: EarlyBoundRegion) -> Region {
-        match self.generics.get(ebr.index as usize) {
-            Some(GenericArg::Lifetime(re)) => *re,
-            Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
-            None => bug!("region parameter out of range"),
+        if let Some(generics) = self.generics {
+            match generics.get(ebr.index as usize) {
+                Some(GenericArg::Lifetime(re)) => *re,
+                Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
+                None => bug!("region parameter out of range"),
+            }
+        } else {
+            ReEarlyBound(ebr)
         }
     }
 

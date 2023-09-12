@@ -142,8 +142,21 @@ pub(crate) fn check_opaque_ty(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
+    let parent = genv.tcx.parent(owner_id.to_def_id());
+    if let Some(parent_local) = parent.as_local() &&
+       let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
+    {
+        setup_refine_params(&mut infcx, &mut wf, params);
+    }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())
+}
+
+fn setup_refine_params(infcx: &mut InferCtxt, wf: &mut Wf, params: &[fhir::RefineParam]) {
+    for param in params {
+        wf.modes.insert(param.ident.name, param.infer_mode());
+    }
+    infcx.push_layer(params);
 }
 
 pub(crate) fn check_fn_sig(
@@ -154,13 +167,7 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    let predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
-    wf.check_generic_predicates(&mut infcx, predicates)?;
-
-    for param in &fn_sig.params {
-        wf.modes.insert(param.ident.name, param.infer_mode());
-    }
-    infcx.push_layer(&fn_sig.params);
+    setup_refine_params(&mut infcx, &mut wf, &fn_sig.params);
 
     let args = fn_sig
         .args
@@ -171,6 +178,9 @@ pub(crate) fn check_fn_sig(
         .requires
         .iter()
         .try_for_each_exhaust(|constr| wf.check_constraint(&mut infcx, constr));
+
+    let predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
+    wf.check_generic_predicates(&mut infcx, predicates)?;
 
     let output = wf.check_fn_output(&mut infcx, &fn_sig.output);
 

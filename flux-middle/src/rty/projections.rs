@@ -15,7 +15,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, GenericArg, Region, Ty, TyKind,
+    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, Expr, GenericArg, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -42,19 +42,25 @@ struct ProjectionTable<'sess, 'tcx> {
 impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
     fn new<T: TypeVisitable>(
         genv: &'sess GlobalEnv<'sess, 'tcx>,
-        def_id: DefId,
+        src_def_id: DefId,
+        src_params: &[Expr],
+        item_params: &[Expr],
         t: &T,
     ) -> Result<Self, QueryErr> {
         let mut preds = UnordMap::default();
 
         let mut vec = vec![];
-        // 1. Insert generic predicates of the callsite `def_id`
-        vec.push(genv.predicates_of(def_id)?.skip_binder().predicates);
+        // 1. Insert generic predicates of the callsite `callsite_def_id`
+        // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
+        let predicates = genv.predicates_of(src_def_id)?;
+        let param_env = predicates.instantiate_refparams(src_params);
+        vec.push(param_env.predicates);
         // 2. Insert generic predicates of the opaque-types
         let opaque_dids = t.opaque_def_ids();
 
         for did in opaque_dids.iter() {
-            vec.push(genv.item_bounds(*did)?.skip_binder());
+            // vec.push(genv.item_bounds(*did)?.skip_binder());
+            vec.push(genv.item_bounds(*did)?.instantiate_refparams(item_params));
         }
 
         for clauses in vec {
@@ -67,7 +73,7 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
                 }
             }
         }
-        Ok(ProjectionTable { genv, def_id, preds })
+        Ok(ProjectionTable { genv, def_id: src_def_id, preds })
     }
 
     fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
@@ -382,9 +388,11 @@ impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
 
 pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
-    def_id: DefId,
+    callsite_def_id: DefId,
+    src_params: &[Expr],
+    item_params: &[Expr],
     t: &T,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, def_id, t)?;
+    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, item_params, t)?;
     Ok(t.fold_with(&mut table))
 }
