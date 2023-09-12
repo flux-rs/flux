@@ -526,7 +526,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, &actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));

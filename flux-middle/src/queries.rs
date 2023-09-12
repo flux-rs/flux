@@ -95,7 +95,6 @@ pub struct Queries<'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
-    refparams_of: Cache<DefId, QueryResult<Vec<rty::RefineParam>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -188,21 +187,6 @@ impl<'tcx> Queries<'tcx> {
             } else {
                 let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(def_id));
                 Ok(rty::AdtDef::new(adt_def, rty::Sort::unit(), vec![], false))
-            }
-        })
-    }
-
-    pub(crate) fn refine_params_of(
-        &self,
-        genv: &GlobalEnv,
-        def_id: DefId,
-    ) -> QueryResult<Vec<rty::RefineParam>> {
-        run_with_cache(&self.refparams_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.refine_params_of)(genv, local_id)
-            } else {
-                Ok(vec![])
             }
         })
     }

@@ -32,7 +32,6 @@ pub struct ConstrGen<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     def_id: DefId,
     refparams: &'a [Expr],
-    refparams: &'a [Expr],
     kvar_gen: Box<dyn KVarGen + 'a>,
     rvid_gen: &'a IndexGen<RegionVid>,
     span: Span,

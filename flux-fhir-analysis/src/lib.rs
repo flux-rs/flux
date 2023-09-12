@@ -224,9 +224,6 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
     let defns = genv.defns()?;
     let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
         .map(|fn_sig| fn_sig.normalize(defns));
-    let defns = genv.defns()?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
-        .map(|fn_sig| fn_sig.normalize(defns));
 
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();

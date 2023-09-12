@@ -15,8 +15,9 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
-    GenericPredicates, Index, Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind,
-    Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    GenericPredicates, Index, Invariant, KVar, Name, OpaqueRefineArgs, Opaqueness,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
+    Ty, TyKind,
 };
 use crate::{
     intern::{Internable, List},

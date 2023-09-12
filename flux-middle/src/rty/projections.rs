@@ -55,15 +55,8 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let predicates = genv.predicates_of(src_def_id)?;
         let param_env = predicates.instantiate_refparams(src_params);
         vec.push(param_env.predicates);
-        // 1. Insert generic predicates of the callsite `callsite_def_id`
-        // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
-        let predicates = genv.predicates_of(src_def_id)?;
-        let param_env = predicates.instantiate_refparams(src_params);
-        vec.push(param_env.predicates);
         // 2. Insert generic predicates of the opaque-types
-        // let opaque_dids = t.opaque_def_ids();
         for (opaque_def_id, refine_args) in t.opaque_refine_args() {
-            // vec.push(genv.item_bounds(*did)?.skip_binder());
             vec.push(
                 genv.item_bounds(opaque_def_id)?
                     .instantiate_refparams(&refine_args),
