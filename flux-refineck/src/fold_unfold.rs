@@ -16,6 +16,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, Idx, IndexVec};
@@ -56,7 +57,7 @@ struct FoldUnfoldAnalysis<'a, 'tcx, M> {
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
     visited: BitSet<BasicBlock>,
     queue: WorkQueue<'a>,
-    discriminants: FxHashMap<Place, Place>,
+    discriminants: UnordMap<Place, Place>,
     location: Location,
     mode: M,
 }
@@ -364,7 +365,7 @@ impl<'a, 'tcx, M> FoldUnfoldAnalysis<'a, 'tcx, M> {
             genv,
             body,
             bb_envs,
-            discriminants: FxHashMap::default(),
+            discriminants: Default::default(),
             location: Location::START,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),

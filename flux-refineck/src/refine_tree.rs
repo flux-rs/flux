@@ -361,11 +361,6 @@ impl Scope {
             .map(|(name, sort)| (name, sort.clone()))
     }
 
-    /// A generator of fresh names in this scope.
-    pub(crate) fn name_gen(&self) -> IndexGen<Name> {
-        IndexGen::skipping(self.bindings.len())
-    }
-
     /// Whether `t` has any free variables not in this scope
     pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())

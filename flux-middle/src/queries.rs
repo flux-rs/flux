@@ -6,6 +6,7 @@ use std::{
 use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{FatalError, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -29,7 +30,7 @@ use crate::{
     },
 };
 
-type Cache<K, V> = RefCell<FxHashMap<K, V>>;
+type Cache<K, V> = RefCell<UnordMap<K, V>>;
 
 pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
@@ -52,7 +53,6 @@ pub struct Providers {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
-    pub refine_params_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<Vec<rty::RefineParam>>,
     pub predicates_of:
         fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub item_bounds: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
@@ -76,7 +76,6 @@ impl Default for Providers {
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
-            refine_params_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
@@ -96,7 +95,6 @@ pub struct Queries<'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
-    refparams_of: Cache<DefId, QueryResult<Vec<rty::RefineParam>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -193,20 +191,6 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
-    pub(crate) fn refine_params_of(
-        &self,
-        genv: &GlobalEnv,
-        def_id: DefId,
-    ) -> QueryResult<Vec<rty::RefineParam>> {
-        run_with_cache(&self.refparams_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
-            if let Some(local_id) = def_id.as_local() {
-                (self.providers.refine_params_of)(genv, local_id)
-            } else {
-                Ok(vec![])
-            }
-        })
-    }
 
     pub(crate) fn generics_of(
         &self,

@@ -10,6 +10,7 @@ use flux_middle::{
         mir::{BasicBlock, Body, Place},
     },
 };
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_middle::{mir::Location, ty::TyCtxt};
@@ -39,8 +40,8 @@ pub(crate) enum Point {
 pub(crate) fn compute_ghost_statements(
     genv: &GlobalEnv,
     def_id: LocalDefId,
-) -> QueryResult<FxHashMap<DefId, GhostStatements>> {
-    let mut data = FxHashMap::default();
+) -> QueryResult<UnordMap<DefId, GhostStatements>> {
+    let mut data = UnordMap::default();
     for def_id in all_nested_bodies(genv.tcx, def_id) {
         data.insert(def_id.to_def_id(), GhostStatements::new(genv, def_id)?);
     }

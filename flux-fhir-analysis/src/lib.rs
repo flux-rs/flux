@@ -174,7 +174,7 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
         }
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id).kind {
-                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
+                fhir::GenericParamKind::Type { default: Some(ty) } => {
                     let wfckresults = genv.check_wf(def_id)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
@@ -272,19 +272,6 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             annot_check::check_enum_def(genv.tcx, genv.sess, &mut wfckresults, enum_def)?;
             wfckresults
         }
-        DefKind::TyParam => {
-            match &genv.get_generic_param(def_id).kind {
-                fhir::GenericParamDefKind::Type { default: Some(ty) } => {
-                    let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
-                    let owner = genv.hir().get_parent_item(hir_id);
-                    wf::check_type(genv, ty, owner)?
-                }
-                fhir::GenericParamDefKind::Type { default: None } => {
-                    bug!("type parameter without default")
-                }
-                _ => bug!("non-type def"),
-            }
-        }
         DefKind::Fn | DefKind::AssocFn => {
             let owner_id = OwnerId { def_id };
 
@@ -298,7 +285,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
-        DefKind::Closure | DefKind::Generator => {
+        DefKind::Closure | DefKind::Generator | DefKind::TyParam => {
             let parent = genv.tcx.local_parent(def_id);
             return genv.check_wf(parent);
         }
