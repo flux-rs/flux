@@ -354,27 +354,26 @@ pub enum AliasKind {
 pub type RefineArgs = List<Expr>;
 pub type GenericArgs = List<GenericArg>;
 
-/* [NOTE:Opaque-Refine-Args] When checking a function call, the `inst_fn_sig` obtained from calling
+// [NOTE:Opaque-Refine-Args] When checking a function call, the `inst_fn_sig` obtained from calling
 
-        .instantiate(&generic_args, &exprs)
+//     .instantiate(&generic_args, &exprs)
 
-   the opaque-alias-ty bits have *no* refine_params,
-   as the corresponding `generic_args` have no refine_params,
-   as they are obtained direcly from lowering and (trivially)
-   refining the rustc generic_args.
+// the opaque-alias-ty bits have *no* refine_params,
+// as the corresponding `generic_args` have no refine_params,
+// as they are obtained directly from lowering and (trivially)
+// refining the rustc generic_args.
 
-   So we have to "fill in the opaque-types' refine_params in the following hacky fashion.
+// So we have to "fill in" the opaque-types' refine_params in the following hacky fashion.
 
-   1. UNIQUE-IMPL-CONDITION (check!) at each call-site that each opaque-impl-DefId appears
-      with a *unique* refine_params that is we don't have multiple arguments with
-      the SAME opaque-impl but DIFFERENT refine_params
+// 1. UNIQUE-IMPL-CONDITION (check!) at each call-site that each opaque-impl-DefId appears
+//    with a *unique* refine_params that is we don't have multiple arguments with
+//    the SAME opaque-impl but DIFFERENT refine_params
 
-   2. Traverse the (expanded) `actuals` to build a `OpaqueRefineArgs` a map from opaque-def-id -> refine_params
-      Multiple entries for the same opaque-id indicate show a violation of the UNIQUE-IMPL-CONDITION
+// 2. Traverse the (expanded) `actuals` to build a `OpaqueRefineArgs` a map from opaque-def-id -> refine_params
+//    Multiple entries for the same opaque-id indicate show a violation of the UNIQUE-IMPL-CONDITION
 
-   3. Use the `OpaqueRefineArgs` when `refining` the rustc GenericArgs (Refiner::new) so that whenever
-      we have to convert an opaque-id, we can look up the corresponding args from the `OpaqueRefineArgs`.
-*/
+// 3. Use the `OpaqueRefineArgs` when `refining` the rustc GenericArgs (Refiner::new) so that whenever
+//    we have to convert an opaque-id, we can look up the corresponding args from the `OpaqueRefineArgs`.
 
 pub type OpaqueRefineArgs = FxHashMap<DefId, RefineArgs>;
 

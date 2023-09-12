@@ -1,8 +1,6 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-// fpp
-
 #[flux::sig(fn (x:i32) -> impl Iterator<Item = i32{v:x<=v}>)]
 pub fn lib(x: i32) -> impl Iterator<Item = i32> {
     Some(x).into_iter()

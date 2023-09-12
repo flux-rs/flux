@@ -522,7 +522,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty, CheckerError> {
-        // let actuals = self.check_operands(rcx, env, terminator_span, operands)?;
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
