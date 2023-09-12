@@ -96,7 +96,6 @@ pub struct Queries<'tcx> {
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
-    refparams_of: Cache<DefId, QueryResult<Vec<rty::RefineParam>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
