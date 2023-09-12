@@ -59,7 +59,7 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     /// [`Generics`] of the function being checked.
     generics: Generics,
     /// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
-    refparams: Vec<Expr>,
+    refparams: List<Expr>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument of a generator.
     resume_ty: Option<Ty>,
