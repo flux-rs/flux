@@ -12,8 +12,9 @@ use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     def_id::{DefId, LocalDefId},
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
@@ -37,10 +38,10 @@ pub enum IgnoreKey {
 }
 
 /// Set of module (`LocalDefId`) that should be ignored by flux
-pub type Ignores = FxHashSet<IgnoreKey>;
+pub type Ignores = UnordSet<IgnoreKey>;
 
 pub(crate) struct Specs {
-    pub fn_sigs: FxHashMap<OwnerId, FnSpec>,
+    pub fn_sigs: UnordMap<OwnerId, FnSpec>,
     pub structs: FxHashMap<OwnerId, surface::StructDef>,
     pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
@@ -494,17 +495,17 @@ fn eval_const(tcx: TyCtxt, did: LocalDefId) -> Option<ScalarInt> {
 impl Specs {
     fn new() -> Specs {
         Specs {
-            fn_sigs: FxHashMap::default(),
-            structs: FxHashMap::default(),
-            enums: FxHashMap::default(),
+            fn_sigs: Default::default(),
+            structs: Default::default(),
+            enums: Default::default(),
             qualifs: Vec::default(),
             sort_decls: Vec::default(),
             func_defs: Vec::default(),
-            ty_aliases: FxHashMap::default(),
-            ignores: FxHashSet::default(),
-            consts: FxHashMap::default(),
+            ty_aliases: Default::default(),
+            ignores: Default::default(),
+            consts: Default::default(),
             crate_config: None,
-            extern_specs: FxHashMap::default(),
+            extern_specs: Default::default(),
         }
     }
 

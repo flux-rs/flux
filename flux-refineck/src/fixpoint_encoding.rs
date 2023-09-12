@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::iter;
+use std::{hash::Hash, iter};
 
 use fixpoint::FixpointResult;
 use flux_common::{
@@ -20,14 +20,13 @@ use flux_middle::{
     rty::{self, Constant, ESpan},
 };
 use itertools::{self, Itertools};
-use rustc_data_structures::fx::FxIndexMap;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_span::Span;
 use rustc_type_ir::DebruijnIndex;
 
-use crate::CheckerConfig;
+use crate::{refine_tree::Scope, CheckerConfig};
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -58,8 +57,8 @@ pub enum KVarEncoding {
     Conj,
 }
 
-type NameMap = FxHashMap<rty::Name, fixpoint::Name>;
-type KVidMap = FxHashMap<rty::KVid, Vec<fixpoint::KVid>>;
+type NameMap = UnordMap<rty::Name, fixpoint::Name>;
+type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxIndexMap<Key, ConstInfo>;
 
 #[derive(Eq, Hash, PartialEq)]
@@ -68,7 +67,7 @@ enum Key {
     Const(DefId),
 }
 
-pub struct FixpointCtxt<'genv, 'tcx, T> {
+pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: &'genv GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
@@ -78,7 +77,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T> {
     name_map: NameMap,
     const_map: ConstMap,
     tags: IndexVec<TagIdx, T>,
-    tags_inv: FxHashMap<T, TagIdx>,
+    tags_inv: UnordMap<T, TagIdx>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     // FIXME(nilehmann) this should be a `LocalDefId`.
@@ -130,7 +129,7 @@ where
             name_map: NameMap::default(),
             const_map,
             tags: IndexVec::new(),
-            tags_inv: FxHashMap::default(),
+            tags_inv: Default::default(),
             def_id,
         }
     }
@@ -435,7 +434,41 @@ impl KVarStore {
         &self.kvars[kvid]
     }
 
-    pub fn fresh<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
+    /// Generate a fresh [kvar] under several layers of [binders]. The variables bound in the last
+    /// layer (last element of the `binders` slice) are used as the self arguments. The rest of the
+    /// binders are appended to the `scope`.
+    ///
+    /// Note that the returned expression will have escaping variables and it is up to the caller to
+    /// put it under an appropriate number of binders.
+    ///
+    /// [binders]: rty::Binder
+    /// [kvar]: rty::KVar
+    pub fn fresh(
+        &mut self,
+        binders: &[List<rty::Sort>],
+        scope: &Scope,
+        encoding: KVarEncoding,
+    ) -> rty::Expr {
+        if binders.is_empty() {
+            return self.fresh_inner(0, [], encoding);
+        }
+        let args = itertools::chain(
+            binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
+                let debruijn = DebruijnIndex::from_usize(level);
+                sorts
+                    .iter()
+                    .cloned()
+                    .enumerate()
+                    .map(move |(idx, sort)| (rty::Var::LateBound(debruijn, idx as u32), sort))
+            }),
+            scope
+                .iter()
+                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+        );
+        self.fresh_inner(binders.last().unwrap().len(), args, encoding)
+    }
+
+    fn fresh_inner<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
     where
         A: IntoIterator<Item = (rty::Var, rty::Sort)>,
     {
@@ -461,34 +494,6 @@ impl KVarStore {
 
         let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
         rty::Expr::kvar(kvar)
-    }
-
-    pub fn fresh_bound<S>(
-        &mut self,
-        bound: &[List<rty::Sort>],
-        scope: S,
-        encoding: KVarEncoding,
-    ) -> rty::Expr
-    where
-        S: IntoIterator<Item = (rty::Name, rty::Sort)>,
-    {
-        if bound.is_empty() {
-            return self.fresh(0, [], encoding);
-        }
-        let args = itertools::chain(
-            bound.iter().rev().enumerate().flat_map(|(level, sorts)| {
-                sorts.iter().enumerate().map(move |(idx, sort)| {
-                    (
-                        rty::Var::LateBound(DebruijnIndex::from_usize(level), idx as u32),
-                        sort.clone(),
-                    )
-                })
-            }),
-            scope
-                .into_iter()
-                .map(|(name, sort)| (rty::Var::Free(name), sort)),
-        );
-        self.fresh(1, args, encoding)
     }
 }
 

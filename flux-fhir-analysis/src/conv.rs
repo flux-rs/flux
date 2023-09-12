@@ -19,8 +19,7 @@ use flux_middle::{
     rustc::{self, lowering},
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexMap;
-use rustc_hash::FxHashMap;
+use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -31,7 +30,7 @@ use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    late_bound_vars_map: FxHashMap<DefId, BoundVar>,
+    late_bound_vars_map: UnordMap<DefId, BoundVar>,
     wfckresults: &'a fhir::WfckResults,
 }
 
@@ -148,11 +147,11 @@ pub(crate) fn conv_generics(
                 .find(|param| rust_param.def_id == param.def_id.to_def_id())
                 .map(|param| {
                     let kind = match &param.kind {
-                        fhir::GenericParamDefKind::Type { default } => {
+                        fhir::GenericParamKind::Type { default } => {
                             rty::GenericParamDefKind::Type { has_default: default.is_some() }
                         }
-                        fhir::GenericParamDefKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                        fhir::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+                        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+                        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
                     };
                     rty::GenericParamDef {
                         kind,
@@ -1115,13 +1114,13 @@ fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
 // FIXME(nilehmann) we are passing the id of the owner, we should be passing the HirId of the node.
 // For example, if we want to convert a higher ranked where clause we need to pass the HirId of the
 // clause not its owner id.
-fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> FxHashMap<DefId, BoundVar> {
-    let FluxOwnerId::Rust(owner_id) = owner_id else { return FxHashMap::default() };
+fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> UnordMap<DefId, BoundVar> {
+    let FluxOwnerId::Rust(owner_id) = owner_id else { return Default::default() };
 
     // HACK(nilehmann) rustc doesn't fill the late bound map for the opaque type itself, only for
     // contained nodes. Thus, we skip it here or else the call to `late_bound_vars` will panic.
     if matches!(tcx.def_kind(owner_id.to_def_id()), DefKind::OpaqueTy) {
-        return FxHashMap::default();
+        return Default::default();
     }
 
     let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);

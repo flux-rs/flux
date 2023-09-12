@@ -1,6 +1,6 @@
 # About Flux
 
-![](img/flux-logo.png)
+<img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
 
 Flux is a research project described in [the paper][paper]
 

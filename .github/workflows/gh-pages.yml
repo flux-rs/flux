@@ -1,26 +1,31 @@
-name: docs
+name: gh-pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths: flux-docs/**
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths: flux-docs/**
 
 jobs:
   build:
-    name: Build, Test and Deploy
+    name: Build and Deploy Website
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - run: (test -x $HOME/.cargo/bin/mdbook || cargo install --vers "^0.4" mdbook)
-      - run: mdbook build flux-docs # && mdbook test flux-docs # In case of custom book path: mdbook build path/to/mybook && mdbook test path/to/mybook
 
-      # Only deploy when pushing on main, otherwise just run mdbook to check if there are any errors
+      - name: Install mdBook
+        uses: peaceiris/actions-mdbook@v1.2.0
+
+      - run: mdbook build flux-docs
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.2.1
+
+      - run: cargo xtask doc && mv target/doc flux-docs/book
+
+      # Only deploy when pushing on main, otherwise just run mdbook and cargo doc to check if there are any errors
       - uses: JamesIves/github-pages-deploy-action@4.1.7
         if: ${{ github.event_name == 'push' }}
         with:

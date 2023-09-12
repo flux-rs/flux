@@ -161,7 +161,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.lower_late_bound_vars(self, def_id)
     }
 
-    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParamDef {
+    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
         self.map().get_generics(owner).unwrap().get_param(def_id)
     }
@@ -222,9 +222,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::Def(DefKind::TyParam, def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
-                    fhir::GenericParamDefKind::BaseTy => fhir::Sort::Param(def_id),
-                    fhir::GenericParamDefKind::Type { .. }
-                    | fhir::GenericParamDefKind::Lifetime => return None,
+                    fhir::GenericParamKind::BaseTy => fhir::Sort::Param(def_id),
+                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => {
+                        return None
+                    }
                 }
             }
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => return None,

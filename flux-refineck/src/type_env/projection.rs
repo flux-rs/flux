@@ -1,4 +1,4 @@
-use std::{clone::Clone, iter};
+use std::{clone::Clone, iter, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{
@@ -6,7 +6,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Loc, Mutability, Path,
         PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
@@ -243,15 +243,14 @@ impl PlacesTree {
     }
 
     pub(crate) fn fmap_mut(&mut self, mut f: impl FnMut(&Ty) -> Ty) {
-        self.map
-            .values_mut()
-            .for_each(|binding| binding.ty = f(&binding.ty));
+        self.try_fmap_mut::<!>(|ty| Ok(f(ty))).into_ok();
     }
 
-    pub(crate) fn fmap(&self, f: impl FnMut(&Ty) -> Ty) -> Self {
-        let mut new = self.clone();
-        new.fmap_mut(f);
-        new
+    fn try_fmap_mut<E>(&mut self, mut f: impl FnMut(&Ty) -> Result<Ty, E>) -> Result<(), E> {
+        self.map.values_mut().try_for_each(|binding| {
+            binding.ty = f(&binding.ty)?;
+            Ok(())
+        })
     }
 
     pub(crate) fn flatten(self) -> Vec<(Path, LocKind, Ty)> {
@@ -881,5 +880,21 @@ mod pretty {
                 LocKind::Box(_) => w!("[box]"),
             }
         }
+    }
+
+    impl_debug_with_default_cx!(PlacesTree);
+}
+
+impl TypeVisitable for PlacesTree {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        unimplemented!()
+    }
+}
+
+impl TypeFoldable for PlacesTree {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let mut this = self.clone();
+        this.try_fmap_mut(|ty| ty.try_fold_with(folder))?;
+        Ok(this)
     }
 }

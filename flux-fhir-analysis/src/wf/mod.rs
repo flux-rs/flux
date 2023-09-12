@@ -13,9 +13,12 @@ use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent, WfckResults},
     global_env::GlobalEnv,
 };
-use rustc_data_structures::snapshot_map::{self, SnapshotMap};
+use rustc_data_structures::{
+    snapshot_map::{self, SnapshotMap},
+    unord::UnordMap,
+};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, OwnerId};
 use rustc_span::Symbol;
 
@@ -23,7 +26,7 @@ use self::sortck::InferCtxt;
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    modes: FxHashMap<fhir::Name, fhir::InferMode>,
+    modes: UnordMap<fhir::Name, fhir::InferMode>,
     xi: XiCtxt,
 }
 
@@ -37,17 +40,6 @@ struct Wf<'a, 'tcx> {
 /// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
 #[derive(Default)]
 struct XiCtxt(SnapshotMap<fhir::Name, ()>);
-
-pub(crate) fn check_type(
-    genv: &GlobalEnv,
-    ty: &fhir::Ty,
-    owner: OwnerId,
-) -> Result<WfckResults, ErrorGuaranteed> {
-    let mut infcx = InferCtxt::new(genv, owner.into());
-    let mut wf = Wf::new(genv);
-    wf.check_type(&mut infcx, ty)?;
-    Ok(infcx.into_results())
-}
 
 pub(crate) fn check_qualifier(
     genv: &GlobalEnv,

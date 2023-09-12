@@ -5,8 +5,8 @@ use flux_errors::{ErrorGuaranteed, FluxSession};
 use hir::{def::DefKind, OwnerId};
 use itertools::Itertools;
 use rustc_ast::LitKind;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
@@ -17,7 +17,7 @@ use crate::fhir;
 pub struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
-    opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -68,7 +68,7 @@ pub fn lift_fn(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<(fhir::Generics, fhir::FnInfo), ErrorGuaranteed> {
-    let mut opaque_tys = FxHashMap::default();
+    let mut opaque_tys = Default::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, Some(&mut opaque_tys));
 
@@ -88,10 +88,12 @@ pub fn lift_fn(
     Ok((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
 }
 
-// HACK(nilehmann) this is used during annot check to allow an explicit type to refine `Self`.
-// For example, in `impl List<T> { fn foo(&self) }` the type of `self` is `&Self` and we want to
-// allow a refinement using `&List<T>`.
-// Do not use this outside of annot check because the `FhirId`s will be wrong.
+/// HACK(nilehmann) this is used during annot check to allow an explicit type to refine [`Self`].
+/// For example, in `impl List<T> { fn foo(&self) }` the type of `self` is `&Self` and we want to
+/// allow a refinement using `&List<T>`.
+/// Do not use this outside of annot check because the `FhirId`s will be wrong.
+///
+/// [`Self`]: fhir::Res::SelfTyAlias
 pub fn lift_self_ty(
     tcx: TyCtxt,
     sess: &FluxSession,
@@ -135,7 +137,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         sess: &'a FluxSession,
         owner: OwnerId,
         local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-        opaque_tys: Option<&'a mut FxHashMap<LocalDefId, fhir::OpaqueTy>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> Self {
         Self { tcx, sess, opaque_tys, local_id_gen, owner }
     }
@@ -169,9 +171,9 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             .iter()
             .map(|param| {
                 let kind = match param.kind {
-                    hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamDefKind::Lifetime,
+                    hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
                     hir::GenericParamKind::Type { default, synthetic: false } => {
-                        fhir::GenericParamDefKind::Type {
+                        fhir::GenericParamKind::Type {
                             default: default.map(|ty| self.lift_ty(ty)).transpose()?,
                         }
                     }
@@ -190,7 +192,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                         ))
                     }
                 };
-                Ok(fhir::GenericParamDef { def_id: param.def_id, kind })
+                Ok(fhir::GenericParam { def_id: param.def_id, kind })
             })
             .try_collect_exhaust()?;
         Ok(fhir::Generics { params })

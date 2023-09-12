@@ -26,8 +26,7 @@ If you are using `rustup`, no special action is needed as it should install the 
 Next, run the following to build and install `flux` binaries
 
 ```bash
-cargo install --path flux
-cargo install --path flux-bin
+cargo xtask install
 ```
 
 This will install `flux-driver`, `rustc-flux` and `cargo-flux`. Note that you should not call `flux-driver` directly, but rather use `rustc-flux` and `cargo-flux`.
