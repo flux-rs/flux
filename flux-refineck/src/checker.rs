@@ -11,10 +11,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, fold::TypeVisitable, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder,
-        Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
-        GenericArg, Generics, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
-        TyKind, Uint, UintTy, VariantIdx,
+        self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
+        FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
+        Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy,
+        VariantIdx,
     },
     rustc::{
         self,
@@ -446,14 +446,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-                let mut expanded_actuals = vec![];
-                for ty in actuals.clone() {
-                    match ty.kind() {
-                        TyKind::Ptr(_, loc) => expanded_actuals.push(env.get(loc)),
-                        _ => expanded_actuals.push(ty),
-                    }
-                }
-                let opaque_refine_args = expanded_actuals.opaque_refine_args();
+                // let mut expanded_actuals = vec![];
+                // for ty in actuals.clone() {
+                //     match ty.kind() {
+                //         TyKind::Ptr(_, loc) => expanded_actuals.push(env.get(loc)),
+                //         _ => expanded_actuals.push(ty),
+                //     }
+                // }
+                // let opaque_refine_args = expanded_actuals.opaque_refine_args();
 
                 let generic_args = call_args
                     .lowered
@@ -461,12 +461,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .enumerate()
                     .map(|(idx, arg)| {
                         let param = fn_generics.param_at(idx, self.genv)?;
-                        self.genv.instantiate_arg_for_fun(
-                            &self.generics,
-                            &opaque_refine_args,
-                            &param,
-                            arg,
-                        )
+                        self.genv
+                            .instantiate_arg_for_fun(&self.generics, &param, arg)
                     })
                     .try_collect_vec()
                     .with_src_info(terminator.source_info)?;
@@ -796,7 +792,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let args = self.check_operands(rcx, env, stmt_span, operands)?;
                 let arr_ty = self
                     .genv
-                    .refine_with_holes(&self.generics, None, arr_ty)
+                    .refine_with_holes(&self.generics, arr_ty)
                     .with_span(stmt_span)?;
                 let mut gen = self.constr_gen(rcx, stmt_span);
                 gen.check_mk_array(rcx, env, &args, arr_ty)

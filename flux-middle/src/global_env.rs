@@ -16,7 +16,7 @@ use crate::{
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryResult},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner, OpaqueRefineArgs},
+    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
     rustc::{self, ty},
 };
 
@@ -109,6 +109,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn refparams_of(&self, def_id: impl Into<DefId>) -> QueryResult<List<rty::RefineParam>> {
         Ok(self.generics_of(def_id)?.refine_params.clone())
+    }
+
+    pub fn refparams_of_parent(
+        &self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<List<rty::RefineParam>> {
+        let parent = self.tcx.parent(def_id.into());
+        self.refparams_of(parent)
     }
 
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
@@ -317,20 +325,18 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn refine_with_holes(
         &self,
         generics: &rty::Generics,
-        opaque_refine_args: Option<&OpaqueRefineArgs>,
         rustc_ty: &ty::Ty,
     ) -> QueryResult<rty::Ty> {
-        Refiner::with_holes(self, generics, opaque_refine_args).refine_ty(rustc_ty)
+        Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
 
     pub fn instantiate_arg_for_fun(
         &self,
         generics: &rty::Generics,
-        opaque_refine_args: &OpaqueRefineArgs,
         param: &rty::GenericParamDef,
         arg: &ty::GenericArg,
     ) -> QueryResult<rty::GenericArg> {
-        Refiner::new(self, generics, opaque_refine_args, |bty| {
+        Refiner::new(self, generics, |bty| {
             let sort = bty.sort();
             let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
             if !sort.is_unit() {
@@ -347,7 +353,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         param: &rty::GenericParamDef,
         arg: &ty::GenericArg,
     ) -> QueryResult<rty::GenericArg> {
-        Refiner::with_holes(self, generics, None).refine_generic_arg(param, arg)
+        Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }
 
     pub(crate) fn cstore(&self) -> &CrateStoreDyn {

@@ -185,10 +185,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Replace holes in generic arguments with fresh kvars
         let snapshot = rcx.snapshot();
+
+        let generic_args = generic_args
+            .iter()
+            .map(|arg| arg.replace_opaque_holes(|def_id| infcx.fresh_opaque_evars(def_id)))
+            .collect_vec();
         let generic_args = generic_args
             .iter()
             .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
-            //.map(|arg| arg.fill_evars_for_opaques??)
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -457,6 +461,16 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.kvar_gen.fresh(sorts, encoding)
     }
 
+    fn fresh_opaque_evars(&mut self, def_id: DefId) -> List<Expr> {
+        self.genv
+            .refparams_of_parent(def_id)
+            .unwrap()
+            .iter()
+            .map(|param| self.fresh_evars(&param.sort))
+            .collect_vec()
+            .into()
+    }
+
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
         let cx = *self.scopes.last().unwrap().0;
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
@@ -562,6 +576,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 Ok(())
             }
             (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
+                    iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
+                        .for_each(|(e1, e2)| self.unify_exprs(e1, e2, false));
+                }
+
                 self.opaque_subtyping(rcx, ty1, alias_ty)
             }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
