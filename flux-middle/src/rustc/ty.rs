@@ -246,6 +246,16 @@ pub struct BoundRegion {
     pub kind: BoundRegionKind,
 }
 
+impl Generics<'_> {
+    pub fn parent(&self) -> Option<DefId> {
+        self.orig.parent
+    }
+
+    pub fn parent_count(&self) -> usize {
+        self.orig.parent_count
+    }
+}
+
 impl Clause {
     pub(crate) fn new(kind: ClauseKind) -> Clause {
         Clause { kind }

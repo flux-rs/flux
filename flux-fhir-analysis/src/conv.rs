@@ -171,8 +171,8 @@ pub(crate) fn conv_generics(
     rty::Generics {
         params,
         refine_params,
-        parent_count: rust_generics.orig.parent_count,
-        parent: rust_generics.orig.parent,
+        parent_count: rust_generics.parent_count(),
+        parent: rust_generics.parent(),
     }
 }
 
