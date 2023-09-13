@@ -275,7 +275,7 @@ pub enum TyKind {
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
-    OpaqueDef(ItemId, Vec<GenericArg>, /* Vec<RefineArg>, */ bool),
+    OpaqueDef(ItemId, Vec<GenericArg>, Vec<RefineArg>, bool),
     Never,
     Hole,
 }
