@@ -337,7 +337,10 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::Alias(alias_kind, alias_ty) => {
                 let kind = Self::refine_alias_kind(alias_kind);
                 let alias_ty = self.refine_alias_ty(alias_kind, alias_ty)?;
-                return Ok(rty::Binder::new(rty::Ty::alias(kind, alias_ty), List::empty()));
+                return Ok(rty::Binder::new(
+                    rty::Ty::alias(kind, alias_ty),
+                    /*TODO:HOLES*/ List::empty(),
+                ));
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),

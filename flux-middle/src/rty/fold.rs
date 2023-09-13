@@ -284,6 +284,8 @@ pub trait TypeFoldable: TypeVisitable {
                     e.super_fold_with(self)
                 }
             }
+
+            //fold_ty
         }
 
         self.fold_with(&mut ReplaceHoles(mk_pred, vec![]))

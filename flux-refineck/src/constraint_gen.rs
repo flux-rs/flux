@@ -188,6 +188,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let generic_args = generic_args
             .iter()
             .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            //.map(|arg| arg.fill_evars_for_opaques??)
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -202,13 +203,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
-        let inst_fn_sig = rty::projections::normalize(
-            genv,
-            callsite_def_id,
-            infcx.refparams,
-            &exprs,
-            &inst_fn_sig,
-        )?;
         let inst_fn_sig = rty::projections::normalize(
             genv,
             callsite_def_id,
