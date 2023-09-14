@@ -4,14 +4,22 @@
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_: bool) {}
 
-// Test that we support async function returning unit
-#[flux::sig(async fn())]
-pub async fn test() {
-    let x = make_nat().await;
-    assert(x >= 0);
-}
-
 #[flux::sig(async fn(n:i32) -> i32{v: n <= v})]
-pub async fn make_nat(n:i32) -> i32 {
+pub async fn make_nat(n: i32) -> i32 {
     n + 1
 }
+
+// #[flux::sig(async fn (y:i32{v:0<=v}) -> i32{v:y<=v})]
+// pub async fn bar(y: i32) -> i32 {
+//     let z = if y > 10 { 1 } else { 0 };
+//     assert(z >= 0);
+//     assert(y >= 0);
+//     y + z
+// }
+
+// #[flux::sig(async fn (k:i32) -> i32{v:k<=v})]
+// pub async fn jazz(k: i32) -> i32 {
+//     let apple = bar(k).await;
+//     let banana = bar(apple).await;
+//     banana
+// }

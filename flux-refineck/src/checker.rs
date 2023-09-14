@@ -199,13 +199,17 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let rvid_gen = init_region_gen(&body);
-        let params = genv.refparams_of(def_id).with_span(span)?;
+
+        let params_id =
+            if genv.tcx.is_closure(def_id) { genv.tcx.opt_parent(def_id).unwrap() } else { def_id };
+        let params = genv.refparams_of(params_id).with_span(span)?;
 
         let exprs = params
             .iter()
             .map(|param| rcx.define_vars(&param.sort))
             .collect_vec();
 
+        println!("TRACE: run {def_id:?} ::  {poly_sig:?} params = {params:?} exprs = {exprs:?} ");
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
 
         let fn_sig = poly_sig
@@ -547,6 +551,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: GeneratorObligPredicate,
     ) -> Result<(), CheckerError> {
+        println!("TRACE: check_oblig_generator_pred {gen_pred:?}");
         let poly_sig = gen_pred.to_closure_sig();
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
