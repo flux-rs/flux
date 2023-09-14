@@ -519,15 +519,10 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
-        match res {
-            hir::def::Res::Def(kind, did) => ResEntry::Res(Res::Def(kind, did)),
-            hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
-            hir::def::Res::SelfTyAlias { alias_to, forbid_generic: false, is_trait_impl } => {
-                ResEntry::Res(Res::SelfTyAlias { alias_to, is_trait_impl })
-            }
-            _ => {
-                ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
-            }
+        if let Ok(res) = res.try_into() {
+            ResEntry::Res(res)
+        } else {
+            ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
         }
     }
 

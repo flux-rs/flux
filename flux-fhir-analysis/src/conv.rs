@@ -26,6 +26,7 @@ use rustc_hir::{
     PrimTy,
 };
 use rustc_middle::ty::{AssocItem, AssocKind, BoundVar, TyCtxt};
+use rustc_span::symbol::kw;
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
@@ -137,30 +138,38 @@ pub(crate) fn conv_generics(
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
     refine_params: &[fhir::RefineParam],
+    is_trait: Option<LocalDefId>,
 ) -> rty::Generics {
-    let mut fhir_params = generics.params.iter();
-    let params = rust_generics
-        .params
-        .iter()
-        .flat_map(|rust_param| {
-            fhir_params
-                .find(|param| rust_param.def_id == param.def_id.to_def_id())
-                .map(|param| {
-                    let kind = match &param.kind {
-                        fhir::GenericParamKind::Type { default } => {
-                            rty::GenericParamDefKind::Type { has_default: default.is_some() }
-                        }
-                        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-                    };
-                    rty::GenericParamDef {
-                        kind,
-                        def_id: rust_param.def_id,
-                        index: rust_param.index,
-                        name: rust_param.name,
-                    }
-                })
-        })
+    let opt_self = is_trait.map(|def_id| {
+        rty::GenericParamDef {
+            index: 0,
+            name: kw::SelfUpper,
+            def_id: def_id.to_def_id(),
+            kind: rty::GenericParamDefKind::Type { has_default: false },
+        }
+    });
+    let params = opt_self
+        .into_iter()
+        .chain(rust_generics.params.iter().flat_map(|rust_param| {
+            let param = generics
+                .params
+                .iter()
+                .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
+            let kind = match &param.kind {
+                fhir::GenericParamKind::Type { default } => {
+                    rty::GenericParamDefKind::Type { has_default: default.is_some() }
+                }
+                fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+                fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+            };
+            let def_id = param.def_id.to_def_id();
+            Some(rty::GenericParamDef {
+                kind,
+                def_id,
+                index: rust_param.index,
+                name: rust_param.name,
+            })
+        }))
         .collect();
 
     let refine_params = refine_params
@@ -573,7 +582,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let alias_ty = rty::AliasTy { args, def_id };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
-            // If it is a type parameter with no no sort, it means it is of kind `Type`
+            // If it is a type parameter with no sort, it means it is of kind `Type`
+            if let fhir::Res::SelfTyParam { .. } = path.res && sort.is_none() {
+                return Ok(rty::Ty::param(rty::ParamTy { index: 0, name: kw::SelfUpper }));
+            }
             if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res && sort.is_none() {
                 let param_ty = def_id_to_param_ty(self.genv.tcx, def_id.expect_local());
                 return Ok(rty::Ty::param(param_ty));
@@ -715,7 +727,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
-            fhir::Res::Def(..) => {
+            fhir::Res::Def(..) | fhir::Res::SelfTyParam { .. } => {
                 span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)
             }
         };
