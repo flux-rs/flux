@@ -518,14 +518,6 @@ impl<'sess> NameResTable<'sess> {
         Ok(())
     }
 
-    fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
-        if let Ok(res) = res.try_into() {
-            ResEntry::Res(res)
-        } else {
-            ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
-        }
-    }
-
     fn collect_from_ty(&mut self, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(ty),
@@ -581,7 +573,11 @@ impl<'sess> NameResTable<'sess> {
 
     fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result<(), ErrorGuaranteed> {
         let key = ResKey::from_hir_path(self.sess, path)?;
-        let res = self.res_from_hir_res(path.res, path.span);
+
+        let res = path
+            .res
+            .try_into()
+            .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
         self.insert(key, res);
 
         if let [.., PathSegment { args: Some(args), .. }] = path.segments {
@@ -654,6 +650,12 @@ impl ResKey {
 impl From<Res> for ResEntry {
     fn from(res: Res) -> Self {
         ResEntry::Res(res)
+    }
+}
+
+impl ResEntry {
+    fn unsupported(path: hir::Path) -> Self {
+        Self::Unsupported { span: path.span, reason: format!("unsupported res `{:?}`", path.res) }
     }
 }
 
