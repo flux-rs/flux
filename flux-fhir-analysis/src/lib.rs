@@ -146,7 +146,9 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
         .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
-    match genv.tcx.def_kind(def_id) {
+
+    let def_kind = genv.tcx.def_kind(def_id);
+    match def_kind {
         DefKind::Impl { .. }
         | DefKind::Struct
         | DefKind::Enum
@@ -156,6 +158,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
         | DefKind::AssocTy
         | DefKind::Trait
         | DefKind::Fn => {
+            let is_trait = (def_kind == DefKind::Trait).then_some(local_id);
             let generics = genv
                 .map()
                 .get_generics(local_id)
@@ -164,7 +167,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
                 .map()
                 .get_refine_params(genv.tcx, local_id)
                 .unwrap_or(&[]);
-            Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params))
+            Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params, is_trait))
         }
         DefKind::Closure | DefKind::Generator => {
             Ok(rty::Generics {

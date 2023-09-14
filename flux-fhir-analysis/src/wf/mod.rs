@@ -444,7 +444,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 iter::zip(&path.refine, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(infcx, arg, sort))?;
             }
-            fhir::Res::SelfTyAlias { .. } | fhir::Res::Def(..) | fhir::Res::PrimTy(..) => {}
+            fhir::Res::SelfTyParam { .. }
+            | fhir::Res::SelfTyAlias { .. }
+            | fhir::Res::Def(..)
+            | fhir::Res::PrimTy(..) => {}
         }
         let snapshot = self.xi.snapshot();
         let args = self.check_generic_args(infcx, &path.args);

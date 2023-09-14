@@ -439,6 +439,7 @@ pub enum Res {
     Def(DefKind, DefId),
     PrimTy(PrimTy),
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
+    SelfTyParam { trait_: DefId },
 }
 
 #[derive(Debug, Clone)]
@@ -608,7 +609,23 @@ impl Res {
         match self {
             Res::PrimTy(_) => "builtin type",
             Res::Def(kind, def_id) => kind.descr(*def_id),
-            Res::SelfTyAlias { .. } => "self type",
+            Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
+        }
+    }
+}
+
+impl TryFrom<rustc_hir::def::Res> for Res {
+    type Error = ();
+
+    fn try_from(res: rustc_hir::def::Res) -> Result<Self, Self::Error> {
+        match res {
+            rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
+            rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),
+            rustc_hir::def::Res::SelfTyAlias { alias_to, forbid_generic: false, is_trait_impl } => {
+                Ok(Res::SelfTyAlias { alias_to, is_trait_impl })
+            }
+            rustc_hir::def::Res::SelfTyParam { trait_ } => Ok(Res::SelfTyParam { trait_ }),
+            _ => Err(()),
         }
     }
 }
@@ -1355,7 +1372,7 @@ impl fmt::Debug for Path {
             Res::Def(_, def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
-            Res::SelfTyAlias { .. } => write!(f, "Self")?,
+            Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => write!(f, "Self")?,
         }
         let args: Vec<_> = self
             .args

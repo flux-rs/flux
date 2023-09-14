@@ -461,19 +461,12 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_path(&mut self, path: &hir::Path) -> Result<fhir::Path, ErrorGuaranteed> {
-        let res = match path.res {
-            hir::def::Res::Def(kind, def_id) => fhir::Res::Def(kind, def_id),
-            hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
-            hir::def::Res::SelfTyAlias { alias_to, is_trait_impl, forbid_generic: false } => {
-                fhir::Res::SelfTyAlias { alias_to, is_trait_impl }
-            }
-            _ => {
-                return self.emit_unsupported(&format!(
-                    "unsupported type: `{}` {:?}",
-                    rustc_hir_pretty::path_to_string(path),
-                    path.res
-                ));
-            }
+        let Ok(res) = path.res.try_into() else {
+            return self.emit_unsupported(&format!(
+                "unsupported type: `{}` `{:?}`",
+                rustc_hir_pretty::path_to_string(path),
+                path.res
+            ));
         };
         let (args, bindings) = match path.segments.last().unwrap().args {
             Some(args) => {
