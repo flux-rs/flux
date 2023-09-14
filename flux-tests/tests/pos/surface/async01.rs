@@ -9,17 +9,17 @@ pub async fn make_nat(n: i32) -> i32 {
     n + 1
 }
 
-// #[flux::sig(async fn (y:i32{v:0<=v}) -> i32{v:y<=v})]
-// pub async fn bar(y: i32) -> i32 {
-//     let z = if y > 10 { 1 } else { 0 };
-//     assert(z >= 0);
-//     assert(y >= 0);
-//     y + z
-// }
+#[flux::sig(async fn (y:i32) -> i32{v:y<=v} requires 0 <= y)]
+pub async fn bar(y: i32) -> i32 {
+    let z = if y > 10 { 1 } else { 0 };
+    assert(z >= 0);
+    assert(y >= 0);
+    y + z
+}
 
-// #[flux::sig(async fn (k:i32) -> i32{v:k<=v})]
-// pub async fn jazz(k: i32) -> i32 {
-//     let apple = bar(k).await;
-//     let banana = bar(apple).await;
-//     banana
-// }
+#[flux::sig(async fn (k:i32) -> i32{v:k<=v} requires 0 <= k)]
+pub async fn jazz(k: i32) -> i32 {
+    let apple = bar(k).await;
+    let banana = bar(apple).await;
+    banana
+}

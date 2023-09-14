@@ -678,7 +678,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Result<(), CheckerErrKind> {
         if let Some(BaseTy::Generator(def_id, args)) = ty.as_bty_skipping_existentials() {
             let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
-            println!("TRACE: opq-subty: {obligs:?}");
             self.insert_obligations(obligs);
         } else {
             let bounds = self

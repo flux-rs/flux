@@ -33,3 +33,18 @@ pub async fn pizzazz() -> i32 {
     let banana = bar(20).await;
     apple + banana
 }
+
+#[flux::sig(async fn (y:i32) -> i32{v:y<v} requires 0 <= y)]
+pub async fn bar1(y: i32) -> i32 {
+    let z = if y > 10 { 1 } else { 0 };
+    assert(z >= 0);
+    assert(y >= 0);
+    y + z //~ ERROR refinement type
+}
+
+#[flux::sig(async fn (k:i32) -> i32{v:k<=v} )]
+pub async fn jazz1(k: i32) -> i32 {
+    let apple = bar1(k).await; //~ ERROR refinement type
+    let banana = bar1(apple).await; //~ ERROR refinement type
+    banana
+}

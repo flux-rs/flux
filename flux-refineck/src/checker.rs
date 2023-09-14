@@ -143,6 +143,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
                 extra_data,
                 &mut mode,
                 fn_sig,
+                None,
                 config,
             )?;
 
@@ -174,6 +175,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
                 extra_data,
                 &mut mode,
                 fn_sig,
+                None,
                 config,
             )?;
 
@@ -182,6 +184,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -190,6 +193,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         extra_data: &'a UnordMap<DefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: EarlyBinder<PolyFnSig>,
+        refparams: Option<List<Expr>>,
         config: CheckerConfig,
     ) -> Result<(), CheckerError> {
         let span = genv.tcx.def_span(def_id);
@@ -200,16 +204,19 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let rvid_gen = init_region_gen(&body);
 
-        let params_id =
-            if genv.tcx.is_closure(def_id) { genv.tcx.opt_parent(def_id).unwrap() } else { def_id };
-        let params = genv.refparams_of(params_id).with_span(span)?;
+        let exprs = if let Some(exprs) = refparams {
+            exprs
+        } else {
+            let params = genv.refparams_of(def_id).with_span(span)?;
+            List::from_vec(
+                params
+                    .iter()
+                    .map(|param| rcx.define_vars(&param.sort))
+                    .collect_vec(),
+            )
+        };
 
-        let exprs = params
-            .iter()
-            .map(|param| rcx.define_vars(&param.sort))
-            .collect_vec();
-
-        println!("TRACE: run {def_id:?} ::  {poly_sig:?} params = {params:?} exprs = {exprs:?} ");
+        // CUT println!("TRACE: run {def_id:?} ::  {poly_sig:?} exprs = {exprs:?} ");
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
 
         let fn_sig = poly_sig
@@ -230,7 +237,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
-            refparams: exprs.into(),
+            refparams: exprs,
             body: &body,
             resume_ty,
             ghost_stmts: extra_data,
@@ -551,7 +558,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: GeneratorObligPredicate,
     ) -> Result<(), CheckerError> {
-        println!("TRACE: check_oblig_generator_pred {gen_pred:?}");
+        // CUT println!("TRACE: check_oblig_generator_pred {gen_pred:?}");
         let poly_sig = gen_pred.to_closure_sig();
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
@@ -561,6 +568,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.ghost_stmts,
             self.mode,
             EarlyBinder(poly_sig),
+            Some(self.refparams.clone()),
             self.config,
         )
     }
@@ -583,6 +591,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.ghost_stmts,
                 self.mode,
                 EarlyBinder(poly_sig),
+                Some(self.refparams.clone()),
                 self.config,
             )?;
         } else {
