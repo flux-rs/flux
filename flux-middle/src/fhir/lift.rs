@@ -419,7 +419,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
                 let args = self.lift_generic_args(args)?;
-                fhir::TyKind::OpaqueDef(*item_id, args, *in_trait_def)
+                fhir::TyKind::OpaqueDef(*item_id, args, vec![], *in_trait_def)
             }
             _ => {
                 return self.emit_unsupported(&format!(

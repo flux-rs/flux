@@ -3,12 +3,13 @@ use std::{borrow::Borrow, iter, slice};
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
-    fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
+    fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, RefineArg, Res},
     global_env::GlobalEnv,
     intern::List,
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind};
+use itertools::Itertools;
 use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
@@ -183,6 +184,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
         ExprCtxt::new(self.genv, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
+    }
+
+    fn refine_args_of_binders(&self, binders: &mut Binders, span: Span) -> Vec<RefineArg> {
+        binders
+            .top_layer()
+            .into_exprs(self, span)
+            .into_iter()
+            .map(|expr| RefineArg::Expr { expr, is_binder: false })
+            .collect_vec()
     }
 
     pub(crate) fn desugar_generics(
@@ -526,7 +536,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
                     let (args, _) = self.desugar_generic_args(res, &[], binders)?;
                     let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                    let kind = fhir::TyKind::OpaqueDef(item_id, args, false);
+                    let refine_args = self.refine_args_of_binders(binders, span);
+                    let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
                     Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
                 } else {
                     span_bug!(span, "invalid resolution for asyncness")
@@ -680,7 +691,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
                     let item_id = hir::ItemId { owner_id };
                     let (args, _) = self.desugar_generic_args(*res, &[], binders)?;
-                    fhir::TyKind::OpaqueDef(item_id, args, false)
+                    let refine_args = self.refine_args_of_binders(binders, ty.span);
+                    fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
                 } else {
                     span_bug!(ty.span, "unexpected opaque type")
                 }
@@ -1551,6 +1563,26 @@ impl Layer {
                 Ok(())
             }
         }
+    }
+
+    fn into_exprs<'a, 'tcx>(
+        &self,
+        cx: &impl DesugarContext<'a, 'tcx>,
+        span: Span,
+    ) -> Vec<fhir::Expr> {
+        let mut exprs = vec![];
+        for (ident, binder) in self.map.iter() {
+            match binder {
+                Binder::Refined(name, _, _) => {
+                    let ident = fhir::Ident::new(*name, *ident);
+                    let kind = ExprKind::Var(ident);
+                    let fhir_id = cx.next_fhir_id();
+                    exprs.push(fhir::Expr { kind, span, fhir_id });
+                }
+                Binder::Unrefined => {}
+            }
+        }
+        exprs
     }
 
     fn into_params<'a, 'tcx>(self, cx: &impl DesugarContext<'a, 'tcx>) -> Vec<fhir::RefineParam> {
