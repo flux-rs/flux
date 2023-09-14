@@ -189,7 +189,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn refine_args_of_binders(&self, binders: &mut Binders, span: Span) -> Vec<RefineArg> {
         binders
             .bot_layer()
-            .into_exprs(self, span)
+            .refine_exprs(self, span)
             .into_iter()
             .map(|expr| RefineArg::Expr { expr, is_binder: false })
             .collect_vec()
@@ -1569,7 +1569,7 @@ impl Layer {
         }
     }
 
-    fn into_exprs<'a, 'tcx>(
+    fn refine_exprs<'a, 'tcx>(
         &self,
         cx: &impl DesugarContext<'a, 'tcx>,
         span: Span,
