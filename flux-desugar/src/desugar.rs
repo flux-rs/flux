@@ -188,7 +188,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn refine_args_of_binders(&self, binders: &mut Binders, span: Span) -> Vec<RefineArg> {
         binders
-            .top_layer()
+            .bot_layer()
             .into_exprs(self, span)
             .into_iter()
             .map(|expr| RefineArg::Expr { expr, is_binder: false })
@@ -1469,6 +1469,10 @@ impl Binders {
             surface::BaseTyKind::Path(path) => self.gather_params_path(genv, path, pos),
             surface::BaseTyKind::Slice(ty) => self.gather_params_ty(genv, None, ty, TypePos::Other),
         }
+    }
+
+    fn bot_layer(&mut self) -> &mut Layer {
+        self.layers.first_mut().unwrap()
     }
 
     fn top_layer(&mut self) -> &mut Layer {

@@ -557,7 +557,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
                 let def_id = item_id.owner_id.to_def_id();
                 let args = self.conv_generic_args(env, def_id, args0)?;
-                // CUT let refine_args = env.early_binders();
                 let refine_args = refine_args
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg).0)
