@@ -83,7 +83,6 @@ impl TypeEnv<'_> {
         Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
     }
 
-    // TODO(RJ) why was this `&mut self`?
     pub(crate) fn get(&self, path: &Path) -> Ty {
         self.bindings.get(path)
     }
