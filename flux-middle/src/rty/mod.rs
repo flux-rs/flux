@@ -21,6 +21,7 @@ pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
 use rustc_data_structures::unord::UnordMap;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -339,6 +340,8 @@ pub enum BaseTy {
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct AliasTy {
     pub args: GenericArgs,
+    /// Holds the refinement-arguments for opaque-types; empty for projections
+    pub refine_args: RefineArgs,
     pub def_id: DefId,
 }
 
@@ -348,7 +351,10 @@ pub enum AliasKind {
     Opaque,
 }
 
+pub type RefineArgs = List<Expr>;
 pub type GenericArgs = List<GenericArg>;
+
+pub type OpaqueRefineArgs = FxHashMap<DefId, RefineArgs>;
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
@@ -1046,8 +1052,9 @@ impl Ty {
         TyKind::Alias(kind, alias_ty).intern()
     }
 
-    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs) -> Ty {
-        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args }).intern()
+    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs, refine_args: RefineArgs) -> Ty {
+        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
+            .intern()
     }
 
     pub fn projection(alias_ty: AliasTy) -> Ty {
@@ -1285,8 +1292,12 @@ impl TyS {
 }
 
 impl AliasTy {
-    pub fn new(def_id: DefId, args: impl Into<GenericArgs>) -> Self {
-        AliasTy { def_id, args: args.into() }
+    pub fn new(
+        def_id: DefId,
+        args: impl Into<GenericArgs>,
+        refine_args: impl Into<RefineArgs>,
+    ) -> Self {
+        AliasTy { def_id, args: args.into(), refine_args: refine_args.into() }
     }
 }
 
@@ -1752,7 +1763,12 @@ mod pretty {
                     Ok(())
                 }
                 TyKind::Alias(AliasKind::Opaque, alias_ty) => {
-                    w!("Alias(Opaque, {:?}, [{:?}]) ", alias_ty.def_id, join!(", ", &alias_ty.args))
+                    w!(
+                        "Alias(Opaque, {:?}, [{:?}], [{:?}]) ",
+                        alias_ty.def_id,
+                        join!(", ", &alias_ty.args),
+                        join!(", ", &alias_ty.refine_args)
+                    )
                 }
             }
         }

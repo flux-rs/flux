@@ -115,7 +115,10 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     return Ok(None);
                 }
                 let pred = rty::ProjectionPredicate {
-                    projection_ty: self.refine_alias_ty(&proj_pred.projection_ty)?,
+                    projection_ty: self.refine_alias_ty(
+                        &rustc::ty::AliasKind::Projection,
+                        &proj_pred.projection_ty,
+                    )?,
                     term: self.as_default().refine_ty(&proj_pred.term)?,
                 };
                 rty::ClauseKind::Projection(pred)
@@ -246,6 +249,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_alias_ty(
         &self,
+        alias_kind: &rustc::ty::AliasKind,
         alias_ty: &rustc::ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
@@ -253,7 +257,10 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let args = iter::zip(&generics.params, alias_ty.args.iter())
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;
-        let res = rty::AliasTy::new(def_id, args);
+
+        let refine_args = self.refine_args_of(def_id, alias_kind);
+
+        let res = rty::AliasTy::new(def_id, args, refine_args);
         Ok(res)
     }
 
@@ -321,9 +328,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     .try_collect_vec()?;
                 rty::BaseTy::adt(adt_def, args)
             }
-            rustc::ty::TyKind::Alias(kind, alias_ty) => {
-                let kind = Self::refine_alias_kind(kind);
-                let alias_ty = self.refine_alias_ty(alias_ty)?;
+            rustc::ty::TyKind::Alias(alias_kind, alias_ty) => {
+                let kind = Self::refine_alias_kind(alias_kind);
+                let alias_ty = self.refine_alias_ty(alias_kind, alias_ty)?;
                 return Ok(rty::Binder::new(rty::Ty::alias(kind, alias_ty), List::empty()));
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
@@ -356,6 +363,16 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     fn generics_of(&self, def_id: DefId) -> QueryResult<rty::Generics> {
         self.genv.generics_of(def_id)
+    }
+
+    fn refine_args_of(&self, def_id: DefId, alias_kind: &rustc::ty::AliasKind) -> rty::RefineArgs {
+        if let rustc::ty::AliasKind::Opaque = alias_kind &&
+           let Ok(params) = self.genv.refparams_of_parent(def_id)
+        {
+            params.iter().map(|_| { rty::Expr::hole() }).collect_vec().into()
+        } else {
+            List::empty()
+        }
     }
 
     fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {

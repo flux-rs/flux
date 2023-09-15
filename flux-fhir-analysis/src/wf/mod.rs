@@ -232,7 +232,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         bound: &fhir::GenericBound,
     ) -> Result<(), ErrorGuaranteed> {
         match bound {
-            fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, trait_ref),
+            fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, &trait_ref.path),
             fhir::GenericBound::LangItemTrait(_, args, bindings) => {
                 self.check_generic_args(infcx, args)?;
                 self.check_type_bindings(infcx, bindings)?;
@@ -360,7 +360,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)
             }
-            fhir::TyKind::OpaqueDef(_, args, _) => self.check_generic_args(infcx, args),
+            fhir::TyKind::OpaqueDef(_, args, _refine_args, _) => {
+                // TODO sanity check the _refine_args (though they should never fail!) but we'd need their expected sorts
+                self.check_generic_args(infcx, args)
+            }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
         }
@@ -444,7 +447,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 iter::zip(&path.refine, sorts)
                     .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(infcx, arg, sort))?;
             }
-            fhir::Res::SelfTyAlias { .. } | fhir::Res::Def(..) | fhir::Res::PrimTy(..) => {}
+            fhir::Res::SelfTyParam { .. }
+            | fhir::Res::SelfTyAlias { .. }
+            | fhir::Res::Def(..)
+            | fhir::Res::PrimTy(..) => {}
         }
         let snapshot = self.xi.snapshot();
         let args = self.check_generic_args(infcx, &path.args);

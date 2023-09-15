@@ -44,7 +44,6 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         genv: &'sess GlobalEnv<'sess, 'tcx>,
         src_def_id: DefId,
         src_params: &[Expr],
-        item_params: &[Expr],
         t: &T,
     ) -> Result<Self, QueryErr> {
         let mut preds = UnordMap::default();
@@ -56,11 +55,11 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let param_env = predicates.instantiate_refparams(src_params);
         vec.push(param_env.predicates);
         // 2. Insert generic predicates of the opaque-types
-        let opaque_dids = t.opaque_def_ids();
-
-        for did in opaque_dids.iter() {
-            // vec.push(genv.item_bounds(*did)?.skip_binder());
-            vec.push(genv.item_bounds(*did)?.instantiate_refparams(item_params));
+        for (opaque_def_id, refine_args) in t.opaque_refine_args() {
+            vec.push(
+                genv.item_bounds(opaque_def_id)?
+                    .instantiate_refparams(&refine_args),
+            );
         }
 
         for clauses in vec {
@@ -390,9 +389,8 @@ pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
     callsite_def_id: DefId,
     src_params: &[Expr],
-    item_params: &[Expr],
     t: &T,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, item_params, t)?;
+    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, t)?;
     Ok(t.fold_with(&mut table))
 }

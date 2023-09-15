@@ -237,20 +237,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     ) -> Result<fhir::GenericBound, ErrorGuaranteed> {
         match bound {
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) => {
-                if !poly_trait_ref.bound_generic_params.is_empty() {
-                    return self.emit_unsupported("higher-rank trait bounds are not supported");
-                }
                 Ok(fhir::GenericBound::Trait(
-                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    self.lift_poly_trait_ref(*poly_trait_ref)?,
                     fhir::TraitBoundModifier::None,
                 ))
             }
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe) => {
-                if !poly_trait_ref.bound_generic_params.is_empty() {
-                    return self.emit_unsupported("higher-rank trait bounds are not supported");
-                }
                 Ok(fhir::GenericBound::Trait(
-                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    self.lift_poly_trait_ref(*poly_trait_ref)?,
                     fhir::TraitBoundModifier::Maybe,
                 ))
             }
@@ -263,6 +257,16 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
             _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
         }
+    }
+
+    fn lift_poly_trait_ref(
+        &mut self,
+        poly_trait_ref: hir::PolyTraitRef,
+    ) -> Result<fhir::TraitRef, ErrorGuaranteed> {
+        if !poly_trait_ref.bound_generic_params.is_empty() {
+            return self.emit_unsupported("higher-rank trait bounds are not supported");
+        }
+        Ok(fhir::TraitRef { path: self.lift_path(poly_trait_ref.trait_ref.path)? })
     }
 
     fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
@@ -419,7 +423,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
                 let args = self.lift_generic_args(args)?;
-                fhir::TyKind::OpaqueDef(*item_id, args, *in_trait_def)
+                fhir::TyKind::OpaqueDef(*item_id, args, vec![], *in_trait_def)
             }
             _ => {
                 return self.emit_unsupported(&format!(
@@ -461,19 +465,12 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_path(&mut self, path: &hir::Path) -> Result<fhir::Path, ErrorGuaranteed> {
-        let res = match path.res {
-            hir::def::Res::Def(kind, def_id) => fhir::Res::Def(kind, def_id),
-            hir::def::Res::PrimTy(prim_ty) => fhir::Res::PrimTy(prim_ty),
-            hir::def::Res::SelfTyAlias { alias_to, is_trait_impl, forbid_generic: false } => {
-                fhir::Res::SelfTyAlias { alias_to, is_trait_impl }
-            }
-            _ => {
-                return self.emit_unsupported(&format!(
-                    "unsupported type: `{}` {:?}",
-                    rustc_hir_pretty::path_to_string(path),
-                    path.res
-                ));
-            }
+        let Ok(res) = path.res.try_into() else {
+            return self.emit_unsupported(&format!(
+                "unsupported type: `{}` `{:?}`",
+                rustc_hir_pretty::path_to_string(path),
+                path.res
+            ));
         };
         let (args, bindings) = match path.segments.last().unwrap().args {
             Some(args) => {

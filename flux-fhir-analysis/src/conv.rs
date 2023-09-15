@@ -26,6 +26,7 @@ use rustc_hir::{
     PrimTy,
 };
 use rustc_middle::ty::{AssocItem, AssocKind, BoundVar, TyCtxt};
+use rustc_span::symbol::kw;
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
@@ -125,7 +126,7 @@ pub(crate) fn conv_opaque_ty(
     let env = &mut Env::new(refparams.unwrap_or(&[]));
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
-    let self_ty = rty::Ty::opaque(def_id, args);
+    let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
     Ok(cx
         .conv_generic_bounds(env, self_ty, &opaque_ty.bounds)?
         .into_iter()
@@ -137,30 +138,38 @@ pub(crate) fn conv_generics(
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
     refine_params: &[fhir::RefineParam],
+    is_trait: Option<LocalDefId>,
 ) -> rty::Generics {
-    let mut fhir_params = generics.params.iter();
-    let params = rust_generics
-        .params
-        .iter()
-        .flat_map(|rust_param| {
-            fhir_params
-                .find(|param| rust_param.def_id == param.def_id.to_def_id())
-                .map(|param| {
-                    let kind = match &param.kind {
-                        fhir::GenericParamKind::Type { default } => {
-                            rty::GenericParamDefKind::Type { has_default: default.is_some() }
-                        }
-                        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-                    };
-                    rty::GenericParamDef {
-                        kind,
-                        def_id: rust_param.def_id,
-                        index: rust_param.index,
-                        name: rust_param.name,
-                    }
-                })
-        })
+    let opt_self = is_trait.map(|def_id| {
+        rty::GenericParamDef {
+            index: 0,
+            name: kw::SelfUpper,
+            def_id: def_id.to_def_id(),
+            kind: rty::GenericParamDefKind::Type { has_default: false },
+        }
+    });
+    let params = opt_self
+        .into_iter()
+        .chain(rust_generics.params.iter().flat_map(|rust_param| {
+            let param = generics
+                .params
+                .iter()
+                .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
+            let kind = match &param.kind {
+                fhir::GenericParamKind::Type { default } => {
+                    rty::GenericParamDefKind::Type { has_default: default.is_some() }
+                }
+                fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+                fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+            };
+            let def_id = param.def_id.to_def_id();
+            Some(rty::GenericParamDef {
+                kind,
+                def_id,
+                index: rust_param.index,
+                name: rust_param.name,
+            })
+        }))
         .collect();
 
     let refine_params = refine_params
@@ -171,8 +180,8 @@ pub(crate) fn conv_generics(
     rty::Generics {
         params,
         refine_params,
-        parent_count: rust_generics.orig.parent_count,
-        parent: rust_generics.orig.parent,
+        parent_count: rust_generics.parent_count(),
+        parent: rust_generics.parent(),
     }
 }
 
@@ -307,18 +316,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<()> {
         match bound {
             fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
-                let fhir::Res::Def(DefKind::Trait, trait_id) = trait_ref.res else {
-                    span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
-                };
+                let trait_id = trait_ref.trait_def_id();
                 if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_id) {
                     self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
                 } else {
-                    self.conv_trait_bound(env, bounded_ty, trait_id, &trait_ref.args, clauses)?;
-                    self.conv_type_bindings(env, bounded_ty, trait_id, &trait_ref.bindings, clauses)
+                    let path = &trait_ref.path;
+                    self.conv_trait_bound(env, bounded_ty, trait_id, &path.args, clauses)?;
+                    self.conv_type_bindings(env, bounded_ty, trait_id, &path.bindings, clauses)
                 }
             }
-            // Maybe bounds are only supported for `?Sized`, and the effect is just to relax the
-            // default which is `Sized`, so we just skip it here.
+            // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is just
+            // to relax the default which is `Sized` to not have the `Sized` bound, so we just skip
+            // it here.
             fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => Ok(()),
             fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
                 let trait_def_id = self.genv.tcx.require_lang_item(*lang_item, None);
@@ -348,14 +357,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &self,
         env: &mut Env,
         self_ty: &rty::Ty,
-        trait_ref: &fhir::Path,
+        trait_ref: &fhir::TraitRef,
         kind: rty::ClosureKind,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult<()> {
+        let path = &trait_ref.path;
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
-            tupled_args: self.conv_ty(env, trait_ref.args[0].expect_type())?,
-            output: self.conv_ty(env, &trait_ref.bindings[0].term)?,
+            tupled_args: self.conv_ty(env, path.args[0].expect_type())?,
+            output: self.conv_ty(env, &path.bindings[0].term)?,
             kind,
         };
         clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred)));
@@ -379,7 +389,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         .emit_err(errors::AssocTypeNotFound::new(binding.ident))
                 })?;
             let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
-            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
+            let refine_args = List::empty();
+            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
             let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
                 projection_ty: alias_ty,
                 term: self.conv_ty(env, &binding.term)?,
@@ -553,10 +564,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
                 self.conv_ty(env, ty)
             }
-            fhir::TyKind::OpaqueDef(item_id, args0, _in_trait) => {
+            fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
                 let def_id = item_id.owner_id.to_def_id();
                 let args = self.conv_generic_args(env, def_id, args0)?;
-                let alias_ty = rty::AliasTy::new(def_id, args);
+                let refine_args = refine_args
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(env, arg).0)
+                    .collect_vec();
+                let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
             }
         }
@@ -570,10 +585,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 assert!(path.args.is_empty(), "generic associated types are not supported");
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
-                let alias_ty = rty::AliasTy { args, def_id };
+                let refine_args = List::empty();
+                let alias_ty = rty::AliasTy { args, def_id, refine_args };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
-            // If it is a type parameter with no no sort, it means it is of kind `Type`
+            // If it is a type parameter with no sort, it means it is of kind `Type`
+            if let fhir::Res::SelfTyParam { .. } = path.res && sort.is_none() {
+                return Ok(rty::Ty::param(rty::ParamTy { index: 0, name: kw::SelfUpper }));
+            }
             if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res && sort.is_none() {
                 let param_ty = def_id_to_param_ty(self.genv.tcx, def_id.expect_local());
                 return Ok(rty::Ty::param(param_ty));
@@ -715,7 +734,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx.expr));
             }
-            fhir::Res::Def(..) => {
+            fhir::Res::Def(..) | fhir::Res::SelfTyParam { .. } => {
                 span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)
             }
         };
@@ -825,6 +844,12 @@ impl Env {
         } else {
             span_bug!(name.span(), "no entry found for key: `{:?}`", name);
         }
+    }
+
+    fn to_early_bound_vars(&self) -> List<rty::Expr> {
+        (0..self.early_bound.len())
+            .map(|idx| rty::Expr::early_bvar(idx as u32))
+            .collect()
     }
 }
 

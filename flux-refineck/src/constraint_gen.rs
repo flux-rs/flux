@@ -185,9 +185,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         // Replace holes in generic arguments with fresh kvars
         let snapshot = rcx.snapshot();
+
         let generic_args = generic_args
             .iter()
-            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| {
+                arg.replace_holes_for_opaque_args(|def_id| {
+                    infcx.fresh_evars_for_opaque_args(def_id)
+                })
+                .replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -202,13 +208,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
-        let inst_fn_sig = rty::projections::normalize(
-            genv,
-            callsite_def_id,
-            infcx.refparams,
-            &exprs,
-            &inst_fn_sig,
-        )?;
+        let inst_fn_sig =
+            rty::projections::normalize(genv, callsite_def_id, infcx.refparams, &inst_fn_sig)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
@@ -263,7 +264,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.genv,
                     callsite_def_id,
                     infcx.refparams,
-                    &exprs,
                     &proj_ty,
                 )?;
 
@@ -290,13 +290,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(
-            self.genv,
-            callsite_def_id,
-            self.refparams,
-            self.refparams,
-            output,
-        )?;
+        let output =
+            rty::projections::normalize(self.genv, callsite_def_id, self.refparams, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -456,6 +451,16 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.kvar_gen.fresh(sorts, encoding)
     }
 
+    fn fresh_evars_for_opaque_args(&mut self, def_id: DefId) -> List<Expr> {
+        self.genv
+            .refparams_of_parent(def_id)
+            .unwrap()
+            .iter()
+            .map(|param| self.fresh_evars(&param.sort))
+            .collect_vec()
+            .into()
+    }
+
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
         let cx = *self.scopes.last().unwrap().0;
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
@@ -561,6 +566,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 Ok(())
             }
             (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) => {
+                if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
+                    debug_assert_eq!(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
+                    iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
+                        .for_each(|(e1, e2)| self.unify_exprs(e1, e2, false));
+                }
+
                 self.opaque_subtyping(rcx, ty1, alias_ty)
             }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
@@ -638,16 +649,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Ty {
         let args = vec![GenericArg::Ty(self_ty.clone())];
-        let alias_ty = rty::AliasTy::new(def_id, args);
+        let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(
-            self.genv,
-            self.def_id,
-            self.refparams,
-            self.refparams,
-            &proj_ty,
-        )
-        .unwrap()
+        rty::projections::normalize(self.genv, self.def_id, self.refparams, &proj_ty).unwrap()
     }
 
     fn opaque_subtyping(

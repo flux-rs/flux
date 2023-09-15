@@ -23,7 +23,7 @@ use std::{
     fmt,
 };
 
-use flux_common::bug;
+use flux_common::{bug, span_bug};
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -115,8 +115,13 @@ pub type GenericBounds = Vec<GenericBound>;
 
 #[derive(Debug)]
 pub enum GenericBound {
-    Trait(Path, TraitBoundModifier),
+    Trait(TraitRef, TraitBoundModifier),
     LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
+}
+
+#[derive(Debug)]
+pub struct TraitRef {
+    pub path: Path,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -275,7 +280,7 @@ pub enum TyKind {
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
-    OpaqueDef(ItemId, Vec<GenericArg>, bool),
+    OpaqueDef(ItemId, Vec<GenericArg>, Vec<RefineArg>, bool),
     Never,
     Hole,
 }
@@ -439,6 +444,7 @@ pub enum Res {
     Def(DefKind, DefId),
     PrimTy(PrimTy),
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
+    SelfTyParam { trait_: DefId },
 }
 
 #[derive(Debug, Clone)]
@@ -553,6 +559,17 @@ newtype_index! {
     pub struct Name {}
 }
 
+impl TraitRef {
+    pub fn trait_def_id(&self) -> DefId {
+        let path = &self.path;
+        if let Res::Def(DefKind::Trait, did) = path.res {
+            did
+        } else {
+            span_bug!(path.span, "unexpected resolution {:?}", path.res);
+        }
+    }
+}
+
 impl From<FluxOwnerId> for FluxLocalDefId {
     fn from(flux_id: FluxOwnerId) -> Self {
         match flux_id {
@@ -608,7 +625,23 @@ impl Res {
         match self {
             Res::PrimTy(_) => "builtin type",
             Res::Def(kind, def_id) => kind.descr(*def_id),
-            Res::SelfTyAlias { .. } => "self type",
+            Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
+        }
+    }
+}
+
+impl TryFrom<rustc_hir::def::Res> for Res {
+    type Error = ();
+
+    fn try_from(res: rustc_hir::def::Res) -> Result<Self, Self::Error> {
+        match res {
+            rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
+            rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),
+            rustc_hir::def::Res::SelfTyAlias { alias_to, forbid_generic: false, is_trait_impl } => {
+                Ok(Res::SelfTyAlias { alias_to, is_trait_impl })
+            }
+            rustc_hir::def::Res::SelfTyParam { trait_ } => Ok(Res::SelfTyParam { trait_ }),
+            _ => Err(()),
         }
     }
 }
@@ -1299,8 +1332,11 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
-            TyKind::OpaqueDef(def_id, args, _) => {
-                write!(f, "impl trait <def_id = {def_id:?}, args = {args:?}>")
+            TyKind::OpaqueDef(def_id, args, refine_args, _) => {
+                write!(
+                    f,
+                    "impl trait <def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}>"
+                )
             }
         }
     }
@@ -1355,7 +1391,7 @@ impl fmt::Debug for Path {
             Res::Def(_, def_id) => {
                 write!(f, "{}", pretty::def_id_to_string(def_id))?;
             }
-            Res::SelfTyAlias { .. } => write!(f, "Self")?,
+            Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => write!(f, "Self")?,
         }
         let args: Vec<_> = self
             .args

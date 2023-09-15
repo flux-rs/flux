@@ -228,8 +228,8 @@ impl<'zip> Zipper<'zip> {
                 Ok(())
             }
             (
-                fhir::TyKind::OpaqueDef(item_id, args, _),
-                fhir::TyKind::OpaqueDef(exp_item_id, exp_args, _),
+                fhir::TyKind::OpaqueDef(item_id, args, _, _),
+                fhir::TyKind::OpaqueDef(exp_item_id, exp_args, _, _),
             ) => {
                 if item_id != exp_item_id {
                     return Err(self.emit_err(
