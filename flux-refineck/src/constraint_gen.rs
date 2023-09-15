@@ -567,6 +567,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) => {
                 if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
+                    debug_assert_eq!(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
                     iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
                         .for_each(|(e1, e2)| self.unify_exprs(e1, e2, false));
                 }

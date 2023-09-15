@@ -834,11 +834,9 @@ impl Env {
     }
 
     fn to_early_bound_vars(&self) -> List<rty::Expr> {
-        let mut res = vec![];
-        for idx in 0..self.early_bound.len() {
-            res.push(rty::Expr::early_bvar(idx as u32))
-        }
-        List::from_vec(res)
+        (0..self.early_bound.len())
+            .map(|idx| rty::Expr::early_bvar(idx as u32))
+            .collect()
     }
 }
 
