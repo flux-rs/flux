@@ -392,7 +392,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {
-        let kind = match &ty.kind {
+        let kind = match ty.kind {
             hir::TyKind::Slice(ty) => {
                 let kind = fhir::BaseTyKind::Slice(Box::new(self.lift_ty(ty)?));
                 let bty = fhir::BaseTy { kind, span: ty.span };
@@ -419,11 +419,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
                 let opaque_ty = self
                     .with_new_owner(item_id.owner_id)
-                    .lift_opaque_ty(*item_id)?;
+                    .lift_opaque_ty(item_id)?;
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
                 let args = self.lift_generic_args(args)?;
-                fhir::TyKind::OpaqueDef(*item_id, args, vec![], *in_trait_def)
+                fhir::TyKind::OpaqueDef(item_id, args, vec![], in_trait_def)
             }
             _ => {
                 return self.emit_unsupported(&format!(
@@ -448,17 +448,17 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(fhir::Lifetime { fhir_id: self.next_fhir_id(), ident: lft.ident, res })
     }
 
-    fn lift_mut_ty(&mut self, mut_ty: &hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
+    fn lift_mut_ty(&mut self, mut_ty: hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
         Ok(fhir::MutTy { ty: Box::new(self.lift_ty(mut_ty.ty)?), mutbl: mut_ty.mutbl })
     }
 
-    fn lift_qpath(&mut self, qpath: &hir::QPath) -> Result<fhir::Ty, ErrorGuaranteed> {
+    fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::Ty, ErrorGuaranteed> {
         match qpath {
-            hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(*self_ty, path),
+            hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(self_ty, path),
             hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
                 self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
-                    rustc_hir_pretty::qpath_to_string(qpath)
+                    rustc_hir_pretty::qpath_to_string(&qpath)
                 ))
             }
         }
@@ -541,7 +541,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(lifted)
     }
 
-    fn lift_array_len(&self, len: &hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
+    fn lift_array_len(&self, len: hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.tcx.hir().body(anon_const.body),
             hir::ArrayLen::Infer(_, _) => bug!("unexpected `ArrayLen::Infer`"),
