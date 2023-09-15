@@ -232,7 +232,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         bound: &fhir::GenericBound,
     ) -> Result<(), ErrorGuaranteed> {
         match bound {
-            fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, trait_ref),
+            fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, &trait_ref.path),
             fhir::GenericBound::LangItemTrait(_, args, bindings) => {
                 self.check_generic_args(infcx, args)?;
                 self.check_type_bindings(infcx, bindings)?;

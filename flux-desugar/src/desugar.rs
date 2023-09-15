@@ -252,11 +252,19 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             .iter()
             .map(|bound| {
                 Ok(fhir::GenericBound::Trait(
-                    self.desugar_path(bound, binders)?,
+                    self.desugar_trait_ref(bound, binders)?,
                     fhir::TraitBoundModifier::None,
                 ))
             })
             .try_collect_exhaust()
+    }
+
+    fn desugar_trait_ref(
+        &mut self,
+        trait_ref: &surface::TraitRef<Res>,
+        binders: &mut Binders,
+    ) -> Result<fhir::TraitRef, ErrorGuaranteed> {
+        Ok(fhir::TraitRef { path: self.desugar_path(&trait_ref.path, binders)? })
     }
 
     pub(crate) fn desugar_struct_def(
@@ -1247,8 +1255,8 @@ impl Binders {
     ) -> Result<(), ErrorGuaranteed> {
         for predicate in predicates {
             self.gather_params_ty(genv, None, &predicate.bounded_ty, TypePos::Other)?;
-            for path in &predicate.bounds {
-                self.gather_params_path(genv, path, TypePos::Other)?;
+            for bound in &predicate.bounds {
+                self.gather_params_path(genv, &bound.path, TypePos::Other)?;
             }
         }
         Ok(())
@@ -1381,8 +1389,8 @@ impl Binders {
             }
             surface::TyKind::Hole => Ok(()),
             surface::TyKind::ImplTrait(_, bounds) => {
-                for path in bounds {
-                    self.gather_params_path(genv, path, pos)?;
+                for bound in bounds {
+                    self.gather_params_path(genv, &bound.path, TypePos::Other)?;
                 }
                 Ok(())
             }

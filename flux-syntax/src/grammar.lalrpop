@@ -216,7 +216,7 @@ WhereBoundPredicate: surface::WhereBoundPredicate = {
 }
 
 GenericBounds: surface::GenericBounds = {
-    <bound:Path> => vec![bound]
+    <bound:Path> => vec![surface::TraitRef { path: bound } ]
 }
 
 Arg: surface::Arg = {

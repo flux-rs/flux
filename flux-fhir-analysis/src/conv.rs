@@ -316,18 +316,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<()> {
         match bound {
             fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
-                let fhir::Res::Def(DefKind::Trait, trait_id) = trait_ref.res else {
-                    span_bug!(trait_ref.span, "unexpected resolution {:?}", trait_ref.res);
-                };
+                let trait_id = trait_ref.trait_def_id();
                 if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_id) {
                     self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
                 } else {
-                    self.conv_trait_bound(env, bounded_ty, trait_id, &trait_ref.args, clauses)?;
-                    self.conv_type_bindings(env, bounded_ty, trait_id, &trait_ref.bindings, clauses)
+                    let path = &trait_ref.path;
+                    self.conv_trait_bound(env, bounded_ty, trait_id, &path.args, clauses)?;
+                    self.conv_type_bindings(env, bounded_ty, trait_id, &path.bindings, clauses)
                 }
             }
-            // Maybe bounds are only supported for `?Sized`, and the effect is just to relax the
-            // default which is `Sized`, so we just skip it here.
+            // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is just
+            // to relax the default which is `Sized` to not have the `Sized` bound, so we just skip
+            // it here.
             fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => Ok(()),
             fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
                 let trait_def_id = self.genv.tcx.require_lang_item(*lang_item, None);
@@ -357,14 +357,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &self,
         env: &mut Env,
         self_ty: &rty::Ty,
-        trait_ref: &fhir::Path,
+        trait_ref: &fhir::TraitRef,
         kind: rty::ClosureKind,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult<()> {
+        let path = &trait_ref.path;
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
-            tupled_args: self.conv_ty(env, trait_ref.args[0].expect_type())?,
-            output: self.conv_ty(env, &trait_ref.bindings[0].term)?,
+            tupled_args: self.conv_ty(env, path.args[0].expect_type())?,
+            output: self.conv_ty(env, &path.bindings[0].term)?,
             kind,
         };
         clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred)));

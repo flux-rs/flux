@@ -237,20 +237,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     ) -> Result<fhir::GenericBound, ErrorGuaranteed> {
         match bound {
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) => {
-                if !poly_trait_ref.bound_generic_params.is_empty() {
-                    return self.emit_unsupported("higher-rank trait bounds are not supported");
-                }
                 Ok(fhir::GenericBound::Trait(
-                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    self.lift_poly_trait_ref(*poly_trait_ref)?,
                     fhir::TraitBoundModifier::None,
                 ))
             }
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe) => {
-                if !poly_trait_ref.bound_generic_params.is_empty() {
-                    return self.emit_unsupported("higher-rank trait bounds are not supported");
-                }
                 Ok(fhir::GenericBound::Trait(
-                    self.lift_path(poly_trait_ref.trait_ref.path)?,
+                    self.lift_poly_trait_ref(*poly_trait_ref)?,
                     fhir::TraitBoundModifier::Maybe,
                 ))
             }
@@ -263,6 +257,16 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
             _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
         }
+    }
+
+    fn lift_poly_trait_ref(
+        &mut self,
+        poly_trait_ref: hir::PolyTraitRef,
+    ) -> Result<fhir::TraitRef, ErrorGuaranteed> {
+        if !poly_trait_ref.bound_generic_params.is_empty() {
+            return self.emit_unsupported("higher-rank trait bounds are not supported");
+        }
+        Ok(fhir::TraitRef { path: self.lift_path(poly_trait_ref.trait_ref.path)? })
     }
 
     fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {

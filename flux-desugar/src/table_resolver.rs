@@ -1,7 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, Ty};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, TraitRef, Ty};
 use hir::{def::DefKind, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -144,9 +144,16 @@ impl<'sess> Resolver<'sess> {
     ) -> Result<GenericBounds<Res>, ErrorGuaranteed> {
         let bounds = bounds
             .into_iter()
-            .map(|bound| self.resolve_path(bound))
+            .map(|bound| self.resolve_trait_ref(bound))
             .try_collect_exhaust()?;
         Ok(bounds)
+    }
+
+    fn resolve_trait_ref(
+        &self,
+        trait_ref: surface::TraitRef,
+    ) -> Result<TraitRef<Res>, ErrorGuaranteed> {
+        Ok(TraitRef { path: self.resolve_path(trait_ref.path)? })
     }
 
     #[allow(dead_code)]

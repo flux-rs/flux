@@ -23,7 +23,7 @@ use std::{
     fmt,
 };
 
-use flux_common::bug;
+use flux_common::{bug, span_bug};
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -115,8 +115,13 @@ pub type GenericBounds = Vec<GenericBound>;
 
 #[derive(Debug)]
 pub enum GenericBound {
-    Trait(Path, TraitBoundModifier),
+    Trait(TraitRef, TraitBoundModifier),
     LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
+}
+
+#[derive(Debug)]
+pub struct TraitRef {
+    pub path: Path,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -552,6 +557,17 @@ pub struct Ident {
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct Name {}
+}
+
+impl TraitRef {
+    pub fn trait_def_id(&self) -> DefId {
+        let path = &self.path;
+        if let Res::Def(DefKind::Trait, did) = path.res {
+            did
+        } else {
+            span_bug!(path.span, "unexpected resolution {:?}", path.res);
+        }
+    }
 }
 
 impl From<FluxOwnerId> for FluxLocalDefId {
