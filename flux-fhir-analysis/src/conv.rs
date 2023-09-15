@@ -125,7 +125,7 @@ pub(crate) fn conv_opaque_ty(
     let env = &mut Env::new(refparams.unwrap_or(&[]));
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
-    let self_ty = rty::Ty::opaque(def_id, args, env.early_binders());
+    let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
     Ok(cx
         .conv_generic_bounds(env, self_ty, &opaque_ty.bounds)?
         .into_iter()
@@ -833,7 +833,7 @@ impl Env {
         }
     }
 
-    fn early_binders(&self) -> List<rty::Expr> {
+    fn to_early_bound_vars(&self) -> List<rty::Expr> {
         let mut res = vec![];
         for idx in 0..self.early_bound.len() {
             res.push(rty::Expr::early_bvar(idx as u32))

@@ -218,26 +218,6 @@ pub trait TypeVisitable: Sized {
         self.visit_with(&mut collector);
         collector.0
     }
-
-    /// Returns the set of all opaque type aliases def ids
-    fn opaque_def_ids(&self) -> FxHashSet<DefId> {
-        struct CollectOpaqueDefIds(FxHashSet<DefId>);
-
-        impl TypeVisitor for CollectOpaqueDefIds {
-            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
-                if let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    let _ = self.0.insert(alias_ty.def_id);
-                    alias_ty.args.visit_with(self)
-                } else {
-                    ty.super_visit_with(self)
-                }
-            }
-        }
-
-        let mut collector = CollectOpaqueDefIds(FxHashSet::default());
-        self.visit_with(&mut collector);
-        collector.0
-    }
 }
 
 pub trait TypeSuperVisitable: TypeVisitable {
@@ -260,7 +240,7 @@ pub trait TypeFoldable: TypeVisitable {
     /// as input the DefId of the opaque type, and queries the genv to get the refparams' (sorts).
     /// Bit gross to do this inside replace_holes as we'd either need a separate closure or somehow
     /// access to the genv?
-    fn replace_opaque_holes(&self, mk_args: impl FnMut(DefId) -> List<Expr>) -> Self {
+    fn replace_holes_for_opaque_args(&self, mk_args: impl FnMut(DefId) -> List<Expr>) -> Self {
         struct ReplaceOpaqueHoles<F>(F, Vec<()>);
         impl<F> TypeFolder for ReplaceOpaqueHoles<F>
         where

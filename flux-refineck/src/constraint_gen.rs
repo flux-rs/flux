@@ -188,11 +188,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let generic_args = generic_args
             .iter()
-            .map(|arg| arg.replace_opaque_holes(|def_id| infcx.fresh_opaque_evars(def_id)))
-            .collect_vec();
-        let generic_args = generic_args
-            .iter()
-            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| {
+                arg.replace_holes_for_opaque_args(|def_id| {
+                    infcx.fresh_evars_for_opaque_args(def_id)
+                })
+                .replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
@@ -207,13 +208,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
             );
 
-        let inst_fn_sig = rty::projections::normalize(
-            genv,
-            callsite_def_id,
-            infcx.refparams,
-            &exprs,
-            &inst_fn_sig,
-        )?;
+        let inst_fn_sig =
+            rty::projections::normalize(genv, callsite_def_id, infcx.refparams, &inst_fn_sig)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &exprs)?
@@ -268,7 +264,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.genv,
                     callsite_def_id,
                     infcx.refparams,
-                    &exprs,
                     &proj_ty,
                 )?;
 
@@ -295,13 +290,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(
-            self.genv,
-            callsite_def_id,
-            self.refparams,
-            self.refparams,
-            output,
-        )?;
+        let output =
+            rty::projections::normalize(self.genv, callsite_def_id, self.refparams, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -461,7 +451,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.kvar_gen.fresh(sorts, encoding)
     }
 
-    fn fresh_opaque_evars(&mut self, def_id: DefId) -> List<Expr> {
+    fn fresh_evars_for_opaque_args(&mut self, def_id: DefId) -> List<Expr> {
         self.genv
             .refparams_of_parent(def_id)
             .unwrap()
@@ -660,14 +650,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(
-            self.genv,
-            self.def_id,
-            self.refparams,
-            self.refparams,
-            &proj_ty,
-        )
-        .unwrap()
+        rty::projections::normalize(self.genv, self.def_id, self.refparams, &proj_ty).unwrap()
     }
 
     fn opaque_subtyping(

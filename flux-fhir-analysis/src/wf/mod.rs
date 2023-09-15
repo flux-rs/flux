@@ -360,7 +360,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_type(infcx, ty)?;
                 self.check_pred(infcx, pred)
             }
-            fhir::TyKind::OpaqueDef(_, args, _, _) => self.check_generic_args(infcx, args),
+            fhir::TyKind::OpaqueDef(_, args, _refine_args, _) => {
+                // TODO sanity check the _refine_args (though they should never fail!) but we'd need their expected sorts
+                self.check_generic_args(infcx, args)
+            }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
         }
