@@ -236,7 +236,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     }
                 }
             }
-            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => return None,
+            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
+            | fhir::Res::SelfTyParam { .. } => return None,
             fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
         };
         Some(sort)

@@ -1,7 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, Ty};
+use flux_syntax::surface::{self, BaseTy, BaseTyKind, GenericBounds, Ident, Path, TraitRef, Ty};
 use hir::{def::DefKind, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -144,9 +144,16 @@ impl<'sess> Resolver<'sess> {
     ) -> Result<GenericBounds<Res>, ErrorGuaranteed> {
         let bounds = bounds
             .into_iter()
-            .map(|bound| self.resolve_path(bound))
+            .map(|bound| self.resolve_trait_ref(bound))
             .try_collect_exhaust()?;
         Ok(bounds)
+    }
+
+    fn resolve_trait_ref(
+        &self,
+        trait_ref: surface::TraitRef,
+    ) -> Result<TraitRef<Res>, ErrorGuaranteed> {
+        Ok(TraitRef { path: self.resolve_path(trait_ref.path)? })
     }
 
     #[allow(dead_code)]
@@ -518,19 +525,6 @@ impl<'sess> NameResTable<'sess> {
         Ok(())
     }
 
-    fn res_from_hir_res(&self, res: hir::def::Res, span: Span) -> ResEntry {
-        match res {
-            hir::def::Res::Def(kind, did) => ResEntry::Res(Res::Def(kind, did)),
-            hir::def::Res::PrimTy(prim_ty) => ResEntry::Res(Res::PrimTy(prim_ty)),
-            hir::def::Res::SelfTyAlias { alias_to, forbid_generic: false, is_trait_impl } => {
-                ResEntry::Res(Res::SelfTyAlias { alias_to, is_trait_impl })
-            }
-            _ => {
-                ResEntry::Unsupported { span, reason: format!("unsupported resolution `{res:?}`") }
-            }
-        }
-    }
-
     fn collect_from_ty(&mut self, ty: &hir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
             hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(ty),
@@ -586,7 +580,11 @@ impl<'sess> NameResTable<'sess> {
 
     fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result<(), ErrorGuaranteed> {
         let key = ResKey::from_hir_path(self.sess, path)?;
-        let res = self.res_from_hir_res(path.res, path.span);
+
+        let res = path
+            .res
+            .try_into()
+            .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
         self.insert(key, res);
 
         if let [.., PathSegment { args: Some(args), .. }] = path.segments {
@@ -659,6 +657,12 @@ impl ResKey {
 impl From<Res> for ResEntry {
     fn from(res: Res) -> Self {
         ResEntry::Res(res)
+    }
+}
+
+impl ResEntry {
+    fn unsupported(path: hir::Path) -> Self {
+        Self::Unsupported { span: path.span, reason: format!("unsupported res `{:?}`", path.res) }
     }
 }
 

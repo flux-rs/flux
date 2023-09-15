@@ -180,7 +180,12 @@ pub struct WhereBoundPredicate<R = ()> {
     pub bounds: GenericBounds<R>,
 }
 
-pub type GenericBounds<R = ()> = Vec<Path<R>>;
+pub type GenericBounds<R = ()> = Vec<TraitRef<R>>;
+
+#[derive(Debug)]
+pub struct TraitRef<R = ()> {
+    pub path: Path<R>,
+}
 
 #[derive(Debug)]
 pub enum Arg<R = ()> {

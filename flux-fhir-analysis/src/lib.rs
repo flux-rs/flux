@@ -146,17 +146,39 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
     let def_id = local_id.to_def_id();
     let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
         .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
-    // FIXME(nilehmann) we are returning the wrong generics for closures and generators
-    let generics = genv.map().get_generics(local_id).unwrap_or_else(|| {
-        genv.map()
-            .get_generics(genv.tcx.local_parent(local_id))
-            .unwrap_or_else(|| panic!("no generics for {:?}", def_id))
-    });
-    let refine_params = genv
-        .map()
-        .get_refine_params(genv.tcx, local_id)
-        .unwrap_or(&[]);
-    Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params))
+
+    let def_kind = genv.tcx.def_kind(def_id);
+    match def_kind {
+        DefKind::Impl { .. }
+        | DefKind::Struct
+        | DefKind::Enum
+        | DefKind::TyAlias { .. }
+        | DefKind::OpaqueTy
+        | DefKind::AssocFn
+        | DefKind::AssocTy
+        | DefKind::Trait
+        | DefKind::Fn => {
+            let is_trait = (def_kind == DefKind::Trait).then_some(local_id);
+            let generics = genv
+                .map()
+                .get_generics(local_id)
+                .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
+            let refine_params = genv
+                .map()
+                .get_refine_params(genv.tcx, local_id)
+                .unwrap_or(&[]);
+            Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params, is_trait))
+        }
+        DefKind::Closure | DefKind::Generator => {
+            Ok(rty::Generics {
+                params: List::empty(),
+                refine_params: List::empty(),
+                parent: rustc_generics.parent(),
+                parent_count: rustc_generics.parent_count(),
+            })
+        }
+        kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
+    }
 }
 
 fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
