@@ -457,15 +457,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-                // let mut expanded_actuals = vec![];
-                // for ty in actuals.clone() {
-                //     match ty.kind() {
-                //         TyKind::Ptr(_, loc) => expanded_actuals.push(env.get(loc)),
-                //         _ => expanded_actuals.push(ty),
-                //     }
-                // }
-                // let opaque_refine_args = expanded_actuals.opaque_refine_args();
-
                 let generic_args = call_args
                     .lowered
                     .iter()

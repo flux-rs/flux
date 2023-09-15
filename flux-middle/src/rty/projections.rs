@@ -44,7 +44,6 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         genv: &'sess GlobalEnv<'sess, 'tcx>,
         src_def_id: DefId,
         src_params: &[Expr],
-        _item_params: &[Expr],
         t: &T,
     ) -> Result<Self, QueryErr> {
         let mut preds = UnordMap::default();
@@ -390,9 +389,8 @@ pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
     genv: &'sess GlobalEnv<'sess, '_>,
     callsite_def_id: DefId,
     src_params: &[Expr],
-    item_params: &[Expr],
     t: &T,
 ) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, item_params, t)?;
+    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, t)?;
     Ok(t.fold_with(&mut table))
 }
