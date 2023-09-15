@@ -325,8 +325,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     self.conv_type_bindings(env, bounded_ty, trait_id, &path.bindings, clauses)
                 }
             }
-            // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is just
-            // to relax the default which is `Sized` to not have the `Sized` bound, so we just skip
+            // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
+            // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
             // it here.
             fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => Ok(()),
             fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
