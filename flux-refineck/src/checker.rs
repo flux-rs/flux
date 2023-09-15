@@ -216,7 +216,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             )
         };
 
-        // CUT println!("TRACE: run {def_id:?} ::  {poly_sig:?} exprs = {exprs:?} ");
         let poly_sig = poly_sig.instantiate_refparams(&exprs);
 
         let fn_sig = poly_sig
@@ -549,7 +548,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: GeneratorObligPredicate,
     ) -> Result<(), CheckerError> {
-        // CUT println!("TRACE: check_oblig_generator_pred {gen_pred:?}");
         let poly_sig = gen_pred.to_closure_sig();
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
