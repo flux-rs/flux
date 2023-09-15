@@ -126,7 +126,7 @@ pub(crate) fn conv_opaque_ty(
     let env = &mut Env::new(refparams.unwrap_or(&[]));
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
-    let self_ty = rty::Ty::opaque(def_id, args);
+    let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
     Ok(cx
         .conv_generic_bounds(env, self_ty, &opaque_ty.bounds)?
         .into_iter()
@@ -389,7 +389,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                         .emit_err(errors::AssocTypeNotFound::new(binding.ident))
                 })?;
             let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
-            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args };
+            let refine_args = List::empty();
+            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
             let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
                 projection_ty: alias_ty,
                 term: self.conv_ty(env, &binding.term)?,
@@ -563,10 +564,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
                 self.conv_ty(env, ty)
             }
-            fhir::TyKind::OpaqueDef(item_id, args0, _in_trait) => {
+            fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
                 let def_id = item_id.owner_id.to_def_id();
                 let args = self.conv_generic_args(env, def_id, args0)?;
-                let alias_ty = rty::AliasTy::new(def_id, args);
+                let refine_args = refine_args
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(env, arg).0)
+                    .collect_vec();
+                let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
             }
         }
@@ -580,7 +585,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 assert!(path.args.is_empty(), "generic associated types are not supported");
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
-                let alias_ty = rty::AliasTy { args, def_id };
+                let refine_args = List::empty();
+                let alias_ty = rty::AliasTy { args, def_id, refine_args };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
             // If it is a type parameter with no sort, it means it is of kind `Type`
@@ -838,6 +844,12 @@ impl Env {
         } else {
             span_bug!(name.span(), "no entry found for key: `{:?}`", name);
         }
+    }
+
+    fn to_early_bound_vars(&self) -> List<rty::Expr> {
+        (0..self.early_bound.len())
+            .map(|idx| rty::Expr::early_bvar(idx as u32))
+            .collect()
     }
 }
 

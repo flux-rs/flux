@@ -433,6 +433,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 }
             }
             TerminatorKind::Call { args, destination, target, resolved_call, .. } => {
+                let actuals = self.check_operands(rcx, env, terminator_span, args)?;
+
                 let (func_id, call_args) = resolved_call;
                 let fn_sig = self
                     .genv
@@ -463,7 +465,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     Some(*func_id),
                     fn_sig,
                     &generic_args,
-                    args,
+                    &actuals,
                 )?;
 
                 let ret = rcx.unpack(&ret);
@@ -505,13 +507,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         did: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
-        operands: &[Operand],
+        actuals: &[Ty],
     ) -> Result<Ty, CheckerError> {
-        let actuals = self.check_operands(rcx, env, terminator_span, operands)?;
         let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, &actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -763,6 +764,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) => {
+                let actuals = self.check_operands(rcx, env, stmt_span, operands)?;
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
@@ -775,7 +777,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)?;
-                self.check_call(rcx, env, stmt_span, None, sig, &args, operands)
+                self.check_call(rcx, env, stmt_span, None, sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(rcx, env, stmt_span, operands)?;

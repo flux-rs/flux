@@ -280,7 +280,7 @@ pub enum TyKind {
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     RawPtr(Box<Ty>, Mutability),
-    OpaqueDef(ItemId, Vec<GenericArg>, bool),
+    OpaqueDef(ItemId, Vec<GenericArg>, Vec<RefineArg>, bool),
     Never,
     Hole,
 }
@@ -1332,8 +1332,11 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::Hole => write!(f, "_"),
-            TyKind::OpaqueDef(def_id, args, _) => {
-                write!(f, "impl trait <def_id = {def_id:?}, args = {args:?}>")
+            TyKind::OpaqueDef(def_id, args, refine_args, _) => {
+                write!(
+                    f,
+                    "impl trait <def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}>"
+                )
             }
         }
     }
