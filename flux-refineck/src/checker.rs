@@ -446,7 +446,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-
                 let generic_args = call_args
                     .lowered
                     .iter()
