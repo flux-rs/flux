@@ -172,7 +172,7 @@ impl<'zip> Zipper<'zip> {
             ) => self.zip_bty(bty, expected_bty),
             (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
                 if expected_mut_ty.mutbl.is_mut() {
-                    self.zip_lifetime(lft, expected_lft);
+                    self.zip_lifetime(*lft, *expected_lft);
                     self.locs.insert(loc.name, &expected_mut_ty.ty);
                     Ok(())
                 } else {
@@ -190,7 +190,7 @@ impl<'zip> Zipper<'zip> {
                             .with_note("types differ in mutability"),
                     ));
                 }
-                self.zip_lifetime(lft, expected_lft);
+                self.zip_lifetime(*lft, *expected_lft);
                 self.zip_ty(&mut_ty.ty, &expected_mut_ty.ty)
             }
             (fhir::TyKind::Tuple(tys), fhir::TyKind::Tuple(expected_tys)) => {
@@ -261,18 +261,26 @@ impl<'zip> Zipper<'zip> {
         match (arg1, arg2) {
             (fhir::GenericArg::Type(ty1), fhir::GenericArg::Type(ty2)) => self.zip_ty(ty1, ty2),
             (fhir::GenericArg::Lifetime(lft1), fhir::GenericArg::Lifetime(lft2)) => {
-                self.zip_lifetime(lft1, lft2);
+                self.zip_lifetime(*lft1, *lft2);
                 Ok(())
             }
             _ => bug!(),
         }
     }
 
-    fn zip_lifetime(&mut self, lft: &fhir::Lifetime, expected_lft: &fhir::Lifetime) {
-        assert!(matches!(lft.res, fhir::LifetimeRes::Hole));
-        self.wfckresults
-            .lifetime_holes_mut()
-            .insert(lft.fhir_id, *expected_lft);
+    fn zip_lifetime(&mut self, lft: fhir::Lifetime, expected_lft: fhir::Lifetime) {
+        let fhir::Lifetime::Hole(fhir_id) = lft else {
+            return;
+        };
+
+        match expected_lft {
+            fhir::Lifetime::Resolved(res) => {
+                self.wfckresults.lifetime_holes_mut().insert(fhir_id, res);
+            }
+            fhir::Lifetime::Hole(_) => {
+                bug!("unexpected hole in lifted lifetime")
+            }
+        }
     }
 
     fn zip_bty(
