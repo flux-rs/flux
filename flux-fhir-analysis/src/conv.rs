@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 
 use flux_common::{bug, span_bug};
 use flux_middle::{
-    fhir::{self, FhirId, FluxOwnerId, SurfaceIdent},
+    fhir::{self, FhirId, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -19,19 +19,21 @@ use flux_middle::{
     rustc::{self, lowering},
 };
 use itertools::Itertools;
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
     PrimTy,
 };
-use rustc_middle::ty::{AssocItem, AssocKind, BoundVar, TyCtxt};
+use rustc_middle::{
+    middle::resolve_bound_vars::ResolvedArg,
+    ty::{AssocItem, AssocKind, BoundVar, TyCtxt},
+};
 use rustc_span::symbol::kw;
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    late_bound_vars_map: UnordMap<DefId, BoundVar>,
     wfckresults: &'a fhir::WfckResults,
 }
 
@@ -290,8 +292,7 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a fhir::WfckResults) -> Self {
-        let late_bound_vars_map = mk_late_bound_vars_map(genv.tcx, wfckresults.owner);
-        Self { genv, late_bound_vars_map, wfckresults }
+        Self { genv, wfckresults }
     }
 
     fn conv_generic_bounds(
@@ -613,28 +614,39 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_lifetime(&self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
-        match lft.res {
-            fhir::LifetimeRes::Param(local_def_id) => {
-                let def_id = local_def_id.to_def_id();
-                if let Some(&var) = self.late_bound_vars_map.get(&def_id) {
-                    let depth = env.depth().checked_sub(1).unwrap();
-                    let kind = rty::BoundRegionKind::BrNamed(def_id, lft.ident.name);
-                    let bound_region = rty::BoundRegion { var, kind };
-                    rty::ReLateBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
-                } else {
-                    let index = def_id_to_param_index(self.genv.tcx, local_def_id);
-                    rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name: lft.ident.name })
-                }
-            }
-            fhir::LifetimeRes::Static => rty::ReStatic,
-            fhir::LifetimeRes::Hole => {
-                let lft = *self
+        let res = match lft {
+            fhir::Lifetime::Hole(fhir_id) => {
+                *self
                     .wfckresults
                     .lifetime_holes()
-                    .get(lft.fhir_id)
-                    .unwrap_or_else(|| span_bug!(lft.ident.span, "unfilled lifetime hole"));
-                self.conv_lifetime(env, lft)
+                    .get(fhir_id)
+                    .unwrap_or_else(|| bug!("unresolved lifetime hole"))
             }
+            fhir::Lifetime::Resolved(res) => res,
+        };
+        let tcx = self.genv.tcx;
+        let lifetime_name = |def_id| tcx.hir().name(tcx.hir().local_def_id_to_hir_id(def_id));
+        match res {
+            ResolvedArg::StaticLifetime => rty::ReStatic,
+            ResolvedArg::EarlyBound(def_id) => {
+                let index = def_id_to_param_index(self.genv.tcx, def_id.expect_local());
+                let name = lifetime_name(def_id.expect_local());
+                rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name })
+            }
+            ResolvedArg::LateBound(_, index, def_id) => {
+                let depth = env.depth().checked_sub(1).unwrap();
+                let name = lifetime_name(def_id.expect_local());
+                let kind = rty::BoundRegionKind::BrNamed(def_id, name);
+                let var = BoundVar::from_u32(index);
+                let bound_region = rty::BoundRegion { var, kind };
+                rty::ReLateBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
+            }
+            ResolvedArg::Free(scope, id) => {
+                let name = lifetime_name(id.expect_local());
+                let bound_region = rty::BoundRegionKind::BrNamed(id, name);
+                rty::ReFree(rty::FreeRegion { scope, bound_region })
+            }
+            ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
         }
     }
 
@@ -1134,34 +1146,6 @@ fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
     let item_def_id = tcx.hir().ty_param_owner(def_id);
     let generics = tcx.generics_of(item_def_id);
     generics.param_def_id_to_index[&def_id.to_def_id()]
-}
-
-// FIXME(nilehmann) we are passing the id of the owner, we should be passing the HirId of the node.
-// For example, if we want to convert a higher ranked where clause we need to pass the HirId of the
-// clause not its owner id.
-fn mk_late_bound_vars_map(tcx: TyCtxt, owner_id: FluxOwnerId) -> UnordMap<DefId, BoundVar> {
-    let FluxOwnerId::Rust(owner_id) = owner_id else { return Default::default() };
-
-    // HACK(nilehmann) rustc doesn't fill the late bound map for the opaque type itself, only for
-    // contained nodes. Thus, we skip it here or else the call to `late_bound_vars` will panic.
-    if matches!(tcx.def_kind(owner_id.to_def_id()), DefKind::OpaqueTy) {
-        return Default::default();
-    }
-
-    let hir_id = tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
-    tcx.late_bound_vars(hir_id)
-        .iter()
-        .enumerate()
-        .flat_map(|(i, var)| {
-            if let rustc_middle::ty::BoundVariableKind::Region(region) = var
-                && let rustc_middle::ty::BoundRegionKind::BrNamed(def_id, _) = region
-            {
-                Some((def_id, BoundVar::from_usize(i)))
-            } else {
-                None
-            }
-        })
-        .collect()
 }
 
 mod errors {

@@ -21,7 +21,7 @@ use rustc_span::{
     def_id::LocalDefId,
     sym::{self},
     symbol::kw,
-    BytePos, Span, Symbol, DUMMY_SP,
+    Span, Symbol,
 };
 
 pub fn desugar_qualifier(
@@ -507,8 +507,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let loc = self.as_expr_ctxt().resolve_loc(binders, *loc)?;
                 let ty = self.desugar_ty(None, ty, binders)?;
                 requires.push(fhir::Constraint::Type(loc, ty));
-                let lft = self.mk_lifetime_hole(DUMMY_SP);
-                let kind = fhir::TyKind::Ptr(lft, loc);
+                let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), loc);
                 Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
             }
             surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty, binders),
@@ -661,9 +660,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     ty: Box::new(self.desugar_ty(None, ty, binders)?),
                     mutbl: *mutbl,
                 };
-                let lft_sp = span.with_lo(span.lo() + BytePos(1)).shrink_to_lo();
-                let lft = self.mk_lifetime_hole(lft_sp);
-                fhir::TyKind::Ref(lft, mut_ty)
+                fhir::TyKind::Ref(self.mk_lft_hole(), mut_ty)
             }
             surface::TyKind::Tuple(tys) => {
                 let tys = tys
@@ -708,9 +705,8 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         Ok(fhir::OpaqueTy { bounds })
     }
 
-    fn mk_lifetime_hole(&self, span: Span) -> fhir::Lifetime {
-        let ident = surface::Ident { name: kw::UnderscoreLifetime, span };
-        fhir::Lifetime { fhir_id: self.next_fhir_id(), ident, res: fhir::LifetimeRes::Hole }
+    fn mk_lft_hole(&self) -> fhir::Lifetime {
+        fhir::Lifetime::Hole(self.next_fhir_id())
     }
 
     fn desugar_indices(
@@ -833,8 +829,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             let generics = self.genv.tcx.generics_of(def_id);
             for param in &generics.params {
                 if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
-                    let lft = self.mk_lifetime_hole(DUMMY_SP);
-                    fhir_args.push(fhir::GenericArg::Lifetime(lft));
+                    fhir_args.push(fhir::GenericArg::Lifetime(self.mk_lft_hole()));
                 }
             }
         }

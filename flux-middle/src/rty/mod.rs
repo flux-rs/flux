@@ -52,7 +52,7 @@ use crate::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion,
+        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion, FreeRegion,
         Region::{self, *},
     },
 };

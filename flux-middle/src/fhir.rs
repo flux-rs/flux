@@ -40,7 +40,7 @@ use rustc_hir::{
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -291,18 +291,14 @@ pub struct MutTy {
     pub mutbl: Mutability,
 }
 
+/// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
+/// which we then resolve during `annot_check` when zipping against the lifted version.
 #[derive(Copy, Clone)]
-pub struct Lifetime {
-    pub fhir_id: FhirId,
-    pub ident: SurfaceIdent,
-    pub res: LifetimeRes,
-}
-
-#[derive(Copy, Clone)]
-pub enum LifetimeRes {
-    Param(LocalDefId),
-    Static,
-    Hole,
+pub enum Lifetime {
+    /// A lifetime hole created during desugaring.
+    Hole(FhirId),
+    /// A resolved lifetime created during lifting.
+    Resolved(ResolvedArg),
 }
 
 #[derive(Clone)]
@@ -323,7 +319,7 @@ pub struct WfckResults {
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<Ty>,
-    lifetime_holes: ItemLocalMap<Lifetime>,
+    lifetime_holes: ItemLocalMap<ResolvedArg>,
 }
 
 #[derive(Debug)]
@@ -1229,11 +1225,11 @@ impl WfckResults {
         LocalTableInContext { owner: self.owner, data: &self.type_holes }
     }
 
-    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<Lifetime> {
+    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
     }
 
-    pub fn lifetime_holes(&self) -> LocalTableInContext<Lifetime> {
+    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
         LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
     }
 }
@@ -1344,7 +1340,10 @@ impl fmt::Debug for Ty {
 
 impl fmt::Debug for Lifetime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.ident.name)
+        match self {
+            Lifetime::Hole(_) => write!(f, "'_"),
+            Lifetime::Resolved(lft) => write!(f, "{lft:?}"),
+        }
     }
 }
 

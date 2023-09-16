@@ -9,7 +9,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
 use super::{FhirId, FluxOwnerId};
 use crate::fhir;
@@ -436,16 +436,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_lifetime(&self, lft: &hir::Lifetime) -> Result<fhir::Lifetime, ErrorGuaranteed> {
-        let res = match lft.res {
-            hir::LifetimeName::Param(def_id) => fhir::LifetimeRes::Param(def_id),
-            hir::LifetimeName::Static => fhir::LifetimeRes::Static,
-            hir::LifetimeName::ImplicitObjectLifetimeDefault
-            | hir::LifetimeName::Error
-            | hir::LifetimeName::Infer => {
-                return self.emit_unsupported(&format!("unsupported lifetime: `{lft}`",));
-            }
-        };
-        Ok(fhir::Lifetime { fhir_id: self.next_fhir_id(), ident: lft.ident, res })
+        self.tcx
+            .named_bound_var(lft.hir_id)
+            .map(fhir::Lifetime::Resolved)
+            .ok_or_else(|| {
+                let note = format!("cannot resolve lifetime: `{lft:?}`");
+                self.sess
+                    .emit_err(errors::UnsupportedHir::new(self.tcx, self.owner, &note))
+            })
     }
 
     fn lift_mut_ty(&mut self, mut_ty: hir::MutTy) -> Result<fhir::MutTy, ErrorGuaranteed> {
@@ -555,6 +553,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         }
     }
 
+    /// HACK(nilehmann) do not use this function. See [`lift_self_ty`].
     fn generic_params_into_args(
         &self,
         generics: &hir::Generics,
@@ -580,11 +579,8 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
                     args.push(fhir::GenericArg::Type(ty));
                 }
                 hir::GenericParamKind::Lifetime { .. } => {
-                    let lft = fhir::Lifetime {
-                        fhir_id: self.next_fhir_id(),
-                        ident: param.name.ident(),
-                        res: fhir::LifetimeRes::Param(param.def_id),
-                    };
+                    let def_id = param.def_id.to_def_id();
+                    let lft = fhir::Lifetime::Resolved(ResolvedArg::EarlyBound(def_id));
                     args.push(fhir::GenericArg::Lifetime(lft));
                 }
                 hir::GenericParamKind::Const { .. } => {
