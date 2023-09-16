@@ -1,6 +1,6 @@
-mod logger;
 use std::{env, io, process::exit};
 
+use flux_driver::logger;
 const CMD_RUSTC: &str = "rustc";
 
 fn main() -> io::Result<()> {

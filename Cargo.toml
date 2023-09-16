@@ -4,14 +4,11 @@ resolver = "2"
 members = ["crates/*", "xtask"]
 
 [workspace.dependencies]
-flux = { path = "./crates/flux", version = "0.1.0" }
 flux-attrs = { path = "./crates/flux-attrs", version = "0.1.0" }
 flux-attrs-proc-macros-build = { path = "./crates/flux-attrs-proc-macros-build", version = "0.1.0" }
-flux-bin = { path = "./crates/flux-bin", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
 flux-config = { path = "./crates/flux-config", version = "0.1.0" }
 flux-desugar = { path = "./crates/flux-desugar", version = "0.1.0" }
-flux-driver = { path = "./crates/flux-driver", version = "0.1.0" }
 flux-errors = { path = "./crates/flux-errors", version = "0.1.0" }
 flux-fhir-analysis = { path = "./crates/flux-fhir-analysis", version = "0.1.0" }
 flux-fixpoint = { path = "./crates/flux-fixpoint", version = "0.1.0" }

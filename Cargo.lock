@@ -519,17 +519,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux"
-version = "0.1.0"
-dependencies = [
- "flux-config",
- "flux-driver",
- "tracing",
- "tracing-subscriber",
- "tracing-timing",
-]
-
-[[package]]
 name = "flux-attrs"
 version = "0.1.0"
 dependencies = [
@@ -600,6 +589,8 @@ dependencies = [
  "flux-syntax",
  "itertools",
  "tracing",
+ "tracing-subscriber",
+ "tracing-timing",
 ]
 
 [[package]]

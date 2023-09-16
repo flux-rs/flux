@@ -17,7 +17,10 @@ xflags::xflags! {
             required input: PathBuf
         }
         /// Install flux binaries to ~/.cargo/bin
-        cmd install { }
+        cmd install {
+            /// Force overwriting existing binaries
+            optional -f,--force
+        }
         /// Build the documentation
         cmd doc {
             optional -o,--open
@@ -76,9 +79,10 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn install(sh: Shell, _: Install) -> anyhow::Result<()> {
-    cmd!(sh, "cargo install --path crates/flux").run()?;
-    cmd!(sh, "cargo install --path crates/flux-bin").run()?;
+fn install(sh: Shell, args: Install) -> anyhow::Result<()> {
+    let force = if args.force { "--force" } else { "" };
+    cmd!(sh, "cargo install --path crates/flux-driver {force}").run()?;
+    cmd!(sh, "cargo install --path crates/flux-bin {force}").run()?;
     Ok(())
 }
 
