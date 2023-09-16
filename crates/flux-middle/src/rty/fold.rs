@@ -1037,7 +1037,7 @@ impl TypeVisitable for HoleKind {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             HoleKind::Pred => ControlFlow::Continue(()),
-            HoleKind::Index(sort) => sort.visit_with(visitor),
+            HoleKind::Expr(sort) => sort.visit_with(visitor),
         }
     }
 }
@@ -1046,7 +1046,7 @@ impl TypeFoldable for HoleKind {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
             HoleKind::Pred => Ok(HoleKind::Pred),
-            HoleKind::Index(sort) => Ok(HoleKind::Index(sort.try_fold_with(folder)?)),
+            HoleKind::Expr(sort) => Ok(HoleKind::Expr(sort.try_fold_with(folder)?)),
         }
     }
 }

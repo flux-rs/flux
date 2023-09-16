@@ -188,19 +188,21 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let generic_args = generic_args
             .iter()
-            .map(|arg| arg.replace_holes(|binders, kind| infcx.replace_hole(binders, kind)))
+            .map(|arg| {
+                arg.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind))
+            })
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
         let rvid_gen = infcx.rvid_gen;
 
-        let exprs = infcx.inst_exprs(genv, callee_def_id);
+        let exprs = infcx.instantiate_refine_params(genv, callee_def_id)?;
 
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &exprs)
             .replace_bound_vars(
                 |_| rty::ReVar(rvid_gen.fresh()),
-                |sort, mode| infcx.instantiate_bound_var(sort, mode),
+                |sort, mode| infcx.fresh_infer_var(sort, mode),
             );
 
         let inst_fn_sig =
@@ -289,7 +291,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output =
-            output.replace_bound_exprs_with(|sort, mode| infcx.instantiate_bound_var(sort, mode));
+            output.replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret)?;
         for constraint in &output.ensures {
@@ -318,13 +320,15 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // Replace holes in generic arguments with fresh kvars
         let generic_args = generic_args
             .iter()
-            .map(|arg| arg.replace_holes(|binders, kind| infcx.replace_hole(binders, kind)))
+            .map(|arg| {
+                arg.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind))
+            })
             .collect_vec();
 
         // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .instantiate(&generic_args, &[])
-            .replace_bound_exprs_with(|sort, mode| infcx.instantiate_bound_var(sort, mode));
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -347,7 +351,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Ty, CheckerErrKind> {
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
-        let arr_ty = arr_ty.replace_holes(|binders, kind| infcx.replace_hole(binders, kind));
+        let arr_ty =
+            arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
         let (arr_ty, pred) = arr_ty.unconstr();
         infcx.check_pred(rcx, pred);
@@ -411,19 +416,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn inst_exprs(&mut self, genv: &GlobalEnv, callee_def_id: Option<DefId>) -> Vec<Expr> {
-        if let Some(callee_id) = callee_def_id &&
-           let Ok(params) = genv.refparams_of(callee_id)
-         {
-            params
-                .iter()
-                .map(|param| self.instantiate_bound_var(&param.sort, param.mode))
-                .collect_vec()
-         } else {
-            vec![]
-        }
-    }
-
     fn obligations(&self) -> Vec<rty::Clause> {
         self.obligs.clone()
     }
@@ -440,26 +432,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn fresh_kvar(&mut self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
-        self.kvar_gen.fresh(sorts, encoding)
-    }
-
-    fn fresh_evars(&mut self, sort: &Sort) -> Expr {
-        let cx = *self.scopes.last().unwrap().0;
-        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
-    }
-
-    fn replace_hole(&mut self, binders: &[List<Sort>], kind: HoleKind) -> Expr {
-        match kind {
-            HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
-            HoleKind::Index(sort) => {
-                assert!(binders.is_empty());
-                self.fresh_evars(&sort)
-            }
+    fn instantiate_refine_params(
+        &mut self,
+        genv: &GlobalEnv,
+        callee_def_id: Option<DefId>,
+    ) -> Result<Vec<Expr>, CheckerErrKind> {
+        if let Some(callee_id) = callee_def_id {
+            Ok(genv
+                .refparams_of(callee_id)?
+                .iter()
+                .map(|param| self.fresh_infer_var(&param.sort, param.mode))
+                .collect_vec())
+        } else {
+            Ok(vec![])
         }
     }
 
-    pub(crate) fn instantiate_bound_var(&mut self, sort: &Sort, mode: InferMode) -> Expr {
+    pub(crate) fn fresh_infer_var(&mut self, sort: &Sort, mode: InferMode) -> Expr {
         match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func();
@@ -469,6 +458,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
+    }
+
+    fn fresh_infer_var_for_hole(&mut self, binders: &[List<Sort>], kind: HoleKind) -> Expr {
+        match kind {
+            HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
+            HoleKind::Expr(sort) => {
+                assert!(binders.is_empty());
+                self.fresh_evars(&sort)
+            }
+        }
+    }
+
+    fn fresh_kvar(&mut self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
+        self.kvar_gen.fresh(sorts, encoding)
+    }
+
+    fn fresh_evars(&mut self, sort: &Sort) -> Expr {
+        let cx = *self.scopes.last().unwrap().0;
+        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
     pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
@@ -521,8 +529,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
-                let ty2 = ty2
-                    .replace_bound_exprs_with(|sort, mode| self.instantiate_bound_var(sort, mode));
+                let ty2 =
+                    ty2.replace_bound_exprs_with(|sort, mode| self.fresh_infer_var(sort, mode));
                 self.subtyping(rcx, ty1, &ty2)?;
                 self.pop_scope();
                 Ok(())

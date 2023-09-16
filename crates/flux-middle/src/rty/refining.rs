@@ -375,7 +375,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 .genv
                 .refparams_of_parent(def_id)?
                 .iter()
-                .map(|param| rty::Expr::hole(rty::HoleKind::Index(param.sort.clone())))
+                .map(|param| rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone())))
                 .collect())
         } else {
             Ok(List::empty())

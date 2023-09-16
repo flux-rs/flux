@@ -172,7 +172,7 @@ impl TypeEnv<'_> {
 
         let bb_env = bb_env
             .data
-            .replace_bound_exprs_with(|sort, mode| infcx.instantiate_bound_var(sort, mode));
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         // Check constraints
         for constr in &bb_env.constrs {
