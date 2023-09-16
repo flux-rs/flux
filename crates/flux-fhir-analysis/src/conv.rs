@@ -587,7 +587,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
                 let refine_args = List::empty();
-                let alias_ty = rty::AliasTy { args, def_id, refine_args };
+                let alias_ty = rty::AliasTy { args, refine_args, def_id };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
             // If it is a type parameter with no sort, it means it is of kind `Type`

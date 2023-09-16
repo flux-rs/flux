@@ -29,7 +29,10 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::FxHashMap;
-use rustc_hir::{def::DefKind, def_id::DefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_index::bit_set::BitSet;
 use rustc_middle::{mir as rustc_mir, ty::RegionVid};
 use rustc_span::Span;
@@ -55,8 +58,8 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     genv: &'ck GlobalEnv<'ck, 'tcx>,
     rvid_gen: IndexGen<RegionVid>,
     config: CheckerConfig,
-    /// [`DefId`] of the function being checked, either a closure or a regular function.
-    def_id: DefId,
+    /// [`LocalDefId`] of the function-like item being checked.
+    def_id: LocalDefId,
     /// [`Generics`] of the function being checked.
     generics: Generics,
     /// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
@@ -64,7 +67,7 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument of a generator.
     resume_ty: Option<Ty>,
-    ghost_stmts: &'ck UnordMap<DefId, GhostStatements>,
+    ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     output: Binder<FnOutput>,
     mode: &'ck mut M,
     /// A snapshot of the refinement context at the end of the basic block after applying the effects
@@ -78,7 +81,7 @@ pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
-        def_id: DefId,
+        def_id: impl Into<DefId>,
         refparams: &'a [Expr],
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
@@ -103,16 +106,16 @@ pub(crate) trait Mode: Sized {
 }
 
 pub(crate) struct ShapeMode {
-    bb_envs: FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>,
+    bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>,
 }
 
 pub(crate) struct RefineMode {
-    bb_envs: FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnv>>,
+    bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>>,
     kvars: KVarStore,
 }
 
 /// The result of running the shape phase.
-pub(crate) struct ShapeResult(FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>);
+pub(crate) struct ShapeResult(FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>);
 
 /// A `Guard` describes extra "control" information that holds at the start of a successor basic block
 enum Guard {
@@ -127,8 +130,8 @@ enum Guard {
 impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
-        def_id: DefId,
-        extra_data: &'a UnordMap<DefId, GhostStatements>,
+        def_id: LocalDefId,
+        extra_data: &'a UnordMap<LocalDefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
@@ -155,8 +158,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
 impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
-        def_id: DefId,
-        extra_data: &'a UnordMap<DefId, GhostStatements>,
+        def_id: LocalDefId,
+        extra_data: &'a UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
@@ -189,8 +192,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn run(
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
-        def_id: DefId,
-        extra_data: &'a UnordMap<DefId, GhostStatements>,
+        def_id: LocalDefId,
+        extra_data: &'a UnordMap<LocalDefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: EarlyBinder<PolyFnSig>,
         refparams: Option<List<Expr>>,
@@ -198,7 +201,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     ) -> Result<(), CheckerError> {
         let span = genv.tcx.def_span(def_id);
 
-        let body = genv.mir(def_id.expect_local()).with_span(span)?;
+        let body = genv.mir(def_id).with_span(span)?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -418,7 +421,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let obligs = self
                     .mode
                     .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, rcx, span)
-                    .check_ret(rcx, env, self.def_id, &self.output)
+                    .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 self.check_closure_obligs(rcx, obligs)?;
                 Ok(vec![])
@@ -519,10 +522,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty, CheckerError> {
-        let callsite_def_id = self.def_id;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, actuals)
+            .check_fn_call(rcx, env, did, fn_sig, generic_args, actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -553,7 +555,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Checker::run(
             self.genv,
             refine_tree,
-            gen_pred.def_id,
+            gen_pred.def_id.expect_local(),
             self.ghost_stmts,
             self.mode,
             EarlyBinder(poly_sig),
@@ -576,7 +578,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Checker::run(
                 self.genv,
                 refine_tree,
-                *def_id,
+                def_id.expect_local(),
                 self.ghost_stmts,
                 self.mode,
                 EarlyBinder(poly_sig),
@@ -734,7 +736,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let obligs = self
                 .mode
                 .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, &rcx, span)
-                .check_ret(&mut rcx, &mut env, self.def_id, &self.output)
+                .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(span)?;
             self.check_closure_obligs(&mut rcx, obligs)?;
             Ok(())
@@ -1168,7 +1170,7 @@ impl ShapeResult {
     fn into_bb_envs(
         self,
         kvar_store: &mut KVarStore,
-    ) -> FxHashMap<DefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
+    ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(def_id, shapes)| {
@@ -1186,13 +1188,13 @@ impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
-        def_id: DefId,
+        def_id: impl Into<DefId>,
         refparams: &'a [Expr],
         rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, def_id, refparams, |_: &[_], _| Expr::hole(), rvid_gen, span)
+        ConstrGen::new(genv, def_id.into(), refparams, |_: &[_], _| Expr::hole(), rvid_gen, span)
     }
 
     fn enter_basic_block<'a>(
@@ -1243,7 +1245,7 @@ impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
-        def_id: DefId,
+        def_id: impl Into<DefId>,
         refparams: &'a [Expr],
         rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
@@ -1252,7 +1254,7 @@ impl Mode for RefineMode {
         let scope = rcx.scope();
         ConstrGen::new(
             genv,
-            def_id,
+            def_id.into(),
             refparams,
             move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
             rvid_gen,
@@ -1282,7 +1284,7 @@ impl Mode for RefineMode {
 
         let gen = &mut ConstrGen::new(
             ck.genv,
-            ck.def_id,
+            ck.def_id.into(),
             &ck.refparams,
             |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             &ck.rvid_gen,

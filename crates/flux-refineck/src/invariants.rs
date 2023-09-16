@@ -2,6 +2,7 @@ use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_errors::{ErrorGuaranteed, ResultExt};
 use flux_middle::{fhir, global_env::GlobalEnv, rty};
+use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
@@ -14,6 +15,7 @@ use crate::{
 pub fn check_invariants(
     genv: &GlobalEnv,
     cache: &mut QueryCache,
+    def_id: LocalDefId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
     checker_config: CheckerConfig,
@@ -24,13 +26,14 @@ pub fn check_invariants(
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;
-            check_invariant(genv, cache, adt_def, span, invariant, checker_config)
+            check_invariant(genv, cache, def_id, adt_def, span, invariant, checker_config)
         })
 }
 
 fn check_invariant(
     genv: &GlobalEnv,
     cache: &mut QueryCache,
+    def_id: LocalDefId,
     adt_def: &rty::AdtDef,
     span: Span,
     invariant: &rty::Invariant,
@@ -56,7 +59,6 @@ fn check_invariant(
         let pred = invariant.pred.replace_bound_expr(&idx.expr);
         rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let def_id = adt_def.did();
     let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();

@@ -278,7 +278,7 @@ impl<'zip> Zipper<'zip> {
                 self.wfckresults.lifetime_holes_mut().insert(fhir_id, res);
             }
             fhir::Lifetime::Hole(_) => {
-                bug!("unexpected hole in lifted lifetime")
+                bug!("unexpected hole in lifted lifetime");
             }
         }
     }

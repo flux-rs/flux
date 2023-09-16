@@ -33,7 +33,7 @@ pub fn dump_item_info<T: fmt::Debug>(
 #[macro_export]
 macro_rules! _shape_mode_span {
     ($tcx:expr, $def_id:expr) => {{
-        let path = $tcx.def_path($def_id);
+        let path = $tcx.def_path(rustc_hir::def_id::DefId::from($def_id));
         let def_id = path.data.iter().join("::");
         tracing::info_span!("shape", def_id = def_id.as_str())
     }};
@@ -43,7 +43,7 @@ pub use crate::_shape_mode_span as shape_mode_span;
 #[macro_export]
 macro_rules! _refine_mode_span {
     ($tcx:expr, $def_id:expr, $bb_envs:expr) => {{
-        let path = $tcx.def_path($def_id);
+        let path = $tcx.def_path(rustc_hir::def_id::DefId::from($def_id));
         let def_id = path.data.iter().join("::");
         tracing::info_span!("refine", def_id = def_id.as_str(), bb_envs = ?$bb_envs)
     }};
@@ -53,7 +53,7 @@ pub use crate::_refine_mode_span as refine_mode_span;
 #[macro_export]
 macro_rules! _check_fn_span {
     ($tcx:expr, $def_id:expr) => {{
-        let path = $tcx.def_path($def_id);
+        let path = $tcx.def_path(rustc_hir::def_id::DefId::from($def_id));
         let def_id = path.data.iter().join("::");
         tracing::info_span!("check_fn", def_id = def_id.as_str())
     }};
