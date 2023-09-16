@@ -13,8 +13,8 @@ use flux_middle::{
     rty::{
         self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
         FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
-        Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -1194,7 +1194,14 @@ impl Mode for ShapeMode {
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
-        ConstrGen::new(genv, def_id.into(), refparams, |_: &[_], _| Expr::hole(), rvid_gen, span)
+        ConstrGen::new(
+            genv,
+            def_id.into(),
+            refparams,
+            |_: &[_], _| Expr::hole(HoleKind::Pred),
+            rvid_gen,
+            span,
+        )
     }
 
     fn enter_basic_block<'a>(

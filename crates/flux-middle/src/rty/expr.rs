@@ -96,11 +96,17 @@ pub enum ExprKind {
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
     ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
     Abs(Binder<Expr>),
-    Hole,
+    Hole(HoleKind),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum HoleKind {
+    Pred,
+    Index(Sort),
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the variables, the first one being
+/// fixpoint makes a diference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -156,9 +162,7 @@ impl ExprKind {
 impl Expr {
     pub fn at_base(self, base: Option<ESpan>) -> Expr {
         let kind = self.kind();
-        if let Some(espan) = self.espan
-            && let Some(base) = base
-        {
+        if let Some(espan) = self.espan && let Some(base) = base {
             kind.clone().intern_at(Some(espan.with_base(base)))
         } else {
             self
@@ -319,8 +323,8 @@ impl Expr {
         ExprKind::Abs(body).intern()
     }
 
-    pub fn hole() -> Expr {
-        ExprKind::Hole.intern()
+    pub fn hole(kind: HoleKind) -> Expr {
+        ExprKind::Hole(kind).intern()
     }
 
     pub fn kvar(kvar: KVar) -> Expr {
@@ -848,7 +852,7 @@ mod pretty {
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
-                ExprKind::Hole => {
+                ExprKind::Hole(_) => {
                     w!("*")
                 }
                 ExprKind::KVar(kvar) => {

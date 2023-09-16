@@ -604,7 +604,7 @@ impl<'a> ExprCtxt<'a> {
                 ]))
             }
             rty::ExprKind::Var(_)
-            | rty::ExprKind::Hole
+            | rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::Abs(_)

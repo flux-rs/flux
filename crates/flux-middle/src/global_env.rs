@@ -341,7 +341,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let sort = bty.sort();
             let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
             if !sort.is_unit() {
-                ty = rty::Ty::constr(rty::Expr::hole(), ty);
+                ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
             }
             rty::Binder::with_sort(ty, sort)
         })
