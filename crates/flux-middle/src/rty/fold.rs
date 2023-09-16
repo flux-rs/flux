@@ -203,7 +203,7 @@ pub trait TypeVisitable: Sized {
                         None => (),
                         Some(refine_args) => {
                             if refine_args != alias_ty.refine_args {
-                                bug!("duplicate opaque-refine-arg!")
+                                bug!("duplicate opaque-refine-arg!");
                             }
                         }
                     }

@@ -150,7 +150,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        callsite_def_id: DefId,
         callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
@@ -180,6 +179,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         .collect_vec();
 
         let genv = self.genv;
+        let callsite_def_id = self.def_id;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
 
@@ -285,13 +285,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        callsite_def_id: DefId,
         output: &Binder<FnOutput>,
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output =
-            rty::projections::normalize(self.genv, callsite_def_id, self.refparams, output)?;
+        let output = rty::projections::normalize(self.genv, self.def_id, self.refparams, output)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 

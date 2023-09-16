@@ -21,7 +21,7 @@ use flux_middle::{
 };
 use itertools::{self, Itertools};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::Span;
 use rustc_type_ir::DebruijnIndex;
@@ -80,8 +80,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags_inv: UnordMap<T, TagIdx>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
-    // FIXME(nilehmann) this should be a `LocalDefId`.
-    def_id: DefId,
+    def_id: LocalDefId,
 }
 
 struct FixpointKVar {
@@ -116,7 +115,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: DefId, kvars: KVarStore) -> Self {
+    pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
         let name_gen = IndexGen::new();
         let const_map = fixpoint_const_map(genv);
         Self {
@@ -190,7 +189,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(self.def_id.expect_local())?
+            .qualifiers(self.def_id)?
             .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
             .collect();
 

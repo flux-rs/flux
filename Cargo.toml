@@ -5,7 +5,6 @@ members = ["crates/*", "xtask"]
 
 [workspace.dependencies]
 flux-attrs = { path = "./crates/flux-attrs", version = "0.1.0" }
-flux-attrs-proc-macros-build = { path = "./crates/flux-attrs-proc-macros-build", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
 flux-config = { path = "./crates/flux-config", version = "0.1.0" }
 flux-desugar = { path = "./crates/flux-desugar", version = "0.1.0" }

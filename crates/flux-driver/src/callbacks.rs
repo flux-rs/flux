@@ -377,6 +377,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 refineck::invariants::check_invariants(
                     self.genv,
                     &mut self.cache,
+                    def_id,
                     &enum_def.invariants,
                     &adt_def,
                     self.checker_config,
@@ -391,6 +392,7 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                 refineck::invariants::check_invariants(
                     self.genv,
                     &mut self.cache,
+                    def_id,
                     &struct_def.invariants,
                     &adt_def,
                     self.checker_config,
