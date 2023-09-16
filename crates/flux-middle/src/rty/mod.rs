@@ -94,9 +94,6 @@ pub struct GenericPredicates {
     pub predicates: List<Clause>,
 }
 
-/// An alias for the "EarlyBinder-instantiated" GenericPredicates of a DefId
-pub type ParamEnv = GenericPredicates;
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
     kind: ClauseKind,
@@ -580,6 +577,20 @@ impl Generics {
                 .refine_param_at(param_index, genv)
         }
     }
+
+    /// Iterate and collect all refinement parameters in this item including parents
+    pub fn collect_all_refine_params<T, S>(
+        &self,
+        genv: &GlobalEnv,
+        mut f: impl FnMut(RefineParam) -> T,
+    ) -> QueryResult<S>
+    where
+        S: FromIterator<T>,
+    {
+        (0..self.refine_count())
+            .map(|i| Ok(f(self.refine_param_at(i, genv)?)))
+            .try_collect()
+    }
 }
 
 impl Sort {
@@ -847,6 +858,36 @@ impl<T: TypeFoldable> EarlyBinder<T> {
 impl EarlyBinder<GenericPredicates> {
     pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
         EarlyBinder(self.0.predicates.clone())
+    }
+
+    pub fn instantiate_identity(
+        self,
+        genv: &GlobalEnv,
+        refine_args: &[Expr],
+    ) -> QueryResult<Vec<Clause>> {
+        let mut predicates = vec![];
+        self.instantiate_identity_into(genv, refine_args, &mut predicates)?;
+        Ok(predicates)
+    }
+
+    fn instantiate_identity_into(
+        self,
+        genv: &GlobalEnv,
+        refine_args: &[Expr],
+        predicates: &mut Vec<Clause>,
+    ) -> QueryResult<()> {
+        if let Some(def_id) = self.0.parent {
+            genv.predicates_of(def_id)?
+                .instantiate_identity_into(genv, refine_args, predicates)?;
+        }
+        predicates.extend(
+            self.0
+                .predicates
+                .iter()
+                .cloned()
+                .map(|p| EarlyBinder(p).instantiate_refparams(refine_args)),
+        );
+        Ok(())
     }
 }
 

@@ -439,7 +439,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Result<Vec<Expr>, CheckerErrKind> {
         if let Some(callee_id) = callee_def_id {
             Ok(genv
-                .refparams_of(callee_id)?
+                .refine_params_of(callee_id)?
                 .iter()
                 .map(|param| self.fresh_infer_var(&param.sort, param.mode))
                 .collect_vec())

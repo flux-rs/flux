@@ -1191,9 +1191,9 @@ impl StructDef {
 }
 
 impl WfckResults {
-    pub fn new(owner: FluxOwnerId) -> Self {
+    pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
-            owner,
+            owner: owner.into(),
             node_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             type_holes: ItemLocalMap::default(),
