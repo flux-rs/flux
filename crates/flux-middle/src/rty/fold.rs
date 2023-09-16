@@ -14,7 +14,7 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, OpaqueRefineArgs, Opaqueness, ProjectionPredicate, PtrKind, Qualifier,
+    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, ProjectionPredicate, PtrKind, Qualifier,
     ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
@@ -191,18 +191,20 @@ pub trait TypeVisitable: Sized {
         collector.0
     }
     /// Returns the set of all opaque type aliases def ids
-    fn opaque_refine_args(&self) -> OpaqueRefineArgs {
-        struct CollectOpaqueRefineArgs(OpaqueRefineArgs);
+    fn opaque_refine_args(&self) -> OpaqueArgsMap {
+        struct CollectOpaqueRefineArgs(OpaqueArgsMap);
 
         impl TypeVisitor for CollectOpaqueRefineArgs {
             fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
                 if let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    match self.0.insert(alias_ty.def_id, alias_ty.refine_args.clone()) {
-                        None => (),
-                        Some(refine_args) => {
-                            if refine_args != alias_ty.refine_args {
-                                bug!("duplicate opaque-refine-arg!");
-                            }
+                    let args = &alias_ty.args;
+                    let refine_args = &alias_ty.refine_args;
+                    let old = self
+                        .0
+                        .insert(alias_ty.def_id, (args.clone(), refine_args.clone()));
+                    if let Some((old_args, old_refine_args)) = old {
+                        if (&old_args, &old_refine_args) != (args, refine_args) {
+                            bug!("duplicate opaque-refine-arg!");
                         }
                     }
                     alias_ty.args.visit_with(self)

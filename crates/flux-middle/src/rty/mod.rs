@@ -352,7 +352,7 @@ pub enum AliasKind {
 pub type RefineArgs = List<Expr>;
 pub type GenericArgs = List<GenericArg>;
 
-pub type OpaqueRefineArgs = FxHashMap<DefId, RefineArgs>;
+pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
@@ -840,18 +840,14 @@ where
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn instantiate(self, generics: &[GenericArg], refine: &[Expr]) -> T {
+    pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(Some(generics), refine))
+            .fold_with(&mut subst::GenericsSubstFolder::new(Some(args), refine_args))
     }
 
-    pub fn instantiate_refparams(self, refine: &[Expr]) -> T {
+    pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine))
-    }
-
-    pub fn instantiate_identity(self) -> T {
-        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine_args))
     }
 }
 
@@ -885,7 +881,7 @@ impl EarlyBinder<GenericPredicates> {
                 .predicates
                 .iter()
                 .cloned()
-                .map(|p| EarlyBinder(p).instantiate_refparams(refine_args)),
+                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
         );
         Ok(())
     }

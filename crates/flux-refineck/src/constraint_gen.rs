@@ -53,7 +53,6 @@ pub(crate) struct InferCtxt<'a, 'tcx> {
     refparams: &'a [Expr],
     kvar_gen: &'a mut (dyn KVarGen + 'a),
     evar_gen: EVarGen,
-    rvid_gen: &'a IndexGen<RegionVid>,
     tag: Tag,
     scopes: FxIndexMap<EVarCxId, Scope>,
     obligs: Vec<rty::Clause>,
@@ -180,36 +179,32 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let genv = self.genv;
         let callsite_def_id = self.def_id;
+        let rvid_gen = self.rvid_gen;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
-
-        // Replace holes in generic arguments with fresh kvars
         let snapshot = rcx.snapshot();
 
-        let generic_args = generic_args
-            .iter()
-            .map(|arg| {
-                arg.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind))
-            })
-            .collect_vec();
+        // Replace holes in generic arguments with fresh inference variables
+        let generic_args = infcx.instantiate_generic_args(generic_args);
 
-        // Generate fresh evars and kvars for refinement parameters
-        let rvid_gen = infcx.rvid_gen;
+        // Generate fresh inference variables for refinement arguments
+        let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
-        let exprs = infcx.instantiate_refine_params(genv, callee_def_id)?;
-
-        let inst_fn_sig = fn_sig
-            .instantiate(&generic_args, &exprs)
-            .replace_bound_vars(
-                |_| rty::ReVar(rvid_gen.fresh()),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            );
-
-        let inst_fn_sig =
-            rty::projections::normalize(genv, callsite_def_id, infcx.refparams, &inst_fn_sig)?;
+        // Instantiate function signature and normalize it
+        let inst_fn_sig = rty::projections::normalize(
+            genv,
+            callsite_def_id,
+            infcx.refparams,
+            &fn_sig
+                .instantiate(&generic_args, &refine_args)
+                .replace_bound_vars(
+                    |_| rty::ReVar(rvid_gen.fresh()),
+                    |sort, mode| infcx.fresh_infer_var(sort, mode),
+                ),
+        )?;
 
         let obligs = if let Some(did) = callee_def_id {
-            mk_obligations(genv, did, &generic_args, &exprs)?
+            mk_obligations(genv, did, &generic_args, &refine_args)?
         } else {
             List::empty()
         };
@@ -317,15 +312,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
-        // Replace holes in generic arguments with fresh kvars
-        let generic_args = generic_args
-            .iter()
-            .map(|arg| {
-                arg.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind))
-            })
-            .collect_vec();
+        // Replace holes in generic arguments with fresh inference variables
+        let generic_args = infcx.instantiate_generic_args(generic_args);
 
-        // Generate fresh evars and kvars for refinement parameters
         let variant = variant
             .instantiate(&generic_args, &[])
             .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
@@ -384,7 +373,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             self.refparams,
             rcx,
             &mut self.kvar_gen,
-            self.rvid_gen,
             Tag::new(reason, self.span),
         )
     }
@@ -397,23 +385,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         refparams: &'a [Expr],
         rcx: &RefineCtxt,
         kvar_gen: &'a mut (dyn KVarGen + 'a),
-        rvid_gen: &'a IndexGen<RegionVid>,
         tag: Tag,
     ) -> Self {
         let mut evar_gen = EVarGen::new();
         let mut scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self {
-            genv,
-            def_id,
-            refparams,
-            kvar_gen,
-            evar_gen,
-            rvid_gen,
-            tag,
-            scopes,
-            obligs: Vec::new(),
-        }
+        Self { genv, def_id, refparams, kvar_gen, evar_gen, tag, scopes, obligs: Vec::new() }
     }
 
     fn obligations(&self) -> Vec<rty::Clause> {
@@ -432,7 +409,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         self.scopes.pop();
     }
 
-    fn instantiate_refine_params(
+    fn instantiate_refine_args(
         &mut self,
         genv: &GlobalEnv,
         callee_def_id: Option<DefId>,
@@ -446,6 +423,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         } else {
             Ok(vec![])
         }
+    }
+
+    fn instantiate_generic_args(&mut self, args: &[GenericArg]) -> Vec<GenericArg> {
+        args.iter()
+            .map(|a| a.replace_holes(|binders, kind| self.fresh_infer_var_for_hole(binders, kind)))
+            .collect_vec()
     }
 
     pub(crate) fn fresh_infer_var(&mut self, sort: &Sort, mode: InferMode) -> Expr {
@@ -464,7 +447,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match kind {
             HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) => {
-                assert!(binders.is_empty());
+                assert!(binders.is_empty(), "TODO: implement evars under binders");
                 self.fresh_evars(&sort)
             }
         }
@@ -666,7 +649,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             let bounds = self
                 .genv
                 .item_bounds(alias_ty.def_id)?
-                .instantiate_refparams(self.refparams);
+                .instantiate_identity(self.refparams);
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
                     let ty1 = self.project_bty(ty, pred.projection_ty.def_id);
@@ -797,12 +780,12 @@ fn mk_obligations(
     genv: &GlobalEnv<'_, '_>,
     did: DefId,
     args: &[GenericArg],
-    refine: &[Expr],
+    refine_args: &[Expr],
 ) -> Result<List<rty::Clause>, CheckerErrKind> {
     Ok(genv
         .predicates_of(did)?
         .predicates()
-        .instantiate(args, refine))
+        .instantiate(args, refine_args))
 }
 
 impl<F> KVarGen for F

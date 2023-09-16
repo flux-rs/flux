@@ -216,7 +216,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 .with_span(span)?
         };
 
-        let poly_sig = poly_sig.instantiate_refparams(&exprs);
+        let poly_sig = poly_sig.instantiate_identity(&exprs);
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));

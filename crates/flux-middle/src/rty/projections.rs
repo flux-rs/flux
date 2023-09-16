@@ -59,10 +59,10 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         let param_env = List::from(predicates.instantiate_identity(genv, src_params)?);
         vec.push(param_env);
         // 2. Insert generic predicates of the opaque-types
-        for (opaque_def_id, refine_args) in t.opaque_refine_args() {
+        for (opaque_def_id, (args, refine_args)) in t.opaque_refine_args() {
             vec.push(
                 genv.item_bounds(opaque_def_id)?
-                    .instantiate_refparams(&refine_args),
+                    .instantiate(&args, &refine_args),
             );
         }
 
