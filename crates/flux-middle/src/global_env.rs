@@ -107,13 +107,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.check_wf(self, flux_id.into())
     }
 
-    pub fn refine_params_of(
-        &self,
-        def_id: impl Into<DefId>,
-    ) -> QueryResult<List<rty::RefineParam>> {
-        Ok(self.generics_of(def_id)?.refine_params.clone())
-    }
-
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
         self.queries.generics_of(self, def_id.into())
     }
