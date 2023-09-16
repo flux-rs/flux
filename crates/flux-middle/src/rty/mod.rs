@@ -63,6 +63,7 @@ pub struct Generics {
     pub refine_params: List<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
+    pub parent_refine_count: usize,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
@@ -561,6 +562,10 @@ impl Generics {
             genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
                 .param_at(param_index, genv)
         }
+    }
+
+    pub fn refine_count(&self) -> usize {
+        self.parent_refine_count + self.refine_params.len()
     }
 }
 

@@ -167,7 +167,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
                 .map()
                 .get_refine_params(genv.tcx, local_id)
                 .unwrap_or(&[]);
-            Ok(conv::conv_generics(genv, &rustc_generics, generics, refine_params, is_trait))
+            conv::conv_generics(genv, &rustc_generics, generics, refine_params, is_trait)
         }
         DefKind::Closure | DefKind::Generator => {
             Ok(rty::Generics {
@@ -175,6 +175,11 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
                 refine_params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
+                parent_refine_count: rustc_generics
+                    .parent()
+                    .map(|parent| genv.generics_of(parent))
+                    .transpose()?
+                    .map_or(0, |g| g.refine_count()),
             })
         }
         kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),

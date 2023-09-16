@@ -9,7 +9,10 @@ use rustc_middle::ty::{ClosureKind, ParamTy};
 use super::fold::TypeFoldable;
 use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
-pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
+pub(crate) fn refine_generics(
+    genv: &GlobalEnv,
+    generics: &rustc::ty::Generics,
+) -> QueryResult<rty::Generics> {
     let params = generics
         .params
         .iter()
@@ -31,12 +34,18 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
             }
         })
         .collect();
-    rty::Generics {
+
+    Ok(rty::Generics {
         params,
         refine_params: List::empty(),
-        parent_count: generics.orig.parent_count,
-        parent: generics.orig.parent,
-    }
+        parent: generics.parent(),
+        parent_count: generics.parent_count(),
+        parent_refine_count: generics
+            .parent()
+            .map(|parent| genv.generics_of(parent))
+            .transpose()?
+            .map_or(0, |g| g.refine_count()),
+    })
 }
 
 pub struct Refiner<'a, 'tcx> {
