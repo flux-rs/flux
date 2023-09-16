@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["XtaskCmd"],"fn":["install","main","run","test"],"struct":["Install","Run","Test","Xtask"]};
+window.SIDEBAR_ITEMS = {"enum":["XtaskCmd"],"fn":["doc","install","main","run","test"],"struct":["Doc","Install","Run","Test","Xtask"]};

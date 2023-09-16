@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1943,6 +1943,38 @@
 <a href="#1943" id="1943">1943</a>
 <a href="#1944" id="1944">1944</a>
 <a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -1965,6 +1997,7 @@
 <span class="kw">pub use </span>flux_fixpoint::{BinOp, Constant, UnOp};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::Defns;
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::IndexSlice;
@@ -1996,7 +2029,7 @@
 <span class="kw">pub use crate</span>::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion,
+        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion, FreeRegion,
         Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
     },
 };
@@ -2004,8 +2037,15 @@
 <span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Generics {
     <span class="kw">pub </span>params: List&lt;GenericParamDef&gt;,
+    <span class="kw">pub </span>refine_params: List&lt;RefineParam&gt;,
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>parent_count: usize,
+}
+
+<span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+</span><span class="kw">pub struct </span>RefineParam {
+    <span class="kw">pub </span>sort: Sort,
+    <span class="kw">pub </span>mode: InferMode,
 }
 
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2029,6 +2069,9 @@
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>predicates: List&lt;Clause&gt;,
 }
+
+<span class="doccomment">/// An alias for the &quot;EarlyBinder-instantiated&quot; GenericPredicates of a DefId
+</span><span class="kw">pub type </span>ParamEnv = GenericPredicates;
 
 <span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 </span><span class="kw">pub struct </span>Clause {
@@ -2274,6 +2317,8 @@
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>AliasTy {
     <span class="kw">pub </span>args: GenericArgs,
+    <span class="doccomment">/// Holds the refinement-arguments for opaque-types; empty for projections
+    </span><span class="kw">pub </span>refine_args: RefineArgs,
     <span class="kw">pub </span>def_id: DefId,
 }
 
@@ -2283,7 +2328,10 @@
     Opaque,
 }
 
+<span class="kw">pub type </span>RefineArgs = List&lt;Expr&gt;;
 <span class="kw">pub type </span>GenericArgs = List&lt;GenericArg&gt;;
+
+<span class="kw">pub type </span>OpaqueRefineArgs = FxHashMap&lt;DefId, RefineArgs&gt;;
 
 <span class="attr">#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>GenericArg {
@@ -2692,7 +2740,7 @@
         replace_region: <span class="kw">impl </span>FnMut(BoundRegion) -&gt; Region,
         <span class="kw-2">mut </span>replace_expr: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, InferMode) -&gt; Expr,
     ) -&gt; T {
-        <span class="kw">let </span><span class="kw-2">mut </span>exprs = FxHashMap::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>exprs = UnordMap::default();
         <span class="kw">let </span>delegate = FnMutDelegate {
             exprs: |idx| {
                 exprs
@@ -2742,7 +2790,12 @@
 <span class="kw">impl</span>&lt;T: TypeFoldable&gt; EarlyBinder&lt;T&gt; {
     <span class="kw">pub fn </span>instantiate(<span class="self">self</span>, generics: <span class="kw-2">&amp;</span>[GenericArg], refine: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
         <span class="self">self</span>.<span class="number">0
-            </span>.fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(generics, refine))
+            </span>.fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(<span class="prelude-val">Some</span>(generics), refine))
+    }
+
+    <span class="kw">pub fn </span>instantiate_refparams(<span class="self">self</span>, refine: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
+        <span class="self">self</span>.<span class="number">0
+            </span>.fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(<span class="prelude-val">None</span>, refine))
     }
 
     <span class="kw">pub fn </span>instantiate_identity(<span class="self">self</span>) -&gt; T {
@@ -2976,8 +3029,9 @@
         TyKind::Alias(kind, alias_ty).intern()
     }
 
-    <span class="kw">pub fn </span>opaque(def_id: <span class="kw">impl </span>Into&lt;DefId&gt;, args: GenericArgs) -&gt; Ty {
-        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args }).intern()
+    <span class="kw">pub fn </span>opaque(def_id: <span class="kw">impl </span>Into&lt;DefId&gt;, args: GenericArgs, refine_args: RefineArgs) -&gt; Ty {
+        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
+            .intern()
     }
 
     <span class="kw">pub fn </span>projection(alias_ty: AliasTy) -&gt; Ty {
@@ -3215,8 +3269,12 @@
 }
 
 <span class="kw">impl </span>AliasTy {
-    <span class="kw">pub fn </span>new(def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; <span class="self">Self </span>{
-        AliasTy { def_id, args: args.into() }
+    <span class="kw">pub fn </span>new(
+        def_id: DefId,
+        args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;,
+        refine_args: <span class="kw">impl </span>Into&lt;RefineArgs&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        AliasTy { def_id, args: args.into(), refine_args: refine_args.into() }
     }
 }
 
@@ -3326,7 +3384,7 @@
         }]
     });
 
-    <span class="kw">static </span>OVERFLOW: LazyLock&lt;FxHashMap&lt;UintTy, [Invariant; <span class="number">2</span>]&gt;&gt; = LazyLock::new(|| {
+    <span class="kw">static </span>OVERFLOW: LazyLock&lt;UnordMap&lt;UintTy, [Invariant; <span class="number">2</span>]&gt;&gt; = LazyLock::new(|| {
         UINT_TYS
             .into_iter()
             .map(|uint_ty| {
@@ -3358,7 +3416,7 @@
 <span class="kw">fn </span>int_invariants(int_ty: IntTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[Invariant] {
     <span class="kw">static </span>DEFAULT: [Invariant; <span class="number">0</span>] = [];
 
-    <span class="kw">static </span>OVERFLOW: LazyLock&lt;FxHashMap&lt;IntTy, [Invariant; <span class="number">2</span>]&gt;&gt; = LazyLock::new(|| {
+    <span class="kw">static </span>OVERFLOW: LazyLock&lt;UnordMap&lt;IntTy, [Invariant; <span class="number">2</span>]&gt;&gt; = LazyLock::new(|| {
         INT_TYS
             .into_iter()
             .map(|int_ty| {
@@ -3400,6 +3458,7 @@
     PolyVariant,
     Invariant,
     BoundVariableKind,
+    RefineParam,
 );
 
 <span class="attr">#[macro_export]
@@ -3681,7 +3740,12 @@
                     <span class="prelude-val">Ok</span>(())
                 }
                 TyKind::Alias(AliasKind::Opaque, alias_ty) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;Alias(Opaque, {:?}, [{:?}]) &quot;</span>, alias_ty.def_id, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span>alias_ty.args))
+                    <span class="macro">w!</span>(
+                        <span class="string">&quot;Alias(Opaque, {:?}, [{:?}], [{:?}]) &quot;</span>,
+                        alias_ty.def_id,
+                        <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span>alias_ty.args),
+                        <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args)
+                    )
                 }
             }
         }

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["run_compiler","sysroot"],"mod":["callbacks","collector"],"static":["DEFAULT_LOCALE_RESOURCE","DEFAULT_LOCALE_RESOURCES"]};
+window.SIDEBAR_ITEMS = {"fn":["run_compiler","sysroot"],"mod":["callbacks","collector","logger"],"static":["DEFAULT_LOCALE_RESOURCE","DEFAULT_LOCALE_RESOURCES"]};

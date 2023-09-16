@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_defn","check_enum_def","check_fn_quals","check_fn_sig","check_opaque_ty","check_qualifier","check_struct_def","check_ty_alias","check_type"],"mod":["errors","sortck"],"struct":["Wf","XiCtxt"]};
+window.SIDEBAR_ITEMS = {"fn":["check_defn","check_enum_def","check_fn_quals","check_fn_sig","check_opaque_ty","check_qualifier","check_struct_def","check_ty_alias","setup_refine_params"],"mod":["errors","sortck"],"struct":["Wf","XiCtxt"]};

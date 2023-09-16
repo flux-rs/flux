@@ -76,6 +76,24 @@
 <a href="#76" id="76">76</a>
 <a href="#77" id="77">77</a>
 <a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::path::PathBuf;
 
 <span class="kw">use </span>flux_tests::{find_flux_path, rustc_flags};
@@ -95,7 +113,14 @@
             </span>required input: PathBuf
         }
         <span class="doccomment">/// Install flux binaries to ~/.cargo/bin
-        </span>cmd install { }
+        </span>cmd install {
+            <span class="doccomment">/// Force overwriting existing binaries
+            </span>optional -f,--force
+        }
+        <span class="doccomment">/// Build the documentation
+        </span>cmd doc {
+            optional -o,--open
+        }
     }
 }
 
@@ -119,6 +144,7 @@
         XtaskCmd::Test(args) =&gt; test(sh, args),
         XtaskCmd::Run(args) =&gt; run(sh, args),
         XtaskCmd::Install(args) =&gt; install(sh, args),
+        XtaskCmd::Doc(args) =&gt; doc(sh, args),
     }
 }
 
@@ -149,9 +175,19 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>install(sh: Shell, <span class="kw">_</span>: Install) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path flux&quot;</span>).run()<span class="question-mark">?</span>;
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path flux-bin&quot;</span>).run()<span class="question-mark">?</span>;
+<span class="kw">fn </span>install(sh: Shell, args: Install) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="kw">let </span>force = <span class="kw">if </span>args.force { <span class="string">&quot;--force&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;&quot; </span>};
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path crates/flux-driver {force}&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path crates/flux-bin {force}&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>doc(sh: Shell, args: Doc) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;RUSTDOCFLAGS&quot;</span>, <span class="string">&quot;-Zunstable-options --enable-index-page&quot;</span>);
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo doc --document-private-items --no-deps&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="kw">if </span>args.open {
+        opener::open(<span class="string">&quot;target/doc/index.html&quot;</span>)<span class="question-mark">?</span>;
+    }
     <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div></section></main></body></html>

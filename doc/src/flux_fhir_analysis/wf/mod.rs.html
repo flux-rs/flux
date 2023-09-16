@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-fhir-analysis/src/wf/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_fhir_analysis/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_fhir_analysis/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -579,6 +579,14 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -594,9 +602,12 @@
     fhir::{<span class="self">self</span>, FluxOwnerId, SurfaceIdent, WfckResults},
     global_env::GlobalEnv,
 };
-<span class="kw">use </span>rustc_data_structures::snapshot_map::{<span class="self">self</span>, SnapshotMap};
+<span class="kw">use </span>rustc_data_structures::{
+    snapshot_map::{<span class="self">self</span>, SnapshotMap},
+    unord::UnordMap,
+};
 <span class="kw">use </span>rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
-<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
+<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{def::DefKind, OwnerId};
 <span class="kw">use </span>rustc_span::Symbol;
 
@@ -604,7 +615,7 @@
 
 <span class="kw">struct </span>Wf&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    modes: FxHashMap&lt;fhir::Name, fhir::InferMode&gt;,
+    modes: UnordMap&lt;fhir::Name, fhir::InferMode&gt;,
     xi: XiCtxt,
 }
 
@@ -618,17 +629,6 @@
 /// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>XiCtxt(SnapshotMap&lt;fhir::Name, ()&gt;);
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_type(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
-    ty: <span class="kw-2">&amp;</span>fhir::Ty,
-    owner: OwnerId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults, ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner.into());
-    <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(genv);
-    wf.check_type(<span class="kw-2">&amp;mut </span>infcx, ty)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(infcx.into_results())
-}
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_qualifier(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
@@ -731,8 +731,21 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults, ErrorGuaranteed&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(genv);
+    <span class="kw">let </span>parent = genv.tcx.parent(owner_id.to_def_id());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(parent_local) = parent.as_local() &amp;&amp;
+       <span class="kw">let </span><span class="prelude-val">Some</span>(params) = genv.map().get_refine_params(genv.tcx, parent_local)
+    {
+        setup_refine_params(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>wf, params);
+    }
     wf.check_opaque_ty(<span class="kw-2">&amp;mut </span>infcx, opaque_ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(infcx.into_results())
+}
+
+<span class="kw">fn </span>setup_refine_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, wf: <span class="kw-2">&amp;mut </span>Wf, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
+    <span class="kw">for </span>param <span class="kw">in </span>params {
+        wf.modes.insert(param.ident.name, param.infer_mode());
+    }
+    infcx.push_layer(params);
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_sig(
@@ -743,13 +756,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(genv);
 
-    <span class="kw">let </span>predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
-    wf.check_generic_predicates(<span class="kw-2">&amp;mut </span>infcx, predicates)<span class="question-mark">?</span>;
-
-    <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.params {
-        wf.modes.insert(param.ident.name, param.infer_mode());
-    }
-    infcx.push_layer(<span class="kw-2">&amp;</span>fn_sig.params);
+    setup_refine_params(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>wf, <span class="kw-2">&amp;</span>fn_sig.params);
 
     <span class="kw">let </span>args = fn_sig
         .args
@@ -760,6 +767,9 @@
         .requires
         .iter()
         .try_for_each_exhaust(|constr| wf.check_constraint(<span class="kw-2">&amp;mut </span>infcx, constr));
+
+    <span class="kw">let </span>predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
+    wf.check_generic_predicates(<span class="kw-2">&amp;mut </span>infcx, predicates)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>output = wf.check_fn_output(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>fn_sig.output);
 
@@ -811,7 +821,7 @@
         bound: <span class="kw-2">&amp;</span>fhir::GenericBound,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>bound {
-            fhir::GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_path(infcx, trait_ref),
+            fhir::GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_path(infcx, <span class="kw-2">&amp;</span>trait_ref.path),
             fhir::GenericBound::LangItemTrait(<span class="kw">_</span>, args, bindings) =&gt; {
                 <span class="self">self</span>.check_generic_args(infcx, args)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_type_bindings(infcx, bindings)<span class="question-mark">?</span>;
@@ -939,7 +949,10 @@
                 <span class="self">self</span>.check_type(infcx, ty)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_pred(infcx, pred)
             }
-            fhir::TyKind::OpaqueDef(<span class="kw">_</span>, args, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_generic_args(infcx, args),
+            fhir::TyKind::OpaqueDef(<span class="kw">_</span>, args, _refine_args, <span class="kw">_</span>) =&gt; {
+                <span class="comment">// TODO sanity check the _refine_args (though they should never fail!) but we&#39;d need their expected sorts
+                </span><span class="self">self</span>.check_generic_args(infcx, args)
+            }
             fhir::TyKind::RawPtr(ty, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_type(infcx, ty),
             fhir::TyKind::Hole | fhir::TyKind::Never =&gt; <span class="prelude-val">Ok</span>(()),
         }
@@ -1023,7 +1036,10 @@
                 iter::zip(<span class="kw-2">&amp;</span>path.refine, sorts)
                     .try_for_each_exhaust(|(arg, sort)| <span class="self">self</span>.check_refine_arg(infcx, arg, sort))<span class="question-mark">?</span>;
             }
-            fhir::Res::SelfTyAlias { .. } | fhir::Res::Def(..) | fhir::Res::PrimTy(..) =&gt; {}
+            fhir::Res::SelfTyParam { .. }
+            | fhir::Res::SelfTyAlias { .. }
+            | fhir::Res::Def(..)
+            | fhir::Res::PrimTy(..) =&gt; {}
         }
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
         <span class="kw">let </span>args = <span class="self">self</span>.check_generic_args(infcx, <span class="kw-2">&amp;</span>path.args);

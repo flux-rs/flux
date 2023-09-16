@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-refineck/src/type_env.rs`."><title>type_env.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/type_env.rs`."><title>type_env.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -739,105 +739,33 @@
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
 <a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
-<a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a>
-<a href="#807" id="807">807</a>
-<a href="#808" id="808">808</a>
-<a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a>
-<a href="#811" id="811">811</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>projection;
 
-<span class="kw">use </span>std::iter;
+<span class="kw">use </span>std::{iter, ops::ControlFlow};
 
-<span class="kw">use </span>flux_common::{index::IndexGen, tracked_span_bug};
+<span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
         box_args,
         evars::EVarSol,
-        fold::{TypeFoldable, TypeVisitable},
-        subst::{FVarSubst, RegionSubst},
-        BaseTy, Binder, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind, Ref, Region, Ty,
-        TyKind, Var, INNERMOST,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        subst::RegionSubst,
+        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind,
+        Ref, Region, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
-<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 
 <span class="kw">use </span><span class="self">self</span>::projection::{LocKind, PlacesTree};
-<span class="kw">use </span><span class="kw">super</span>::rty::{Loc, Name, Sort};
+<span class="kw">use </span><span class="kw">super</span>::rty::{Loc, Sort};
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
     constraint_gen::{ConstrGen, ConstrReason},
     fixpoint_encoding::{KVarEncoding, KVarStore},
-    param_infer,
     refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,
@@ -855,9 +783,12 @@
 }
 
 <span class="kw">pub struct </span>BasicBlockEnv {
-    params: Vec&lt;(Name, Sort)&gt;,
-    constrs: Vec&lt;Expr&gt;,
+    data: Binder&lt;BasicBlockEnvData&gt;,
     scope: Scope,
+}
+
+<span class="kw">struct </span>BasicBlockEnvData {
+    constrs: List&lt;Expr&gt;,
     bindings: PlacesTree,
 }
 
@@ -893,7 +824,7 @@
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup_unfolding(genv, rcx, place)<span class="question-mark">?</span>.ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
         <span class="self">self</span>.bindings.get(path)
     }
 
@@ -970,80 +901,6 @@
         <span class="self">self</span>.bindings.lookup(path).block()
     }
 
-    <span class="kw">fn </span>infer_subst_for_bb_env(<span class="kw-2">&amp;</span><span class="self">self</span>, bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv) -&gt; FVarSubst {
-        <span class="kw">let </span>params = bb_env.params.iter().map(|(name, <span class="kw">_</span>)| <span class="kw-2">*</span>name).collect();
-        <span class="kw">let </span><span class="kw-2">mut </span>subst = FVarSubst::empty();
-        <span class="kw">for </span>(loc, binding1) <span class="kw">in </span><span class="self">self</span>.bindings.iter() {
-            <span class="kw">let </span>binding2 = bb_env.bindings.get_loc(loc);
-            <span class="self">self</span>.infer_subst_for_bb_env_ty(bb_env, <span class="kw-2">&amp;</span>params, <span class="kw-2">&amp;</span>binding1.ty, <span class="kw-2">&amp;</span>binding2.ty, <span class="kw-2">&amp;mut </span>subst);
-        }
-
-        param_infer::check_inference(<span class="kw-2">&amp;</span>subst, bb_env.params.iter().map(|(name, <span class="kw">_</span>)| <span class="kw-2">*</span>name)).unwrap();
-        subst
-    }
-
-    <span class="kw">fn </span>infer_subst_for_bb_env_ty(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
-        params: <span class="kw-2">&amp;</span>FxHashSet&lt;Name&gt;,
-        ty1: <span class="kw-2">&amp;</span>Ty,
-        ty2: <span class="kw-2">&amp;</span>Ty,
-        subst: <span class="kw-2">&amp;mut </span>FVarSubst,
-    ) {
-        <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
-            (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {
-                <span class="self">self</span>.infer_subst_for_bb_env_bty(bb_env, params, bty1, bty2, subst);
-                subst.infer_from_idxs(params, idx1, idx2);
-            }
-            (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(pk1, pk2);
-                <span class="macro">debug_assert_eq!</span>(path1, path2);
-            }
-            (TyKind::Ptr(pk1, path), <span class="macro">Ref!</span>(r2, ty2, mutbl2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(pk1, <span class="kw-2">&amp;</span>PtrKind::from_ref(<span class="kw-2">*</span>r2, <span class="kw-2">*</span>mutbl2));
-                <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(path);
-                <span class="self">self</span>.infer_subst_for_bb_env_ty(bb_env, params, <span class="kw-2">&amp;</span>ty1, ty2, subst);
-            }
-            <span class="kw">_ </span>=&gt; {}
-        }
-    }
-
-    <span class="kw">fn </span>infer_subst_for_bb_env_generic_arg(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
-        params: <span class="kw-2">&amp;</span>FxHashSet&lt;Name&gt;,
-        arg1: <span class="kw-2">&amp;</span>GenericArg,
-        arg2: <span class="kw-2">&amp;</span>GenericArg,
-        subst: <span class="kw-2">&amp;mut </span>FVarSubst,
-    ) {
-        <span class="kw">if let </span>(GenericArg::Ty(ty1), GenericArg::Ty(ty2)) = (arg1, arg2) {
-            <span class="self">self</span>.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
-        }
-    }
-
-    <span class="kw">fn </span>infer_subst_for_bb_env_bty(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
-        params: <span class="kw-2">&amp;</span>FxHashSet&lt;Name&gt;,
-        bty1: <span class="kw-2">&amp;</span>BaseTy,
-        bty2: <span class="kw-2">&amp;</span>BaseTy,
-        subst: <span class="kw-2">&amp;mut </span>FVarSubst,
-    ) {
-        <span class="kw">match </span>(bty1, bty2) {
-            (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(mutbl1, mutbl2);
-                <span class="macro">debug_assert_eq!</span>(r1, r2);
-                <span class="self">self</span>.infer_subst_for_bb_env_ty(bb_env, params, ty1, ty2, subst);
-            }
-            (BaseTy::Adt(adt, substs1), BaseTy::Adt(<span class="kw">_</span>, substs2)) <span class="kw">if </span>adt.is_box() =&gt; {
-                <span class="kw">for </span>(arg1, arg2) <span class="kw">in </span>iter::zip(substs1, substs2) {
-                    <span class="self">self</span>.infer_subst_for_bb_env_generic_arg(bb_env, params, arg1, arg2, subst);
-                }
-            }
-            <span class="kw">_ </span>=&gt; {}
-        }
-    }
-
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_goto(
         <span class="kw-2">mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
@@ -1051,17 +908,19 @@
         bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
-        <span class="kw">let </span>reason = ConstrReason::Goto(target);
-
         <span class="comment">// Infer subst
-        </span><span class="kw">let </span>subst = <span class="self">self</span>.infer_subst_for_bb_env(bb_env);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>infcx = gen.infcx(rcx, ConstrReason::Goto(target));
+
+        <span class="kw">let </span>bb_env = bb_env
+            .data
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
 
         <span class="comment">// Check constraints
         </span><span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>bb_env.constrs {
-            gen.check_pred(rcx, subst.apply(constr), reason);
+            infcx.check_pred(rcx, constr);
         }
 
-        <span class="kw">let </span>bb_env = bb_env.bindings.fmap(|ty| subst.apply(ty)).flatten();
+        <span class="kw">let </span>bb_env = bb_env.bindings.flatten();
 
         <span class="comment">// Convert pointers to borrows
         </span><span class="kw">for </span>(path, <span class="kw">_</span>, ty2) <span class="kw">in </span><span class="kw-2">&amp;</span>bb_env {
@@ -1070,7 +929,7 @@
                 (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), <span class="macro">Ref!</span>(r2, bound, Mutability::Mut)) =&gt; {
                     <span class="macro">debug_assert_eq!</span>(r1, r2);
                     <span class="kw">let </span>ty = <span class="self">self</span>.bindings.lookup(ptr_path).block_with(bound.clone());
-                    gen.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound, reason);
+                    infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
 
                     <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, bound.clone(), Mutability::Mut));
                 }
@@ -1086,8 +945,11 @@
         <span class="comment">// Check subtyping
         </span><span class="kw">for </span>(path, <span class="kw">_</span>, ty2) <span class="kw">in </span>bb_env {
             <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(<span class="kw-2">&amp;</span>path);
-            gen.subtyping(rcx, <span class="kw-2">&amp;</span>ty1.unblocked(), <span class="kw-2">&amp;</span>ty2.unblocked(), reason);
+            infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty1.unblocked(), <span class="kw-2">&amp;</span>ty2.unblocked())<span class="question-mark">?</span>;
         }
+
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().unwrap());
+
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1423,7 +1285,7 @@
         <span class="kw">match </span>(arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) =&gt; GenericArg::Ty(<span class="self">self</span>.join_ty(ty1, ty2)),
             (GenericArg::BaseTy(<span class="kw">_</span>), GenericArg::BaseTy(<span class="kw">_</span>)) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;generic argument join for base types ins not implemented&quot;</span>)
+                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;generic argument join for base types is not implemented&quot;</span>)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(re1, re2);
@@ -1436,103 +1298,105 @@
     <span class="kw">pub fn </span>into_bb_env(<span class="self">self</span>, kvar_store: <span class="kw-2">&amp;mut </span>KVarStore) -&gt; BasicBlockEnv {
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="self">self</span>.bindings;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>generalizer = Generalizer::new(<span class="self">self</span>.scope.name_gen());
-        bindings.fmap_mut(|ty| generalizer.generalize_ty(ty));
-        <span class="kw">let </span>(names, sorts, preds) = generalizer.into_parts();
+        <span class="kw">let </span><span class="kw-2">mut </span>generalizer = Generalizer::new();
+        bindings.fmap_mut(|ty| generalizer.generalize(ty));
+        <span class="kw">let </span>(vars, preds) = generalizer.into_parts();
+
         <span class="comment">// Replace all holes with a single fresh kvar on all parameters
         </span><span class="kw">let </span><span class="kw-2">mut </span>constrs = preds
             .into_iter()
             .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole))
             .collect_vec();
-        <span class="kw">let </span>params = iter::zip(names, sorts).collect_vec();
-        <span class="kw">let </span>kvar = kvar_store.fresh(
-            params.len(),
-            params
-                .iter()
-                .cloned()
-                .chain(<span class="self">self</span>.scope.iter())
-                .map(|(name, sort)| (Var::Free(name), sort)),
-            KVarEncoding::Conj,
-        );
+
+        <span class="kw">let </span>outter_sorts = vars.to_sort_list();
+
+        <span class="kw">let </span>kvar = kvar_store.fresh(<span class="kw-2">&amp;</span>[outter_sorts.clone()], <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj);
         constrs.push(kvar);
 
         <span class="comment">// Replace remaning holes by fresh kvars
         </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>]| {
-            kvar_store.fresh_bound(
-                sorts,
-                <span class="self">self</span>.scope.iter().chain(params.iter().cloned()),
-                KVarEncoding::Conj,
-            )
+            <span class="kw">let </span>sorts = std::iter::once(outter_sorts.clone())
+                .chain(sorts.iter().cloned())
+                .collect_vec();
+            kvar_store.fresh(<span class="kw-2">&amp;</span>sorts, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
 
-        BasicBlockEnv { params, constrs, bindings, scope: <span class="self">self</span>.scope }
+        <span class="kw">let </span>data = BasicBlockEnvData { constrs: constrs.into(), bindings };
+
+        BasicBlockEnv { data: Binder::new(data, vars), scope: <span class="self">self</span>.scope }
     }
 }
 
 <span class="kw">struct </span>Generalizer {
-    name_gen: IndexGen&lt;Name&gt;,
-    names: Vec&lt;Name&gt;,
-    sorts: Vec&lt;Sort&gt;,
+    vars: Vec&lt;BoundVariableKind&gt;,
     preds: Vec&lt;Expr&gt;,
 }
 
 <span class="kw">impl </span>Generalizer {
-    <span class="kw">fn </span>new(name_gen: IndexGen&lt;Name&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ name_gen, names: <span class="macro">vec!</span>[], sorts: <span class="macro">vec!</span>[], preds: <span class="macro">vec!</span>[] }
+    <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ vars: <span class="macro">vec!</span>[], preds: <span class="macro">vec!</span>[] }
     }
 
-    <span class="kw">fn </span>into_parts(<span class="self">self</span>) -&gt; (Vec&lt;Name&gt;, Vec&lt;Sort&gt;, Vec&lt;Expr&gt;) {
-        (<span class="self">self</span>.names, <span class="self">self</span>.sorts, <span class="self">self</span>.preds)
+    <span class="kw">fn </span>into_parts(<span class="self">self</span>) -&gt; (List&lt;BoundVariableKind&gt;, Vec&lt;Expr&gt;) {
+        (List::from_vec(<span class="self">self</span>.vars), <span class="self">self</span>.preds)
     }
 
-    <span class="doccomment">/// This is effectively doing the same as [`RefineCtxt::unpack`] but for moving existentials
-    /// to the top level in a [`BasicBlockEnv`]. Maybe we should find a way to abstract over it.
-    </span><span class="kw">fn </span>generalize_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+    <span class="kw">fn </span>generalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        ty.fold_with(<span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Generalizer {
+    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
-            TyKind::Indexed(bty, idxs) =&gt; {
-                <span class="kw">let </span>bty = <span class="self">self</span>.generalize_bty(bty);
-                Ty::indexed(bty, idxs.clone())
-            }
             TyKind::Exists(ty) =&gt; {
-                <span class="kw">let </span>ty = ty.replace_bound_exprs_with(|sort, <span class="kw">_</span>| <span class="self">self</span>.fresh_vars(sort));
-                <span class="self">self</span>.generalize_ty(<span class="kw-2">&amp;</span>ty)
+                ty.replace_bound_exprs_with(|sort, mode| {
+                    <span class="kw">let </span>idx = <span class="self">self</span>.vars.len();
+                    <span class="self">self</span>.vars
+                        .push(BoundVariableKind::Refine(sort.clone(), mode));
+                    Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32)
+                })
+                .fold_with(<span class="self">self</span>)
             }
             TyKind::Constr(pred, ty) =&gt; {
                 <span class="self">self</span>.preds.push(pred.clone());
-                ty.clone()
+                ty.fold_with(<span class="self">self</span>)
             }
             <span class="kw">_ </span>=&gt; ty.clone(),
         }
     }
 
-    <span class="kw">fn </span>generalize_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
+    <span class="kw">fn </span>fold_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
         <span class="kw">match </span>bty {
-            BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; {
-                <span class="kw">let </span>(boxed, alloc) = box_args(substs);
-                <span class="kw">let </span>boxed = <span class="self">self</span>.generalize_ty(boxed);
-                BaseTy::adt(
-                    adt_def.clone(),
-                    <span class="macro">vec!</span>[GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
-                )
+            BaseTy::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() =&gt; {
+                <span class="kw">let </span>(boxed, alloc) = box_args(args);
+                <span class="kw">let </span>args = List::from_arr([
+                    GenericArg::Ty(boxed.fold_with(<span class="self">self</span>)),
+                    GenericArg::Ty(alloc.clone()),
+                ]);
+                BaseTy::Adt(adt_def.clone(), args)
             }
-            BaseTy::Ref(r, ty, Mutability::Not) =&gt; {
-                <span class="kw">let </span>ty = <span class="self">self</span>.generalize_ty(ty);
-                BaseTy::Ref(<span class="kw-2">*</span>r, ty, Mutability::Not)
+            BaseTy::Ref(re, ty, Mutability::Not) =&gt; {
+                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), Mutability::Not)
             }
             <span class="kw">_ </span>=&gt; bty.clone(),
         }
     }
+}
 
-    <span class="kw">fn </span>fresh_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(<span class="self">self</span>.fresh_var(sort)))
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>BasicBlockEnvData {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+        <span class="macro">unimplemented!</span>()
     }
+}
 
-    <span class="kw">fn </span>fresh_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Name {
-        <span class="kw">let </span>fresh = <span class="self">self</span>.name_gen.fresh();
-        <span class="self">self</span>.names.push(fresh);
-        <span class="self">self</span>.sorts.push(sort.clone());
-        fresh
+<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>BasicBlockEnvData {
+    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+        <span class="prelude-val">Ok</span>(BasicBlockEnvData {
+            constrs: <span class="self">self</span>.constrs.try_fold_with(folder)<span class="question-mark">?</span>,
+            bindings: <span class="self">self</span>.bindings.try_fold_with(folder)<span class="question-mark">?</span>,
+        })
     }
 }
 
@@ -1542,16 +1406,13 @@
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         local_decls: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>LocalDecls,
     ) -&gt; TypeEnv&lt;<span class="lifetime">&#39;a</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>subst = FVarSubst::empty();
-        <span class="kw">for </span>(name, sort) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.params {
-            <span class="kw">let </span>fresh = rcx.define_var(sort);
-            subst.insert(<span class="kw-2">*</span>name, Expr::fvar(fresh));
+        <span class="kw">let </span>data = <span class="self">self
+            </span>.data
+            .replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
+        <span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>data.constrs {
+            rcx.assume_pred(constr);
         }
-        <span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.constrs {
-            rcx.assume_pred(subst.apply(constr));
-        }
-        <span class="kw">let </span>bindings = <span class="self">self</span>.bindings.fmap(|binding| subst.apply(binding));
-        TypeEnv { bindings, local_decls }
+        TypeEnv { bindings: data.bindings, local_decls }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Scope {
@@ -1594,23 +1455,22 @@
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?} &quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope)<span class="question-mark">?</span>;
 
-            <span class="kw">if </span>!<span class="self">self</span>.params.is_empty() {
+            <span class="kw">if </span>!<span class="self">self</span>.data.vars().is_empty() {
                 <span class="macro">w!</span>(
                     <span class="string">&quot;∃ {}. &quot;</span>,
-                    ^<span class="self">self</span>.params
+                    ^<span class="self">self</span>.data.vars()
                         .iter()
-                        .format_with(<span class="string">&quot;, &quot;</span>, |(name, sort), f| {
-                            f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}: {:?}&quot;</span>, ^name, ^sort))
-                        })
+                        .format_with(<span class="string">&quot;, &quot;</span>, |s, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}&quot;</span>, s)))
                 )<span class="question-mark">?</span>;
             }
-            <span class="kw">if </span>!<span class="self">self</span>.constrs.is_empty() {
+            <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
+            <span class="kw">if </span>!data.constrs.is_empty() {
                 <span class="macro">w!</span>(
                     <span class="string">&quot;{:?} ⇒ &quot;</span>,
-                    <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.constrs.iter().filter(|pred| !pred.is_trivially_true()))
+                    <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
                 )<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
+            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span>data.bindings)
         }
 
         <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PPrintCx {

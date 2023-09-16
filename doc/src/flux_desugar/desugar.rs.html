@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-desugar/src/desugar.rs`."><title>desugar.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_desugar/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/desugar.rs`."><title>desugar.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_desugar/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1820,18 +1820,68 @@
 <a href="#1820" id="1820">1820</a>
 <a href="#1821" id="1821">1821</a>
 <a href="#1822" id="1822">1822</a>
+<a href="#1823" id="1823">1823</a>
+<a href="#1824" id="1824">1824</a>
+<a href="#1825" id="1825">1825</a>
+<a href="#1826" id="1826">1826</a>
+<a href="#1827" id="1827">1827</a>
+<a href="#1828" id="1828">1828</a>
+<a href="#1829" id="1829">1829</a>
+<a href="#1830" id="1830">1830</a>
+<a href="#1831" id="1831">1831</a>
+<a href="#1832" id="1832">1832</a>
+<a href="#1833" id="1833">1833</a>
+<a href="#1834" id="1834">1834</a>
+<a href="#1835" id="1835">1835</a>
+<a href="#1836" id="1836">1836</a>
+<a href="#1837" id="1837">1837</a>
+<a href="#1838" id="1838">1838</a>
+<a href="#1839" id="1839">1839</a>
+<a href="#1840" id="1840">1840</a>
+<a href="#1841" id="1841">1841</a>
+<a href="#1842" id="1842">1842</a>
+<a href="#1843" id="1843">1843</a>
+<a href="#1844" id="1844">1844</a>
+<a href="#1845" id="1845">1845</a>
+<a href="#1846" id="1846">1846</a>
+<a href="#1847" id="1847">1847</a>
+<a href="#1848" id="1848">1848</a>
+<a href="#1849" id="1849">1849</a>
+<a href="#1850" id="1850">1850</a>
+<a href="#1851" id="1851">1851</a>
+<a href="#1852" id="1852">1852</a>
+<a href="#1853" id="1853">1853</a>
+<a href="#1854" id="1854">1854</a>
+<a href="#1855" id="1855">1855</a>
+<a href="#1856" id="1856">1856</a>
+<a href="#1857" id="1857">1857</a>
+<a href="#1858" id="1858">1858</a>
+<a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, iter, slice};
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
+    fhir::{<span class="self">self</span>, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     intern::List,
 };
 <span class="kw">use </span>flux_syntax::surface;
 <span class="kw">use </span>hir::{def::DefKind, ItemKind};
-<span class="kw">use </span>rustc_data_structures::fx::{FxIndexMap, IndexEntry};
+<span class="kw">use </span>rustc_data_structures::{
+    fx::{FxIndexMap, IndexEntry},
+    unord::UnordMap,
+};
 <span class="kw">use </span>rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
@@ -1840,7 +1890,7 @@
     def_id::LocalDefId,
     sym::{<span class="self">self</span>},
     symbol::kw,
-    BytePos, Span, Symbol, DUMMY_SP,
+    Span, Symbol,
 };
 
 <span class="kw">pub fn </span>desugar_qualifier(
@@ -1925,7 +1975,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DesugarCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FxHashMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
+    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     local_id_gen: IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: OwnerId,
 }
@@ -1981,7 +2031,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         owner: OwnerId,
-        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FxHashMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
+        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     ) -&gt; DesugarCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
         DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), opaque_tys }
     }
@@ -2024,10 +2074,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>params = <span class="macro">vec!</span>[];
         <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.params {
             <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
-                surface::GenericParamKind::Type =&gt; {
-                    fhir::GenericParamDefKind::Type { default: <span class="prelude-val">None </span>}
-                }
-                surface::GenericParamKind::Base =&gt; fhir::GenericParamDefKind::BaseTy,
+                surface::GenericParamKind::Type =&gt; fhir::GenericParamKind::Type { default: <span class="prelude-val">None </span>},
+                surface::GenericParamKind::Base =&gt; fhir::GenericParamKind::BaseTy,
                 surface::GenericParamKind::Refine { .. } =&gt; {
                     <span class="kw">continue</span>;
                 }
@@ -2037,7 +2085,7 @@
                 .get(<span class="kw-2">&amp;</span>param.name)
                 .ok_or_else(|| <span class="self">self</span>.emit_err(errors::UnresolvedGenericParam::new(param.name)))<span class="question-mark">?</span>;
 
-            params.push(fhir::GenericParamDef { def_id, kind });
+            params.push(fhir::GenericParam { def_id, kind });
         }
         <span class="prelude-val">Ok</span>(fhir::Generics { params })
     }
@@ -2073,11 +2121,19 @@
             .iter()
             .map(|bound| {
                 <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(
-                    <span class="self">self</span>.desugar_path(bound, binders)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.desugar_trait_ref(bound, binders)<span class="question-mark">?</span>,
                     fhir::TraitBoundModifier::None,
                 ))
             })
             .try_collect_exhaust()
+    }
+
+    <span class="kw">fn </span>desugar_trait_ref(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        trait_ref: <span class="kw-2">&amp;</span>surface::TraitRef&lt;Res&gt;,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TraitRef, ErrorGuaranteed&gt; {
+        <span class="prelude-val">Ok</span>(fhir::TraitRef { path: <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>trait_ref.path, binders)<span class="question-mark">? </span>})
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_struct_def(
@@ -2235,11 +2291,13 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::GenericPredicates, fhir::FnSig), ErrorGuaranteed&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
 
-        <span class="kw">let </span>generic_preds = <span class="self">self</span>.desugar_predicates(<span class="kw-2">&amp;</span>fn_sig.predicates, binders)<span class="question-mark">?</span>;
-
         <span class="comment">// Desugar inputs
         </span>binders.push_layer();
         binders.gather_input_params_fn_sig(<span class="self">self</span>.genv, fn_sig)<span class="question-mark">?</span>;
+        binders.gather_params_predicates(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>fn_sig.predicates)<span class="question-mark">?</span>;
+
+        <span class="comment">// Desugar predicates -- after we have gathered the input params
+        </span><span class="kw">let </span>generic_preds = <span class="self">self</span>.desugar_predicates(<span class="kw-2">&amp;</span>fn_sig.predicates, binders)<span class="question-mark">?</span>;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(e) = <span class="kw-2">&amp;</span>fn_sig.requires {
             <span class="kw">let </span>pred = <span class="self">self</span>.as_expr_ctxt().desugar_expr(binders, e)<span class="question-mark">?</span>;
@@ -2318,8 +2376,7 @@
                 <span class="kw">let </span>loc = <span class="self">self</span>.as_expr_ctxt().resolve_loc(binders, <span class="kw-2">*</span>loc)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, ty, binders)<span class="question-mark">?</span>;
                 requires.push(fhir::Constraint::Type(loc, ty));
-                <span class="kw">let </span>lft = <span class="self">self</span>.mk_lifetime_hole(DUMMY_SP);
-                <span class="kw">let </span>kind = fhir::TyKind::Ptr(lft, loc);
+                <span class="kw">let </span>kind = fhir::TyKind::Ptr(<span class="self">self</span>.mk_lft_hole(), loc);
                 <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
             }
             surface::Arg::Ty(bind, ty) =&gt; <span class="self">self</span>.desugar_ty(<span class="kw-2">*</span>bind, ty, binders),
@@ -2345,7 +2402,8 @@
 
                     <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>[], binders)<span class="question-mark">?</span>;
                     <span class="kw">let </span>item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                    <span class="kw">let </span>kind = fhir::TyKind::OpaqueDef(item_id, args, <span class="bool-val">false</span>);
+                    <span class="kw">let </span>refine_args = binders.bot_layer().to_refine_args(<span class="self">self</span>, span);
+                    <span class="kw">let </span>kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>);
                     <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
                 } <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(span, <span class="string">&quot;invalid resolution for asyncness&quot;</span>)
@@ -2471,9 +2529,7 @@
                     ty: Box::new(<span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, ty, binders)<span class="question-mark">?</span>),
                     mutbl: <span class="kw-2">*</span>mutbl,
                 };
-                <span class="kw">let </span>lft_sp = span.with_lo(span.lo() + BytePos(<span class="number">1</span>)).shrink_to_lo();
-                <span class="kw">let </span>lft = <span class="self">self</span>.mk_lifetime_hole(lft_sp);
-                fhir::TyKind::Ref(lft, mut_ty)
+                fhir::TyKind::Ref(<span class="self">self</span>.mk_lft_hole(), mut_ty)
             }
             surface::TyKind::Tuple(tys) =&gt; {
                 <span class="kw">let </span>tys = tys
@@ -2499,7 +2555,8 @@
 
                     <span class="kw">let </span>item_id = hir::ItemId { owner_id };
                     <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(<span class="kw-2">*</span>res, <span class="kw-2">&amp;</span>[], binders)<span class="question-mark">?</span>;
-                    fhir::TyKind::OpaqueDef(item_id, args, <span class="bool-val">false</span>)
+                    <span class="kw">let </span>refine_args = binders.bot_layer().to_refine_args(<span class="self">self</span>, ty.span);
+                    fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>)
                 } <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(ty.span, <span class="string">&quot;unexpected opaque type&quot;</span>)
                 }
@@ -2517,9 +2574,8 @@
         <span class="prelude-val">Ok</span>(fhir::OpaqueTy { bounds })
     }
 
-    <span class="kw">fn </span>mk_lifetime_hole(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span) -&gt; fhir::Lifetime {
-        <span class="kw">let </span>ident = surface::Ident { name: kw::UnderscoreLifetime, span };
-        fhir::Lifetime { fhir_id: <span class="self">self</span>.next_fhir_id(), ident, res: fhir::LifetimeRes::Hole }
+    <span class="kw">fn </span>mk_lft_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fhir::Lifetime {
+        fhir::Lifetime::Hole(<span class="self">self</span>.next_fhir_id())
     }
 
     <span class="kw">fn </span>desugar_indices(
@@ -2642,8 +2698,7 @@
             <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx.generics_of(def_id);
             <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.params {
                 <span class="kw">if let </span>rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
-                    <span class="kw">let </span>lft = <span class="self">self</span>.mk_lifetime_hole(DUMMY_SP);
-                    fhir_args.push(fhir::GenericArg::Lifetime(lft));
+                    fhir_args.push(fhir::GenericArg::Lifetime(<span class="self">self</span>.mk_lft_hole()));
                 }
             }
         }
@@ -3059,6 +3114,20 @@
         <span class="self">self</span>.gather_params_indices(genv, sort, <span class="kw-2">&amp;</span>ret.indices, TypePos::Other)
     }
 
+    <span class="kw">fn </span>gather_params_predicates(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        predicates: <span class="kw-2">&amp;</span>[surface::WhereBoundPredicate&lt;Res&gt;],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
+            <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>predicate.bounded_ty, TypePos::Other)<span class="question-mark">?</span>;
+            <span class="kw">for </span>bound <span class="kw">in </span><span class="kw-2">&amp;</span>predicate.bounds {
+                <span class="self">self</span>.gather_params_path(genv, <span class="kw-2">&amp;</span>bound.path, TypePos::Other)<span class="question-mark">?</span>;
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>gather_input_params_fn_sig(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span>GlobalEnv,
@@ -3186,8 +3255,8 @@
             }
             surface::TyKind::Hole =&gt; <span class="prelude-val">Ok</span>(()),
             surface::TyKind::ImplTrait(<span class="kw">_</span>, bounds) =&gt; {
-                <span class="kw">for </span>path <span class="kw">in </span>bounds {
-                    <span class="self">self</span>.gather_params_path(genv, path, pos)<span class="question-mark">?</span>;
+                <span class="kw">for </span>bound <span class="kw">in </span>bounds {
+                    <span class="self">self</span>.gather_params_path(genv, <span class="kw-2">&amp;</span>bound.path, TypePos::Other)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
@@ -3262,6 +3331,10 @@
             surface::BaseTyKind::Path(path) =&gt; <span class="self">self</span>.gather_params_path(genv, path, pos),
             surface::BaseTyKind::Slice(ty) =&gt; <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Other),
         }
+    }
+
+    <span class="kw">fn </span>bot_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Layer {
+        <span class="self">self</span>.layers.first_mut().unwrap()
     }
 
     <span class="kw">fn </span>top_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Layer {
@@ -3356,6 +3429,27 @@
                 <span class="prelude-val">Ok</span>(())
             }
         }
+    }
+
+    <span class="kw">fn </span>to_refine_args&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        cx: <span class="kw-2">&amp;</span><span class="kw">impl </span>DesugarContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        span: Span,
+    ) -&gt; Vec&lt;fhir::RefineArg&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>refine_args = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>(ident, binder) <span class="kw">in </span><span class="self">self</span>.map.iter() {
+            <span class="kw">match </span>binder {
+                Binder::Refined(name, <span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+                    <span class="kw">let </span>ident = fhir::Ident::new(<span class="kw-2">*</span>name, <span class="kw-2">*</span>ident);
+                    <span class="kw">let </span>kind = ExprKind::Var(ident);
+                    <span class="kw">let </span>fhir_id = cx.next_fhir_id();
+                    <span class="kw">let </span>expr = fhir::Expr { kind, span, fhir_id };
+                    refine_args.push(fhir::RefineArg::Expr { expr, is_binder: <span class="bool-val">false </span>});
+                }
+                Binder::Unrefined =&gt; {}
+            }
+        }
+        refine_args
     }
 
     <span class="kw">fn </span>into_params&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;(<span class="self">self</span>, cx: <span class="kw-2">&amp;</span><span class="kw">impl </span>DesugarContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; Vec&lt;fhir::RefineParam&gt; {

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-refineck/src/constraint_gen.rs`."><title>constraint_gen.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/constraint_gen.rs`."><title>constraint_gen.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -777,6 +777,72 @@
 <a href="#777" id="777">777</a>
 <a href="#778" id="778">778</a>
 <a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{index::IndexGen, tracked_span_bug};
@@ -791,10 +857,7 @@
         ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode,
         Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
-    rustc::{
-        mir::{BasicBlock, Place},
-        ty::RegionVar,
-    },
+    rustc::mir::{BasicBlock, Place},
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
@@ -813,6 +876,7 @@
 <span class="kw">pub struct </span>ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub </span>genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
+    refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
     kvar_gen: Box&lt;<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>&gt;,
     rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
     span: Span,
@@ -825,12 +889,13 @@
 }
 
 <span class="kw">pub trait </span>KVarGen {
-    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr;
+    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr;
 }
 
-<span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
+    refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
     kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>),
     evar_gen: EVarGen,
     rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
@@ -874,6 +939,7 @@
     <span class="kw">pub fn </span>new&lt;G&gt;(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         kvar_gen: G,
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         span: Span,
@@ -881,7 +947,7 @@
     </span><span class="kw">where
         </span>G: KVarGen + <span class="lifetime">&#39;a</span>,
     {
-        ConstrGen { genv, def_id, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, def_id, refparams, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(
@@ -964,22 +1030,34 @@
 
         <span class="comment">// Replace holes in generic arguments with fresh kvars
         </span><span class="kw">let </span>snapshot = rcx.snapshot();
+
         <span class="kw">let </span>generic_args = generic_args
             .iter()
-            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
+            .map(|arg| {
+                arg.replace_holes_for_opaque_args(|def_id| {
+                    infcx.fresh_evars_for_opaque_args(def_id)
+                })
+                .replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj))
+            })
             .collect_vec();
 
         <span class="comment">// Generate fresh evars and kvars for refinement parameters
         </span><span class="kw">let </span>rvid_gen = infcx.rvid_gen;
-        <span class="kw">let </span>inst_fn_sig = fn_sig.instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[]).replace_bound_vars(
-            |<span class="kw">_</span>| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: <span class="bool-val">false </span>}),
-            |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
-        );
 
-        <span class="kw">let </span>inst_fn_sig = rty::projections::normalize(genv, callsite_def_id, <span class="kw-2">&amp;</span>inst_fn_sig)<span class="question-mark">?</span>;
+        <span class="kw">let </span>exprs = infcx.inst_exprs(genv, callee_def_id);
+
+        <span class="kw">let </span>inst_fn_sig = fn_sig
+            .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>exprs)
+            .replace_bound_vars(
+                |<span class="kw">_</span>| rty::ReVar(rvid_gen.fresh()),
+                |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
+            );
+
+        <span class="kw">let </span>inst_fn_sig =
+            rty::projections::normalize(genv, callsite_def_id, infcx.refparams, <span class="kw-2">&amp;</span>inst_fn_sig)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>obligs = <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
-            mk_obligations(genv, did, <span class="kw-2">&amp;</span>generic_args)<span class="question-mark">?
+            mk_obligations(genv, did, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>exprs)<span class="question-mark">?
         </span>} <span class="kw">else </span>{
             List::empty()
         };
@@ -1027,7 +1105,12 @@
         </span><span class="kw">for </span>pred <span class="kw">in </span><span class="kw-2">&amp;</span>obligs {
             <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = pred.kind() {
                 <span class="kw">let </span>proj_ty = Ty::projection(projection_pred.projection_ty);
-                <span class="kw">let </span>impl_elem = rty::projections::normalize(infcx.genv, callsite_def_id, <span class="kw-2">&amp;</span>proj_ty)<span class="question-mark">?</span>;
+                <span class="kw">let </span>impl_elem = rty::projections::normalize(
+                    infcx.genv,
+                    callsite_def_id,
+                    infcx.refparams,
+                    <span class="kw-2">&amp;</span>proj_ty,
+                )<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 </span>infcx.subtyping(rcx, <span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>projection_pred.term)<span class="question-mark">?</span>;
@@ -1047,12 +1130,13 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        def_id: DefId,
+        callsite_def_id: DefId,
         output: <span class="kw-2">&amp;</span>Binder&lt;FnOutput&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Obligations, CheckerErrKind&gt; {
         <span class="kw">let </span>ret_place_ty = env.lookup_place(<span class="self">self</span>.genv, rcx, Place::RETURN)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>output = rty::projections::normalize(<span class="self">self</span>.genv, def_id, output)<span class="question-mark">?</span>;
+        <span class="kw">let </span>output =
+            rty::projections::normalize(<span class="self">self</span>.genv, callsite_def_id, <span class="self">self</span>.refparams, output)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Ret);
 
@@ -1140,10 +1224,11 @@
         <span class="prelude-val">Ok</span>(Ty::array(arr_ty, Const::from(args.len())))
     }
 
-    <span class="kw">fn </span>infcx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, reason: ConstrReason) -&gt; InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infcx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, reason: ConstrReason) -&gt; InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
         InferCtxt::new(
             <span class="self">self</span>.genv,
             <span class="self">self</span>.def_id,
+            <span class="self">self</span>.refparams,
             rcx,
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.kvar_gen,
             <span class="self">self</span>.rvid_gen,
@@ -1156,6 +1241,7 @@
     <span class="kw">fn </span>new(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>),
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
@@ -1164,7 +1250,30 @@
         <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = EVarGen::new();
         <span class="kw">let </span><span class="kw-2">mut </span>scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        <span class="self">Self </span>{ genv, def_id, kvar_gen, evar_gen, rvid_gen, tag, scopes, obligs: Vec::new() }
+        <span class="self">Self </span>{
+            genv,
+            def_id,
+            refparams,
+            kvar_gen,
+            evar_gen,
+            rvid_gen,
+            tag,
+            scopes,
+            obligs: Vec::new(),
+        }
+    }
+
+    <span class="kw">fn </span>inst_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, callee_def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;) -&gt; Vec&lt;Expr&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(callee_id) = callee_def_id &amp;&amp;
+           <span class="kw">let </span><span class="prelude-val">Ok</span>(params) = genv.refparams_of(callee_id)
+         {
+            params
+                .iter()
+                .map(|param| <span class="self">self</span>.fresh_evars_or_kvar(<span class="kw-2">&amp;</span>param.sort, param.mode))
+                .collect_vec()
+         } <span class="kw">else </span>{
+            <span class="macro">vec!</span>[]
+        }
     }
 
     <span class="kw">fn </span>obligations(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;rty::Clause&gt; {
@@ -1187,12 +1296,22 @@
         <span class="self">self</span>.kvar_gen.fresh(sorts, encoding)
     }
 
+    <span class="kw">fn </span>fresh_evars_for_opaque_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: DefId) -&gt; List&lt;Expr&gt; {
+        <span class="self">self</span>.genv
+            .refparams_of_parent(def_id)
+            .unwrap()
+            .iter()
+            .map(|param| <span class="self">self</span>.fresh_evars(<span class="kw-2">&amp;</span>param.sort))
+            .collect_vec()
+            .into()
+    }
+
     <span class="kw">fn </span>fresh_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
         <span class="kw">let </span>cx = <span class="kw-2">*</span><span class="self">self</span>.scopes.last().unwrap().<span class="number">0</span>;
         Expr::fold_sort(sort, |<span class="kw">_</span>| Expr::evar(<span class="self">self</span>.evar_gen.fresh_in_cx(cx)))
     }
 
-    <span class="kw">fn </span>fresh_evars_or_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort, mode: InferMode) -&gt; Expr {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh_evars_or_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort, mode: InferMode) -&gt; Expr {
         <span class="kw">match </span>mode {
             InferMode::KVar =&gt; {
                 <span class="kw">let </span>fsort = sort.expect_func();
@@ -1206,7 +1325,7 @@
         }
     }
 
-    <span class="kw">fn </span>check_pred(<span class="kw-2">&amp;</span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(<span class="kw-2">&amp;</span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
         rcx.check_pred(pred, <span class="self">self</span>.tag);
     }
 
@@ -1237,7 +1356,7 @@
         }
     }
 
-    <span class="kw">fn </span>subtyping(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>subtyping(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         ty1: <span class="kw-2">&amp;</span>Ty,
@@ -1292,6 +1411,12 @@
                 <span class="prelude-val">Ok</span>(())
             }
             (<span class="kw">_</span>, TyKind::Alias(rty::AliasKind::Opaque, alias_ty)) =&gt; {
+                <span class="kw">if let </span>TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
+                    <span class="macro">debug_assert_eq!</span>(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
+                    iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
+                        .for_each(|(e1, e2)| <span class="self">self</span>.unify_exprs(e1, e2, <span class="bool-val">false</span>));
+                }
+
                 <span class="self">self</span>.opaque_subtyping(rcx, ty1, alias_ty)
             }
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;`{ty1:?}` &lt;: `{ty2:?}`&quot;</span>),
@@ -1369,9 +1494,9 @@
 
     <span class="kw">fn </span>project_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_ty: <span class="kw-2">&amp;</span>Ty, def_id: DefId) -&gt; Ty {
         <span class="kw">let </span>args = <span class="macro">vec!</span>[GenericArg::Ty(self_ty.clone())];
-        <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args);
+        <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         <span class="kw">let </span>proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span>proj_ty).unwrap()
+        rty::projections::normalize(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="self">self</span>.refparams, <span class="kw-2">&amp;</span>proj_ty).unwrap()
     }
 
     <span class="kw">fn </span>opaque_subtyping(
@@ -1384,7 +1509,10 @@
             <span class="kw">let </span>obligs = mk_generator_obligations(<span class="self">self</span>.genv, def_id, args, <span class="kw-2">&amp;</span>alias_ty.def_id)<span class="question-mark">?</span>;
             <span class="self">self</span>.insert_obligations(obligs);
         } <span class="kw">else </span>{
-            <span class="kw">let </span>bounds = <span class="self">self</span>.genv.item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.skip_binder();
+            <span class="kw">let </span>bounds = <span class="self">self
+                </span>.genv
+                .item_bounds(alias_ty.def_id)<span class="question-mark">?
+                </span>.instantiate_refparams(<span class="self">self</span>.refparams);
             <span class="kw">for </span>clause <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
                 <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind() {
                     <span class="kw">let </span>ty1 = <span class="self">self</span>.project_bty(ty, pred.projection_ty.def_id);
@@ -1483,7 +1611,7 @@
         }
     }
 
-    <span class="kw">fn </span>solve(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;EVarSol, UnsolvedEvar&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;EVarSol, UnsolvedEvar&gt; {
         <span class="self">self</span>.evar_gen.solve()
     }
 }
@@ -1515,28 +1643,32 @@
     genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
     did: DefId,
     args: <span class="kw-2">&amp;</span>[GenericArg],
+    refine: <span class="kw-2">&amp;</span>[Expr],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;rty::Clause&gt;, CheckerErrKind&gt; {
-    <span class="prelude-val">Ok</span>(genv.predicates_of(did)<span class="question-mark">?</span>.predicates().instantiate(args, <span class="kw-2">&amp;</span>[]))
+    <span class="prelude-val">Ok</span>(genv
+        .predicates_of(did)<span class="question-mark">?
+        </span>.predicates()
+        .instantiate(args, refine))
 }
 
 <span class="kw">impl</span>&lt;F&gt; KVarGen <span class="kw">for </span>F
 <span class="kw">where
     </span>F: FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;], KVarEncoding) -&gt; Expr,
 {
-    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
-        (<span class="self">self</span>)(sorts, kind)
+    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
+        (<span class="self">self</span>)(binders, kind)
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; KVarGen <span class="kw">for </span><span class="kw-2">&amp;mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>) {
-    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
-        (<span class="kw-2">**</span><span class="self">self</span>).fresh(sorts, kind)
+    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
+        (<span class="kw-2">**</span><span class="self">self</span>).fresh(binders, kind)
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; KVarGen <span class="kw">for </span>Box&lt;<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
-        (<span class="kw-2">**</span><span class="self">self</span>).fresh(sorts, kind)
+    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
+        (<span class="kw-2">**</span><span class="self">self</span>).fresh(binders, kind)
     }
 }
 

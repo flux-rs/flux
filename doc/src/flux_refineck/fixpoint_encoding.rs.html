@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-refineck/src/fixpoint_encoding.rs`."><title>fixpoint_encoding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/fixpoint_encoding.rs`."><title>fixpoint_encoding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -683,9 +683,14 @@
 <a href="#683" id="683">683</a>
 <a href="#684" id="684">684</a>
 <a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
-</span><span class="kw">use </span>std::iter;
+</span><span class="kw">use </span>std::{hash::Hash, iter};
 
 <span class="kw">use </span>fixpoint::FixpointResult;
 <span class="kw">use </span>flux_common::{
@@ -705,14 +710,13 @@
     rty::{<span class="self">self</span>, Constant, ESpan},
 };
 <span class="kw">use </span>itertools::{<span class="self">self</span>, Itertools};
-<span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
-<span class="kw">use </span>rustc_hash::FxHashMap;
+<span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_span::Span;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
-<span class="kw">use </span><span class="kw">crate</span>::CheckerConfig;
+<span class="kw">use crate</span>::{refine_tree::Scope, CheckerConfig};
 
 <span class="macro">newtype_index! </span>{
     <span class="attr">#[debug_format = <span class="string">&quot;TagIdx({})&quot;</span>]
@@ -743,8 +747,8 @@
     </span>Conj,
 }
 
-<span class="kw">type </span>NameMap = FxHashMap&lt;rty::Name, fixpoint::Name&gt;;
-<span class="kw">type </span>KVidMap = FxHashMap&lt;rty::KVid, Vec&lt;fixpoint::KVid&gt;&gt;;
+<span class="kw">type </span>NameMap = UnordMap&lt;rty::Name, fixpoint::Name&gt;;
+<span class="kw">type </span>KVidMap = UnordMap&lt;rty::KVid, Vec&lt;fixpoint::KVid&gt;&gt;;
 <span class="kw">type </span>ConstMap = FxIndexMap&lt;Key, ConstInfo&gt;;
 
 <span class="attr">#[derive(Eq, Hash, PartialEq)]
@@ -753,7 +757,7 @@
     Const(DefId),
 }
 
-<span class="kw">pub struct </span>FixpointCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, T&gt; {
+<span class="kw">pub struct </span>FixpointCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, T: Eq + Hash&gt; {
     comments: Vec&lt;String&gt;,
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     kvars: KVarStore,
@@ -763,7 +767,7 @@
     name_map: NameMap,
     const_map: ConstMap,
     tags: IndexVec&lt;TagIdx, T&gt;,
-    tags_inv: FxHashMap&lt;T, TagIdx&gt;,
+    tags_inv: UnordMap&lt;T, TagIdx&gt;,
     <span class="doccomment">/// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     </span><span class="comment">// FIXME(nilehmann) this should be a `LocalDefId`.
@@ -815,7 +819,7 @@
             name_map: NameMap::default(),
             const_map,
             tags: IndexVec::new(),
-            tags_inv: FxHashMap::default(),
+            tags_inv: Default::default(),
             def_id,
         }
     }
@@ -1120,7 +1124,41 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.kvars[kvid]
     }
 
-    <span class="kw">pub fn </span>fresh&lt;A&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_args: usize, args: A, encoding: KVarEncoding) -&gt; rty::Expr
+    <span class="doccomment">/// Generate a fresh [kvar] under several layers of [binders]. The variables bound in the last
+    /// layer (last element of the `binders` slice) are used as the self arguments. The rest of the
+    /// binders are appended to the `scope`.
+    ///
+    /// Note that the returned expression will have escaping variables and it is up to the caller to
+    /// put it under an appropriate number of binders.
+    ///
+    /// [binders]: rty::Binder
+    /// [kvar]: rty::KVar
+    </span><span class="kw">pub fn </span>fresh(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        binders: <span class="kw-2">&amp;</span>[List&lt;rty::Sort&gt;],
+        scope: <span class="kw-2">&amp;</span>Scope,
+        encoding: KVarEncoding,
+    ) -&gt; rty::Expr {
+        <span class="kw">if </span>binders.is_empty() {
+            <span class="kw">return </span><span class="self">self</span>.fresh_inner(<span class="number">0</span>, [], encoding);
+        }
+        <span class="kw">let </span>args = itertools::chain(
+            binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
+                <span class="kw">let </span>debruijn = DebruijnIndex::from_usize(level);
+                sorts
+                    .iter()
+                    .cloned()
+                    .enumerate()
+                    .map(<span class="kw">move </span>|(idx, sort)| (rty::Var::LateBound(debruijn, idx <span class="kw">as </span>u32), sort))
+            }),
+            scope
+                .iter()
+                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+        );
+        <span class="self">self</span>.fresh_inner(binders.last().unwrap().len(), args, encoding)
+    }
+
+    <span class="kw">fn </span>fresh_inner&lt;A&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_args: usize, args: A, encoding: KVarEncoding) -&gt; rty::Expr
     <span class="kw">where
         </span>A: IntoIterator&lt;Item = (rty::Var, rty::Sort)&gt;,
     {
@@ -1146,34 +1184,6 @@
 
         <span class="kw">let </span>kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
         rty::Expr::kvar(kvar)
-    }
-
-    <span class="kw">pub fn </span>fresh_bound&lt;S&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        bound: <span class="kw-2">&amp;</span>[List&lt;rty::Sort&gt;],
-        scope: S,
-        encoding: KVarEncoding,
-    ) -&gt; rty::Expr
-    <span class="kw">where
-        </span>S: IntoIterator&lt;Item = (rty::Name, rty::Sort)&gt;,
-    {
-        <span class="kw">if </span>bound.is_empty() {
-            <span class="kw">return </span><span class="self">self</span>.fresh(<span class="number">0</span>, [], encoding);
-        }
-        <span class="kw">let </span>args = itertools::chain(
-            bound.iter().rev().enumerate().flat_map(|(level, sorts)| {
-                sorts.iter().enumerate().map(<span class="kw">move </span>|(idx, sort)| {
-                    (
-                        rty::Var::LateBound(DebruijnIndex::from_usize(level), idx <span class="kw">as </span>u32),
-                        sort.clone(),
-                    )
-                })
-            }),
-            scope
-                .into_iter()
-                .map(|(name, sort)| (rty::Var::Free(name), sort)),
-        );
-        <span class="self">self</span>.fresh(<span class="number">1</span>, args, encoding)
     }
 }
 

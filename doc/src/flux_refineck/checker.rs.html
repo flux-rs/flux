@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-refineck/src/checker.rs`."><title>checker.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_refineck/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1370,6 +1370,58 @@
 <a href="#1370" id="1370">1370</a>
 <a href="#1371" id="1371">1371</a>
 <a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
+<a href="#1376" id="1376">1376</a>
+<a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a>
+<a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a>
+<a href="#1401" id="1401">1401</a>
+<a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
+<a href="#1408" id="1408">1408</a>
+<a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{
@@ -1381,6 +1433,7 @@
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
+    intern::List,
     rty::{
         <span class="self">self</span>, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
         FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
@@ -1394,13 +1447,13 @@
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::{GeneratorArgsParts, RegionVar},
+        ty::GeneratorArgsParts,
     },
 };
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_data_structures::graph::dominators::Dominators;
+<span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId};
 <span class="kw">use </span>rustc_index::bit_set::BitSet;
 <span class="kw">use </span>rustc_middle::{mir <span class="kw">as </span>rustc_mir, ty::RegionVid};
 <span class="kw">use </span>rustc_span::Span;
@@ -1430,10 +1483,12 @@
     </span>def_id: DefId,
     <span class="doccomment">/// [`Generics`] of the function being checked.
     </span>generics: Generics,
+    <span class="doccomment">/// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
+    </span>refparams: List&lt;Expr&gt;,
     body: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     <span class="doccomment">/// The type used for the `resume` argument of a generator.
     </span>resume_ty: <span class="prelude-ty">Option</span>&lt;Ty&gt;,
-    ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>FxHashMap&lt;DefId, GhostStatements&gt;,
+    ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;DefId, GhostStatements&gt;,
     output: Binder&lt;FnOutput&gt;,
     mode: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span><span class="kw-2">mut </span>M,
     <span class="doccomment">/// A snapshot of the refinement context at the end of the basic block after applying the effects
@@ -1448,6 +1503,7 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
@@ -1496,16 +1552,13 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_shape_mode(
         genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
-        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FxHashMap&lt;DefId, GhostStatements&gt;,
+        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;DefId, GhostStatements&gt;,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ShapeResult, CheckerError&gt; {
         <span class="macro">dbg::shape_mode_span!</span>(genv.tcx, def_id).in_scope(|| {
             <span class="kw">let </span><span class="kw-2">mut </span>mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            <span class="kw">let </span>fn_sig = genv
-                .fn_sig(def_id)
-                .with_span(genv.tcx.def_span(def_id))<span class="question-mark">?
-                </span>.instantiate_identity();
+            <span class="kw">let </span>fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))<span class="question-mark">?</span>;
 
             Checker::run(
                 genv,
@@ -1514,6 +1567,7 @@
                 extra_data,
                 <span class="kw-2">&amp;mut </span>mode,
                 fn_sig,
+                <span class="prelude-val">None</span>,
                 config,
             )<span class="question-mark">?</span>;
 
@@ -1526,14 +1580,12 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_refine_mode(
         genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
-        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FxHashMap&lt;DefId, GhostStatements&gt;,
+        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;DefId, GhostStatements&gt;,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(RefineTree, KVarStore), CheckerError&gt; {
-        <span class="kw">let </span>fn_sig = genv
-            .fn_sig(def_id)
-            .with_span(genv.tcx.def_span(def_id))<span class="question-mark">?
-            </span>.instantiate_identity();
+        <span class="kw">let </span>fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))<span class="question-mark">?</span>;
+
         <span class="kw">let </span><span class="kw-2">mut </span>kvars = fixpoint_encoding::KVarStore::new();
         <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new();
         <span class="kw">let </span>bb_envs = bb_env_shapes.into_bb_envs(<span class="kw-2">&amp;mut </span>kvars);
@@ -1547,6 +1599,7 @@
                 extra_data,
                 <span class="kw-2">&amp;mut </span>mode,
                 fn_sig,
+                <span class="prelude-val">None</span>,
                 config,
             )<span class="question-mark">?</span>;
 
@@ -1555,34 +1608,49 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
+<span class="attr">#[allow(clippy::too_many_arguments)]
+</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
     <span class="kw">fn </span>run(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         <span class="kw-2">mut </span>refine_tree: RefineSubtree&lt;<span class="lifetime">&#39;a</span>&gt;,
         def_id: DefId,
-        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FxHashMap&lt;DefId, GhostStatements&gt;,
+        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;DefId, GhostStatements&gt;,
         mode: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>M,
-        poly_sig: PolyFnSig,
+        poly_sig: EarlyBinder&lt;PolyFnSig&gt;,
+        refparams: <span class="prelude-ty">Option</span>&lt;List&lt;Expr&gt;&gt;,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerError&gt; {
-        <span class="kw">let </span>body = genv
-            .mir(def_id.expect_local())
-            .with_span(genv.tcx.def_span(def_id))<span class="question-mark">?</span>;
+        <span class="kw">let </span>span = genv.tcx.def_span(def_id);
+
+        <span class="kw">let </span>body = genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
 
-        <span class="kw">let </span>rvid_gen = IndexGen::new();
-        <span class="kw">let </span>fn_sig = poly_sig.replace_bound_vars(
-            |<span class="kw">_</span>| rty::ReVar(RegionVar { rvid: rvid_gen.fresh(), is_nll: <span class="bool-val">false </span>}),
-            |sort, <span class="kw">_</span>| rcx.define_vars(sort),
-        );
+        <span class="kw">let </span>rvid_gen = init_region_gen(<span class="kw-2">&amp;</span>body);
+
+        <span class="kw">let </span>exprs = <span class="kw">if let </span><span class="prelude-val">Some</span>(exprs) = refparams {
+            exprs
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>params = genv.refparams_of(def_id).with_span(span)<span class="question-mark">?</span>;
+            List::from_vec(
+                params
+                    .iter()
+                    .map(|param| rcx.define_vars(<span class="kw-2">&amp;</span>param.sort))
+                    .collect_vec(),
+            )
+        };
+
+        <span class="kw">let </span>poly_sig = poly_sig.instantiate_refparams(<span class="kw-2">&amp;</span>exprs);
+
+        <span class="kw">let </span>fn_sig = poly_sig
+            .replace_bound_vars(|<span class="kw">_</span>| rty::ReVar(rvid_gen.fresh()), |sort, <span class="kw">_</span>| rcx.define_vars(sort));
 
         <span class="kw">let </span>env = <span class="self">Self</span>::init(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig, config);
 
         <span class="comment">// (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   &quot;execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place...&quot;
-        </span><span class="kw">let </span>resume_ty = <span class="kw">if </span>genv.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Generator {
+        </span><span class="kw">let </span>resume_ty = <span class="kw">if </span>genv.tcx.def_kind(def_id) == DefKind::Generator {
             <span class="prelude-val">Some</span>(fn_sig.args()[<span class="number">1</span>].clone())
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1592,6 +1660,7 @@
             genv,
             rvid_gen,
             generics: genv.generics_of(def_id).unwrap(),
+            refparams: exprs,
             body: <span class="kw-2">&amp;</span>body,
             resume_ty,
             ghost_stmts: extra_data,
@@ -1772,7 +1841,7 @@
                 <span class="kw">let </span>span = last_stmt_span.unwrap_or(terminator_span);
                 <span class="kw">let </span>obligs = <span class="self">self
                     </span>.mode
-                    .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, rcx, span)
+                    .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refparams, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, rcx, span)
                     .check_ret(rcx, env, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
                     .with_span(span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_closure_obligs(rcx, obligs)<span class="question-mark">?</span>;
@@ -1798,6 +1867,8 @@
                 }
             }
             TerminatorKind::Call { args, destination, target, resolved_call, .. } =&gt; {
+                <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(rcx, env, terminator_span, args)<span class="question-mark">?</span>;
+
                 <span class="kw">let </span>(func_id, call_args) = resolved_call;
                 <span class="kw">let </span>fn_sig = <span class="self">self
                     </span>.genv
@@ -1828,7 +1899,7 @@
                     <span class="prelude-val">Some</span>(<span class="kw-2">*</span>func_id),
                     fn_sig,
                     <span class="kw-2">&amp;</span>generic_args,
-                    args,
+                    <span class="kw-2">&amp;</span>actuals,
                 )<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>ret = rcx.unpack(<span class="kw-2">&amp;</span>ret);
@@ -1870,13 +1941,12 @@
         did: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
         fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
-        operands: <span class="kw-2">&amp;</span>[Operand],
+        actuals: <span class="kw-2">&amp;</span>[Ty],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerError&gt; {
-        <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(rcx, env, terminator_span, operands)<span class="question-mark">?</span>;
         <span class="kw">let </span>callsite_def_id = <span class="self">self</span>.def_id;
         <span class="kw">let </span>(output, obligs) = <span class="self">self
             </span>.constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, <span class="kw-2">&amp;</span>actuals)
+            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, actuals)
             .with_span(terminator_span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>output = output.replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
@@ -1910,7 +1980,8 @@
             gen_pred.def_id,
             <span class="self">self</span>.ghost_stmts,
             <span class="self">self</span>.mode,
-            poly_sig,
+            EarlyBinder(poly_sig),
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.refparams.clone()),
             <span class="self">self</span>.config,
         )
     }
@@ -1925,13 +1996,15 @@
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
             <span class="kw">let </span>refine_tree = rcx.subtree_at(snapshot).unwrap();
+            <span class="kw">let </span>poly_sig = fn_trait_pred.to_closure_sig(<span class="kw-2">*</span>def_id, tys.clone());
             Checker::run(
                 <span class="self">self</span>.genv,
                 refine_tree,
                 <span class="kw-2">*</span>def_id,
                 <span class="self">self</span>.ghost_stmts,
                 <span class="self">self</span>.mode,
-                fn_trait_pred.to_closure_sig(<span class="kw-2">*</span>def_id, tys.clone()),
+                EarlyBinder(poly_sig),
+                <span class="prelude-val">Some</span>(<span class="self">self</span>.refparams.clone()),
                 <span class="self">self</span>.config,
             )<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
@@ -1971,15 +2044,10 @@
         msg: <span class="kw-2">&amp;</span>AssertKind,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Guard, CheckerError&gt; {
         <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, terminator_span, cond)<span class="question-mark">?</span>;
-        <span class="kw">let </span>pred = <span class="kw">if let </span>TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() {
-            <span class="kw">if </span>expected {
-                idx.expr.clone()
-            } <span class="kw">else </span>{
-                idx.expr.not()
-            }
-        } <span class="kw">else </span>{
-            <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;unexpected ty `{ty:?}`&quot;</span>)
+        <span class="kw">let </span>TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() <span class="kw">else </span>{
+            <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;unexpected ty `{ty:?}`&quot;</span>);
         };
+        <span class="kw">let </span>pred = <span class="kw">if </span>expected { idx.expr.clone() } <span class="kw">else </span>{ idx.expr.not() };
 
         <span class="kw">let </span>msg = <span class="kw">match </span>msg {
             AssertKind::DivisionByZero =&gt; <span class="string">&quot;possible division by zero&quot;</span>,
@@ -2089,7 +2157,7 @@
             <span class="self">self</span>.check_ghost_statements_at(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, Point::Location(location), span)<span class="question-mark">?</span>;
             <span class="kw">let </span>obligs = <span class="self">self
                 </span>.mode
-                .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, <span class="kw-2">&amp;</span>rcx, span)
+                .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refparams, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, <span class="kw-2">&amp;</span>rcx, span)
                 .check_ret(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
                 .with_span(span)<span class="question-mark">?</span>;
             <span class="self">self</span>.check_closure_obligs(<span class="kw-2">&amp;mut </span>rcx, obligs)<span class="question-mark">?</span>;
@@ -2132,6 +2200,7 @@
             }
             Rvalue::UnaryOp(un_op, op) =&gt; <span class="self">self</span>.check_unary_op(rcx, env, stmt_span, <span class="kw-2">*</span>un_op, op),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) =&gt; {
+                <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(rcx, env, stmt_span, operands)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sig = genv
                     .variant_sig(<span class="kw-2">*</span>def_id, <span class="kw-2">*</span>variant_idx)
                     .with_span(stmt_span)<span class="question-mark">?
@@ -2144,7 +2213,7 @@
                     })
                     .try_collect_vec()
                     .with_span(stmt_span)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_call(rcx, env, stmt_span, <span class="prelude-val">None</span>, sig, <span class="kw-2">&amp;</span>args, operands)
+                <span class="self">self</span>.check_call(rcx, env, stmt_span, <span class="prelude-val">None</span>, sig, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) =&gt; {
                 <span class="kw">let </span>args = <span class="self">self</span>.check_operands(rcx, env, stmt_span, operands)<span class="question-mark">?</span>;
@@ -2458,13 +2527,12 @@
 
     <span class="kw">fn </span>constr_gen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, span: Span) -&gt; ConstrGen&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
         <span class="self">self</span>.mode
-            .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, rcx, span)
+            .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refparams, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, rcx, span)
     }
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>snapshot_at_dominator(<span class="kw-2">&amp;</span><span class="self">self</span>, bb: BasicBlock) -&gt; <span class="kw-2">&amp;</span>Snapshot {
-        <span class="kw">let </span>dominator = <span class="self">self</span>.dominators().immediate_dominator(bb).unwrap();
-        <span class="self">self</span>.snapshots[dominator].as_ref().unwrap()
+        snapshot_at_dominator(<span class="self">self</span>.body, <span class="kw-2">&amp;</span><span class="self">self</span>.snapshots, bb)
     }
 
     <span class="kw">fn </span>dominators(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Dominators&lt;BasicBlock&gt; {
@@ -2543,11 +2611,12 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         _rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
     ) -&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        ConstrGen::new(genv, def_id, |<span class="kw">_</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], <span class="kw">_</span>| Expr::hole(), rvid_gen, span)
+        ConstrGen::new(genv, def_id, refparams, |<span class="kw">_</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], <span class="kw">_</span>| Expr::hole(), rvid_gen, span)
     }
 
     <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">&#39;a</span>&gt;(
@@ -2565,15 +2634,15 @@
         terminator_span: Span,
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, CheckerError&gt; {
-        <span class="comment">// TODO(nilehmann) we should only ask for the scope in the vacant branch
-        </span><span class="kw">let </span>scope = ck.snapshot_at_dominator(target).scope().unwrap();
-
         <span class="kw">let </span>target_bb_env = ck.mode.bb_envs.entry(ck.def_id).or_default().get(<span class="kw-2">&amp;</span>target);
         <span class="macro">dbg::shape_goto_enter!</span>(target, env, target_bb_env);
 
         <span class="kw">let </span>modified = <span class="kw">match </span>ck.mode.bb_envs.entry(ck.def_id).or_default().entry(target) {
             Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; entry.get_mut().join(env).with_span(terminator_span)<span class="question-mark">?</span>,
             Entry::Vacant(entry) =&gt; {
+                <span class="kw">let </span>scope = snapshot_at_dominator(ck.body, <span class="kw-2">&amp;</span>ck.snapshots, target)
+                    .scope()
+                    .unwrap();
                 entry.insert(env.into_infer(scope).with_span(terminator_span)<span class="question-mark">?</span>);
                 <span class="bool-val">true
             </span>}
@@ -2599,6 +2668,7 @@
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
@@ -2607,7 +2677,8 @@
         ConstrGen::new(
             genv,
             def_id,
-            <span class="kw">move </span>|sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| <span class="self">self</span>.kvars.fresh_bound(sorts, scope.iter(), encoding),
+            refparams,
+            <span class="kw">move </span>|sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| <span class="self">self</span>.kvars.fresh(sorts, <span class="kw-2">&amp;</span>scope, encoding),
             rvid_gen,
             span,
         )
@@ -2636,11 +2707,8 @@
         <span class="kw">let </span>gen = <span class="kw-2">&amp;mut </span>ConstrGen::new(
             ck.genv,
             ck.def_id,
-            |sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| {
-                ck.mode
-                    .kvars
-                    .fresh_bound(sorts, bb_env.scope().iter(), encoding)
-            },
+            <span class="kw-2">&amp;</span>ck.refparams,
+            |sorts: <span class="kw-2">&amp;</span><span class="kw">_</span>, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             <span class="kw-2">&amp;</span>ck.rvid_gen,
             terminator_span,
         );
@@ -2654,6 +2722,42 @@
         <span class="macro">bug!</span>();
     }
 }
+
+<span class="kw">fn </span>snapshot_at_dominator&lt;<span class="lifetime">&#39;a</span>&gt;(
+    body: <span class="kw-2">&amp;</span>Body,
+    snapshots: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Snapshot&gt;&gt;,
+    bb: BasicBlock,
+) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Snapshot {
+    <span class="kw">let </span>dominator = body.dominators().immediate_dominator(bb).unwrap();
+    snapshots[dominator].as_ref().unwrap()
+}
+
+<span class="doccomment">/// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
+/// different position in a type. For example, given a function
+///
+/// `fn foo&lt;&#39;a, &#39;b&gt;(x: &amp;&#39;a S&lt;&#39;a&gt;, y: &amp;&#39;b u32)`
+///
+/// `rustc` will generate variables `?2` and `?3` for the universal regions `&#39;a` and `&#39;b` (the variable
+/// `?0` correspond to `&#39;static` and `?1` to the implicit lifetime of the /// function body). Additionally,
+/// it will assign `x` type &amp;&#39;?4 S&lt;&#39;?5&gt;` and `y` type `&amp;&#39;?6 u32`, together with some constraints relating
+/// region variables.
+///
+/// The exact ids picked for `&#39;a` and `&#39;b` are not too relevant to us, the important part is the regions
+/// used in the types of `x` and `y`. To recover the correct regions, whenever there&#39;s an assignment
+/// of a refinement type `T` to a variable with (unrefined) Rust type `S`, we _match_ both types to infer
+/// a region substition. For this to work, we need to give a different variable id to every position
+/// in `T`. To avoid clashes, we need to use fresh ids, so we start enumerating from the last id generated
+/// by borrow checking.
+///
+/// The ids generated during refinement type checking are purely instrumental and they should never
+/// appear in a type bound in the environment. Besides generating ids when checking a function&#39;s body,
+/// we also need to generate fresh ids at function calls.
+///
+/// [region variable ids]: RegionVid
+</span><span class="kw">fn </span>init_region_gen(body: <span class="kw-2">&amp;</span>Body) -&gt; IndexGen&lt;RegionVid&gt; {
+    IndexGen::skipping(body.region_inference_context().var_infos.len())
+}
+
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::ErrorGuaranteed;
     <span class="kw">use </span>flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};

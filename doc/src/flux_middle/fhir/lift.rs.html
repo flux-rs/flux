@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-middle/src/fhir/lift.rs`."><title>lift.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir/lift.rs`."><title>lift.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -637,11 +637,6 @@
 <a href="#637" id="637">637</a>
 <a href="#638" id="638">638</a>
 <a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &quot;Lift&quot; HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -649,11 +644,11 @@
 <span class="kw">use </span>hir::{def::DefKind, OwnerId};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_ast::LitKind;
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::IntoDiagnostic;
-<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
+<span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
 <span class="kw">use super</span>::{FhirId, FluxOwnerId};
 <span class="kw">use </span><span class="kw">crate</span>::fhir;
@@ -661,7 +656,7 @@
 <span class="kw">pub struct </span>LiftCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
-    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FxHashMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
+    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: OwnerId,
 }
@@ -712,7 +707,7 @@
     sess: <span class="kw-2">&amp;</span>FluxSession,
     owner_id: OwnerId,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::Generics, fhir::FnInfo), ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>opaque_tys = FxHashMap::default();
+    <span class="kw">let </span><span class="kw-2">mut </span>opaque_tys = Default::default();
     <span class="kw">let </span>local_id_gen = IndexGen::new();
     <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys));
 
@@ -732,10 +727,12 @@
     <span class="prelude-val">Ok</span>((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
 }
 
-<span class="comment">// HACK(nilehmann) this is used during annot check to allow an explicit type to refine `Self`.
-// For example, in `impl List&lt;T&gt; { fn foo(&amp;self) }` the type of `self` is `&amp;Self` and we want to
-// allow a refinement using `&amp;List&lt;T&gt;`.
-// Do not use this outside of annot check because the `FhirId`s will be wrong.
+<span class="doccomment">/// HACK(nilehmann) this is used during annot check to allow an explicit type to refine [`Self`].
+/// For example, in `impl List&lt;T&gt; { fn foo(&amp;self) }` the type of `self` is `&amp;Self` and we want to
+/// allow a refinement using `&amp;List&lt;T&gt;`.
+/// Do not use this outside of annot check because the `FhirId`s will be wrong.
+///
+/// [`Self`]: fhir::Res::SelfTyAlias
 </span><span class="kw">pub fn </span>lift_self_ty(
     tcx: TyCtxt,
     sess: <span class="kw-2">&amp;</span>FluxSession,
@@ -779,7 +776,7 @@
         sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
         owner: OwnerId,
         local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
-        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FxHashMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
+        opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ tcx, sess, opaque_tys, local_id_gen, owner }
     }
@@ -813,9 +810,9 @@
             .iter()
             .map(|param| {
                 <span class="kw">let </span>kind = <span class="kw">match </span>param.kind {
-                    hir::GenericParamKind::Lifetime { .. } =&gt; fhir::GenericParamDefKind::Lifetime,
+                    hir::GenericParamKind::Lifetime { .. } =&gt; fhir::GenericParamKind::Lifetime,
                     hir::GenericParamKind::Type { default, synthetic: <span class="bool-val">false </span>} =&gt; {
-                        fhir::GenericParamDefKind::Type {
+                        fhir::GenericParamKind::Type {
                             default: default.map(|ty| <span class="self">self</span>.lift_ty(ty)).transpose()<span class="question-mark">?</span>,
                         }
                     }
@@ -834,7 +831,7 @@
                         ))
                     }
                 };
-                <span class="prelude-val">Ok</span>(fhir::GenericParamDef { def_id: param.def_id, kind })
+                <span class="prelude-val">Ok</span>(fhir::GenericParam { def_id: param.def_id, kind })
             })
             .try_collect_exhaust()<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::Generics { params })
@@ -879,20 +876,14 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericBound, ErrorGuaranteed&gt; {
         <span class="kw">match </span>bound {
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) =&gt; {
-                <span class="kw">if </span>!poly_trait_ref.bound_generic_params.is_empty() {
-                    <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">&quot;higher-rank trait bounds are not supported&quot;</span>);
-                }
                 <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(
-                    <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait_ref)<span class="question-mark">?</span>,
                     fhir::TraitBoundModifier::None,
                 ))
             }
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::Maybe) =&gt; {
-                <span class="kw">if </span>!poly_trait_ref.bound_generic_params.is_empty() {
-                    <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">&quot;higher-rank trait bounds are not supported&quot;</span>);
-                }
                 <span class="prelude-val">Ok</span>(fhir::GenericBound::Trait(
-                    <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait_ref)<span class="question-mark">?</span>,
                     fhir::TraitBoundModifier::Maybe,
                 ))
             }
@@ -905,6 +896,16 @@
             }
             <span class="kw">_ </span>=&gt; <span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;unsupported generic bound: `{bound:?}`&quot;</span>)),
         }
+    }
+
+    <span class="kw">fn </span>lift_poly_trait_ref(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        poly_trait_ref: hir::PolyTraitRef,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TraitRef, ErrorGuaranteed&gt; {
+        <span class="kw">if </span>!poly_trait_ref.bound_generic_params.is_empty() {
+            <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">&quot;higher-rank trait bounds are not supported&quot;</span>);
+        }
+        <span class="prelude-val">Ok</span>(fhir::TraitRef { path: <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">? </span>})
     }
 
     <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item_id: hir::ItemId) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy, ErrorGuaranteed&gt; {
@@ -1030,7 +1031,7 @@
     }
 
     <span class="kw">fn </span>lift_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>hir::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
+        <span class="kw">let </span>kind = <span class="kw">match </span>ty.kind {
             hir::TyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>kind = fhir::BaseTyKind::Slice(Box::new(<span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>));
                 <span class="kw">let </span>bty = fhir::BaseTy { kind, span: ty.span };
@@ -1057,11 +1058,11 @@
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) =&gt; {
                 <span class="kw">let </span>opaque_ty = <span class="self">self
                     </span>.with_new_owner(item_id.owner_id)
-                    .lift_opaque_ty(<span class="kw-2">*</span>item_id)<span class="question-mark">?</span>;
+                    .lift_opaque_ty(item_id)<span class="question-mark">?</span>;
                 <span class="self">self</span>.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
                 <span class="kw">let </span>args = <span class="self">self</span>.lift_generic_args(args)<span class="question-mark">?</span>;
-                fhir::TyKind::OpaqueDef(<span class="kw-2">*</span>item_id, args, <span class="kw-2">*</span>in_trait_def)
+                fhir::TyKind::OpaqueDef(item_id, args, <span class="macro">vec!</span>[], in_trait_def)
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
@@ -1074,48 +1075,39 @@
     }
 
     <span class="kw">fn </span>lift_lifetime(<span class="kw-2">&amp;</span><span class="self">self</span>, lft: <span class="kw-2">&amp;</span>hir::Lifetime) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Lifetime, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>res = <span class="kw">match </span>lft.res {
-            hir::LifetimeName::Param(def_id) =&gt; fhir::LifetimeRes::Param(def_id),
-            hir::LifetimeName::Static =&gt; fhir::LifetimeRes::Static,
-            hir::LifetimeName::ImplicitObjectLifetimeDefault
-            | hir::LifetimeName::Error
-            | hir::LifetimeName::Infer =&gt; {
-                <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;unsupported lifetime: `{lft}`&quot;</span>,));
-            }
-        };
-        <span class="prelude-val">Ok</span>(fhir::Lifetime { fhir_id: <span class="self">self</span>.next_fhir_id(), ident: lft.ident, res })
+        <span class="self">self</span>.tcx
+            .named_bound_var(lft.hir_id)
+            .map(fhir::Lifetime::Resolved)
+            .ok_or_else(|| {
+                <span class="kw">let </span>note = <span class="macro">format!</span>(<span class="string">&quot;cannot resolve lifetime: `{lft:?}`&quot;</span>);
+                <span class="self">self</span>.sess
+                    .emit_err(errors::UnsupportedHir::new(<span class="self">self</span>.tcx, <span class="self">self</span>.owner, <span class="kw-2">&amp;</span>note))
+            })
     }
 
-    <span class="kw">fn </span>lift_mut_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mut_ty: <span class="kw-2">&amp;</span>hir::MutTy) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::MutTy, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>lift_mut_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, mut_ty: hir::MutTy) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::MutTy, ErrorGuaranteed&gt; {
         <span class="prelude-val">Ok</span>(fhir::MutTy { ty: Box::new(<span class="self">self</span>.lift_ty(mut_ty.ty)<span class="question-mark">?</span>), mutbl: mut_ty.mutbl })
     }
 
-    <span class="kw">fn </span>lift_qpath(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: <span class="kw-2">&amp;</span>hir::QPath) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>lift_qpath(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: hir::QPath) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
         <span class="kw">match </span>qpath {
-            hir::QPath::Resolved(self_ty, path) =&gt; <span class="self">self</span>.lift_path_to_ty(<span class="kw-2">*</span>self_ty, path),
+            hir::QPath::Resolved(self_ty, path) =&gt; <span class="self">self</span>.lift_path_to_ty(self_ty, path),
             hir::QPath::TypeRelative(<span class="kw">_</span>, <span class="kw">_</span>) | hir::QPath::LangItem(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
                     <span class="string">&quot;unsupported type: `{}`&quot;</span>,
-                    rustc_hir_pretty::qpath_to_string(qpath)
+                    rustc_hir_pretty::qpath_to_string(<span class="kw-2">&amp;</span>qpath)
                 ))
             }
         }
     }
 
     <span class="kw">fn </span>lift_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Path, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>res = <span class="kw">match </span>path.res {
-            hir::def::Res::Def(kind, def_id) =&gt; fhir::Res::Def(kind, def_id),
-            hir::def::Res::PrimTy(prim_ty) =&gt; fhir::Res::PrimTy(prim_ty),
-            hir::def::Res::SelfTyAlias { alias_to, is_trait_impl, forbid_generic: <span class="bool-val">false </span>} =&gt; {
-                fhir::Res::SelfTyAlias { alias_to, is_trait_impl }
-            }
-            <span class="kw">_ </span>=&gt; {
-                <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                    <span class="string">&quot;unsupported type: `{}` {:?}&quot;</span>,
-                    rustc_hir_pretty::path_to_string(path),
-                    path.res
-                ));
-            }
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(res) = path.res.try_into() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                <span class="string">&quot;unsupported type: `{}` `{:?}`&quot;</span>,
+                rustc_hir_pretty::path_to_string(path),
+                path.res
+            ));
         };
         <span class="kw">let </span>(args, bindings) = <span class="kw">match </span>path.segments.last().unwrap().args {
             <span class="prelude-val">Some</span>(args) =&gt; {
@@ -1186,7 +1178,7 @@
         <span class="prelude-val">Ok</span>(lifted)
     }
 
-    <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;</span><span class="self">self</span>, len: <span class="kw-2">&amp;</span>hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ArrayLen, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;</span><span class="self">self</span>, len: hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ArrayLen, ErrorGuaranteed&gt; {
         <span class="kw">let </span>body = <span class="kw">match </span>len {
             hir::ArrayLen::Body(anon_const) =&gt; <span class="self">self</span>.tcx.hir().body(anon_const.body),
             hir::ArrayLen::Infer(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected `ArrayLen::Infer`&quot;</span>),
@@ -1200,7 +1192,8 @@
         }
     }
 
-    <span class="kw">fn </span>generic_params_into_args(
+    <span class="doccomment">/// HACK(nilehmann) do not use this function. See [`lift_self_ty`].
+    </span><span class="kw">fn </span>generic_params_into_args(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         generics: <span class="kw-2">&amp;</span>hir::Generics,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;fhir::GenericArg&gt;, ErrorGuaranteed&gt; {
@@ -1225,11 +1218,8 @@
                     args.push(fhir::GenericArg::Type(ty));
                 }
                 hir::GenericParamKind::Lifetime { .. } =&gt; {
-                    <span class="kw">let </span>lft = fhir::Lifetime {
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                        ident: param.name.ident(),
-                        res: fhir::LifetimeRes::Param(param.def_id),
-                    };
+                    <span class="kw">let </span>def_id = param.def_id.to_def_id();
+                    <span class="kw">let </span>lft = fhir::Lifetime::Resolved(ResolvedArg::EarlyBound(def_id));
                     args.push(fhir::GenericArg::Lifetime(lft));
                 }
                 hir::GenericParamKind::Const { .. } =&gt; {

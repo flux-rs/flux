@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-middle/src/rty/fold.rs`."><title>fold.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/fold.rs`."><title>fold.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1047,6 +1047,78 @@
 <a href="#1047" id="1047">1047</a>
 <a href="#1048" id="1048">1048</a>
 <a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1054,7 +1126,7 @@
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_hash::FxHashSet;
+<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -1063,9 +1135,10 @@
     normalize::{Defns, Normalizer},
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, Opaqueness, ProjectionPredicate, PtrKind, Qualifier, ReLateBound,
-    Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
+    GenericPredicates, Index, Invariant, KVar, Name, OpaqueRefineArgs, Opaqueness,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
+    Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     intern::{Internable, List},
@@ -1240,15 +1313,21 @@
         <span class="self">self</span>.visit_with(<span class="kw-2">&amp;mut </span>collector);
         collector.<span class="number">0
     </span>}
-
     <span class="doccomment">/// Returns the set of all opaque type aliases def ids
-    </span><span class="kw">fn </span>opaque_def_ids(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FxHashSet&lt;DefId&gt; {
-        <span class="kw">struct </span>CollectOpaqueDefIds(FxHashSet&lt;DefId&gt;);
+    </span><span class="kw">fn </span>opaque_refine_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OpaqueRefineArgs {
+        <span class="kw">struct </span>CollectOpaqueRefineArgs(OpaqueRefineArgs);
 
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>CollectOpaqueDefIds {
+        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>CollectOpaqueRefineArgs {
             <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
                 <span class="kw">if let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    <span class="kw">let _ </span>= <span class="self">self</span>.<span class="number">0</span>.insert(alias_ty.def_id);
+                    <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.insert(alias_ty.def_id, alias_ty.refine_args.clone()) {
+                        <span class="prelude-val">None </span>=&gt; (),
+                        <span class="prelude-val">Some</span>(refine_args) =&gt; {
+                            <span class="kw">if </span>refine_args != alias_ty.refine_args {
+                                <span class="macro">bug!</span>(<span class="string">&quot;duplicate opaque-refine-arg!&quot;</span>)
+                            }
+                        }
+                    }
                     alias_ty.args.visit_with(<span class="self">self</span>)
                 } <span class="kw">else </span>{
                     ty.super_visit_with(<span class="self">self</span>)
@@ -1256,7 +1335,7 @@
             }
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>collector = CollectOpaqueDefIds(FxHashSet::default());
+        <span class="kw">let </span><span class="kw-2">mut </span>collector = CollectOpaqueRefineArgs(FxHashMap::default());
         <span class="self">self</span>.visit_with(<span class="kw-2">&amp;mut </span>collector);
         collector.<span class="number">0
     </span>}
@@ -1278,12 +1357,52 @@
         <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(defns))
     }
 
-    <span class="doccomment">/// Replaces all [`holes`] with a fresh predicate generated by calling `mk_pred`. The function
-    /// `mk_pred` takes a list with the sorts of all bound variables at the point the hole was found.
-    /// The list is ordered from outermost to innermost binder, i.e., the last element is the binder
-    /// closest to the hole.
+    <span class="doccomment">/// Replaces all Opaque-AliasTy holes with fresh-evars obtained from `mk_args` which takes
+    /// as input the DefId of the opaque type, and queries the genv to get the refparams&#39; (sorts).
+    /// Bit gross to do this inside replace_holes as we&#39;d either need a separate closure or somehow
+    /// access to the genv?
+    </span><span class="kw">fn </span>replace_holes_for_opaque_args(<span class="kw-2">&amp;</span><span class="self">self</span>, mk_args: <span class="kw">impl </span>FnMut(DefId) -&gt; List&lt;Expr&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">struct </span>ReplaceOpaqueHoles&lt;F&gt;(F, Vec&lt;()&gt;);
+        <span class="kw">impl</span>&lt;F&gt; TypeFolder <span class="kw">for </span>ReplaceOpaqueHoles&lt;F&gt;
+        <span class="kw">where
+            </span>F: FnMut(DefId) -&gt; List&lt;Expr&gt;,
+        {
+            <span class="kw">fn </span>fold_binder&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;) -&gt; Binder&lt;T&gt; {
+                <span class="self">self</span>.<span class="number">1</span>.push(());
+                <span class="kw">let </span>t = t.super_fold_with(<span class="self">self</span>);
+                <span class="self">self</span>.<span class="number">1</span>.pop();
+                t
+            }
+
+            <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+                <span class="kw">if let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
+                    <span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.<span class="number">1</span>.len(), <span class="number">0</span>);
+                    <span class="kw">let </span>refine_args = (<span class="self">self</span>.<span class="number">0</span>)(alias_ty.def_id);
+                    <span class="kw">let </span>args = alias_ty.args.fold_with(<span class="self">self</span>);
+                    alias_ty.refine_args.iter().for_each(|e| {
+                        <span class="macro">debug_assert!</span>(<span class="macro">matches!</span>(e.kind(), ExprKind::Hole));
+                    });
+                    <span class="macro">debug_assert!</span>(refine_args.len() == alias_ty.refine_args.len());
+                    Ty::alias(
+                        AliasKind::Opaque,
+                        AliasTy { def_id: alias_ty.def_id, args, refine_args },
+                    )
+                } <span class="kw">else </span>{
+                    ty.super_fold_with(<span class="self">self</span>)
+                }
+            }
+        }
+
+        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>ReplaceOpaqueHoles(mk_args, <span class="macro">vec!</span>[]))
+    }
+
+    <span class="doccomment">/// Replaces all [holes] with a fresh predicate generated by calling `mk_pred`. The function
+    /// `mk_pred` takes a list with all the *layers* of [bound] variables at the point the hole was
+    /// found. Each layer corresponds to the list of sorts bound at that level. The list is ordered
+    /// from outermost to innermost binder, i.e., the last element is the binder closest to the hole.
     ///
-    /// [`holes`]: ExprKind::Hole
+    /// [holes]: ExprKind::Hole
+    /// [bound]: Binder
     </span><span class="kw">fn </span>replace_holes(<span class="kw-2">&amp;</span><span class="self">self</span>, mk_pred: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;]) -&gt; Expr) -&gt; <span class="self">Self </span>{
         <span class="kw">struct </span>ReplaceHoles&lt;F&gt;(F, Vec&lt;List&lt;Sort&gt;&gt;);
 
@@ -1426,6 +1545,21 @@
 
     <span class="kw">fn </span>super_fold_with&lt;F: TypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.try_super_fold_with(folder).into_ok()
+    }
+}
+
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>GenericPredicates {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+        <span class="self">self</span>.predicates.visit_with(visitor)
+    }
+}
+
+<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>GenericPredicates {
+    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+        <span class="prelude-val">Ok</span>(GenericPredicates {
+            parent: <span class="self">self</span>.parent,
+            predicates: <span class="self">self</span>.predicates.try_fold_with(folder)<span class="question-mark">?</span>,
+        })
     }
 }
 
@@ -1671,6 +1805,12 @@
     }
 }
 
+<span class="kw">impl</span>&lt;T: TypeVisitable&gt; TypeVisitable <span class="kw">for </span>Vec&lt;T&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+        <span class="self">self</span>.iter().try_for_each(|t| t.visit_with(visitor))
+    }
+}
+
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>FnSig {
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
         <span class="self">self</span>.requires
@@ -1911,7 +2051,11 @@
 
 <span class="kw">impl </span>TypeFoldable <span class="kw">for </span>AliasTy {
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="prelude-val">Ok</span>(AliasTy { args: <span class="self">self</span>.args.try_fold_with(folder)<span class="question-mark">?</span>, def_id: <span class="self">self</span>.def_id })
+        <span class="prelude-val">Ok</span>(AliasTy {
+            args: <span class="self">self</span>.args.try_fold_with(folder)<span class="question-mark">?</span>,
+            def_id: <span class="self">self</span>.def_id,
+            refine_args: <span class="self">self</span>.refine_args.try_fold_with(folder)<span class="question-mark">?</span>,
+        })
     }
 }
 

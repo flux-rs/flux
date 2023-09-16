@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `flux-middle/src/rty/subst.rs`."><title>subst.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/subst.rs`."><title>subst.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -368,132 +368,22 @@
 <a href="#368" id="368">368</a>
 <a href="#369" id="369">369</a>
 <a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map, slice};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
+<span class="kw">use </span>rustc_middle::ty::RegionVid;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
-<span class="kw">use crate</span>::{
-    rty::<span class="kw-2">*</span>,
-    rustc::{<span class="self">self</span>, ty::RegionVar},
-};
-
-<span class="doccomment">/// A substitution for [free variables]
-///
-/// [free variables]: `crate::rty::Var::Free`
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>FVarSubst {
-    fvar_map: FxHashMap&lt;Name, Expr&gt;,
-}
-
-<span class="kw">impl </span>FVarSubst {
-    <span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
-        FVarSubst { fvar_map: FxHashMap::default() }
-    }
-
-    <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, from: Name, to: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;Expr&gt; {
-        <span class="self">self</span>.fvar_map.insert(from, to.into())
-    }
-
-    <span class="kw">pub fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, from: Name) -&gt; bool {
-        <span class="self">self</span>.fvar_map.contains_key(<span class="kw-2">&amp;</span>from)
-    }
-
-    <span class="kw">pub fn </span>apply&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
-        t.fold_with(<span class="kw-2">&amp;mut </span>FVarSubstFolder { subst: <span class="self">self </span>})
-            .normalize(<span class="kw-2">&amp;</span>Default::default())
-    }
-
-    <span class="kw">pub fn </span>infer_from_idxs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>FxHashSet&lt;Name&gt;, idx1: <span class="kw-2">&amp;</span>Index, idx2: <span class="kw-2">&amp;</span>Index) {
-        <span class="self">self</span>.infer_from_exprs(params, <span class="kw-2">&amp;</span>idx1.expr, <span class="kw-2">&amp;</span>idx2.expr);
-    }
-
-    <span class="kw">fn </span>infer_from_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>FxHashSet&lt;Name&gt;, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
-        <span class="kw">match </span>(e1.kind(), e2.kind()) {
-            (<span class="kw">_</span>, ExprKind::Var(Var::Free(name))) <span class="kw">if </span>params.contains(name) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(old_e) = <span class="self">self</span>.insert(<span class="kw-2">*</span>name, e1.clone()) {
-                    <span class="kw">if </span><span class="kw-2">&amp;</span>old_e != e1 {
-                        <span class="macro">bug!</span>(
-                            <span class="string">&quot;ambiguous instantiation for parameter: {:?} -&gt; [{:?}, {:?}]&quot;</span>,
-                            <span class="kw-2">*</span>name,
-                            old_e,
-                            e1
-                        );
-                    }
-                }
-            }
-            (ExprKind::Tuple(exprs1), ExprKind::Tuple(exprs2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(exprs1.len(), exprs2.len());
-                <span class="kw">for </span>(e1, e2) <span class="kw">in </span>exprs1.iter().zip(exprs2) {
-                    <span class="self">self</span>.infer_from_exprs(params, e1, e2);
-                }
-            }
-            (ExprKind::PathProj(e1, field1), ExprKind::PathProj(e2, field2))
-                <span class="kw">if </span>field1 == field2 =&gt;
-            {
-                <span class="self">self</span>.infer_from_exprs(params, e1, e2);
-            }
-            <span class="kw">_ </span>=&gt; {}
-        }
-    }
-}
-
-<span class="kw">struct </span>FVarSubstFolder&lt;<span class="lifetime">&#39;a</span>&gt; {
-    subst: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FVarSubst,
-}
-
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>FVarSubstFolder&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-        <span class="kw">if let </span>ExprKind::Var(Var::Free(name)) = expr.kind() {
-            <span class="self">self</span>.subst
-                .fvar_map
-                .get(name)
-                .cloned()
-                .unwrap_or_else(|| expr.clone())
-        } <span class="kw">else </span>{
-            expr.super_fold_with(<span class="self">self</span>)
-        }
-    }
-}
+<span class="kw">use crate</span>::{rty::<span class="kw-2">*</span>, rustc};
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>RegionSubst {
-    map: UnordMap&lt;RegionVar, Region&gt;,
+    map: UnordMap&lt;RegionVid, Region&gt;,
 }
 
 <span class="kw">impl </span>RegionSubst {
@@ -507,7 +397,7 @@
         <span class="kw">struct </span>Folder&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RegionSubst);
         <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Folder&lt;<span class="lifetime">&#39;_</span>&gt; {
             <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-                <span class="kw">if let </span>ReVar(var) = re &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(region) = <span class="self">self</span>.<span class="number">0</span>.map.get(var) {
+                <span class="kw">if let </span>ReVar(rvid) = re &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(region) = <span class="self">self</span>.<span class="number">0</span>.map.get(rvid) {
                     <span class="kw-2">*</span>region
                 } <span class="kw">else </span>{
                     <span class="kw-2">*</span>re
@@ -678,7 +568,7 @@
 
 <span class="doccomment">/// Substitution for [existential variables]
 ///
-/// [existential variables]: `crate::rty::Var::EVar`
+/// [existential variables]: crate::rty::Var::EVar
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>EVarSubstFolder&lt;<span class="lifetime">&#39;a</span>&gt; {
     evars: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>EVarSol,
 }
@@ -702,12 +592,13 @@
 <span class="doccomment">/// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericsSubstFolder&lt;<span class="lifetime">&#39;a</span>&gt; {
     current_index: DebruijnIndex,
-    generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[GenericArg],
+    <span class="doccomment">/// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
+    </span>generics: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[GenericArg]&gt;,
     refine: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; GenericsSubstFolder&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[GenericArg], refine: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr]) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(generics: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[GenericArg]&gt;, refine: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr]) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ current_index: INNERMOST, generics, refine }
     }
 }
@@ -728,10 +619,43 @@
         }
     }
 
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+    <span class="comment">// [NOTE:index-subst]
+
+    // Consider
+
+    // ```rust
+    // fn choose &lt;T as base&gt;(b: bool, x: T[@n], y: T[@m]) -&gt; T[if b { n } else { m }])
+    // ```
+
+    // and then a client
+
+    // ```rust
+    // pub fn test01() {
+    //     assert(choose(true, 0, 1) == 0);
+    // }
+    // ```
+
+    // At the callsite `choose(true, 0, 1)` there are *two* substitutions going on
+    // in the signature for `choose` i.e. for the `T[@n]` and `T[@m]`
+
+    // 1. `T` -&gt; `i32{v: ...}`
+    // 2. earlybound `n, m` -&gt; fresh-evars.
+
+    // The trouble is that if you solely rely on the `bty_for_param` code below,
+    // then the `n, m` substitutions &quot;get lost&quot; and so those variables are not
+    // &quot;solved for&quot; and you get that pesky instantiation error.
+
+    // Instead, we _first_ substitute for the indices, and then let `bty_for_param`
+    // do its business.
+
+    </span><span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
             TyKind::Param(param_ty) =&gt; <span class="self">self</span>.ty_for_param(<span class="kw-2">*</span>param_ty),
-            TyKind::Indexed(BaseTy::Param(param_ty), idx) =&gt; <span class="self">self</span>.bty_for_param(<span class="kw-2">*</span>param_ty, idx),
+            TyKind::Indexed(BaseTy::Param(param_ty), idx) =&gt; {
+                <span class="comment">// See [NOTE:index-subst]
+                </span><span class="kw">let </span>idx = idx.fold_with(<span class="self">self</span>);
+                <span class="self">self</span>.bty_for_param(<span class="kw-2">*</span>param_ty, <span class="kw-2">&amp;</span>idx)
+            }
             <span class="kw">_ </span>=&gt; ty.super_fold_with(<span class="self">self</span>),
         }
     }
@@ -755,40 +679,58 @@
 
 <span class="kw">impl </span>GenericsSubstFolder&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, param_ty: ParamTy) -&gt; Sort {
-        <span class="kw">match </span><span class="self">self</span>.generics.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::BaseTy(arg)) =&gt; {
-                <span class="kw">if let </span>[BoundVariableKind::Refine(sort, <span class="kw">_</span>)] = <span class="kw-2">&amp;</span>arg.vars()[..] {
-                    sort.clone()
-                } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected bound variable `{arg:?}`&quot;</span>)
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="self">self</span>.generics {
+            <span class="kw">match </span>generics.get(param_ty.index <span class="kw">as </span>usize) {
+                <span class="prelude-val">Some</span>(GenericArg::BaseTy(arg)) =&gt; {
+                    <span class="kw">if let </span>[BoundVariableKind::Refine(sort, <span class="kw">_</span>)] = <span class="kw-2">&amp;</span>arg.vars()[..] {
+                        sort.clone()
+                    } <span class="kw">else </span>{
+                        <span class="macro">bug!</span>(<span class="string">&quot;unexpected bound variable `{arg:?}`&quot;</span>)
+                    }
                 }
+                <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected base type for generic parameter, found `{arg:?}`&quot;</span>),
+                <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range {param_ty:?}&quot;</span>),
             }
-            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected base type for generic parameter, found `{arg:?}`&quot;</span>),
-            <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range {param_ty:?}&quot;</span>),
+        } <span class="kw">else </span>{
+            Sort::Param(param_ty)
         }
     }
 
     <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty {
-        <span class="kw">match </span><span class="self">self</span>.generics.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::Ty(ty)) =&gt; ty.clone(),
-            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected type for generic parameter, found `{:?}`&quot;</span>, arg),
-            <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range&quot;</span>),
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="self">self</span>.generics {
+            <span class="kw">match </span>generics.get(param_ty.index <span class="kw">as </span>usize) {
+                <span class="prelude-val">Some</span>(GenericArg::Ty(ty)) =&gt; ty.clone(),
+                <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected type for generic parameter, found `{:?}`&quot;</span>, arg),
+                <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range&quot;</span>),
+            }
+        } <span class="kw">else </span>{
+            Ty::param(param_ty)
         }
     }
 
     <span class="kw">fn </span>bty_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, param_ty: ParamTy, idx: <span class="kw-2">&amp;</span>Index) -&gt; Ty {
-        <span class="kw">match </span><span class="self">self</span>.generics.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::BaseTy(arg)) =&gt; arg.replace_bound_exprs(slice::from_ref(<span class="kw-2">&amp;</span>idx.expr)),
-            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected base type for generic parameter, found `{:?}`&quot;</span>, arg),
-            <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range&quot;</span>),
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="self">self</span>.generics {
+            <span class="kw">match </span>generics.get(param_ty.index <span class="kw">as </span>usize) {
+                <span class="prelude-val">Some</span>(GenericArg::BaseTy(arg)) =&gt; {
+                    arg.replace_bound_exprs(slice::from_ref(<span class="kw-2">&amp;</span>idx.expr))
+                }
+                <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected base type for generic parameter, found `{:?}`&quot;</span>, arg),
+                <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range&quot;</span>),
+            }
+        } <span class="kw">else </span>{
+            Ty::indexed(BaseTy::Param(param_ty), idx.clone())
         }
     }
 
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, ebr: EarlyBoundRegion) -&gt; Region {
-        <span class="kw">match </span><span class="self">self</span>.generics.get(ebr.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::Lifetime(re)) =&gt; <span class="kw-2">*</span>re,
-            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected region for generic parameter, found `{:?}`&quot;</span>, arg),
-            <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;region parameter out of range&quot;</span>),
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="self">self</span>.generics {
+            <span class="kw">match </span>generics.get(ebr.index <span class="kw">as </span>usize) {
+                <span class="prelude-val">Some</span>(GenericArg::Lifetime(re)) =&gt; <span class="kw-2">*</span>re,
+                <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected region for generic parameter, found `{:?}`&quot;</span>, arg),
+                <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;region parameter out of range&quot;</span>),
+            }
+        } <span class="kw">else </span>{
+            ReEarlyBound(ebr)
         }
     }
 

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["get_impl_source","into_rustc_bty","into_rustc_generic_arg","into_rustc_ty","normalize","normalize_with_impl","without_constrs"],"struct":["ProjectionTable","TVarSubst","WithoutConstrs"],"type":["AliasTyKey"]};
+window.SIDEBAR_ITEMS = {"fn":["get_impl_source","into_rustc_bound_region","into_rustc_bound_region_kind","into_rustc_bty","into_rustc_generic_arg","into_rustc_region","into_rustc_ty","normalize","normalize_with_impl","without_constrs"],"struct":["ProjectionTable","TVarSubst","WithoutConstrs"],"type":["AliasTyKey"]};
