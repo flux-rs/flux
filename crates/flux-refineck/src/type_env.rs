@@ -11,8 +11,8 @@ use flux_middle::{
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
-        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind,
-        Ref, Region, Ty, TyKind, INNERMOST,
+        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
+        PtrKind, Ref, Region, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -172,7 +172,7 @@ impl TypeEnv<'_> {
 
         let bb_env = bb_env
             .data
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         // Check constraints
         for constr in &bb_env.constrs {
@@ -274,7 +274,7 @@ impl BasicBlockEnvShape {
             TyKind::Indexed(bty, idxs) => {
                 let bty = BasicBlockEnvShape::pack_bty(scope, bty);
                 if scope.has_free_vars(idxs) {
-                    Ty::exists_with_constr(bty, Expr::hole())
+                    Ty::exists_with_constr(bty, Expr::hole(HoleKind::Pred))
                 } else {
                     Ty::indexed(bty, idxs.clone())
                 }
@@ -448,7 +448,7 @@ impl BasicBlockEnvShape {
                 if sorts.is_empty() {
                     Ty::indexed(bty, idx)
                 } else {
-                    let ty = Ty::constr(Expr::hole(), Ty::indexed(bty, idx));
+                    let ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
                     Ty::exists(Binder::with_sorts(ty, sorts))
                 }
             }
@@ -564,7 +564,7 @@ impl BasicBlockEnvShape {
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
             .into_iter()
-            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole))
+            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
         let outter_sorts = vars.to_sort_list();
@@ -573,7 +573,8 @@ impl BasicBlockEnvShape {
         constrs.push(kvar);
 
         // Replace remaning holes by fresh kvars
-        let mut kvar_gen = |sorts: &[_]| {
+        let mut kvar_gen = |sorts: &[_], kind| {
+            debug_assert_eq!(kind, HoleKind::Pred);
             let sorts = std::iter::once(outter_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();

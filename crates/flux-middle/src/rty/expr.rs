@@ -96,11 +96,38 @@ pub enum ExprKind {
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
     ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
     Abs(Binder<Expr>),
-    Hole,
+    /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
+    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or syntactically
+    /// depends on the position it appears: only holes appearing in predicate position can be inferred
+    /// with a kvar (provided it satisfy the fixpoint horn constraints) and only holes used as a refinement
+    /// argument or index (a position that fully determines their value) can be inferred with an evar.
+    ///
+    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound variables
+    /// in this scope. This must be considered when generating an inference variables for them (either evar or kvar).
+    /// In fact, the main reason we have holes is that we want to decouple the places where we generate them,
+    /// (where we don't want to worry about the scope) and the places where we infer them (where we do need to worry
+    /// about the scope).
+    Hole(HoleKind),
+}
+
+/// The position where a hole appears. This determines how it will be inferred. This is related but not
+/// quite the same as the [`InferMode`].
+///
+/// [`InferMode`]: super::InferMode
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum HoleKind {
+    /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
+    /// generating a kvar.
+    ///
+    /// [`TyKind::Constr`]: super::TyKind::Constr
+    Pred,
+    /// A hole used as a refinement argument or index. It will be inferred by generating an evar. The
+    /// expression filling the hole must have the provided sort.
+    Expr(Sort),
 }
 
 /// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the variables, the first one being
+/// fixpoint makes a diference between the first and the rest of the arguments, the first one being
 /// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -156,9 +183,7 @@ impl ExprKind {
 impl Expr {
     pub fn at_base(self, base: Option<ESpan>) -> Expr {
         let kind = self.kind();
-        if let Some(espan) = self.espan
-            && let Some(base) = base
-        {
+        if let Some(espan) = self.espan && let Some(base) = base {
             kind.clone().intern_at(Some(espan.with_base(base)))
         } else {
             self
@@ -319,8 +344,8 @@ impl Expr {
         ExprKind::Abs(body).intern()
     }
 
-    pub fn hole() -> Expr {
-        ExprKind::Hole.intern()
+    pub fn hole(kind: HoleKind) -> Expr {
+        ExprKind::Hole(kind).intern()
     }
 
     pub fn kvar(kvar: KVar) -> Expr {
@@ -848,7 +873,7 @@ mod pretty {
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!("if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
-                ExprKind::Hole => {
+                ExprKind::Hole(_) => {
                     w!("*")
                 }
                 ExprKind::KVar(kvar) => {

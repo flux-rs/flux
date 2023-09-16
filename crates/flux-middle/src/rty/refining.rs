@@ -67,7 +67,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             refine: |bty| {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
-                let constr = rty::Ty::constr(rty::Expr::hole(), indexed);
+                let constr = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), indexed);
                 rty::Binder::with_sort(constr, sort)
             },
         }
@@ -258,7 +258,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
             .try_collect_vec()?;
 
-        let refine_args = self.refine_args_of(def_id, alias_kind);
+        let refine_args = self.refine_args_of(def_id, alias_kind)?;
 
         let res = rty::AliasTy::new(def_id, args, refine_args);
         Ok(res)
@@ -365,13 +365,20 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         self.genv.generics_of(def_id)
     }
 
-    fn refine_args_of(&self, def_id: DefId, alias_kind: &rustc::ty::AliasKind) -> rty::RefineArgs {
-        if let rustc::ty::AliasKind::Opaque = alias_kind &&
-           let Ok(params) = self.genv.refparams_of_parent(def_id)
-        {
-            params.iter().map(|_| { rty::Expr::hole() }).collect_vec().into()
+    fn refine_args_of(
+        &self,
+        def_id: DefId,
+        alias_kind: &rustc::ty::AliasKind,
+    ) -> QueryResult<rty::RefineArgs> {
+        if let rustc::ty::AliasKind::Opaque = alias_kind {
+            Ok(self
+                .genv
+                .refparams_of_parent(def_id)?
+                .iter()
+                .map(|param| rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone())))
+                .collect())
         } else {
-            List::empty()
+            Ok(List::empty())
         }
     }
 
