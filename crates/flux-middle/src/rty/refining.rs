@@ -1,8 +1,6 @@
 //! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
-use std::iter;
-
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
@@ -175,9 +173,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let rustc::ty::TyKind::Adt(adt_def, args) = ret.kind() else {
             bug!();
         };
-        let args = iter::zip(&self.generics.params, args)
-            .map(|(param, arg)| self.refine_generic_arg(param, arg))
-            .try_collect_vec()?;
+        let args = self.iter_with_generic_params(self.generics, args, |param, arg| {
+            self.refine_generic_arg(param, arg)
+        })?;
         let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, args);
         let ret = rty::Ty::indexed(bty, rty::Expr::unit());
         let value = rty::VariantSig::new(fields, ret);
@@ -253,10 +251,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         alias_ty: &rustc::ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
-        let generics = self.generics_of(def_id)?;
-        let args = iter::zip(&generics.params, alias_ty.args.iter())
-            .map(|(param, arg)| self.as_default().refine_generic_arg(param, arg))
-            .try_collect_vec()?;
+        let args = self.iter_with_generic_of(def_id, &alias_ty.args, |param, arg| {
+            self.as_default().refine_generic_arg(param, arg)
+        })?;
 
         let refine_args = self.refine_args_of(def_id, alias_kind)?;
 
@@ -323,9 +320,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rustc::ty::TyKind::Adt(adt_def, args) => {
                 let adt_def = self.genv.adt_def(adt_def.did())?;
-                let args = iter::zip(&self.generics_of(adt_def.did())?.params, args)
-                    .map(|(param, arg)| self.refine_generic_arg(param, arg))
-                    .try_collect_vec()?;
+                let args = self.iter_with_generic_of(adt_def.did(), args, |param, arg| {
+                    self.refine_generic_arg(param, arg)
+                })?;
                 rty::BaseTy::adt(adt_def, args)
             }
             rustc::ty::TyKind::Alias(alias_kind, alias_ty) => {
@@ -380,6 +377,31 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         } else {
             Ok(List::empty())
         }
+    }
+
+    fn iter_with_generic_of(
+        &self,
+        def_id: DefId,
+        args: &[rustc::ty::GenericArg],
+        f: impl FnMut(&rty::GenericParamDef, &rustc::ty::GenericArg) -> QueryResult<rty::GenericArg>,
+    ) -> QueryResult<rty::GenericArgs> {
+        let generics = self.generics_of(def_id)?;
+        self.iter_with_generic_params(&generics, args, f)
+    }
+
+    fn iter_with_generic_params(
+        &self,
+        generics: &rty::Generics,
+        args: &[rustc::ty::GenericArg],
+        mut f: impl FnMut(&rty::GenericParamDef, &rustc::ty::GenericArg) -> QueryResult<rty::GenericArg>,
+    ) -> QueryResult<rty::GenericArgs> {
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                let param = generics.param_at(idx, self.genv)?;
+                f(&param, arg)
+            })
+            .try_collect()
     }
 
     fn param(&self, param_ty: ParamTy) -> QueryResult<rty::GenericParamDef> {

@@ -7,7 +7,7 @@ use flux_common::iter::IterExt;
 use flux_errors::ErrorGuaranteed;
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::{FatalError, IntoDiagnostic};
+use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::infer::TyCtxtInferExt;
@@ -201,10 +201,7 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
-                let my_generics = genv.tcx.generics_of(def_id);
-                let generics = if let Some(parent_def_id) = my_generics.parent && genv.tcx.is_trait(parent_def_id) {
-                    genv.tcx.generics_of(parent_def_id)
-                } else {my_generics};
+                let generics = genv.tcx.generics_of(def_id);
                 let generics = lowering::lower_generics(generics)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?;
                 Ok(refining::refine_generics(&generics))
@@ -224,13 +221,10 @@ impl<'tcx> Queries<'tcx> {
                 (self.providers.item_bounds)(genv, local_id)
             } else {
                 // If there's any error during lowering we blame the span of the definition of
-                // the opaque type i.e. the span of the `impl Trait`
+                // the opaque type, i.e. the span of the `impl Trait`
                 let span = genv.tcx.def_span(def_id);
                 let bounds = genv.tcx.item_bounds(def_id).skip_binder();
-
-                // FIXME(nilehmann) we should propagate this error through the query
-                let clauses = lowering::lower_item_bounds(genv.tcx, genv.sess, bounds, span)
-                    .unwrap_or_else(|_| FatalError.raise());
+                let clauses = lowering::lower_item_bounds(genv.tcx, genv.sess, bounds, span)?;
 
                 let clauses =
                     Refiner::default(genv, &genv.generics_of(def_id)?).refine_clauses(&clauses)?;
@@ -251,10 +245,8 @@ impl<'tcx> Queries<'tcx> {
                 (self.providers.predicates_of)(genv, local_id)
             } else {
                 let predicates = genv.tcx.predicates_of(def_id);
-                // FIXME(nilehmann) we should propagate this error through the query
                 let predicates =
-                    lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
-                        .unwrap_or_else(|_| FatalError.raise());
+                    lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)?;
 
                 let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_generic_predicates(&predicates)?;
