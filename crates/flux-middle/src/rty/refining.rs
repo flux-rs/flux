@@ -260,7 +260,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         alias_ty: &rustc::ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
-        let args = self.iter_with_generic_of(def_id, &alias_ty.args, |param, arg| {
+        let args = self.iter_with_generics_of(def_id, &alias_ty.args, |param, arg| {
             self.as_default().refine_generic_arg(param, arg)
         })?;
 
@@ -329,7 +329,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rustc::ty::TyKind::Adt(adt_def, args) => {
                 let adt_def = self.genv.adt_def(adt_def.did())?;
-                let args = self.iter_with_generic_of(adt_def.did(), args, |param, arg| {
+                let args = self.iter_with_generics_of(adt_def.did(), args, |param, arg| {
                     self.refine_generic_arg(param, arg)
                 })?;
                 rty::BaseTy::adt(adt_def, args)
@@ -389,7 +389,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         }
     }
 
-    fn iter_with_generic_of(
+    fn iter_with_generics_of(
         &self,
         def_id: DefId,
         args: &[rustc::ty::GenericArg],
