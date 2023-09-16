@@ -20,7 +20,7 @@ use flux_config as config;
 use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    fhir::{self, FluxLocalDefId},
+    fhir::{self, FluxLocalDefId, WfckResults},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
@@ -305,6 +305,10 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             let owner_id = OwnerId { def_id };
             let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
+        }
+        DefKind::Impl { .. } => {
+            // We currently dont support refinements on an impl item, so there's nothing to check here.
+            WfckResults::new(OwnerId { def_id })
         }
         DefKind::Closure | DefKind::Generator | DefKind::TyParam => {
             let parent = genv.tcx.local_parent(def_id);

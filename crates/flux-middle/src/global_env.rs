@@ -107,19 +107,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.check_wf(self, flux_id.into())
     }
 
-    pub fn refparams_of(&self, def_id: impl Into<DefId>) -> QueryResult<List<rty::RefineParam>> {
-        Ok(self.generics_of(def_id)?.refine_params.clone())
-    }
-
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
         self.queries.generics_of(self, def_id.into())
     }
 
     pub fn predicates_of(
         &self,
-        def_id: DefId,
+        def_id: impl Into<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-        self.queries.predicates_of(self, def_id)
+        self.queries.predicates_of(self, def_id.into())
     }
 
     pub fn item_bounds(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {

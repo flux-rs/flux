@@ -377,13 +377,11 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         alias_kind: &rustc::ty::AliasKind,
     ) -> QueryResult<rty::RefineArgs> {
         if let rustc::ty::AliasKind::Opaque = alias_kind {
-            let generics = self.genv.generics_of(def_id)?;
-            (0..generics.refine_count())
-                .map(|idx| {
-                    let param = generics.refine_param_at(idx, self.genv)?;
-                    Ok(rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone())))
+            self.genv
+                .generics_of(def_id)?
+                .collect_all_refine_params(self.genv, |param| {
+                    rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
                 })
-                .try_collect()
         } else {
             Ok(List::empty())
         }

@@ -94,9 +94,6 @@ pub struct GenericPredicates {
     pub predicates: List<Clause>,
 }
 
-/// An alias for the "EarlyBinder-instantiated" GenericPredicates of a DefId
-pub type ParamEnv = GenericPredicates;
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
     kind: ClauseKind,
@@ -355,7 +352,7 @@ pub enum AliasKind {
 pub type RefineArgs = List<Expr>;
 pub type GenericArgs = List<GenericArg>;
 
-pub type OpaqueRefineArgs = FxHashMap<DefId, RefineArgs>;
+pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
@@ -579,6 +576,20 @@ impl Generics {
             genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
                 .refine_param_at(param_index, genv)
         }
+    }
+
+    /// Iterate and collect all refinement parameters in this item including parents
+    pub fn collect_all_refine_params<T, S>(
+        &self,
+        genv: &GlobalEnv,
+        mut f: impl FnMut(RefineParam) -> T,
+    ) -> QueryResult<S>
+    where
+        S: FromIterator<T>,
+    {
+        (0..self.refine_count())
+            .map(|i| Ok(f(self.refine_param_at(i, genv)?)))
+            .try_collect()
     }
 }
 
@@ -829,24 +840,50 @@ where
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn instantiate(self, generics: &[GenericArg], refine: &[Expr]) -> T {
+    pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(Some(generics), refine))
+            .fold_with(&mut subst::GenericsSubstFolder::new(Some(args), refine_args))
     }
 
-    pub fn instantiate_refparams(self, refine: &[Expr]) -> T {
+    pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
         self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine))
-    }
-
-    pub fn instantiate_identity(self) -> T {
-        self.0
+            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine_args))
     }
 }
 
 impl EarlyBinder<GenericPredicates> {
     pub fn predicates(&self) -> EarlyBinder<List<Clause>> {
         EarlyBinder(self.0.predicates.clone())
+    }
+
+    pub fn instantiate_identity(
+        self,
+        genv: &GlobalEnv,
+        refine_args: &[Expr],
+    ) -> QueryResult<Vec<Clause>> {
+        let mut predicates = vec![];
+        self.instantiate_identity_into(genv, refine_args, &mut predicates)?;
+        Ok(predicates)
+    }
+
+    fn instantiate_identity_into(
+        self,
+        genv: &GlobalEnv,
+        refine_args: &[Expr],
+        predicates: &mut Vec<Clause>,
+    ) -> QueryResult<()> {
+        if let Some(def_id) = self.0.parent {
+            genv.predicates_of(def_id)?
+                .instantiate_identity_into(genv, refine_args, predicates)?;
+        }
+        predicates.extend(
+            self.0
+                .predicates
+                .iter()
+                .cloned()
+                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
+        );
+        Ok(())
     }
 }
 

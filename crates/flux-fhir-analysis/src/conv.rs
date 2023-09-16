@@ -736,7 +736,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(self
                     .genv
                     .type_of(*alias_to)?
-                    .instantiate_identity()
+                    .instantiate_identity(&[])
                     .replace_bound_expr(&idx.expr));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {

@@ -19,6 +19,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
+    intern::List,
     queries::QueryErr,
     rty::{fold::TypeVisitable, EarlyBinder},
     rustc::{
@@ -55,13 +56,13 @@ impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
         // 1. Insert generic predicates of the callsite `callsite_def_id`
         // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
         let predicates = genv.predicates_of(src_def_id)?;
-        let param_env = predicates.instantiate_refparams(src_params);
-        vec.push(param_env.predicates);
+        let param_env = List::from(predicates.instantiate_identity(genv, src_params)?);
+        vec.push(param_env);
         // 2. Insert generic predicates of the opaque-types
-        for (opaque_def_id, refine_args) in t.opaque_refine_args() {
+        for (opaque_def_id, (args, refine_args)) in t.opaque_refine_args() {
             vec.push(
                 genv.item_bounds(opaque_def_id)?
-                    .instantiate_refparams(&refine_args),
+                    .instantiate(&args, &refine_args),
             );
         }
 

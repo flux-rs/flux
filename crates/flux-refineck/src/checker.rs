@@ -131,7 +131,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     pub(crate) fn run_in_shape_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: LocalDefId,
-        extra_data: &'a UnordMap<LocalDefId, GhostStatements>,
+        ghost_stmts: &'a UnordMap<LocalDefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<ShapeResult, CheckerError> {
         dbg::shape_mode_span!(genv.tcx, def_id).in_scope(|| {
@@ -143,7 +143,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
                 genv,
                 RefineTree::new().as_subtree(),
                 def_id,
-                extra_data,
+                ghost_stmts,
                 &mut mode,
                 fn_sig,
                 None,
@@ -159,7 +159,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,
         def_id: LocalDefId,
-        extra_data: &'a UnordMap<LocalDefId, GhostStatements>,
+        ghost_stmts: &'a UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
@@ -175,7 +175,7 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
                 genv,
                 refine_tree.as_subtree(),
                 def_id,
-                extra_data,
+                ghost_stmts,
                 &mut mode,
                 fn_sig,
                 None,
@@ -193,7 +193,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         genv: &'a GlobalEnv<'a, 'tcx>,
         mut refine_tree: RefineSubtree<'a>,
         def_id: LocalDefId,
-        extra_data: &'a UnordMap<LocalDefId, GhostStatements>,
+        ghost_stmts: &'a UnordMap<LocalDefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: EarlyBinder<PolyFnSig>,
         refparams: Option<List<Expr>>,
@@ -202,6 +202,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let span = genv.tcx.def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
+        let generics = genv.generics_of(def_id).with_span(span)?;
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
@@ -210,16 +211,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let exprs = if let Some(exprs) = refparams {
             exprs
         } else {
-            let params = genv.refparams_of(def_id).with_span(span)?;
-            List::from_vec(
-                params
-                    .iter()
-                    .map(|param| rcx.define_vars(&param.sort))
-                    .collect_vec(),
-            )
+            generics
+                .collect_all_refine_params(genv, |param| rcx.define_vars(&param.sort))
+                .with_span(span)?
         };
 
-        let poly_sig = poly_sig.instantiate_refparams(&exprs);
+        let poly_sig = poly_sig.instantiate_identity(&exprs);
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));
@@ -238,11 +235,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             def_id,
             genv,
             rvid_gen,
-            generics: genv.generics_of(def_id).unwrap(),
+            generics,
             refparams: exprs,
             body: &body,
             resume_ty,
-            ghost_stmts: extra_data,
+            ghost_stmts,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             mode,
@@ -1122,68 +1119,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 }
 
-fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0, None);
-    Ty::indexed(BaseTy::Int(int_ty), idx)
-}
-
-fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
-    let idx = Expr::ite(b, 1, 0, None);
-    Ty::indexed(BaseTy::Uint(uint_ty), idx)
-}
-
-fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
-    if int_bit_width(int_ty1) <= int_bit_width(int_ty2) {
-        Ty::indexed(BaseTy::Int(int_ty2), idx.clone())
-    } else {
-        Ty::int(int_ty2)
-    }
-}
-
-fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
-    if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
-        Ty::indexed(BaseTy::Int(int_ty), idx.clone())
-    } else {
-        Ty::int(int_ty)
-    }
-}
-
-fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
-    if uint_bit_width(uint_ty1) <= uint_bit_width(uint_ty2) {
-        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
-    } else {
-        Ty::uint(uint_ty2)
-    }
-}
-
-fn uint_bit_width(uint_ty: UintTy) -> u64 {
-    uint_ty
-        .bit_width()
-        .unwrap_or(config::pointer_width().bits())
-}
-
-fn int_bit_width(int_ty: IntTy) -> u64 {
-    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
-}
-
-impl ShapeResult {
-    fn into_bb_envs(
-        self,
-        kvar_store: &mut KVarStore,
-    ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
-        self.0
-            .into_iter()
-            .map(|(def_id, shapes)| {
-                let bb_envs = shapes
-                    .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_store)))
-                    .collect();
-                (def_id, bb_envs)
-            })
-            .collect()
-    }
-}
-
 impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
@@ -1308,6 +1243,68 @@ impl Mode for RefineMode {
     }
 }
 
+fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
+    let idx = Expr::ite(b, 1, 0, None);
+    Ty::indexed(BaseTy::Int(int_ty), idx)
+}
+
+fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
+    let idx = Expr::ite(b, 1, 0, None);
+    Ty::indexed(BaseTy::Uint(uint_ty), idx)
+}
+
+fn int_int_cast(idx: &Expr, int_ty1: IntTy, int_ty2: IntTy) -> Ty {
+    if int_bit_width(int_ty1) <= int_bit_width(int_ty2) {
+        Ty::indexed(BaseTy::Int(int_ty2), idx.clone())
+    } else {
+        Ty::int(int_ty2)
+    }
+}
+
+fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
+    if uint_bit_width(uint_ty) < int_bit_width(int_ty) {
+        Ty::indexed(BaseTy::Int(int_ty), idx.clone())
+    } else {
+        Ty::int(int_ty)
+    }
+}
+
+fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
+    if uint_bit_width(uint_ty1) <= uint_bit_width(uint_ty2) {
+        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
+    } else {
+        Ty::uint(uint_ty2)
+    }
+}
+
+fn uint_bit_width(uint_ty: UintTy) -> u64 {
+    uint_ty
+        .bit_width()
+        .unwrap_or(config::pointer_width().bits())
+}
+
+fn int_bit_width(int_ty: IntTy) -> u64 {
+    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
+}
+
+impl ShapeResult {
+    fn into_bb_envs(
+        self,
+        kvar_store: &mut KVarStore,
+    ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
+        self.0
+            .into_iter()
+            .map(|(def_id, shapes)| {
+                let bb_envs = shapes
+                    .into_iter()
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_store)))
+                    .collect();
+                (def_id, bb_envs)
+            })
+            .collect()
+    }
+}
+
 fn snapshot_at_dominator<'a>(
     body: &Body,
     snapshots: &'a IndexVec<BasicBlock, Option<Snapshot>>,
@@ -1323,9 +1320,9 @@ fn snapshot_at_dominator<'a>(
 /// `fn foo<'a, 'b>(x: &'a S<'a>, y: &'b u32)`
 ///
 /// `rustc` will generate variables `?2` and `?3` for the universal regions `'a` and `'b` (the variable
-/// `?0` correspond to `'static` and `?1` to the implicit lifetime of the /// function body). Additionally,
-/// it will assign `x` type &'?4 S<'?5>` and `y` type `&'?6 u32`, together with some constraints relating
-/// region variables.
+/// `?0` correspond to `'static` and `?1` to the implicit lifetime of the function body). Additionally,
+/// it will assign `x` type &'?4 S<'?5>` and `y` type `&'?6 u32` (together with some constraints relating
+/// region variables).
 ///
 /// The exact ids picked for `'a` and `'b` are not too relevant to us, the important part is the regions
 /// used in the types of `x` and `y`. To recover the correct regions, whenever there's an assignment
@@ -1335,8 +1332,10 @@ fn snapshot_at_dominator<'a>(
 /// by borrow checking.
 ///
 /// The ids generated during refinement type checking are purely instrumental and they should never
-/// appear in a type bound in the environment. Besides generating ids when checking a function's body,
-/// we also need to generate fresh ids at function calls.
+/// appear in a type bound in the environment.
+///
+/// Besides generating ids when checking a function's body, we also need to generate fresh ids at
+/// function calls.
 ///
 /// [region variable ids]: RegionVid
 fn init_region_gen(body: &Body) -> IndexGen<RegionVid> {
