@@ -111,14 +111,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         Ok(self.generics_of(def_id)?.refine_params.clone())
     }
 
-    pub fn refparams_of_parent(
-        &self,
-        def_id: impl Into<DefId>,
-    ) -> QueryResult<List<rty::RefineParam>> {
-        let parent = self.tcx.parent(def_id.into());
-        self.refparams_of(parent)
-    }
-
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
         self.queries.generics_of(self, def_id.into())
     }
