@@ -1,0 +1,16 @@
+[package]
+edition = "2021"
+name = "flux-fhir-analysis"
+version = "0.1.0"
+
+[dependencies]
+ena = "0.14.2"
+flux-common.workspace = true
+flux-config.workspace = true
+flux-errors.workspace = true
+flux-macros.workspace = true
+flux-middle.workspace = true
+itertools = "0.10"
+
+[package.metadata.rust-analyzer]
+rustc_private = true

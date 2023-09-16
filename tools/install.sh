@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cargo install --path flux      --offline
-cargo install --path flux-bin  --offline
+cargo install --path crates/flux      --offline
+cargo install --path crates/flux-bin  --offline

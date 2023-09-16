@@ -77,8 +77,8 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
 }
 
 fn install(sh: Shell, _: Install) -> anyhow::Result<()> {
-    cmd!(sh, "cargo install --path flux").run()?;
-    cmd!(sh, "cargo install --path flux-bin").run()?;
+    cmd!(sh, "cargo install --path crates/flux").run()?;
+    cmd!(sh, "cargo install --path crates/flux-bin").run()?;
     Ok(())
 }
 
