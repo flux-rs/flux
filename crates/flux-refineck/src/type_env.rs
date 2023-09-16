@@ -564,7 +564,7 @@ impl BasicBlockEnvShape {
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
             .into_iter()
-            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(..)))
+            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
         let outter_sorts = vars.to_sort_list();
