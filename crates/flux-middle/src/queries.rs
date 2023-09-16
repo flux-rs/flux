@@ -204,7 +204,7 @@ impl<'tcx> Queries<'tcx> {
                 let generics = genv.tcx.generics_of(def_id);
                 let generics = lowering::lower_generics(generics)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?;
-                Ok(refining::refine_generics(&generics))
+                refining::refine_generics(genv, &generics)
             }
         })
     }

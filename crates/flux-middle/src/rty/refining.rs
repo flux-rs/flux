@@ -9,7 +9,10 @@ use rustc_middle::ty::{ClosureKind, ParamTy};
 use super::fold::TypeFoldable;
 use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
-pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
+pub(crate) fn refine_generics(
+    genv: &GlobalEnv,
+    generics: &rustc::ty::Generics,
+) -> QueryResult<rty::Generics> {
     let params = generics
         .params
         .iter()
@@ -31,12 +34,18 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> rty::Generics {
             }
         })
         .collect();
-    rty::Generics {
+
+    Ok(rty::Generics {
         params,
         refine_params: List::empty(),
-        parent_count: generics.orig.parent_count,
-        parent: generics.orig.parent,
-    }
+        parent: generics.parent(),
+        parent_count: generics.parent_count(),
+        parent_refine_count: generics
+            .parent()
+            .map(|parent| genv.generics_of(parent))
+            .transpose()?
+            .map_or(0, |g| g.refine_count()),
+    })
 }
 
 pub struct Refiner<'a, 'tcx> {
@@ -251,7 +260,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         alias_ty: &rustc::ty::AliasTy,
     ) -> QueryResult<rty::AliasTy> {
         let def_id = alias_ty.def_id;
-        let args = self.iter_with_generic_of(def_id, &alias_ty.args, |param, arg| {
+        let args = self.iter_with_generics_of(def_id, &alias_ty.args, |param, arg| {
             self.as_default().refine_generic_arg(param, arg)
         })?;
 
@@ -320,7 +329,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rustc::ty::TyKind::Adt(adt_def, args) => {
                 let adt_def = self.genv.adt_def(adt_def.did())?;
-                let args = self.iter_with_generic_of(adt_def.did(), args, |param, arg| {
+                let args = self.iter_with_generics_of(adt_def.did(), args, |param, arg| {
                     self.refine_generic_arg(param, arg)
                 })?;
                 rty::BaseTy::adt(adt_def, args)
@@ -368,18 +377,19 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         alias_kind: &rustc::ty::AliasKind,
     ) -> QueryResult<rty::RefineArgs> {
         if let rustc::ty::AliasKind::Opaque = alias_kind {
-            Ok(self
-                .genv
-                .refparams_of_parent(def_id)?
-                .iter()
-                .map(|param| rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone())))
-                .collect())
+            let generics = self.genv.generics_of(def_id)?;
+            (0..generics.refine_count())
+                .map(|idx| {
+                    let param = generics.refine_param_at(idx, self.genv)?;
+                    Ok(rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone())))
+                })
+                .try_collect()
         } else {
             Ok(List::empty())
         }
     }
 
-    fn iter_with_generic_of(
+    fn iter_with_generics_of(
         &self,
         def_id: DefId,
         args: &[rustc::ty::GenericArg],

@@ -63,6 +63,7 @@ pub struct Generics {
     pub refine_params: List<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
+    pub parent_refine_count: usize,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
@@ -560,6 +561,23 @@ impl Generics {
         } else {
             genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
                 .param_at(param_index, genv)
+        }
+    }
+
+    pub fn refine_count(&self) -> usize {
+        self.parent_refine_count + self.refine_params.len()
+    }
+
+    pub fn refine_param_at(
+        &self,
+        param_index: usize,
+        genv: &GlobalEnv,
+    ) -> QueryResult<RefineParam> {
+        if let Some(index) = param_index.checked_sub(self.parent_refine_count) {
+            Ok(self.refine_params[index].clone())
+        } else {
+            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
+                .refine_param_at(param_index, genv)
         }
     }
 }

@@ -141,7 +141,7 @@ pub(crate) fn conv_generics(
     generics: &fhir::Generics,
     refine_params: &[fhir::RefineParam],
     is_trait: Option<LocalDefId>,
-) -> rty::Generics {
+) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
         rty::GenericParamDef {
             index: 0,
@@ -153,6 +153,7 @@ pub(crate) fn conv_generics(
     let params = opt_self
         .into_iter()
         .chain(rust_generics.params.iter().flat_map(|rust_param| {
+            // We have to filter out late bound parameters
             let param = generics
                 .params
                 .iter()
@@ -179,12 +180,17 @@ pub(crate) fn conv_generics(
         .map(|param| conv_refine_param(genv, param))
         .collect();
 
-    rty::Generics {
+    Ok(rty::Generics {
         params,
         refine_params,
-        parent_count: rust_generics.parent_count(),
         parent: rust_generics.parent(),
-    }
+        parent_count: rust_generics.parent_count(),
+        parent_refine_count: rust_generics
+            .parent()
+            .map(|parent| genv.generics_of(parent))
+            .transpose()?
+            .map_or(0, |g| g.refine_count()),
+    })
 }
 
 pub(crate) fn adt_def_for_struct(
