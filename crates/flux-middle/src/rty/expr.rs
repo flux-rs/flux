@@ -110,6 +110,10 @@ pub enum ExprKind {
     Hole(HoleKind),
 }
 
+/// The position where a hole appears. This determines how it will be inferred. This is related but not
+/// quite the same as the [`InferMode`].
+///
+/// [`InferMode`]: super::InferMode
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum HoleKind {
     /// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
