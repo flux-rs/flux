@@ -1,13 +1,9 @@
 [package]
 edition = "2021"
-name = "xtask"
+name = "flux-attrs-proc-macros-build"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.75"
-flux-tests.workspace = true
-opener = "0.6.1"
-xflags = "0.3.1"
-xshell = "0.2.5"
+flux-rs = { workspace = true, features = ["enabled"] }

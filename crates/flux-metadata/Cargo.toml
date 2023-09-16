@@ -1,0 +1,16 @@
+[package]
+edition = "2021"
+name = "flux-metadata"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flux-common.workspace = true
+flux-errors.workspace = true
+flux-macros.workspace = true
+flux-middle.workspace = true
+itertools = "0.10"
+
+[package.metadata.rust-analyzer]
+rustc_private = true

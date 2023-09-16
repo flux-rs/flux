@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name = "flux-rs"
+version = "0.1.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+flux-attrs.workspace = true
+proc-macro2 = { version = "1.0", optional = true }
+
+[features]
+# Design taken from Prusti - we enable the 'flux-attributes-proc-macros/enabled'
+# feature when checking with flux which indicates that we should pull in these
+# deps.
+enabled = ["flux-attrs/enabled"]
