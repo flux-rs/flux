@@ -9,7 +9,7 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSourceUserDefinedData, ObligationCause},
-    ty::{ParamTy, ToPredicate, TraitRef, TyCtxt},
+    ty::{ParamTy, ToPredicate, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -341,28 +341,24 @@ impl TVarSubst {
 
 fn get_impl_source<'tcx>(
     genv: &GlobalEnv<'_, 'tcx>,
-    elem: DefId,
-    impl_rty: &Ty,
+    projection_ty: &rustc_middle::ty::AliasTy<'tcx>,
     param_env: rustc_middle::ty::ParamEnv<'tcx>,
 ) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
     // 1a. build up the `Obligation` query
-    let trait_def_id = genv.tcx.parent(elem);
-    let trait_ref = TraitRef::new(genv.tcx, trait_def_id, vec![into_rustc_ty(genv.tcx, impl_rty)]);
-    let predicate = trait_ref.to_predicate(genv.tcx);
-
+    let trait_ref = projection_ty.trait_ref(genv.tcx);
     let oblig = Obligation {
         cause: ObligationCause::dummy(), // TODO(RJ): use with_span instead of `dummy`
         param_env,
-        predicate,
+        predicate: trait_ref.to_predicate(genv.tcx),
         recursion_depth: 5, // TODO(RJ): made up a random number!
     };
 
     // 1b. build up the `SelectionContext`
-    let inf_ctxt = genv.tcx.infer_ctxt().build();
-    let mut sel_ctxt = SelectionContext::new(&inf_ctxt);
+    let infcx = genv.tcx.infer_ctxt().build();
+    let mut selcx = SelectionContext::new(&infcx);
 
     // 1c. issue query to find the `impl` block that implements the `Trait`
-    let impl_source = match sel_ctxt.select(&oblig) {
+    let impl_source = match selcx.select(&oblig) {
         Ok(Some(rustc_middle::traits::ImplSource::UserDefined(impl_source))) => impl_source,
         Ok(e) => bug!("invalid selection for {oblig:?} = {e:?}"),
         Err(e) => bug!("error selecting {oblig:?}: {e:?}"),
@@ -378,11 +374,10 @@ fn normalize_with_impl<'tcx>(
     param_env: rustc_middle::ty::ParamEnv<'tcx>,
     alias_ty: &AliasTy,
 ) -> Ty {
-    let GenericArg::Ty(impl_rty) = &alias_ty.args[0] else { bug!("unexpected {alias_ty:?}") };
-    let elem = alias_ty.def_id;
+    let projection_ty = into_rustc_alias_ty(genv.tcx, alias_ty);
 
     // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
-    let impl_source = get_impl_source(genv, elem, impl_rty, param_env);
+    let impl_source = get_impl_source(genv, &projection_ty, param_env);
 
     // 2. Extract the `DefId` corresponding to `elem` from the impl-block
     // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
@@ -390,7 +385,7 @@ fn normalize_with_impl<'tcx>(
         .tcx
         .associated_items(impl_source.impl_def_id)
         .in_definition_order()
-        .find(|item| item.trait_item_def_id == Some(elem))
+        .find(|item| item.trait_item_def_id == Some(alias_ty.def_id))
         .map(|item| item.def_id)
         .unwrap();
 
@@ -411,7 +406,7 @@ fn normalize_with_impl<'tcx>(
         .args[0]
         .as_type()
         .unwrap();
-    let generics = TVarSubst::mk_subst(&src, impl_rty);
+    let generics = TVarSubst::mk_subst(&src, alias_ty.self_ty());
 
     // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
     EarlyBinder(impl_ty).instantiate(&generics, &[])

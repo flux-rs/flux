@@ -1354,6 +1354,11 @@ impl AliasTy {
     ) -> Self {
         AliasTy { def_id, args: args.into(), refine_args: refine_args.into() }
     }
+
+    /// This method work only with associated type projections (i.e., no opaque tpes)
+    pub fn self_ty(&self) -> &Ty {
+        self.args[0].expect_type()
+    }
 }
 
 impl BaseTy {
@@ -1819,7 +1824,7 @@ mod pretty {
                 }
                 TyKind::Alias(AliasKind::Opaque, alias_ty) => {
                     w!(
-                        "Alias(Opaque, {:?}, [{:?}], [{:?}]) ",
+                        "Alias(Opaque, {:?}, [{:?}], [{:?}])",
                         alias_ty.def_id,
                         join!(", ", &alias_ty.args),
                         join!(", ", &alias_ty.refine_args)
