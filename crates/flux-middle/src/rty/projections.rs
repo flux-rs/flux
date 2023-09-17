@@ -68,11 +68,53 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)?;
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
-        match &candidates[..] {
-            [Candidate::ParamEnv(pred) | Candidate::TraitDef(pred)] => Ok(pred.term.clone()),
-            [Candidate::UserDefinedImpl(ty)] => Ok(ty.clone()),
-            [] => bug!("failed to resolve `{obligation:?}` in {:?}", self.def_id),
-            [_, _, ..] => bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id),
+        if candidates.is_empty() {
+            bug!("failed to resolve `{obligation:?}` in {:?}", self.def_id);
+        }
+        if candidates.len() > 1 {
+            bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
+        }
+        self.confirm_candidate(candidates.pop().unwrap(), obligation)
+    }
+
+    fn confirm_candidate(&self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
+        match candidate {
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
+            Candidate::UserDefinedImpl(impl_def_id) => {
+                // Given a projection obligation
+                //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item
+                // and the id of a rust impl block
+                //     impl<T, A: Allocator> Iterator for IntoIter<T, A>
+
+                // 1. Match the self type of the rust impl block and the flux self type of the obligation
+                //    to infer a substitution
+                //        IntoIter<{v. i32[v] | v > 0}, Global> against IntoIter<T, A>
+                //            => {T -> {v. i32[v] | v > 0}, A -> Global}
+                let rustc_self_ty = self
+                    .tcx()
+                    .impl_trait_ref(impl_def_id)
+                    .unwrap()
+                    .skip_binder()
+                    .self_ty();
+                let generics = TVarSubst::mk_subst(&rustc_self_ty, obligation.self_ty());
+
+                // 2. Get the associated type in the impl block and apply the substitution to it
+                let assoc_type_id = self
+                    .tcx()
+                    .associated_items(impl_def_id)
+                    .in_definition_order()
+                    .find(|item| item.trait_item_def_id == Some(obligation.def_id))
+                    .map(|item| item.def_id)
+                    .unwrap();
+                let assoc_ty = self.tcx().type_of(assoc_type_id).instantiate_identity();
+                let assoc_ty = rustc::lowering::lower_ty(self.tcx(), assoc_ty).unwrap();
+                let assoc_ty = self
+                    .genv
+                    .refine_default(&self.genv.generics_of(impl_def_id).unwrap(), &assoc_ty)
+                    .unwrap();
+
+                Ok(EarlyBinder(assoc_ty).instantiate(&generics, &[]))
+            }
         }
     }
 
@@ -111,12 +153,7 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult<()> {
-        // Given a projection obligaton, e.g.,
-        //     <IntoIter<{v. i32[v] | v > 0 }, Global> as Iterator>::Item
-
-        // 1. Find if there's a matchint rust impl block for the trait, e.g.,
-        //        impl<T, A: Allocator> Iterator for IntoIter<T, A>
-        let trait_ref = Obligation {
+        let trait_pred = Obligation {
             cause: ObligationCause::dummy(),
             param_env: self.rustc_param_env(),
             predicate: into_rustc_alias_ty(self.tcx(), obligation)
@@ -124,42 +161,13 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
                 .to_predicate(self.tcx()),
             recursion_depth: 5,
         };
-        let impl_data = match self.selcx.select(&trait_ref) {
-            Ok(Some(ImplSource::UserDefined(impl_data))) => impl_data,
-            Ok(_) => return Ok(()),
-            Err(e) => bug!("error selecting {trait_ref:?}: {e:?}"),
-        };
-
-        // 2. Match the self type of the rust impl block and the flux self type of the projection obligation,
-        //    to infer a substitution,e.g.,
-        //        IntoIter<{v. i32[v] | v > 0}, Global> vs IntoIter<T, A>
-        //             => {T -> {v. i32[v] | v > 0}, A -> Global}
-        let rustc_self_ty = self
-            .tcx()
-            .impl_trait_ref(impl_data.impl_def_id)
-            .unwrap()
-            .skip_binder()
-            .self_ty();
-        let generics = TVarSubst::mk_subst(&rustc_self_ty, obligation.self_ty());
-
-        // 3. Get the associated type in the impl block
-        let assoc_type_id = self
-            .tcx()
-            .associated_items(impl_data.impl_def_id)
-            .in_definition_order()
-            .find(|item| item.trait_item_def_id == Some(obligation.def_id))
-            .map(|item| item.def_id)
-            .unwrap();
-        let assoc_ty = self.tcx().type_of(assoc_type_id).instantiate_identity();
-        let assoc_ty = rustc::lowering::lower_ty(self.tcx(), assoc_ty).unwrap();
-        let assoc_ty = self
-            .genv
-            .refine_default(&self.genv.generics_of(impl_data.impl_def_id).unwrap(), &assoc_ty)
-            .unwrap();
-
-        candidates
-            .push(Candidate::UserDefinedImpl(EarlyBinder(assoc_ty).instantiate(&generics, &[])));
-
+        match self.selcx.select(&trait_pred) {
+            Ok(Some(ImplSource::UserDefined(impl_data))) => {
+                candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
+            }
+            Ok(_) => {}
+            Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+        }
         Ok(())
     }
 
@@ -200,7 +208,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
 }
 
 pub enum Candidate {
-    UserDefinedImpl(Ty),
+    UserDefinedImpl(DefId),
     ParamEnv(ProjectionPredicate),
     TraitDef(ProjectionPredicate),
 }
