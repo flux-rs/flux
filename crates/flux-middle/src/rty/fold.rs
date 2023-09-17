@@ -6,11 +6,14 @@ use std::ops::ControlFlow;
 use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hir::def_id::DefId;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
+    projections,
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
@@ -18,7 +21,9 @@ use super::{
     ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
+    global_env::GlobalEnv,
     intern::{Internable, List},
+    queries::QueryResult,
     rty::{expr::HoleKind, AliasKind, Var, VariantSig},
 };
 
@@ -229,6 +234,18 @@ pub trait TypeFoldable: TypeVisitable {
 
     fn fold_with<F: TypeFolder>(&self, folder: &mut F) -> Self {
         self.try_fold_with(folder).into_ok()
+    }
+
+    fn normalize_projection_types(
+        &self,
+        genv: &GlobalEnv,
+        callsite_def_id: DefId,
+        refine_params: &[Expr],
+    ) -> QueryResult<Self> {
+        let infcx = genv.tcx.infer_ctxt().build();
+        let mut normalizer =
+            projections::Normalizer::new(genv, &infcx, callsite_def_id, refine_params)?;
+        self.try_fold_with(&mut normalizer)
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.

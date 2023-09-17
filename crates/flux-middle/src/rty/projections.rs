@@ -5,10 +5,7 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_infer::{
-    infer::{InferCtxt, TyCtxtInferExt},
-    traits::Obligation,
-};
+use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{ParamTy, ToPredicate, TyCtxt},
@@ -16,7 +13,7 @@ use rustc_middle::{
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
-    fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
+    fold::{FallibleTypeFolder, TypeSuperFoldable},
     AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
     ProjectionPredicate, Region, Ty, TyKind,
 };
@@ -27,18 +24,7 @@ use crate::{
     rustc::ty::{BoundRegionKind, FreeRegion},
 };
 
-pub fn normalize<'sess, T: TypeFoldable>(
-    genv: &'sess GlobalEnv<'sess, '_>,
-    callsite_def_id: DefId,
-    refine_params: &[Expr],
-    t: &T,
-) -> QueryResult<T> {
-    let infcx = genv.tcx.infer_ctxt().build();
-    let mut normalizer = Normalizer::new(genv, &infcx, callsite_def_id, refine_params)?;
-    t.try_fold_with(&mut normalizer)
-}
-
-struct Normalizer<'sess, 'tcx, 'a> {
+pub(crate) struct Normalizer<'sess, 'tcx, 'a> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
     selcx: SelectionContext<'a, 'tcx>,
     def_id: DefId,
@@ -46,7 +32,7 @@ struct Normalizer<'sess, 'tcx, 'a> {
 }
 
 impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
-    fn new(
+    pub(crate) fn new(
         genv: &'sess GlobalEnv<'sess, 'tcx>,
         infcx: &'a InferCtxt<'tcx>,
         callsite_def_id: DefId,
