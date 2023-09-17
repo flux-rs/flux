@@ -191,17 +191,13 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
         // Instantiate function signature and normalize it
-        let inst_fn_sig = rty::projections::normalize(
-            genv,
-            callsite_def_id,
-            infcx.refparams,
-            &fn_sig
-                .instantiate(&generic_args, &refine_args)
-                .replace_bound_vars(
-                    |_| rty::ReVar(rvid_gen.fresh()),
-                    |sort, mode| infcx.fresh_infer_var(sort, mode),
-                ),
-        )?;
+        let inst_fn_sig = fn_sig
+            .instantiate(&generic_args, &refine_args)
+            .replace_bound_vars(
+                |_| rty::ReVar(rvid_gen.fresh()),
+                |sort, mode| infcx.fresh_infer_var(sort, mode),
+            )
+            .normalize_projections(genv, callsite_def_id, infcx.refparams)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
@@ -251,13 +247,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // as we have to recursively walk over their def_id bodies.
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
-                let proj_ty = Ty::projection(projection_pred.projection_ty);
-                let impl_elem = rty::projections::normalize(
-                    infcx.genv,
-                    callsite_def_id,
-                    infcx.refparams,
-                    &proj_ty,
-                )?;
+                let impl_elem = Ty::projection(projection_pred.projection_ty)
+                    .normalize_projections(infcx.genv, callsite_def_id, infcx.refparams)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
@@ -281,7 +272,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = rty::projections::normalize(self.genv, self.def_id, self.refparams, output)?;
+        let output = output.normalize_projections(self.genv, self.def_id, self.refparams)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -629,11 +620,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Ty {
+    fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Result<Ty, CheckerErrKind> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        let proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(self.genv, self.def_id, self.refparams, &proj_ty).unwrap()
+        Ok(Ty::projection(alias_ty).normalize_projections(
+            self.genv,
+            self.def_id,
+            self.refparams,
+        )?)
     }
 
     fn opaque_subtyping(
@@ -652,7 +646,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .instantiate_identity(self.refparams);
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
-                    let ty1 = self.project_bty(ty, pred.projection_ty.def_id);
+                    let ty1 = self.project_bty(ty, pred.projection_ty.def_id)?;
                     let ty2 = pred.term;
                     self.subtyping(rcx, &ty1, &ty2)?;
                 }

@@ -3,122 +3,195 @@ use std::iter;
 #[allow(unused_imports)]
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
+use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
-    traits::{ImplSourceUserDefinedData, ObligationCause},
+    traits::{ImplSource, ObligationCause},
     ty::{ParamTy, ToPredicate, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, Expr, GenericArg, Region, Ty, TyKind,
+    fold::{FallibleTypeFolder, TypeSuperFoldable},
+    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
+    ProjectionPredicate, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
-    intern::List,
-    queries::QueryErr,
-    rty::{fold::TypeVisitable, EarlyBinder},
-    rustc::{
-        self,
-        ty::{BoundRegionKind, FreeRegion},
-    },
+    queries::{QueryErr, QueryResult},
+    rty::fold::TypeVisitable,
+    rustc::ty::{BoundRegionKind, FreeRegion},
 };
 
-type AliasTyKey = String;
-
-impl AliasTy {
-    fn key(&self) -> AliasTyKey {
-        // TODO:ALIASKEYHACK: super janky hack, Nico -- why is the plain hasher not working? Maybe List<GenericArg> is not *really* hashable?
-        format!("{:?}", self)
-    }
-}
-
-struct ProjectionTable<'sess, 'tcx> {
+pub(crate) struct Normalizer<'sess, 'tcx, 'a> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
+    selcx: SelectionContext<'a, 'tcx>,
     def_id: DefId,
-    preds: UnordMap<AliasTyKey, Ty>,
+    param_env: Vec<Clause>,
 }
 
-impl<'sess, 'tcx> ProjectionTable<'sess, 'tcx> {
-    fn new<T: TypeVisitable>(
+impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
+    pub(crate) fn new(
         genv: &'sess GlobalEnv<'sess, 'tcx>,
-        src_def_id: DefId,
-        src_params: &[Expr],
-        t: &T,
-    ) -> Result<Self, QueryErr> {
-        let mut preds = UnordMap::default();
+        infcx: &'a InferCtxt<'tcx>,
+        callsite_def_id: DefId,
+        refine_params: &[Expr],
+    ) -> QueryResult<Self> {
+        let param_env = genv
+            .predicates_of(callsite_def_id)?
+            .instantiate_identity(genv, refine_params)?;
+        let selcx = SelectionContext::new(infcx);
+        Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
+    }
 
-        let mut vec = vec![];
-        // 1. Insert generic predicates of the callsite `callsite_def_id`
-        // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
-        let predicates = genv.predicates_of(src_def_id)?;
-        let param_env = List::from(predicates.instantiate_identity(genv, src_params)?);
-        vec.push(param_env);
-        // 2. Insert generic predicates of the opaque-types
-        for (opaque_def_id, (args, refine_args)) in t.opaque_refine_args() {
-            vec.push(
-                genv.item_bounds(opaque_def_id)?
-                    .instantiate(&args, &refine_args),
-            );
+    fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
+        let mut candidates = vec![];
+        self.assemble_candidates_from_param_env(obligation, &mut candidates);
+        self.assemble_candidates_from_trait_def(obligation, &mut candidates)?;
+        self.assemble_candidates_from_impls(obligation, &mut candidates)?;
+
+        if candidates.is_empty() {
+            bug!("failed to resolve `{obligation:?}` in {:?}", self.def_id);
         }
+        if candidates.len() > 1 {
+            bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
+        }
+        self.confirm_candidate(candidates.pop().unwrap(), obligation)
+    }
 
-        for clauses in vec {
-            for pred in &clauses {
-                if let ClauseKind::Projection(proj_pred) = pred.kind() {
-                    match preds.insert(proj_pred.projection_ty.key(), proj_pred.term) {
-                        None => (),
-                        Some(_) => bug!("duplicate projection predicate"),
-                    }
-                }
+    fn confirm_candidate(&self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
+        match candidate {
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
+            Candidate::UserDefinedImpl(impl_def_id) => {
+                // Given a projection obligation
+                //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item
+                // and the id of a rust impl block
+                //     impl<T, A: Allocator> Iterator for IntoIter<T, A>
+
+                // 1. Match the self type of the rust impl block and the flux self type of the obligation
+                //    to infer a substitution
+                //        IntoIter<{v. i32[v] | v > 0}, Global> against IntoIter<T, A>
+                //            => {T -> {v. i32[v] | v > 0}, A -> Global}
+                let rustc_self_ty = self
+                    .tcx()
+                    .impl_trait_ref(impl_def_id)
+                    .unwrap()
+                    .skip_binder()
+                    .self_ty();
+                let generics = TVarSubst::mk_subst(&rustc_self_ty, obligation.self_ty());
+
+                // 2. Get the associated type in the impl block and apply the substitution to it
+                let assoc_type_id = self
+                    .tcx()
+                    .associated_items(impl_def_id)
+                    .in_definition_order()
+                    .find(|item| item.trait_item_def_id == Some(obligation.def_id))
+                    .map(|item| item.def_id)
+                    .unwrap();
+                Ok(self
+                    .genv
+                    .type_of(assoc_type_id)?
+                    .instantiate(&generics, &[])
+                    .into_ty())
             }
         }
-        Ok(ProjectionTable { genv, def_id: src_def_id, preds })
     }
 
-    fn normalize_with_preds(&self, alias_ty: &AliasTy) -> Option<Ty> {
-        let alias_ty = without_constrs(alias_ty);
-        let key = alias_ty.key();
-        let res = self.preds.get(&key).cloned();
-        // TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn't get found in impl_trait02.rs)
-        res
+    fn assemble_candidates_from_param_env(
+        &self,
+        obligation: &AliasTy,
+        candidates: &mut Vec<Candidate>,
+    ) {
+        assemble_candidates_from_predicates(
+            &self.param_env,
+            obligation,
+            Candidate::ParamEnv,
+            candidates,
+        );
     }
 
-    fn normalize_with_impl(&self, alias_ty: &AliasTy) -> Option<Ty> {
-        let param_env = self.genv.tcx.param_env(self.def_id);
-        Some(normalize_with_impl(self.genv, param_env, alias_ty))
+    fn assemble_candidates_from_trait_def(
+        &self,
+        obligation: &AliasTy,
+        candidates: &mut Vec<Candidate>,
+    ) -> QueryResult<()> {
+        let TyKind::Alias(AliasKind::Opaque, alias_ty) = obligation.self_ty().kind() else {
+            return Ok(());
+        };
+        let bounds = self
+            .genv
+            .item_bounds(alias_ty.def_id)?
+            .instantiate(&alias_ty.args, &alias_ty.refine_args);
+
+        assemble_candidates_from_predicates(&bounds, obligation, Candidate::TraitDef, candidates);
+        Ok(())
     }
 
-    fn normalize_projection(&self, alias_ty: &AliasTy) -> Ty {
-        self.normalize_with_preds(alias_ty)
-            .or_else(|| self.normalize_with_impl(alias_ty))
-            .unwrap_or_else(|| {
-                let def_id = self.def_id;
-                bug!("failed to resolve {alias_ty:?} in {def_id:?}")
-            })
+    fn assemble_candidates_from_impls(
+        &mut self,
+        obligation: &AliasTy,
+        candidates: &mut Vec<Candidate>,
+    ) -> QueryResult<()> {
+        let trait_pred = Obligation {
+            cause: ObligationCause::dummy(),
+            param_env: self.rustc_param_env(),
+            predicate: into_rustc_alias_ty(self.tcx(), obligation)
+                .trait_ref(self.tcx())
+                .to_predicate(self.tcx()),
+            recursion_depth: 5,
+        };
+        match self.selcx.select(&trait_pred) {
+            Ok(Some(ImplSource::UserDefined(impl_data))) => {
+                candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
+            }
+            Ok(_) => {}
+            Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+        }
+        Ok(())
+    }
+
+    fn tcx(&self) -> TyCtxt<'tcx> {
+        self.selcx.tcx()
+    }
+
+    fn rustc_param_env(&self) -> rustc_middle::ty::ParamEnv<'tcx> {
+        self.selcx.tcx().param_env(self.def_id)
     }
 }
-struct WithoutConstrs;
 
-impl TypeFolder for WithoutConstrs {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Constr(_, ty) => ty.fold_with(self),
-            _ => ty.super_fold_with(self),
+fn assemble_candidates_from_predicates(
+    predicates: &[Clause],
+    obligation: &AliasTy,
+    ctor: fn(ProjectionPredicate) -> Candidate,
+    candidates: &mut Vec<Candidate>,
+) {
+    for predicate in predicates {
+        if let ClauseKind::Projection(pred) = predicate.kind() {
+            if &pred.projection_ty == obligation {
+                candidates.push(ctor(pred.clone()));
+            }
         }
     }
 }
-/// Turns each Constr(e, T) into T
-fn without_constrs<T: TypeFoldable>(t: &T) -> T {
-    t.fold_with(&mut WithoutConstrs)
+
+impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
+    type Error = QueryErr;
+
+    fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
+        if let TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
+            self.normalize_projection_ty(alias_ty)
+        } else {
+            ty.try_super_fold_with(self)
+        }
+    }
 }
 
-// -----------------------------------------------------------------------------------------------------
-// Code for normalizing `AliasTy` using impl -----------------------------------------------------------
-// -----------------------------------------------------------------------------------------------------
+pub enum Candidate {
+    UserDefinedImpl(DefId),
+    ParamEnv(ProjectionPredicate),
+    TraitDef(ProjectionPredicate),
+}
 
 fn into_rustc_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
@@ -337,101 +410,4 @@ impl TVarSubst {
             _ => {}
         }
     }
-}
-
-fn get_impl_source<'tcx>(
-    genv: &GlobalEnv<'_, 'tcx>,
-    projection_ty: &rustc_middle::ty::AliasTy<'tcx>,
-    param_env: rustc_middle::ty::ParamEnv<'tcx>,
-) -> ImplSourceUserDefinedData<'tcx, Obligation<'tcx, rustc_middle::ty::Predicate<'tcx>>> {
-    // 1a. build up the `Obligation` query
-    let trait_ref = projection_ty.trait_ref(genv.tcx);
-    let oblig = Obligation {
-        cause: ObligationCause::dummy(), // TODO(RJ): use with_span instead of `dummy`
-        param_env,
-        predicate: trait_ref.to_predicate(genv.tcx),
-        recursion_depth: 5, // TODO(RJ): made up a random number!
-    };
-
-    // 1b. build up the `SelectionContext`
-    let infcx = genv.tcx.infer_ctxt().build();
-    let mut selcx = SelectionContext::new(&infcx);
-
-    // 1c. issue query to find the `impl` block that implements the `Trait`
-    let impl_source = match selcx.select(&oblig) {
-        Ok(Some(rustc_middle::traits::ImplSource::UserDefined(impl_source))) => impl_source,
-        Ok(e) => bug!("invalid selection for {oblig:?} = {e:?}"),
-        Err(e) => bug!("error selecting {oblig:?}: {e:?}"),
-    };
-    impl_source
-}
-
-/// QUERY: normalize `<std::vec::IntoIter<Nat> as std::iter::Iterator::Item>`
-/// Given an an `impl_rty` e.g. `std::vec::IntoIter<Nat>` and an `elem` e.g. `std::iter::Iterator::Item`,
-/// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
-fn normalize_with_impl<'tcx>(
-    genv: &GlobalEnv<'_, 'tcx>,
-    param_env: rustc_middle::ty::ParamEnv<'tcx>,
-    alias_ty: &AliasTy,
-) -> Ty {
-    let projection_ty = into_rustc_alias_ty(genv.tcx, alias_ty);
-
-    // 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
-    let impl_source = get_impl_source(genv, &projection_ty, param_env);
-
-    // 2. Extract the `DefId` corresponding to `elem` from the impl-block
-    // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
-    let impl_id = genv
-        .tcx
-        .associated_items(impl_source.impl_def_id)
-        .in_definition_order()
-        .find(|item| item.trait_item_def_id == Some(alias_ty.def_id))
-        .map(|item| item.def_id)
-        .unwrap();
-
-    // 3. Compute the rty::Ty for `impl_id`
-    let impl_ty = genv.tcx.type_of(impl_id).instantiate_identity();
-    let impl_ty = rustc::lowering::lower_ty(genv.tcx, impl_ty).unwrap();
-    let impl_ty = genv
-        .refine_default(&genv.generics_of(impl_source.impl_def_id).unwrap(), &impl_ty)
-        .unwrap();
-
-    // 4. "Unify" the types of the target of the `src` impl trait (e.g. IntoIter<T>) and `dst` impl_rty (e.g. IntoIter<Nat>)
-    //     to get a `generics` substitution (e.g. `T` -> `Nat`)
-    let src = genv
-        .tcx
-        .impl_trait_ref(impl_source.impl_def_id)
-        .unwrap()
-        .skip_binder()
-        .args[0]
-        .as_type()
-        .unwrap();
-    let generics = TVarSubst::mk_subst(&src, alias_ty.self_ty());
-
-    // 5. Apply the `generics` substitution to the `impl_ty` to get the "resolved" `elem` type
-    EarlyBinder(impl_ty).instantiate(&generics, &[])
-}
-
-// -----------------------------------------------------------------------------------------------------
-// Type folder that recursively normalizes all nested `AliasTy` e.g. in a `FnSig`
-// -----------------------------------------------------------------------------------------------------
-
-impl<'sess, 'tcx> TypeFolder for ProjectionTable<'sess, 'tcx> {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        if let TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
-            self.normalize_projection(alias_ty)
-        } else {
-            ty.super_fold_with(self)
-        }
-    }
-}
-
-pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
-    genv: &'sess GlobalEnv<'sess, '_>,
-    callsite_def_id: DefId,
-    src_params: &[Expr],
-    t: &T,
-) -> Result<T, QueryErr> {
-    let mut table = ProjectionTable::new(genv, callsite_def_id, src_params, t)?;
-    Ok(t.fold_with(&mut table))
 }

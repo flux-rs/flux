@@ -839,6 +839,16 @@ where
     }
 }
 
+impl Binder<Ty> {
+    pub fn into_ty(self) -> Ty {
+        if self.vars.is_empty() {
+            self.value
+        } else {
+            Ty::exists(self)
+        }
+    }
+}
+
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
         self.0

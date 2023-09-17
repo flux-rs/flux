@@ -803,7 +803,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .genv
                     .type_of(param.def_id)?
                     .instantiate(&[], &[])
-                    .replace_bound_exprs(&[rty::Expr::unit()]);
+                    .into_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {
                 bug!("unexpected generic param: {param:?}");
