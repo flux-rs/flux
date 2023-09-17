@@ -236,7 +236,7 @@ pub trait TypeFoldable: TypeVisitable {
         self.try_fold_with(folder).into_ok()
     }
 
-    fn normalize_projection_types(
+    fn normalize_projections(
         &self,
         genv: &GlobalEnv,
         callsite_def_id: DefId,

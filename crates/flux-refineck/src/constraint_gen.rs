@@ -197,7 +197,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |_| rty::ReVar(rvid_gen.fresh()),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projection_types(genv, callsite_def_id, infcx.refparams)?;
+            .normalize_projections(genv, callsite_def_id, infcx.refparams)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
@@ -248,7 +248,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for pred in &obligs {
             if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
                 let impl_elem = Ty::projection(projection_pred.projection_ty)
-                    .normalize_projection_types(infcx.genv, callsite_def_id, infcx.refparams)?;
+                    .normalize_projections(infcx.genv, callsite_def_id, infcx.refparams)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
@@ -272,7 +272,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     ) -> Result<Obligations, CheckerErrKind> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
-        let output = output.normalize_projection_types(self.genv, self.def_id, self.refparams)?;
+        let output = output.normalize_projections(self.genv, self.def_id, self.refparams)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
@@ -623,7 +623,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Result<Ty, CheckerErrKind> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        Ok(Ty::projection(alias_ty).normalize_projection_types(
+        Ok(Ty::projection(alias_ty).normalize_projections(
             self.genv,
             self.def_id,
             self.refparams,
