@@ -273,7 +273,10 @@ fn desugar_impl_item(
 ) -> Result<(), ErrorGuaranteed> {
     match impl_item.kind {
         hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, impl_item.id.owner_id),
-        hir::AssocItemKind::Const | hir::AssocItemKind::Type => Ok(()),
+        hir::AssocItemKind::Type => {
+            desugar::desugar_generics_and_predicates(genv, impl_item.id.owner_id)
+        }
+        hir::AssocItemKind::Const => Ok(()),
     }
 }
 
@@ -284,7 +287,10 @@ fn desugar_trait_item(
 ) -> Result<(), ErrorGuaranteed> {
     match trait_item.kind {
         hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, trait_item.id.owner_id),
-        hir::AssocItemKind::Const | hir::AssocItemKind::Type => Ok(()),
+        hir::AssocItemKind::Type => {
+            desugar::desugar_generics_and_predicates(genv, trait_item.id.owner_id)
+        }
+        hir::AssocItemKind::Const => Ok(()),
     }
 }
 

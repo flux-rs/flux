@@ -202,10 +202,10 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
                 _ => bug!("non-type def"),
             }
         }
-        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum => {
+        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
             let generics = genv.generics_of(def_id)?;
-            let self_ty = genv.lower_type_of(def_id)?.skip_binder();
-            Refiner::default(genv, &generics).refine_poly_ty(&self_ty)?
+            let ty = genv.lower_type_of(def_id)?.skip_binder();
+            Refiner::default(genv, &generics).refine_poly_ty(&ty)?
         }
         kind => {
             bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))

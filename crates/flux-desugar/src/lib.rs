@@ -178,9 +178,9 @@ pub fn desugar_fn_sig(
     Ok(())
 }
 
-/// HACK(nilehmann) this is a bit of a hack we use it to properly register generics and predicates
-/// for items that don't have surface syntax (impl blocks, traits). In this cases we just [lift] them
-/// from hir.
+/// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
+/// for items that don't have surface syntax (impl blocks, traits, ...). In this cases we just [lift]
+/// them from hir.
 pub fn desugar_generics_and_predicates(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,

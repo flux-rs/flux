@@ -23,11 +23,8 @@ use super::{
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::{fold::TypeVisitable, EarlyBinder},
-    rustc::{
-        self,
-        ty::{BoundRegionKind, FreeRegion},
-    },
+    rty::fold::TypeVisitable,
+    rustc::ty::{BoundRegionKind, FreeRegion},
 };
 
 pub fn normalize<'sess, T: TypeFoldable>(
@@ -106,14 +103,11 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
                     .find(|item| item.trait_item_def_id == Some(obligation.def_id))
                     .map(|item| item.def_id)
                     .unwrap();
-                let assoc_ty = self.tcx().type_of(assoc_type_id).instantiate_identity();
-                let assoc_ty = rustc::lowering::lower_ty(self.tcx(), assoc_ty).unwrap();
-                let assoc_ty = self
+                Ok(self
                     .genv
-                    .refine_default(&self.genv.generics_of(impl_def_id).unwrap(), &assoc_ty)
-                    .unwrap();
-
-                Ok(EarlyBinder(assoc_ty).instantiate(&generics, &[]))
+                    .type_of(assoc_type_id)?
+                    .instantiate(&generics, &[])
+                    .into_ty())
             }
         }
     }
