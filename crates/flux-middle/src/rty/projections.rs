@@ -445,7 +445,7 @@ pub fn normalize<'sess, T: TypeFoldable + TypeVisitable + Clone>(
 }
 
 pub enum Candidate {
-    // UserDefinedImpl(DefId),
+    UserDefinedImpl(Ty),
     ParamEnv(ProjectionPredicate),
     TraitDef(ProjectionPredicate),
 }
@@ -463,6 +463,7 @@ fn normalize_projection_ty(
 
     match &candidates[..] {
         [Candidate::ParamEnv(pred) | Candidate::TraitDef(pred)] => Ok(pred.term.clone()),
+        [Candidate::UserDefinedImpl(ty)] => Ok(ty.clone()),
         [] => bug!("failed to resolve `{obligation:?}` in {callsite_def_id:?}"),
         [_, _, ..] => bug!("ambiguity when resolving `{obligation:?}` in {callsite_def_id:?}"),
     }
@@ -498,9 +499,11 @@ fn assemble_candidates_from_impls(
     obligation: &AliasTy,
     candidates: &mut Vec<Candidate>,
 ) -> QueryResult<()> {
-    // Given `<someType as SomeTrait>::SomeItem`
+    // Given a projection obligaton, e.g.,
+    //     <IntoIter<{v. i32[v] | v > 0 }, Global> as Iterator>::Item
 
-    // 1. Check if there is a `impl SomeType for SomeTrait`
+    // 1. Find if there's a matchint rust impl block for the trait, e.g.,
+    //        impl<T, A: Allocator> Iterator for IntoIter<T, A>
     let infcx = genv.tcx.infer_ctxt().build();
     let mut selcx = SelectionContext::new(&infcx);
     let trait_ref = Obligation {
@@ -517,28 +520,35 @@ fn assemble_candidates_from_impls(
         Err(e) => bug!("error selecting {trait_ref:?}: {e:?}"),
     };
 
-    // 2. Get the associated item id for the impl block
-    let assoc_item_id = genv
+    // 2. Match the self type of the rust impl block and the flux self type of the projection obligation,
+    //    to infer a substitution,e.g.,
+    //        IntoIter<{v. i32[v] | v > 0}, Global> vs IntoIter<T, A>
+    //             => {T -> {v. i32[v] | v > 0}, A -> Global}
+    let rustc_self_ty = genv
+        .tcx
+        .impl_trait_ref(impl_data.impl_def_id)
+        .unwrap()
+        .skip_binder()
+        .self_ty();
+    let generics = TVarSubst::mk_subst(&rustc_self_ty, obligation.self_ty());
+
+    // 3. Get the associated type in the impl block
+    let assoc_type_id = genv
         .tcx
         .associated_items(impl_data.impl_def_id)
         .in_definition_order()
         .find(|item| item.trait_item_def_id == Some(obligation.def_id))
         .map(|item| item.def_id)
         .unwrap();
+    let assoc_ty = genv.tcx.type_of(assoc_type_id).instantiate_identity();
+    let assoc_ty = rustc::lowering::lower_ty(genv.tcx, assoc_ty).unwrap();
+    let assoc_ty = genv
+        .refine_default(&genv.generics_of(impl_data.impl_def_id).unwrap(), &assoc_ty)
+        .unwrap();
 
-    // 3. Compute the rty::Ty for `impl_id`
-    // let impl_ty = genv.tcx.type_of(assoc_item_id).instantiate_identity();
-    // let impl_ty = rustc::lowering::lower_ty(genv.tcx, impl_ty).unwrap();
-    // let impl_ty = genv
-    //     .refine_default(&genv.generics_of(impl_source.impl_def_id).unwrap(), &impl_ty)
-    //     .unwrap();
-
-    println!("\n{callsite_def_id:?}\n{assoc_item_id:?}");
-    println!("{impl_data:?}");
+    candidates.push(Candidate::UserDefinedImpl(EarlyBinder(assoc_ty).instantiate(&generics, &[])));
 
     Ok(())
-
-    // todo!()
 }
 
 fn assemble_candidates_from_predicates(
