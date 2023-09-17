@@ -250,46 +250,30 @@ fn desugar_item(
         }
         hir::ItemKind::Trait(.., items) => {
             desugar::desugar_generics_and_predicates(genv, owner_id)?;
-            items
-                .iter()
-                .try_for_each_exhaust(|trait_item| desugar_trait_item(genv, specs, trait_item))?;
+            items.iter().try_for_each_exhaust(|trait_item| {
+                desugar_assoc_item(genv, specs, trait_item.id.owner_id, trait_item.kind)
+            })?;
         }
         hir::ItemKind::Impl(impl_) => {
             desugar::desugar_generics_and_predicates(genv, owner_id)?;
-            impl_
-                .items
-                .iter()
-                .try_for_each_exhaust(|impl_item| desugar_impl_item(genv, specs, impl_item))?;
+            impl_.items.iter().try_for_each_exhaust(|impl_item| {
+                desugar_assoc_item(genv, specs, impl_item.id.owner_id, impl_item.kind)
+            })?;
         }
         _ => {}
     }
     Ok(())
 }
 
-fn desugar_impl_item(
+fn desugar_assoc_item(
     genv: &mut GlobalEnv,
     specs: &mut Specs,
-    impl_item: &hir::ImplItemRef,
+    owner_id: OwnerId,
+    kind: hir::AssocItemKind,
 ) -> Result<(), ErrorGuaranteed> {
-    match impl_item.kind {
-        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, impl_item.id.owner_id),
-        hir::AssocItemKind::Type => {
-            desugar::desugar_generics_and_predicates(genv, impl_item.id.owner_id)
-        }
-        hir::AssocItemKind::Const => Ok(()),
-    }
-}
-
-fn desugar_trait_item(
-    genv: &mut GlobalEnv,
-    specs: &mut Specs,
-    trait_item: &hir::TraitItemRef,
-) -> Result<(), ErrorGuaranteed> {
-    match trait_item.kind {
-        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, trait_item.id.owner_id),
-        hir::AssocItemKind::Type => {
-            desugar::desugar_generics_and_predicates(genv, trait_item.id.owner_id)
-        }
+    match kind {
+        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id),
+        hir::AssocItemKind::Type => desugar::desugar_generics_and_predicates(genv, owner_id),
         hir::AssocItemKind::Const => Ok(()),
     }
 }
