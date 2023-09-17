@@ -266,9 +266,9 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(ty) = genv.cstore().type_of(def_id) {
                 Ok(ty.clone())
             } else {
-                let rustc_ty = genv.lower_type_of(def_id)?.skip_binder();
-                let ty = genv.refine_default(&genv.generics_of(def_id)?, &rustc_ty)?;
-                Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
+                let generics = genv.generics_of(def_id)?;
+                let ty = genv.lower_type_of(def_id)?.skip_binder();
+                Ok(rty::EarlyBinder(Refiner::default(genv, &generics).refine_poly_ty(&ty)?))
             }
         })
     }
