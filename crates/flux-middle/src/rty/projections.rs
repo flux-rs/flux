@@ -120,12 +120,19 @@ fn without_constrs<T: TypeFoldable>(t: &T) -> T {
 // Code for normalizing `AliasTy` using impl -----------------------------------------------------------
 // -----------------------------------------------------------------------------------------------------
 
+fn into_rustc_generic_args<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    args: &[GenericArg],
+) -> rustc_middle::ty::GenericArgsRef<'tcx> {
+    tcx.mk_args_from_iter(args.iter().map(|arg| into_rustc_generic_arg(tcx, arg)))
+}
+
 fn into_rustc_generic_arg<'tcx>(
     tcx: TyCtxt<'tcx>,
-    bty: &GenericArg,
+    arg: &GenericArg,
 ) -> rustc_middle::ty::GenericArg<'tcx> {
     use rustc_middle::ty;
-    match bty {
+    match arg {
         GenericArg::Ty(ty) => ty::GenericArg::from(into_rustc_ty(tcx, ty)),
         GenericArg::BaseTy(bty) => {
             ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
@@ -141,12 +148,33 @@ fn into_rustc_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx>
         TyKind::Exists(ty) => into_rustc_ty(tcx, &ty.clone().skip_binder()),
         TyKind::Constr(_, ty) => into_rustc_ty(tcx, ty),
         TyKind::Param(pty) => pty.to_ty(tcx),
-        TyKind::Alias(_, _) => todo!(),
+        TyKind::Alias(kind, alias_ty) => {
+            rustc_middle::ty::Ty::new_alias(
+                tcx,
+                into_rustc_alias_kind(kind),
+                into_rustc_alias_ty(tcx, alias_ty),
+            )
+        }
         TyKind::Uninit
         | TyKind::Ptr(_, _)
         | TyKind::Discr(_, _)
         | TyKind::Downcast(_, _, _, _, _)
         | TyKind::Blocked(_) => bug!(),
+    }
+}
+
+fn into_rustc_alias_ty<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    alias_ty: &AliasTy,
+) -> rustc_middle::ty::AliasTy<'tcx> {
+    tcx.mk_alias_ty(alias_ty.def_id, into_rustc_generic_args(tcx, &alias_ty.args))
+}
+
+fn into_rustc_alias_kind(kind: &AliasKind) -> rustc_middle::ty::AliasKind {
+    use rustc_middle::ty;
+    match kind {
+        AliasKind::Opaque => ty::AliasKind::Opaque,
+        AliasKind::Projection => ty::AliasKind::Projection,
     }
 }
 
@@ -163,8 +191,7 @@ fn into_rustc_bty<'tcx>(tcx: TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty
         BaseTy::Adt(adt_def, args) => {
             let did = adt_def.did();
             let adt_def = tcx.adt_def(did);
-            let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-            let args = tcx.mk_args_from_iter(args);
+            let args = into_rustc_generic_args(tcx, args);
             ty::Ty::new_adt(tcx, adt_def, args)
         }
         BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
