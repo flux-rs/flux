@@ -1,9 +1,14 @@
 [package]
+autobins = false
 edition = "2021"
 name = "flux-driver"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "flux-driver"
+path = "src/bin/main.rs"
 
 [dependencies]
 flux-common.workspace = true
@@ -23,7 +28,6 @@ tracing-timing = "0.6.0"
 [dependencies.tracing]
 features = ["max_level_debug", "release_max_level_info"]
 version = "0.1"
-
 
 [package.metadata.rust-analyzer]
 rustc_private = true

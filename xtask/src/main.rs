@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 use flux_tests::{find_flux_path, rustc_flags};
 use xshell::{cmd, Shell};
@@ -17,10 +20,7 @@ xflags::xflags! {
             required input: PathBuf
         }
         /// Install flux binaries to ~/.cargo/bin
-        cmd install {
-            /// Force overwriting existing binaries
-            optional -f,--force
-        }
+        cmd install { }
         /// Build the documentation
         cmd doc {
             optional -o,--open
@@ -44,6 +44,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let sh = Shell::new()?;
+    sh.change_dir(project_root());
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
@@ -79,10 +80,9 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn install(sh: Shell, args: Install) -> anyhow::Result<()> {
-    let force = if args.force { "--force" } else { "" };
-    cmd!(sh, "cargo install --path crates/flux-driver {force}").run()?;
-    cmd!(sh, "cargo install --path crates/flux-bin {force}").run()?;
+fn install(sh: Shell, _: Install) -> anyhow::Result<()> {
+    cmd!(sh, "cargo install --path crates/flux-driver --force").run()?;
+    cmd!(sh, "cargo install --path crates/flux-bin --force").run()?;
     Ok(())
 }
 
@@ -93,4 +93,14 @@ fn doc(sh: Shell, args: Doc) -> anyhow::Result<()> {
         opener::open("target/doc/index.html")?;
     }
     Ok(())
+}
+
+fn project_root() -> PathBuf {
+    Path::new(
+        &env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| env!("CARGO_MANIFEST_DIR").to_owned()),
+    )
+    .ancestors()
+    .nth(1)
+    .unwrap()
+    .to_path_buf()
 }
