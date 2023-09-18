@@ -17,6 +17,7 @@ macro_rules! rvec {
 
 #[flux::opaque]
 #[flux::refined_by(len: int)]
+#[flux::invariant(0 <= len)]
 pub struct RVec<T> {
     inner: Vec<T>,
 }
@@ -93,6 +94,16 @@ impl<T> RVec<T> {
         vec
     }
 
+    #[flux::sig(fn(&RVec<T>[@n]) -> RVec<T>[n])]
+    pub fn clone(&self) -> Self
+    where
+        T: Clone,
+    {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+
     #[flux::trusted]
     #[flux::sig(fn(self: &strg RVec<T>[@n], other: &[T][@m]) ensures self: RVec<T>[n + m])]
     pub fn extend_from_slice(&mut self, other: &[T])
@@ -102,6 +113,7 @@ impl<T> RVec<T> {
         self.inner.extend_from_slice(other)
     }
 
+    /*
     #[flux::trusted]
     pub fn map<U, F>(self, f: F) -> RVec<U>
     where
@@ -112,7 +124,27 @@ impl<T> RVec<T> {
             res.push(f(x));
         }
         res
+    } */
+
+    #[flux::sig(fn (&RVec<T>[@n], F) -> RVec<U>[n])]
+    pub fn map<U, F>(&self, f: F) -> RVec<U>
+    where
+        F: Fn(&T) -> U,
+    {
+        RVec {
+            inner: self.inner.iter().map(f).collect(),
+        }
     }
+
+    pub fn fold<B, F>(&self, init: B, f: F) -> B
+    where
+        F: FnMut(B, &T) -> B,
+    {
+        self.inner.iter().fold(init, f)
+    }
+
+
+
 }
 
 #[flux::opaque]
