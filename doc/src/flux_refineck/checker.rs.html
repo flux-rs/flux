@@ -1422,6 +1422,14 @@
 <a href="#1422" id="1422">1422</a>
 <a href="#1423" id="1423">1423</a>
 <a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{
@@ -1437,8 +1445,8 @@
     rty::{
         <span class="self">self</span>, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
         FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
-        Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy,
-        VariantIdx,
+        HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         <span class="self">self</span>,
@@ -1453,7 +1461,10 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId};
+<span class="kw">use </span>rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 <span class="kw">use </span>rustc_index::bit_set::BitSet;
 <span class="kw">use </span>rustc_middle::{mir <span class="kw">as </span>rustc_mir, ty::RegionVid};
 <span class="kw">use </span>rustc_span::Span;
@@ -1479,8 +1490,8 @@
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>GlobalEnv&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     rvid_gen: IndexGen&lt;RegionVid&gt;,
     config: CheckerConfig,
-    <span class="doccomment">/// [`DefId`] of the function being checked, either a closure or a regular function.
-    </span>def_id: DefId,
+    <span class="doccomment">/// [`LocalDefId`] of the function-like item being checked.
+    </span>def_id: LocalDefId,
     <span class="doccomment">/// [`Generics`] of the function being checked.
     </span>generics: Generics,
     <span class="doccomment">/// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
@@ -1488,7 +1499,7 @@
     body: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     <span class="doccomment">/// The type used for the `resume` argument of a generator.
     </span>resume_ty: <span class="prelude-ty">Option</span>&lt;Ty&gt;,
-    ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;DefId, GhostStatements&gt;,
+    ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
     output: Binder&lt;FnOutput&gt;,
     mode: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span><span class="kw-2">mut </span>M,
     <span class="doccomment">/// A snapshot of the refinement context at the end of the basic block after applying the effects
@@ -1502,7 +1513,7 @@
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        def_id: DefId,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
@@ -1527,16 +1538,16 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ShapeMode {
-    bb_envs: FxHashMap&lt;DefId, FxHashMap&lt;BasicBlock, BasicBlockEnvShape&gt;&gt;,
+    bb_envs: FxHashMap&lt;LocalDefId, FxHashMap&lt;BasicBlock, BasicBlockEnvShape&gt;&gt;,
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefineMode {
-    bb_envs: FxHashMap&lt;DefId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt;,
+    bb_envs: FxHashMap&lt;LocalDefId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt;,
     kvars: KVarStore,
 }
 
 <span class="doccomment">/// The result of running the shape phase.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ShapeResult(FxHashMap&lt;DefId, FxHashMap&lt;BasicBlock, BasicBlockEnvShape&gt;&gt;);
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ShapeResult(FxHashMap&lt;LocalDefId, FxHashMap&lt;BasicBlock, BasicBlockEnvShape&gt;&gt;);
 
 <span class="doccomment">/// A `Guard` describes extra &quot;control&quot; information that holds at the start of a successor basic block
 </span><span class="kw">enum </span>Guard {
@@ -1551,8 +1562,8 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; Checker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, ShapeMode&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_shape_mode(
         genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        def_id: DefId,
-        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;DefId, GhostStatements&gt;,
+        def_id: LocalDefId,
+        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ShapeResult, CheckerError&gt; {
         <span class="macro">dbg::shape_mode_span!</span>(genv.tcx, def_id).in_scope(|| {
@@ -1564,7 +1575,7 @@
                 genv,
                 RefineTree::new().as_subtree(),
                 def_id,
-                extra_data,
+                ghost_stmts,
                 <span class="kw-2">&amp;mut </span>mode,
                 fn_sig,
                 <span class="prelude-val">None</span>,
@@ -1579,8 +1590,8 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; Checker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, RefineMode&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_refine_mode(
         genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        def_id: DefId,
-        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;DefId, GhostStatements&gt;,
+        def_id: LocalDefId,
+        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(RefineTree, KVarStore), CheckerError&gt; {
@@ -1596,7 +1607,7 @@
                 genv,
                 refine_tree.as_subtree(),
                 def_id,
-                extra_data,
+                ghost_stmts,
                 <span class="kw-2">&amp;mut </span>mode,
                 fn_sig,
                 <span class="prelude-val">None</span>,
@@ -1613,8 +1624,8 @@
     <span class="kw">fn </span>run(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         <span class="kw-2">mut </span>refine_tree: RefineSubtree&lt;<span class="lifetime">&#39;a</span>&gt;,
-        def_id: DefId,
-        extra_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;DefId, GhostStatements&gt;,
+        def_id: LocalDefId,
+        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
         mode: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>M,
         poly_sig: EarlyBinder&lt;PolyFnSig&gt;,
         refparams: <span class="prelude-ty">Option</span>&lt;List&lt;Expr&gt;&gt;,
@@ -1622,7 +1633,8 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerError&gt; {
         <span class="kw">let </span>span = genv.tcx.def_span(def_id);
 
-        <span class="kw">let </span>body = genv.mir(def_id.expect_local()).with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>generics = genv.generics_of(def_id).with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
 
@@ -1631,16 +1643,12 @@
         <span class="kw">let </span>exprs = <span class="kw">if let </span><span class="prelude-val">Some</span>(exprs) = refparams {
             exprs
         } <span class="kw">else </span>{
-            <span class="kw">let </span>params = genv.refparams_of(def_id).with_span(span)<span class="question-mark">?</span>;
-            List::from_vec(
-                params
-                    .iter()
-                    .map(|param| rcx.define_vars(<span class="kw-2">&amp;</span>param.sort))
-                    .collect_vec(),
-            )
-        };
+            generics
+                .collect_all_refine_params(genv, |param| rcx.define_vars(<span class="kw-2">&amp;</span>param.sort))
+                .with_span(span)<span class="question-mark">?
+        </span>};
 
-        <span class="kw">let </span>poly_sig = poly_sig.instantiate_refparams(<span class="kw-2">&amp;</span>exprs);
+        <span class="kw">let </span>poly_sig = poly_sig.instantiate_identity(<span class="kw-2">&amp;</span>exprs);
 
         <span class="kw">let </span>fn_sig = poly_sig
             .replace_bound_vars(|<span class="kw">_</span>| rty::ReVar(rvid_gen.fresh()), |sort, <span class="kw">_</span>| rcx.define_vars(sort));
@@ -1659,11 +1667,11 @@
             def_id,
             genv,
             rvid_gen,
-            generics: genv.generics_of(def_id).unwrap(),
+            generics,
             refparams: exprs,
             body: <span class="kw-2">&amp;</span>body,
             resume_ty,
-            ghost_stmts: extra_data,
+            ghost_stmts,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             output: fn_sig.output().clone(),
             mode,
@@ -1842,7 +1850,7 @@
                 <span class="kw">let </span>obligs = <span class="self">self
                     </span>.mode
                     .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refparams, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, rcx, span)
-                    .check_ret(rcx, env, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
+                    .check_ret(rcx, env, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
                     .with_span(span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_closure_obligs(rcx, obligs)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
@@ -1943,10 +1951,9 @@
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         actuals: <span class="kw-2">&amp;</span>[Ty],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerError&gt; {
-        <span class="kw">let </span>callsite_def_id = <span class="self">self</span>.def_id;
         <span class="kw">let </span>(output, obligs) = <span class="self">self
             </span>.constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, callsite_def_id, did, fn_sig, generic_args, actuals)
+            .check_fn_call(rcx, env, did, fn_sig, generic_args, actuals)
             .with_span(terminator_span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>output = output.replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
@@ -1977,7 +1984,7 @@
         Checker::run(
             <span class="self">self</span>.genv,
             refine_tree,
-            gen_pred.def_id,
+            gen_pred.def_id.expect_local(),
             <span class="self">self</span>.ghost_stmts,
             <span class="self">self</span>.mode,
             EarlyBinder(poly_sig),
@@ -2000,7 +2007,7 @@
             Checker::run(
                 <span class="self">self</span>.genv,
                 refine_tree,
-                <span class="kw-2">*</span>def_id,
+                def_id.expect_local(),
                 <span class="self">self</span>.ghost_stmts,
                 <span class="self">self</span>.mode,
                 EarlyBinder(poly_sig),
@@ -2158,7 +2165,7 @@
             <span class="kw">let </span>obligs = <span class="self">self
                 </span>.mode
                 .constr_gen(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refparams, <span class="kw-2">&amp;</span><span class="self">self</span>.rvid_gen, <span class="kw-2">&amp;</span>rcx, span)
-                .check_ret(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
+                .check_ret(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
                 .with_span(span)<span class="question-mark">?</span>;
             <span class="self">self</span>.check_closure_obligs(<span class="kw-2">&amp;mut </span>rcx, obligs)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
@@ -2544,79 +2551,24 @@
     }
 }
 
-<span class="kw">fn </span>bool_int_cast(b: <span class="kw-2">&amp;</span>Expr, int_ty: IntTy) -&gt; Ty {
-    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>, <span class="prelude-val">None</span>);
-    Ty::indexed(BaseTy::Int(int_ty), idx)
-}
-
-<span class="kw">fn </span>bool_uint_cast(b: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy) -&gt; Ty {
-    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>, <span class="prelude-val">None</span>);
-    Ty::indexed(BaseTy::Uint(uint_ty), idx)
-}
-
-<span class="kw">fn </span>int_int_cast(idx: <span class="kw-2">&amp;</span>Expr, int_ty1: IntTy, int_ty2: IntTy) -&gt; Ty {
-    <span class="kw">if </span>int_bit_width(int_ty1) &lt;= int_bit_width(int_ty2) {
-        Ty::indexed(BaseTy::Int(int_ty2), idx.clone())
-    } <span class="kw">else </span>{
-        Ty::int(int_ty2)
-    }
-}
-
-<span class="kw">fn </span>uint_int_cast(idx: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy, int_ty: IntTy) -&gt; Ty {
-    <span class="kw">if </span>uint_bit_width(uint_ty) &lt; int_bit_width(int_ty) {
-        Ty::indexed(BaseTy::Int(int_ty), idx.clone())
-    } <span class="kw">else </span>{
-        Ty::int(int_ty)
-    }
-}
-
-<span class="kw">fn </span>uint_uint_cast(idx: <span class="kw-2">&amp;</span>Expr, uint_ty1: UintTy, uint_ty2: UintTy) -&gt; Ty {
-    <span class="kw">if </span>uint_bit_width(uint_ty1) &lt;= uint_bit_width(uint_ty2) {
-        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
-    } <span class="kw">else </span>{
-        Ty::uint(uint_ty2)
-    }
-}
-
-<span class="kw">fn </span>uint_bit_width(uint_ty: UintTy) -&gt; u64 {
-    uint_ty
-        .bit_width()
-        .unwrap_or(config::pointer_width().bits())
-}
-
-<span class="kw">fn </span>int_bit_width(int_ty: IntTy) -&gt; u64 {
-    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
-}
-
-<span class="kw">impl </span>ShapeResult {
-    <span class="kw">fn </span>into_bb_envs(
-        <span class="self">self</span>,
-        kvar_store: <span class="kw-2">&amp;mut </span>KVarStore,
-    ) -&gt; FxHashMap&lt;DefId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt; {
-        <span class="self">self</span>.<span class="number">0
-            </span>.into_iter()
-            .map(|(def_id, shapes)| {
-                <span class="kw">let </span>bb_envs = shapes
-                    .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_store)))
-                    .collect();
-                (def_id, bb_envs)
-            })
-            .collect()
-    }
-}
-
 <span class="kw">impl </span>Mode <span class="kw">for </span>ShapeMode {
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        def_id: DefId,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         _rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
     ) -&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        ConstrGen::new(genv, def_id, refparams, |<span class="kw">_</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], <span class="kw">_</span>| Expr::hole(), rvid_gen, span)
+        ConstrGen::new(
+            genv,
+            def_id.into(),
+            refparams,
+            |<span class="kw">_</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], <span class="kw">_</span>| Expr::hole(HoleKind::Pred),
+            rvid_gen,
+            span,
+        )
     }
 
     <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">&#39;a</span>&gt;(
@@ -2667,7 +2619,7 @@
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        def_id: DefId,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
@@ -2676,7 +2628,7 @@
         <span class="kw">let </span>scope = rcx.scope();
         ConstrGen::new(
             genv,
-            def_id,
+            def_id.into(),
             refparams,
             <span class="kw">move </span>|sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| <span class="self">self</span>.kvars.fresh(sorts, <span class="kw-2">&amp;</span>scope, encoding),
             rvid_gen,
@@ -2706,7 +2658,7 @@
 
         <span class="kw">let </span>gen = <span class="kw-2">&amp;mut </span>ConstrGen::new(
             ck.genv,
-            ck.def_id,
+            ck.def_id.into(),
             <span class="kw-2">&amp;</span>ck.refparams,
             |sorts: <span class="kw-2">&amp;</span><span class="kw">_</span>, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             <span class="kw-2">&amp;</span>ck.rvid_gen,
@@ -2720,6 +2672,68 @@
 
     <span class="kw">fn </span>clear(_ck: <span class="kw-2">&amp;mut </span>Checker&lt;RefineMode&gt;, _bb: BasicBlock) {
         <span class="macro">bug!</span>();
+    }
+}
+
+<span class="kw">fn </span>bool_int_cast(b: <span class="kw-2">&amp;</span>Expr, int_ty: IntTy) -&gt; Ty {
+    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>, <span class="prelude-val">None</span>);
+    Ty::indexed(BaseTy::Int(int_ty), idx)
+}
+
+<span class="kw">fn </span>bool_uint_cast(b: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy) -&gt; Ty {
+    <span class="kw">let </span>idx = Expr::ite(b, <span class="number">1</span>, <span class="number">0</span>, <span class="prelude-val">None</span>);
+    Ty::indexed(BaseTy::Uint(uint_ty), idx)
+}
+
+<span class="kw">fn </span>int_int_cast(idx: <span class="kw-2">&amp;</span>Expr, int_ty1: IntTy, int_ty2: IntTy) -&gt; Ty {
+    <span class="kw">if </span>int_bit_width(int_ty1) &lt;= int_bit_width(int_ty2) {
+        Ty::indexed(BaseTy::Int(int_ty2), idx.clone())
+    } <span class="kw">else </span>{
+        Ty::int(int_ty2)
+    }
+}
+
+<span class="kw">fn </span>uint_int_cast(idx: <span class="kw-2">&amp;</span>Expr, uint_ty: UintTy, int_ty: IntTy) -&gt; Ty {
+    <span class="kw">if </span>uint_bit_width(uint_ty) &lt; int_bit_width(int_ty) {
+        Ty::indexed(BaseTy::Int(int_ty), idx.clone())
+    } <span class="kw">else </span>{
+        Ty::int(int_ty)
+    }
+}
+
+<span class="kw">fn </span>uint_uint_cast(idx: <span class="kw-2">&amp;</span>Expr, uint_ty1: UintTy, uint_ty2: UintTy) -&gt; Ty {
+    <span class="kw">if </span>uint_bit_width(uint_ty1) &lt;= uint_bit_width(uint_ty2) {
+        Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
+    } <span class="kw">else </span>{
+        Ty::uint(uint_ty2)
+    }
+}
+
+<span class="kw">fn </span>uint_bit_width(uint_ty: UintTy) -&gt; u64 {
+    uint_ty
+        .bit_width()
+        .unwrap_or(config::pointer_width().bits())
+}
+
+<span class="kw">fn </span>int_bit_width(int_ty: IntTy) -&gt; u64 {
+    int_ty.bit_width().unwrap_or(config::pointer_width().bits())
+}
+
+<span class="kw">impl </span>ShapeResult {
+    <span class="kw">fn </span>into_bb_envs(
+        <span class="self">self</span>,
+        kvar_store: <span class="kw-2">&amp;mut </span>KVarStore,
+    ) -&gt; FxHashMap&lt;LocalDefId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt; {
+        <span class="self">self</span>.<span class="number">0
+            </span>.into_iter()
+            .map(|(def_id, shapes)| {
+                <span class="kw">let </span>bb_envs = shapes
+                    .into_iter()
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_store)))
+                    .collect();
+                (def_id, bb_envs)
+            })
+            .collect()
     }
 }
 
@@ -2738,9 +2752,9 @@
 /// `fn foo&lt;&#39;a, &#39;b&gt;(x: &amp;&#39;a S&lt;&#39;a&gt;, y: &amp;&#39;b u32)`
 ///
 /// `rustc` will generate variables `?2` and `?3` for the universal regions `&#39;a` and `&#39;b` (the variable
-/// `?0` correspond to `&#39;static` and `?1` to the implicit lifetime of the /// function body). Additionally,
-/// it will assign `x` type &amp;&#39;?4 S&lt;&#39;?5&gt;` and `y` type `&amp;&#39;?6 u32`, together with some constraints relating
-/// region variables.
+/// `?0` correspond to `&#39;static` and `?1` to the implicit lifetime of the function body). Additionally,
+/// it will assign `x` type &amp;&#39;?4 S&lt;&#39;?5&gt;` and `y` type `&amp;&#39;?6 u32` (together with some constraints relating
+/// region variables).
 ///
 /// The exact ids picked for `&#39;a` and `&#39;b` are not too relevant to us, the important part is the regions
 /// used in the types of `x` and `y`. To recover the correct regions, whenever there&#39;s an assignment
@@ -2750,8 +2764,10 @@
 /// by borrow checking.
 ///
 /// The ids generated during refinement type checking are purely instrumental and they should never
-/// appear in a type bound in the environment. Besides generating ids when checking a function&#39;s body,
-/// we also need to generate fresh ids at function calls.
+/// appear in a type bound in the environment.
+///
+/// Besides generating ids when checking a function&#39;s body, we also need to generate fresh ids at
+/// function calls.
 ///
 /// [region variable ids]: RegionVid
 </span><span class="kw">fn </span>init_region_gen(body: <span class="kw-2">&amp;</span>Body) -&gt; IndexGen&lt;RegionVid&gt; {

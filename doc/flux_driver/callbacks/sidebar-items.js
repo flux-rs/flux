@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_crate","def_id_symbol","desugar_fn_sig","desugar_impl_item","desugar_item","desugar_trait_item","is_tool_registered","mir_borrowck","save_metadata","stage1_desugar","stage2_desugar"],"struct":["CrateChecker","FluxCallbacks"]};
+window.SIDEBAR_ITEMS = {"fn":["check_crate","def_id_symbol","desugar_assoc_item","desugar_fn_sig","desugar_item","is_tool_registered","mir_borrowck","save_metadata","stage1_desugar","stage2_desugar"],"struct":["CrateChecker","FluxCallbacks"]};

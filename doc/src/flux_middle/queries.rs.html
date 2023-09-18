@@ -389,14 +389,6 @@
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -406,7 +398,7 @@
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_errors::{FatalError, IntoDiagnostic};
+<span class="kw">use </span>rustc_errors::IntoDiagnostic;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
@@ -600,13 +592,10 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.generics_of)(genv, local_id)
             } <span class="kw">else </span>{
-                <span class="kw">let </span>my_generics = genv.tcx.generics_of(def_id);
-                <span class="kw">let </span>generics = <span class="kw">if let </span><span class="prelude-val">Some</span>(parent_def_id) = my_generics.parent &amp;&amp; genv.tcx.is_trait(parent_def_id) {
-                    genv.tcx.generics_of(parent_def_id)
-                } <span class="kw">else </span>{my_generics};
+                <span class="kw">let </span>generics = genv.tcx.generics_of(def_id);
                 <span class="kw">let </span>generics = lowering::lower_generics(generics)
                     .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(refining::refine_generics(<span class="kw-2">&amp;</span>generics))
+                refining::refine_generics(genv, <span class="kw-2">&amp;</span>generics)
             }
         })
     }
@@ -623,13 +612,10 @@
                 (<span class="self">self</span>.providers.item_bounds)(genv, local_id)
             } <span class="kw">else </span>{
                 <span class="comment">// If there&#39;s any error during lowering we blame the span of the definition of
-                // the opaque type i.e. the span of the `impl Trait`
+                // the opaque type, i.e. the span of the `impl Trait`
                 </span><span class="kw">let </span>span = genv.tcx.def_span(def_id);
                 <span class="kw">let </span>bounds = genv.tcx.item_bounds(def_id).skip_binder();
-
-                <span class="comment">// FIXME(nilehmann) we should propagate this error through the query
-                </span><span class="kw">let </span>clauses = lowering::lower_item_bounds(genv.tcx, genv.sess, bounds, span)
-                    .unwrap_or_else(|<span class="kw">_</span>| FatalError.raise());
+                <span class="kw">let </span>clauses = lowering::lower_item_bounds(genv.tcx, genv.sess, bounds, span)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>clauses =
                     Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>).refine_clauses(<span class="kw-2">&amp;</span>clauses)<span class="question-mark">?</span>;
@@ -650,10 +636,8 @@
                 (<span class="self">self</span>.providers.predicates_of)(genv, local_id)
             } <span class="kw">else </span>{
                 <span class="kw">let </span>predicates = genv.tcx.predicates_of(def_id);
-                <span class="comment">// FIXME(nilehmann) we should propagate this error through the query
-                </span><span class="kw">let </span>predicates =
-                    lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)
-                        .unwrap_or_else(|<span class="kw">_</span>| FatalError.raise());
+                <span class="kw">let </span>predicates =
+                    lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>predicates = Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>)
                     .refine_generic_predicates(<span class="kw-2">&amp;</span>predicates)<span class="question-mark">?</span>;
@@ -673,9 +657,9 @@
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(ty) = genv.cstore().type_of(def_id) {
                 <span class="prelude-val">Ok</span>(ty.clone())
             } <span class="kw">else </span>{
-                <span class="kw">let </span>rustc_ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
-                <span class="kw">let </span>ty = genv.refine_default(<span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
+                <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
+                <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
+                <span class="prelude-val">Ok</span>(rty::EarlyBinder(Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_ty(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>))
             }
         })
     }

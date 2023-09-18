@@ -383,6 +383,15 @@
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
 <a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
 </pre></div><pre class="rust"><code><span class="attr">#![warn(unused_extern_crates)]
 #![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
@@ -405,7 +414,7 @@
 <span class="kw">use </span>flux_errors::ResultExt;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, FluxLocalDefId},
+    fhir::{<span class="self">self</span>, FluxLocalDefId, WfckResults},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryErr, QueryResult},
@@ -552,7 +561,7 @@
                 .map()
                 .get_refine_params(genv.tcx, local_id)
                 .unwrap_or(<span class="kw-2">&amp;</span>[]);
-            <span class="prelude-val">Ok</span>(conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, refine_params, is_trait))
+            conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, refine_params, is_trait)
         }
         DefKind::Closure | DefKind::Generator =&gt; {
             <span class="prelude-val">Ok</span>(rty::Generics {
@@ -560,6 +569,11 @@
                 refine_params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
+                parent_refine_count: rustc_generics
+                    .parent()
+                    .map(|parent| genv.generics_of(parent))
+                    .transpose()<span class="question-mark">?
+                    </span>.map_or(<span class="number">0</span>, |g| g.refine_count()),
             })
         }
         kind =&gt; <span class="macro">bug!</span>(<span class="string">&quot;generics_of called on `{def_id:?}` with kind `{kind:?}`&quot;</span>),
@@ -582,10 +596,10 @@
                 <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;non-type def&quot;</span>),
             }
         }
-        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum =&gt; {
+        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy =&gt; {
             <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>self_ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
-            Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_ty(<span class="kw-2">&amp;</span>self_ty)<span class="question-mark">?
+            <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
+            Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_ty(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
         </span>}
         kind =&gt; {
             <span class="macro">bug!</span>(<span class="string">&quot;`{:?}` not supported&quot;</span>, kind.descr(def_id.to_def_id()))
@@ -686,6 +700,10 @@
             <span class="kw">let </span>opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
             wf::check_opaque_ty(genv, opaque_ty, owner_id)<span class="question-mark">?
         </span>}
+        DefKind::Impl { .. } =&gt; {
+            <span class="comment">// We currently dont support refinements on an impl item, so there&#39;s nothing to check here.
+            </span>WfckResults::new(OwnerId { def_id })
+        }
         DefKind::Closure | DefKind::Generator | DefKind::TyParam =&gt; {
             <span class="kw">let </span>parent = genv.tcx.local_parent(def_id);
             <span class="kw">return </span>genv.check_wf(parent);

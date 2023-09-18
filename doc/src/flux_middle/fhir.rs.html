@@ -2014,8 +2014,8 @@
 <span class="doccomment">/// *Infer*ence *mode* for parameter at function calls
 </span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>InferMode {
-    <span class="doccomment">/// Generate a fresh evar for the parameter and solve it via syntactic unification. The
-    /// parameter must appear as an index for unification to succeed, but otherwise it can appear
+    <span class="doccomment">/// Generate a fresh evar for the parameter and solve it via syntactic unification. The parameter
+    /// must appear at least once as an index for unification to succeed, but otherwise it can appear
     /// (mostly) freely.
     </span>EVar,
     <span class="doccomment">/// Generate a fresh kvar and let fixpoint infer it. This mode can only be used with abstract
@@ -2750,9 +2750,9 @@
 }
 
 <span class="kw">impl </span>WfckResults {
-    <span class="kw">pub fn </span>new(owner: FluxOwnerId) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(owner: <span class="kw">impl </span>Into&lt;FluxOwnerId&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            owner,
+            owner: owner.into(),
             node_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             type_holes: ItemLocalMap::default(),

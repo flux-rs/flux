@@ -1168,6 +1168,12 @@
 <a href="#1168" id="1168">1168</a>
 <a href="#1169" id="1169">1169</a>
 <a href="#1170" id="1170">1170</a>
+<a href="#1171" id="1171">1171</a>
+<a href="#1172" id="1172">1172</a>
+<a href="#1173" id="1173">1173</a>
+<a href="#1174" id="1174">1174</a>
+<a href="#1175" id="1175">1175</a>
+<a href="#1176" id="1176">1176</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1311,7 +1317,7 @@
     generics: <span class="kw-2">&amp;</span>fhir::Generics,
     refine_params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
     is_trait: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;,
-) -&gt; rty::Generics {
+) -&gt; QueryResult&lt;rty::Generics&gt; {
     <span class="kw">let </span>opt_self = is_trait.map(|def_id| {
         rty::GenericParamDef {
             index: <span class="number">0</span>,
@@ -1323,7 +1329,8 @@
     <span class="kw">let </span>params = opt_self
         .into_iter()
         .chain(rust_generics.params.iter().flat_map(|rust_param| {
-            <span class="kw">let </span>param = generics
+            <span class="comment">// We have to filter out late bound parameters
+            </span><span class="kw">let </span>param = generics
                 .params
                 .iter()
                 .find(|param| param.def_id.to_def_id() == rust_param.def_id)<span class="question-mark">?</span>;
@@ -1349,12 +1356,17 @@
         .map(|param| conv_refine_param(genv, param))
         .collect();
 
-    rty::Generics {
+    <span class="prelude-val">Ok</span>(rty::Generics {
         params,
         refine_params,
-        parent_count: rust_generics.parent_count(),
         parent: rust_generics.parent(),
-    }
+        parent_count: rust_generics.parent_count(),
+        parent_refine_count: rust_generics
+            .parent()
+            .map(|parent| genv.generics_of(parent))
+            .transpose()<span class="question-mark">?
+            </span>.map_or(<span class="number">0</span>, |g| g.refine_count()),
+    })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>adt_def_for_struct(
@@ -1757,7 +1769,7 @@
                 <span class="kw">let </span>self_ty = <span class="self">self</span>.conv_ty(env, self_ty.as_deref().unwrap())<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = List::singleton(rty::GenericArg::Ty(self_ty));
                 <span class="kw">let </span>refine_args = List::empty();
-                <span class="kw">let </span>alias_ty = rty::AliasTy { args, def_id, refine_args };
+                <span class="kw">let </span>alias_ty = rty::AliasTy { args, refine_args, def_id };
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
             <span class="comment">// If it is a type parameter with no sort, it means it is of kind `Type`
@@ -1900,7 +1912,7 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.genv
                     .type_of(<span class="kw-2">*</span>alias_to)<span class="question-mark">?
-                    </span>.instantiate_identity()
+                    </span>.instantiate_identity(<span class="kw-2">&amp;</span>[])
                     .replace_bound_expr(<span class="kw-2">&amp;</span>idx.expr));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) =&gt; {
@@ -1967,7 +1979,7 @@
                     </span>.genv
                     .type_of(param.def_id)<span class="question-mark">?
                     </span>.instantiate(<span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span>[])
-                    .replace_bound_exprs(<span class="kw-2">&amp;</span>[rty::Expr::unit()]);
+                    .into_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } <span class="kw">else </span>{
                 <span class="macro">bug!</span>(<span class="string">&quot;unexpected generic param: {param:?}&quot;</span>);

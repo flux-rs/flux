@@ -819,30 +819,6 @@
 <a href="#819" id="819">819</a>
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
-<a href="#822" id="822">822</a>
-<a href="#823" id="823">823</a>
-<a href="#824" id="824">824</a>
-<a href="#825" id="825">825</a>
-<a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a>
-<a href="#828" id="828">828</a>
-<a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a>
-<a href="#832" id="832">832</a>
-<a href="#833" id="833">833</a>
-<a href="#834" id="834">834</a>
-<a href="#835" id="835">835</a>
-<a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{index::IndexGen, tracked_span_bug};
@@ -854,7 +830,7 @@
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr,
-        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, InferMode,
+        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, HoleKind, InferMode,
         Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
@@ -898,7 +874,6 @@
     refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
     kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>),
     evar_gen: EVarGen,
-    rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
     tag: Tag,
     scopes: FxIndexMap&lt;EVarCxId, Scope&gt;,
     obligs: Vec&lt;rty::Clause&gt;,
@@ -995,7 +970,6 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        callsite_def_id: DefId,
         callee_def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
         fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
@@ -1025,39 +999,29 @@
         .collect_vec();
 
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
+        <span class="kw">let </span>callsite_def_id = <span class="self">self</span>.def_id;
+        <span class="kw">let </span>rvid_gen = <span class="self">self</span>.rvid_gen;
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Call);
+        <span class="kw">let </span>snapshot = rcx.snapshot();
 
-        <span class="comment">// Replace holes in generic arguments with fresh kvars
-        </span><span class="kw">let </span>snapshot = rcx.snapshot();
+        <span class="comment">// Replace holes in generic arguments with fresh inference variables
+        </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
 
-        <span class="kw">let </span>generic_args = generic_args
-            .iter()
-            .map(|arg| {
-                arg.replace_holes_for_opaque_args(|def_id| {
-                    infcx.fresh_evars_for_opaque_args(def_id)
-                })
-                .replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj))
-            })
-            .collect_vec();
+        <span class="comment">// Generate fresh inference variables for refinement arguments
+        </span><span class="kw">let </span>refine_args = infcx.instantiate_refine_args(genv, callee_def_id)<span class="question-mark">?</span>;
 
-        <span class="comment">// Generate fresh evars and kvars for refinement parameters
-        </span><span class="kw">let </span>rvid_gen = infcx.rvid_gen;
-
-        <span class="kw">let </span>exprs = infcx.inst_exprs(genv, callee_def_id);
-
-        <span class="kw">let </span>inst_fn_sig = fn_sig
-            .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>exprs)
+        <span class="comment">// Instantiate function signature and normalize it
+        </span><span class="kw">let </span>inst_fn_sig = fn_sig
+            .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
             .replace_bound_vars(
                 |<span class="kw">_</span>| rty::ReVar(rvid_gen.fresh()),
-                |sort, mode| infcx.fresh_evars_or_kvar(sort, mode),
-            );
-
-        <span class="kw">let </span>inst_fn_sig =
-            rty::projections::normalize(genv, callsite_def_id, infcx.refparams, <span class="kw-2">&amp;</span>inst_fn_sig)<span class="question-mark">?</span>;
+                |sort, mode| infcx.fresh_infer_var(sort, mode),
+            )
+            .normalize_projections(genv, callsite_def_id, infcx.refparams)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>obligs = <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
-            mk_obligations(genv, did, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>exprs)<span class="question-mark">?
+            mk_obligations(genv, did, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)<span class="question-mark">?
         </span>} <span class="kw">else </span>{
             List::empty()
         };
@@ -1104,13 +1068,8 @@
         // as we have to recursively walk over their def_id bodies.
         </span><span class="kw">for </span>pred <span class="kw">in </span><span class="kw-2">&amp;</span>obligs {
             <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = pred.kind() {
-                <span class="kw">let </span>proj_ty = Ty::projection(projection_pred.projection_ty);
-                <span class="kw">let </span>impl_elem = rty::projections::normalize(
-                    infcx.genv,
-                    callsite_def_id,
-                    infcx.refparams,
-                    <span class="kw-2">&amp;</span>proj_ty,
-                )<span class="question-mark">?</span>;
+                <span class="kw">let </span>impl_elem = Ty::projection(projection_pred.projection_ty)
+                    .normalize_projections(infcx.genv, callsite_def_id, infcx.refparams)<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 </span>infcx.subtyping(rcx, <span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>projection_pred.term)<span class="question-mark">?</span>;
@@ -1130,18 +1089,16 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        callsite_def_id: DefId,
         output: <span class="kw-2">&amp;</span>Binder&lt;FnOutput&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Obligations, CheckerErrKind&gt; {
         <span class="kw">let </span>ret_place_ty = env.lookup_place(<span class="self">self</span>.genv, rcx, Place::RETURN)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>output =
-            rty::projections::normalize(<span class="self">self</span>.genv, callsite_def_id, <span class="self">self</span>.refparams, output)<span class="question-mark">?</span>;
+        <span class="kw">let </span>output = output.normalize_projections(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="self">self</span>.refparams)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Ret);
 
         <span class="kw">let </span>output =
-            output.replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
+            output.replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
         <span class="kw">for </span>constraint <span class="kw">in </span><span class="kw-2">&amp;</span>output.ensures {
@@ -1167,16 +1124,12 @@
         // as a folding error.
         </span><span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Fold);
 
-        <span class="comment">// Replace holes in generic arguments with fresh kvars
-        </span><span class="kw">let </span>generic_args = generic_args
-            .iter()
-            .map(|arg| arg.replace_holes(|sorts| infcx.fresh_kvar(sorts, KVarEncoding::Conj)))
-            .collect_vec();
+        <span class="comment">// Replace holes in generic arguments with fresh inference variables
+        </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
 
-        <span class="comment">// Generate fresh evars and kvars for refinement parameters
-        </span><span class="kw">let </span>variant = variant
+        <span class="kw">let </span>variant = variant
             .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         <span class="comment">// Check arguments
         </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(fields, variant.fields()) {
@@ -1199,7 +1152,8 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Other);
 
-        <span class="kw">let </span>arr_ty = arr_ty.replace_holes(|sort| infcx.fresh_kvar(sort, KVarEncoding::Conj));
+        <span class="kw">let </span>arr_ty =
+            arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
         <span class="kw">let </span>(arr_ty, pred) = arr_ty.unconstr();
         infcx.check_pred(rcx, pred);
@@ -1231,7 +1185,6 @@
             <span class="self">self</span>.refparams,
             rcx,
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.kvar_gen,
-            <span class="self">self</span>.rvid_gen,
             Tag::new(reason, <span class="self">self</span>.span),
         )
     }
@@ -1244,36 +1197,12 @@
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>),
-        rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         tag: Tag,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = EVarGen::new();
         <span class="kw">let </span><span class="kw-2">mut </span>scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        <span class="self">Self </span>{
-            genv,
-            def_id,
-            refparams,
-            kvar_gen,
-            evar_gen,
-            rvid_gen,
-            tag,
-            scopes,
-            obligs: Vec::new(),
-        }
-    }
-
-    <span class="kw">fn </span>inst_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, callee_def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;) -&gt; Vec&lt;Expr&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(callee_id) = callee_def_id &amp;&amp;
-           <span class="kw">let </span><span class="prelude-val">Ok</span>(params) = genv.refparams_of(callee_id)
-         {
-            params
-                .iter()
-                .map(|param| <span class="self">self</span>.fresh_evars_or_kvar(<span class="kw-2">&amp;</span>param.sort, param.mode))
-                .collect_vec()
-         } <span class="kw">else </span>{
-            <span class="macro">vec!</span>[]
-        }
+        <span class="self">Self </span>{ genv, def_id, refparams, kvar_gen, evar_gen, tag, scopes, obligs: Vec::new() }
     }
 
     <span class="kw">fn </span>obligations(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;rty::Clause&gt; {
@@ -1292,37 +1221,57 @@
         <span class="self">self</span>.scopes.pop();
     }
 
-    <span class="kw">fn </span>fresh_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
-        <span class="self">self</span>.kvar_gen.fresh(sorts, encoding)
+    <span class="kw">fn </span>instantiate_refine_args(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        callee_def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Expr&gt;, CheckerErrKind&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(callee_id) = callee_def_id {
+            <span class="prelude-val">Ok</span>(genv
+                .generics_of(callee_id)<span class="question-mark">?
+                </span>.collect_all_refine_params(genv, |param| {
+                    <span class="self">self</span>.fresh_infer_var(<span class="kw-2">&amp;</span>param.sort, param.mode)
+                })<span class="question-mark">?</span>)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
+        }
     }
 
-    <span class="kw">fn </span>fresh_evars_for_opaque_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: DefId) -&gt; List&lt;Expr&gt; {
-        <span class="self">self</span>.genv
-            .refparams_of_parent(def_id)
-            .unwrap()
-            .iter()
-            .map(|param| <span class="self">self</span>.fresh_evars(<span class="kw-2">&amp;</span>param.sort))
+    <span class="kw">fn </span>instantiate_generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; Vec&lt;GenericArg&gt; {
+        args.iter()
+            .map(|a| a.replace_holes(|binders, kind| <span class="self">self</span>.fresh_infer_var_for_hole(binders, kind)))
             .collect_vec()
-            .into()
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh_infer_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort, mode: InferMode) -&gt; Expr {
+        <span class="kw">match </span>mode {
+            InferMode::KVar =&gt; {
+                <span class="kw">let </span>fsort = sort.expect_func();
+                <span class="kw">let </span>inputs = List::from_slice(fsort.inputs());
+                <span class="kw">let </span>kvar = <span class="self">self</span>.fresh_kvar(<span class="kw-2">&amp;</span>[inputs.clone()], KVarEncoding::Single);
+                Expr::abs(Binder::with_sorts(kvar, inputs.iter().cloned()))
+            }
+            InferMode::EVar =&gt; <span class="self">self</span>.fresh_evars(sort),
+        }
+    }
+
+    <span class="kw">fn </span>fresh_infer_var_for_hole(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: HoleKind) -&gt; Expr {
+        <span class="kw">match </span>kind {
+            HoleKind::Pred =&gt; <span class="self">self</span>.fresh_kvar(binders, KVarEncoding::Conj),
+            HoleKind::Expr(sort) =&gt; {
+                <span class="macro">assert!</span>(binders.is_empty(), <span class="string">&quot;TODO: implement evars under binders&quot;</span>);
+                <span class="self">self</span>.fresh_evars(<span class="kw-2">&amp;</span>sort)
+            }
+        }
+    }
+
+    <span class="kw">fn </span>fresh_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
+        <span class="self">self</span>.kvar_gen.fresh(sorts, encoding)
     }
 
     <span class="kw">fn </span>fresh_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
         <span class="kw">let </span>cx = <span class="kw-2">*</span><span class="self">self</span>.scopes.last().unwrap().<span class="number">0</span>;
         Expr::fold_sort(sort, |<span class="kw">_</span>| Expr::evar(<span class="self">self</span>.evar_gen.fresh_in_cx(cx)))
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh_evars_or_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort, mode: InferMode) -&gt; Expr {
-        <span class="kw">match </span>mode {
-            InferMode::KVar =&gt; {
-                <span class="kw">let </span>fsort = sort.expect_func();
-                <span class="kw">let </span>inputs = List::from_slice(fsort.inputs());
-                Expr::abs(Binder::with_sorts(
-                    <span class="self">self</span>.fresh_kvar(<span class="kw-2">&amp;</span>[inputs.clone()], KVarEncoding::Single),
-                    inputs.iter().cloned(),
-                ))
-            }
-            InferMode::EVar =&gt; <span class="self">self</span>.fresh_evars(sort),
-        }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(<span class="kw-2">&amp;</span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
@@ -1376,7 +1325,7 @@
             (<span class="kw">_</span>, TyKind::Exists(ty2)) =&gt; {
                 <span class="self">self</span>.push_scope(rcx);
                 <span class="kw">let </span>ty2 =
-                    ty2.replace_bound_exprs_with(|sort, mode| <span class="self">self</span>.fresh_evars_or_kvar(sort, mode));
+                    ty2.replace_bound_exprs_with(|sort, mode| <span class="self">self</span>.fresh_infer_var(sort, mode));
                 <span class="self">self</span>.subtyping(rcx, ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
                 <span class="self">self</span>.pop_scope();
                 <span class="prelude-val">Ok</span>(())
@@ -1492,11 +1441,14 @@
         }
     }
 
-    <span class="kw">fn </span>project_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_ty: <span class="kw-2">&amp;</span>Ty, def_id: DefId) -&gt; Ty {
+    <span class="kw">fn </span>project_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_ty: <span class="kw-2">&amp;</span>Ty, def_id: DefId) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
         <span class="kw">let </span>args = <span class="macro">vec!</span>[GenericArg::Ty(self_ty.clone())];
         <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, List::empty());
-        <span class="kw">let </span>proj_ty = Ty::projection(alias_ty);
-        rty::projections::normalize(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="self">self</span>.refparams, <span class="kw-2">&amp;</span>proj_ty).unwrap()
+        <span class="prelude-val">Ok</span>(Ty::projection(alias_ty).normalize_projections(
+            <span class="self">self</span>.genv,
+            <span class="self">self</span>.def_id,
+            <span class="self">self</span>.refparams,
+        )<span class="question-mark">?</span>)
     }
 
     <span class="kw">fn </span>opaque_subtyping(
@@ -1512,10 +1464,10 @@
             <span class="kw">let </span>bounds = <span class="self">self
                 </span>.genv
                 .item_bounds(alias_ty.def_id)<span class="question-mark">?
-                </span>.instantiate_refparams(<span class="self">self</span>.refparams);
+                </span>.instantiate_identity(<span class="self">self</span>.refparams);
             <span class="kw">for </span>clause <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
                 <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind() {
-                    <span class="kw">let </span>ty1 = <span class="self">self</span>.project_bty(ty, pred.projection_ty.def_id);
+                    <span class="kw">let </span>ty1 = <span class="self">self</span>.project_bty(ty, pred.projection_ty.def_id)<span class="question-mark">?</span>;
                     <span class="kw">let </span>ty2 = pred.term;
                     <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
                 }
@@ -1643,12 +1595,12 @@
     genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
     did: DefId,
     args: <span class="kw-2">&amp;</span>[GenericArg],
-    refine: <span class="kw-2">&amp;</span>[Expr],
+    refine_args: <span class="kw-2">&amp;</span>[Expr],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;rty::Clause&gt;, CheckerErrKind&gt; {
     <span class="prelude-val">Ok</span>(genv
         .predicates_of(did)<span class="question-mark">?
         </span>.predicates()
-        .instantiate(args, refine))
+        .instantiate(args, refine_args))
 }
 
 <span class="kw">impl</span>&lt;F&gt; KVarGen <span class="kw">for </span>F

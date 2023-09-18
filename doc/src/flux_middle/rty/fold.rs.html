@@ -1102,23 +1102,6 @@
 <a href="#1102" id="1102">1102</a>
 <a href="#1103" id="1103">1103</a>
 <a href="#1104" id="1104">1104</a>
-<a href="#1105" id="1105">1105</a>
-<a href="#1106" id="1106">1106</a>
-<a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
-<a href="#1110" id="1110">1110</a>
-<a href="#1111" id="1111">1111</a>
-<a href="#1112" id="1112">1112</a>
-<a href="#1113" id="1113">1113</a>
-<a href="#1114" id="1114">1114</a>
-<a href="#1115" id="1115">1115</a>
-<a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a>
-<a href="#1118" id="1118">1118</a>
-<a href="#1119" id="1119">1119</a>
-<a href="#1120" id="1120">1120</a>
-<a href="#1121" id="1121">1121</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1128,21 +1111,24 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
     evars::EVarSol,
     normalize::{Defns, Normalizer},
+    projections,
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
-    GenericPredicates, Index, Invariant, KVar, Name, OpaqueRefineArgs, Opaqueness,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
-    Ty, TyKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
+    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, ProjectionPredicate, PtrKind, Qualifier,
+    ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
+    global_env::GlobalEnv,
     intern::{Internable, List},
-    rty::{AliasKind, Var, VariantSig},
+    queries::QueryResult,
+    rty::{expr::HoleKind, AliasKind, Var, VariantSig},
 };
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
@@ -1314,18 +1300,20 @@
         collector.<span class="number">0
     </span>}
     <span class="doccomment">/// Returns the set of all opaque type aliases def ids
-    </span><span class="kw">fn </span>opaque_refine_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OpaqueRefineArgs {
-        <span class="kw">struct </span>CollectOpaqueRefineArgs(OpaqueRefineArgs);
+    </span><span class="kw">fn </span>opaque_refine_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OpaqueArgsMap {
+        <span class="kw">struct </span>CollectOpaqueRefineArgs(OpaqueArgsMap);
 
         <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>CollectOpaqueRefineArgs {
             <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
                 <span class="kw">if let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.insert(alias_ty.def_id, alias_ty.refine_args.clone()) {
-                        <span class="prelude-val">None </span>=&gt; (),
-                        <span class="prelude-val">Some</span>(refine_args) =&gt; {
-                            <span class="kw">if </span>refine_args != alias_ty.refine_args {
-                                <span class="macro">bug!</span>(<span class="string">&quot;duplicate opaque-refine-arg!&quot;</span>)
-                            }
+                    <span class="kw">let </span>args = <span class="kw-2">&amp;</span>alias_ty.args;
+                    <span class="kw">let </span>refine_args = <span class="kw-2">&amp;</span>alias_ty.refine_args;
+                    <span class="kw">let </span>old = <span class="self">self
+                        </span>.<span class="number">0
+                        </span>.insert(alias_ty.def_id, (args.clone(), refine_args.clone()));
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>((old_args, old_refine_args)) = old {
+                        <span class="kw">if </span>(<span class="kw-2">&amp;</span>old_args, <span class="kw-2">&amp;</span>old_refine_args) != (args, refine_args) {
+                            <span class="macro">bug!</span>(<span class="string">&quot;duplicate opaque-refine-arg!&quot;</span>);
                         }
                     }
                     alias_ty.args.visit_with(<span class="self">self</span>)
@@ -1352,63 +1340,36 @@
         <span class="self">self</span>.try_fold_with(folder).into_ok()
     }
 
+    <span class="kw">fn </span>normalize_projections(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        callsite_def_id: DefId,
+        refine_params: <span class="kw-2">&amp;</span>[Expr],
+    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>infcx = genv.tcx.infer_ctxt().build();
+        <span class="kw">let </span><span class="kw-2">mut </span>normalizer =
+            projections::Normalizer::new(genv, <span class="kw-2">&amp;</span>infcx, callsite_def_id, refine_params)<span class="question-mark">?</span>;
+        <span class="self">self</span>.try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
+    }
+
     <span class="doccomment">/// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
     </span><span class="kw">fn </span>normalize(<span class="kw-2">&amp;</span><span class="self">self</span>, defns: <span class="kw-2">&amp;</span>Defns) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(defns))
     }
 
-    <span class="doccomment">/// Replaces all Opaque-AliasTy holes with fresh-evars obtained from `mk_args` which takes
-    /// as input the DefId of the opaque type, and queries the genv to get the refparams&#39; (sorts).
-    /// Bit gross to do this inside replace_holes as we&#39;d either need a separate closure or somehow
-    /// access to the genv?
-    </span><span class="kw">fn </span>replace_holes_for_opaque_args(<span class="kw-2">&amp;</span><span class="self">self</span>, mk_args: <span class="kw">impl </span>FnMut(DefId) -&gt; List&lt;Expr&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">struct </span>ReplaceOpaqueHoles&lt;F&gt;(F, Vec&lt;()&gt;);
-        <span class="kw">impl</span>&lt;F&gt; TypeFolder <span class="kw">for </span>ReplaceOpaqueHoles&lt;F&gt;
-        <span class="kw">where
-            </span>F: FnMut(DefId) -&gt; List&lt;Expr&gt;,
-        {
-            <span class="kw">fn </span>fold_binder&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;) -&gt; Binder&lt;T&gt; {
-                <span class="self">self</span>.<span class="number">1</span>.push(());
-                <span class="kw">let </span>t = t.super_fold_with(<span class="self">self</span>);
-                <span class="self">self</span>.<span class="number">1</span>.pop();
-                t
-            }
-
-            <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-                <span class="kw">if let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    <span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.<span class="number">1</span>.len(), <span class="number">0</span>);
-                    <span class="kw">let </span>refine_args = (<span class="self">self</span>.<span class="number">0</span>)(alias_ty.def_id);
-                    <span class="kw">let </span>args = alias_ty.args.fold_with(<span class="self">self</span>);
-                    alias_ty.refine_args.iter().for_each(|e| {
-                        <span class="macro">debug_assert!</span>(<span class="macro">matches!</span>(e.kind(), ExprKind::Hole));
-                    });
-                    <span class="macro">debug_assert!</span>(refine_args.len() == alias_ty.refine_args.len());
-                    Ty::alias(
-                        AliasKind::Opaque,
-                        AliasTy { def_id: alias_ty.def_id, args, refine_args },
-                    )
-                } <span class="kw">else </span>{
-                    ty.super_fold_with(<span class="self">self</span>)
-                }
-            }
-        }
-
-        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>ReplaceOpaqueHoles(mk_args, <span class="macro">vec!</span>[]))
-    }
-
-    <span class="doccomment">/// Replaces all [holes] with a fresh predicate generated by calling `mk_pred`. The function
-    /// `mk_pred` takes a list with all the *layers* of [bound] variables at the point the hole was
-    /// found. Each layer corresponds to the list of sorts bound at that level. The list is ordered
-    /// from outermost to innermost binder, i.e., the last element is the binder closest to the hole.
+    <span class="doccomment">/// Replaces all [holes] with the result of calling a closure. The closure takes a list with
+    /// all the *layers* of [bound] variables at the point the hole was found. Each layer corresponds
+    /// to the list of sorts bound at that level. The list is ordered from outermost to innermost
+    /// binder, i.e., the last element is the binder closest to the hole.
     ///
     /// [holes]: ExprKind::Hole
     /// [bound]: Binder
-    </span><span class="kw">fn </span>replace_holes(<span class="kw-2">&amp;</span><span class="self">self</span>, mk_pred: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;]) -&gt; Expr) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>replace_holes(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;], HoleKind) -&gt; Expr) -&gt; <span class="self">Self </span>{
         <span class="kw">struct </span>ReplaceHoles&lt;F&gt;(F, Vec&lt;List&lt;Sort&gt;&gt;);
 
         <span class="kw">impl</span>&lt;F&gt; TypeFolder <span class="kw">for </span>ReplaceHoles&lt;F&gt;
         <span class="kw">where
-            </span>F: FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;]) -&gt; Expr,
+            </span>F: FnMut(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;], HoleKind) -&gt; Expr,
         {
             <span class="kw">fn </span>fold_binder&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;) -&gt; Binder&lt;T&gt; {
                 <span class="self">self</span>.<span class="number">1</span>.push(t.vars().to_sort_list());
@@ -1418,19 +1379,19 @@
             }
 
             <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-                <span class="kw">if let </span>ExprKind::Hole = e.kind() {
-                    <span class="self">self</span>.<span class="number">0</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1</span>)
+                <span class="kw">if let </span>ExprKind::Hole(kind) = e.kind() {
+                    <span class="self">self</span>.<span class="number">0</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1</span>, kind.clone())
                 } <span class="kw">else </span>{
                     e.super_fold_with(<span class="self">self</span>)
                 }
             }
         }
 
-        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>ReplaceHoles(mk_pred, <span class="macro">vec!</span>[]))
+        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>ReplaceHoles(f, <span class="macro">vec!</span>[]))
     }
 
-    <span class="doccomment">/// Turns each [`TyKind::Indexed`] into [`TyKind::Exists`] with a [`hole`] and replaces
-    /// all existing predicates with a [`hole`].
+    <span class="doccomment">/// Turns each [`TyKind::Indexed`] into a [`TyKind::Exists`] with a [`TyKind::Constr`] and a
+    /// [`hole`]. Also replaces all existing predicates with a [`hole`].
     /// For example, `Vec&lt;{v. i32[v] | v &gt; 0}&gt;[n]` becomes `{n. Vec&lt;{v. i32[v] | *}&gt;[n] | *}`.
     ///
     /// [`hole`]: ExprKind::Hole
@@ -1446,13 +1407,15 @@
                         <span class="kw">if </span><span class="self">self</span>.in_exists {
                             ty.super_fold_with(<span class="self">self</span>)
                         } <span class="kw">else </span>{
-                            Ty::exists_with_constr(bty.fold_with(<span class="self">self</span>), Expr::hole())
+                            Ty::exists_with_constr(bty.fold_with(<span class="self">self</span>), Expr::hole(HoleKind::Pred))
                         }
                     }
                     TyKind::Exists(ty) =&gt; {
                         Ty::exists(ty.fold_with(<span class="kw-2">&amp;mut </span>WithHoles { in_exists: <span class="bool-val">true </span>}))
                     }
-                    TyKind::Constr(<span class="kw">_</span>, ty) =&gt; Ty::constr(Expr::hole(), ty.fold_with(<span class="self">self</span>)),
+                    TyKind::Constr(<span class="kw">_</span>, ty) =&gt; {
+                        Ty::constr(Expr::hole(HoleKind::Pred), ty.fold_with(<span class="self">self</span>))
+                    }
                     <span class="kw">_ </span>=&gt; ty.super_fold_with(<span class="self">self</span>),
                 }
             }
@@ -1545,21 +1508,6 @@
 
     <span class="kw">fn </span>super_fold_with&lt;F: TypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.try_super_fold_with(folder).into_ok()
-    }
-}
-
-<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>GenericPredicates {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-        <span class="self">self</span>.predicates.visit_with(visitor)
-    }
-}
-
-<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>GenericPredicates {
-    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="prelude-val">Ok</span>(GenericPredicates {
-            parent: <span class="self">self</span>.parent,
-            predicates: <span class="self">self</span>.predicates.try_fold_with(folder)<span class="question-mark">?</span>,
-        })
     }
 }
 
@@ -2128,7 +2076,7 @@
             ExprKind::KVar(kvar) =&gt; kvar.visit_with(visitor),
             ExprKind::Abs(body) =&gt; body.visit_with(visitor),
             ExprKind::Constant(<span class="kw">_</span>)
-            | ExprKind::Hole
+            | ExprKind::Hole(<span class="kw">_</span>)
             | ExprKind::Local(<span class="kw">_</span>)
             | ExprKind::GlobalFunc(..)
             | ExprKind::ConstDefId(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
@@ -2183,12 +2131,30 @@
                     span,
                 )
             }
-            ExprKind::Hole =&gt; Expr::hole(),
+            ExprKind::Hole(kind) =&gt; Expr::hole(kind.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::KVar(kvar) =&gt; Expr::kvar(kvar.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::Abs(body) =&gt; Expr::abs(body.try_fold_with(folder)<span class="question-mark">?</span>),
             ExprKind::GlobalFunc(func, kind) =&gt; Expr::global_func(<span class="kw-2">*</span>func, <span class="kw-2">*</span>kind),
         };
         <span class="prelude-val">Ok</span>(expr)
+    }
+}
+
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>HoleKind {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            HoleKind::Pred =&gt; ControlFlow::Continue(()),
+            HoleKind::Expr(sort) =&gt; sort.visit_with(visitor),
+        }
+    }
+}
+
+<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>HoleKind {
+    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            HoleKind::Pred =&gt; <span class="prelude-val">Ok</span>(HoleKind::Pred),
+            HoleKind::Expr(sort) =&gt; <span class="prelude-val">Ok</span>(HoleKind::Expr(sort.try_fold_with(folder)<span class="question-mark">?</span>)),
+        }
     }
 }
 

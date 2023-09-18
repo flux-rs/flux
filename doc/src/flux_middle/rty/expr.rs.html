@@ -951,6 +951,31 @@
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
 <a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, slice, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1049,11 +1074,38 @@
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
     ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
     </span>Abs(Binder&lt;Expr&gt;),
-    Hole,
+    <span class="doccomment">/// A hole is an expression that must be inferred either *semantically* by generating a kvar or
+    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or syntactically
+    /// depends on the position it appears: only holes appearing in predicate position can be inferred
+    /// with a kvar (provided it satisfy the fixpoint horn constraints) and only holes used as a refinement
+    /// argument or index (a position that fully determines their value) can be inferred with an evar.
+    ///
+    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound variables
+    /// in this scope. This must be considered when generating an inference variables for them (either evar or kvar).
+    /// In fact, the main reason we have holes is that we want to decouple the places where we generate them,
+    /// (where we don&#39;t want to worry about the scope) and the places where we infer them (where we do need to worry
+    /// about the scope).
+    </span>Hole(HoleKind),
+}
+
+<span class="doccomment">/// The position where a hole appears. This determines how it will be inferred. This is related but not
+/// quite the same as the [`InferMode`].
+///
+/// [`InferMode`]: super::InferMode
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+</span><span class="kw">pub enum </span>HoleKind {
+    <span class="doccomment">/// A hole in predicate position (e.g., the predicate in a [`TyKind::Constr`]). It will be inferred by
+    /// generating a kvar.
+    ///
+    /// [`TyKind::Constr`]: super::TyKind::Constr
+    </span>Pred,
+    <span class="doccomment">/// A hole used as a refinement argument or index. It will be inferred by generating an evar. The
+    /// expression filling the hole must have the provided sort.
+    </span>Expr(Sort),
 }
 
 <span class="doccomment">/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
-/// fixpoint makes a diference between the first and the rest of the variables, the first one being
+/// fixpoint makes a diference between the first and the rest of the arguments, the first one being
 /// the kvar&#39;s *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1109,9 +1161,7 @@
 <span class="kw">impl </span>Expr {
     <span class="kw">pub fn </span>at_base(<span class="self">self</span>, base: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
         <span class="kw">let </span>kind = <span class="self">self</span>.kind();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(base) = base
-        {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(espan) = <span class="self">self</span>.espan &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(base) = base {
             kind.clone().intern_at(<span class="prelude-val">Some</span>(espan.with_base(base)))
         } <span class="kw">else </span>{
             <span class="self">self
@@ -1272,8 +1322,8 @@
         ExprKind::Abs(body).intern()
     }
 
-    <span class="kw">pub fn </span>hole() -&gt; Expr {
-        ExprKind::Hole.intern()
+    <span class="kw">pub fn </span>hole(kind: HoleKind) -&gt; Expr {
+        ExprKind::Hole(kind).intern()
     }
 
     <span class="kw">pub fn </span>kvar(kvar: KVar) -&gt; Expr {
@@ -1801,7 +1851,7 @@
                 ExprKind::IfThenElse(p, e1, e2) =&gt; {
                     <span class="macro">w!</span>(<span class="string">&quot;if {:?} {{ {:?} }} else {{ {:?} }}&quot;</span>, p, e1, e2)
                 }
-                ExprKind::Hole =&gt; {
+                ExprKind::Hole(<span class="kw">_</span>) =&gt; {
                     <span class="macro">w!</span>(<span class="string">&quot;*&quot;</span>)
                 }
                 ExprKind::KVar(kvar) =&gt; {

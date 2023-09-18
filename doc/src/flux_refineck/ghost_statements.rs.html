@@ -188,7 +188,7 @@
 };
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
-<span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
+<span class="kw">use </span>rustc_hir::def_id::LocalDefId;
 <span class="kw">use </span>rustc_middle::{mir::Location, ty::TyCtxt};
 
 <span class="kw">use </span><span class="kw">crate</span>::fold_unfold;
@@ -216,10 +216,10 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>compute_ghost_statements(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     def_id: LocalDefId,
-) -&gt; QueryResult&lt;UnordMap&lt;DefId, GhostStatements&gt;&gt; {
+) -&gt; QueryResult&lt;UnordMap&lt;LocalDefId, GhostStatements&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>data = UnordMap::default();
     <span class="kw">for </span>def_id <span class="kw">in </span>all_nested_bodies(genv.tcx, def_id) {
-        data.insert(def_id.to_def_id(), GhostStatements::new(genv, def_id)<span class="question-mark">?</span>);
+        data.insert(def_id, GhostStatements::new(genv, def_id)<span class="question-mark">?</span>);
     }
     <span class="prelude-val">Ok</span>(data)
 }

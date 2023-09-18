@@ -363,18 +363,6 @@
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, rc::Rc};
 
 <span class="kw">use </span>flux_common::bug;
@@ -484,27 +472,15 @@
         <span class="self">self</span>.queries.check_wf(<span class="self">self</span>, flux_id.into())
     }
 
-    <span class="kw">pub fn </span>refparams_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;List&lt;rty::RefineParam&gt;&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.generics_of(def_id)<span class="question-mark">?</span>.refine_params.clone())
-    }
-
-    <span class="kw">pub fn </span>refparams_of_parent(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-    ) -&gt; QueryResult&lt;List&lt;rty::RefineParam&gt;&gt; {
-        <span class="kw">let </span>parent = <span class="self">self</span>.tcx.parent(def_id.into());
-        <span class="self">self</span>.refparams_of(parent)
-    }
-
     <span class="kw">pub fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {
         <span class="self">self</span>.queries.generics_of(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>predicates_of(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
-        <span class="self">self</span>.queries.predicates_of(<span class="self">self</span>, def_id)
+        <span class="self">self</span>.queries.predicates_of(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
@@ -718,7 +694,7 @@
             <span class="kw">let </span>sort = bty.sort();
             <span class="kw">let </span><span class="kw-2">mut </span>ty = rty::Ty::indexed(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
             <span class="kw">if </span>!sort.is_unit() {
-                ty = rty::Ty::constr(rty::Expr::hole(), ty);
+                ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
             }
             rty::Binder::with_sort(ty, sort)
         })

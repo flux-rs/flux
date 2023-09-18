@@ -687,7 +687,6 @@
 <a href="#687" id="687">687</a>
 <a href="#688" id="688">688</a>
 <a href="#689" id="689">689</a>
-<a href="#690" id="690">690</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -711,7 +710,7 @@
 };
 <span class="kw">use </span>itertools::{<span class="self">self</span>, Itertools};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-<span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_span::Span;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -770,8 +769,7 @@
     tags_inv: UnordMap&lt;T, TagIdx&gt;,
     <span class="doccomment">/// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
-    </span><span class="comment">// FIXME(nilehmann) this should be a `LocalDefId`.
-    </span>def_id: DefId,
+    </span>def_id: LocalDefId,
 }
 
 <span class="kw">struct </span>FixpointKVar {
@@ -806,7 +804,7 @@
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
 {
-    <span class="kw">pub fn </span>new(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, def_id: DefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, def_id: LocalDefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>name_gen = IndexGen::new();
         <span class="kw">let </span>const_map = fixpoint_const_map(genv);
         <span class="self">Self </span>{
@@ -880,7 +878,7 @@
 
         <span class="kw">let </span>qualifiers = <span class="self">self
             </span>.genv
-            .qualifiers(<span class="self">self</span>.def_id.expect_local())<span class="question-mark">?
+            .qualifiers(<span class="self">self</span>.def_id)<span class="question-mark">?
             </span>.map(|qual| qualifier_to_fixpoint(span, <span class="kw-2">&amp;</span><span class="self">self</span>.const_map, qual))
             .collect();
 
@@ -1295,7 +1293,7 @@
                 ]))
             }
             rty::ExprKind::Var(<span class="kw">_</span>)
-            | rty::ExprKind::Hole
+            | rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(<span class="kw">_</span>)
             | rty::ExprKind::Local(<span class="kw">_</span>)
             | rty::ExprKind::Abs(<span class="kw">_</span>)

@@ -790,7 +790,7 @@
                 <span class="self">self</span>.wfckresults.lifetime_holes_mut().insert(fhir_id, res);
             }
             fhir::Lifetime::Hole(<span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;unexpected hole in lifted lifetime&quot;</span>)
+                <span class="macro">bug!</span>(<span class="string">&quot;unexpected hole in lifted lifetime&quot;</span>);
             }
         }
     }

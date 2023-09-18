@@ -377,9 +377,9 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// HACK(nilehmann) this is a bit of a hack we use it to properly register generics and predicates
-/// for items that don&#39;t have surface syntax (impl blocks, traits). In this cases we just [lift] them
-/// from hir.
+<span class="doccomment">/// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
+/// for items that don&#39;t have surface syntax (impl blocks, traits, ...). In this cases we just [lift]
+/// them from hir.
 </span><span class="kw">pub fn </span>desugar_generics_and_predicates(
     genv: <span class="kw-2">&amp;mut </span>GlobalEnv,
     owner_id: OwnerId,

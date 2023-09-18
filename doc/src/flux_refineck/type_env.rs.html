@@ -739,6 +739,7 @@
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
 <a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>projection;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -752,8 +753,8 @@
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
-        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, Mutability, Path, PtrKind,
-        Ref, Region, Ty, TyKind, INNERMOST,
+        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
+        PtrKind, Ref, Region, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -913,7 +914,7 @@
 
         <span class="kw">let </span>bb_env = bb_env
             .data
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_evars_or_kvar(sort, mode));
+            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
 
         <span class="comment">// Check constraints
         </span><span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>bb_env.constrs {
@@ -1015,7 +1016,7 @@
             TyKind::Indexed(bty, idxs) =&gt; {
                 <span class="kw">let </span>bty = BasicBlockEnvShape::pack_bty(scope, bty);
                 <span class="kw">if </span>scope.has_free_vars(idxs) {
-                    Ty::exists_with_constr(bty, Expr::hole())
+                    Ty::exists_with_constr(bty, Expr::hole(HoleKind::Pred))
                 } <span class="kw">else </span>{
                     Ty::indexed(bty, idxs.clone())
                 }
@@ -1189,7 +1190,7 @@
                 <span class="kw">if </span>sorts.is_empty() {
                     Ty::indexed(bty, idx)
                 } <span class="kw">else </span>{
-                    <span class="kw">let </span>ty = Ty::constr(Expr::hole(), Ty::indexed(bty, idx));
+                    <span class="kw">let </span>ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
                     Ty::exists(Binder::with_sorts(ty, sorts))
                 }
             }
@@ -1305,7 +1306,7 @@
         <span class="comment">// Replace all holes with a single fresh kvar on all parameters
         </span><span class="kw">let </span><span class="kw-2">mut </span>constrs = preds
             .into_iter()
-            .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole))
+            .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
             .collect_vec();
 
         <span class="kw">let </span>outter_sorts = vars.to_sort_list();
@@ -1314,7 +1315,8 @@
         constrs.push(kvar);
 
         <span class="comment">// Replace remaning holes by fresh kvars
-        </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>]| {
+        </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
+            <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
             <span class="kw">let </span>sorts = std::iter::once(outter_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();

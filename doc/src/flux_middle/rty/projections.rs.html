@@ -411,134 +411,214 @@
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
 </span><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
+<span class="kw">use </span>rustc_infer::{infer::InferCtxt, traits::Obligation};
 <span class="kw">use </span>rustc_middle::{
-    traits::{ImplSourceUserDefinedData, ObligationCause},
-    ty::{ParamTy, ToPredicate, TraitRef, TyCtxt},
+    traits::{ImplSource, ObligationCause},
+    ty::{ParamTy, ToPredicate, TyCtxt},
 };
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
 <span class="kw">use super</span>::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, ClauseKind, Expr, GenericArg, Region, Ty, TyKind,
+    fold::{FallibleTypeFolder, TypeSuperFoldable},
+    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
+    ProjectionPredicate, Region, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
-    queries::QueryErr,
-    rty::{fold::TypeVisitable, EarlyBinder},
-    rustc::{
-        <span class="self">self</span>,
-        ty::{BoundRegionKind, FreeRegion},
-    },
+    queries::{QueryErr, QueryResult},
+    rty::fold::TypeVisitable,
+    rustc::ty::{BoundRegionKind, FreeRegion},
 };
 
-<span class="kw">type </span>AliasTyKey = String;
-
-<span class="kw">impl </span>AliasTy {
-    <span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AliasTyKey {
-        <span class="comment">// TODO:ALIASKEYHACK: super janky hack, Nico -- why is the plain hasher not working? Maybe List&lt;GenericArg&gt; is not *really* hashable?
-        </span><span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="self">self</span>)
-    }
-}
-
-<span class="kw">struct </span>ProjectionTable&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    selcx: SelectionContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
-    preds: UnordMap&lt;AliasTyKey, Ty&gt;,
+    param_env: Vec&lt;Clause&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; ProjectionTable&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>new&lt;T: TypeVisitable&gt;(
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; Normalizer&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        src_def_id: DefId,
-        src_params: <span class="kw-2">&amp;</span>[Expr],
-        t: <span class="kw-2">&amp;</span>T,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, QueryErr&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>preds = UnordMap::default();
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        callsite_def_id: DefId,
+        refine_params: <span class="kw-2">&amp;</span>[Expr],
+    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>param_env = genv
+            .predicates_of(callsite_def_id)<span class="question-mark">?
+            </span>.instantiate_identity(genv, refine_params)<span class="question-mark">?</span>;
+        <span class="kw">let </span>selcx = SelectionContext::new(infcx);
+        <span class="prelude-val">Ok</span>(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
+    }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>vec = <span class="macro">vec!</span>[];
-        <span class="comment">// 1. Insert generic predicates of the callsite `callsite_def_id`
-        // TODO-EARLY vec.push(genv.predicates_of(callsite_def_id)?.skip_binder().predicates);
-        </span><span class="kw">let </span>predicates = genv.predicates_of(src_def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>param_env = predicates.instantiate_refparams(src_params);
-        vec.push(param_env.predicates);
-        <span class="comment">// 2. Insert generic predicates of the opaque-types
-        </span><span class="kw">for </span>(opaque_def_id, refine_args) <span class="kw">in </span>t.opaque_refine_args() {
-            vec.push(
-                genv.item_bounds(opaque_def_id)<span class="question-mark">?
-                    </span>.instantiate_refparams(<span class="kw-2">&amp;</span>refine_args),
-            );
+    <span class="kw">fn </span>normalize_projection_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
+        <span class="self">self</span>.assemble_candidates_from_param_env(obligation, <span class="kw-2">&amp;mut </span>candidates);
+        <span class="self">self</span>.assemble_candidates_from_trait_def(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
+        <span class="self">self</span>.assemble_candidates_from_impls(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
+
+        <span class="kw">if </span>candidates.is_empty() {
+            <span class="macro">bug!</span>(<span class="string">&quot;failed to resolve `{obligation:?}` in {:?}&quot;</span>, <span class="self">self</span>.def_id);
         }
+        <span class="kw">if </span>candidates.len() &gt; <span class="number">1 </span>{
+            <span class="macro">bug!</span>(<span class="string">&quot;ambiguity when resolving `{obligation:?}` in {:?}&quot;</span>, <span class="self">self</span>.def_id);
+        }
+        <span class="self">self</span>.confirm_candidate(candidates.pop().unwrap(), obligation)
+    }
 
-        <span class="kw">for </span>clauses <span class="kw">in </span>vec {
-            <span class="kw">for </span>pred <span class="kw">in </span><span class="kw-2">&amp;</span>clauses {
-                <span class="kw">if let </span>ClauseKind::Projection(proj_pred) = pred.kind() {
-                    <span class="kw">match </span>preds.insert(proj_pred.projection_ty.key(), proj_pred.term) {
-                        <span class="prelude-val">None </span>=&gt; (),
-                        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;duplicate projection predicate&quot;</span>),
-                    }
-                }
+    <span class="kw">fn </span>confirm_candidate(<span class="kw-2">&amp;</span><span class="self">self</span>, candidate: Candidate, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+        <span class="kw">match </span>candidate {
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) =&gt; <span class="prelude-val">Ok</span>(pred.term),
+            Candidate::UserDefinedImpl(impl_def_id) =&gt; {
+                <span class="comment">// Given a projection obligation
+                //     &lt;IntoIter&lt;{v. i32[v] | v &gt; 0}, Global&gt; as Iterator&gt;::Item
+                // and the id of a rust impl block
+                //     impl&lt;T, A: Allocator&gt; Iterator for IntoIter&lt;T, A&gt;
+
+                // 1. Match the self type of the rust impl block and the flux self type of the obligation
+                //    to infer a substitution
+                //        IntoIter&lt;{v. i32[v] | v &gt; 0}, Global&gt; against IntoIter&lt;T, A&gt;
+                //            =&gt; {T -&gt; {v. i32[v] | v &gt; 0}, A -&gt; Global}
+                </span><span class="kw">let </span>rustc_self_ty = <span class="self">self
+                    </span>.tcx()
+                    .impl_trait_ref(impl_def_id)
+                    .unwrap()
+                    .skip_binder()
+                    .self_ty();
+                <span class="kw">let </span>generics = TVarSubst::mk_subst(<span class="kw-2">&amp;</span>rustc_self_ty, obligation.self_ty());
+
+                <span class="comment">// 2. Get the associated type in the impl block and apply the substitution to it
+                </span><span class="kw">let </span>assoc_type_id = <span class="self">self
+                    </span>.tcx()
+                    .associated_items(impl_def_id)
+                    .in_definition_order()
+                    .find(|item| item.trait_item_def_id == <span class="prelude-val">Some</span>(obligation.def_id))
+                    .map(|item| item.def_id)
+                    .unwrap();
+                <span class="prelude-val">Ok</span>(<span class="self">self
+                    </span>.genv
+                    .type_of(assoc_type_id)<span class="question-mark">?
+                    </span>.instantiate(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>[])
+                    .into_ty())
             }
         }
-        <span class="prelude-val">Ok</span>(ProjectionTable { genv, def_id: src_def_id, preds })
     }
 
-    <span class="kw">fn </span>normalize_with_preds(<span class="kw-2">&amp;</span><span class="self">self</span>, alias_ty: <span class="kw-2">&amp;</span>AliasTy) -&gt; <span class="prelude-ty">Option</span>&lt;Ty&gt; {
-        <span class="kw">let </span>alias_ty = without_constrs(alias_ty);
-        <span class="kw">let </span>key = alias_ty.key();
-        <span class="kw">let </span>res = <span class="self">self</span>.preds.get(<span class="kw-2">&amp;</span>key).cloned();
-        <span class="comment">// TODO:ALIASKEYHACK (uncomment below to see the mysterious key that doesn&#39;t get found in impl_trait02.rs)
-        </span>res
+    <span class="kw">fn </span>assemble_candidates_from_param_env(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+        candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
+    ) {
+        assemble_candidates_from_predicates(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.param_env,
+            obligation,
+            Candidate::ParamEnv,
+            candidates,
+        );
     }
 
-    <span class="kw">fn </span>normalize_with_impl(<span class="kw-2">&amp;</span><span class="self">self</span>, alias_ty: <span class="kw-2">&amp;</span>AliasTy) -&gt; <span class="prelude-ty">Option</span>&lt;Ty&gt; {
-        <span class="kw">let </span>param_env = <span class="self">self</span>.genv.tcx.param_env(<span class="self">self</span>.def_id);
-        <span class="prelude-val">Some</span>(normalize_with_impl(<span class="self">self</span>.genv, param_env, alias_ty))
+    <span class="kw">fn </span>assemble_candidates_from_trait_def(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+        candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
+    ) -&gt; QueryResult&lt;()&gt; {
+        <span class="kw">let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = obligation.self_ty().kind() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        };
+        <span class="kw">let </span>bounds = <span class="self">self
+            </span>.genv
+            .item_bounds(alias_ty.def_id)<span class="question-mark">?
+            </span>.instantiate(<span class="kw-2">&amp;</span>alias_ty.args, <span class="kw-2">&amp;</span>alias_ty.refine_args);
+
+        assemble_candidates_from_predicates(<span class="kw-2">&amp;</span>bounds, obligation, Candidate::TraitDef, candidates);
+        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>normalize_projection(<span class="kw-2">&amp;</span><span class="self">self</span>, alias_ty: <span class="kw-2">&amp;</span>AliasTy) -&gt; Ty {
-        <span class="self">self</span>.normalize_with_preds(alias_ty)
-            .or_else(|| <span class="self">self</span>.normalize_with_impl(alias_ty))
-            .unwrap_or_else(|| {
-                <span class="kw">let </span>def_id = <span class="self">self</span>.def_id;
-                <span class="macro">bug!</span>(<span class="string">&quot;failed to resolve {alias_ty:?} in {def_id:?}&quot;</span>)
-            })
+    <span class="kw">fn </span>assemble_candidates_from_impls(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+        candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
+    ) -&gt; QueryResult&lt;()&gt; {
+        <span class="kw">let </span>trait_pred = Obligation {
+            cause: ObligationCause::dummy(),
+            param_env: <span class="self">self</span>.rustc_param_env(),
+            predicate: into_rustc_alias_ty(<span class="self">self</span>.tcx(), obligation)
+                .trait_ref(<span class="self">self</span>.tcx())
+                .to_predicate(<span class="self">self</span>.tcx()),
+            recursion_depth: <span class="number">5</span>,
+        };
+        <span class="kw">match </span><span class="self">self</span>.selcx.select(<span class="kw-2">&amp;</span>trait_pred) {
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ImplSource::UserDefined(impl_data))) =&gt; {
+                candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
+            }
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {}
+            <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;error selecting {trait_pred:?}: {e:?}&quot;</span>),
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>tcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+        <span class="self">self</span>.selcx.tcx()
+    }
+
+    <span class="kw">fn </span>rustc_param_env(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_middle::ty::ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+        <span class="self">self</span>.selcx.tcx().param_env(<span class="self">self</span>.def_id)
     }
 }
-<span class="kw">struct </span>WithoutConstrs;
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>WithoutConstrs {
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="kw">match </span>ty.kind() {
-            TyKind::Constr(<span class="kw">_</span>, ty) =&gt; ty.fold_with(<span class="self">self</span>),
-            <span class="kw">_ </span>=&gt; ty.super_fold_with(<span class="self">self</span>),
+<span class="kw">fn </span>assemble_candidates_from_predicates(
+    predicates: <span class="kw-2">&amp;</span>[Clause],
+    obligation: <span class="kw-2">&amp;</span>AliasTy,
+    ctor: <span class="kw">fn</span>(ProjectionPredicate) -&gt; Candidate,
+    candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
+) {
+    <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
+        <span class="kw">if let </span>ClauseKind::Projection(pred) = predicate.kind() {
+            <span class="kw">if </span><span class="kw-2">&amp;</span>pred.projection_ty == obligation {
+                candidates.push(ctor(pred.clone()));
+            }
         }
     }
 }
-<span class="doccomment">/// Turns each Constr(e, T) into T
-</span><span class="kw">fn </span>without_constrs&lt;T: TypeFoldable&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; T {
-    t.fold_with(<span class="kw-2">&amp;mut </span>WithoutConstrs)
+
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">type </span>Error = QueryErr;
+
+    <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">if let </span>TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
+            <span class="self">self</span>.normalize_projection_ty(alias_ty)
+        } <span class="kw">else </span>{
+            ty.try_super_fold_with(<span class="self">self</span>)
+        }
+    }
 }
 
-<span class="comment">// -----------------------------------------------------------------------------------------------------
-// Code for normalizing `AliasTy` using impl -----------------------------------------------------------
-// -----------------------------------------------------------------------------------------------------
+<span class="kw">pub enum </span>Candidate {
+    UserDefinedImpl(DefId),
+    ParamEnv(ProjectionPredicate),
+    TraitDef(ProjectionPredicate),
+}
 
-</span><span class="kw">fn </span>into_rustc_generic_arg&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+<span class="kw">fn </span>into_rustc_generic_args&lt;<span class="lifetime">&#39;tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    bty: <span class="kw-2">&amp;</span>GenericArg,
+    args: <span class="kw-2">&amp;</span>[GenericArg],
+) -&gt; rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    tcx.mk_args_from_iter(args.iter().map(|arg| into_rustc_generic_arg(tcx, arg)))
+}
+
+<span class="kw">fn </span>into_rustc_generic_arg&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    arg: <span class="kw-2">&amp;</span>GenericArg,
 ) -&gt; rustc_middle::ty::GenericArg&lt;<span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">use </span>rustc_middle::ty;
-    <span class="kw">match </span>bty {
+    <span class="kw">match </span>arg {
         GenericArg::Ty(ty) =&gt; ty::GenericArg::from(into_rustc_ty(tcx, ty)),
         GenericArg::BaseTy(bty) =&gt; {
             ty::GenericArg::from(into_rustc_ty(tcx, <span class="kw-2">&amp;</span>bty.clone().skip_binder()))
@@ -554,12 +634,33 @@
         TyKind::Exists(ty) =&gt; into_rustc_ty(tcx, <span class="kw-2">&amp;</span>ty.clone().skip_binder()),
         TyKind::Constr(<span class="kw">_</span>, ty) =&gt; into_rustc_ty(tcx, ty),
         TyKind::Param(pty) =&gt; pty.to_ty(tcx),
-        TyKind::Alias(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+        TyKind::Alias(kind, alias_ty) =&gt; {
+            rustc_middle::ty::Ty::new_alias(
+                tcx,
+                into_rustc_alias_kind(kind),
+                into_rustc_alias_ty(tcx, alias_ty),
+            )
+        }
         TyKind::Uninit
         | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
         | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
         | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
         | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
+    }
+}
+
+<span class="kw">fn </span>into_rustc_alias_ty&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    alias_ty: <span class="kw-2">&amp;</span>AliasTy,
+) -&gt; rustc_middle::ty::AliasTy&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    tcx.mk_alias_ty(alias_ty.def_id, into_rustc_generic_args(tcx, <span class="kw-2">&amp;</span>alias_ty.args))
+}
+
+<span class="kw">fn </span>into_rustc_alias_kind(kind: <span class="kw-2">&amp;</span>AliasKind) -&gt; rustc_middle::ty::AliasKind {
+    <span class="kw">use </span>rustc_middle::ty;
+    <span class="kw">match </span>kind {
+        AliasKind::Opaque =&gt; ty::AliasKind::Opaque,
+        AliasKind::Projection =&gt; ty::AliasKind::Projection,
     }
 }
 
@@ -576,8 +677,7 @@
         BaseTy::Adt(adt_def, args) =&gt; {
             <span class="kw">let </span>did = adt_def.did();
             <span class="kw">let </span>adt_def = tcx.adt_def(did);
-            <span class="kw">let </span>args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-            <span class="kw">let </span>args = tcx.mk_args_from_iter(args);
+            <span class="kw">let </span>args = into_rustc_generic_args(tcx, args);
             ty::Ty::new_adt(tcx, adt_def, args)
         }
         BaseTy::Float(f) =&gt; ty::Ty::new_float(tcx, <span class="kw-2">*</span>f),
@@ -723,107 +823,5 @@
             <span class="kw">_ </span>=&gt; {}
         }
     }
-}
-
-<span class="kw">fn </span>get_impl_source&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    elem: DefId,
-    impl_rty: <span class="kw-2">&amp;</span>Ty,
-    param_env: rustc_middle::ty::ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; ImplSourceUserDefinedData&lt;<span class="lifetime">&#39;tcx</span>, Obligation&lt;<span class="lifetime">&#39;tcx</span>, rustc_middle::ty::Predicate&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt; {
-    <span class="comment">// 1a. build up the `Obligation` query
-    </span><span class="kw">let </span>trait_def_id = genv.tcx.parent(elem);
-    <span class="kw">let </span>trait_ref = TraitRef::new(genv.tcx, trait_def_id, <span class="macro">vec!</span>[into_rustc_ty(genv.tcx, impl_rty)]);
-    <span class="kw">let </span>predicate = trait_ref.to_predicate(genv.tcx);
-
-    <span class="kw">let </span>oblig = Obligation {
-        cause: ObligationCause::dummy(), <span class="comment">// TODO(RJ): use with_span instead of `dummy`
-        </span>param_env,
-        predicate,
-        recursion_depth: <span class="number">5</span>, <span class="comment">// TODO(RJ): made up a random number!
-    </span>};
-
-    <span class="comment">// 1b. build up the `SelectionContext`
-    </span><span class="kw">let </span>inf_ctxt = genv.tcx.infer_ctxt().build();
-    <span class="kw">let </span><span class="kw-2">mut </span>sel_ctxt = SelectionContext::new(<span class="kw-2">&amp;</span>inf_ctxt);
-
-    <span class="comment">// 1c. issue query to find the `impl` block that implements the `Trait`
-    </span><span class="kw">let </span>impl_source = <span class="kw">match </span>sel_ctxt.select(<span class="kw-2">&amp;</span>oblig) {
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rustc_middle::traits::ImplSource::UserDefined(impl_source))) =&gt; impl_source,
-        <span class="prelude-val">Ok</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;invalid selection for {oblig:?} = {e:?}&quot;</span>),
-        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;error selecting {oblig:?}: {e:?}&quot;</span>),
-    };
-    impl_source
-}
-
-<span class="doccomment">/// QUERY: normalize `&lt;std::vec::IntoIter&lt;Nat&gt; as std::iter::Iterator::Item&gt;`
-/// Given an an `impl_rty` e.g. `std::vec::IntoIter&lt;Nat&gt;` and an `elem` e.g. `std::iter::Iterator::Item`,
-/// returns the component of the `impl_rty` that corresponds to the `elem`, e.g. `Nat`.
-</span><span class="kw">fn </span>normalize_with_impl&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    param_env: rustc_middle::ty::ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    alias_ty: <span class="kw-2">&amp;</span>AliasTy,
-) -&gt; Ty {
-    <span class="kw">let </span>GenericArg::Ty(impl_rty) = <span class="kw-2">&amp;</span>alias_ty.args[<span class="number">0</span>] <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">&quot;unexpected {alias_ty:?}&quot;</span>) };
-    <span class="kw">let </span>elem = alias_ty.def_id;
-
-    <span class="comment">// 1. Use elem == Trait::Item to find the impl-block corresponding to the implementation of `Trait` for the `impl_rty`
-    </span><span class="kw">let </span>impl_source = get_impl_source(genv, elem, impl_rty, param_env);
-
-    <span class="comment">// 2. Extract the `DefId` corresponding to `elem` from the impl-block
-    // TODO(RJ): is there a faster way to get the def_id of an associated item from an impl?
-    </span><span class="kw">let </span>impl_id = genv
-        .tcx
-        .associated_items(impl_source.impl_def_id)
-        .in_definition_order()
-        .find(|item| item.trait_item_def_id == <span class="prelude-val">Some</span>(elem))
-        .map(|item| item.def_id)
-        .unwrap();
-
-    <span class="comment">// 3. Compute the rty::Ty for `impl_id`
-    </span><span class="kw">let </span>impl_ty = genv.tcx.type_of(impl_id).instantiate_identity();
-    <span class="kw">let </span>impl_ty = rustc::lowering::lower_ty(genv.tcx, impl_ty).unwrap();
-    <span class="kw">let </span>impl_ty = genv
-        .refine_default(<span class="kw-2">&amp;</span>genv.generics_of(impl_source.impl_def_id).unwrap(), <span class="kw-2">&amp;</span>impl_ty)
-        .unwrap();
-
-    <span class="comment">// 4. &quot;Unify&quot; the types of the target of the `src` impl trait (e.g. IntoIter&lt;T&gt;) and `dst` impl_rty (e.g. IntoIter&lt;Nat&gt;)
-    //     to get a `generics` substitution (e.g. `T` -&gt; `Nat`)
-    </span><span class="kw">let </span>src = genv
-        .tcx
-        .impl_trait_ref(impl_source.impl_def_id)
-        .unwrap()
-        .skip_binder()
-        .args[<span class="number">0</span>]
-        .as_type()
-        .unwrap();
-    <span class="kw">let </span>generics = TVarSubst::mk_subst(<span class="kw-2">&amp;</span>src, impl_rty);
-
-    <span class="comment">// 5. Apply the `generics` substitution to the `impl_ty` to get the &quot;resolved&quot; `elem` type
-    </span>EarlyBinder(impl_ty).instantiate(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>[])
-}
-
-<span class="comment">// -----------------------------------------------------------------------------------------------------
-// Type folder that recursively normalizes all nested `AliasTy` e.g. in a `FnSig`
-// -----------------------------------------------------------------------------------------------------
-
-</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; TypeFolder <span class="kw">for </span>ProjectionTable&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="kw">if let </span>TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
-            <span class="self">self</span>.normalize_projection(alias_ty)
-        } <span class="kw">else </span>{
-            ty.super_fold_with(<span class="self">self</span>)
-        }
-    }
-}
-
-<span class="kw">pub fn </span>normalize&lt;<span class="lifetime">&#39;sess</span>, T: TypeFoldable + TypeVisitable + Clone&gt;(
-    genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;_</span>&gt;,
-    callsite_def_id: DefId,
-    src_params: <span class="kw-2">&amp;</span>[Expr],
-    t: <span class="kw-2">&amp;</span>T,
-) -&gt; <span class="prelude-ty">Result</span>&lt;T, QueryErr&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>table = ProjectionTable::new(genv, callsite_def_id, src_params, t)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(t.fold_with(<span class="kw-2">&amp;mut </span>table))
 }
 </code></pre></div></section></main></body></html>

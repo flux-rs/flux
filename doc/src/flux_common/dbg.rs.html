@@ -152,7 +152,7 @@
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>_shape_mode_span {
     (<span class="macro-nonterminal">$tcx</span>:expr, <span class="macro-nonterminal">$def_id</span>:expr) =&gt; {{
-        <span class="kw">let </span>path = <span class="macro-nonterminal">$tcx</span>.def_path(<span class="macro-nonterminal">$def_id</span>);
+        <span class="kw">let </span>path = <span class="macro-nonterminal">$tcx</span>.def_path(rustc_hir::def_id::DefId::from(<span class="macro-nonterminal">$def_id</span>));
         <span class="kw">let </span>def_id = path.data.iter().join(<span class="string">&quot;::&quot;</span>);
         <span class="macro">tracing::info_span!</span>(<span class="string">&quot;shape&quot;</span>, def_id = def_id.as_str())
     }};
@@ -162,7 +162,7 @@
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>_refine_mode_span {
     (<span class="macro-nonterminal">$tcx</span>:expr, <span class="macro-nonterminal">$def_id</span>:expr, <span class="macro-nonterminal">$bb_envs</span>:expr) =&gt; {{
-        <span class="kw">let </span>path = <span class="macro-nonterminal">$tcx</span>.def_path(<span class="macro-nonterminal">$def_id</span>);
+        <span class="kw">let </span>path = <span class="macro-nonterminal">$tcx</span>.def_path(rustc_hir::def_id::DefId::from(<span class="macro-nonterminal">$def_id</span>));
         <span class="kw">let </span>def_id = path.data.iter().join(<span class="string">&quot;::&quot;</span>);
         <span class="macro">tracing::info_span!</span>(<span class="string">&quot;refine&quot;</span>, def_id = def_id.as_str(), bb_envs = <span class="question-mark">?</span><span class="macro-nonterminal">$bb_envs</span>)
     }};
@@ -172,7 +172,7 @@
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>_check_fn_span {
     (<span class="macro-nonterminal">$tcx</span>:expr, <span class="macro-nonterminal">$def_id</span>:expr) =&gt; {{
-        <span class="kw">let </span>path = <span class="macro-nonterminal">$tcx</span>.def_path(<span class="macro-nonterminal">$def_id</span>);
+        <span class="kw">let </span>path = <span class="macro-nonterminal">$tcx</span>.def_path(rustc_hir::def_id::DefId::from(<span class="macro-nonterminal">$def_id</span>));
         <span class="kw">let </span>def_id = path.data.iter().join(<span class="string">&quot;::&quot;</span>);
         <span class="macro">tracing::info_span!</span>(<span class="string">&quot;check_fn&quot;</span>, def_id = def_id.as_str())
     }};
