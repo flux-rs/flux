@@ -1,7 +1,9 @@
 [workspace]
+members = ["crates/*", "xtask"]
 resolver = "2"
 
-members = ["crates/*", "xtask"]
+[workspace.package]
+edition = "2021"
 
 [workspace.dependencies]
 flux-attrs = { path = "./crates/flux-attrs", version = "0.1.0" }
