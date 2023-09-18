@@ -15,7 +15,7 @@ The only way to use `flux` is to build it from source.
 First you need to clone the repository
 
 ```bash
-git clone https://github.com/liquid-rust/flux
+git clone https://github.com/flux-rs/flux
 cd flux
 ```
 

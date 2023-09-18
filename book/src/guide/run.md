@@ -101,7 +101,7 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
     "cargo-flux",
     "check",
     "--workspace",
-    "--message-format=json"
+    "--message-format=json-diagnostic-rendered-ansi"
   ]
 }
 ```
