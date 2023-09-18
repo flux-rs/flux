@@ -447,17 +447,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.gather_output_params_fn_sig(self.genv, fn_sig)?;
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, binders);
 
-        let ensures = match &fn_sig.ensures {
-            Some(ensures) => self.desugar_ensures(&ensures, binders)?,
-            None => vec![],
-        };
+        let ensures = self.desugar_ensures(&fn_sig.ensures, binders)?;
 
-
-        let output = fhir::FnOutput {
-            params: binders.pop_layer().into_params(self),
-            ret: ret?,
-            ensures,
-        };
+        let output =
+            fhir::FnOutput { params: binders.pop_layer().into_params(self), ret: ret?, ensures };
 
         let fn_sig = fhir::FnSig {
             params: binders.pop_layer().into_params(self),
@@ -489,6 +482,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let pred = self.as_expr_ctxt().desugar_expr(binders, e)?;
                 Ok(vec![fhir::Constraint::Pred(pred)])
             }
+            surface::Ensures::None => Ok(vec![]),
         }
     }
 
@@ -1310,7 +1304,7 @@ impl Binders {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
             self.gather_params_ty(genv, None, ty, TypePos::Output)?;
         }
-        if let Some( surface::Ensures::Binds(binds) ) = &fn_sig.ensures {
+        if let surface::Ensures::Binds(binds) = &fn_sig.ensures {
             for (_, ty) in binds {
                 self.gather_params_ty(genv, None, ty, TypePos::Output)?;
             }

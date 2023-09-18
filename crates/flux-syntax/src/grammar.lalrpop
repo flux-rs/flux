@@ -149,6 +149,7 @@ pub FnSig: surface::FnSig = {
     <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
+        let ensures = ensures.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         let returns = if let Some(ty) = returns {
             surface::FnRetTy::Ty(ty)

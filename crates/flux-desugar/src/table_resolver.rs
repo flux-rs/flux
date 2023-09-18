@@ -156,6 +156,23 @@ impl<'sess> Resolver<'sess> {
         Ok(TraitRef { path: self.resolve_path(trait_ref.path)? })
     }
 
+    fn resolve_ensures(
+        &self,
+        ensures: surface::Ensures,
+    ) -> Result<surface::Ensures<Res>, ErrorGuaranteed> {
+        match ensures {
+            surface::Ensures::Binds(binds) => {
+                let mut res = vec![];
+                for (ident, ty) in binds {
+                    res.push((ident, self.resolve_ty(ty)?));
+                }
+                Ok(surface::Ensures::Binds(res))
+            }
+            surface::Ensures::Cond(e) => Ok(surface::Ensures::Cond(e)),
+            surface::Ensures::None => Ok(surface::Ensures::None),
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn resolve_fn_sig(
         &self,
@@ -169,21 +186,7 @@ impl<'sess> Resolver<'sess> {
             .map(|arg| self.resolve_arg(arg))
             .try_collect_exhaust();
 
-        let ensures = if let Some(ensures) = fn_sig.ensures {
-            match ensures {
-                surface::Ensures::Binds(binds) => {
-                   let mut res = vec![];
-                   for (ident, ty) in binds {
-                       res.push((ident, self.resolve_ty(ty)?));
-                   }
-                   Some(surface::Ensures::Binds(res))
-                }
-                surface::Ensures::Cond(e) => {
-                   Some(surface::Ensures::Cond(e))
-                },
-            }
-        } else {None};
-
+        let ensures = self.resolve_ensures(fn_sig.ensures)?;
 
         let predicates = fn_sig
             .predicates
