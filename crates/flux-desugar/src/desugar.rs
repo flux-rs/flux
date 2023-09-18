@@ -490,31 +490,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 Ok(vec![fhir::Constraint::Pred(pred)])
             }
         }
-        // CUT let ensures = fn_sig
-        // CUT    .ensures
-        //     .iter()
-        //     .map(|(bind, ty)| {
-        //         let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
-        //         let ty = self.desugar_ty(None, ty, binders);
-        //         Ok(fhir::Constraint::Type(loc?, ty?))
-        //     })
-        //     .try_collect_exhaust();
-
-        // if let Some(ensures) = fn_sig.ensures {
-        //     match ensures {
-        //         surface::Ensures::Binds(cstrs) => {
-        //             let cstrs = cstrs.iter().map(|(bind, ty)| {
-        //                 let loc = self.as_expr_ctxt().resolve_loc(binders, *bind)?;
-        //                 let ty = self.desugar_ty(None, ty, binders)?;
-        //                 fhir::Constraint::Type(loc, ty)
-        //             }).try_collect_exhaust()?;
-        //             // Ok(cstrs)
-        //         }
-        //         surface::Ensures::Cond(_) => todo!(),
-        //     }
-        // } else {
-        //     vec![]
-        // };
     }
 
     fn desugar_fun_arg(
