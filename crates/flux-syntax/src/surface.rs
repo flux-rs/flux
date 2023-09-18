@@ -153,8 +153,7 @@ pub struct FnSig<R = ()> {
     pub args: Vec<Arg<R>>,
     /// example `i32{v:v >= 0}`
     pub returns: FnRetTy<R>,
-    /// example: `*x: i32{v. v = n+1}`
-    // pub ensures: Vec<(Ident, Ty<R>)>,
+    /// example: `*x: i32{v. v = n+1}` or just `x > 10`
     pub ensures: Ensures<R>,
     /// example: `where I: Iterator<Item = i32{v:0<=v}>`
     pub predicates: Vec<WhereBoundPredicate<R>>,
