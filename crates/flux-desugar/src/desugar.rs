@@ -446,19 +446,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.push_layer();
         binders.gather_output_params_fn_sig(self.genv, fn_sig)?;
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, binders);
-        let ensures = fn_sig
-            .ensures
-            .iter()
-            .map(|(bind, ty)| {
-                let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
-                let ty = self.desugar_ty(None, ty, binders);
-                Ok(fhir::Constraint::Type(loc?, ty?))
-            })
-            .try_collect_exhaust();
+
+        let ensures = match &fn_sig.ensures {
+            Some(ensures) => self.desugar_ensures(&ensures, binders)?,
+            None => vec![],
+        };
+
+
         let output = fhir::FnOutput {
             params: binders.pop_layer().into_params(self),
             ret: ret?,
-            ensures: ensures?,
+            ensures,
         };
 
         let fn_sig = fhir::FnSig {
@@ -469,8 +467,54 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             span: fn_sig.span,
             lifted: false,
         };
-
         Ok((generic_preds, fn_sig))
+    }
+
+    fn desugar_ensures(
+        &mut self,
+        ensures: &surface::Ensures<Res>,
+        binders: &mut Binders,
+    ) -> Result<Vec<fhir::Constraint>, ErrorGuaranteed> {
+        match ensures {
+            surface::Ensures::Binds(cstrs) => {
+                let mut res = vec![];
+                for (bind, ty) in cstrs {
+                    let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
+                    let ty = self.desugar_ty(None, ty, binders);
+                    res.push(fhir::Constraint::Type(loc?, ty?))
+                }
+                Ok(res)
+            }
+            surface::Ensures::Cond(e) => {
+                let pred = self.as_expr_ctxt().desugar_expr(binders, e)?;
+                Ok(vec![fhir::Constraint::Pred(pred)])
+            }
+        }
+        // CUT let ensures = fn_sig
+        // CUT    .ensures
+        //     .iter()
+        //     .map(|(bind, ty)| {
+        //         let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
+        //         let ty = self.desugar_ty(None, ty, binders);
+        //         Ok(fhir::Constraint::Type(loc?, ty?))
+        //     })
+        //     .try_collect_exhaust();
+
+        // if let Some(ensures) = fn_sig.ensures {
+        //     match ensures {
+        //         surface::Ensures::Binds(cstrs) => {
+        //             let cstrs = cstrs.iter().map(|(bind, ty)| {
+        //                 let loc = self.as_expr_ctxt().resolve_loc(binders, *bind)?;
+        //                 let ty = self.desugar_ty(None, ty, binders)?;
+        //                 fhir::Constraint::Type(loc, ty)
+        //             }).try_collect_exhaust()?;
+        //             // Ok(cstrs)
+        //         }
+        //         surface::Ensures::Cond(_) => todo!(),
+        //     }
+        // } else {
+        //     vec![]
+        // };
     }
 
     fn desugar_fun_arg(
@@ -1291,8 +1335,10 @@ impl Binders {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
             self.gather_params_ty(genv, None, ty, TypePos::Output)?;
         }
-        for (_, ty) in &fn_sig.ensures {
-            self.gather_params_ty(genv, None, ty, TypePos::Output)?;
+        if let Some( surface::Ensures::Binds(binds) ) = &fn_sig.ensures {
+            for (_, ty) in binds {
+                self.gather_params_ty(genv, None, ty, TypePos::Output)?;
+            }
         }
         Ok(())
     }

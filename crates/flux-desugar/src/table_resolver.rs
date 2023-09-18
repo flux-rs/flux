@@ -169,11 +169,21 @@ impl<'sess> Resolver<'sess> {
             .map(|arg| self.resolve_arg(arg))
             .try_collect_exhaust();
 
-        let ensures = fn_sig
-            .ensures
-            .into_iter()
-            .map(|(loc, ty)| Ok((loc, self.resolve_ty(ty)?)))
-            .try_collect_exhaust();
+        let ensures = if let Some(ensures) = fn_sig.ensures {
+            match ensures {
+                surface::Ensures::Binds(binds) => {
+                   let mut res = vec![];
+                   for (ident, ty) in binds {
+                       res.push((ident, self.resolve_ty(ty)?));
+                   }
+                   Some(surface::Ensures::Binds(res))
+                }
+                surface::Ensures::Cond(e) => {
+                   Some(surface::Ensures::Cond(e))
+                },
+            }
+        } else {None};
+
 
         let predicates = fn_sig
             .predicates
@@ -192,7 +202,7 @@ impl<'sess> Resolver<'sess> {
             requires: fn_sig.requires,
             args: args?,
             returns: returns?,
-            ensures: ensures?,
+            ensures,
             predicates: predicates?,
             span: fn_sig.span,
         })

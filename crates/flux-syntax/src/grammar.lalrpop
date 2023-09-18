@@ -131,6 +131,11 @@ Sort: surface::Sort = {
     <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
+Ensures: surface::Ensures = {
+   <binds:EnsuresBinds> => surface::Ensures::Binds(binds),
+   <pred:Expr> => surface::Ensures::Cond(pred),
+}
+
 pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
@@ -144,7 +149,6 @@ pub FnSig: surface::FnSig = {
     <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
-        let ensures = ensures.unwrap_or_default();
         let predicates = predicates.unwrap_or_default();
         let returns = if let Some(ty) = returns {
             surface::FnRetTy::Ty(ty)
@@ -202,8 +206,11 @@ Fields: Vec<surface::Ty> = {
 }
 
 Args    = <Comma<Arg>>;
-Ensures = <Comma<(<Ident> ":" <Ty>)>>;
+EnsuresBinds = <Comma<(<Ident> ":" <Ty>)>>;
 Predicates = <Comma<WhereBoundPredicate>>;
+
+
+
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {
     <lo:@L> <bounded_ty:Ty> ":" <bounds:GenericBounds>  <hi:@R> => {
