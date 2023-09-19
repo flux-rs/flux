@@ -156,20 +156,15 @@ impl<'sess> Resolver<'sess> {
         Ok(TraitRef { path: self.resolve_path(trait_ref.path)? })
     }
 
-    fn resolve_ensures(
+    fn resolve_constraint(
         &self,
-        ensures: surface::Ensures,
-    ) -> Result<surface::Ensures<Res>, ErrorGuaranteed> {
-        match ensures {
-            surface::Ensures::Binds(binds) => {
-                let mut res = vec![];
-                for (ident, ty) in binds {
-                    res.push((ident, self.resolve_ty(ty)?));
-                }
-                Ok(surface::Ensures::Binds(res))
+        cstr: surface::Constraint,
+    ) -> Result<surface::Constraint<Res>, ErrorGuaranteed> {
+        match cstr {
+            surface::Constraint::Type(ident, ty) => {
+                Ok(surface::Constraint::Type(ident, self.resolve_ty(ty)?))
             }
-            surface::Ensures::Cond(e) => Ok(surface::Ensures::Cond(e)),
-            surface::Ensures::None => Ok(surface::Ensures::None),
+            surface::Constraint::Pred(e) => Ok(surface::Constraint::Pred(e)),
         }
     }
 
@@ -186,7 +181,11 @@ impl<'sess> Resolver<'sess> {
             .map(|arg| self.resolve_arg(arg))
             .try_collect_exhaust();
 
-        let ensures = self.resolve_ensures(fn_sig.ensures)?;
+        let ensures = fn_sig
+            .ensures
+            .into_iter()
+            .map(|cstr| self.resolve_constraint(cstr))
+            .try_collect_exhaust()?;
 
         let predicates = fn_sig
             .predicates

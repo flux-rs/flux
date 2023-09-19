@@ -131,11 +131,6 @@ Sort: surface::Sort = {
     <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
-Ensures: surface::Ensures = {
-   <binds:EnsuresBinds> => surface::Ensures::Binds(binds),
-   <pred:Expr> => surface::Ensures::Cond(pred),
-}
-
 pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
@@ -207,10 +202,13 @@ Fields: Vec<surface::Ty> = {
 }
 
 Args    = <Comma<Arg>>;
-EnsuresBinds = <Comma<(<Ident> ":" <Ty>)>>;
+Ensures    = <Comma<Constraint>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
-
+Constraint: surface::Constraint = {
+    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty),
+    <expr:Expr> => surface::Constraint::Pred(expr),
+}
 
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {

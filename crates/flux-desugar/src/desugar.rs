@@ -447,7 +447,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.gather_output_params_fn_sig(self.genv, fn_sig)?;
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, binders);
 
-        let ensures = self.desugar_ensures(&fn_sig.ensures, binders)?;
+        let ensures = fn_sig
+            .ensures
+            .iter()
+            .map(|cstr| self.desugar_constraint(cstr, binders))
+            .try_collect_exhaust()?;
 
         let output =
             fhir::FnOutput { params: binders.pop_layer().into_params(self), ret: ret?, ensures };
@@ -463,26 +467,21 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         Ok((generic_preds, fn_sig))
     }
 
-    fn desugar_ensures(
+    fn desugar_constraint(
         &mut self,
-        ensures: &surface::Ensures<Res>,
+        cstr: &surface::Constraint<Res>,
         binders: &mut Binders,
-    ) -> Result<Vec<fhir::Constraint>, ErrorGuaranteed> {
-        match ensures {
-            surface::Ensures::Binds(cstrs) => {
-                let mut res = vec![];
-                for (bind, ty) in cstrs {
-                    let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
-                    let ty = self.desugar_ty(None, ty, binders);
-                    res.push(fhir::Constraint::Type(loc?, ty?))
-                }
-                Ok(res)
+    ) -> Result<fhir::Constraint, ErrorGuaranteed> {
+        match cstr {
+            surface::Constraint::Type(bind, ty) => {
+                let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
+                let ty = self.desugar_ty(None, ty, binders);
+                Ok(fhir::Constraint::Type(loc?, ty?))
             }
-            surface::Ensures::Cond(e) => {
+            surface::Constraint::Pred(e) => {
                 let pred = self.as_expr_ctxt().desugar_expr(binders, e)?;
-                Ok(vec![fhir::Constraint::Pred(pred)])
+                Ok(fhir::Constraint::Pred(pred))
             }
-            surface::Ensures::None => Ok(vec![]),
         }
     }
 
@@ -1304,10 +1303,10 @@ impl Binders {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
             self.gather_params_ty(genv, None, ty, TypePos::Output)?;
         }
-        if let surface::Ensures::Binds(binds) = &fn_sig.ensures {
-            for (_, ty) in binds {
+        for cstr in &fn_sig.ensures {
+            if let surface::Constraint::Type(_, ty) = cstr {
                 self.gather_params_ty(genv, None, ty, TypePos::Output)?;
-            }
+            };
         }
         Ok(())
     }

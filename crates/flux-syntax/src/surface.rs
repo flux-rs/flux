@@ -154,20 +154,28 @@ pub struct FnSig<R = ()> {
     /// example `i32{v:v >= 0}`
     pub returns: FnRetTy<R>,
     /// example: `*x: i32{v. v = n+1}` or just `x > 10`
-    pub ensures: Ensures<R>,
+    pub ensures: Vec<Constraint<R>>,
     /// example: `where I: Iterator<Item = i32{v:0<=v}>`
     pub predicates: Vec<WhereBoundPredicate<R>>,
     /// source span
     pub span: Span,
 }
 
-#[derive(Debug, Default)]
-pub enum Ensures<R = ()> {
-    Binds(Vec<(Ident, Ty<R>)>),
-    Cond(Expr),
-    #[default]
-    None,
+#[derive(Debug)]
+pub enum Constraint<R = ()> {
+    /// A type constraint on a location
+    Type(Ident, Ty<R>),
+    /// A predicate that needs to hold
+    Pred(Expr),
 }
+
+// CUT #[derive(Debug, Default)]
+// CUT pub enum Ensures<R = ()> {
+// CUT     Binds(Vec<(Ident, Ty<R>)>),
+// CUT     Cond(Expr),
+// CUT     #[default]
+// CUT     None,
+// CUT }
 
 #[derive(Debug)]
 pub enum FnRetTy<R = ()> {
