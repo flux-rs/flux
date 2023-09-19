@@ -169,14 +169,6 @@ pub enum Constraint<R = ()> {
     Pred(Expr),
 }
 
-// CUT #[derive(Debug, Default)]
-// CUT pub enum Ensures<R = ()> {
-// CUT     Binds(Vec<(Ident, Ty<R>)>),
-// CUT     Cond(Expr),
-// CUT     #[default]
-// CUT     None,
-// CUT }
-
 #[derive(Debug)]
 pub enum FnRetTy<R = ()> {
     Default(Span),

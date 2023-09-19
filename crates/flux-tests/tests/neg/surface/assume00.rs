@@ -1,8 +1,8 @@
 #![feature(register_tool)]
 #![register_tool(flux)]
 
-#[flux::sig(fn(b:bool[true]))]
-pub fn assert(_b: bool) {}
+#[flux::sig(fn(bool[true]))]
+pub fn assert(_: bool) {}
 
 #[flux::sig(fn(b:bool) ensures b)]
 pub fn assume(b: bool) {
@@ -16,5 +16,11 @@ pub fn dec(x: i32) {
     assume(x > 10);
     assert(x > 0);
     assert(x > 20); //~ ERROR refinement type
+}
 
+#[flux::sig(fn(b: bool) ensures b)]
+pub fn bad_assume(b: bool) {
+    if b {
+        panic!("assume fails");
+    } //~ ERROR refinement type
 }
