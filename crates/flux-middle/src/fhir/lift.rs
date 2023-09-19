@@ -162,6 +162,35 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         self.lift_generics_inner(generics)
     }
 
+    fn lift_generic_param(
+        &mut self,
+        param: &hir::GenericParam,
+    ) -> Result<fhir::GenericParam, ErrorGuaranteed> {
+        let kind = match param.kind {
+            hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
+            hir::GenericParamKind::Type { default, synthetic: false } => {
+                fhir::GenericParamKind::Type {
+                    default: default.map(|ty| self.lift_ty(ty)).transpose()?,
+                }
+            }
+            hir::GenericParamKind::Type { synthetic: true, .. } => {
+                return self.emit_err(errors::UnsupportedHir::new(
+                    self.tcx,
+                    param.def_id,
+                    "`impl Trait` in argument position not supported",
+                ))
+            }
+            hir::GenericParamKind::Const { .. } => {
+                return self.emit_err(errors::UnsupportedHir::new(
+                    self.tcx,
+                    param.def_id,
+                    "const generics are not supported",
+                ))
+            }
+        };
+        Ok(fhir::GenericParam { def_id: param.def_id, kind })
+    }
+
     fn lift_generics_inner(
         &mut self,
         generics: &hir::Generics,
@@ -169,31 +198,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let params = generics
             .params
             .iter()
-            .map(|param| {
-                let kind = match param.kind {
-                    hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
-                    hir::GenericParamKind::Type { default, synthetic: false } => {
-                        fhir::GenericParamKind::Type {
-                            default: default.map(|ty| self.lift_ty(ty)).transpose()?,
-                        }
-                    }
-                    hir::GenericParamKind::Type { synthetic: true, .. } => {
-                        return self.emit_err(errors::UnsupportedHir::new(
-                            self.tcx,
-                            param.def_id,
-                            "`impl Trait` in argument position not supported",
-                        ))
-                    }
-                    hir::GenericParamKind::Const { .. } => {
-                        return self.emit_err(errors::UnsupportedHir::new(
-                            self.tcx,
-                            param.def_id,
-                            "const generics are not supported",
-                        ))
-                    }
-                };
-                Ok(fhir::GenericParam { def_id: param.def_id, kind })
-            })
+            .map(|param| self.lift_generic_param(param))
             .try_collect_exhaust()?;
         Ok(fhir::Generics { params })
     }
@@ -216,7 +221,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = pred {
             if !bound.bound_generic_params.is_empty() {
-                return self.emit_unsupported("higher-rank trait bounds are not supported");
+                return self.emit_unsupported("higher-rank trait bounds are not supported 3");
             }
             let bounded_ty = self.lift_ty(bound.bounded_ty)?;
             let bounds = bound
@@ -262,11 +267,16 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     fn lift_poly_trait_ref(
         &mut self,
         poly_trait_ref: hir::PolyTraitRef,
-    ) -> Result<fhir::TraitRef, ErrorGuaranteed> {
-        if !poly_trait_ref.bound_generic_params.is_empty() {
-            return self.emit_unsupported("higher-rank trait bounds are not supported");
-        }
-        Ok(fhir::TraitRef { path: self.lift_path(poly_trait_ref.trait_ref.path)? })
+    ) -> Result<fhir::PolyTraitRef, ErrorGuaranteed> {
+        let bound_generic_params = poly_trait_ref
+            .bound_generic_params
+            .iter()
+            .map(|param| self.lift_generic_param(param))
+            .try_collect_exhaust()?;
+        Ok(fhir::PolyTraitRef {
+            bound_generic_params,
+            trait_ref: self.lift_path(poly_trait_ref.trait_ref.path)?,
+        })
     }
 
     fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {

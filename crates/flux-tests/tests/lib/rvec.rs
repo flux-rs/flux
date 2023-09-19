@@ -94,14 +94,13 @@ impl<T> RVec<T> {
         vec
     }
 
+    #[flux::trusted]
     #[flux::sig(fn(&RVec<T>[@n]) -> RVec<T>[n])]
     pub fn clone(&self) -> Self
     where
         T: Clone,
     {
-        Self {
-            inner: self.inner.clone(),
-        }
+        Self { inner: self.inner.clone() }
     }
 
     #[flux::trusted]
@@ -126,25 +125,22 @@ impl<T> RVec<T> {
         res
     } */
 
+    #[flux::trusted]
     #[flux::sig(fn (&RVec<T>[@n], F) -> RVec<U>[n])]
     pub fn map<U, F>(&self, f: F) -> RVec<U>
     where
         F: Fn(&T) -> U,
     {
-        RVec {
-            inner: self.inner.iter().map(f).collect(),
-        }
+        RVec { inner: self.inner.iter().map(f).collect() }
     }
 
+    #[flux::trusted]
     pub fn fold<B, F>(&self, init: B, f: F) -> B
     where
         F: FnMut(B, &T) -> B,
     {
         self.inner.iter().fold(init, f)
     }
-
-
-
 }
 
 #[flux::opaque]

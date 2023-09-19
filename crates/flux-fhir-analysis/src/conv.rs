@@ -327,7 +327,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 if let Some(closure_kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_id) {
                     self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
                 } else {
-                    let path = &trait_ref.path;
+                    let path = &trait_ref.trait_ref;
                     self.conv_trait_bound(env, bounded_ty, trait_id, &path.args, clauses)?;
                     self.conv_type_bindings(env, bounded_ty, trait_id, &path.bindings, clauses)
                 }
@@ -364,11 +364,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &self,
         env: &mut Env,
         self_ty: &rty::Ty,
-        trait_ref: &fhir::TraitRef,
+        trait_ref: &fhir::PolyTraitRef,
         kind: rty::ClosureKind,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult<()> {
-        let path = &trait_ref.path;
+        let path = &trait_ref.trait_ref;
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
             tupled_args: self.conv_ty(env, path.args[0].expect_type())?,

@@ -841,7 +841,7 @@ fn lower_clause<'tcx>(
     let Some(kind) = clause.kind().no_bound_vars() else {
         return Err(sess.emit_err(errors::UnsupportedGenericBound::new(
             span,
-            "higher-rank trait bounds are not supported",
+            "higher-rank trait bounds are not supported 1",
         )));
     };
     let kind = match kind {

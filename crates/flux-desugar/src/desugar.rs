@@ -263,8 +263,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         &mut self,
         trait_ref: &surface::TraitRef<Res>,
         binders: &mut Binders,
-    ) -> Result<fhir::TraitRef, ErrorGuaranteed> {
-        Ok(fhir::TraitRef { path: self.desugar_path(&trait_ref.path, binders)? })
+    ) -> Result<fhir::PolyTraitRef, ErrorGuaranteed> {
+        Ok(fhir::PolyTraitRef {
+            bound_generic_params: vec![],
+            trait_ref: self.desugar_path(&trait_ref.path, binders)?,
+        })
     }
 
     pub(crate) fn desugar_struct_def(
