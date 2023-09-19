@@ -112,19 +112,6 @@ impl<T> RVec<T> {
         self.inner.extend_from_slice(other)
     }
 
-    /*
-    #[flux::trusted]
-    pub fn map<U, F>(self, f: F) -> RVec<U>
-    where
-        F: Fn(T) -> U,
-    {
-        let mut res = RVec::new();
-        for x in self.into_iter() {
-            res.push(f(x));
-        }
-        res
-    } */
-
     #[flux::trusted]
     #[flux::sig(fn (&RVec<T>[@n], F) -> RVec<U>[n])]
     pub fn map<U, F>(&self, f: F) -> RVec<U>
