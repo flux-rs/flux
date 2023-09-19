@@ -23,12 +23,12 @@ use crate::{
     DEFAULT_LOCALE_RESOURCES,
 };
 
-pub(crate) struct FluxCallbacks {
+pub struct FluxCallbacks {
     full_compilation: bool,
 }
 
 impl FluxCallbacks {
-    pub(crate) fn new(full_compilation: bool) -> Self {
+    pub fn new(full_compilation: bool) -> Self {
         FluxCallbacks { full_compilation }
     }
 }
