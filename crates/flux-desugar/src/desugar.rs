@@ -446,20 +446,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.push_layer();
         binders.gather_output_params_fn_sig(self.genv, fn_sig)?;
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, binders);
+
         let ensures = fn_sig
             .ensures
             .iter()
-            .map(|(bind, ty)| {
-                let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
-                let ty = self.desugar_ty(None, ty, binders);
-                Ok(fhir::Constraint::Type(loc?, ty?))
-            })
-            .try_collect_exhaust();
-        let output = fhir::FnOutput {
-            params: binders.pop_layer().into_params(self),
-            ret: ret?,
-            ensures: ensures?,
-        };
+            .map(|cstr| self.desugar_constraint(cstr, binders))
+            .try_collect_exhaust()?;
+
+        let output =
+            fhir::FnOutput { params: binders.pop_layer().into_params(self), ret: ret?, ensures };
 
         let fn_sig = fhir::FnSig {
             params: binders.pop_layer().into_params(self),
@@ -469,8 +464,25 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             span: fn_sig.span,
             lifted: false,
         };
-
         Ok((generic_preds, fn_sig))
+    }
+
+    fn desugar_constraint(
+        &mut self,
+        cstr: &surface::Constraint<Res>,
+        binders: &mut Binders,
+    ) -> Result<fhir::Constraint, ErrorGuaranteed> {
+        match cstr {
+            surface::Constraint::Type(bind, ty) => {
+                let loc = self.as_expr_ctxt().resolve_loc(binders, *bind);
+                let ty = self.desugar_ty(None, ty, binders);
+                Ok(fhir::Constraint::Type(loc?, ty?))
+            }
+            surface::Constraint::Pred(e) => {
+                let pred = self.as_expr_ctxt().desugar_expr(binders, e)?;
+                Ok(fhir::Constraint::Pred(pred))
+            }
+        }
     }
 
     fn desugar_fun_arg(
@@ -1291,8 +1303,10 @@ impl Binders {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
             self.gather_params_ty(genv, None, ty, TypePos::Output)?;
         }
-        for (_, ty) in &fn_sig.ensures {
-            self.gather_params_ty(genv, None, ty, TypePos::Output)?;
+        for cstr in &fn_sig.ensures {
+            if let surface::Constraint::Type(_, ty) = cstr {
+                self.gather_params_ty(genv, None, ty, TypePos::Output)?;
+            };
         }
         Ok(())
     }

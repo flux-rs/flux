@@ -156,6 +156,18 @@ impl<'sess> Resolver<'sess> {
         Ok(TraitRef { path: self.resolve_path(trait_ref.path)? })
     }
 
+    fn resolve_constraint(
+        &self,
+        cstr: surface::Constraint,
+    ) -> Result<surface::Constraint<Res>, ErrorGuaranteed> {
+        match cstr {
+            surface::Constraint::Type(ident, ty) => {
+                Ok(surface::Constraint::Type(ident, self.resolve_ty(ty)?))
+            }
+            surface::Constraint::Pred(e) => Ok(surface::Constraint::Pred(e)),
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn resolve_fn_sig(
         &self,
@@ -172,8 +184,8 @@ impl<'sess> Resolver<'sess> {
         let ensures = fn_sig
             .ensures
             .into_iter()
-            .map(|(loc, ty)| Ok((loc, self.resolve_ty(ty)?)))
-            .try_collect_exhaust();
+            .map(|cstr| self.resolve_constraint(cstr))
+            .try_collect_exhaust()?;
 
         let predicates = fn_sig
             .predicates
@@ -192,7 +204,7 @@ impl<'sess> Resolver<'sess> {
             requires: fn_sig.requires,
             args: args?,
             returns: returns?,
-            ensures: ensures?,
+            ensures,
             predicates: predicates?,
             span: fn_sig.span,
         })

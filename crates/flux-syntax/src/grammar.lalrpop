@@ -202,8 +202,14 @@ Fields: Vec<surface::Ty> = {
 }
 
 Args    = <Comma<Arg>>;
-Ensures = <Comma<(<Ident> ":" <Ty>)>>;
+Ensures    = <Comma<Constraint>>;
 Predicates = <Comma<WhereBoundPredicate>>;
+
+Constraint: surface::Constraint = {
+    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty),
+    <expr:Expr> => surface::Constraint::Pred(expr),
+}
+
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {
     <lo:@L> <bounded_ty:Ty> ":" <bounds:GenericBounds>  <hi:@R> => {
