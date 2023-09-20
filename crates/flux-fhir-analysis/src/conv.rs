@@ -404,6 +404,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             output: self.conv_ty(env, &path.bindings[0].term)?,
             kind,
         };
+        // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
         let vars = trait_ref
             .bound_generic_params
             .iter()
