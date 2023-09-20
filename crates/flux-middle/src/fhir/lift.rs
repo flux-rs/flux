@@ -221,7 +221,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
         if let hir::WherePredicate::BoundPredicate(bound) = pred {
             if !bound.bound_generic_params.is_empty() {
-                return self.emit_unsupported("higher-rank trait bounds are not supported 3");
+                return self.emit_unsupported("higher-rank trait bounds are not supported");
             }
             let bounded_ty = self.lift_ty(bound.bounded_ty)?;
             let bounds = bound
