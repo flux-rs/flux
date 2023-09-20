@@ -115,13 +115,14 @@ pub type GenericBounds = Vec<GenericBound>;
 
 #[derive(Debug)]
 pub enum GenericBound {
-    Trait(TraitRef, TraitBoundModifier),
+    Trait(PolyTraitRef, TraitBoundModifier),
     LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
 }
 
 #[derive(Debug)]
-pub struct TraitRef {
-    pub path: Path,
+pub struct PolyTraitRef {
+    pub bound_generic_params: Vec<GenericParam>,
+    pub trait_ref: Path,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -555,9 +556,9 @@ newtype_index! {
     pub struct Name {}
 }
 
-impl TraitRef {
+impl PolyTraitRef {
     pub fn trait_def_id(&self) -> DefId {
-        let path = &self.path;
+        let path = &self.trait_ref;
         if let Res::Def(DefKind::Trait, did) = path.res {
             did
         } else {

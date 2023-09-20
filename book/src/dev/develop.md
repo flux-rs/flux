@@ -65,6 +65,23 @@ You can keep files there, outside of version control, and test Flux against them
 I have a directory called `attic/` where I keep a file named `playground.rs`.
 To run Flux on it, I do `cargo xtask run attic/playground.rs`.
 
+
+## Reporting locations where errors are emitted
+
+When you use `cargo xtask run` you'll see that we report the location an error was emitted, e.g.,
+
+```
+error[FLUX]: refinement type error
+ --> attic/playground.rs:4:5
+  |
+4 |     0
+  |     ^ a postcondition cannot be proved
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:114:15   <------- this
+```
+
+You can also pass `-Ztrack-diagnostics=y` to enable it if you are not using `cargo xtask run`
+
+
 ## Profiling Flux
 
 Set `FLUX_DUMP_TIMINGS=true` to have flux write timing diagnostics to `./log/timings`.

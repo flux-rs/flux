@@ -96,7 +96,7 @@ pub struct GenericPredicates {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Clause {
-    kind: ClauseKind,
+    kind: Binder<ClauseKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -426,12 +426,13 @@ impl GenericArg {
 }
 
 impl Clause {
-    pub fn new(kind: ClauseKind) -> Self {
-        Clause { kind }
+    pub fn new(vars: impl Into<List<BoundVariableKind>>, kind: ClauseKind) -> Self {
+        Clause { kind: Binder::new(kind, vars.into()) }
     }
 
     pub fn kind(&self) -> ClauseKind {
-        self.kind.clone()
+        // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of blindly skipping it here
+        self.kind.clone().skip_binder()
     }
 }
 
