@@ -131,6 +131,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 rty::ClauseKind::Projection(pred)
             }
         };
+        let kind = rty::Binder::new(kind, List::empty());
         Ok(Some(rty::Clause { kind }))
     }
 

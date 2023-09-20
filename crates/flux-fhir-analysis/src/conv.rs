@@ -9,7 +9,7 @@
 //! 3. Refinements are well-sorted.
 use std::borrow::Borrow;
 
-use flux_common::{bug, span_bug};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     fhir::{self, FhirId, SurfaceIdent},
     global_env::GlobalEnv,
@@ -328,7 +328,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
                 } else {
                     let path = &trait_ref.trait_ref;
-                    self.conv_trait_bound(env, bounded_ty, trait_id, &path.args, clauses)?;
+                    let params = &trait_ref.bound_generic_params;
+                    self.conv_trait_bound(env, bounded_ty, trait_id, &path.args, params, clauses)?;
                     self.conv_type_bindings(env, bounded_ty, trait_id, &path.bindings, clauses)
                 }
             }
@@ -349,6 +350,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         bounded_ty: &rty::Ty,
         trait_id: DefId,
         args: &[fhir::GenericArg],
+        params: &[fhir::GenericParam],
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult<()> {
         let mut into = vec![rty::GenericArg::Ty(bounded_ty.clone())];
@@ -356,8 +358,32 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         self.fill_generic_args_defaults(trait_id, &mut into)?;
         let trait_ref = rty::TraitRef { def_id: trait_id, args: into.into() };
         let pred = rty::TraitPredicate { trait_ref };
-        clauses.push(rty::Clause::new(rty::ClauseKind::Trait(pred)));
+        let vars = params
+            .iter()
+            .map(|param| self.conv_trait_bound_generic_param(param))
+            .try_collect_vec()?;
+        clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
         Ok(())
+    }
+
+    fn conv_trait_bound_generic_param(
+        &self,
+        param: &fhir::GenericParam,
+    ) -> QueryResult<rty::BoundVariableKind> {
+        match &param.kind {
+            fhir::GenericParamKind::Lifetime => {
+                let def_id = param.def_id;
+                let name = self
+                    .genv
+                    .tcx
+                    .hir()
+                    .name(self.genv.tcx.hir().local_def_id_to_hir_id(def_id));
+                let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
+                Ok(rty::BoundVariableKind::Region(kind))
+            }
+            fhir::GenericParamKind::Type { default: _ } => bug!("unexpected!"),
+            fhir::GenericParamKind::BaseTy => bug!("unexpected!"),
+        }
     }
 
     fn conv_fn_bound(
@@ -369,13 +395,21 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult<()> {
         let path = &trait_ref.trait_ref;
+        let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[], true);
+        env.push_layer(layer);
+
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
             tupled_args: self.conv_ty(env, path.args[0].expect_type())?,
             output: self.conv_ty(env, &path.bindings[0].term)?,
             kind,
         };
-        clauses.push(rty::Clause::new(rty::ClauseKind::FnTrait(pred)));
+        let vars = trait_ref
+            .bound_generic_params
+            .iter()
+            .map(|param| self.conv_trait_bound_generic_param(param))
+            .try_collect_vec()?;
+        clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
         Ok(())
     }
 
@@ -402,7 +436,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 projection_ty: alias_ty,
                 term: self.conv_ty(env, &binding.term)?,
             });
-            clauses.push(rty::Clause::new(kind));
+            clauses.push(rty::Clause::new(List::empty(), kind));
         }
         Ok(())
     }

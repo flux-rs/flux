@@ -766,7 +766,7 @@ fn mk_generator_obligations(
     } else {
         panic!("mk_generator_obligations: unexpected bounds")
     };
-    let clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred));
+    let clause = rty::Clause::new(vec![], rty::ClauseKind::GeneratorOblig(pred));
     Ok(vec![clause])
 }
 
