@@ -1587,7 +1587,7 @@
     } <span class="kw">else </span>{
         <span class="macro">panic!</span>(<span class="string">&quot;mk_generator_obligations: unexpected bounds&quot;</span>)
     };
-    <span class="kw">let </span>clause = rty::Clause::new(rty::ClauseKind::GeneratorOblig(pred));
+    <span class="kw">let </span>clause = rty::Clause::new(<span class="macro">vec!</span>[], rty::ClauseKind::GeneratorOblig(pred));
     <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[clause])
 }
 

@@ -702,6 +702,18 @@
 <a href="#702" id="702">702</a>
 <a href="#703" id="703">703</a>
 <a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, iter::IterExt};
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_middle::fhir::Res;
@@ -860,6 +872,18 @@
         <span class="prelude-val">Ok</span>(TraitRef { path: <span class="self">self</span>.resolve_path(trait_ref.path)<span class="question-mark">? </span>})
     }
 
+    <span class="kw">fn </span>resolve_constraint(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        cstr: surface::Constraint,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;surface::Constraint&lt;Res&gt;, ErrorGuaranteed&gt; {
+        <span class="kw">match </span>cstr {
+            surface::Constraint::Type(ident, ty) =&gt; {
+                <span class="prelude-val">Ok</span>(surface::Constraint::Type(ident, <span class="self">self</span>.resolve_ty(ty)<span class="question-mark">?</span>))
+            }
+            surface::Constraint::Pred(e) =&gt; <span class="prelude-val">Ok</span>(surface::Constraint::Pred(e)),
+        }
+    }
+
     <span class="attr">#[allow(dead_code)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_fn_sig(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -876,8 +900,8 @@
         <span class="kw">let </span>ensures = fn_sig
             .ensures
             .into_iter()
-            .map(|(loc, ty)| <span class="prelude-val">Ok</span>((loc, <span class="self">self</span>.resolve_ty(ty)<span class="question-mark">?</span>)))
-            .try_collect_exhaust();
+            .map(|cstr| <span class="self">self</span>.resolve_constraint(cstr))
+            .try_collect_exhaust()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>predicates = fn_sig
             .predicates
@@ -896,7 +920,7 @@
             requires: fn_sig.requires,
             args: args<span class="question-mark">?</span>,
             returns: returns<span class="question-mark">?</span>,
-            ensures: ensures<span class="question-mark">?</span>,
+            ensures,
             predicates: predicates<span class="question-mark">?</span>,
             span: fn_sig.span,
         })

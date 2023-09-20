@@ -433,6 +433,7 @@
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
 <a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -566,6 +567,7 @@
                 rty::ClauseKind::Projection(pred)
             }
         };
+        <span class="kw">let </span>kind = rty::Binder::new(kind, List::empty());
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Clause { kind }))
     }
 

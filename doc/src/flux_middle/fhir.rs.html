@@ -1557,6 +1557,7 @@
 <a href="#1557" id="1557">1557</a>
 <a href="#1558" id="1558">1558</a>
 <a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1674,13 +1675,14 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>GenericBound {
-    Trait(TraitRef, TraitBoundModifier),
+    Trait(PolyTraitRef, TraitBoundModifier),
     LangItemTrait(LangItem, Vec&lt;GenericArg&gt;, Vec&lt;TypeBinding&gt;),
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>TraitRef {
-    <span class="kw">pub </span>path: Path,
+</span><span class="kw">pub struct </span>PolyTraitRef {
+    <span class="kw">pub </span>bound_generic_params: Vec&lt;GenericParam&gt;,
+    <span class="kw">pub </span>trait_ref: Path,
 }
 
 <span class="attr">#[derive(Debug, Copy, Clone)]
@@ -2114,9 +2116,9 @@
     </span><span class="kw">pub struct </span>Name {}
 }
 
-<span class="kw">impl </span>TraitRef {
+<span class="kw">impl </span>PolyTraitRef {
     <span class="kw">pub fn </span>trait_def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
-        <span class="kw">let </span>path = <span class="kw-2">&amp;</span><span class="self">self</span>.path;
+        <span class="kw">let </span>path = <span class="kw-2">&amp;</span><span class="self">self</span>.trait_ref;
         <span class="kw">if let </span>Res::Def(DefKind::Trait, did) = path.res {
             did
         } <span class="kw">else </span>{

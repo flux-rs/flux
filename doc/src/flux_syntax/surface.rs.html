@@ -405,6 +405,14 @@
 <a href="#405" id="405">405</a>
 <a href="#406" id="406">406</a>
 <a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">pub use </span>rustc_ast::{
@@ -560,12 +568,20 @@
     </span><span class="kw">pub </span>args: Vec&lt;Arg&lt;R&gt;&gt;,
     <span class="doccomment">/// example `i32{v:v &gt;= 0}`
     </span><span class="kw">pub </span>returns: FnRetTy&lt;R&gt;,
-    <span class="doccomment">/// example: `*x: i32{v. v = n+1}`
-    </span><span class="kw">pub </span>ensures: Vec&lt;(Ident, Ty&lt;R&gt;)&gt;,
+    <span class="doccomment">/// example: `*x: i32{v. v = n+1}` or just `x &gt; 10`
+    </span><span class="kw">pub </span>ensures: Vec&lt;Constraint&lt;R&gt;&gt;,
     <span class="doccomment">/// example: `where I: Iterator&lt;Item = i32{v:0&lt;=v}&gt;`
     </span><span class="kw">pub </span>predicates: Vec&lt;WhereBoundPredicate&lt;R&gt;&gt;,
     <span class="doccomment">/// source span
     </span><span class="kw">pub </span>span: Span,
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>Constraint&lt;R = ()&gt; {
+    <span class="doccomment">/// A type constraint on a location
+    </span>Type(Ident, Ty&lt;R&gt;),
+    <span class="doccomment">/// A predicate that needs to hold
+    </span>Pred(Expr),
 }
 
 <span class="attr">#[derive(Debug)]

@@ -637,6 +637,16 @@
 <a href="#637" id="637">637</a>
 <a href="#638" id="638">638</a>
 <a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &quot;Lift&quot; HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -801,6 +811,35 @@
         <span class="self">self</span>.lift_generics_inner(generics)
     }
 
+    <span class="kw">fn </span>lift_generic_param(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        param: <span class="kw-2">&amp;</span>hir::GenericParam,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericParam, ErrorGuaranteed&gt; {
+        <span class="kw">let </span>kind = <span class="kw">match </span>param.kind {
+            hir::GenericParamKind::Lifetime { .. } =&gt; fhir::GenericParamKind::Lifetime,
+            hir::GenericParamKind::Type { default, synthetic: <span class="bool-val">false </span>} =&gt; {
+                fhir::GenericParamKind::Type {
+                    default: default.map(|ty| <span class="self">self</span>.lift_ty(ty)).transpose()<span class="question-mark">?</span>,
+                }
+            }
+            hir::GenericParamKind::Type { synthetic: <span class="bool-val">true</span>, .. } =&gt; {
+                <span class="kw">return </span><span class="self">self</span>.emit_err(errors::UnsupportedHir::new(
+                    <span class="self">self</span>.tcx,
+                    param.def_id,
+                    <span class="string">&quot;`impl Trait` in argument position not supported&quot;</span>,
+                ))
+            }
+            hir::GenericParamKind::Const { .. } =&gt; {
+                <span class="kw">return </span><span class="self">self</span>.emit_err(errors::UnsupportedHir::new(
+                    <span class="self">self</span>.tcx,
+                    param.def_id,
+                    <span class="string">&quot;const generics are not supported&quot;</span>,
+                ))
+            }
+        };
+        <span class="prelude-val">Ok</span>(fhir::GenericParam { def_id: param.def_id, kind })
+    }
+
     <span class="kw">fn </span>lift_generics_inner(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         generics: <span class="kw-2">&amp;</span>hir::Generics,
@@ -808,31 +847,7 @@
         <span class="kw">let </span>params = generics
             .params
             .iter()
-            .map(|param| {
-                <span class="kw">let </span>kind = <span class="kw">match </span>param.kind {
-                    hir::GenericParamKind::Lifetime { .. } =&gt; fhir::GenericParamKind::Lifetime,
-                    hir::GenericParamKind::Type { default, synthetic: <span class="bool-val">false </span>} =&gt; {
-                        fhir::GenericParamKind::Type {
-                            default: default.map(|ty| <span class="self">self</span>.lift_ty(ty)).transpose()<span class="question-mark">?</span>,
-                        }
-                    }
-                    hir::GenericParamKind::Type { synthetic: <span class="bool-val">true</span>, .. } =&gt; {
-                        <span class="kw">return </span><span class="self">self</span>.emit_err(errors::UnsupportedHir::new(
-                            <span class="self">self</span>.tcx,
-                            param.def_id,
-                            <span class="string">&quot;`impl Trait` in argument position not supported&quot;</span>,
-                        ))
-                    }
-                    hir::GenericParamKind::Const { .. } =&gt; {
-                        <span class="kw">return </span><span class="self">self</span>.emit_err(errors::UnsupportedHir::new(
-                            <span class="self">self</span>.tcx,
-                            param.def_id,
-                            <span class="string">&quot;const generics are not supported&quot;</span>,
-                        ))
-                    }
-                };
-                <span class="prelude-val">Ok</span>(fhir::GenericParam { def_id: param.def_id, kind })
-            })
+            .map(|param| <span class="self">self</span>.lift_generic_param(param))
             .try_collect_exhaust()<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::Generics { params })
     }
@@ -901,11 +916,16 @@
     <span class="kw">fn </span>lift_poly_trait_ref(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         poly_trait_ref: hir::PolyTraitRef,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TraitRef, ErrorGuaranteed&gt; {
-        <span class="kw">if </span>!poly_trait_ref.bound_generic_params.is_empty() {
-            <span class="kw">return </span><span class="self">self</span>.emit_unsupported(<span class="string">&quot;higher-rank trait bounds are not supported&quot;</span>);
-        }
-        <span class="prelude-val">Ok</span>(fhir::TraitRef { path: <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">? </span>})
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyTraitRef, ErrorGuaranteed&gt; {
+        <span class="kw">let </span>bound_generic_params = poly_trait_ref
+            .bound_generic_params
+            .iter()
+            .map(|param| <span class="self">self</span>.lift_generic_param(param))
+            .try_collect_exhaust()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef {
+            bound_generic_params,
+            trait_ref: <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">?</span>,
+        })
     }
 
     <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item_id: hir::ItemId) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy, ErrorGuaranteed&gt; {

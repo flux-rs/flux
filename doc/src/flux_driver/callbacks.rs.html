@@ -470,12 +470,12 @@
     DEFAULT_LOCALE_RESOURCES,
 };
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>FluxCallbacks {
+<span class="kw">pub struct </span>FluxCallbacks {
     full_compilation: bool,
 }
 
 <span class="kw">impl </span>FluxCallbacks {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(full_compilation: bool) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(full_compilation: bool) -&gt; <span class="self">Self </span>{
         FluxCallbacks { full_compilation }
     }
 }

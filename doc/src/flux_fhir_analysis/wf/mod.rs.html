@@ -821,7 +821,7 @@
         bound: <span class="kw-2">&amp;</span>fhir::GenericBound,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>bound {
-            fhir::GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_path(infcx, <span class="kw-2">&amp;</span>trait_ref.path),
+            fhir::GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_path(infcx, <span class="kw-2">&amp;</span>trait_ref.trait_ref),
             fhir::GenericBound::LangItemTrait(<span class="kw">_</span>, args, bindings) =&gt; {
                 <span class="self">self</span>.check_generic_args(infcx, args)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_type_bindings(infcx, bindings)<span class="question-mark">?</span>;

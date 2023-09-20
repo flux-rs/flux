@@ -2045,6 +2045,7 @@
 <a href="#2045" id="2045">2045</a>
 <a href="#2046" id="2046">2046</a>
 <a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2143,7 +2144,7 @@
 
 <span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 </span><span class="kw">pub struct </span>Clause {
-    kind: ClauseKind,
+    kind: Binder&lt;ClauseKind&gt;,
 }
 
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2473,12 +2474,13 @@
 }
 
 <span class="kw">impl </span>Clause {
-    <span class="kw">pub fn </span>new(kind: ClauseKind) -&gt; <span class="self">Self </span>{
-        Clause { kind }
+    <span class="kw">pub fn </span>new(vars: <span class="kw">impl </span>Into&lt;List&lt;BoundVariableKind&gt;&gt;, kind: ClauseKind) -&gt; <span class="self">Self </span>{
+        Clause { kind: Binder::new(kind, vars.into()) }
     }
 
     <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClauseKind {
-        <span class="self">self</span>.kind.clone()
+        <span class="comment">// FIXME(nilehmann) we should deal with the binder in all the places this is used instead of blindly skipping it here
+        </span><span class="self">self</span>.kind.clone().skip_binder()
     }
 }
 
