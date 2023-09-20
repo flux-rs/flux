@@ -431,6 +431,7 @@ impl Clause {
     }
 
     pub fn kind(&self) -> ClauseKind {
+        // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of blindly skipping it here
         self.kind.clone().skip_binder()
     }
 }
