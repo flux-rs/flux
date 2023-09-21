@@ -1,4 +1,5 @@
 use config::CrateConfig;
+use desugar::resolver::{Resolver, ResolverOutput};
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
@@ -93,7 +94,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
         flux_fhir_analysis::provide(genv.providers());
 
         stage1_desugar(&mut genv, &mut specs)?;
-        stage2_desugar(&mut genv, &mut specs)?;
+        let resolver_output = resolve_crate(tcx, sess, &specs)?;
+        stage2_desugar(&mut genv, &mut specs, &resolver_output)?;
 
         flux_fhir_analysis::check_crate_wf(&genv)?;
 
@@ -181,7 +183,38 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGu
     }
 }
 
-fn stage2_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
+fn resolve_crate(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    specs: &Specs,
+) -> Result<ResolverOutput, ErrorGuaranteed> {
+    let mut resolver = Resolver::new(tcx, sess);
+    for id in tcx.hir_crate_items(()).owners() {
+        match tcx.def_kind(id) {
+            DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
+            DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
+            DefKind::TyAlias { .. } => {
+                if let Some(type_alias) = &specs.ty_aliases[&id] {
+                    resolver.resolve_type_alias(id, type_alias)?;
+                }
+            }
+            DefKind::Fn | DefKind::AssocFn => {
+                if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
+                    resolver.resolve_fn_sig(id, fn_sig)?;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(resolver.into_output())
+}
+
+fn stage2_desugar(
+    genv: &mut GlobalEnv,
+    specs: &mut Specs,
+    resolver_output: &ResolverOutput,
+) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
     // Defns
@@ -213,7 +246,7 @@ fn stage2_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGu
         .tcx
         .hir_crate_items(())
         .items()
-        .try_for_each_exhaust(|item_id| desugar_item(genv, specs, item_id))
+        .try_for_each_exhaust(|item_id| desugar_item(genv, specs, item_id, resolver_output))
         .err()
         .or(err);
 
@@ -228,36 +261,49 @@ fn desugar_item(
     genv: &mut GlobalEnv,
     specs: &mut Specs,
     item_id: hir::ItemId,
+    resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let owner_id = item_id.owner_id;
     let item = genv.hir().item(item_id);
     match item.kind {
         hir::ItemKind::Fn(..) => {
-            desugar_fn_sig(genv, specs, owner_id)?;
+            desugar_fn_sig(genv, specs, owner_id, resolver_output)?;
         }
         hir::ItemKind::TyAlias(..) => {
             let ty_alias = specs.ty_aliases.remove(&owner_id).unwrap();
-            desugar::desugar_type_alias(genv, owner_id, ty_alias)?;
+            desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)?;
         }
         hir::ItemKind::OpaqueTy(_) => desugar::desugar_generics_and_predicates(genv, owner_id)?,
         hir::ItemKind::Enum(..) => {
             let enum_def = specs.enums.remove(&owner_id).unwrap();
-            desugar::desugar_enum_def(genv, owner_id, enum_def)?;
+            desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output)?;
         }
         hir::ItemKind::Struct(..) => {
             let struct_def = specs.structs.remove(&owner_id).unwrap();
-            desugar::desugar_struct_def(genv, owner_id, struct_def)?;
+            desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)?;
         }
         hir::ItemKind::Trait(.., items) => {
             desugar::desugar_generics_and_predicates(genv, owner_id)?;
             items.iter().try_for_each_exhaust(|trait_item| {
-                desugar_assoc_item(genv, specs, trait_item.id.owner_id, trait_item.kind)
+                desugar_assoc_item(
+                    genv,
+                    specs,
+                    trait_item.id.owner_id,
+                    trait_item.kind,
+                    resolver_output,
+                )
             })?;
         }
         hir::ItemKind::Impl(impl_) => {
             desugar::desugar_generics_and_predicates(genv, owner_id)?;
             impl_.items.iter().try_for_each_exhaust(|impl_item| {
-                desugar_assoc_item(genv, specs, impl_item.id.owner_id, impl_item.kind)
+                desugar_assoc_item(
+                    genv,
+                    specs,
+                    impl_item.id.owner_id,
+                    impl_item.kind,
+                    resolver_output,
+                )
             })?;
         }
         _ => {}
@@ -270,9 +316,10 @@ fn desugar_assoc_item(
     specs: &mut Specs,
     owner_id: OwnerId,
     kind: hir::AssocItemKind,
+    resolver_outpt: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     match kind {
-        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id),
+        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id, resolver_outpt),
         hir::AssocItemKind::Type => desugar::desugar_generics_and_predicates(genv, owner_id),
         hir::AssocItemKind::Const => Ok(()),
     }
@@ -282,6 +329,7 @@ fn desugar_fn_sig(
     genv: &mut GlobalEnv,
     specs: &mut Specs,
     owner_id: OwnerId,
+    resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let spec = specs.fn_sigs.remove(&owner_id).unwrap();
     let def_id = owner_id.def_id;
@@ -289,7 +337,7 @@ fn desugar_fn_sig(
         genv.map_mut().add_trusted(def_id);
     }
 
-    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig)?;
+    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig, resolver_output)?;
 
     if let Some(quals) = spec.qual_names {
         genv.map_mut().insert_fn_quals(def_id, quals.names);

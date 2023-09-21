@@ -24,6 +24,8 @@ use rustc_span::{
     Span, Symbol,
 };
 
+use crate::resolver::ResolverOutput;
+
 pub fn desugar_qualifier(
     genv: &GlobalEnv,
     qualifier: &surface::Qualifier,
@@ -106,9 +108,10 @@ pub fn desugar_refined_by(
 
 pub(crate) struct DesugarCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
+    resolver_output: &'a ResolverOutput,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -162,13 +165,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         owner: OwnerId,
+        resolver_output: &'a ResolverOutput,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), opaque_tys }
+        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), resolver_output, opaque_tys }
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> DesugarCtxt<'b, 'tcx> {
-        DesugarCtxt::new(self.genv, owner, self.opaque_tys.as_deref_mut())
+        DesugarCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
     }
 
     pub(crate) fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
@@ -223,7 +227,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_predicates(
         &mut self,
-        predicates: &Vec<surface::WhereBoundPredicate<Res>>,
+        predicates: &Vec<surface::WhereBoundPredicate>,
         binders: &mut Binders,
     ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
         let mut res = vec![];
@@ -235,7 +239,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_predicate(
         &mut self,
-        pred: &surface::WhereBoundPredicate<Res>,
+        pred: &surface::WhereBoundPredicate,
         binders: &mut Binders,
     ) -> Result<fhir::WhereBoundPredicate, ErrorGuaranteed> {
         let bounded_ty = self.desugar_ty(None, &pred.bounded_ty, binders)?;
@@ -245,7 +249,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_generic_bounds(
         &mut self,
-        bounds: &surface::GenericBounds<Res>,
+        bounds: &surface::GenericBounds,
         binders: &mut Binders,
     ) -> Result<fhir::GenericBounds, ErrorGuaranteed> {
         bounds
@@ -261,7 +265,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_trait_ref(
         &mut self,
-        trait_ref: &surface::TraitRef<Res>,
+        trait_ref: &surface::TraitRef,
         binders: &mut Binders,
     ) -> Result<fhir::PolyTraitRef, ErrorGuaranteed> {
         Ok(fhir::PolyTraitRef {
@@ -272,7 +276,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     pub(crate) fn desugar_struct_def(
         &mut self,
-        struct_def: surface::StructDef<Res>,
+        struct_def: &surface::StructDef,
         binders: &mut Binders,
     ) -> Result<fhir::StructDef, ErrorGuaranteed> {
         binders.push_layer();
@@ -324,7 +328,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     pub(crate) fn desugar_enum_def(
         &mut self,
-        enum_def: &surface::EnumDef<Res>,
+        enum_def: &surface::EnumDef,
         binders: &mut Binders,
     ) -> Result<fhir::EnumDef, ErrorGuaranteed> {
         let def_id = self.owner.def_id;
@@ -362,13 +366,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_enum_variant_def(
         &mut self,
-        variant_def: &Option<surface::VariantDef<Res>>,
+        variant_def: &Option<surface::VariantDef>,
         hir_variant: &hir::Variant,
         binders: &mut Binders,
     ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
         if let Some(variant_def) = variant_def {
             binders.push_layer();
-            binders.gather_params_variant(self.genv, variant_def)?;
+            binders.gather_params_variant(self.genv, self.resolver_output, variant_def)?;
             let fields = iter::zip(&variant_def.fields, hir_variant.data.fields())
                 .map(|(ty, hir_field)| {
                     Ok(fhir::FieldDef {
@@ -396,7 +400,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     pub(crate) fn desugar_type_alias(
         &mut self,
-        ty_alias: surface::TyAlias<Res>,
+        ty_alias: &surface::TyAlias,
         binders: &mut Binders,
     ) -> Result<fhir::TyAlias, ErrorGuaranteed> {
         binders.push_layer();
@@ -420,15 +424,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     pub(crate) fn desugar_fn_sig(
         &mut self,
-        fn_sig: &surface::FnSig<Res>,
+        fn_sig: &surface::FnSig,
         binders: &mut Binders,
     ) -> Result<(fhir::GenericPredicates, fhir::FnSig), ErrorGuaranteed> {
         let mut requires = vec![];
 
         // Desugar inputs
         binders.push_layer();
-        binders.gather_input_params_fn_sig(self.genv, fn_sig)?;
-        binders.gather_params_predicates(self.genv, &fn_sig.predicates)?;
+        binders.gather_input_params_fn_sig(self.genv, self.resolver_output, fn_sig)?;
+        binders.gather_params_predicates(self.genv, self.resolver_output, &fn_sig.predicates)?;
 
         // Desugar predicates -- after we have gathered the input params
         let generic_preds = self.desugar_predicates(&fn_sig.predicates, binders)?;
@@ -447,7 +451,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
         // Desugar output
         binders.push_layer();
-        binders.gather_output_params_fn_sig(self.genv, fn_sig)?;
+        binders.gather_output_params_fn_sig(self.genv, self.resolver_output, fn_sig)?;
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, binders);
 
         let ensures = fn_sig
@@ -472,7 +476,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_constraint(
         &mut self,
-        cstr: &surface::Constraint<Res>,
+        cstr: &surface::Constraint,
         binders: &mut Binders,
     ) -> Result<fhir::Constraint, ErrorGuaranteed> {
         match cstr {
@@ -490,7 +494,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_fun_arg(
         &mut self,
-        arg: &surface::Arg<Res>,
+        arg: &surface::Arg,
         binders: &mut Binders,
         requires: &mut Vec<fhir::Constraint>,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
@@ -531,29 +535,26 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_asyncness(
         &mut self,
-        asyncness: surface::Async<Res>,
-        returns: &surface::FnRetTy<Res>,
+        asyncness: surface::Async,
+        returns: &surface::FnRetTy,
         binders: &mut Binders,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match asyncness {
-            surface::Async::Yes { res, span } => {
-                if let Res::Def(DefKind::OpaqueTy, def_id) = res {
-                    let def_id = def_id.expect_local();
-                    let owner_id = hir::OwnerId { def_id };
+            surface::Async::Yes { node_id, span } => {
+                let item_id = self.resolver_output.impl_trait_res_map[&node_id];
+                let def_id = item_id.owner_id.def_id;
+                let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
-                    let opaque_ty = self
-                        .with_new_owner(owner_id)
-                        .desugar_opaque_ty_for_async(returns, binders)?;
-                    self.insert_opaque_ty(def_id, opaque_ty);
+                let opaque_ty = self
+                    .with_new_owner(item_id.owner_id)
+                    .desugar_opaque_ty_for_async(returns, binders)?;
+                self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
-                    let (args, _) = self.desugar_generic_args(res, &[], binders)?;
-                    let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                    let refine_args = binders.bot_layer().to_refine_args(self, span);
-                    let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
-                    Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
-                } else {
-                    span_bug!(span, "invalid resolution for asyncness")
-                }
+                let (args, _) = self.desugar_generic_args(res, &[], binders)?;
+                let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
+                let refine_args = binders.bot_layer().to_refine_args(self, span);
+                let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
+                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
             }
             surface::Async::No => Ok(self.desugar_fn_ret_ty(returns, binders)?),
         }
@@ -561,7 +562,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_opaque_ty_for_async(
         &mut self,
-        returns: &surface::FnRetTy<Res>,
+        returns: &surface::FnRetTy,
         binders: &mut Binders,
     ) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
         let output = self.desugar_fn_ret_ty(returns, binders)?;
@@ -578,7 +579,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_fn_ret_ty(
         &mut self,
-        returns: &surface::FnRetTy<Res>,
+        returns: &surface::FnRetTy,
         binders: &mut Binders,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         match returns {
@@ -593,7 +594,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_ty(
         &mut self,
         bind: Option<surface::Ident>,
-        ty: &surface::Ty<Res>,
+        ty: &surface::Ty,
         binders: &mut Binders,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         let span = ty.span;
@@ -608,7 +609,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty_span = ty.span;
                 let bty_span = bty.span;
 
-                let Some(sort) = index_sort(self.genv, bty) else {
+                let Some(sort) = index_sort(self.genv, self.resolver_output, bty) else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
                 };
 
@@ -689,23 +690,19 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
             surface::TyKind::Hole => fhir::TyKind::Hole,
-            surface::TyKind::ImplTrait(res, bounds) => {
-                if let Res::Def(DefKind::OpaqueTy, def_id) = res {
-                    let def_id = def_id.expect_local();
-                    let owner_id = hir::OwnerId { def_id };
+            surface::TyKind::ImplTrait(node_id, bounds) => {
+                let item_id = self.resolver_output.impl_trait_res_map[&node_id];
+                let def_id = item_id.owner_id.def_id;
+                let res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
-                    let opaque_ty = self
-                        .with_new_owner(owner_id)
-                        .desugar_opaque_ty_for_impl_trait(bounds, binders)?;
-                    self.insert_opaque_ty(def_id, opaque_ty);
+                let opaque_ty = self
+                    .with_new_owner(item_id.owner_id)
+                    .desugar_opaque_ty_for_impl_trait(bounds, binders)?;
+                self.insert_opaque_ty(def_id, opaque_ty);
 
-                    let item_id = hir::ItemId { owner_id };
-                    let (args, _) = self.desugar_generic_args(*res, &[], binders)?;
-                    let refine_args = binders.bot_layer().to_refine_args(self, ty.span);
-                    fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
-                } else {
-                    span_bug!(ty.span, "unexpected opaque type")
-                }
+                let (args, _) = self.desugar_generic_args(res, &[], binders)?;
+                let refine_args = binders.bot_layer().to_refine_args(self, ty.span);
+                fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
             }
         };
         Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
@@ -713,7 +710,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_opaque_ty_for_impl_trait(
         &mut self,
-        bounds: &surface::GenericBounds<Res>,
+        bounds: &surface::GenericBounds,
         binders: &mut Binders,
     ) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
         let bounds = self.desugar_generic_bounds(bounds, binders)?;
@@ -798,7 +795,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_bty(
         &mut self,
-        bty: &surface::BaseTy<Res>,
+        bty: &surface::BaseTy,
         binders: &mut Binders,
     ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
         match &bty.kind {
@@ -812,17 +809,18 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_path(
         &mut self,
-        path: &surface::Path<Res>,
+        path: &surface::Path,
         binders: &mut Binders,
     ) -> Result<fhir::Path, ErrorGuaranteed> {
-        let (args, bindings) = self.desugar_generic_args(path.res, &path.generics, binders)?;
+        let res = self.resolver_output.path_res_map[&path.node_id];
+        let (args, bindings) = self.desugar_generic_args(res, &path.generics, binders)?;
         let refine = self.desugar_refine_args(&path.refine, binders)?;
-        Ok(fhir::Path { res: path.res, args, bindings, refine, span: path.span })
+        Ok(fhir::Path { res, args, bindings, refine, span: path.span })
     }
 
     fn desugar_path_to_bty(
         &mut self,
-        path: &surface::Path<Res>,
+        path: &surface::Path,
         binders: &mut Binders,
     ) -> Result<fhir::BaseTy, ErrorGuaranteed> {
         Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, self.desugar_path(path, binders)?)))
@@ -831,7 +829,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_generic_args(
         &mut self,
         res: Res,
-        args: &[surface::GenericArg<Res>],
+        args: &[surface::GenericArg],
         binders: &mut Binders,
     ) -> Result<(Vec<fhir::GenericArg>, Vec<fhir::TypeBinding>), ErrorGuaranteed> {
         let mut fhir_args = vec![];
@@ -867,7 +865,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_bty_bind(
         &mut self,
         bind: Option<surface::Ident>,
-        bty: &surface::BaseTy<Res>,
+        bty: &surface::BaseTy,
         binders: &mut Binders,
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         let bty = self.desugar_bty(bty, binders)?;
@@ -882,7 +880,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     fn desugar_variant_ret(
         &mut self,
-        ret: &surface::VariantRet<Res>,
+        ret: &surface::VariantRet,
         binders: &mut Binders,
     ) -> Result<fhir::VariantRet, ErrorGuaranteed> {
         let bty = self.desugar_path_to_bty(&ret.path, binders)?;
@@ -1223,13 +1221,14 @@ impl Binders {
     fn gather_params_variant(
         &mut self,
         genv: &GlobalEnv,
-        variant_def: &surface::VariantDef<Res>,
+        resolver_output: &ResolverOutput,
+        variant_def: &surface::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
         for ty in &variant_def.fields {
-            self.gather_params_ty(genv, None, ty, TypePos::Input)?;
+            self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Input)?;
         }
         // Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
-        self.gather_params_variant_ret(genv, &variant_def.ret)?;
+        self.gather_params_variant_ret(genv, resolver_output, &variant_def.ret)?;
 
         // Check binders in `VariantRet`
         variant_def
@@ -1249,10 +1248,12 @@ impl Binders {
     fn gather_params_variant_ret(
         &mut self,
         genv: &GlobalEnv,
-        ret: &surface::VariantRet<Res>,
+        resolver_output: &ResolverOutput,
+        ret: &surface::VariantRet,
     ) -> Result<(), ErrorGuaranteed> {
-        self.gather_params_path(genv, &ret.path, TypePos::Other)?;
-        let Some(sort) = genv.sort_of_res(ret.path.res) else {
+        self.gather_params_path(genv, resolver_output, &ret.path, TypePos::Other)?;
+        let res = resolver_output.path_res_map[&ret.path.node_id];
+        let Some(sort) = genv.sort_of_res(res) else {
             return Err(genv
                 .sess
                 .emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
@@ -1263,12 +1264,19 @@ impl Binders {
     fn gather_params_predicates(
         &mut self,
         genv: &GlobalEnv,
-        predicates: &[surface::WhereBoundPredicate<Res>],
+        resolver_output: &ResolverOutput,
+        predicates: &[surface::WhereBoundPredicate],
     ) -> Result<(), ErrorGuaranteed> {
         for predicate in predicates {
-            self.gather_params_ty(genv, None, &predicate.bounded_ty, TypePos::Other)?;
+            self.gather_params_ty(
+                genv,
+                resolver_output,
+                None,
+                &predicate.bounded_ty,
+                TypePos::Other,
+            )?;
             for bound in &predicate.bounds {
-                self.gather_params_path(genv, &bound.path, TypePos::Other)?;
+                self.gather_params_path(genv, resolver_output, &bound.path, TypePos::Other)?;
             }
         }
         Ok(())
@@ -1277,7 +1285,8 @@ impl Binders {
     fn gather_input_params_fn_sig(
         &mut self,
         genv: &GlobalEnv,
-        fn_sig: &surface::FnSig<Res>,
+        resolver_output: &ResolverOutput,
+        fn_sig: &surface::FnSig,
     ) -> Result<(), ErrorGuaranteed> {
         for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
             let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
@@ -1292,7 +1301,7 @@ impl Binders {
             )?;
         }
         for arg in &fn_sig.args {
-            self.gather_params_fun_arg(genv, arg)?;
+            self.gather_params_fun_arg(genv, resolver_output, arg)?;
         }
 
         Ok(())
@@ -1301,14 +1310,15 @@ impl Binders {
     fn gather_output_params_fn_sig(
         &mut self,
         genv: &GlobalEnv,
-        fn_sig: &surface::FnSig<Res>,
+        resolver_output: &ResolverOutput,
+        fn_sig: &surface::FnSig,
     ) -> Result<(), ErrorGuaranteed> {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
-            self.gather_params_ty(genv, None, ty, TypePos::Output)?;
+            self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Output)?;
         }
         for cstr in &fn_sig.ensures {
             if let surface::Constraint::Type(_, ty) = cstr {
-                self.gather_params_ty(genv, None, ty, TypePos::Output)?;
+                self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Output)?;
             };
         }
         Ok(())
@@ -1317,11 +1327,13 @@ impl Binders {
     fn gather_params_fun_arg(
         &mut self,
         genv: &GlobalEnv,
-        arg: &surface::Arg<Res>,
+        resolver_output: &ResolverOutput,
+        arg: &surface::Arg,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                self.insert_binder(genv.sess, *bind, self.binder_from_res(genv, path.res))?;
+                let res = resolver_output.path_res_map[&path.node_id];
+                self.insert_binder(genv.sess, *bind, self.binder_from_res(genv, res))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 self.insert_binder(
@@ -1329,10 +1341,10 @@ impl Binders {
                     *loc,
                     Binder::Refined(self.fresh(), fhir::Sort::Loc, false),
                 )?;
-                self.gather_params_ty(genv, None, ty, TypePos::Input)?;
+                self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Input)?;
             }
             surface::Arg::Ty(bind, ty) => {
-                self.gather_params_ty(genv, *bind, ty, TypePos::Input)?;
+                self.gather_params_ty(genv, resolver_output, *bind, ty, TypePos::Input)?;
             }
         }
         Ok(())
@@ -1341,8 +1353,9 @@ impl Binders {
     fn gather_params_ty(
         &mut self,
         genv: &GlobalEnv,
+        resolver_output: &ResolverOutput,
         bind: Option<surface::Ident>,
-        ty: &surface::Ty<Res>,
+        ty: &surface::Ty,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
@@ -1350,33 +1363,37 @@ impl Binders {
                 if let Some(bind) = bind {
                     self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                let Some(sort) = index_sort(genv, bty) else {
+                let Some(sort) = index_sort(genv, resolver_output, bty) else {
                     return Err(genv
                         .sess
                         .emit_err(errors::RefinedUnrefinableType::new(ty.span)));
                 };
                 self.gather_params_indices(genv, sort, indices, pos)?;
-                self.gather_params_bty(genv, bty, pos)
+                self.gather_params_bty(genv, resolver_output, bty, pos)
             }
             surface::TyKind::Base(bty) => {
                 if let Some(bind) = bind {
-                    self.insert_binder(genv.sess, bind, self.binder_from_bty(genv, bty))?;
+                    self.insert_binder(
+                        genv.sess,
+                        bind,
+                        self.binder_from_bty(genv, resolver_output, bty),
+                    )?;
                 }
-                self.gather_params_bty(genv, bty, pos)
+                self.gather_params_bty(genv, resolver_output, bty, pos)
             }
 
             surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
                 if let Some(bind) = bind {
                     self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_ty(genv, None, ty, pos)
+                self.gather_params_ty(genv, resolver_output, None, ty, pos)
             }
             surface::TyKind::Tuple(tys) => {
                 if let Some(bind) = bind {
                     self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
                 for ty in tys {
-                    self.gather_params_ty(genv, None, ty, pos)?;
+                    self.gather_params_ty(genv, resolver_output, None, ty, pos)?;
                 }
                 Ok(())
             }
@@ -1384,13 +1401,13 @@ impl Binders {
                 if let Some(bind) = bind {
                     self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_ty(genv, None, ty, TypePos::Other)
+                self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Other)
             }
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
                     self.insert_binder(genv.sess, bind, Binder::Unrefined)?;
                 }
-                self.gather_params_bty(genv, bty, pos)
+                self.gather_params_bty(genv, resolver_output, bty, pos)
             }
             surface::TyKind::GeneralExists { ty, .. } => {
                 if let Some(bind) = bind {
@@ -1399,12 +1416,12 @@ impl Binders {
                 // Declaring parameters with @ inside and existential has weird behavior if names
                 // are being shadowed. Thus, we don't allow it to keep things simple. We could eventually
                 // allow it if we resolve the weird behavior by detecting shadowing.
-                self.gather_params_ty(genv, None, ty, TypePos::Other)
+                self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Other)
             }
             surface::TyKind::Hole => Ok(()),
             surface::TyKind::ImplTrait(_, bounds) => {
                 for bound in bounds {
-                    self.gather_params_path(genv, &bound.path, TypePos::Other)?;
+                    self.gather_params_path(genv, resolver_output, &bound.path, TypePos::Other)?;
                 }
                 Ok(())
             }
@@ -1448,36 +1465,48 @@ impl Binders {
     fn gather_params_path(
         &mut self,
         genv: &GlobalEnv,
-        path: &surface::Path<Res>,
+        resolver_output: &ResolverOutput,
+        path: &surface::Path,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
-        let pos = if genv.is_box(path.res) { pos } else { TypePos::Other };
-        path.generics
-            .iter()
-            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(genv, arg, pos))
+        let res = resolver_output.path_res_map[&path.node_id];
+        let pos = if genv.is_box(res) { pos } else { TypePos::Other };
+        path.generics.iter().try_for_each_exhaust(|arg| {
+            self.gather_params_generic_arg(genv, resolver_output, arg, pos)
+        })
     }
 
     fn gather_params_generic_arg(
         &mut self,
         genv: &GlobalEnv,
-        arg: &surface::GenericArg<Res>,
+        resolver_output: &ResolverOutput,
+        arg: &surface::GenericArg,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
-            surface::GenericArg::Type(ty) => self.gather_params_ty(genv, None, ty, pos),
-            surface::GenericArg::Constraint(_, ty) => self.gather_params_ty(genv, None, ty, pos),
+            surface::GenericArg::Type(ty) => {
+                self.gather_params_ty(genv, resolver_output, None, ty, pos)
+            }
+            surface::GenericArg::Constraint(_, ty) => {
+                self.gather_params_ty(genv, resolver_output, None, ty, pos)
+            }
         }
     }
 
     fn gather_params_bty(
         &mut self,
         genv: &GlobalEnv,
-        bty: &surface::BaseTy<Res>,
+        resolver_output: &ResolverOutput,
+        bty: &surface::BaseTy,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
         match &bty.kind {
-            surface::BaseTyKind::Path(path) => self.gather_params_path(genv, path, pos),
-            surface::BaseTyKind::Slice(ty) => self.gather_params_ty(genv, None, ty, TypePos::Other),
+            surface::BaseTyKind::Path(path) => {
+                self.gather_params_path(genv, resolver_output, path, pos)
+            }
+            surface::BaseTyKind::Slice(ty) => {
+                self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Other)
+            }
         }
     }
 
@@ -1513,8 +1542,13 @@ impl Binders {
         }
     }
 
-    fn binder_from_bty(&self, genv: &GlobalEnv, bty: &surface::BaseTy<Res>) -> Binder {
-        if let Some(sort) = index_sort(genv, bty) {
+    fn binder_from_bty(
+        &self,
+        genv: &GlobalEnv,
+        resolver_output: &ResolverOutput,
+        bty: &surface::BaseTy,
+    ) -> Binder {
+        if let Some(sort) = index_sort(genv, resolver_output, bty) {
             self.binder_from_sort(sort)
         } else {
             Binder::Unrefined
@@ -1616,9 +1650,16 @@ impl Layer {
     }
 }
 
-fn index_sort(genv: &GlobalEnv, bty: &surface::BaseTy<Res>) -> Option<fhir::Sort> {
+fn index_sort(
+    genv: &GlobalEnv,
+    resolver_output: &ResolverOutput,
+    bty: &surface::BaseTy,
+) -> Option<fhir::Sort> {
     match &bty.kind {
-        surface::BaseTyKind::Path(path) => genv.sort_of_res(path.res),
+        surface::BaseTyKind::Path(path) => {
+            let res = resolver_output.path_res_map[&path.node_id];
+            genv.sort_of_res(res)
+        }
         surface::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
     }
 }

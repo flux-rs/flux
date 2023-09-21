@@ -174,7 +174,7 @@ pub FnSig: surface::FnSig = {
 Async: surface::Async = {
     <lo:@L> <asyncness:"async"?> <hi:@R> => {
         if asyncness.is_some() {
-            surface::Async::Yes { res: (), span: cx.map_span(lo, hi) }
+            surface::Async::Yes { node_id: cx.next_node_id(), span: cx.map_span(lo, hi) }
         } else {
             surface::Async::No
         }
@@ -268,7 +268,7 @@ TyKind: surface::TyKind = {
         Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
     },
 
-    "impl" <bounds:GenericBounds> => surface::TyKind::ImplTrait((), bounds),
+    "impl" <bounds:GenericBounds> => surface::TyKind::ImplTrait(cx.next_node_id(), bounds),
 }
 
 #[inline]
@@ -313,7 +313,6 @@ Path: surface::Path = {
             refine: refine.unwrap_or_default(),
             span: cx.map_span(lo, hi),
             node_id: cx.next_node_id(),
-            res: (),
         }
     }
 }

@@ -62,39 +62,39 @@ pub enum GenericParamKind {
 }
 
 #[derive(Debug)]
-pub struct TyAlias<R = ()> {
+pub struct TyAlias {
     pub ident: Ident,
     pub generics: Vec<Ty>,
     pub refined_by: RefinedBy,
-    pub ty: Ty<R>,
+    pub ty: Ty,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct StructDef<R = ()> {
+pub struct StructDef {
     pub refined_by: Option<RefinedBy>,
-    pub fields: Vec<Option<Ty<R>>>,
+    pub fields: Vec<Option<Ty>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
-pub struct EnumDef<R = ()> {
+pub struct EnumDef {
     pub refined_by: Option<RefinedBy>,
-    pub variants: Vec<Option<VariantDef<R>>>,
+    pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
 }
 
 #[derive(Debug)]
-pub struct VariantDef<R = ()> {
-    pub fields: Vec<Ty<R>>,
-    pub ret: VariantRet<R>,
+pub struct VariantDef {
+    pub fields: Vec<Ty>,
+    pub ret: VariantRet,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub struct VariantRet<R = ()> {
-    pub path: Path<R>,
+pub struct VariantRet {
+    pub path: Path,
     /// Binders are not allowed at this position, but we parse this as a list of indices
     /// for better error reporting.
     pub indices: Indices,
@@ -147,115 +147,115 @@ pub struct ConstSig {
 }
 
 #[derive(Debug)]
-pub struct FnSig<R = ()> {
-    pub asyncness: Async<R>,
+pub struct FnSig {
+    pub asyncness: Async,
     pub generics: Option<Generics>,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
-    pub args: Vec<Arg<R>>,
+    pub args: Vec<Arg>,
     /// example `i32{v:v >= 0}`
-    pub returns: FnRetTy<R>,
+    pub returns: FnRetTy,
     /// example: `*x: i32{v. v = n+1}` or just `x > 10`
-    pub ensures: Vec<Constraint<R>>,
+    pub ensures: Vec<Constraint>,
     /// example: `where I: Iterator<Item = i32{v:0<=v}>`
-    pub predicates: Vec<WhereBoundPredicate<R>>,
+    pub predicates: Vec<WhereBoundPredicate>,
     /// source span
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum Constraint<R = ()> {
+pub enum Constraint {
     /// A type constraint on a location
-    Type(Ident, Ty<R>),
+    Type(Ident, Ty),
     /// A predicate that needs to hold
     Pred(Expr),
 }
 
 #[derive(Debug)]
-pub enum FnRetTy<R = ()> {
+pub enum FnRetTy {
     Default(Span),
-    Ty(Ty<R>),
+    Ty(Ty),
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum Async<R = ()> {
-    Yes { res: R, span: Span },
+pub enum Async {
+    Yes { node_id: NodeId, span: Span },
     No,
 }
 
 #[derive(Debug)]
-pub struct WhereBoundPredicate<R = ()> {
+pub struct WhereBoundPredicate {
     pub span: Span,
-    pub bounded_ty: Ty<R>,
-    pub bounds: GenericBounds<R>,
+    pub bounded_ty: Ty,
+    pub bounds: GenericBounds,
 }
 
-pub type GenericBounds<R = ()> = Vec<TraitRef<R>>;
+pub type GenericBounds = Vec<TraitRef>;
 
 #[derive(Debug)]
-pub struct TraitRef<R = ()> {
-    pub path: Path<R>,
+pub struct TraitRef {
+    pub path: Path,
 }
 
 #[derive(Debug)]
-pub enum Arg<R = ()> {
+pub enum Arg {
     /// example `a: i32{a > 0}`
-    Constr(Ident, Path<R>, Expr),
+    Constr(Ident, Path, Expr),
     /// example `v: &strg i32`
-    StrgRef(Ident, Ty<R>),
+    StrgRef(Ident, Ty),
     /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v: v > 0}`.
     /// The binder has a different meaning depending on the type.
-    Ty(Option<Ident>, Ty<R>),
+    Ty(Option<Ident>, Ty),
 }
 
 #[derive(Debug)]
-pub struct Ty<R = ()> {
-    pub kind: TyKind<R>,
+pub struct Ty {
+    pub kind: TyKind,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum TyKind<R = ()> {
+pub enum TyKind {
     /// ty
-    Base(BaseTy<R>),
+    Base(BaseTy),
     /// `B[r]`
     Indexed {
-        bty: BaseTy<R>,
+        bty: BaseTy,
         indices: Indices,
     },
     /// B{v: r}
     Exists {
         bind: Ident,
-        bty: BaseTy<R>,
+        bty: BaseTy,
         pred: Expr,
     },
     GeneralExists {
         params: Vec<RefineParam>,
-        ty: Box<Ty<R>>,
+        ty: Box<Ty>,
         pred: Option<Expr>,
     },
     /// Mutable or shared reference
-    Ref(Mutability, Box<Ty<R>>),
+    Ref(Mutability, Box<Ty>),
     /// Constrained type: an exists without binder
-    Constr(Expr, Box<Ty<R>>),
-    Tuple(Vec<Ty<R>>),
-    Array(Box<Ty<R>>, ArrayLen),
+    Constr(Expr, Box<Ty>),
+    Tuple(Vec<Ty>),
+    Array(Box<Ty>, ArrayLen),
     /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
-    ImplTrait(R, GenericBounds<R>),
+    ImplTrait(NodeId, GenericBounds),
     Hole,
 }
 
 #[derive(Debug)]
-pub struct BaseTy<R = ()> {
-    pub kind: BaseTyKind<R>,
+pub struct BaseTy {
+    pub kind: BaseTyKind,
     pub span: Span,
 }
 
 #[derive(Debug)]
-pub enum BaseTyKind<R = ()> {
-    Path(Path<R>),
-    Slice(Box<Ty<R>>),
+pub enum BaseTyKind {
+    Path(Path),
+    Slice(Box<Ty>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -285,19 +285,18 @@ pub enum BindKind {
 }
 
 #[derive(Debug)]
-pub struct Path<R = ()> {
+pub struct Path {
     pub segments: Vec<Ident>,
-    pub generics: Vec<GenericArg<R>>,
+    pub generics: Vec<GenericArg>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
     pub node_id: NodeId,
-    pub res: R,
 }
 
 #[derive(Debug)]
-pub enum GenericArg<R = ()> {
-    Type(Ty<R>),
-    Constraint(Ident, Ty<R>),
+pub enum GenericArg {
+    Type(Ty),
+    Constraint(Ident, Ty),
 }
 
 #[derive(Debug, Clone)]
