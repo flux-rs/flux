@@ -1,18 +1,20 @@
 use crate::{
     UserParseError,
     surface,
-    lexer::{Lit, Location, Token, Delimiter, BinOpToken}
+    lexer::{Lit, Location, Token, Delimiter, BinOpToken},
+    ParseCtxt,
 };
 use rustc_span::{Span, Symbol, symbol::Ident};
 use lalrpop_util::ParseError;
 
-grammar<F>(mk_span: &F) where F: Fn(Location, Location) -> Span;
+
+grammar(cx: &mut ParseCtxt);
 
 Generics: surface::Generics = {
     <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
         surface::Generics {
             params,
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     }
 }
@@ -47,20 +49,24 @@ pub TyAlias: surface::TyAlias = {
         let refined_by = surface::RefinedBy {
             early_bound_params: early_bound_params.unwrap_or_default(),
             index_params: index_params.unwrap_or_default(),
-            span: mk_span(refined_by_lo, refined_by_hi)
+            span: cx.map_span(refined_by_lo, refined_by_hi)
         };
         surface::TyAlias {
             ident,
             generics: generics.unwrap_or_default(),
             refined_by,
             ty,
-            span: mk_span(lo, hi)
+            span: cx.map_span(lo, hi)
         }
     }
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy { index_params, early_bound_params: vec![], span: mk_span(lo, hi) }
+    <lo:@L> <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
+        index_params,
+        early_bound_params: vec![],
+        span: cx.map_span(lo, hi)
+    }
 }
 
 pub Items: Vec<surface::Item> = {
@@ -81,7 +87,7 @@ Qualifier: surface::Qualifier = {
     "(" <args:RefineParams<"!">> ")" "{" <expr:Expr> "}"
     <hi:@R> =>? {
         let global = local.is_none();
-        Ok(surface::Qualifier { name, args, expr, global, span: mk_span(lo, hi) })
+        Ok(surface::Qualifier { name, args, expr, global, span: cx.map_span(lo, hi) })
     }
 }
 
@@ -149,7 +155,7 @@ pub FnSig: surface::FnSig = {
         let returns = if let Some(ty) = returns {
             surface::FnRetTy::Ty(ty)
         } else {
-            surface::FnRetTy::Default(mk_span(ret_lo, ret_hi))
+            surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
         surface::FnSig {
             asyncness,
@@ -159,7 +165,7 @@ pub FnSig: surface::FnSig = {
             ensures,
             requires,
             predicates,
-            span: mk_span(lo, hi)
+            span: cx.map_span(lo, hi)
         }
     },
 
@@ -168,7 +174,7 @@ pub FnSig: surface::FnSig = {
 Async: surface::Async = {
     <lo:@L> <asyncness:"async"?> <hi:@R> => {
         if asyncness.is_some() {
-            surface::Async::Yes { res: (), span: mk_span(lo, hi) }
+            surface::Async::Yes { res: (), span: cx.map_span(lo, hi) }
         } else {
             surface::Async::No
         }
@@ -182,7 +188,7 @@ pub Variant: surface::VariantDef = {
             Some(fields) => fields,
             None => vec![],
         };
-        surface::VariantDef { fields, ret, span: mk_span(lo, hi) }
+        surface::VariantDef { fields, ret, span: cx.map_span(lo, hi) }
     }
 }
 
@@ -191,7 +197,7 @@ VariantRet: surface::VariantRet = {
         surface::VariantRet { <> }
     },
     <path:Path> <lo:@L> <hi:@R> => {
-        let indices = surface::Indices { indices: vec![], span: mk_span(lo, hi) };
+        let indices = surface::Indices { indices: vec![], span: cx.map_span(lo, hi) };
         surface::VariantRet { path, indices }
     }
 }
@@ -214,7 +220,7 @@ Constraint: surface::Constraint = {
 WhereBoundPredicate: surface::WhereBoundPredicate = {
     <lo:@L> <bounded_ty:Ty> ":" <bounds:GenericBounds>  <hi:@R> => {
         surface::WhereBoundPredicate {
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
             bounded_ty,
             bounds,
         }
@@ -235,7 +241,7 @@ Arg: surface::Arg = {
 pub Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
-        span: mk_span(lo, hi)
+        span: cx.map_span(lo, hi)
     }
 }
 
@@ -253,7 +259,7 @@ TyKind: surface::TyKind = {
     "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::Mutability::Mut, Box::new(ty)),
 
     "[" <ty:Ty> ";" <lo:@L> <lit:Lit> <hi:@R> "]" =>? {
-        let span = mk_span(lo, hi);
+        let span = cx.map_span(lo, hi);
         if let surface::LitKind::Integer = lit.kind {
             if let Ok(val) = lit.symbol.as_str().parse::<usize>() {
                 return Ok(surface::TyKind::Array(Box::new(ty), surface::ArrayLen { val, span }));
@@ -269,7 +275,7 @@ TyKind: surface::TyKind = {
 BaseTy: surface::BaseTy = {
     <lo:@L> <kind:BaseTyKind> <hi:@L> => surface::BaseTy {
         kind,
-        span: mk_span(lo, hi)
+        span: cx.map_span(lo, hi)
     }
 }
 
@@ -305,22 +311,22 @@ Path: surface::Path = {
             segments,
             generics: generics.unwrap_or_default(),
             refine: refine.unwrap_or_default(),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
             res: (),
         }
     }
 }
 
 Indices: surface::Indices = {
-    <lo:@L> <indices:Comma<RefineArg>> <hi:@R> => surface::Indices { indices, span: mk_span(lo, hi) }
+    <lo:@L> <indices:Comma<RefineArg>> <hi:@R> => surface::Indices { indices, span: cx.map_span(lo, hi) }
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, mk_span(lo, hi)),
-    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, mk_span(lo, hi)),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, cx.map_span(lo, hi)),
+    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, cx.map_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params:RefineParams<"?">> "|" <body:Expr> <hi:@R> => {
-        surface::RefineArg::Abs(params, body, mk_span(lo, hi))
+        surface::RefineArg::Abs(params, body, cx.map_span(lo, hi))
     }
 };
 
@@ -338,7 +344,7 @@ Level9 = {
     <lo:@L> <op:UnOp> <e:Level10> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::UnaryOp(op, Box::new(e)),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     },
     <Level10>
@@ -347,30 +353,30 @@ Level10: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <lit:Lit> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Literal(lit),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <qpath:QPathExpr> "." <fld:Ident> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Dot(qpath, fld),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <f:Ident> "(" <args:Comma<Level1>> ")" <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::App(f, args),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <qpath:QPathExpr> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::QPath(qpath),
-        span: mk_span(lo, hi),
+        span: cx.map_span(lo, hi),
     },
     "(" <Level1> ")"
 }
@@ -379,7 +385,7 @@ ElseIf: surface::Expr = {
     "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         }
     },
     "else" "{" <Level1> "}"
@@ -388,14 +394,14 @@ ElseIf: surface::Expr = {
 QPathExpr: surface::QPathExpr = {
     <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::QPathExpr {
         segments,
-        span: mk_span(lo, hi),
+        span: cx.map_span(lo, hi),
     }
 }
 
 NonAssoc<Op, NextLevel>: surface::Expr = {
     <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::BinaryOp(op, Box::new([e1, e2])),
-        span: mk_span(lo, hi)
+        span: cx.map_span(lo, hi)
     },
     NextLevel
 }
@@ -406,7 +412,7 @@ LeftAssoc<Op, NextLevel>: surface::Expr = {
                 op,
                 Box::new([e1, e2])
             ),
-            span: mk_span(lo, hi),
+            span: cx.map_span(lo, hi),
         },
     NextLevel
 }
@@ -463,7 +469,7 @@ Lit: surface::Lit = "literal";
 
 Ident: surface::Ident = {
     <lo:@L> <name:"ident"> <hi:@R> => {
-        surface::Ident { name, span: mk_span(lo, hi) }
+        surface::Ident { name, span: cx.map_span(lo, hi) }
     }
 }
 

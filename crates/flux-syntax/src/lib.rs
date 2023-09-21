@@ -18,16 +18,44 @@ lalrpop_mod!(
     grammar
 );
 
+struct ParseCtxt {
+    offset: BytePos,
+    ctx: SyntaxContext,
+    parent: Option<LocalDefId>,
+}
+
+impl ParseCtxt {
+    fn new(span: Span) -> Self {
+        Self { offset: span.lo(), ctx: span.ctxt(), parent: span.parent() }
+    }
+
+    fn map_span(&self, lo: Location, hi: Location) -> Span {
+        Span::new(lo.0 + self.offset, hi.0 + self.offset, self.ctx, self.parent)
+    }
+
+    fn map_err(&self, err: LalrpopError) -> ParseError {
+        match err {
+            LalrpopError::InvalidToken { .. } => unreachable!(),
+            LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } => {
+                ParseErrorKind::UnexpectedToken.into_error(self.map_span(lo, hi))
+            }
+            LalrpopError::UnrecognizedEof { location, expected: _ } => {
+                ParseErrorKind::UnexpectedEof.into_error(self.map_span(location, location))
+            }
+            LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ }
+            | LalrpopError::ExtraToken { token: (start, _, end) } => {
+                ParseErrorKind::UnexpectedToken.into_error(self.map_span(start, end))
+            }
+        }
+    }
+}
+
 macro_rules! parse {
     ($parser:path, $tokens:expr, $span:expr) => {{
-        let offset = $span.lo();
-        let ctx = $span.ctxt();
-        let parent = $span.parent();
-        let mk_span =
-            |lo: Location, hi: Location| Span::new(lo.0 + offset, hi.0 + offset, ctx, parent);
+        let mut cx = ParseCtxt::new($span);
         <$parser>::new()
-            .parse(&mk_span, Cursor::new($tokens, $span.lo()))
-            .map_err(|err| map_err(err, offset, ctx, parent))
+            .parse(&mut cx, Cursor::new($tokens, $span.lo()))
+            .map_err(|err| cx.map_err(err))
     }};
 }
 
@@ -84,35 +112,7 @@ pub enum ParseErrorKind {
 }
 
 impl ParseErrorKind {
-    fn into_error(
-        self,
-        offset: BytePos,
-        lo: Location,
-        hi: Location,
-        ctx: SyntaxContext,
-        parent: Option<LocalDefId>,
-    ) -> ParseError {
-        ParseError { kind: self, span: Span::new(lo.0 + offset, hi.0 + offset, ctx, parent) }
-    }
-}
-
-fn map_err(
-    err: LalrpopError,
-    offset: BytePos,
-    ctx: SyntaxContext,
-    parent: Option<LocalDefId>,
-) -> ParseError {
-    match err {
-        LalrpopError::InvalidToken { .. } => unreachable!(),
-        LalrpopError::User { error: UserParseError::UnexpectedToken(lo, hi) } => {
-            ParseErrorKind::UnexpectedToken.into_error(offset, lo, hi, ctx, parent)
-        }
-        LalrpopError::UnrecognizedEof { location, expected: _ } => {
-            ParseErrorKind::UnexpectedEof.into_error(offset, location, location, ctx, parent)
-        }
-        LalrpopError::UnrecognizedToken { token: (start, _, end), expected: _ }
-        | LalrpopError::ExtraToken { token: (start, _, end) } => {
-            ParseErrorKind::UnexpectedToken.into_error(offset, start, end, ctx, parent)
-        }
+    fn into_error(self, span: Span) -> ParseError {
+        ParseError { kind: self, span }
     }
 }
