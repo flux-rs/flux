@@ -342,6 +342,7 @@ impl<'sess> Resolver<'sess> {
                     generics,
                     refine: path.refine,
                     span: path.span,
+                    node_id: path.node_id,
                     res,
                 })
             }

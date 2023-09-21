@@ -362,7 +362,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 self.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)?
             }
             ("field", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_ty, FluxAttrKind::Field)?
+                self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)?
             }
             ("variant", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_variant, FluxAttrKind::Variant)?

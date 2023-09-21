@@ -290,6 +290,7 @@ pub struct Path<R = ()> {
     pub generics: Vec<GenericArg<R>>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
+    pub node_id: NodeId,
     pub res: R,
 }
 
@@ -345,25 +346,6 @@ pub enum BinOp {
 pub enum UnOp {
     Not,
     Neg,
-}
-
-impl From<Ident> for Path {
-    fn from(ident: Ident) -> Self {
-        Path { segments: vec![ident], generics: vec![], refine: vec![], span: ident.span, res: () }
-    }
-}
-
-impl From<(Ident, Ident)> for Path {
-    fn from(idents: (Ident, Ident)) -> Self {
-        let (ident1, ident2) = idents;
-        Path {
-            segments: vec![ident1, ident2],
-            generics: vec![],
-            refine: vec![],
-            span: ident1.span.to(ident2.span),
-            res: (),
-        }
-    }
 }
 
 impl Path {

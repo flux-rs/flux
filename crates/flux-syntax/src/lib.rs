@@ -34,12 +34,6 @@ macro_rules! parse {
 }
 
 impl ParseSess {
-    fn next_node_id(&mut self) -> NodeId {
-        let id = NodeId(self.next_node_id);
-        self.next_node_id += 1;
-        id
-    }
-
     pub fn parse_refined_by(
         &mut self,
         tokens: &TokenStream,
@@ -80,7 +74,7 @@ impl ParseSess {
         parse!(self, grammar::ItemsParser, tokens, span)
     }
 
-    pub fn parse_ty(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Ty> {
+    pub fn parse_type(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Ty> {
         parse!(self, grammar::TyParser, tokens, span)
     }
 
@@ -95,6 +89,12 @@ impl ParseSess {
     pub fn parse_expr(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Expr> {
         parse!(self, grammar::ExprParser, tokens, span)
     }
+
+    fn next_node_id(&mut self) -> NodeId {
+        let id = NodeId(self.next_node_id);
+        self.next_node_id += 1;
+        id
+    }
 }
 
 struct ParseCtxt<'a> {
@@ -107,6 +107,10 @@ struct ParseCtxt<'a> {
 impl<'a> ParseCtxt<'a> {
     fn new(sess: &'a mut ParseSess, span: Span) -> Self {
         Self { sess, offset: span.lo(), ctx: span.ctxt(), parent: span.parent() }
+    }
+
+    fn next_node_id(&mut self) -> NodeId {
+        self.sess.next_node_id()
     }
 
     fn map_span(&self, lo: Location, hi: Location) -> Span {

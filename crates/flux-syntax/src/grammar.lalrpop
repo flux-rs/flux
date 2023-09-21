@@ -312,6 +312,7 @@ Path: surface::Path = {
             generics: generics.unwrap_or_default(),
             refine: refine.unwrap_or_default(),
             span: cx.map_span(lo, hi),
+            node_id: cx.next_node_id(),
             res: (),
         }
     }
