@@ -7,6 +7,9 @@ pub use rustc_ast::{
 pub use rustc_span::symbol::Ident;
 use rustc_span::{symbol::kw, Span};
 
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+pub struct NodeId(pub(super) usize);
+
 #[derive(Debug)]
 pub struct SortDecl {
     pub name: Ident,
