@@ -67,7 +67,7 @@ pub fn parse_type_alias(tokens: &TokenStream, span: Span) -> ParseResult<surface
     parse!(grammar::TyAliasParser, tokens, span)
 }
 
-pub fn parse_fn_surface_sig(tokens: &TokenStream, span: Span) -> ParseResult<surface::FnSig> {
+pub fn parse_fn_sig(tokens: &TokenStream, span: Span) -> ParseResult<surface::FnSig> {
     parse!(grammar::FnSigParser, tokens, span)
 }
 

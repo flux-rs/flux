@@ -5,8 +5,8 @@ use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
 use flux_syntax::{
-    parse_expr, parse_flux_item, parse_fn_surface_sig, parse_qual_names, parse_refined_by,
-    parse_ty, parse_type_alias, parse_variant, surface, ParseResult,
+    parse_expr, parse_flux_item, parse_fn_sig, parse_qual_names, parse_refined_by, parse_ty,
+    parse_type_alias, parse_variant, surface, ParseResult,
 };
 use itertools::Itertools;
 use rustc_ast::{
@@ -346,7 +346,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 self.parse(dargs, parse_type_alias, FluxAttrKind::TypeAlias)?
             }
             ("sig", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_fn_surface_sig, FluxAttrKind::FnSig)?
+                self.parse(dargs, parse_fn_sig, FluxAttrKind::FnSig)?
             }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, parse_qual_names, FluxAttrKind::QualNames)?
