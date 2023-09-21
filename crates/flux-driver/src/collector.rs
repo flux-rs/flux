@@ -343,25 +343,28 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("alias", AttrArgs::Delimited(dargs)) => {
-                let alias = self.parse(&dargs.tokens, dargs.dspan.entire(), parse_type_alias)?;
-                FluxAttrKind::TypeAlias(alias)
+                self.parse(dargs, parse_type_alias, FluxAttrKind::TypeAlias)?
             }
             ("sig", AttrArgs::Delimited(dargs)) => {
-                let fn_sig =
-                    self.parse(&dargs.tokens, dargs.dspan.entire(), parse_fn_surface_sig)?;
-                FluxAttrKind::FnSig(fn_sig)
+                self.parse(dargs, parse_fn_surface_sig, FluxAttrKind::FnSig)?
             }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
-                let qualifiers =
-                    self.parse(&dargs.tokens, dargs.dspan.entire(), parse_qual_names)?;
-                FluxAttrKind::QualNames(qualifiers)
-            }
-            ("constant", AttrArgs::Empty) => {
-                FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
+                self.parse(dargs, parse_qual_names, FluxAttrKind::QualNames)?
             }
             ("defs", AttrArgs::Delimited(dargs)) => {
-                let items = self.parse(&dargs.tokens, dargs.dspan.entire(), parse_flux_item)?;
-                FluxAttrKind::Items(items)
+                self.parse(dargs, parse_flux_item, FluxAttrKind::Items)?
+            }
+            ("refined_by", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, parse_refined_by, FluxAttrKind::RefinedBy)?
+            }
+            ("field", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, parse_ty, FluxAttrKind::Field)?
+            }
+            ("variant", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, parse_variant, FluxAttrKind::Variant)?
+            }
+            ("invariant", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, parse_expr, FluxAttrKind::Invariant)?
             }
             ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -370,22 +373,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     .emit(self.sess)?;
                 FluxAttrKind::CrateConfig(crate_cfg)
             }
-            ("refined_by", AttrArgs::Delimited(dargs)) => {
-                let refined_by =
-                    self.parse(&dargs.tokens, dargs.dspan.entire(), parse_refined_by)?;
-                FluxAttrKind::RefinedBy(refined_by)
-            }
-            ("field", AttrArgs::Delimited(dargs)) => {
-                let ty = self.parse(&dargs.tokens, dargs.dspan.entire(), parse_ty)?;
-                FluxAttrKind::Field(ty)
-            }
-            ("variant", AttrArgs::Delimited(dargs)) => {
-                let variant = self.parse(&dargs.tokens, dargs.dspan.entire(), parse_variant)?;
-                FluxAttrKind::Variant(variant)
-            }
-            ("invariant", AttrArgs::Delimited(dargs)) => {
-                let invariant = self.parse(&dargs.tokens, dargs.dspan.entire(), parse_expr)?;
-                FluxAttrKind::Invariant(invariant)
+            ("constant", AttrArgs::Empty) => {
+                FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
             ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
@@ -412,11 +401,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let ExprKind::Call(callee, _) = &e.kind
             && let ExprKind::Path(qself) = &callee.kind
         {
-                let typeck_result = self.tcx.typeck(def_id);
-                if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
-                {
-                    return Ok(def_id);
-                }
+            let typeck_result = self.tcx.typeck(def_id);
+            if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
+                return Ok(def_id);
+            }
         }
         // impl functions
         if let Node::ImplItem(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
@@ -427,11 +415,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let ExprKind::Call(callee, _) = &e.kind
             && let ExprKind::Path(qself) = &callee.kind
         {
-                let typeck_result = self.tcx.typeck(def_id);
-                if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id)
-                {
-                    return Ok(def_id);
-                }
+            let typeck_result = self.tcx.typeck(def_id);
+            if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
+                return Ok(def_id);
+            }
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
@@ -452,11 +439,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse<T>(
         &mut self,
-        tokens: &TokenStream,
-        input_span: Span,
+        dargs: &rustc_ast::DelimArgs,
         parser: impl FnOnce(&TokenStream, Span) -> ParseResult<T>,
-    ) -> Result<T, ErrorGuaranteed> {
-        parser(tokens, input_span).map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
+        ctor: impl FnOnce(T) -> FluxAttrKind,
+    ) -> Result<FluxAttrKind, ErrorGuaranteed> {
+        parser(&dargs.tokens, dargs.dspan.entire())
+            .map(ctor)
+            .map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
 
     fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
