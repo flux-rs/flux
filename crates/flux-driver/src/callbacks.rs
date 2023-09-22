@@ -93,7 +93,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         flux_fhir_analysis::provide(genv.providers());
 
-        stage1_desugar(&mut genv, &mut specs)?;
+        stage1_desugar(&mut genv, &specs)?;
         let resolver_output = resolve_crate(tcx, sess, &specs)?;
         stage2_desugar(&mut genv, &mut specs, &resolver_output)?;
 
@@ -101,7 +101,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         tracing::info!("Callbacks::check_wf");
 
-        let mut ck = CrateChecker::new(&mut genv, specs.ignores, specs.crate_config);
+        let mut ck = CrateChecker::new(&genv, specs.ignores, specs.crate_config);
 
         let crate_items = tcx.hir_crate_items(());
         let items = crate_items.items().map(|item| item.owner_id.def_id);
@@ -123,21 +123,21 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn stage1_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGuaranteed> {
+fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
     let tcx = genv.tcx;
     let sess = genv.sess;
     let map = genv.map_mut();
 
     // Register Sorts
-    for sort_decl in std::mem::take(&mut specs.sort_decls) {
+    for sort_decl in &specs.sort_decls {
         map.insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
     }
 
     // Register Consts
-    for (def_id, const_sig) in std::mem::take(&mut specs.consts) {
+    for (def_id, const_sig) in &specs.consts {
         let did = def_id.to_def_id();
-        let sym = def_id_symbol(tcx, def_id);
+        let sym = def_id_symbol(tcx, *def_id);
         map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
@@ -170,10 +170,11 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &mut Specs) -> Result<(), ErrorGu
         .or(err);
 
     // Externs
-    std::mem::take(&mut specs.extern_specs)
-        .into_iter()
+    specs
+        .extern_specs
+        .iter()
         .for_each(|(extern_def_id, local_def_id)| {
-            map.insert_extern(extern_def_id, local_def_id);
+            map.insert_extern(*extern_def_id, *local_def_id);
         });
 
     if let Some(err) = err {
@@ -270,16 +271,16 @@ fn desugar_item(
             desugar_fn_sig(genv, specs, owner_id, resolver_output)?;
         }
         hir::ItemKind::TyAlias(..) => {
-            let ty_alias = specs.ty_aliases.remove(&owner_id).unwrap();
+            let ty_alias = specs.ty_aliases[&owner_id].as_ref();
             desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)?;
         }
         hir::ItemKind::OpaqueTy(_) => desugar::desugar_generics_and_predicates(genv, owner_id)?,
         hir::ItemKind::Enum(..) => {
-            let enum_def = specs.enums.remove(&owner_id).unwrap();
+            let enum_def = &specs.enums[&owner_id];
             desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output)?;
         }
         hir::ItemKind::Struct(..) => {
-            let struct_def = specs.structs.remove(&owner_id).unwrap();
+            let struct_def = &specs.structs[&owner_id];
             desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)?;
         }
         hir::ItemKind::Trait(.., items) => {
@@ -337,8 +338,9 @@ fn desugar_fn_sig(
         genv.map_mut().add_trusted(def_id);
     }
 
-    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig, resolver_output)?;
+    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig.as_ref(), resolver_output)?;
 
+    // FIXME(nilehmann) not cloning `spec.qual_names` is the only reason we take a `&mut Specs`
     if let Some(quals) = spec.qual_names {
         genv.map_mut().insert_fn_quals(def_id, quals.names);
     }
@@ -359,7 +361,7 @@ fn save_metadata(genv: &GlobalEnv) {
 }
 
 struct CrateChecker<'a, 'genv, 'tcx> {
-    genv: &'a mut GlobalEnv<'genv, 'tcx>,
+    genv: &'a GlobalEnv<'genv, 'tcx>,
     ignores: Ignores,
     cache: QueryCache,
     checker_config: CheckerConfig,
@@ -367,7 +369,7 @@ struct CrateChecker<'a, 'genv, 'tcx> {
 
 impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
     fn new(
-        genv: &'a mut GlobalEnv<'genv, 'tcx>,
+        genv: &'a GlobalEnv<'genv, 'tcx>,
         ignores: Ignores,
         crate_config: Option<CrateConfig>,
     ) -> Self {

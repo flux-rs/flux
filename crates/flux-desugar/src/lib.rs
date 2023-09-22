@@ -46,7 +46,7 @@ use rustc_hir::OwnerId;
 pub fn desugar_struct_def(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
-    struct_def: surface::StructDef,
+    struct_def: &surface::StructDef,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
@@ -58,7 +58,7 @@ pub fn desugar_struct_def(
     genv.map().insert_generics(def_id, generics);
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See crate level comment
-    let struct_def = cx.desugar_struct_def(&struct_def, &mut Binders::new())?;
+    let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
     }
@@ -71,7 +71,7 @@ pub fn desugar_struct_def(
 pub fn desugar_enum_def(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
-    enum_def: surface::EnumDef,
+    enum_def: &surface::EnumDef,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
@@ -83,7 +83,7 @@ pub fn desugar_enum_def(
     genv.map().insert_generics(def_id, generics);
 
     // Desugar of enum def needs to happen AFTER inserting generics. See crate level comment
-    let enum_def = cx.desugar_enum_def(&enum_def, &mut Binders::new())?;
+    let enum_def = cx.desugar_enum_def(enum_def, &mut Binders::new())?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
     }
@@ -96,7 +96,7 @@ pub fn desugar_enum_def(
 pub fn desugar_type_alias(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
-    ty_alias: Option<surface::TyAlias>,
+    ty_alias: Option<&surface::TyAlias>,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
@@ -109,7 +109,7 @@ pub fn desugar_type_alias(
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of type alias needs to happen AFTER desugaring generics. See crate level comment
-        let ty_alias = cx.desugar_type_alias(&ty_alias, &mut Binders::new())?;
+        let ty_alias = cx.desugar_type_alias(ty_alias, &mut Binders::new())?;
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
         }
@@ -132,7 +132,7 @@ pub fn desugar_type_alias(
 pub fn desugar_fn_sig(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
-    fn_sig: Option<surface::FnSig>,
+    fn_sig: Option<&surface::FnSig>,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
@@ -149,7 +149,7 @@ pub fn desugar_fn_sig(
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of fn_sig needs to happen AFTER inserting generics. See crate level comment
-        let (generic_preds, fn_sig) = cx.desugar_fn_sig(&fn_sig, &mut Binders::new())?;
+        let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig, &mut Binders::new())?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
@@ -189,6 +189,6 @@ pub fn desugar_generics_and_predicates(
     Ok(())
 }
 
-pub fn desugar_sort_decl(sort_decl: surface::SortDecl) -> fhir::SortDecl {
+pub fn desugar_sort_decl(sort_decl: &surface::SortDecl) -> fhir::SortDecl {
     fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
 }
