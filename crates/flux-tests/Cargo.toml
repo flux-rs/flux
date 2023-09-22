@@ -14,3 +14,6 @@ itertools = "0.10"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[lints]
+workspace = true
