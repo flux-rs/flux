@@ -20,3 +20,6 @@ toposort-scc = "0.5.4"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[lints]
+workspace = true

@@ -297,7 +297,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     ) -> QueryResult<rty::GenericArgs> {
         let refiner = Refiner::default(self, generics);
         let mut res = vec![];
-        for arg in args.iter() {
+        for arg in args {
             res.push(refiner.refine_generic_arg_raw(arg)?);
         }
         Ok(res.into())

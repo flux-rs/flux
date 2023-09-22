@@ -61,7 +61,7 @@ impl Defns {
 
         // 2. Make the dependency graph
         let mut adj_list: Vec<Vec<usize>> = vec![];
-        for name in i2s.iter() {
+        for name in &i2s {
             let defn = self.defns.get(name).unwrap();
             let deps = self.defn_deps(&defn.expr);
             let ddeps = deps

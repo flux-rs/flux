@@ -19,3 +19,6 @@ lalrpop = "0.20"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[lints]
+workspace = true

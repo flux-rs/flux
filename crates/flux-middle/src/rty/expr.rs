@@ -918,7 +918,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.loc)?;
-            for field in self.projection.iter() {
+            for field in &self.projection {
                 w!(".{}", ^u32::from(*field))?;
             }
             Ok(())
@@ -932,7 +932,7 @@ mod pretty {
                 Loc::Local(local) => w!("{:?}", ^local),
                 Loc::TupleProj(var, proj) => {
                     w!("{:?}", var)?;
-                    for field in proj.iter() {
+                    for field in proj {
                         w!(".{}", ^field)?;
                     }
                     Ok(())

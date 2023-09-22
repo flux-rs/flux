@@ -137,7 +137,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("scrape_quals", false)?;
         // Config comes first, enviroment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
-            config_builder = config_builder.add_source(File::from(config_path.to_path_buf()));
+            config_builder = config_builder.add_source(File::from(config_path.clone()));
         };
         config_builder
             .add_source(Environment::with_prefix(FLUX_ENV_VAR_PREFIX).ignore_empty(true))

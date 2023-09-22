@@ -1,4 +1,3 @@
-#![warn(unused_extern_crates)]
 #![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -25,7 +24,7 @@ use flux_macros::fluent_messages;
 use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, intern::List, rty};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
-use rustc_hir::{def::DefKind, def_id::LOCAL_CRATE};
+use rustc_hir::def::DefKind;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{
@@ -145,12 +144,7 @@ impl CrateMetadata {
 }
 
 pub fn filename_for_metadata(tcx: TyCtxt) -> OutFileName {
-    let crate_name = tcx.crate_name(LOCAL_CRATE);
-    match rustc_session::output::filename_for_metadata(
-        tcx.sess,
-        crate_name,
-        tcx.output_filenames(()),
-    ) {
+    match rustc_session::output::filename_for_metadata(tcx.sess, tcx.output_filenames(())) {
         OutFileName::Real(path) => OutFileName::Real(path.with_extension("fluxmeta")),
         OutFileName::Stdout => OutFileName::Stdout,
     }

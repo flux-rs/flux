@@ -1568,7 +1568,7 @@ impl Layer {
         span: Span,
     ) -> Vec<fhir::RefineArg> {
         let mut refine_args = vec![];
-        for (ident, binder) in self.map.iter() {
+        for (ident, binder) in &self.map {
             match binder {
                 Binder::Refined(name, _, _) => {
                     let ident = fhir::Ident::new(*name, *ident);

@@ -12,3 +12,6 @@ test = false
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[lints]
+workspace = true

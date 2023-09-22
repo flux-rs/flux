@@ -11,3 +11,6 @@ flux-config.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[lints]
+workspace = true

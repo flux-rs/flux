@@ -20,3 +20,6 @@ tracing = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[lints]
+workspace = true
