@@ -7,7 +7,7 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dashmap = { version = "5.0.4", features = ["raw-api"] }
+dashmap = { version = "5.5.3", features = ["raw-api"] }
 ena = "0.14.2"
 flux-common.workspace = true
 flux-config.workspace = true
