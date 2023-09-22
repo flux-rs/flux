@@ -7,6 +7,8 @@ pub use rustc_ast::{
 pub use rustc_span::symbol::Ident;
 use rustc_span::{symbol::kw, Span};
 
+/// A [`NodeId`] is a unique identifier we assign to some AST nodes to be able to attach information
+/// to them. For example, to assign a resolution to a [`Path`]. The [`NodeId`] is unique within a crate.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct NodeId(pub(super) usize);
 
