@@ -580,7 +580,7 @@ dependencies = [
  "flux-macros",
  "flux-middle",
  "flux-syntax",
- "itertools 0.11.0",
+ "itertools",
 ]
 
 [[package]]
@@ -597,7 +597,7 @@ dependencies = [
  "flux-middle",
  "flux-refineck",
  "flux-syntax",
- "itertools 0.11.0",
+ "itertools",
  "tracing",
  "tracing-subscriber",
  "tracing-timing",
@@ -617,7 +617,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
- "itertools 0.11.0",
+ "itertools",
 ]
 
 [[package]]
@@ -626,7 +626,7 @@ version = "0.1.0"
 dependencies = [
  "flux-common",
  "flux-config",
- "itertools 0.11.0",
+ "itertools",
  "serde",
  "serde_json",
 ]
@@ -653,7 +653,7 @@ dependencies = [
  "flux-errors",
  "flux-macros",
  "flux-middle",
- "itertools 0.11.0",
+ "itertools",
 ]
 
 [[package]]
@@ -668,7 +668,7 @@ dependencies = [
  "flux-fixpoint",
  "flux-macros",
  "hashbrown 0.14.0",
- "itertools 0.11.0",
+ "itertools",
  "toposort-scc",
 ]
 
@@ -683,7 +683,7 @@ dependencies = [
  "flux-fixpoint",
  "flux-macros",
  "flux-middle",
- "itertools 0.11.0",
+ "itertools",
  "tracing",
 ]
 
@@ -708,7 +708,7 @@ name = "flux-tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
- "itertools 0.11.0",
+ "itertools",
 ]
 
 [[package]]
@@ -849,15 +849,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -894,7 +885,7 @@ dependencies = [
  "diff",
  "ena",
  "is-terminal",
- "itertools 0.10.5",
+ "itertools",
  "lalrpop-util",
  "petgraph",
  "pico-args",
@@ -1639,7 +1630,7 @@ checksum = "5376256e44f2443f8896ac012507c19a012df0fe8758b55246ae51a2279db51f"
 dependencies = [
  "combine",
  "indexmap 1.9.3",
- "itertools 0.10.5",
+ "itertools",
  "serde",
 ]
 

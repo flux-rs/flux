@@ -20,6 +20,7 @@ flux-refineck = { path = "./crates/flux-refineck", version = "0.1.0" }
 flux-rs = { path = "./crates/flux-rs", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
 flux-tests = { path = "./crates/flux-tests", version = "0.1.0" }
+itertools = "0.10.5"
 
 [workspace.lints.rust]
 unused_extern_crates = "warn"
