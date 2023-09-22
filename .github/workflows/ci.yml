@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  check-tests:
+  tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -61,7 +61,7 @@ jobs:
         run: |
           which fixpoint && cargo xtask test
 
-  check-fmt:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -72,7 +72,13 @@ jobs:
       - name: Rust rustfmt
         run: cargo fmt --check
 
-  check-clippy:
+      - name: Install codesync
+        run: cargo install --git https://github.com/nilehmann/codesync
+
+      - name: Run codesync
+        run: codesync check
+
+  clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
