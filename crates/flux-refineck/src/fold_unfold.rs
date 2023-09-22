@@ -155,7 +155,7 @@ impl Mode for Elaboration<'_> {
             }
             ProjResult::Unfold => {
                 let projection = match kind {
-                    ProjKind::Len => place.projection.to_vec(),
+                    ProjKind::Len => place.projection.clone(),
                     ProjKind::Other => place.projection[..place.projection.len() - 1].to_vec(),
                 };
                 let place = Place::new(place.local, projection);

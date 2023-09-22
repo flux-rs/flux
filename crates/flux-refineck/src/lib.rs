@@ -1,6 +1,5 @@
 //! Refinement type checking
 
-#![warn(unused_extern_crates)]
 #![feature(
     associated_type_defaults,
     box_patterns,

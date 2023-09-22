@@ -20,3 +20,15 @@ flux-refineck = { path = "./crates/flux-refineck", version = "0.1.0" }
 flux-rs = { path = "./crates/flux-rs", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
 flux-tests = { path = "./crates/flux-tests", version = "0.1.0" }
+
+[workspace.lints.rust]
+unused_extern_crates = "warn"
+
+[workspace.lints.clippy]
+cloned-instead-of-copied = "warn"
+explicit-into-iter-loop = "warn"
+explicit-iter-loop = "warn"
+implicit-clone = "warn"
+inefficient-to-string = "warn"
+mismatching-type-param-order = "warn"
+semicolon-if-nothing-returned = "warn"

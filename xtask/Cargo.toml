@@ -11,3 +11,6 @@ flux-tests.workspace = true
 opener = "0.6.1"
 xflags = "0.3.1"
 xshell = "0.2.5"
+
+[lints]
+workspace = true

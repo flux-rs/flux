@@ -9,7 +9,6 @@
 //! desugared to be register in [`fhir::Map`], thus we need to make sure that when desugaring an item,
 //! generics are registered before desugaring the rest of the item.
 
-#![warn(unused_extern_crates)]
 #![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains)]
 
 extern crate rustc_data_structures;

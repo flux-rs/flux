@@ -10,3 +10,6 @@ edition.workspace = true
 config = "0.13"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
+
+[lints]
+workspace = true

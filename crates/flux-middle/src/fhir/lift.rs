@@ -569,7 +569,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         generics: &hir::Generics,
     ) -> Result<Vec<fhir::GenericArg>, ErrorGuaranteed> {
         let mut args = vec![];
-        for param in generics.params.iter() {
+        for param in generics.params {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
                     let res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());

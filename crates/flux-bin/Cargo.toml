@@ -21,3 +21,6 @@ anyhow = "1.0.68"
 dirs = "4.0.0"
 flux-config.workspace = true
 rust-toolchain-file = "0.1.0"
+
+[lints]
+workspace = true

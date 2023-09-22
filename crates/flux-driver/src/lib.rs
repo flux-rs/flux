@@ -1,4 +1,3 @@
-#![warn(unused_extern_crates)]
 #![feature(rustc_private, box_patterns, let_chains)]
 
 extern crate rustc_ast;

@@ -8,3 +8,6 @@ edition.workspace = true
 
 [dependencies]
 flux-rs = { workspace = true, features = ["enabled"] }
+
+[lints]
+workspace = true

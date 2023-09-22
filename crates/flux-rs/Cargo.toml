@@ -16,3 +16,6 @@ proc-macro2 = { version = "1.0", optional = true }
 # feature when checking with flux which indicates that we should pull in these
 # deps.
 enabled = ["flux-attrs/enabled"]
+
+[lints]
+workspace = true
