@@ -17,7 +17,7 @@ flux-errors.workspace = true
 flux-macros.workspace = true
 flux-middle.workspace = true
 flux-syntax.workspace = true
-itertools = "0.10"
+itertools.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true

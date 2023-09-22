@@ -22,7 +22,7 @@ flux-metadata.workspace = true
 flux-middle.workspace = true
 flux-refineck.workspace = true
 flux-syntax.workspace = true
-itertools = "0.10"
+itertools.workspace = true
 tracing-subscriber = { version = "0.3", features = ["json"] }
 tracing-timing = "0.6.0"
 
