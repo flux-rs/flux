@@ -55,6 +55,6 @@ impl Eq for Item<'_> {}
 
 impl Ord for Item<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.dominators.rank_partial_cmp(other.bb, self.bb).unwrap()
+        self.dominators.cmp_in_dominator_order(other.bb, self.bb)
     }
 }

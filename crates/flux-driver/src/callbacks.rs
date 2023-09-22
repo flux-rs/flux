@@ -17,7 +17,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
-use rustc_session::{config::OutputType, EarlyErrorHandler};
+use rustc_session::config::OutputType;
 
 use crate::{
     collector::{IgnoreKey, Ignores, SpecCollector, Specs},
@@ -45,7 +45,6 @@ impl Callbacks for FluxCallbacks {
 
     fn after_analysis<'tcx>(
         &mut self,
-        _handler: &EarlyErrorHandler,
         compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {

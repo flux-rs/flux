@@ -2,11 +2,10 @@ use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
-use rustc_const_eval::interpret::ConstValue;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
-    mir as rustc_mir,
+    mir::{self as rustc_mir, ConstValue},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
         TyCtxt,
@@ -479,28 +478,28 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
 
     fn lower_constant(
         &self,
-        constant: &rustc_mir::Constant<'tcx>,
+        constant: &rustc_mir::ConstOperand<'tcx>,
     ) -> Result<Constant, UnsupportedReason> {
         use rustc_middle::ty::TyKind;
         // use rustc_ty::ScalarInt;
         use rustc_mir::interpret::Scalar;
-        use rustc_mir::ConstantKind;
+        use rustc_mir::Const;
         let tcx = self.tcx;
 
         // HACK(nilehmann) we evaluate the constant to support u32::MAX
         // we should instead lower it as is and refine its type.
-        let kind = constant.literal.eval(tcx, ParamEnv::empty());
+        let val = constant.const_.normalize(tcx, ParamEnv::empty());
         let ty = constant.ty();
-        match (kind, ty.kind()) {
-            (ConstantKind::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
+        match (val, ty.kind()) {
+            (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 scalar_int_to_constant(tcx, scalar, ty)
             }
-            (ConstantKind::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
+            (Const::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
                 if ref_ty.is_str() =>
             {
                 Some(Constant::Str)
             }
-            (ConstantKind::Ty(c), _) => {
+            (Const::Ty(c), _) => {
                 if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
                     scalar_int_to_constant(tcx, scalar, c.ty())
                 } else {
@@ -799,7 +798,7 @@ fn lower_generic_param_def(
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
-        rustc_ty::GenericParamDefKind::Const { has_default } => {
+        rustc_ty::GenericParamDefKind::Const { has_default, .. } => {
             GenericParamDefKind::Const { has_default }
         }
         _ => return Err(UnsupportedReason::new("unsupported generic param")),
