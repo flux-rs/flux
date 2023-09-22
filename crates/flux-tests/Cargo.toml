@@ -9,8 +9,8 @@ doctest = false
 test = false
 
 [dev-dependencies]
-compiletest_rs = "0.8"
-itertools = "0.10"
+compiletest_rs = "0.10"
+itertools = "0.11"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

@@ -18,7 +18,7 @@ test = false
 
 [dependencies]
 anyhow = "1.0.75"
-dirs = "4.0.0"
+dirs = "5.0.1"
 flux-config.workspace = true
 rust-toolchain-file = "0.1.0"
 

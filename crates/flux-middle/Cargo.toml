@@ -15,7 +15,7 @@ flux-errors.workspace = true
 flux-fixpoint.workspace = true
 flux-macros.workspace = true
 hashbrown = "0.14.0"
-itertools = "0.10"
+itertools = "0.11"
 toposort-scc = "0.5.4"
 
 [package.metadata.rust-analyzer]

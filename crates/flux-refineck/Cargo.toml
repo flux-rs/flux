@@ -7,14 +7,14 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitflags = "1.3"
+bitflags = "2.4"
 flux-common.workspace = true
 flux-config.workspace = true
 flux-errors.workspace = true
 flux-fixpoint.workspace = true
 flux-macros.workspace = true
 flux-middle.workspace = true
-itertools = "0.10"
+itertools = "0.11"
 tracing = "0.1"
 
 

@@ -410,6 +410,7 @@ impl NodePtr {
 }
 
 bitflags! {
+    #[derive(Copy, Clone)]
     pub struct UnpackFlags: u8 {
         const EXISTS_IN_MUT_REF = 0b001;
         const SHALLOW           = 0b010;
