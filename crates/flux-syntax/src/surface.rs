@@ -241,9 +241,8 @@ pub enum TyKind {
     Constr(Expr, Box<Ty>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
-    /// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
+    /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
-    Hole,
 }
 
 #[derive(Debug)]
@@ -350,14 +349,10 @@ pub enum UnOp {
 impl Path {
     pub fn is_hole(&self) -> bool {
         if let [segment] = &self.segments[..] {
-            segment.name == kw::Underscore && self.is_simple()
+            segment.name == kw::Underscore && self.generics.is_empty() && self.refine.is_empty()
         } else {
             false
         }
-    }
-
-    fn is_simple(&self) -> bool {
-        self.generics.is_empty() && self.refine.is_empty()
     }
 }
 

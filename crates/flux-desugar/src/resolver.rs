@@ -204,7 +204,17 @@ impl<'a> ItemLikeResolver<'a> {
 
     fn resolve_ty(&mut self, ty: &Ty) -> Result {
         match &ty.kind {
-            surface::TyKind::Base(bty) => self.resolve_bty(bty),
+            surface::TyKind::Base(bty) => {
+                // CODESYNC(type-holes, 3) we don't resolve type holes because they will be desugared
+                // to `fhir::TyKind::Hole`. The path won't have an entry in `path_res_map` which we
+                // should consider during desugaring. Holes in other positions (e.g., _[10] or _{v: v > 0})
+                // will fail resolving so they don't show up in desugaring.
+                if let BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                    Ok(())
+                } else {
+                    self.resolve_bty(bty)
+                }
+            }
             surface::TyKind::Indexed { bty, .. } => self.resolve_bty(bty),
             surface::TyKind::Exists { bty, .. } => self.resolve_bty(bty),
             surface::TyKind::GeneralExists { ty, .. } => self.resolve_ty(ty),
@@ -247,9 +257,6 @@ impl<'a> ItemLikeResolver<'a> {
     }
 
     fn resolve_path(&mut self, path: &Path) -> Result {
-        if path.is_hole() {
-            return Ok(());
-        }
         let Some(res) = self.table.get(&ResKey::from_path(path)) else {
             return Err(self.sess.emit_err(errors::UnresolvedPath::new(path)));
         };

@@ -599,7 +599,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::Ty, ErrorGuaranteed> {
         let span = ty.span;
         let kind = match &ty.kind {
-            surface::TyKind::Base(bty) => return self.desugar_bty_bind(bind, bty, binders),
+            surface::TyKind::Base(bty) => {
+                // CODESYNC(type-holes, 3)
+                if let surface::BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                    fhir::TyKind::Hole
+                } else {
+                    return self.desugar_bty_bind(bind, bty, binders)
+                }
+            }
             surface::TyKind::Indexed { bty, indices } => {
                 let bty = self.desugar_bty(bty, binders)?;
                 let idx = self.desugar_indices(&bty, indices, binders)?;
@@ -689,7 +696,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty = self.desugar_ty(None, ty, binders)?;
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
-            surface::TyKind::Hole => fhir::TyKind::Hole,
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 let item_id = self.resolver_output.impl_trait_res_map[&node_id];
                 let def_id = item_id.owner_id.def_id;
@@ -1418,7 +1424,6 @@ impl Binders {
                 // allow it if we resolve the weird behavior by detecting shadowing.
                 self.gather_params_ty(genv, resolver_output, None, ty, TypePos::Other)
             }
-            surface::TyKind::Hole => Ok(()),
             surface::TyKind::ImplTrait(_, bounds) => {
                 for bound in bounds {
                     self.gather_params_path(genv, resolver_output, &bound.path, TypePos::Other)?;
@@ -1469,6 +1474,10 @@ impl Binders {
         path: &surface::Path,
         pos: TypePos,
     ) -> Result<(), ErrorGuaranteed> {
+        // CODESYNC(type-holes, 3)
+        if path.is_hole() {
+            return Ok(());
+        }
         let res = resolver_output.path_res_map[&path.node_id];
         let pos = if genv.is_box(res) { pos } else { TypePos::Other };
         path.generics.iter().try_for_each_exhaust(|arg| {
