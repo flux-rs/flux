@@ -4,10 +4,7 @@ use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
-use flux_syntax::{
-    parse_expr, parse_flux_item, parse_fn_sig, parse_qual_names, parse_refined_by, parse_ty,
-    parse_type_alias, parse_variant, surface, ParseResult,
-};
+use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
@@ -24,6 +21,7 @@ use rustc_span::{Span, Symbol};
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
+    parse_sess: ParseSess,
     specs: Specs,
     sess: &'a FluxSession,
     error_guaranteed: Option<ErrorGuaranteed>,
@@ -79,7 +77,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
     ) -> Result<Specs, ErrorGuaranteed> {
-        let mut collector = Self { tcx, sess, specs: Specs::new(), error_guaranteed: None };
+        let mut collector = Self {
+            tcx,
+            parse_sess: ParseSess::default(),
+            sess,
+            specs: Specs::new(),
+            error_guaranteed: None,
+        };
 
         collector.parse_crate_spec(tcx.hir().krate_attrs())?;
 
@@ -343,28 +347,28 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let kind = match (segment.ident.as_str(), &attr_item.args) {
             ("alias", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_type_alias, FluxAttrKind::TypeAlias)?
+                self.parse(dargs, ParseSess::parse_type_alias, FluxAttrKind::TypeAlias)?
             }
             ("sig", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_fn_sig, FluxAttrKind::FnSig)?
+                self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_qual_names, FluxAttrKind::QualNames)?
+                self.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)?
             }
             ("defs", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_flux_item, FluxAttrKind::Items)?
+                self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
             }
             ("refined_by", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_refined_by, FluxAttrKind::RefinedBy)?
+                self.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)?
             }
             ("field", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_ty, FluxAttrKind::Field)?
+                self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)?
             }
             ("variant", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_variant, FluxAttrKind::Variant)?
+                self.parse(dargs, ParseSess::parse_variant, FluxAttrKind::Variant)?
             }
             ("invariant", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, parse_expr, FluxAttrKind::Invariant)?
+                self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
             ("cfg", AttrArgs::Delimited(..)) => {
                 let crate_cfg = FluxAttrCFG::parse_cfg(attr_item)
@@ -440,10 +444,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse<T>(
         &mut self,
         dargs: &rustc_ast::DelimArgs,
-        parser: impl FnOnce(&TokenStream, Span) -> ParseResult<T>,
+        parser: impl FnOnce(&mut ParseSess, &TokenStream, Span) -> ParseResult<T>,
         ctor: impl FnOnce(T) -> FluxAttrKind,
     ) -> Result<FluxAttrKind, ErrorGuaranteed> {
-        parser(&dargs.tokens, dargs.dspan.entire())
+        parser(&mut self.parse_sess, &dargs.tokens, dargs.dspan.entire())
             .map(ctor)
             .map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
