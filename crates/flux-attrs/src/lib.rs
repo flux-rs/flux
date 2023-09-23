@@ -1,5 +1,3 @@
-// #![feature(proc_macro_diagnostic)]
-
 mod ast;
 
 use std::mem;

@@ -7,7 +7,7 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-config = "0.13"
+config = { version = "0.13", features = ["toml"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 
