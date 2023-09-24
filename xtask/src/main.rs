@@ -67,6 +67,8 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
 
 fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
     let Run { input } = args;
+    cmd!(sh, "cargo build").run()?;
+
     let flux_path = find_flux_path();
     let mut rustc_flags = rustc_flags();
     rustc_flags.extend([
@@ -75,7 +77,6 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
         "-Ztrack-diagnostics=y".to_string(),
     ]);
 
-    cmd!(sh, "cargo build").run()?;
     cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;
     Ok(())
 }
