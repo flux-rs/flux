@@ -598,11 +598,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::Hole => {
+            fhir::TyKind::Hole(fhir_id) => {
                 let ty = self
                     .wfckresults
                     .type_holes()
-                    .get(ty.fhir_id)
+                    .get(*fhir_id)
                     .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
                 self.conv_ty(env, ty)
             }

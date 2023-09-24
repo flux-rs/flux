@@ -175,13 +175,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     }
 
     pub(crate) fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
-        LiftCtxt::new(
-            self.genv.tcx,
-            self.genv.sess,
-            self.owner,
-            &self.local_id_gen,
-            self.opaque_tys.as_deref_mut(),
-        )
+        LiftCtxt::new(self.genv.tcx, self.genv.sess, self.owner, self.opaque_tys.as_deref_mut())
     }
 
     fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
@@ -500,22 +494,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let pred = self.as_expr_ctxt().desugar_expr(binders, pred)?;
 
                 let ty = if let Some(idx) = self.ident_into_refine_arg(*bind, binders)? {
-                    fhir::Ty {
-                        kind: fhir::TyKind::Indexed(bty, idx),
-                        fhir_id: self.next_fhir_id(),
-                        span: path.span,
-                    }
+                    fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
                 } else {
-                    fhir::Ty {
-                        kind: fhir::TyKind::BaseTy(bty),
-                        fhir_id: self.next_fhir_id(),
-                        span: path.span,
-                    }
+                    fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
                 };
 
                 let span = path.span.to(pred.span);
                 let kind = fhir::TyKind::Constr(pred, Box::new(ty));
-                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+                Ok(fhir::Ty { kind, span })
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let span = loc.span;
@@ -523,7 +509,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let ty = self.desugar_ty(None, ty, binders)?;
                 requires.push(fhir::Constraint::Type(loc, ty));
                 let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), loc);
-                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+                Ok(fhir::Ty { kind, span })
             }
             surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty, binders),
         }
@@ -550,7 +536,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
                 let refine_args = binders.bot_layer().to_refine_args(self, span);
                 let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
-                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+                Ok(fhir::Ty { kind, span })
             }
             surface::Async::No => Ok(self.desugar_fn_ret_ty(returns, binders)?),
         }
@@ -582,7 +568,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::FnRetTy::Ty(ty) => self.desugar_ty(None, ty, binders),
             surface::FnRetTy::Default(span) => {
                 let kind = fhir::TyKind::Tuple(vec![]);
-                Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span: *span })
+                Ok(fhir::Ty { kind, span: *span })
             }
         }
     }
@@ -598,7 +584,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::TyKind::Base(bty) => {
                 // CODESYNC(type-holes, 3)
                 if let surface::BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
-                    fhir::TyKind::Hole
+                    fhir::TyKind::Hole(self.next_fhir_id())
                 } else {
                     return self.desugar_bty_bind(bind, bty, binders)
                 }
@@ -633,16 +619,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                     },
                     is_binder: false,
                 };
-                let indexed = fhir::Ty {
-                    kind: fhir::TyKind::Indexed(bty, idx),
-                    fhir_id: self.next_fhir_id(),
-                    span: bty_span,
-                };
-                let constr = fhir::Ty {
-                    kind: fhir::TyKind::Constr(pred, Box::new(indexed)),
-                    fhir_id: self.next_fhir_id(),
-                    span: ty_span,
-                };
+                let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
+                let constr =
+                    fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
                 fhir::TyKind::Exists(params, Box::new(constr))
             }
             surface::TyKind::GeneralExists { params, ty, pred } => {
@@ -659,11 +638,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 if let Some(pred) = pred {
                     let pred = self.as_expr_ctxt().desugar_expr(binders, pred)?;
                     let span = ty.span.to(pred.span);
-                    ty = fhir::Ty {
-                        kind: fhir::TyKind::Constr(pred, Box::new(ty)),
-                        fhir_id: self.next_fhir_id(),
-                        span,
-                    };
+                    ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
                 }
                 let params = binders.pop_layer().into_params(self);
 
@@ -707,7 +682,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
             }
         };
-        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+        Ok(fhir::Ty { kind, span })
     }
 
     fn desugar_opaque_ty_for_impl_trait(
@@ -873,7 +848,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         } else {
             fhir::TyKind::BaseTy(bty)
         };
-        Ok(fhir::Ty { kind, fhir_id: self.next_fhir_id(), span })
+        Ok(fhir::Ty { kind, span })
     }
 
     fn desugar_variant_ret(

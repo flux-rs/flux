@@ -7,7 +7,7 @@
 //! [`fhir`]: flux_middle::fhir
 use std::iter;
 
-use flux_common::{bug, index::IndexGen, iter::IterExt};
+use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use flux_middle::fhir::{
     self,
@@ -55,8 +55,7 @@ pub fn check_struct_def(
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
-            let local_id_gen = IndexGen::new();
-            let mut liftcx = LiftCtxt::new(tcx, sess, struct_def.owner_id, &local_id_gen, None);
+            let mut liftcx = LiftCtxt::new(tcx, sess, struct_def.owner_id, None);
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
@@ -76,8 +75,7 @@ pub fn check_enum_def(
     wfckresults: &mut WfckResults,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
-    let local_id_gen = IndexGen::new();
-    let mut liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, &local_id_gen, None);
+    let mut liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
@@ -221,10 +219,10 @@ impl<'zip> Zipper<'zip> {
                 self.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
-            (fhir::TyKind::Hole, _) => {
+            (fhir::TyKind::Hole(fhir_id), _) => {
                 self.wfckresults
                     .type_holes_mut()
-                    .insert(ty.fhir_id, expected_ty.clone());
+                    .insert(*fhir_id, expected_ty.clone());
                 Ok(())
             }
             (

@@ -365,7 +365,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_generic_args(infcx, args)
             }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
-            fhir::TyKind::Hole | fhir::TyKind::Never => Ok(()),
+            fhir::TyKind::Hole(_) | fhir::TyKind::Never => Ok(()),
         }
     }
 

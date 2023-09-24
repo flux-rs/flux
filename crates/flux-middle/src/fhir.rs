@@ -262,7 +262,6 @@ pub enum Constraint {
 #[derive(Clone)]
 pub struct Ty {
     pub kind: TyKind,
-    pub fhir_id: FhirId,
     pub span: Span,
 }
 
@@ -283,7 +282,7 @@ pub enum TyKind {
     RawPtr(Box<Ty>, Mutability),
     OpaqueDef(ItemId, Vec<GenericArg>, Vec<RefineArg>, bool),
     Never,
-    Hole,
+    Hole(FhirId),
 }
 
 #[derive(Clone)]
@@ -1328,7 +1327,7 @@ impl fmt::Debug for Ty {
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
-            TyKind::Hole => write!(f, "_"),
+            TyKind::Hole(_) => write!(f, "_"),
             TyKind::OpaqueDef(def_id, args, refine_args, _) => {
                 write!(
                     f,
