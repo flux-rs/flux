@@ -34,6 +34,7 @@ pub enum Sort {
 #[derive(Clone, Hash)]
 pub enum SortCtor {
     Set,
+    Map,
     // User { name: Symbol, arity: usize },
 }
 
@@ -276,7 +277,7 @@ impl fmt::Display for SortCtor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SortCtor::Set => write!(f, "Set_Set"),
-            // SortCtor::User { name, .. } => write!(f, "{}", name),
+            SortCtor::Map => write!(f, "Map_t"),
         }
     }
 }

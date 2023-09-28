@@ -1160,6 +1160,7 @@ pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
 fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
     match ctor {
         fhir::SortCtor::Set => rty::SortCtor::Set,
+        fhir::SortCtor::Map => rty::SortCtor::Map,
         fhir::SortCtor::User { name, arity } => rty::SortCtor::User { name: *name, arity: *arity },
     }
 }

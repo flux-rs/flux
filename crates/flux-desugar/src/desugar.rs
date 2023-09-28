@@ -1345,6 +1345,8 @@ fn resolve_base_sort(
 fn resolve_sort_ctor(sess: &FluxSession, ident: surface::Ident) -> Result<fhir::SortCtor> {
     if ident.name == SORTS.set {
         Ok(fhir::SortCtor::Set)
+    } else if ident.name == SORTS.map {
+        Ok(fhir::SortCtor::Map)
     } else {
         Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
     }
@@ -1636,10 +1638,16 @@ struct Sorts {
     int: Symbol,
     real: Symbol,
     set: Symbol,
+    map: Symbol,
 }
 
 static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
-    Sorts { int: Symbol::intern("int"), real: Symbol::intern("real"), set: Symbol::intern("Set") }
+    Sorts {
+        int: Symbol::intern("int"),
+        real: Symbol::intern("real"),
+        set: Symbol::intern("Set"),
+        map: Symbol::intern("Map"),
+    }
 });
 
 mod errors {
