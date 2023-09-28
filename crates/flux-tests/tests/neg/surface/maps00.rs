@@ -1,6 +1,5 @@
-// #![feature(register_tool)]
-// #![register_tool(flux)]
-
+#![feature(register_tool)]
+#![register_tool(flux)]
 #![feature(custom_inner_attributes)]
 #![flux::defs {
     fn map_set(m:Map<int, int>, k: int, v: int) -> Map<int, int> { map_store(m, k, v) }
@@ -10,12 +9,6 @@
 
 #[flux::sig(fn (bool[true]))]
 fn assert(_b: bool) {}
-
-pub fn test() {
-    assert(true);
-    assert(1 == 2);
-    assert(1 + 1 == 2)
-}
 
 /// define a type indexed by a map
 #[flux::opaque]
@@ -39,7 +32,7 @@ impl MyMap {
     #[flux::trusted]
     #[flux::sig(fn(&MyMap[@m], k: i32) -> Option<i32[map_get(m, k)]>)]
     pub fn get(&self, k: i32) -> Option<i32> {
-        *self.inner.get(&k)
+        self.inner.get(&k).copied()
     }
 }
 
@@ -49,6 +42,7 @@ pub fn test() {
     m.set(10, 1);
     m.set(20, 2);
 
+    assert(1 + 1 == 2);
     assert(m.get(10).unwrap() == 1);
     assert(m.get(20).unwrap() == 2);
     assert(m.get(30).unwrap() == 3); //~ ERROR refinement type

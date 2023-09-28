@@ -520,8 +520,12 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
         // ensure values of these sorts are properly used.
         rty::Sort::App(rty::SortCtor::User { .. }, _) | rty::Sort::Param(_) => fixpoint::Sort::Int,
-        rty::Sort::App(rty::SortCtor::Set, sorts) => {
-            let ctor = fixpoint::SortCtor::Set;
+        rty::Sort::App(ctor, sorts) => {
+            let ctor = match ctor {
+                rty::SortCtor::Set => fixpoint::SortCtor::Set,
+                rty::SortCtor::Map => fixpoint::SortCtor::Map,
+                rty::SortCtor::User { .. } => unreachable!(),
+            };
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(ctor, sorts)
         }

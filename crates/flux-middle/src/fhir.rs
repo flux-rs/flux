@@ -474,6 +474,7 @@ newtype_index! {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
+    Map,
     /// User defined opaque sort
     User {
         name: Symbol,
@@ -489,7 +490,7 @@ pub enum Sort {
     Loc,
     Unit,
     BitVec(usize),
-    /// Sort constructor application (e.g. `Set<int>`)
+    /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
     App(SortCtor, List<Sort>),
     Func(FuncSort),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
@@ -591,6 +592,7 @@ impl SortCtor {
     pub fn arity(&self) -> usize {
         match self {
             SortCtor::Set => 1,
+            SortCtor::Map => 2,
             SortCtor::User { arity, .. } => *arity,
         }
     }
@@ -797,6 +799,10 @@ impl Sort {
 
     pub fn set(t: Sort) -> Self {
         Self::App(SortCtor::Set, List::singleton(t))
+    }
+
+    pub fn map(k: Sort, v: Sort) -> Self {
+        Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
 }
 
@@ -1117,6 +1123,26 @@ impl Map {
             Symbol::intern("Set_mem"),
             vec![Sort::Int, Sort::set(Sort::Int)],
             Sort::Bool,
+        );
+
+        // Map operations
+        self.insert_theory_func(
+            Symbol::intern("map_default"),
+            Symbol::intern("Map_default"),
+            vec![Sort::Int],
+            Sort::map(Sort::Int, Sort::Int),
+        );
+        self.insert_theory_func(
+            Symbol::intern("map_select"),
+            Symbol::intern("Map_select"),
+            vec![Sort::map(Sort::Int, Sort::Int), Sort::Int],
+            Sort::Int,
+        );
+        self.insert_theory_func(
+            Symbol::intern("map_store"),
+            Symbol::intern("Map_store"),
+            vec![Sort::map(Sort::Int, Sort::Int), Sort::Int, Sort::Int],
+            Sort::map(Sort::Int, Sort::Int),
         );
     }
 
@@ -1515,6 +1541,7 @@ impl fmt::Debug for SortCtor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SortCtor::Set => write!(f, "Set"),
+            SortCtor::Map => write!(f, "Map"),
             SortCtor::User { name, .. } => write!(f, "{}", name),
         }
     }

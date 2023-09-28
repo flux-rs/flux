@@ -142,6 +142,7 @@ pub struct GeneratorObligPredicate {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
+    Map,
     User { name: Symbol, arity: usize },
 }
 
@@ -1697,6 +1698,7 @@ mod pretty {
             define_scoped!(_cx, f);
             match self {
                 SortCtor::Set => w!("Set"),
+                SortCtor::Map => w!("Map"),
                 SortCtor::User { name, .. } => w!("{}", ^name),
             }
         }
