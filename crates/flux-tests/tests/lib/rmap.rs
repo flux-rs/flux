@@ -1,4 +1,4 @@
-#![feature(custom_inner_attributes)]
+#![allow(dead_code)]
 #![flux::defs {
     fn map_set(m:Map<int, int>, k: int, v: int) -> Map<int, int> { map_store(m, k, v) }
     fn map_get(m: Map<int,int>, k:int) -> int { map_select(m, k) }

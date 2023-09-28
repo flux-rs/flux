@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 #![flux::defs {
     fn map_set(m:Map<int, int>, k: int, v: int) -> Map<int, int> { map_store(m, k, v) }
     fn map_get(m: Map<int,int>, k:int) -> int { map_select(m, k) }
@@ -29,8 +30,20 @@ impl RMap {
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(&RMap[@m], k: i32 where set_mem(k,m.keys)) -> i32[map_get(m.vals, k)])]
+    #[flux::sig(fn(&RMap[@m], k: i32) -> Option<i32[map_get(m.vals, k)]>)]
     pub fn get(&self, k: i32) -> Option<i32> {
         self.inner.get(&k).copied()
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&RMap[@m], k: i32) -> i32[map_get(m.vals, k)] requires set_is_in(k, m.keys))]
+    pub fn lookup(&self, k: i32) -> i32 {
+        *self.inner.get(&k).unwrap()
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&RMap[@m], k: i32) -> bool[set_is_in(k, m.keys)])]
+    pub fn contains(&self, k: i32) -> bool {
+        self.inner.contains_key(&k)
     }
 }
