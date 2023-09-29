@@ -1,5 +1,6 @@
 use std::{
     env,
+    ffi::OsString,
     path::{Path, PathBuf},
 };
 
@@ -18,6 +19,8 @@ xflags::xflags! {
         cmd run {
             /// Input file
             required input: PathBuf
+            /// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
+            repeated opts: OsString
         }
         /// Install flux binaries to ~/.cargo/bin
         cmd install { }
@@ -66,7 +69,7 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
 }
 
 fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
-    let Run { input } = args;
+    let Run { input, opts } = args;
     cmd!(sh, "cargo build").run()?;
 
     let flux_path = find_flux_path();
@@ -77,7 +80,7 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
         "-Ztrack-diagnostics=y".to_string(),
     ]);
 
-    cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;
+    cmd!(sh, "{flux_path} {rustc_flags...} {opts...} {input}").run()?;
     Ok(())
 }
 
