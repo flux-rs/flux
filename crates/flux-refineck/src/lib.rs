@@ -29,7 +29,6 @@ extern crate rustc_type_ir;
 mod checker;
 mod constraint_gen;
 mod fixpoint_encoding;
-mod fold_unfold;
 mod ghost_statements;
 pub mod invariants;
 mod queue;

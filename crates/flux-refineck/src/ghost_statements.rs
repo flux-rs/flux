@@ -1,3 +1,5 @@
+mod fold_unfold;
+
 use std::{fmt, io, iter};
 
 use flux_common::dbg;
@@ -14,8 +16,6 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{mir::Location, ty::TyCtxt};
-
-use crate::fold_unfold;
 
 pub(crate) struct GhostStatements {
     pub at_location: LocationMap,
