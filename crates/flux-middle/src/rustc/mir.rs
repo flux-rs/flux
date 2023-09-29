@@ -377,6 +377,10 @@ impl<'tcx> Body<'tcx> {
             .1
     }
 
+    pub fn rustc_body(&self) -> &mir::Body<'tcx> {
+        &self.body_with_facts.body
+    }
+
     pub fn local_kind(&self, local: Local) -> LocalKind {
         self.body_with_facts.body.local_kind(local)
     }

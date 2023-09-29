@@ -1,4 +1,5 @@
 mod fold_unfold;
+mod points_to;
 
 use std::{fmt, io, iter};
 
@@ -51,6 +52,11 @@ pub(crate) fn compute_ghost_statements(
 impl GhostStatements {
     fn new(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
+
+        let map = points_to::Map::new(body.rustc_body());
+        points_to::PointsToAnalysis::new(genv, &map, genv.fn_sig(def_id)?)
+            .iterate_to_fixpoint(body.rustc_body());
+
         let fold_unfolds = fold_unfold::run_analysis(genv, &body)?;
         let mut at_location = LocationMap::default();
         let mut at_goto = GotoMap::default();
