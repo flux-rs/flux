@@ -1,6 +1,6 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
+// #![feature(register_tool)]
+// #![register_tool(flux)]
+// #![feature(custom_inner_attributes)]
 #![flux::defs {
     fn set_add(x: int, s: Set<int>) -> Set<int> { set_union(set_singleton(x), s) }
     fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }

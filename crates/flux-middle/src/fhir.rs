@@ -852,9 +852,9 @@ impl From<FuncSort> for Sort {
 }
 
 impl FuncSort {
-    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
+    pub fn new(params: usize, mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { params: 0, inputs_and_output: List::from_vec(inputs) }
+        FuncSort { params, inputs_and_output: List::from_vec(inputs) }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1069,10 +1069,11 @@ impl Map {
         &mut self,
         name: Symbol,
         fixpoint_name: Symbol,
+        params: usize,
         inputs: Vec<Sort>,
         output: Sort,
     ) {
-        let sort = FuncSort::new(inputs, output);
+        let sort = FuncSort::new(params, inputs, output);
         self.func_decls
             .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
     }
@@ -1082,24 +1083,28 @@ impl Map {
         self.insert_theory_func(
             Symbol::intern("bv_int_to_bv32"),
             Symbol::intern("int_to_bv32"),
+            0,
             vec![Sort::Int],
             Sort::BitVec(32),
         );
         self.insert_theory_func(
             Symbol::intern("bv_bv32_to_int"),
             Symbol::intern("bv32_to_int"),
+            0,
             vec![Sort::BitVec(32)],
             Sort::Int,
         );
         self.insert_theory_func(
             Symbol::intern("bv_sub"),
             Symbol::intern("bvsub"),
+            0,
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
         self.insert_theory_func(
             Symbol::intern("bv_and"),
             Symbol::intern("bvand"),
+            0,
             vec![Sort::BitVec(32), Sort::BitVec(32)],
             Sort::BitVec(32),
         );
@@ -1108,25 +1113,29 @@ impl Map {
         self.insert_theory_func(
             Symbol::intern("set_empty"),
             Symbol::intern("Set_empty"),
+            1,
             vec![Sort::Int],
-            Sort::set(Sort::Int),
+            Sort::set(Sort::Var(0)),
         );
         self.insert_theory_func(
             Symbol::intern("set_singleton"),
             Symbol::intern("Set_sng"),
-            vec![Sort::Int],
-            Sort::set(Sort::Int),
+            1,
+            vec![Sort::Var(0)],
+            Sort::set(Sort::Var(0)),
         );
         self.insert_theory_func(
             Symbol::intern("set_union"),
             Symbol::intern("Set_cup"),
-            vec![Sort::set(Sort::Int), Sort::set(Sort::Int)],
-            Sort::set(Sort::Int),
+            1,
+            vec![Sort::set(Sort::Var(0)), Sort::set(Sort::Var(0))],
+            Sort::set(Sort::Var(0)),
         );
         self.insert_theory_func(
             Symbol::intern("set_is_in"),
             Symbol::intern("Set_mem"),
-            vec![Sort::Int, Sort::set(Sort::Int)],
+            1,
+            vec![Sort::Var(0), Sort::set(Sort::Var(0))],
             Sort::Bool,
         );
 
@@ -1134,20 +1143,23 @@ impl Map {
         self.insert_theory_func(
             Symbol::intern("map_default"),
             Symbol::intern("Map_default"),
-            vec![Sort::Int],
-            Sort::map(Sort::Int, Sort::Int),
+            2,
+            vec![Sort::Var(1)],
+            Sort::map(Sort::Var(0), Sort::Var(1)),
         );
         self.insert_theory_func(
             Symbol::intern("map_select"),
             Symbol::intern("Map_select"),
-            vec![Sort::map(Sort::Int, Sort::Int), Sort::Int],
-            Sort::Int,
+            2,
+            vec![Sort::map(Sort::Var(0), Sort::Var(1)), Sort::Var(0)],
+            Sort::Var(1),
         );
         self.insert_theory_func(
             Symbol::intern("map_store"),
             Symbol::intern("Map_store"),
-            vec![Sort::map(Sort::Int, Sort::Int), Sort::Int, Sort::Int],
-            Sort::map(Sort::Int, Sort::Int),
+            0,
+            vec![Sort::map(Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
+            Sort::map(Sort::Var(0), Sort::Var(1)),
         );
     }
 
