@@ -249,7 +249,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::Sort::Bool
             | fhir::Sort::Real
             | fhir::Sort::Unit
-            | fhir::Sort::BitVec(_) => true,
+            | fhir::Sort::BitVec(_)
+            | fhir::Sort::Var(_) => true,
             fhir::Sort::Record(def_id) => {
                 self.index_sorts_of(*def_id)
                     .iter()

@@ -493,6 +493,8 @@ pub enum Sort {
     /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
     App(SortCtor, List<Sort>),
     Func(FuncSort),
+    /// sort variable
+    Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     Record(DefId),
@@ -506,6 +508,9 @@ pub enum Sort {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
+    /// number of sort parameters
+    pub params: usize,
+    /// inputs and output in order
     pub inputs_and_output: List<Sort>,
 }
 
@@ -849,7 +854,7 @@ impl From<FuncSort> for Sort {
 impl FuncSort {
     pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { inputs_and_output: List::from_vec(inputs) }
+        FuncSort { params: 0, inputs_and_output: List::from_vec(inputs) }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1553,6 +1558,7 @@ impl fmt::Debug for Sort {
             Sort::Bool => write!(f, "bool"),
             Sort::Int => write!(f, "int"),
             Sort::Real => write!(f, "real"),
+            Sort::Var(n) => write!(f, "@{}", n),
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),

@@ -71,7 +71,7 @@ pub fn func_def_to_func_decl(
         .map(|arg| resolve_sort(sess, sort_decls, &arg.sort))
         .try_collect_exhaust()?;
     inputs_and_output.push(resolve_sort(sess, sort_decls, &defn.output)?);
-    let sort = fhir::FuncSort { inputs_and_output: List::from(inputs_and_output) };
+    let sort = fhir::FuncSort { params: 0, inputs_and_output: List::from(inputs_and_output) };
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
@@ -1327,7 +1327,7 @@ fn resolve_func_sort(
         .map(|sort| resolve_base_sort(sess, sort_decls, sort))
         .try_collect_exhaust()?;
     inputs_and_output.push(resolve_base_sort(sess, sort_decls, output)?);
-    Ok(fhir::FuncSort { inputs_and_output: List::from_vec(inputs_and_output) })
+    Ok(fhir::FuncSort { params: 0, inputs_and_output: List::from_vec(inputs_and_output) })
 }
 
 fn resolve_base_sort(

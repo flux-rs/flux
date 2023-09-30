@@ -157,10 +157,12 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(FuncSort),
     App(SortCtor, List<Sort>),
+    Var(usize),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
+    params: usize,
     inputs_and_output: List<Sort>,
 }
 
@@ -667,7 +669,7 @@ impl Sort {
 impl FuncSort {
     pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { inputs_and_output: List::from_vec(inputs) }
+        FuncSort { params: 0, inputs_and_output: List::from_vec(inputs) }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1713,6 +1715,7 @@ mod pretty {
                 Sort::Real => w!("real"),
                 Sort::BitVec(w) => w!("bitvec({})", ^w),
                 Sort::Loc => w!("loc"),
+                Sort::Var(n) => w!("@{}", ^n),
                 Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
