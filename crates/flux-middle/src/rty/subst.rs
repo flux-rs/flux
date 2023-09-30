@@ -66,7 +66,7 @@ impl RegionSubst {
             }
             (BaseTy::Adt(_, args1), ty::TyKind::Adt(_, args2)) => {
                 debug_assert_eq!(args1.len(), args2.len());
-                iter::zip(args1, args2).for_each(|(arg1, arg2)| {
+                for (arg1, arg2) in iter::zip(args1, args2) {
                     match (arg1, arg2) {
                         (GenericArg::BaseTy(ty_con), ty::GenericArg::Ty(ty2)) => {
                             self.infer_from_ty(ty_con.as_ref().skip_binder(), ty2);
@@ -79,7 +79,13 @@ impl RegionSubst {
                         }
                         _ => {}
                     }
-                });
+                }
+            }
+            (BaseTy::Tuple(fields1), ty::TyKind::Tuple(fields2)) => {
+                debug_assert_eq!(fields1.len(), fields2.len());
+                for (ty1, ty2) in iter::zip(fields1, fields2) {
+                    self.infer_from_ty(ty1, ty2);
+                }
             }
             _ => {}
         }
