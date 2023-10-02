@@ -809,6 +809,28 @@ impl Sort {
     pub fn map(k: Sort, v: Sort) -> Self {
         Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
+
+    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `subst`
+    pub fn subst(&self, subst: &[Sort]) -> Sort {
+        match self {
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(_)
+            | Sort::Param(_)
+            | Sort::Wildcard
+            | Sort::Record(_)
+            | Sort::Infer(_) => self.clone(),
+            Sort::Var(i) => subst[*i].clone(),
+            Sort::App(c, args) => {
+                let args = args.iter().map(|arg| arg.subst(subst)).collect();
+                Sort::App(c.clone(), args)
+            }
+            Sort::Func(_) => bug!("unexpected subst in (nested) func-sort"),
+        }
+    }
 }
 
 impl ena::unify::UnifyKey for SortVid {

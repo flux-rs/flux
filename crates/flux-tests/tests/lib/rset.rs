@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 #![flux::defs {
-    fn set_add(x: int, s: Set<int>) -> Set<int> { set_union(set_singleton(x), s) }
-    fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }
-    fn set_emp() -> Set<int> { set_empty(0) }
+    fn set_add<T>(x: int, s: Set<T>) -> Set<T> { set_union(set_singleton(x), s) }
 }]
 
 #[flux::opaque]

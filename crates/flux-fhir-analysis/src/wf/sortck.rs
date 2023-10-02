@@ -306,7 +306,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn synth_func(&mut self, func: &fhir::Func) -> Result<fhir::FuncSort, ErrorGuaranteed> {
-        match func {
+        let func_sort = match func {
             fhir::Func::Var(var, fhir_id) => {
                 let sort = self[&var.name].clone();
                 if let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) {
@@ -325,7 +325,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     .sort
                     .clone())
             }
+        };
+        func_sort.map(|func_sort| self.instantiate_func_sort(func_sort))
+    }
+
+    fn instantiate_func_sort(&mut self, func_sort: fhir::FuncSort) -> fhir::FuncSort {
+        let n = func_sort.params;
+        if n == 0 {
+            return func_sort;
         }
+        let args: Vec<fhir::Sort> =
+            std::iter::repeat_with(|| fhir::Sort::Infer(self.next_sort_vid()))
+                .take(n)
+                .collect();
+        let inputs_and_output = func_sort
+            .inputs_and_output
+            .iter()
+            .map(|sort| sort.subst(&args))
+            .collect();
+        fhir::FuncSort { params: 0, inputs_and_output }
     }
 }
 
@@ -417,6 +435,16 @@ impl<'a> InferCtxt<'a, '_> {
                     .unify_var_value(*vid, Some(sort.clone()))
                     .ok()?;
                 Some(sort.clone())
+            }
+            (fhir::Sort::App(c1, args1), fhir::Sort::App(c2, args2)) => {
+                if c1 != c2 || args1.len() != args2.len() {
+                    return None;
+                }
+                let mut args = vec![];
+                for (t1, t2) in args1.iter().zip(args2.iter()) {
+                    args.push(self.try_equate(t1, t2)?);
+                }
+                Some(fhir::Sort::App(c1.clone(), args.into()))
             }
             _ if sort1 == sort2 => Some(sort1.clone()),
             _ => None,
