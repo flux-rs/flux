@@ -1179,7 +1179,7 @@ impl Map {
         self.insert_theory_func(
             Symbol::intern("map_store"),
             Symbol::intern("Map_store"),
-            0,
+            2,
             vec![Sort::map(Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
             Sort::map(Sort::Var(0), Sort::Var(1)),
         );
