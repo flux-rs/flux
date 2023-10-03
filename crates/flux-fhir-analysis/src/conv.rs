@@ -1154,7 +1154,7 @@ pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
             rty::Sort::Param(def_id_to_param_ty(genv.tcx, def_id.expect_local()))
         }
         fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
-        fhir::Sort::Var(n) => rty::Sort::Var(*n),
+        fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
     }
 }
 

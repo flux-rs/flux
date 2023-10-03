@@ -146,6 +146,20 @@ pub enum SortCtor {
     User { name: Symbol, arity: usize },
 }
 
+/// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
+/// "bound" under a PolyFuncSort; i.e. should be < than the number of params in the
+/// PolyFuncSort.
+#[derive(Clone, PartialEq, Eq, Debug, Hash, TyEncodable, TyDecodable)]
+pub struct SortVar {
+    pub index: usize,
+}
+
+impl From<usize> for SortVar {
+    fn from(index: usize) -> Self {
+        SortVar { index }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -157,7 +171,7 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
-    Var(usize),
+    Var(SortVar),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1734,7 +1748,7 @@ mod pretty {
                 Sort::Real => w!("real"),
                 Sort::BitVec(w) => w!("bitvec({})", ^w),
                 Sort::Loc => w!("loc"),
-                Sort::Var(n) => w!("@{}", ^n),
+                Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
