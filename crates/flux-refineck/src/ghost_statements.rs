@@ -57,14 +57,32 @@ impl GhostStatements {
         points_to::PointsToAnalysis::new(genv, &map, genv.fn_sig(def_id)?)
             .iterate_to_fixpoint(body.rustc_body());
 
-        let fold_unfolds = fold_unfold::run_analysis(genv, &body)?;
-        let mut at_location = LocationMap::default();
-        let mut at_goto = GotoMap::default();
+        let mut stmts = Self { at_location: LocationMap::default(), at_goto: GotoMap::default() };
+
+        stmts.add_fold_unfolds(genv, &body)?;
+        stmts.add_unblocks(&body);
+
+        if config::dump_mir() {
+            let mut writer =
+                dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
+            stmts.write_mir(genv.tcx, &body, &mut writer).unwrap();
+        }
+        Ok(stmts)
+    }
+
+    fn add_fold_unfolds<'tcx>(
+        &mut self,
+        genv: &GlobalEnv<'_, 'tcx>,
+        body: &Body<'tcx>,
+    ) -> QueryResult {
+        let fold_unfolds = fold_unfold::run_analysis(genv, body)?;
         for (point, stmts) in fold_unfolds.into_statements() {
             match point {
-                Point::Location(location) => at_location.entry(location).or_default().extend(stmts),
+                Point::Location(location) => {
+                    self.at_location.entry(location).or_default().extend(stmts);
+                }
                 Point::Edge(from, to) => {
-                    at_goto
+                    self.at_goto
                         .entry(from)
                         .or_default()
                         .entry(to)
@@ -73,21 +91,18 @@ impl GhostStatements {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn add_unblocks(&mut self, body: &Body) {
         for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body.borrow_data(bidx);
                 let place = lowering::lower_place(&borrow.borrowed_place).unwrap();
                 GhostStatement::Unblock(place)
             });
-            at_location.entry(location).or_default().extend(stmts);
+            self.at_location.entry(location).or_default().extend(stmts);
         }
-        let stmts = Self { at_location, at_goto };
-        if config::dump_mir() {
-            let mut writer =
-                dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
-            stmts.write_mir(genv.tcx, &body, &mut writer).unwrap();
-        }
-        Ok(stmts)
     }
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {

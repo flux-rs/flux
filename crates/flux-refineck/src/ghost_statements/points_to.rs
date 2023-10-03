@@ -15,7 +15,7 @@ use rustc_middle::{
 use rustc_mir_dataflow::{
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
-    Analysis, JoinSemiLattice,
+    Analysis, JoinSemiLattice, ResultsVisitor,
 };
 
 pub(crate) struct PointsToAnalysis<'a, 'tcx> {
@@ -23,6 +23,8 @@ pub(crate) struct PointsToAnalysis<'a, 'tcx> {
     fn_sig: rty::EarlyBinder<rty::PolyFnSig>,
     map: &'a Map,
 }
+
+type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a, 'tcx>>;
 
 impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
     pub(crate) fn new(
@@ -34,28 +36,51 @@ impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
     }
 
     pub(crate) fn iterate_to_fixpoint(self, body: &mir::Body<'tcx>) {
-        let map = self.map;
-        let tcx = self.genv.tcx;
-        let mut cursor = self
-            .into_engine(tcx, body)
-            .iterate_to_fixpoint()
-            .into_results_cursor(body);
-
-        for (bb, bb_data) in mir::traversal::reachable(body) {
-            cursor.seek_to_block_end(bb);
-            let state = cursor.get();
-
-            println!("{bb:?}: {state:?}");
-            for target in bb_data.terminator().successors() {
-                let target_state = cursor.results().entry_set_for_block(target);
-                map.for_each_tracked_place(|place_idx, local, projection| {
-                    target_state.get_idx(place_idx, map);
-                });
-            }
-            println!();
+        struct Visitor {
+            tracked_places: Vec<(PlaceIndex, flux_middle::rustc::mir::Place)>,
         }
 
-        // result.visit_with(body, blocks, vis)
+        impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for Visitor {
+            type FlowState = State;
+
+            fn visit_block_end(
+                &mut self,
+                results: &mut Results<'a, 'tcx>,
+                state: &State,
+                block_data: &'mir mir::BasicBlockData<'tcx>,
+                _block: mir::BasicBlock,
+            ) {
+                for target in block_data.terminator().successors() {
+                    let target_state = results.entry_set_for_block(target);
+                    for (place_idx, place) in &self.tracked_places {
+                        let source_value = state.get_idx(*place_idx, results.analysis.map);
+                        let target_value = target_state.get_idx(*place_idx, results.analysis.map);
+                        if let (FlatSet::Elem(_), FlatSet::Top) = (source_value, target_value) {
+                            println!("{_block:?} -> {target:?} borrow({place:?})");
+                        }
+                    }
+                }
+            }
+        }
+
+        let tcx = self.genv.tcx;
+        let map = self.map;
+
+        let mut tracked_places = vec![];
+        map.for_each_tracked_place(|place_idx, local, projection| {
+            let projection = projection
+                .iter()
+                .copied()
+                .map(flux_middle::rustc::mir::PlaceElem::Field)
+                .collect();
+            tracked_places
+                .push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
+        });
+        let mut visitor = Visitor { tracked_places };
+
+        self.into_engine(tcx, body)
+            .iterate_to_fixpoint()
+            .visit_reachable_with(body, &mut visitor);
     }
 }
 
@@ -74,10 +99,8 @@ impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
                 // Deinit makes the place uninitialized.
                 state.flood_with(place.as_ref(), self.map, FlatSet::BOTTOM);
             }
-            mir::StatementKind::Retag(..) => {
-                // We don't track references.
-            }
-            mir::StatementKind::Intrinsic(..)
+            mir::StatementKind::Retag(..)
+            | mir::StatementKind::Intrinsic(..)
             | mir::StatementKind::SetDiscriminant { .. }
             | mir::StatementKind::ConstEvalCounter
             | mir::StatementKind::Nop
@@ -190,20 +213,15 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a,
     const NAME: &'static str = "PointsToAnalysis";
 
     fn bottom_value(&self, _body: &mir::Body<'tcx>) -> Self::Domain {
-        State(StateData::Unreachable)
+        State { values: IndexVec::from_elem_n(FlatSet::BOTTOM, self.map.value_count) }
     }
 
     fn initialize_start_block(&self, body: &mir::Body<'tcx>, state: &mut Self::Domain) {
-        // The initial state maps all tracked places of argument projections to ⊤ and the rest to ⊥.
-        assert!(matches!(state.0, StateData::Unreachable));
-
         // Since we are skipping the early binder, we are using the early bound variables as locs instead
         // of fresh names. This is fine because the loc is just used as a unique value for the analysis.
         // We never have late bounds locs.
         let fn_sig = self.fn_sig.as_ref().skip_binder().as_ref().skip_binder();
 
-        let values = IndexVec::from_elem_n(FlatSet::BOTTOM, self.map.value_count);
-        *state = State(StateData::Reachable(values));
         for (local, ty) in iter::zip(body.args_iter(), fn_sig.args()) {
             if let rty::TyKind::Ptr(_, path) = ty.kind() {
                 let loc = FlatSet::Elem(path.to_loc().unwrap());
@@ -222,9 +240,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
         statement: &mir::Statement<'tcx>,
         _location: mir::Location,
     ) {
-        if state.is_reachable() {
-            self.handle_statement(statement, state);
-        }
+        self.handle_statement(statement, state);
     }
 
     fn apply_terminator_effect<'mir>(
@@ -233,11 +249,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
         terminator: &'mir mir::Terminator<'tcx>,
         _location: mir::Location,
     ) -> mir::TerminatorEdges<'mir, 'tcx> {
-        if state.is_reachable() {
-            self.handle_terminator(terminator, state)
-        } else {
-            TerminatorEdges::None
-        }
+        self.handle_terminator(terminator, state)
     }
 
     fn apply_call_return_effect(
@@ -246,9 +258,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
         _block: mir::BasicBlock,
         return_places: mir::CallReturnPlaces<'_, 'tcx>,
     ) {
-        if state.is_reachable() {
-            self.handle_call_return(return_places, state);
-        }
+        self.handle_call_return(return_places, state);
     }
 
     fn apply_switch_int_edge_effects(
@@ -636,44 +646,34 @@ impl Clone for StateData {
 ///
 /// Flooding means assigning a value (by default `⊤`) to all tracked projections of a given place.
 #[derive(PartialEq, Eq, Debug)]
-pub struct State(StateData);
+pub struct State {
+    values: IndexVec<ValueIndex, FlatSet<Loc>>,
+}
 
 impl Clone for State {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self { values: self.values.clone() }
     }
 
     fn clone_from(&mut self, source: &Self) {
-        self.0.clone_from(&source.0);
+        self.values.clone_from(&source.values);
     }
 }
 
 impl JoinSemiLattice for State {
     fn join(&mut self, other: &Self) -> bool {
-        match (&mut self.0, &other.0) {
-            (_, StateData::Unreachable) => false,
-            (StateData::Unreachable, _) => {
-                *self = other.clone();
-                true
-            }
-            (StateData::Reachable(this), StateData::Reachable(other)) => this.join(other),
-        }
+        self.values.join(&other.values)
     }
 }
 
 impl State {
-    pub fn is_reachable(&self) -> bool {
-        matches!(&self.0, StateData::Reachable(_))
-    }
-
     pub fn flood(&mut self, place: mir::PlaceRef<'_>, map: &Map) {
         self.flood_with(place, map, FlatSet::TOP);
     }
 
     pub fn flood_with(&mut self, place: mir::PlaceRef<'_>, map: &Map, value: FlatSet<Loc>) {
-        let StateData::Reachable(values) = &mut self.0 else { return };
         map.for_each_aliasing_place(place, &mut |vi| {
-            values[vi] = value.clone();
+            self.values[vi] = value.clone();
         });
     }
 
@@ -704,14 +704,12 @@ impl State {
     ///
     /// The target place must have been flooded before calling this method.
     pub fn insert_place_idx(&mut self, target: PlaceIndex, source: PlaceIndex, map: &Map) {
-        let StateData::Reachable(values) = &mut self.0 else { return };
-
         // If both places are tracked, we copy the value to the target.
         // If the target is tracked, but the source is not, we do nothing, as invalidation has
         // already been performed.
         if let Some(target_value) = map.places[target].value_index {
             if let Some(source_value) = map.places[source].value_index {
-                values[target_value] = values[source_value].clone();
+                self.values[target_value] = self.values[source_value].clone();
             }
         }
         for target_child in map.children(target) {
@@ -728,9 +726,8 @@ impl State {
     ///
     /// The target place must have been flooded before calling this method.
     pub fn insert_value_idx(&mut self, target: PlaceIndex, value: FlatSet<Loc>, map: &Map) {
-        let StateData::Reachable(values) = &mut self.0 else { return };
         if let Some(value_index) = map.places[target].value_index {
-            values[value_index] = value;
+            self.values[value_index] = value;
         }
     }
 
@@ -742,27 +739,16 @@ impl State {
 
     /// Retrieve the value stored for a place index, or ⊤ if it is not tracked.
     pub fn get_idx(&self, place: PlaceIndex, map: &Map) -> FlatSet<Loc> {
-        match &self.0 {
-            StateData::Reachable(values) => {
-                map.places[place]
-                    .value_index
-                    .map_or(FlatSet::TOP, |v| values[v].clone())
-            }
-            StateData::Unreachable => {
-                // Because this is unreachable, we can return any value we want.
-                FlatSet::BOTTOM
-            }
-        }
+        map.places[place]
+            .value_index
+            .map_or(FlatSet::TOP, |v| self.values[v].clone())
     }
 }
 
 /// This is used to visualize the dataflow analysis.
 impl<'a, 'tcx> DebugWithContext<PointsToAnalysis<'a, 'tcx>> for State {
     fn fmt_with(&self, ctxt: &PointsToAnalysis, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.0 {
-            StateData::Reachable(values) => debug_with_context(values, None, ctxt.map, f),
-            StateData::Unreachable => write!(f, "unreachable"),
-        }
+        debug_with_context(&self.values, None, ctxt.map, f)
     }
 
     fn fmt_diff_with(
@@ -771,12 +757,7 @@ impl<'a, 'tcx> DebugWithContext<PointsToAnalysis<'a, 'tcx>> for State {
         ctxt: &PointsToAnalysis,
         f: &mut fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        match (&self.0, &old.0) {
-            (StateData::Reachable(this), StateData::Reachable(old)) => {
-                debug_with_context(this, Some(old), ctxt.map, f)
-            }
-            _ => Ok(()), // Consider printing something here.
-        }
+        debug_with_context(&self.values, Some(&old.values), ctxt.map, f)
     }
 }
 
