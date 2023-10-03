@@ -530,7 +530,7 @@ impl PolyFuncSort {
 
     pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
         let inputs_and_output = self
-            .skip_binders()
+            .fsort
             .inputs_and_output
             .iter()
             .map(|sort| sort.subst(args))
@@ -835,8 +835,8 @@ impl Sort {
         Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
 
-    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `subst`
-    fn subst(&self, subst: &[Sort]) -> Sort {
+    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `args`
+    fn subst(&self, args: &[Sort]) -> Sort {
         match self {
             Sort::Int
             | Sort::Bool
@@ -848,9 +848,9 @@ impl Sort {
             | Sort::Wildcard
             | Sort::Record(_)
             | Sort::Infer(_) => self.clone(),
-            Sort::Var(i) => subst[*i].clone(),
+            Sort::Var(i) => args[*i].clone(),
             Sort::App(c, args) => {
-                let args = args.iter().map(|arg| arg.subst(subst)).collect();
+                let args = args.iter().map(|arg| arg.subst(args)).collect();
                 Sort::App(c.clone(), args)
             }
             Sort::Func(_) => bug!("unexpected subst in (nested) func-sort"),

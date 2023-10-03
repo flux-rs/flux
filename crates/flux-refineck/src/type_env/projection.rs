@@ -327,11 +327,6 @@ impl LookupResult<'_> {
         Updater::update(self.bindings, self.cursor, unblocked);
     }
 
-    pub(crate) fn block(self) -> Ty {
-        let ty = self.ty.clone();
-        self.block_with(ty)
-    }
-
     pub(crate) fn block_with(self, new_ty: Ty) -> Ty {
         self.update(Ty::blocked(new_ty))
     }
