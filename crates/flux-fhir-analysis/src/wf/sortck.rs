@@ -426,7 +426,7 @@ impl<'a> InferCtxt<'a, '_> {
                 Some(fhir::Sort::Infer(*vid1))
             }
             (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid))
-                if !self.is_eq_sort_vid(*vid) || !matches!(sort, fhir::Sort::Func(_)) =>
+                if !self.is_eq_sort_vid(*vid) || self.has_equality(sort) =>
             {
                 self.unification_table
                     .unify_var_value(*vid, Some(sort.clone()))
