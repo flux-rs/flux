@@ -425,7 +425,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     pub(crate) fn fresh_infer_var(&mut self, sort: &Sort, mode: InferMode) -> Expr {
         match mode {
             InferMode::KVar => {
-                let fsort = sort.expect_func();
+                let fsort = sort.expect_func().skip_binders();
                 let inputs = List::from_slice(fsort.inputs());
                 let kvar = self.fresh_kvar(&[inputs.clone()], KVarEncoding::Single);
                 Expr::abs(Binder::with_sorts(kvar, inputs.iter().cloned()))

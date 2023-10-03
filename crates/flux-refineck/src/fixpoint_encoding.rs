@@ -551,8 +551,11 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     }
 }
 
-fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
-    fixpoint::FuncSort::new(
+fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
+    let params = fsort.params();
+    let fsort = fsort.skip_binders();
+    fixpoint::PolyFuncSort::new(
+        params,
         fsort.inputs().iter().map(sort_to_fixpoint),
         sort_to_fixpoint(fsort.output()),
     )

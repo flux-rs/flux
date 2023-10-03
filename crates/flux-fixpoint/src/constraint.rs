@@ -27,7 +27,7 @@ pub enum Sort {
     Unit,
     BitVec(usize),
     Pair(Box<Sort>, Box<Sort>),
-    Func(FuncSort),
+    Func(PolyFuncSort),
     App(SortCtor, Vec<Sort>),
 }
 
@@ -41,6 +41,12 @@ pub enum SortCtor {
 #[derive(Clone, Hash)]
 pub struct FuncSort {
     inputs_and_output: Vec<Sort>,
+}
+
+#[derive(Clone, Hash)]
+pub struct PolyFuncSort {
+    params: usize,
+    fsort: FuncSort,
 }
 
 #[derive(Hash, Debug)]
@@ -199,11 +205,15 @@ impl Pred {
     }
 }
 
-impl FuncSort {
-    pub fn new(inputs: impl IntoIterator<Item = Sort>, output: Sort) -> FuncSort {
+impl PolyFuncSort {
+    pub fn new(
+        params: usize,
+        inputs: impl IntoIterator<Item = Sort>,
+        output: Sort,
+    ) -> PolyFuncSort {
         let mut inputs = inputs.into_iter().collect_vec();
         inputs.push(output);
-        FuncSort { inputs_and_output: inputs }
+        PolyFuncSort { params, fsort: FuncSort { inputs_and_output: inputs } }
     }
 }
 
@@ -293,6 +303,17 @@ impl fmt::Display for Sort {
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::App(ctor, ts) => write!(f, "({ctor} {:?})", ts.iter().format(" ")),
         }
+    }
+}
+
+impl fmt::Display for PolyFuncSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(func({}, [{:?}]))",
+            self.params,
+            self.fsort.inputs_and_output.iter().format("; ")
+        )
     }
 }
 

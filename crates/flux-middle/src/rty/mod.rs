@@ -155,15 +155,34 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
-    Func(FuncSort),
+    Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(usize),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
-    params: usize,
     inputs_and_output: List<Sort>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct PolyFuncSort {
+    params: usize,
+    fsort: FuncSort,
+}
+
+impl PolyFuncSort {
+    pub fn skip_binders(&self) -> FuncSort {
+        self.fsort.clone()
+    }
+
+    pub fn params(&self) -> usize {
+        self.params
+    }
+
+    pub fn new(params: usize, fsort: FuncSort) -> Self {
+        PolyFuncSort { params, fsort }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -266,7 +285,7 @@ pub struct Defn {
 #[derive(Debug)]
 pub struct FuncDecl {
     pub name: Symbol,
-    pub sort: FuncSort,
+    pub sort: PolyFuncSort,
     pub kind: FuncKind,
 }
 
@@ -611,7 +630,7 @@ impl Sort {
     }
 
     #[track_caller]
-    pub fn expect_func(&self) -> &FuncSort {
+    pub fn expect_func(&self) -> &PolyFuncSort {
         if let Sort::Func(sort) = self {
             sort
         } else {
@@ -633,7 +652,7 @@ impl Sort {
 
     /// Whether the sort is a function with return sort bool
     fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
     }
 
     /// Returns `true` if the sort is [`Bool`].
@@ -669,7 +688,7 @@ impl Sort {
 impl FuncSort {
     pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { params: 0, inputs_and_output: List::from_vec(inputs) }
+        FuncSort { inputs_and_output: List::from_vec(inputs) }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1745,6 +1764,17 @@ mod pretty {
                     .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
                 self.output()
             )
+        }
+    }
+
+    impl Pretty for PolyFuncSort {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if self.params == 0 {
+                w!("{:?}", &self.fsort)
+            } else {
+                w!("for<{}> {:?}", ^self.params, &self.fsort)
+            }
         }
     }
 
