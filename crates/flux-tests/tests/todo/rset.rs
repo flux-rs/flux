@@ -18,7 +18,7 @@ impl RSet<T> {
 
     #[flux::trusted]
     #[flux::sig(fn(self: &strg RSet[@s], elem: T)
-                ensures self: RSet[set_add(k, s.elems)])]
+                ensures self: RSet[set_union(set_singleton(x), s)])]
     pub fn insert(&mut self, elem: T) {
         self.inner.insert(elem);
     }

@@ -4,11 +4,11 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, Loc},
-    rustc::mir::FieldIdx,
+    rustc::{lowering, mir::FieldIdx},
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_index::{bit_set::BitSet, IndexSlice, IndexVec};
 use rustc_middle::{
     mir::{self, visit::Visitor, BasicBlock, TerminatorEdges},
@@ -31,19 +31,13 @@ pub(crate) fn run_analysis<'tcx>(
 ) -> QueryResult {
     let map = Map::new(body);
 
-    let mut tracked_places = vec![];
-    map.for_each_tracked_place(|place_idx, local, projection| {
-        let projection = projection
-            .iter()
-            .copied()
-            .map(flux_middle::rustc::mir::PlaceElem::Field)
-            .collect();
-        tracked_places.push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
-    });
+    let mut visitor = CollectPointerToBorrows::new(&map, stmts);
 
-    let mut visitor = CollectPointerToBorrows { tracked_places, stmts };
+    // We have fn_sig for function items, but not for closures or generators.
+    let fn_sig =
+        if genv.tcx.def_kind(def_id) == DefKind::Fn { Some(genv.fn_sig(def_id)?) } else { None };
 
-    PointsToAnalysis::new(&map, genv.fn_sig(def_id)?)
+    PointsToAnalysis::new(&map, fn_sig)
         .into_engine(genv.tcx, body)
         .iterate_to_fixpoint()
         .visit_reachable_with(body, &mut visitor);
@@ -54,12 +48,12 @@ pub(crate) fn run_analysis<'tcx>(
 type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>;
 
 struct PointsToAnalysis<'a> {
-    fn_sig: rty::EarlyBinder<rty::PolyFnSig>,
+    fn_sig: Option<rty::EarlyBinder<rty::PolyFnSig>>,
     map: &'a Map,
 }
 
 impl<'a> PointsToAnalysis<'a> {
-    fn new(map: &'a Map, fn_sig: rty::EarlyBinder<rty::PolyFnSig>) -> Self {
+    fn new(map: &'a Map, fn_sig: Option<rty::EarlyBinder<rty::PolyFnSig>>) -> Self {
         Self { fn_sig, map }
     }
 
@@ -187,13 +181,18 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a>
         // Since we are skipping the early binder, we are using the early bound variables as locs instead
         // of fresh names. This is fine because the loc is just used as a unique value for the analysis.
         // We never have late bounds locs.
-        let fn_sig = self.fn_sig.as_ref().skip_binder().as_ref().skip_binder();
-
-        for (local, ty) in iter::zip(body.args_iter(), fn_sig.args()) {
-            if let rty::TyKind::Ptr(_, path) = ty.kind() {
-                let loc = FlatSet::Elem(path.to_loc().unwrap());
-                state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, loc);
-            } else {
+        if let Some(fn_sig) = self.fn_sig.as_ref() {
+            let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
+            for (local, ty) in iter::zip(body.args_iter(), fn_sig.args()) {
+                if let rty::TyKind::Ptr(_, path) = ty.kind() {
+                    let loc = FlatSet::Elem(path.to_loc().unwrap());
+                    state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, loc);
+                } else {
+                    state.flood(mir::PlaceRef { local, projection: &[] }, self.map);
+                }
+            }
+        } else {
+            for local in body.args_iter() {
                 state.flood(mir::PlaceRef { local, projection: &[] }, self.map);
             }
         }
@@ -238,12 +237,65 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
 }
 
 struct CollectPointerToBorrows<'a> {
+    map: &'a Map,
     tracked_places: Vec<(PlaceIndex, flux_middle::rustc::mir::Place)>,
     stmts: &'a mut GhostStatements,
+    before_assign: Option<(PlaceIndex, FlatSet<Loc>)>,
+}
+
+impl<'a> CollectPointerToBorrows<'a> {
+    fn new(map: &'a Map, stmts: &'a mut GhostStatements) -> Self {
+        let mut tracked_places = vec![];
+        map.for_each_tracked_place(|place_idx, local, projection| {
+            let projection = projection
+                .iter()
+                .copied()
+                .map(flux_middle::rustc::mir::PlaceElem::Field)
+                .collect();
+            tracked_places
+                .push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
+        });
+        Self { map, tracked_places, stmts, before_assign: None }
+    }
 }
 
 impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
     type FlowState = State;
+
+    fn visit_statement_before_primary_effect(
+        &mut self,
+        _results: &mut Results<'a, 'tcx>,
+        state: &Self::FlowState,
+        statement: &'mir mir::Statement<'tcx>,
+        _location: mir::Location,
+    ) {
+        if let mir::StatementKind::Assign(box (target, _)) = statement.kind
+            && let Some(place_idx) = self.map.find(target.as_ref())
+            && let Some(value) = state.get_tracked_idx(place_idx, self.map)
+        {
+            self.before_assign = Some((place_idx, value));
+        } else {
+            self.before_assign = None;
+        }
+    }
+
+    fn visit_statement_after_primary_effect(
+        &mut self,
+        _results: &mut Results<'a, 'tcx>,
+        state: &Self::FlowState,
+        statement: &'mir mir::Statement<'tcx>,
+        location: mir::Location,
+    ) {
+        if let mir::StatementKind::Assign(box (target, _)) = statement.kind
+            && let Some((place_idx, old)) = &self.before_assign
+        {
+            let new = state.get_idx(*place_idx, self.map);
+            if should_insert_ptr_to_borrow(old, &new) {
+                let place = lowering::lower_place(&target).unwrap();
+                self.stmts.insert_at(Point::Location(location), GhostStatement::PtrToBorrow(place));
+            }
+        }
+    }
 
     fn visit_block_end(
         &mut self,
@@ -257,7 +309,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
             for (place_idx, place) in &self.tracked_places {
                 let source_value = state.get_idx(*place_idx, results.analysis.map);
                 let target_value = target_state.get_idx(*place_idx, results.analysis.map);
-                if let (FlatSet::Elem(_), FlatSet::Top) = (source_value, target_value) {
+                if should_insert_ptr_to_borrow(&source_value, &target_value) {
                     self.stmts.insert_at(
                         Point::Edge(block, target),
                         GhostStatement::PtrToBorrow(place.clone()),
@@ -266,6 +318,10 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
             }
         }
     }
+}
+
+fn should_insert_ptr_to_borrow(old: &FlatSet<Loc>, new: &FlatSet<Loc>) -> bool {
+    matches!((old, new), (FlatSet::Elem(_), FlatSet::Top))
 }
 
 /// Partial mapping from [`Place`] to [`PlaceIndex`], where some places also have a [`ValueIndex`].
@@ -737,9 +793,14 @@ impl State {
 
     /// Retrieve the value stored for a place index, or ⊤ if it is not tracked.
     fn get_idx(&self, place: PlaceIndex, map: &Map) -> FlatSet<Loc> {
+        self.get_tracked_idx(place, map).unwrap_or(FlatSet::Top)
+    }
+
+    /// Retrieve the value stored for a place index if tracked
+    fn get_tracked_idx(&self, place: PlaceIndex, map: &Map) -> Option<FlatSet<Loc>> {
         map.places[place]
             .value_index
-            .map_or(FlatSet::TOP, |v| self.values[v].clone())
+            .map(|v| self.values[v].clone())
     }
 }
 

@@ -111,7 +111,7 @@ impl TypeEnv<'_> {
     }
 
     /// Converts a pointer to a borrow, e.g.,
-    /// `x: i32[a], p: ptr(mut, x)` -> `x: i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
+    /// `x: i32[a], p: ptr(mut, x)` -> `x: †i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
     /// +
     /// `i32[a] <: i32{v: $k(v)}`
     pub(crate) fn ptr_to_borrow(
@@ -122,25 +122,22 @@ impl TypeEnv<'_> {
     ) -> Result<(), CheckerErrKind> {
         let ptr_lookup = self.bindings.lookup(place);
         let TyKind::Ptr(kind, path) = ptr_lookup.ty.kind() else {
-            tracked_span_bug!("ptr_to_borrow on non-pointer type ")
+            tracked_span_bug!("ptr_to_borrow on non-pointer type")
         };
         let PtrKind::Mut(re) = kind else { return Ok(()) };
 
-        let pointee_lookup = self.bindings.lookup(path);
-        debug_assert!(pointee_lookup.is_strg);
+        let old_ty = self.bindings.lookup(path).fold(rcx, gen)?;
 
         let mut infcx = gen.infcx(rcx, ConstrReason::Other);
 
-        let old_ty = &pointee_lookup.ty;
         let new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
             debug_assert_eq!(kind, HoleKind::Pred);
             infcx.fresh_kvar(sorts, KVarEncoding::Conj)
         });
 
-        infcx.subtyping(rcx, old_ty, &new_ty)?;
+        infcx.subtyping(rcx, &old_ty, &new_ty)?;
 
-        pointee_lookup.block_with(new_ty.clone());
-
+        self.bindings.lookup(path).block_with(new_ty.clone());
         self.bindings
             .lookup(place)
             .update(Ty::mk_ref(*re, new_ty, Mutability::Mut));
@@ -234,7 +231,8 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         place: &Place,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.lookup(place).fold(rcx, gen)
+        self.bindings.lookup(place).fold(rcx, gen)?;
+        Ok(())
     }
 
     pub(crate) fn unfold(
