@@ -529,14 +529,6 @@ impl PolyFuncSort {
     }
 
     pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
-        // let n = func_sort.params;
-        // if n == 0 {
-        //     return func_sort;
-        // }
-        // let args: Vec<fhir::Sort> =
-        //     std::iter::repeat_with(|| fhir::Sort::Infer(self.next_sort_vid()))
-        //         .take(n)
-        //         .collect();
         let inputs_and_output = self
             .skip_binders()
             .inputs_and_output
@@ -1641,7 +1633,11 @@ impl fmt::Debug for Sort {
 
 impl fmt::Display for PolyFuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "for<{}>{}", self.params, self.fsort)
+        if self.params > 0 {
+            write!(f, "for<{}>{}", self.params, self.fsort)
+        } else {
+            write!(f, "{}", self.fsort)
+        }
     }
 }
 
