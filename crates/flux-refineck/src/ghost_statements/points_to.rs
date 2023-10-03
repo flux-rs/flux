@@ -2,14 +2,16 @@ use std::{collections::VecDeque, fmt, iter, ops::Range};
 
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, Loc},
     rustc::mir::FieldIdx,
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::LocalDefId;
 use rustc_index::{bit_set::BitSet, IndexSlice, IndexVec};
 use rustc_middle::{
-    mir::{self, visit::Visitor, TerminatorEdges},
+    mir::{self, visit::Visitor, BasicBlock, TerminatorEdges},
     ty,
 };
 use rustc_mir_dataflow::{
@@ -18,74 +20,50 @@ use rustc_mir_dataflow::{
     Analysis, JoinSemiLattice, ResultsVisitor,
 };
 
-pub(crate) struct PointsToAnalysis<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+use super::GhostStatements;
+use crate::ghost_statements::{GhostStatement, Point};
+
+pub(crate) fn run_analysis<'tcx>(
+    stmts: &mut GhostStatements,
+    genv: &GlobalEnv<'_, 'tcx>,
+    body: &mir::Body<'tcx>,
+    def_id: LocalDefId,
+) -> QueryResult {
+    let map = Map::new(body);
+
+    let mut tracked_places = vec![];
+    map.for_each_tracked_place(|place_idx, local, projection| {
+        let projection = projection
+            .iter()
+            .copied()
+            .map(flux_middle::rustc::mir::PlaceElem::Field)
+            .collect();
+        tracked_places.push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
+    });
+
+    let mut visitor = CollectPointerBorrows { tracked_places, stmts };
+
+    PointsToAnalysis::new(&map, genv.fn_sig(def_id)?)
+        .into_engine(genv.tcx, body)
+        .iterate_to_fixpoint()
+        .visit_reachable_with(body, &mut visitor);
+
+    Ok(())
+}
+
+type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>;
+
+struct PointsToAnalysis<'a> {
     fn_sig: rty::EarlyBinder<rty::PolyFnSig>,
     map: &'a Map,
 }
 
-type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a, 'tcx>>;
-
-impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
-    pub(crate) fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
-        map: &'a Map,
-        fn_sig: rty::EarlyBinder<rty::PolyFnSig>,
-    ) -> Self {
-        PointsToAnalysis { genv, fn_sig, map }
+impl<'a> PointsToAnalysis<'a> {
+    fn new(map: &'a Map, fn_sig: rty::EarlyBinder<rty::PolyFnSig>) -> Self {
+        Self { fn_sig, map }
     }
 
-    pub(crate) fn iterate_to_fixpoint(self, body: &mir::Body<'tcx>) {
-        struct Visitor {
-            tracked_places: Vec<(PlaceIndex, flux_middle::rustc::mir::Place)>,
-        }
-
-        impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for Visitor {
-            type FlowState = State;
-
-            fn visit_block_end(
-                &mut self,
-                results: &mut Results<'a, 'tcx>,
-                state: &State,
-                block_data: &'mir mir::BasicBlockData<'tcx>,
-                _block: mir::BasicBlock,
-            ) {
-                for target in block_data.terminator().successors() {
-                    let target_state = results.entry_set_for_block(target);
-                    for (place_idx, place) in &self.tracked_places {
-                        let source_value = state.get_idx(*place_idx, results.analysis.map);
-                        let target_value = target_state.get_idx(*place_idx, results.analysis.map);
-                        if let (FlatSet::Elem(_), FlatSet::Top) = (source_value, target_value) {
-                            println!("{_block:?} -> {target:?} borrow({place:?})");
-                        }
-                    }
-                }
-            }
-        }
-
-        let tcx = self.genv.tcx;
-        let map = self.map;
-
-        let mut tracked_places = vec![];
-        map.for_each_tracked_place(|place_idx, local, projection| {
-            let projection = projection
-                .iter()
-                .copied()
-                .map(flux_middle::rustc::mir::PlaceElem::Field)
-                .collect();
-            tracked_places
-                .push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
-        });
-        let mut visitor = Visitor { tracked_places };
-
-        self.into_engine(tcx, body)
-            .iterate_to_fixpoint()
-            .visit_reachable_with(body, &mut visitor);
-    }
-}
-
-impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
-    fn handle_statement(&self, statement: &mir::Statement<'tcx>, state: &mut State) {
+    fn handle_statement(&self, statement: &mir::Statement, state: &mut State) {
         match &statement.kind {
             mir::StatementKind::Assign(box (target, rvalue)) => {
                 self.handle_assign(*target, rvalue, state);
@@ -111,12 +89,7 @@ impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
         }
     }
 
-    fn handle_assign(
-        &self,
-        target: mir::Place<'tcx>,
-        rvalue: &mir::Rvalue<'tcx>,
-        state: &mut State,
-    ) {
+    fn handle_assign(&self, target: mir::Place, rvalue: &mir::Rvalue, state: &mut State) {
         match rvalue {
             mir::Rvalue::Use(operand) => {
                 let result = self
@@ -152,7 +125,7 @@ impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
         }
     }
 
-    fn handle_operand(&self, operand: &mir::Operand<'tcx>) -> Option<PlaceIndex> {
+    fn handle_operand(&self, operand: &mir::Operand) -> Option<PlaceIndex> {
         match operand {
             mir::Operand::Constant(..) => None,
             mir::Operand::Copy(place) | mir::Operand::Move(place) => {
@@ -165,7 +138,7 @@ impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
 
     /// The effect of a successful function call return should not be
     /// applied here, see [`Analysis::apply_terminator_effect`].
-    fn handle_terminator<'mir>(
+    fn handle_terminator<'mir, 'tcx>(
         &self,
         terminator: &'mir mir::Terminator<'tcx>,
         state: &mut State,
@@ -194,18 +167,14 @@ impl<'a, 'tcx> PointsToAnalysis<'a, 'tcx> {
         terminator.edges()
     }
 
-    fn handle_call_return(
-        &self,
-        return_places: mir::CallReturnPlaces<'_, 'tcx>,
-        state: &mut State,
-    ) {
+    fn handle_call_return(&self, return_places: mir::CallReturnPlaces, state: &mut State) {
         return_places.for_each(|place| {
             state.flood(place.as_ref(), self.map);
         });
     }
 }
 
-impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a, 'tcx> {
+impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a> {
     type Domain = State;
 
     type Direction = rustc_mir_dataflow::Forward;
@@ -233,7 +202,7 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a,
     }
 }
 
-impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
+impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     fn apply_statement_effect(
         &mut self,
         state: &mut Self::Domain,
@@ -255,7 +224,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
     fn apply_call_return_effect(
         &mut self,
         state: &mut Self::Domain,
-        _block: mir::BasicBlock,
+        _block: BasicBlock,
         return_places: mir::CallReturnPlaces<'_, 'tcx>,
     ) {
         self.handle_call_return(return_places, state);
@@ -263,10 +232,41 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_, 'tcx> {
 
     fn apply_switch_int_edge_effects(
         &mut self,
-        _block: mir::BasicBlock,
+        _block: BasicBlock,
         _discr: &mir::Operand<'tcx>,
         _apply_edge_effects: &mut impl rustc_mir_dataflow::SwitchIntEdgeEffects<Self::Domain>,
     ) {
+    }
+}
+
+struct CollectPointerBorrows<'a> {
+    tracked_places: Vec<(PlaceIndex, flux_middle::rustc::mir::Place)>,
+    stmts: &'a mut GhostStatements,
+}
+
+impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerBorrows<'_> {
+    type FlowState = State;
+
+    fn visit_block_end(
+        &mut self,
+        results: &mut Results<'a, 'tcx>,
+        state: &State,
+        block_data: &'mir mir::BasicBlockData<'tcx>,
+        block: BasicBlock,
+    ) {
+        for target in block_data.terminator().successors() {
+            let target_state = results.entry_set_for_block(target);
+            for (place_idx, place) in &self.tracked_places {
+                let source_value = state.get_idx(*place_idx, results.analysis.map);
+                let target_value = target_state.get_idx(*place_idx, results.analysis.map);
+                if let (FlatSet::Elem(_), FlatSet::Top) = (source_value, target_value) {
+                    self.stmts.insert_at(
+                        Point::Edge(block, target),
+                        GhostStatement::PtrToBorrow(place.clone()),
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -293,7 +293,7 @@ impl Map {
     /// This is currently the only way to create a [`Map`]. The way in which the tracked places are
     /// chosen is an implementation detail and may not be relied upon (other than that their type
     /// are scalars).
-    pub fn new(body: &mir::Body) -> Self {
+    fn new(body: &mir::Body) -> Self {
         let mut map = Self {
             locals: IndexVec::new(),
             projections: FxHashMap::default(),
@@ -407,7 +407,7 @@ impl Map {
     }
 
     /// Locates the given place, if it exists in the tree.
-    pub fn find(&self, place: mir::PlaceRef<'_>) -> Option<PlaceIndex> {
+    fn find(&self, place: mir::PlaceRef<'_>) -> Option<PlaceIndex> {
         let mut index = *self.locals[place.local].as_ref()?;
 
         for &elem in place.projection {
@@ -420,12 +420,12 @@ impl Map {
     }
 
     /// Iterate over all direct children.
-    pub fn children(&self, parent: PlaceIndex) -> impl Iterator<Item = PlaceIndex> + '_ {
+    fn children(&self, parent: PlaceIndex) -> impl Iterator<Item = PlaceIndex> + '_ {
         Children::new(self, parent)
     }
 
     /// Applies a single projection element, yielding the corresponding child.
-    pub fn apply(&self, place: PlaceIndex, elem: FieldIdx) -> Option<PlaceIndex> {
+    fn apply(&self, place: PlaceIndex, elem: FieldIdx) -> Option<PlaceIndex> {
         self.projections.get(&(place, elem)).copied()
     }
 
@@ -589,7 +589,7 @@ rustc_index::newtype_index!(
     ///
     /// Not every place has a `PlaceIndex`, and not every `PlaceIndex` corresponds to a tracked
     /// place. However, every tracked place and all places along its projection have a `PlaceIndex`.
-    pub struct PlaceIndex {}
+    struct PlaceIndex {}
 );
 
 rustc_index::newtype_index!(
@@ -600,13 +600,13 @@ rustc_index::newtype_index!(
 );
 
 /// Used as the result for r-value.
-pub enum PlaceOrValue {
+enum PlaceOrValue {
     Value(FlatSet<Loc>),
     Place(PlaceIndex),
 }
 
 impl PlaceOrValue {
-    pub const TOP: Self = PlaceOrValue::Value(FlatSet::TOP);
+    const TOP: Self = PlaceOrValue::Value(FlatSet::TOP);
 }
 
 /// See [`State`].
@@ -646,7 +646,7 @@ impl Clone for StateData {
 ///
 /// Flooding means assigning a value (by default `⊤`) to all tracked projections of a given place.
 #[derive(PartialEq, Eq, Debug)]
-pub struct State {
+struct State {
     values: IndexVec<ValueIndex, FlatSet<Loc>>,
 }
 
@@ -667,18 +667,18 @@ impl JoinSemiLattice for State {
 }
 
 impl State {
-    pub fn flood(&mut self, place: mir::PlaceRef<'_>, map: &Map) {
+    fn flood(&mut self, place: mir::PlaceRef<'_>, map: &Map) {
         self.flood_with(place, map, FlatSet::TOP);
     }
 
-    pub fn flood_with(&mut self, place: mir::PlaceRef<'_>, map: &Map, value: FlatSet<Loc>) {
+    fn flood_with(&mut self, place: mir::PlaceRef<'_>, map: &Map, value: FlatSet<Loc>) {
         map.for_each_aliasing_place(place, &mut |vi| {
             self.values[vi] = value.clone();
         });
     }
 
     /// Helper method to interpret `target = result`.
-    pub fn assign(&mut self, target: mir::PlaceRef<'_>, result: PlaceOrValue, map: &Map) {
+    fn assign(&mut self, target: mir::PlaceRef<'_>, result: PlaceOrValue, map: &Map) {
         self.flood(target, map);
         if let Some(target) = map.find(target) {
             self.insert_idx(target, result, map);
@@ -689,7 +689,7 @@ impl State {
     /// This does nothing if the place is not tracked.
     ///
     /// The target place must have been flooded before calling this method.
-    pub fn insert_idx(&mut self, target: PlaceIndex, result: PlaceOrValue, map: &Map) {
+    fn insert_idx(&mut self, target: PlaceIndex, result: PlaceOrValue, map: &Map) {
         match result {
             PlaceOrValue::Value(value) => self.insert_value_idx(target, value, map),
             PlaceOrValue::Place(source) => self.insert_place_idx(target, source, map),
@@ -703,7 +703,7 @@ impl State {
     /// places that are non-overlapping or identical.
     ///
     /// The target place must have been flooded before calling this method.
-    pub fn insert_place_idx(&mut self, target: PlaceIndex, source: PlaceIndex, map: &Map) {
+    fn insert_place_idx(&mut self, target: PlaceIndex, source: PlaceIndex, map: &Map) {
         // If both places are tracked, we copy the value to the target.
         // If the target is tracked, but the source is not, we do nothing, as invalidation has
         // already been performed.
@@ -725,20 +725,20 @@ impl State {
     /// This does nothing if the place is not tracked.
     ///
     /// The target place must have been flooded before calling this method.
-    pub fn insert_value_idx(&mut self, target: PlaceIndex, value: FlatSet<Loc>, map: &Map) {
+    fn insert_value_idx(&mut self, target: PlaceIndex, value: FlatSet<Loc>, map: &Map) {
         if let Some(value_index) = map.places[target].value_index {
             self.values[value_index] = value;
         }
     }
 
     /// Retrieve the value stored for a place, or ⊤ if it is not tracked.
-    pub fn get(&self, place: mir::PlaceRef<'_>, map: &Map) -> FlatSet<Loc> {
+    fn get(&self, place: mir::PlaceRef<'_>, map: &Map) -> FlatSet<Loc> {
         map.find(place)
             .map_or(FlatSet::TOP, |place| self.get_idx(place, map))
     }
 
     /// Retrieve the value stored for a place index, or ⊤ if it is not tracked.
-    pub fn get_idx(&self, place: PlaceIndex, map: &Map) -> FlatSet<Loc> {
+    fn get_idx(&self, place: PlaceIndex, map: &Map) -> FlatSet<Loc> {
         map.places[place]
             .value_index
             .map_or(FlatSet::TOP, |v| self.values[v].clone())
@@ -746,7 +746,7 @@ impl State {
 }
 
 /// This is used to visualize the dataflow analysis.
-impl<'a, 'tcx> DebugWithContext<PointsToAnalysis<'a, 'tcx>> for State {
+impl<'a> DebugWithContext<PointsToAnalysis<'a>> for State {
     fn fmt_with(&self, ctxt: &PointsToAnalysis, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         debug_with_context(&self.values, None, ctxt.map, f)
     }

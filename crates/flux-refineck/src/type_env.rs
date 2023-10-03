@@ -110,6 +110,27 @@ impl TypeEnv<'_> {
         }
     }
 
+    /// Given a place `p` with type `ptr(l)`
+    pub(crate) fn ptr_to_borrow(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+    ) -> Result<(), CheckerErrKind> {
+        let ptr = self.bindings.lookup(place);
+        let TyKind::Ptr(kind, path) = ptr.ty.kind() else {
+            tracked_span_bug!("ptr_to_borrow on non-pointer type ")
+        };
+        let PtrKind::Mut(re) = kind else { return Ok(()) };
+
+        let result = self.bindings.lookup(path);
+        debug_assert!(result.is_strg);
+
+        let new_ty = result.ty.with_holes().replace_holes(&mut gen.kvar_gen);
+
+        Ok(())
+    }
+
     pub(crate) fn assign(
         &mut self,
         rcx: &mut RefineCtxt,

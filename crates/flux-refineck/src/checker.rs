@@ -1101,6 +1101,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .with_span(span)?;
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place),
+            GhostStatement::PtrToBorrow(_) => todo!(),
         }
         dbg::statement!("end", stmt, rcx, env);
         Ok(())
