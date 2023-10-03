@@ -492,7 +492,7 @@ pub enum Sort {
     BitVec(usize),
     /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
     App(SortCtor, List<Sort>),
-    Func(FuncSort),
+    Func(PolyFuncSort),
     /// sort variable
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
@@ -508,10 +508,43 @@ pub enum Sort {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
-    /// number of sort parameters
-    pub params: usize,
     /// inputs and output in order
     pub inputs_and_output: List<Sort>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct PolyFuncSort {
+    pub params: usize,
+    pub fsort: FuncSort,
+}
+
+impl PolyFuncSort {
+    pub fn new(params: usize, inputs: Vec<Sort>, output: Sort) -> Self {
+        let fsort = FuncSort::new(inputs, output);
+        Self { params, fsort }
+    }
+
+    pub fn skip_binders(&self) -> FuncSort {
+        self.fsort.clone()
+    }
+
+    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
+        // let n = func_sort.params;
+        // if n == 0 {
+        //     return func_sort;
+        // }
+        // let args: Vec<fhir::Sort> =
+        //     std::iter::repeat_with(|| fhir::Sort::Infer(self.next_sort_vid()))
+        //         .take(n)
+        //         .collect();
+        let inputs_and_output = self
+            .skip_binders()
+            .inputs_and_output
+            .iter()
+            .map(|sort| sort.subst(&args))
+            .collect();
+        FuncSort { inputs_and_output }
+    }
 }
 
 #[derive(Clone)]
@@ -715,7 +748,7 @@ pub struct RefinedBy {
 #[derive(Debug)]
 pub struct FuncDecl {
     pub name: Symbol,
-    pub sort: FuncSort,
+    pub sort: PolyFuncSort,
     pub kind: FuncKind,
 }
 
@@ -791,7 +824,7 @@ impl Sort {
 
     /// Whether the sort is a function with return sort bool
     pub fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
     }
 
     pub fn default_infer_mode(&self) -> InferMode {
@@ -811,7 +844,7 @@ impl Sort {
     }
 
     /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `subst`
-    pub fn subst(&self, subst: &[Sort]) -> Sort {
+    fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Int
             | Sort::Bool
@@ -867,16 +900,16 @@ impl RefineParam {
     }
 }
 
-impl From<FuncSort> for Sort {
-    fn from(sort: FuncSort) -> Self {
-        Self::Func(sort)
+impl From<PolyFuncSort> for Sort {
+    fn from(fsort: PolyFuncSort) -> Self {
+        Self::Func(fsort)
     }
 }
 
 impl FuncSort {
-    pub fn new(params: usize, mut inputs: Vec<Sort>, output: Sort) -> Self {
+    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { params, inputs_and_output: List::from_vec(inputs) }
+        FuncSort { inputs_and_output: List::from_vec(inputs) }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1095,7 +1128,7 @@ impl Map {
         inputs: Vec<Sort>,
         output: Sort,
     ) {
-        let sort = FuncSort::new(params, inputs, output);
+        let sort = PolyFuncSort::new(params, inputs, output);
         self.func_decls
             .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
     }
@@ -1603,6 +1636,12 @@ impl fmt::Debug for Sort {
             Sort::Infer(vid) => write!(f, "{vid:?}"),
             Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
         }
+    }
+}
+
+impl fmt::Display for PolyFuncSort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "for<{}>{}", self.params, self.fsort)
     }
 }
 

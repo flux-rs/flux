@@ -1166,10 +1166,11 @@ fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
     }
 }
 
-fn conv_func_sort(genv: &GlobalEnv, fsort: &fhir::FuncSort) -> rty::PolyFuncSort {
+fn conv_func_sort(genv: &GlobalEnv, sort: &fhir::PolyFuncSort) -> rty::PolyFuncSort {
+    let fsort = sort.skip_binders();
     let fsort =
         rty::FuncSort::new(conv_sorts(genv, fsort.inputs()), conv_sort(genv, fsort.output()));
-    rty::PolyFuncSort::new(0, fsort)
+    rty::PolyFuncSort::new(sort.params, fsort)
 }
 
 fn conv_lit(lit: fhir::Lit) -> rty::Constant {

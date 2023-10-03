@@ -65,13 +65,13 @@ pub fn func_def_to_func_decl(
     sort_decls: &fhir::SortDecls,
     defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl> {
-    let mut inputs_and_output: Vec<fhir::Sort> = defn
+    let inputs: Vec<fhir::Sort> = defn
         .args
         .iter()
         .map(|arg| resolve_sort(sess, sort_decls, &arg.sort))
         .try_collect_exhaust()?;
-    inputs_and_output.push(resolve_sort(sess, sort_decls, &defn.output)?);
-    let sort = fhir::FuncSort { params: 0, inputs_and_output: List::from(inputs_and_output) };
+    let output = resolve_sort(sess, sort_decls, &defn.output)?;
+    let sort = fhir::PolyFuncSort::new(0, inputs, output);
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
@@ -1321,13 +1321,13 @@ fn resolve_func_sort(
     sort_decls: &fhir::SortDecls,
     inputs: &[surface::BaseSort],
     output: &surface::BaseSort,
-) -> Result<fhir::FuncSort> {
-    let mut inputs_and_output: Vec<fhir::Sort> = inputs
+) -> Result<fhir::PolyFuncSort> {
+    let inputs: Vec<fhir::Sort> = inputs
         .iter()
         .map(|sort| resolve_base_sort(sess, sort_decls, sort))
         .try_collect_exhaust()?;
-    inputs_and_output.push(resolve_base_sort(sess, sort_decls, output)?);
-    Ok(fhir::FuncSort { params: 0, inputs_and_output: List::from_vec(inputs_and_output) })
+    let output = resolve_base_sort(sess, sort_decls, output)?;
+    Ok(fhir::PolyFuncSort::new(0, inputs, output))
 }
 
 fn resolve_base_sort(

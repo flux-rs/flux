@@ -62,6 +62,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(fsort) = self.is_coercible_to_func(expected, *fhir_id) {
+            let fsort = fsort.skip_binders();
             self.push_layer(params);
 
             if params.len() != fsort.inputs().len() {
@@ -326,24 +327,15 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     .clone())
             }
         };
-        func_sort.map(|func_sort| self.instantiate_func_sort(func_sort))
+        func_sort.map(|fsort| self.instantiate_func_sort(fsort))
     }
 
-    fn instantiate_func_sort(&mut self, func_sort: fhir::FuncSort) -> fhir::FuncSort {
-        let n = func_sort.params;
-        if n == 0 {
-            return func_sort;
-        }
+    fn instantiate_func_sort(&mut self, fsort: fhir::PolyFuncSort) -> fhir::FuncSort {
         let args: Vec<fhir::Sort> =
             std::iter::repeat_with(|| fhir::Sort::Infer(self.next_sort_vid()))
-                .take(n)
+                .take(fsort.params)
                 .collect();
-        let inputs_and_output = func_sort
-            .inputs_and_output
-            .iter()
-            .map(|sort| sort.subst(&args))
-            .collect();
-        fhir::FuncSort { params: 0, inputs_and_output }
+        fsort.instantiate(&args)
     }
 }
 
@@ -411,7 +403,7 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
-    ) -> Option<fhir::FuncSort> {
+    ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
         } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_record(sort) {
@@ -502,7 +494,7 @@ impl<'a> InferCtxt<'a, '_> {
             .map_or(false, |s| matches!(s, fhir::Sort::Int))
     }
 
-    fn is_func(&mut self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
+    fn is_func(&mut self, sort: &fhir::Sort) -> Option<fhir::PolyFuncSort> {
         self.resolve_sort(sort).and_then(|s| {
             if let fhir::Sort::Func(fsort) = s {
                 Some(fsort)
