@@ -547,12 +547,15 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             }
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Loc => bug!("unexpected sort {sort:?}"),
+        rty::Sort::Loc | rty::Sort::Var(_) => bug!("unexpected sort {sort:?}"),
     }
 }
 
-fn func_sort_to_fixpoint(fsort: &rty::FuncSort) -> fixpoint::FuncSort {
-    fixpoint::FuncSort::new(
+fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
+    let params = fsort.params();
+    let fsort = fsort.skip_binders();
+    fixpoint::PolyFuncSort::new(
+        params,
         fsort.inputs().iter().map(sort_to_fixpoint),
         sort_to_fixpoint(fsort.output()),
     )

@@ -51,7 +51,7 @@ pub fn tail(l: &List) -> &List {
     }
 }
 
-#[flux::sig(fn(List[@xs1], List[@xs2]) -> List[set_union(xs1, xs2)])]
+#[flux::sig(fn(List[@xs1], List[@xs2]) -> List[set_union(xs1.elems, xs2.elems)])]
 pub fn append(l1: List, l2: List) -> List {
     match l1 {
         List::Nil => l2,
@@ -62,7 +62,7 @@ pub fn append(l1: List, l2: List) -> List {
 // Silly function, but to get it working with &List we need to memoize the
 // unfolding, as other we get three unfoldings with different names which is
 // ok for int but not for Set.
-#[flux::sig(fn(k:i32, List[@xs]) -> bool[set_is_in(k, xs)])]
+#[flux::sig(fn(k:i32, List[@xs]) -> bool[set_is_in(k, xs.elems)])]
 pub fn mem(k: i32, l: List) -> bool {
     match l {
         List::Cons(h, tl) => {

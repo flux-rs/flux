@@ -17,8 +17,8 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, ProjectionPredicate, PtrKind, Qualifier,
-    ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, PolyFuncSort, ProjectionPredicate, PtrKind,
+    Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -518,15 +518,18 @@ impl TypeFoldable for FnTraitPredicate {
         })
     }
 }
-
 impl TypeVisitable for Sort {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
-            Sort::Func(fsort) => fsort.inputs_and_output.visit_with(visitor),
-            Sort::Int | Sort::Bool | Sort::Real | Sort::BitVec(_) | Sort::Loc | Sort::Param(_) => {
-                ControlFlow::Continue(())
-            }
+            Sort::Func(fsort) => fsort.fsort.inputs_and_output.visit_with(visitor),
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::BitVec(_)
+            | Sort::Loc
+            | Sort::Param(_)
+            | Sort::Var(_) => ControlFlow::Continue(()),
         }
     }
 }
@@ -543,13 +546,23 @@ impl TypeSuperFoldable for Sort {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
             Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => {
-                Sort::Func(FuncSort {
-                    inputs_and_output: fsort.inputs_and_output.try_fold_with(folder)?,
-                })
+                let params = fsort.params;
+                let fsort = FuncSort {
+                    inputs_and_output: fsort
+                        .clone()
+                        .skip_binders()
+                        .inputs_and_output
+                        .try_fold_with(folder)?,
+                };
+                Sort::Func(PolyFuncSort { params, fsort })
             }
-            Sort::Int | Sort::Bool | Sort::Real | Sort::Loc | Sort::BitVec(_) | Sort::Param(_) => {
-                self.clone()
-            }
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::BitVec(_)
+            | Sort::Param(_)
+            | Sort::Var(_) => self.clone(),
         };
         Ok(sort)
     }

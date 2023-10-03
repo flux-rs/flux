@@ -146,6 +146,20 @@ pub enum SortCtor {
     User { name: Symbol, arity: usize },
 }
 
+/// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
+/// "bound" under a PolyFuncSort; i.e. should be < than the number of params in the
+/// PolyFuncSort.
+#[derive(Clone, PartialEq, Eq, Debug, Hash, TyEncodable, TyDecodable)]
+pub struct SortVar {
+    pub index: usize,
+}
+
+impl From<usize> for SortVar {
+    fn from(index: usize) -> Self {
+        SortVar { index }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -155,13 +169,34 @@ pub enum Sort {
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
-    Func(FuncSort),
+    Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
+    Var(SortVar),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     inputs_and_output: List<Sort>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct PolyFuncSort {
+    params: usize,
+    fsort: FuncSort,
+}
+
+impl PolyFuncSort {
+    pub fn skip_binders(&self) -> FuncSort {
+        self.fsort.clone()
+    }
+
+    pub fn params(&self) -> usize {
+        self.params
+    }
+
+    pub fn new(params: usize, fsort: FuncSort) -> Self {
+        PolyFuncSort { params, fsort }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -264,7 +299,7 @@ pub struct Defn {
 #[derive(Debug)]
 pub struct FuncDecl {
     pub name: Symbol,
-    pub sort: FuncSort,
+    pub sort: PolyFuncSort,
     pub kind: FuncKind,
 }
 
@@ -609,7 +644,7 @@ impl Sort {
     }
 
     #[track_caller]
-    pub fn expect_func(&self) -> &FuncSort {
+    pub fn expect_func(&self) -> &PolyFuncSort {
         if let Sort::Func(sort) = self {
             sort
         } else {
@@ -631,7 +666,7 @@ impl Sort {
 
     /// Whether the sort is a function with return sort bool
     fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.output().is_bool())
+        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
     }
 
     /// Returns `true` if the sort is [`Bool`].
@@ -1713,6 +1748,7 @@ mod pretty {
                 Sort::Real => w!("real"),
                 Sort::BitVec(w) => w!("bitvec({})", ^w),
                 Sort::Loc => w!("loc"),
+                Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
@@ -1742,6 +1778,17 @@ mod pretty {
                     .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
                 self.output()
             )
+        }
+    }
+
+    impl Pretty for PolyFuncSort {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if self.params == 0 {
+                w!("{:?}", &self.fsort)
+            } else {
+                w!("for<{}> {:?}", ^self.params, &self.fsort)
+            }
         }
     }
 

@@ -62,6 +62,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(fsort) = self.is_coercible_to_func(expected, *fhir_id) {
+            let fsort = fsort.skip_binders();
             self.push_layer(params);
 
             if params.len() != fsort.inputs().len() {
@@ -306,7 +307,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn synth_func(&mut self, func: &fhir::Func) -> Result<fhir::FuncSort, ErrorGuaranteed> {
-        match func {
+        let func_sort = match func {
             fhir::Func::Var(var, fhir_id) => {
                 let sort = self[&var.name].clone();
                 if let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) {
@@ -325,7 +326,16 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     .sort
                     .clone())
             }
-        }
+        };
+        func_sort.map(|fsort| self.instantiate_func_sort(fsort))
+    }
+
+    fn instantiate_func_sort(&mut self, fsort: fhir::PolyFuncSort) -> fhir::FuncSort {
+        let args: Vec<fhir::Sort> =
+            std::iter::repeat_with(|| fhir::Sort::Infer(self.next_sort_vid()))
+                .take(fsort.params)
+                .collect();
+        fsort.instantiate(&args)
     }
 }
 
@@ -393,7 +403,7 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
-    ) -> Option<fhir::FuncSort> {
+    ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
         } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_record(sort) {
@@ -417,6 +427,16 @@ impl<'a> InferCtxt<'a, '_> {
                     .unify_var_value(*vid, Some(sort.clone()))
                     .ok()?;
                 Some(sort.clone())
+            }
+            (fhir::Sort::App(c1, args1), fhir::Sort::App(c2, args2)) => {
+                if c1 != c2 || args1.len() != args2.len() {
+                    return None;
+                }
+                let mut args = vec![];
+                for (t1, t2) in args1.iter().zip(args2.iter()) {
+                    args.push(self.try_equate(t1, t2)?);
+                }
+                Some(fhir::Sort::App(c1.clone(), args.into()))
             }
             _ if sort1 == sort2 => Some(sort1.clone()),
             _ => None,
@@ -474,7 +494,7 @@ impl<'a> InferCtxt<'a, '_> {
             .map_or(false, |s| matches!(s, fhir::Sort::Int))
     }
 
-    fn is_func(&mut self, sort: &fhir::Sort) -> Option<fhir::FuncSort> {
+    fn is_func(&mut self, sort: &fhir::Sort) -> Option<fhir::PolyFuncSort> {
         self.resolve_sort(sort).and_then(|s| {
             if let fhir::Sort::Func(fsort) = s {
                 Some(fsort)
