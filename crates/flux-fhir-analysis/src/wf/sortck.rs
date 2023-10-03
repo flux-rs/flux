@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, iter};
+use std::{borrow::Borrow, collections::HashSet, iter};
 
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -20,6 +20,8 @@ pub(super) struct InferCtxt<'a, 'tcx> {
     sorts: UnordMap<fhir::Name, fhir::Sort>,
     unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
+    /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
+    eq_vids: HashSet<fhir::SortVid>,
 }
 
 impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
@@ -29,6 +31,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
             sorts: Default::default(),
+            eq_vids: Default::default(),
         }
     }
 
@@ -332,7 +335,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn instantiate_func_sort(&mut self, fsort: fhir::PolyFuncSort) -> fhir::FuncSort {
         let args: Vec<fhir::Sort> =
-            std::iter::repeat_with(|| fhir::Sort::Infer(self.next_sort_vid()))
+            std::iter::repeat_with(|| fhir::Sort::Infer(self.next_eq_sort_vid()))
                 .take(fsort.params)
                 .collect();
         fsort.instantiate(&args)
@@ -422,7 +425,9 @@ impl<'a> InferCtxt<'a, '_> {
                 self.unification_table.unify_var_var(*vid2, *vid2).ok()?;
                 Some(fhir::Sort::Infer(*vid1))
             }
-            (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid)) => {
+            (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid))
+                if !self.is_eq_sort_vid(*vid) || !matches!(sort, fhir::Sort::Func(_)) =>
+            {
                 self.unification_table
                     .unify_var_value(*vid, Some(sort.clone()))
                     .ok()?;
@@ -445,6 +450,16 @@ impl<'a> InferCtxt<'a, '_> {
 
     fn next_sort_vid(&mut self) -> fhir::SortVid {
         self.unification_table.new_key(None)
+    }
+
+    fn next_eq_sort_vid(&mut self) -> fhir::SortVid {
+        let vid = self.next_sort_vid();
+        self.eq_vids.insert(vid);
+        vid
+    }
+
+    fn is_eq_sort_vid(&self, vid: fhir::SortVid) -> bool {
+        self.eq_vids.contains(&vid)
     }
 
     pub(crate) fn resolve_params_sorts(
