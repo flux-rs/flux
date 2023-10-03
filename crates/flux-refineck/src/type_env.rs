@@ -110,23 +110,42 @@ impl TypeEnv<'_> {
         }
     }
 
-    /// Given a place `p` with type `ptr(l)`
+    /// Converts a pointer to a borrow, e.g.,
+    /// `x: i32[a], p: ptr(mut, x)` -> `x: i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
+    /// +
+    /// `i32[a] <: i32{v: $k(v)}`
     pub(crate) fn ptr_to_borrow(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
     ) -> Result<(), CheckerErrKind> {
-        let ptr = self.bindings.lookup(place);
-        let TyKind::Ptr(kind, path) = ptr.ty.kind() else {
+        let ptr_lookup = self.bindings.lookup(place);
+        let TyKind::Ptr(kind, path) = ptr_lookup.ty.kind() else {
             tracked_span_bug!("ptr_to_borrow on non-pointer type ")
         };
         let PtrKind::Mut(re) = kind else { return Ok(()) };
 
-        let result = self.bindings.lookup(path);
-        debug_assert!(result.is_strg);
+        let pointee_lookup = self.bindings.lookup(path);
+        debug_assert!(pointee_lookup.is_strg);
 
-        let new_ty = result.ty.with_holes().replace_holes(&mut gen.kvar_gen);
+        let mut infcx = gen.infcx(rcx, ConstrReason::Other);
+
+        let old_ty = &pointee_lookup.ty;
+        let new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
+            debug_assert_eq!(kind, HoleKind::Pred);
+            infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+        });
+
+        infcx.subtyping(rcx, old_ty, &new_ty)?;
+
+        pointee_lookup.block_with(new_ty.clone());
+
+        self.bindings
+            .lookup(place)
+            .update(Ty::mk_ref(*re, new_ty, Mutability::Mut));
+
+        rcx.replace_evars(&infcx.solve().unwrap());
 
         Ok(())
     }

@@ -41,7 +41,7 @@ pub(crate) fn run_analysis<'tcx>(
         tracked_places.push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
     });
 
-    let mut visitor = CollectPointerBorrows { tracked_places, stmts };
+    let mut visitor = CollectPointerToBorrows { tracked_places, stmts };
 
     PointsToAnalysis::new(&map, genv.fn_sig(def_id)?)
         .into_engine(genv.tcx, body)
@@ -98,17 +98,7 @@ impl<'a> PointsToAnalysis<'a> {
                 state.assign(target.as_ref(), result, self.map);
             }
             mir::Rvalue::Ref(_, _, place) => {
-                let result = match &place.projection[..] {
-                    [] => {
-                        let loc = FlatSet::Elem(Loc::Local(place.local));
-                        PlaceOrValue::Value(loc)
-                    }
-                    [mir::PlaceElem::Deref] => {
-                        let loc = state.get(place.local.into(), self.map);
-                        PlaceOrValue::Value(loc)
-                    }
-                    _ => PlaceOrValue::TOP,
-                };
+                let result = PlaceOrValue::Value(self.handle_ref(place, state));
                 state.assign(target.as_ref(), result, self.map);
             }
             mir::Rvalue::Aggregate(box mir::AggregateKind::Tuple, operands) => {
@@ -122,6 +112,14 @@ impl<'a> PointsToAnalysis<'a> {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn handle_ref(&self, place: &mir::Place, state: &State) -> FlatSet<Loc> {
+        match &place.projection[..] {
+            [] => FlatSet::Elem(Loc::Local(place.local)),
+            [mir::PlaceElem::Deref] => state.get(place.local.into(), self.map),
+            _ => FlatSet::Top,
         }
     }
 
@@ -239,12 +237,12 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     }
 }
 
-struct CollectPointerBorrows<'a> {
+struct CollectPointerToBorrows<'a> {
     tracked_places: Vec<(PlaceIndex, flux_middle::rustc::mir::Place)>,
     stmts: &'a mut GhostStatements,
 }
 
-impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerBorrows<'_> {
+impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
     type FlowState = State;
 
     fn visit_block_end(
@@ -374,7 +372,7 @@ impl Map {
     ) {
         // Allocate a value slot if it doesn't have one, and the user requested one.
         assert!(self.places[place].value_index.is_none());
-        if let ty::TyKind::Ref(..) = ty.kind() {
+        if let ty::TyKind::Ref(.., mir::Mutability::Mut) = ty.kind() {
             self.places[place].value_index = Some(self.value_count.into());
             self.value_count += 1;
         }
