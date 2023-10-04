@@ -240,7 +240,7 @@ struct CollectPointerToBorrows<'a> {
     map: &'a Map,
     tracked_places: Vec<(PlaceIndex, flux_middle::rustc::mir::Place)>,
     stmts: &'a mut GhostStatements,
-    before_assign: Option<(PlaceIndex, FlatSet<Loc>)>,
+    before_assign: Option<State>,
 }
 
 impl<'a> CollectPointerToBorrows<'a> {
@@ -257,6 +257,17 @@ impl<'a> CollectPointerToBorrows<'a> {
         });
         Self { map, tracked_places, stmts, before_assign: None }
     }
+
+    fn insert_ptr_to_borrows_at(&mut self, point: Point, old: &State, new: &State) {
+        for (place_idx, place) in &self.tracked_places {
+            let old_value = old.get_idx(*place_idx, self.map);
+            let new_value = new.get_idx(*place_idx, self.map);
+            if let (FlatSet::Elem(_), FlatSet::Top) = (old_value, new_value) {
+                self.stmts
+                    .insert_at(point, GhostStatement::PtrToBorrow(place.clone()));
+            }
+        }
+    }
 }
 
 impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
@@ -270,10 +281,9 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         _location: mir::Location,
     ) {
         if let mir::StatementKind::Assign(box (target, _)) = statement.kind
-            && let Some(place_idx) = self.map.find(target.as_ref())
-            && let Some(value) = state.get_tracked_idx(place_idx, self.map)
+            && self.map.locals[target.local].is_some()
         {
-            self.before_assign = Some((place_idx, value));
+            self.before_assign = Some(state.clone());
         } else {
             self.before_assign = None;
         }
@@ -286,14 +296,10 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
-        if let mir::StatementKind::Assign(box (target, _)) = statement.kind
-            && let Some((place_idx, old)) = &self.before_assign
+        if let mir::StatementKind::Assign(..) = statement.kind
+            && let Some(old_state) = self.before_assign.take()
         {
-            let new = state.get_idx(*place_idx, self.map);
-            if should_insert_ptr_to_borrow(old, &new) {
-                let place = lowering::lower_place(&target).unwrap();
-                self.stmts.insert_at(Point::Location(location), GhostStatement::PtrToBorrow(place));
-            }
+            self.insert_ptr_to_borrows_at(Point::Location(location), &old_state, state);
         }
     }
 
@@ -306,22 +312,9 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
     ) {
         for target in block_data.terminator().successors() {
             let target_state = results.entry_set_for_block(target);
-            for (place_idx, place) in &self.tracked_places {
-                let source_value = state.get_idx(*place_idx, results.analysis.map);
-                let target_value = target_state.get_idx(*place_idx, results.analysis.map);
-                if should_insert_ptr_to_borrow(&source_value, &target_value) {
-                    self.stmts.insert_at(
-                        Point::Edge(block, target),
-                        GhostStatement::PtrToBorrow(place.clone()),
-                    );
-                }
-            }
+            self.insert_ptr_to_borrows_at(Point::Edge(block, target), state, target_state);
         }
     }
-}
-
-fn should_insert_ptr_to_borrow(old: &FlatSet<Loc>, new: &FlatSet<Loc>) -> bool {
-    matches!((old, new), (FlatSet::Elem(_), FlatSet::Top))
 }
 
 /// Partial mapping from [`Place`] to [`PlaceIndex`], where some places also have a [`ValueIndex`].
