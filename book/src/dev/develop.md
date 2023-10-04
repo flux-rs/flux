@@ -55,9 +55,9 @@ fn add1(x: i32) -> i32 {
 $ cargo xtask run test.rs
 ```
 
-The command will use a super set of the flags passed when running regression tests[^flags].
-Thus, a common workflow is to identify a failing test, copy it to a different file, and then
-run Flux on it with `cargo xtask run`.
+The command will use a super set of the flags passed when running regression tests.
+Thus, a common workflow is to identify a failing test and run it directly with `cargo xtask run`,
+or alternatively copy it to a different file.
 
 You may also find useful to create a directory in the root of the project and add it to
 [`.git/info/exclude`](https://git-scm.com/docs/gitignore).
@@ -65,12 +65,11 @@ You can keep files there, outside of version control, and test Flux against them
 I have a directory called `attic/` where I keep a file named `playground.rs`.
 To run Flux on it, I do `cargo xtask run attic/playground.rs`.
 
-
 ## Reporting locations where errors are emitted
 
 When you use `cargo xtask run` you'll see that we report the location an error was emitted, e.g.,
 
-```
+```console
 error[FLUX]: refinement type error
  --> attic/playground.rs:4:5
   |
@@ -80,7 +79,6 @@ error[FLUX]: refinement type error
 ```
 
 You can also pass `-Ztrack-diagnostics=y` to enable it if you are not using `cargo xtask run`
-
 
 ## Profiling Flux
 
@@ -141,7 +139,3 @@ check_crate
     total time:   16995.32ms
 total time: 17014.19ms
 ```
-
-[^flags]: `cargo xtask run` passes extra flags to enable the `register_tool` and
-`custom_inner_attributes` features, and to register `flux` as a tool. So you don't need to
-copy those crate attributes from a test file. We plan to remove those attributes from test files.
