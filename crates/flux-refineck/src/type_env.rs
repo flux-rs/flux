@@ -110,33 +110,47 @@ impl TypeEnv<'_> {
         }
     }
 
-    /// Converts a pointer to a borrow, e.g.,
-    /// `x: i32[a], p: ptr(mut, x)` -> `x: †i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
-    /// +
-    /// `i32[a] <: i32{v: $k(v)}`
+    /// Converts a pointer `ptr(mut, l)` to a borrow `&mut T`. For example, given the environment
+    /// ```ignore
+    /// x: i32[a], p: ptr(mut, x)`
+    /// ```
+    ///
+    /// Converting the pointer to a borrow will produce
+    ///
+    /// ```ignore
+    /// x: i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
+    /// ```
+    ///
+    /// together with a constraint
+    ///
+    /// ```ignore
+    /// i32[a] <: i32{v: $k(v)}
+    /// ```
     pub(crate) fn ptr_to_borrow(
         &mut self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
     ) -> Result<(), CheckerErrKind> {
+        // place: ptr(mut, path)
         let ptr_lookup = self.bindings.lookup(place);
-        let TyKind::Ptr(kind, path) = ptr_lookup.ty.kind() else {
-            tracked_span_bug!("ptr_to_borrow on non-pointer type")
+        let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() else {
+            tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
         };
-        let PtrKind::Mut(re) = kind else { return Ok(()) };
 
+        // path: old_ty
         let old_ty = self.bindings.lookup(path).fold(rcx, gen)?;
 
         let mut infcx = gen.infcx(rcx, ConstrReason::Other);
 
+        // old_ty <: new_ty
         let new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
             debug_assert_eq!(kind, HoleKind::Pred);
             infcx.fresh_kvar(sorts, KVarEncoding::Conj)
         });
-
         infcx.subtyping(rcx, &old_ty, &new_ty)?;
 
+        // path: new_ty, place: &mut new_ty
         self.bindings.lookup(path).block_with(new_ty.clone());
         self.bindings
             .lookup(place)
@@ -211,9 +225,8 @@ impl TypeEnv<'_> {
             infcx.check_pred(rcx, constr);
         }
 
-        let bb_env = bb_env.bindings.flatten();
-
         // Check subtyping
+        let bb_env = bb_env.bindings.flatten();
         for (path, _, ty2) in bb_env {
             let ty1 = self.bindings.get(&path);
             infcx.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked())?;
@@ -685,5 +698,9 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv<'_> => "type_env", BasicBlockEnvShape => "type_env_infer", BasicBlockEnv => "basic_block_env");
+    impl_debug_with_default_cx! {
+        TypeEnv<'_> => "type_env",
+        BasicBlockEnvShape => "basic_block_env_shape",
+        BasicBlockEnv => "basic_block_env"
+    }
 }
