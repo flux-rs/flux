@@ -4,7 +4,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, Loc},
-    rustc::{lowering, mir::FieldIdx},
+    rustc::mir::FieldIdx,
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
@@ -458,9 +458,8 @@ impl Map {
         let mut index = *self.locals[place.local].as_ref()?;
 
         for &elem in place.projection {
-            if let mir::ProjectionElem::Field(elem, _) = elem {
-                index = self.apply(index, elem)?;
-            }
+            let mir::ProjectionElem::Field(elem, _) = elem else { return None };
+            index = self.apply(index, elem)?;
         }
 
         Some(index)
