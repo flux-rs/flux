@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::extern_spec]
 #[flux::sig(fn(&T) -> &[T][1])]
 fn from_ref<T>(s: &T) -> &[T] {

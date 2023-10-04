@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn() -> i32[0])]
 pub fn bool_int() -> i32 {
     true as i32 //~ ERROR refinement type

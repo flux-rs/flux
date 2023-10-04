@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // We need this right now to not deal with the enum `Some`
 
 #[flux::trusted]

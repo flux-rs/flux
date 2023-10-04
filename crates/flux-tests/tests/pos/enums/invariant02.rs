@@ -1,5 +1,3 @@
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
 #![flux::defs {
     fn gtzero(x: int) -> bool {
         x > 0

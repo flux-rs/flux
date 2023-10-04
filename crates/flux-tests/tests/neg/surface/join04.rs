@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(bool) -> i32{v: v >= 0})]
 fn ref_join(z: bool) -> i32 {
     let mut x = 0;

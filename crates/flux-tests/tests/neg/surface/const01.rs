@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Test use of constant in fn-signature
 
 #[flux::constant]

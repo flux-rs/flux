@@ -1,7 +1,4 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
 #![allow(unused)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     fn funky(x: int) -> bool {
         0 < x && (x < 10 && x % 2 == 0) //~ NOTE this is the condition

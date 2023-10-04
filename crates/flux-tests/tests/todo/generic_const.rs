@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub fn from_array<const N: usize>(items: [i32; N]) -> Vec<i32> {
     items.to_vec()
 }

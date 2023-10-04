@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // MutToConstPointer
 pub unsafe fn test00(p: *mut i32) {
     let _ = p as *const i32;

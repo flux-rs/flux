@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(n: int)]
 pub enum Pos {
     #[flux::variant({Box<Pos[@n]>} -> Pos[2*n])]

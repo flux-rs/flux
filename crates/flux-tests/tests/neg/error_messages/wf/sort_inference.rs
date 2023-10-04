@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn({v. i32[1]}))] //~ ERROR sort annotation needed
 fn test00(x: i32) {}
 

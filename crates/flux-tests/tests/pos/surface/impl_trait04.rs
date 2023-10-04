@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 trait Trait {}
 
 impl Trait for i32 {}

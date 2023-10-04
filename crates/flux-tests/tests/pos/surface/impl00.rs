@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub trait MyTrait {
     fn foo() -> i32;
     fn bar();

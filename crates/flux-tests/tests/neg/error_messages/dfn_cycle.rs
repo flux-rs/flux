@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     fn even(x: int) -> bool { x == 0 || odd(x-1) } //~ ERROR cycle
     fn odd(x: int) -> bool { x == 1 || even(x-1) }

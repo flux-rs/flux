@@ -1,6 +1,3 @@
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
-
 struct S<T> {
     f: T,
 }

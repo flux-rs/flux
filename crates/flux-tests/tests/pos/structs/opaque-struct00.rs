@@ -1,5 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
 #[path = "../../lib/pair.rs"]
 mod pair;
 use pair::Pair;

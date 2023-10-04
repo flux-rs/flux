@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(
     fn<refine p: int -> bool>(x: i32) -> i32{v: p(v)}
     requires x > 0 || p(x) //~ ERROR illegal use of refinement parameter

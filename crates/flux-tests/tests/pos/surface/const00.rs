@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Test definition and checking of const
 
 #[flux::constant]

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(len: int)]
 #[flux::invariant(len >= 0)]
 enum List<'a, T> {

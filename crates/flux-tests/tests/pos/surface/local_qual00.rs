@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     local qualifier MyQ1(x: int, y: int, z: int) { x + y <= z + 10 }
 }]

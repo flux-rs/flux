@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 struct S {
     pair: Option<(Vec<i32>, i32)>,
 }

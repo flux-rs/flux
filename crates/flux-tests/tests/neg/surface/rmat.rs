@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[path = "../../lib/rvec.rs"]
 pub mod rvec;
 

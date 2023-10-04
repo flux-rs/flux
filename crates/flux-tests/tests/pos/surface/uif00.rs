@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     fn valid(x:int) -> bool;
 }]

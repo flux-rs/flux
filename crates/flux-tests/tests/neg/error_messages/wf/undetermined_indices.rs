@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Unused parameter
 #[flux::refined_by(n: int)] //~ ERROR parameter `n` cannot be determined
 struct S1 {

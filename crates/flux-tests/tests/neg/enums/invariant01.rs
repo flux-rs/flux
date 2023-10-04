@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(n:int)]
 #[flux::invariant(n > 0)] //~ ERROR invariant
 pub enum List<T> {

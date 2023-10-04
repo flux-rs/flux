@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(x: i32{v: v > 0 && v < 10}) -> i32{v: v < 10})]
 fn exists(x: i32) -> i32 {
     x + 1 //~ ERROR refinement type

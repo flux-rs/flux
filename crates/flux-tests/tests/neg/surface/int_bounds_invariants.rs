@@ -1,6 +1,5 @@
 // Check that integer bound invariants are not assumed when overflow checking is disabled
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
+
 #![flux::cfg(check_overflow = false)]
 
 #[flux::sig(fn(bool[true]))]

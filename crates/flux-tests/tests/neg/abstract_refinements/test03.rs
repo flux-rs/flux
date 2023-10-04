@@ -1,6 +1,3 @@
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
-
 #[derive(Clone, Copy)]
 #[flux::refined_by(p: int -> bool)]
 pub struct S;

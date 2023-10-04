@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 struct S1<T1, T2> {
     x: T1,
     y: T2,

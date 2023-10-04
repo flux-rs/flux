@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 struct S<'a> {
     #[flux::field(&mut i32{v : v > 0})]
     x: &'a mut i32,

@@ -1,6 +1,4 @@
 //! Test that we can use `impl Trait` on a local trait
-#![feature(register_tool)]
-#![register_tool(flux)]
 
 trait Trait {
     type A;

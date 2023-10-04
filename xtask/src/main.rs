@@ -74,11 +74,7 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
 
     let flux_path = find_flux_path();
     let mut rustc_flags = rustc_flags();
-    rustc_flags.extend([
-        "-Zcrate-attr=feature(register_tool,custom_inner_attributes)".to_string(),
-        "-Zcrate-attr=register_tool(flux)".to_string(),
-        "-Ztrack-diagnostics=y".to_string(),
-    ]);
+    rustc_flags.extend(["-Ztrack-diagnostics=y".to_string()]);
 
     cmd!(sh, "{flux_path} {rustc_flags...} {opts...} {input}").run()?;
     Ok(())

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn() -> Result<i32[0], ()>)]
 fn baz() -> Result<i32, ()> {
     Ok(0)

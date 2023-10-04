@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     fn is_btwn(v:int, lo:int, hi: int) -> bool { lo <= v && v <= hi }
     fn ok_day(d:int) -> bool { is_btwn(d, 1, 31) }

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(a: int, b: int)]
 struct Foo {
     #[flux::field({i32[@a] | 0 <= a})]

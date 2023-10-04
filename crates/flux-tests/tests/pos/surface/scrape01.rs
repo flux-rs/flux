@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::cfg(scrape_quals = "true")]
 
 #[path = "../../lib/rvec.rs"]

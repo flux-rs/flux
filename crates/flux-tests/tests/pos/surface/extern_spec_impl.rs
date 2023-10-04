@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 use flux_rs::extern_spec;
 
 #[extern_spec]

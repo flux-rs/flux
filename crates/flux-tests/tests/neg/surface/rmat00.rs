@@ -1,6 +1,4 @@
 #![allow(unused_attributes)]
-#![feature(register_tool)]
-#![register_tool(flux)]
 
 #[path = "../../lib/rmat.rs"]
 pub mod rmat;

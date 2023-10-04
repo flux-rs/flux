@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // test that we allow moving out of a Box
 pub fn mv(b: Box<Option<i32>>) -> Option<i32> {
     *b

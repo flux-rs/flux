@@ -1,6 +1,3 @@
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
-
 #[path = "../../lib/ghost_cell.rs"]
 mod ghost_cell;
 

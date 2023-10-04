@@ -1,5 +1,4 @@
 #![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
 
 #[flux::refined_by(len: int)]
 enum List<T> {

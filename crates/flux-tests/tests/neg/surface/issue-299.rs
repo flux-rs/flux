@@ -1,6 +1,4 @@
 #![allow(unused)]
-#![feature(register_tool)]
-#![register_tool(flux)]
 
 #[flux::refined_by(a: int)]
 struct S1 {

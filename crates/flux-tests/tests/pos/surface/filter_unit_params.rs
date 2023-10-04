@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 struct S;
 
 #[flux::sig(fn(x: S, y: i32))]

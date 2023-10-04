@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn() -> (i8[i8::MIN], i8[i8::MAX]))]
 fn test_i8() -> (i8, i8) {
     (i8::MIN, i8::MAX)

@@ -1,7 +1,5 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
 // Test definition and checking of const and qualifiers
-#![feature(custom_inner_attributes)]
+
 #![flux::defs {
     qualifier MyQ1(x: int, a: int) { x == a + FORTY_TWO }
 }]

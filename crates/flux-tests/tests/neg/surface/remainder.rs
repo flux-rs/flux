@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Test of `mod` support
 // usize preserves mod semantics
 #[flux::sig(fn(a: usize{a % 2 == 1}) -> usize[1])]

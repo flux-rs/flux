@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(x: i32, y: i32{y == -x}))]
 pub fn test_neg00(x: i32, y: i32) {}
 

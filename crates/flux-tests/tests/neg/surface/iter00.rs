@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[path = "../../lib/range.rs"]
 mod range;
 use range::{Rng, RngIter};

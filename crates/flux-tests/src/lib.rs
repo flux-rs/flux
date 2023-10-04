@@ -7,6 +7,8 @@ pub fn find_flux_path() -> PathBuf {
 
 pub fn rustc_flags() -> Vec<String> {
     vec![
+        "-Zcrate-attr=feature(register_tool,custom_inner_attributes)".to_string(),
+        "-Zcrate-attr=register_tool(flux)".to_string(),
         "--crate-type=rlib".to_string(),
         "--edition=2021".to_string(),
         format!("--extern=flux_rs={}", find_flux_rs_lib_path().display()),

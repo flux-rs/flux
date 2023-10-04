@@ -1,6 +1,5 @@
 // Implementation of kmp with overflow checks enabled
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
+
 #![flux::cfg(check_overflow = true)]
 
 #[path = "../../lib/rvec.rs"]

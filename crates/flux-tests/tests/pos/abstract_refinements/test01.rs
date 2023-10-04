@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(a: int, b: int, p: (int, int) -> bool)]
 struct Pair {
     #[flux::field(i32[@a])]

@@ -1,6 +1,3 @@
-#![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
-
 enum E {
     #[flux::variant((i32{v: v >= 0}) -> E)]
     A(i32),

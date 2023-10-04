@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 use std::vec::IntoIter;
 
 #[flux::sig(fn(bool[true]))]

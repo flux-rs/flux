@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(lo: int, hi: int)]
 pub struct Rng {
     #[flux::field(i32[@lo])]

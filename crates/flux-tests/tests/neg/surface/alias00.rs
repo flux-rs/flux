@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::alias(type Nat = i32{v: 0 <= v})]
 type Nat = i32;
 

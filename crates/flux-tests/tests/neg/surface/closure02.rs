@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::trusted]
 fn smap<S, F, A, B>(s: S, v: Vec<A>, f: F) -> Vec<B>
 where

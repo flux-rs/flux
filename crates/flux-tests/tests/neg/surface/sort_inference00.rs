@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 fn test00() {
     #[flux::sig(fn({a,b. (i32[a], i32[b]) | b > a}) -> {v. i32[v] | v > 10})]
     fn f(x: (i32, i32)) -> i32 {

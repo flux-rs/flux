@@ -1,5 +1,4 @@
 #![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
 
 #[flux::refined_by(is_var: bool, nnf: bool)]
 #[flux::invariant(is_var => nnf)]

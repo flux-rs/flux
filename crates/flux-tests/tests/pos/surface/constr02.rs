@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Test for
 // Option<{i32[a] | a > 0}> <: Option<i32{v: v > 0 }>
 

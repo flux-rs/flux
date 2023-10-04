@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub struct S;
 
 #[flux::sig(fn(x: u32) -> Result<{S | x < 100}, bool>)]

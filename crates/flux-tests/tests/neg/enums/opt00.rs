@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(b:bool)]
 pub enum Opt {
     #[flux::variant(Opt[false])]

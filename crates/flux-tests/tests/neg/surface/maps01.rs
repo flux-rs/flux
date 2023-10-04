@@ -1,7 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
-
 #[path = "../../lib/rmapk.rs"]
 mod rmapk;
 use rmapk::RMap;

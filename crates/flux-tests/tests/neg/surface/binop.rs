@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Arithmetic BinOps
 // Checks for unsigned integer underflow
 #[flux::sig(fn(a: u32, b: u32) -> u32{v: v == a - b})]
