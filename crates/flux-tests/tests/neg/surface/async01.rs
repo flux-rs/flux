@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 

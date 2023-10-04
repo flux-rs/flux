@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(len: int)]
 pub enum List {
     #[flux::variant(List[0])]

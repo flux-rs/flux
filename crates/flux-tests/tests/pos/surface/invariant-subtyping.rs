@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 use std::cell::UnsafeCell;
 
 fn test00() {

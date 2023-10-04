@@ -1,11 +1,8 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
-pub struct Bob { 
+pub struct Bob {
     #[flux::field(RVec<i32>{n:n>0})]
     elems: RVec<i32>,
 }

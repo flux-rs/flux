@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(&[i32{v : v > 0}]) -> &[i32{v : v >= 0}])]
 fn first_half(slice: &[i32]) -> &[i32] {
     let mid = slice.len() / 2;

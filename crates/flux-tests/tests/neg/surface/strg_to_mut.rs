@@ -1,6 +1,3 @@
-#![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
-
 #[flux::opaque]
 #[flux::refined_by(a: int)]
 struct Struct;

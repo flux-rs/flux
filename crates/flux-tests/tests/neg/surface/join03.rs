@@ -1,6 +1,3 @@
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
-
 #[flux::refined_by(a: int, b: int)]
 pub struct Pair {
     #[flux::field(i32[a])]

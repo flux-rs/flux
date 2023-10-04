@@ -1,6 +1,5 @@
 //! code adapted from https://rust-unofficial.github.io/too-many-lists/first-final.html
-#![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
+#![feature(box_patterns)]
 
 #[flux::refined_by(len: int)]
 pub struct List<T> {

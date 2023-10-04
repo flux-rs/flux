@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub fn char00() -> char {
     'a'
 }

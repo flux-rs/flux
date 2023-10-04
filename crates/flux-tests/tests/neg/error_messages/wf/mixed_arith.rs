@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::opaque]
 #[flux::refined_by(r: real)]
 struct Real;

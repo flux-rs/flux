@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by()]
 pub struct Chair {
     #[flux::field(i32{v: 0 < v})]

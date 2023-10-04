@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(n: int)]
 pub enum E {
     #[flux::variant({{i32[@n] | n > 0}} -> E[n])]

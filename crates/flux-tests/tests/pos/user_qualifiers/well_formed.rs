@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     qualifier MyQ1(x: int, a: int) { x == a }
     qualifier MyQ2(x: int) { x > 1 }

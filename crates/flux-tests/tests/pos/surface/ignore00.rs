@@ -1,6 +1,3 @@
-#![feature(custom_inner_attributes)]
-#![feature(register_tool)]
-#![register_tool(flux)]
 #![flux::ignore] // ignore checking this crate
 
 #[flux::sig(fn(bool[true]))]

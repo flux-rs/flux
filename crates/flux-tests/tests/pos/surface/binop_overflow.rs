@@ -1,5 +1,3 @@
-#![feature(register_tool, custom_inner_attributes)]
-#![register_tool(flux)]
 #![flux::cfg(check_overflow = true)]
 
 // Arithmetic BinOps

@@ -1,5 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
 #![allow(unused)]
 
 #[path = "../../lib/rvec.rs"]

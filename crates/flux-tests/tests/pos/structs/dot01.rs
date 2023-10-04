@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-#![feature(custom_inner_attributes)]
 #![flux::defs {
     qualifier Sub2(x: int, a: int, b:int) { x == a - b }
 }]

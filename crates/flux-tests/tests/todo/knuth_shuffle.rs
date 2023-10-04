@@ -1,8 +1,5 @@
 // Based on Prusti test/example
 
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[path = "lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;

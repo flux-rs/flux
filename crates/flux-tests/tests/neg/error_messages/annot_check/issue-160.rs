@@ -1,6 +1,3 @@
-#![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
-
 pub struct S<T1, T2, T3 = i32> {
     x: T1,
     y: T2,

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Strong update trough nested structs
 
 #[flux::refined_by(a: int)]

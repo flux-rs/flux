@@ -1,6 +1,3 @@
-#![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
-
 #[flux::sig(fn() -> i32{v : v > 0})]
 pub fn tuple00() -> i32 {
     let t = (-1, 2);

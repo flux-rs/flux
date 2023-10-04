@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // structurally equal but different types
 #[flux::sig(fn(x: i32) -> i32)] //~ ERROR invalid refinement annotation
 pub fn test01(x: bool) -> i32 {

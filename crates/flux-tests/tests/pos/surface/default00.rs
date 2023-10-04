@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // No signature -- test that we can just create a trivial "unrefined" signature for `silly`.
 fn silly(x: i32) -> i32 {
     x

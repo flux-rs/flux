@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(&mut i32[@n]) -> i32[n + 1])]
 fn foo(x: &mut i32) -> i32 {
     *x + 1

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Existential without a constraint
 fn test00() {
     #[flux::sig(fn({a:int. i32[a]}))]

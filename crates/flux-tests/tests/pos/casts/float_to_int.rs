@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub fn float_to_int() -> i32 {
     0.0f32 as i32
 }

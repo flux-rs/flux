@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(is_atom: bool, nnf: bool)]
 #[flux::invariant(is_atom => nnf)]
 pub enum Pred {

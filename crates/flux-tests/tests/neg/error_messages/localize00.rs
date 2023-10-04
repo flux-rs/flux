@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // ------ Test 1 -------------------------------------------------
 
 #[flux::sig(fn(i32{v: 10 <= v && v <= 20}))] //~ NOTE this is the condition

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::trusted]
 #[flux::sig(fn(n:u32) -> usize[n])]
 pub fn as_usize(n: u32) -> usize {

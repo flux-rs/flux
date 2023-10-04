@@ -1,6 +1,3 @@
-#![feature(register_tool, box_patterns)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(x: &strg i32[@n]))] //~ ERROR missing ensures clause
 fn inc_1(x: &mut i32) {
     *x += 1;

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 use std::slice::from_ref;
 
 use flux_rs::extern_spec;

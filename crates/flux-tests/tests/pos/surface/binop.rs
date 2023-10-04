@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // TODO: Uncomment when we can set flags on a per-test basis
 // Arithmetic BinOps
 //
@@ -28,42 +25,42 @@ pub fn bitwise_or(a: i32, b: i32) -> i32 {
 }
 
 #[flux::sig(fn(i32{v: v > 0}, i32{v: v > 0}) -> i32)]
-pub fn bitwise_shl_i32_i32(a: i32, b:i32) -> i32 {
+pub fn bitwise_shl_i32_i32(a: i32, b: i32) -> i32 {
     a << b
 }
 
 #[flux::sig(fn(i32{v: v > 0}, u32{v: v > 0}) -> i32)]
-pub fn bitwise_shl_i32_u32(a: i32, b:u32) -> i32 {
+pub fn bitwise_shl_i32_u32(a: i32, b: u32) -> i32 {
     a << b
 }
 
 #[flux::sig(fn(u32{v: v > 0}, i32{v: v > 0}) -> u32)]
-pub fn bitwise_shl_u32_i32(a: u32, b:i32) -> u32 {
+pub fn bitwise_shl_u32_i32(a: u32, b: i32) -> u32 {
     a << b
 }
 
 #[flux::sig(fn(u32{v: v > 0}, u32{v: v > 0}) -> u32)]
-pub fn bitwise_shl_u32_u32(a: u32, b:u32) -> u32 {
+pub fn bitwise_shl_u32_u32(a: u32, b: u32) -> u32 {
     a << b
 }
 
 #[flux::sig(fn(i32{v: v > 0}, i32{v: v > 0}) -> i32)]
-pub fn bitwise_shr_i32_i32(a: i32, b:i32) -> i32 {
+pub fn bitwise_shr_i32_i32(a: i32, b: i32) -> i32 {
     a >> b
 }
 
 #[flux::sig(fn(i32{v: v > 0}, u32{v: v > 0}) -> i32)]
-pub fn bitwise_shr_i32_u32(a: i32, b:u32) -> i32 {
+pub fn bitwise_shr_i32_u32(a: i32, b: u32) -> i32 {
     a >> b
 }
 
 #[flux::sig(fn(u32{v: v > 0}, i32{v: v > 0}) -> u32)]
-pub fn bitwise_shr_u32_i32(a: u32, b:i32) -> u32 {
+pub fn bitwise_shr_u32_i32(a: u32, b: i32) -> u32 {
     a >> b
 }
 
 #[flux::sig(fn(u32{v: v > 0}, u32{v: v > 0}) -> u32)]
-pub fn bitwise_shr_u32_u32(a: u32, b:u32) -> u32 {
+pub fn bitwise_shr_u32_u32(a: u32, b: u32) -> u32 {
     a >> b
 }
 

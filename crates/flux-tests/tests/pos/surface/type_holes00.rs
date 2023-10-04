@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(_) -> Option<_>)]
 fn test00(x: i32) -> Option<i32> {
     Some(x)

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub type S = i32;
 
 #[flux::sig(fn(S))]

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn() -> i32{v: v == 1})]
 fn test00() -> i32 {
     let v1 = 0;

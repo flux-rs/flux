@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(
     fn<refine p: int -> bool>(x: i32, y: i32) -> i32{v: p(v) && v >= x && v >= y}
     requires p(x) && p(y)

@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Test of `mod` support
 // Uses usize instead of i32 to avoid subtleties with negative numbers
 #[flux::sig(fn(usize{v : v % 2 == 1}) -> usize[1])]

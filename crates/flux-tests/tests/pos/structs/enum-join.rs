@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 pub enum Enum<T> {
     A(T),
     B(bool, T),

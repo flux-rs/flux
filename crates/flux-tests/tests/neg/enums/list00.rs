@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(i32{v:false}) -> T)]
 pub fn never<T>(_x: i32) -> T {
     loop {}

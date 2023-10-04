@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::refined_by(a: int)]
 pub struct S<T> {
     #[flux::field({i32[@a] | a >= 0})]

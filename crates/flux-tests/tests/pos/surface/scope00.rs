@@ -1,6 +1,3 @@
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 // Tests that the desugaring/resolving does not fail when a refinement
 // uses a variable (`y`) that is bound "later" than the occurrence.
 

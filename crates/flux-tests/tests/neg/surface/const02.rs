@@ -1,8 +1,5 @@
 // Test definition and checking of const in struct
 
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::constant]
 pub const FORTY_TWO: usize = 21 + 21;
 
