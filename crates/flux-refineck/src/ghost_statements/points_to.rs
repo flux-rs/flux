@@ -1,3 +1,6 @@
+//! This module implements a points-to analysis for mutable references.
+//!
+//! We use the result of the analysis to insert ghost statements that 0l
 use std::{collections::VecDeque, fmt, iter, ops::Range};
 
 use flux_middle::{
@@ -23,7 +26,7 @@ use rustc_mir_dataflow::{
 use super::GhostStatements;
 use crate::ghost_statements::{GhostStatement, Point};
 
-pub(crate) fn run_analysis<'tcx>(
+pub(crate) fn add_ghost_statements<'tcx>(
     stmts: &mut GhostStatements,
     genv: &GlobalEnv<'_, 'tcx>,
     body: &mir::Body<'tcx>,

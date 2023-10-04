@@ -56,8 +56,8 @@ impl GhostStatements {
 
         let mut stmts = Self { at_location: LocationMap::default(), at_edge: EdgeMap::default() };
 
-        points_to::run_analysis(&mut stmts, genv, body.rustc_body(), def_id)?;
-        stmts.add_fold_unfolds(genv, &body)?;
+        fold_unfold::add_ghost_statements(&mut stmts, genv, &body)?;
+        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), def_id)?;
         stmts.add_unblocks(&body);
 
         if config::dump_mir() {
@@ -66,18 +66,6 @@ impl GhostStatements {
             stmts.write_mir(genv.tcx, &body, &mut writer).unwrap();
         }
         Ok(stmts)
-    }
-
-    fn add_fold_unfolds<'tcx>(
-        &mut self,
-        genv: &GlobalEnv<'_, 'tcx>,
-        body: &Body<'tcx>,
-    ) -> QueryResult {
-        let fold_unfolds = fold_unfold::run_analysis(genv, body)?;
-        for (point, stmts) in fold_unfolds.into_statements() {
-            self.extend_at(point, stmts);
-        }
-        Ok(())
     }
 
     fn add_unblocks(&mut self, body: &Body) {
@@ -109,6 +97,10 @@ impl GhostStatements {
                     .extend(stmts);
             }
         }
+    }
+
+    fn at(&mut self, point: Point) -> StatementsAt {
+        StatementsAt { stmts: self, point }
     }
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {
@@ -160,6 +152,17 @@ impl GhostStatements {
             },
             w,
         )
+    }
+}
+
+struct StatementsAt<'a> {
+    stmts: &'a mut GhostStatements,
+    point: Point,
+}
+
+impl StatementsAt<'_> {
+    fn insert(&mut self, stmt: GhostStatement) {
+        self.stmts.insert_at(self.point, stmt);
     }
 }
 
