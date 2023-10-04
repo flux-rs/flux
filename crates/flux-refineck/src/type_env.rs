@@ -200,7 +200,6 @@ impl TypeEnv<'_> {
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
     ) -> Result<(), CheckerErrKind> {
-        // Infer subst
         let mut infcx = gen.infcx(rcx, ConstrReason::Goto(target));
 
         let bb_env = bb_env

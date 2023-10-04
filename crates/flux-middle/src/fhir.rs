@@ -836,7 +836,7 @@ impl Sort {
     }
 
     /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `args`
-    fn subst(&self, args: &[Sort]) -> Sort {
+    fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Int
             | Sort::Bool
@@ -848,9 +848,9 @@ impl Sort {
             | Sort::Wildcard
             | Sort::Record(_)
             | Sort::Infer(_) => self.clone(),
-            Sort::Var(i) => args[*i].clone(),
+            Sort::Var(i) => subst[*i].clone(),
             Sort::App(c, args) => {
-                let args = args.iter().map(|arg| arg.subst(args)).collect();
+                let args = args.iter().map(|arg| arg.subst(subst)).collect();
                 Sort::App(c.clone(), args)
             }
             Sort::Func(_) => bug!("unexpected subst in (nested) func-sort"),

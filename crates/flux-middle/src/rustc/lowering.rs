@@ -376,8 +376,6 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let ty = lower_ty(self.tcx, *ty)?;
                 Ok(Rvalue::Cast(kind, op, ty))
             }
-            // CODESYNC(rvalue-cases) if more cases are lowered here, add them to the places
-            // where we match on rustc mir
             rustc_mir::Rvalue::Repeat(_, _)
             | rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
