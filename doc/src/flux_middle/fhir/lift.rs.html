@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir/lift.rs`."><title>lift.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir/lift.rs`."><title>lift.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -628,28 +628,9 @@
 <a href="#628" id="628">628</a>
 <a href="#629" id="629">629</a>
 <a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
-<a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
-<a href="#647" id="647">647</a>
-<a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &quot;Lift&quot; HIR types into  FHIR types.
 //!
-</span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
+</span><span class="kw">use </span>flux_common::{bug, iter::IterExt};
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, FluxSession};
 <span class="kw">use </span>hir::{def::DefKind, OwnerId};
 <span class="kw">use </span>itertools::Itertools;
@@ -660,14 +641,12 @@
 <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
 <span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
-<span class="kw">use super</span>::{FhirId, FluxOwnerId};
 <span class="kw">use </span><span class="kw">crate</span>::fhir;
 
 <span class="kw">pub struct </span>LiftCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
     opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
-    local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: OwnerId,
 }
 
@@ -694,8 +673,7 @@
     <span class="kw">let </span>hir::ItemKind::TyAlias(ty, hir_generics) = item.kind <span class="kw">else </span>{
         <span class="macro">bug!</span>(<span class="string">&quot;expected type alias&quot;</span>);
     };
-    <span class="kw">let </span>local_id_gen = IndexGen::new();
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="prelude-val">None</span>);
 
     <span class="kw">let </span>generics = cx.lift_generics_inner(hir_generics)<span class="question-mark">?</span>;
     <span class="kw">let </span>predicates = cx.lift_generic_predicates(hir_generics)<span class="question-mark">?</span>;
@@ -718,8 +696,7 @@
     owner_id: OwnerId,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::Generics, fhir::FnInfo), ErrorGuaranteed&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>opaque_tys = Default::default();
-    <span class="kw">let </span>local_id_gen = IndexGen::new();
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys));
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys));
 
     <span class="kw">let </span>def_id = owner_id.def_id;
     <span class="kw">let </span>hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
@@ -750,8 +727,7 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::Ty&gt;, ErrorGuaranteed&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = tcx.impl_of_method(owner_id.to_def_id()) {
         <span class="kw">let </span>owner_id = OwnerId { def_id: def_id.expect_local() };
-        <span class="kw">let </span>local_id_gen = IndexGen::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="prelude-val">None</span>);
         <span class="kw">let </span>local_id = def_id.expect_local();
         <span class="kw">let </span>hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = tcx.hir().expect_item(local_id)
         <span class="kw">else </span>{
@@ -762,8 +738,7 @@
     } <span class="kw">else if let </span>def_kind @ (DefKind::Struct | DefKind::Enum) = tcx.def_kind(owner_id) {
         <span class="kw">let </span>generics = tcx.hir().get_generics(owner_id.def_id).unwrap();
         <span class="kw">let </span>item = tcx.hir().expect_item(owner_id.def_id);
-        <span class="kw">let </span>local_id_gen = IndexGen::new();
-        <span class="kw">let </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>cx = LiftCtxt::new(tcx, sess, owner_id, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>span = item.ident.span.to(generics.span);
         <span class="kw">let </span>path = fhir::Path {
@@ -774,7 +749,7 @@
             span,
         };
         <span class="kw">let </span>bty = fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, path));
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fhir::Ty { fhir_id: cx.next_fhir_id(), span, kind: fhir::TyKind::BaseTy(bty) }))
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fhir::Ty { span, kind: fhir::TyKind::BaseTy(bty) }))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
@@ -785,18 +760,13 @@
         tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
         owner: OwnerId,
-        local_id_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;fhir::ItemLocalId&gt;,
         opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ tcx, sess, opaque_tys, local_id_gen, owner }
+        <span class="self">Self </span>{ tcx, sess, opaque_tys, owner }
     }
 
     <span class="kw">fn </span>with_new_owner&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="kw-2">mut </span><span class="self">self</span>, owner: OwnerId) -&gt; LiftCtxt&lt;<span class="lifetime">&#39;b</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        LiftCtxt::new(<span class="self">self</span>.tcx, <span class="self">self</span>.sess, owner, <span class="self">self</span>.local_id_gen, <span class="self">self</span>.opaque_tys.as_deref_mut())
-    }
-
-    <span class="kw">fn </span>next_fhir_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FhirId {
-        FhirId { owner: FluxOwnerId::Rust(<span class="self">self</span>.owner), local_id: <span class="self">self</span>.local_id_gen.fresh() }
+        LiftCtxt::new(<span class="self">self</span>.tcx, <span class="self">self</span>.sess, owner, <span class="self">self</span>.opaque_tys.as_deref_mut())
     }
 
     <span class="kw">pub fn </span>lift_generics_with_predicates(
@@ -972,7 +942,7 @@
         <span class="kw">match </span>ret_ty {
             hir::FnRetTy::DefaultReturn(<span class="kw">_</span>) =&gt; {
                 <span class="kw">let </span>kind = fhir::TyKind::Tuple(<span class="macro">vec!</span>[]);
-                <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span: ret_ty.span() })
+                <span class="prelude-val">Ok</span>(fhir::Ty { kind, span: ret_ty.span() })
             }
             hir::FnRetTy::Return(ty) =&gt; <span class="self">self</span>.lift_ty(ty),
         }
@@ -1055,11 +1025,7 @@
             hir::TyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>kind = fhir::BaseTyKind::Slice(Box::new(<span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>));
                 <span class="kw">let </span>bty = fhir::BaseTy { kind, span: ty.span };
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(fhir::Ty {
-                    kind: fhir::TyKind::BaseTy(bty),
-                    fhir_id: <span class="self">self</span>.next_fhir_id(),
-                    span: ty.span,
-                });
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: ty.span });
             }
             hir::TyKind::Array(ty, len) =&gt; {
                 fhir::TyKind::Array(Box::new(<span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>), <span class="self">self</span>.lift_array_len(len)<span class="question-mark">?</span>)
@@ -1091,7 +1057,7 @@
                 ));
             }
         };
-        <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span: ty.span })
+        <span class="prelude-val">Ok</span>(fhir::Ty { kind, span: ty.span })
     }
 
     <span class="kw">fn </span>lift_lifetime(<span class="kw-2">&amp;</span><span class="self">self</span>, lft: <span class="kw-2">&amp;</span>hir::Lifetime) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Lifetime, ErrorGuaranteed&gt; {
@@ -1151,7 +1117,7 @@
         <span class="kw">let </span>qpath = fhir::QPath::Resolved(self_ty, path);
         <span class="kw">let </span>bty = fhir::BaseTy::from(qpath);
         <span class="kw">let </span>span = bty.span;
-        <span class="prelude-val">Ok</span>(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), fhir_id: <span class="self">self</span>.next_fhir_id(), span })
+        <span class="prelude-val">Ok</span>(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span })
     }
 
     <span class="kw">fn </span>lift_generic_args(
@@ -1218,7 +1184,7 @@
         generics: <span class="kw-2">&amp;</span>hir::Generics,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;fhir::GenericArg&gt;, ErrorGuaranteed&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>param <span class="kw">in </span>generics.params.iter() {
+        <span class="kw">for </span>param <span class="kw">in </span>generics.params {
             <span class="kw">match </span>param.kind {
                 hir::GenericParamKind::Type { .. } =&gt; {
                     <span class="kw">let </span>res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());
@@ -1230,11 +1196,7 @@
                         span: param.span,
                     };
                     <span class="kw">let </span>bty = fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, path));
-                    <span class="kw">let </span>ty = fhir::Ty {
-                        kind: fhir::TyKind::BaseTy(bty),
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                        span: param.span,
-                    };
+                    <span class="kw">let </span>ty = fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: param.span };
                     args.push(fhir::GenericArg::Type(ty));
                 }
                 hir::GenericParamKind::Lifetime { .. } =&gt; {

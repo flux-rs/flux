@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2046,6 +2046,55 @@
 <a href="#2046" id="2046">2046</a>
 <a href="#2047" id="2047">2047</a>
 <a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
+<a href="#2058" id="2058">2058</a>
+<a href="#2059" id="2059">2059</a>
+<a href="#2060" id="2060">2060</a>
+<a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
+<a href="#2064" id="2064">2064</a>
+<a href="#2065" id="2065">2065</a>
+<a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
+<a href="#2072" id="2072">2072</a>
+<a href="#2073" id="2073">2073</a>
+<a href="#2074" id="2074">2074</a>
+<a href="#2075" id="2075">2075</a>
+<a href="#2076" id="2076">2076</a>
+<a href="#2077" id="2077">2077</a>
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a>
+<a href="#2080" id="2080">2080</a>
+<a href="#2081" id="2081">2081</a>
+<a href="#2082" id="2082">2082</a>
+<a href="#2083" id="2083">2083</a>
+<a href="#2084" id="2084">2084</a>
+<a href="#2085" id="2085">2085</a>
+<a href="#2086" id="2086">2086</a>
+<a href="#2087" id="2087">2087</a>
+<a href="#2088" id="2088">2088</a>
+<a href="#2089" id="2089">2089</a>
+<a href="#2090" id="2090">2090</a>
+<a href="#2091" id="2091">2091</a>
+<a href="#2092" id="2092">2092</a>
+<a href="#2093" id="2093">2093</a>
+<a href="#2094" id="2094">2094</a>
+<a href="#2095" id="2095">2095</a>
+<a href="#2096" id="2096">2096</a>
+<a href="#2097" id="2097">2097</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2190,7 +2239,22 @@
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>SortCtor {
     Set,
+    Map,
     User { name: Symbol, arity: usize },
+}
+
+<span class="doccomment">/// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
+/// &quot;bound&quot; under a PolyFuncSort; i.e. should be &lt; than the number of params in the
+/// PolyFuncSort.
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Debug, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>SortVar {
+    <span class="kw">pub </span>index: usize,
+}
+
+<span class="kw">impl </span>From&lt;usize&gt; <span class="kw">for </span>SortVar {
+    <span class="kw">fn </span>from(index: usize) -&gt; <span class="self">Self </span>{
+        SortVar { index }
+    }
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -2202,13 +2266,34 @@
     Loc,
     Param(ParamTy),
     Tuple(List&lt;Sort&gt;),
-    Func(FuncSort),
+    Func(PolyFuncSort),
     App(SortCtor, List&lt;Sort&gt;),
+    Var(SortVar),
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FuncSort {
     inputs_and_output: List&lt;Sort&gt;,
+}
+
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>PolyFuncSort {
+    params: usize,
+    fsort: FuncSort,
+}
+
+<span class="kw">impl </span>PolyFuncSort {
+    <span class="kw">pub fn </span>skip_binders(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FuncSort {
+        <span class="self">self</span>.fsort.clone()
+    }
+
+    <span class="kw">pub fn </span>params(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.params
+    }
+
+    <span class="kw">pub fn </span>new(params: usize, fsort: FuncSort) -&gt; <span class="self">Self </span>{
+        PolyFuncSort { params, fsort }
+    }
 }
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -2311,7 +2396,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>FuncDecl {
     <span class="kw">pub </span>name: Symbol,
-    <span class="kw">pub </span>sort: FuncSort,
+    <span class="kw">pub </span>sort: PolyFuncSort,
     <span class="kw">pub </span>kind: FuncKind,
 }
 
@@ -2656,7 +2741,7 @@
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_func(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>FuncSort {
+    </span><span class="kw">pub fn </span>expect_func(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PolyFuncSort {
         <span class="kw">if let </span>Sort::Func(sort) = <span class="self">self </span>{
             sort
         } <span class="kw">else </span>{
@@ -2678,7 +2763,7 @@
 
     <span class="doccomment">/// Whether the sort is a function with return sort bool
     </span><span class="kw">fn </span>is_pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Func(fsort) <span class="kw">if </span>fsort.output().is_bool())
+        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Func(fsort) <span class="kw">if </span>fsort.skip_binders().output().is_bool())
     }
 
     <span class="doccomment">/// Returns `true` if the sort is [`Bool`].
@@ -3745,6 +3830,7 @@
             <span class="macro">define_scoped!</span>(_cx, f);
             <span class="kw">match </span><span class="self">self </span>{
                 SortCtor::Set =&gt; <span class="macro">w!</span>(<span class="string">&quot;Set&quot;</span>),
+                SortCtor::Map =&gt; <span class="macro">w!</span>(<span class="string">&quot;Map&quot;</span>),
                 SortCtor::User { name, .. } =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^name),
             }
         }
@@ -3759,6 +3845,7 @@
                 Sort::Real =&gt; <span class="macro">w!</span>(<span class="string">&quot;real&quot;</span>),
                 Sort::BitVec(w) =&gt; <span class="macro">w!</span>(<span class="string">&quot;bitvec({})&quot;</span>, ^w),
                 Sort::Loc =&gt; <span class="macro">w!</span>(<span class="string">&quot;loc&quot;</span>),
+                Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">&quot;@{}&quot;</span>, ^n.index),
                 Sort::Func(sort) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, sort),
                 Sort::Tuple(sorts) =&gt; {
                     <span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {
@@ -3788,6 +3875,17 @@
                     .format_with(<span class="string">&quot;, &quot;</span>, |s, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}&quot;</span>, s))),
                 <span class="self">self</span>.output()
             )
+        }
+    }
+
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>PolyFuncSort {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+            <span class="macro">define_scoped!</span>(cx, f);
+            <span class="kw">if </span><span class="self">self</span>.params == <span class="number">0 </span>{
+                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
+            } <span class="kw">else </span>{
+                <span class="macro">w!</span>(<span class="string">&quot;for&lt;{}&gt; {:?}&quot;</span>, ^<span class="self">self</span>.params, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
+            }
         }
     }
 

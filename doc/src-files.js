@@ -5,7 +5,7 @@ var srcIndex = JSON.parse('{\
 "flux_bin":["",[],["lib.rs","utils.rs"]],\
 "flux_common":["",[],["bug.rs","cache.rs","dbg.rs","format.rs","index.rs","iter.rs","lib.rs","mir_storage.rs"]],\
 "flux_config":["",[],["lib.rs"]],\
-"flux_desugar":["",[],["desugar.rs","lib.rs","table_resolver.rs"]],\
+"flux_desugar":["",[],["desugar.rs","lib.rs","resolver.rs"]],\
 "flux_driver":["",[],["callbacks.rs","collector.rs","lib.rs"]],\
 "flux_errors":["",[],["lib.rs"]],\
 "flux_fhir_analysis":["",[["wf",[],["errors.rs","mod.rs","sortck.rs"]]],["annot_check.rs","conv.rs","lib.rs"]],\
@@ -13,7 +13,7 @@ var srcIndex = JSON.parse('{\
 "flux_macros":["",[["diagnostics",[],["diagnostic.rs","diagnostic_builder.rs","error.rs","fluent.rs","mod.rs","subdiagnostic.rs","utils.rs"]]],["lib.rs"]],\
 "flux_metadata":["",[],["decoder.rs","encoder.rs","lib.rs"]],\
 "flux_middle":["",[["fhir",[],["lift.rs"]],["rty",[],["evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","projections.rs","refining.rs","subst.rs"]],["rustc",[["ty",[],["subst.rs"]]],["lowering.rs","mir.rs","mod.rs","ty.rs"]]],["const_eval.rs","cstore.rs","fhir.rs","global_env.rs","intern.rs","lib.rs","pretty.rs","queries.rs"]],\
-"flux_refineck":["",[["sigs",[],["default.rs","mod.rs","overflow.rs"]],["type_env",[],["projection.rs"]]],["checker.rs","constraint_gen.rs","fixpoint_encoding.rs","fold_unfold.rs","ghost_statements.rs","invariants.rs","lib.rs","queue.rs","refine_tree.rs","type_env.rs"]],\
+"flux_refineck":["",[["ghost_statements",[],["fold_unfold.rs"]],["sigs",[],["default.rs","mod.rs","overflow.rs"]],["type_env",[],["projection.rs"]]],["checker.rs","constraint_gen.rs","fixpoint_encoding.rs","ghost_statements.rs","invariants.rs","lib.rs","queue.rs","refine_tree.rs","type_env.rs"]],\
 "flux_rs":["",[],["lib.rs"]],\
 "flux_syntax":["",[],["lexer.rs","lib.rs","surface.rs"]],\
 "flux_tests":["",[],["lib.rs"]],\

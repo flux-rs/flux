@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["GhostStatement","Point"],"fn":["all_nested_bodies","compute_ghost_statements"],"struct":["GhostStatements"],"type":["GotoMap","LocationMap"]};
+window.SIDEBAR_ITEMS = {"enum":["GhostStatement","Point"],"fn":["all_nested_bodies","compute_ghost_statements"],"mod":["fold_unfold"],"struct":["GhostStatements"],"type":["GotoMap","LocationMap"]};

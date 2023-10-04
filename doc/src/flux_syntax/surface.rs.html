@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/surface.rs`."><title>surface.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_syntax/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/surface.rs`."><title>surface.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_syntax/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -394,25 +394,6 @@
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">pub use </span>rustc_ast::{
@@ -421,6 +402,11 @@
 };
 <span class="kw">pub use </span>rustc_span::symbol::Ident;
 <span class="kw">use </span>rustc_span::{symbol::kw, Span};
+
+<span class="doccomment">/// A [`NodeId`] is a unique identifier we assign to some AST nodes to be able to attach information
+/// to them. For example, to assign a resolution to a [`Path`]. The [`NodeId`] is unique within a crate.
+</span><span class="attr">#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>NodeId(<span class="kw">pub</span>(<span class="kw">super</span>) usize);
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SortDecl {
@@ -474,39 +460,39 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>TyAlias&lt;R = ()&gt; {
+</span><span class="kw">pub struct </span>TyAlias {
     <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>generics: Vec&lt;Ty&gt;,
     <span class="kw">pub </span>refined_by: RefinedBy,
-    <span class="kw">pub </span>ty: Ty&lt;R&gt;,
+    <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>StructDef&lt;R = ()&gt; {
+</span><span class="kw">pub struct </span>StructDef {
     <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefinedBy&gt;,
-    <span class="kw">pub </span>fields: Vec&lt;<span class="prelude-ty">Option</span>&lt;Ty&lt;R&gt;&gt;&gt;,
+    <span class="kw">pub </span>fields: Vec&lt;<span class="prelude-ty">Option</span>&lt;Ty&gt;&gt;,
     <span class="kw">pub </span>opaque: bool,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>EnumDef&lt;R = ()&gt; {
+</span><span class="kw">pub struct </span>EnumDef {
     <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefinedBy&gt;,
-    <span class="kw">pub </span>variants: Vec&lt;<span class="prelude-ty">Option</span>&lt;VariantDef&lt;R&gt;&gt;&gt;,
+    <span class="kw">pub </span>variants: Vec&lt;<span class="prelude-ty">Option</span>&lt;VariantDef&gt;&gt;,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>VariantDef&lt;R = ()&gt; {
-    <span class="kw">pub </span>fields: Vec&lt;Ty&lt;R&gt;&gt;,
-    <span class="kw">pub </span>ret: VariantRet&lt;R&gt;,
+</span><span class="kw">pub struct </span>VariantDef {
+    <span class="kw">pub </span>fields: Vec&lt;Ty&gt;,
+    <span class="kw">pub </span>ret: VariantRet,
     <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>VariantRet&lt;R = ()&gt; {
-    <span class="kw">pub </span>path: Path&lt;R&gt;,
+</span><span class="kw">pub struct </span>VariantRet {
+    <span class="kw">pub </span>path: Path,
     <span class="doccomment">/// Binders are not allowed at this position, but we parse this as a list of indices
     /// for better error reporting.
     </span><span class="kw">pub </span>indices: Indices,
@@ -559,115 +545,114 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>FnSig&lt;R = ()&gt; {
-    <span class="kw">pub </span>asyncness: Async&lt;R&gt;,
+</span><span class="kw">pub struct </span>FnSig {
+    <span class="kw">pub </span>asyncness: Async,
     <span class="kw">pub </span>generics: <span class="prelude-ty">Option</span>&lt;Generics&gt;,
     <span class="doccomment">/// example: `requires n &gt; 0`
     </span><span class="kw">pub </span>requires: <span class="prelude-ty">Option</span>&lt;Expr&gt;,
     <span class="doccomment">/// example: `i32&lt;@n&gt;`
-    </span><span class="kw">pub </span>args: Vec&lt;Arg&lt;R&gt;&gt;,
+    </span><span class="kw">pub </span>args: Vec&lt;Arg&gt;,
     <span class="doccomment">/// example `i32{v:v &gt;= 0}`
-    </span><span class="kw">pub </span>returns: FnRetTy&lt;R&gt;,
+    </span><span class="kw">pub </span>returns: FnRetTy,
     <span class="doccomment">/// example: `*x: i32{v. v = n+1}` or just `x &gt; 10`
-    </span><span class="kw">pub </span>ensures: Vec&lt;Constraint&lt;R&gt;&gt;,
+    </span><span class="kw">pub </span>ensures: Vec&lt;Constraint&gt;,
     <span class="doccomment">/// example: `where I: Iterator&lt;Item = i32{v:0&lt;=v}&gt;`
-    </span><span class="kw">pub </span>predicates: Vec&lt;WhereBoundPredicate&lt;R&gt;&gt;,
+    </span><span class="kw">pub </span>predicates: Vec&lt;WhereBoundPredicate&gt;,
     <span class="doccomment">/// source span
     </span><span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>Constraint&lt;R = ()&gt; {
+</span><span class="kw">pub enum </span>Constraint {
     <span class="doccomment">/// A type constraint on a location
-    </span>Type(Ident, Ty&lt;R&gt;),
+    </span>Type(Ident, Ty),
     <span class="doccomment">/// A predicate that needs to hold
     </span>Pred(Expr),
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>FnRetTy&lt;R = ()&gt; {
+</span><span class="kw">pub enum </span>FnRetTy {
     Default(Span),
-    Ty(Ty&lt;R&gt;),
+    Ty(Ty),
 }
 
 <span class="attr">#[derive(Debug, Copy, Clone)]
-</span><span class="kw">pub enum </span>Async&lt;R = ()&gt; {
-    Yes { res: R, span: Span },
+</span><span class="kw">pub enum </span>Async {
+    Yes { node_id: NodeId, span: Span },
     No,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>WhereBoundPredicate&lt;R = ()&gt; {
+</span><span class="kw">pub struct </span>WhereBoundPredicate {
     <span class="kw">pub </span>span: Span,
-    <span class="kw">pub </span>bounded_ty: Ty&lt;R&gt;,
-    <span class="kw">pub </span>bounds: GenericBounds&lt;R&gt;,
+    <span class="kw">pub </span>bounded_ty: Ty,
+    <span class="kw">pub </span>bounds: GenericBounds,
 }
 
-<span class="kw">pub type </span>GenericBounds&lt;R = ()&gt; = Vec&lt;TraitRef&lt;R&gt;&gt;;
+<span class="kw">pub type </span>GenericBounds = Vec&lt;TraitRef&gt;;
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>TraitRef&lt;R = ()&gt; {
-    <span class="kw">pub </span>path: Path&lt;R&gt;,
+</span><span class="kw">pub struct </span>TraitRef {
+    <span class="kw">pub </span>path: Path,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>Arg&lt;R = ()&gt; {
+</span><span class="kw">pub enum </span>Arg {
     <span class="doccomment">/// example `a: i32{a &gt; 0}`
-    </span>Constr(Ident, Path&lt;R&gt;, Expr),
+    </span>Constr(Ident, Path, Expr),
     <span class="doccomment">/// example `v: &amp;strg i32`
-    </span>StrgRef(Ident, Ty&lt;R&gt;),
+    </span>StrgRef(Ident, Ty),
     <span class="doccomment">/// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v: v &gt; 0}`.
     /// The binder has a different meaning depending on the type.
-    </span>Ty(<span class="prelude-ty">Option</span>&lt;Ident&gt;, Ty&lt;R&gt;),
+    </span>Ty(<span class="prelude-ty">Option</span>&lt;Ident&gt;, Ty),
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>Ty&lt;R = ()&gt; {
-    <span class="kw">pub </span>kind: TyKind&lt;R&gt;,
+</span><span class="kw">pub struct </span>Ty {
+    <span class="kw">pub </span>kind: TyKind,
     <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>TyKind&lt;R = ()&gt; {
+</span><span class="kw">pub enum </span>TyKind {
     <span class="doccomment">/// ty
-    </span>Base(BaseTy&lt;R&gt;),
+    </span>Base(BaseTy),
     <span class="doccomment">/// `B[r]`
     </span>Indexed {
-        bty: BaseTy&lt;R&gt;,
+        bty: BaseTy,
         indices: Indices,
     },
     <span class="doccomment">/// B{v: r}
     </span>Exists {
         bind: Ident,
-        bty: BaseTy&lt;R&gt;,
+        bty: BaseTy,
         pred: Expr,
     },
     GeneralExists {
         params: Vec&lt;RefineParam&gt;,
-        ty: Box&lt;Ty&lt;R&gt;&gt;,
+        ty: Box&lt;Ty&gt;,
         pred: <span class="prelude-ty">Option</span>&lt;Expr&gt;,
     },
     <span class="doccomment">/// Mutable or shared reference
-    </span>Ref(Mutability, Box&lt;Ty&lt;R&gt;&gt;),
+    </span>Ref(Mutability, Box&lt;Ty&gt;),
     <span class="doccomment">/// Constrained type: an exists without binder
-    </span>Constr(Expr, Box&lt;Ty&lt;R&gt;&gt;),
-    Tuple(Vec&lt;Ty&lt;R&gt;&gt;),
-    Array(Box&lt;Ty&lt;R&gt;&gt;, ArrayLen),
-    <span class="doccomment">/// The first `R` parameter is for the `DefId` corresponding to the hir OpaqueTy
-    </span>ImplTrait(R, GenericBounds&lt;R&gt;),
-    Hole,
+    </span>Constr(Expr, Box&lt;Ty&gt;),
+    Tuple(Vec&lt;Ty&gt;),
+    Array(Box&lt;Ty&gt;, ArrayLen),
+    <span class="doccomment">/// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
+    </span>ImplTrait(NodeId, GenericBounds),
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>BaseTy&lt;R = ()&gt; {
-    <span class="kw">pub </span>kind: BaseTyKind&lt;R&gt;,
+</span><span class="kw">pub struct </span>BaseTy {
+    <span class="kw">pub </span>kind: BaseTyKind,
     <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>BaseTyKind&lt;R = ()&gt; {
-    Path(Path&lt;R&gt;),
-    Slice(Box&lt;Ty&lt;R&gt;&gt;),
+</span><span class="kw">pub enum </span>BaseTyKind {
+    Path(Path),
+    Slice(Box&lt;Ty&gt;),
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
@@ -697,18 +682,18 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>Path&lt;R = ()&gt; {
+</span><span class="kw">pub struct </span>Path {
     <span class="kw">pub </span>segments: Vec&lt;Ident&gt;,
-    <span class="kw">pub </span>generics: Vec&lt;GenericArg&lt;R&gt;&gt;,
+    <span class="kw">pub </span>generics: Vec&lt;GenericArg&gt;,
     <span class="kw">pub </span>refine: Vec&lt;RefineArg&gt;,
     <span class="kw">pub </span>span: Span,
-    <span class="kw">pub </span>res: R,
+    <span class="kw">pub </span>node_id: NodeId,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>GenericArg&lt;R = ()&gt; {
-    Type(Ty&lt;R&gt;),
-    Constraint(Ident, Ty&lt;R&gt;),
+</span><span class="kw">pub enum </span>GenericArg {
+    Type(Ty),
+    Constraint(Ident, Ty),
 }
 
 <span class="attr">#[derive(Debug, Clone)]
@@ -759,36 +744,13 @@
     Neg,
 }
 
-<span class="kw">impl </span>From&lt;Ident&gt; <span class="kw">for </span>Path {
-    <span class="kw">fn </span>from(ident: Ident) -&gt; <span class="self">Self </span>{
-        Path { segments: <span class="macro">vec!</span>[ident], generics: <span class="macro">vec!</span>[], refine: <span class="macro">vec!</span>[], span: ident.span, res: () }
-    }
-}
-
-<span class="kw">impl </span>From&lt;(Ident, Ident)&gt; <span class="kw">for </span>Path {
-    <span class="kw">fn </span>from(idents: (Ident, Ident)) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(ident1, ident2) = idents;
-        Path {
-            segments: <span class="macro">vec!</span>[ident1, ident2],
-            generics: <span class="macro">vec!</span>[],
-            refine: <span class="macro">vec!</span>[],
-            span: ident1.span.to(ident2.span),
-            res: (),
-        }
-    }
-}
-
 <span class="kw">impl </span>Path {
     <span class="kw">pub fn </span>is_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">if let </span>[segment] = <span class="kw-2">&amp;</span><span class="self">self</span>.segments[..] {
-            segment.name == kw::Underscore &amp;&amp; <span class="self">self</span>.is_simple()
+            segment.name == kw::Underscore &amp;&amp; <span class="self">self</span>.generics.is_empty() &amp;&amp; <span class="self">self</span>.refine.is_empty()
         } <span class="kw">else </span>{
             <span class="bool-val">false
         </span>}
-    }
-
-    <span class="kw">fn </span>is_simple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.generics.is_empty() &amp;&amp; <span class="self">self</span>.refine.is_empty()
     }
 }
 

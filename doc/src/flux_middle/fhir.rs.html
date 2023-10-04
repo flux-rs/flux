@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir.rs`."><title>fhir.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_middle/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir.rs`."><title>fhir.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_middle/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1558,6 +1558,107 @@
 <a href="#1558" id="1558">1558</a>
 <a href="#1559" id="1559">1559</a>
 <a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
+<a href="#1621" id="1621">1621</a>
+<a href="#1622" id="1622">1622</a>
+<a href="#1623" id="1623">1623</a>
+<a href="#1624" id="1624">1624</a>
+<a href="#1625" id="1625">1625</a>
+<a href="#1626" id="1626">1626</a>
+<a href="#1627" id="1627">1627</a>
+<a href="#1628" id="1628">1628</a>
+<a href="#1629" id="1629">1629</a>
+<a href="#1630" id="1630">1630</a>
+<a href="#1631" id="1631">1631</a>
+<a href="#1632" id="1632">1632</a>
+<a href="#1633" id="1633">1633</a>
+<a href="#1634" id="1634">1634</a>
+<a href="#1635" id="1635">1635</a>
+<a href="#1636" id="1636">1636</a>
+<a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
+<a href="#1651" id="1651">1651</a>
+<a href="#1652" id="1652">1652</a>
+<a href="#1653" id="1653">1653</a>
+<a href="#1654" id="1654">1654</a>
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1822,7 +1923,6 @@
 <span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>Ty {
     <span class="kw">pub </span>kind: TyKind,
-    <span class="kw">pub </span>fhir_id: FhirId,
     <span class="kw">pub </span>span: Span,
 }
 
@@ -1843,7 +1943,7 @@
     RawPtr(Box&lt;Ty&gt;, Mutability),
     OpaqueDef(ItemId, Vec&lt;GenericArg&gt;, Vec&lt;RefineArg&gt;, bool),
     Never,
-    Hole,
+    Hole(FhirId),
 }
 
 <span class="attr">#[derive(Clone)]
@@ -2035,6 +2135,7 @@
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>SortCtor {
     Set,
+    Map,
     <span class="doccomment">/// User defined opaque sort
     </span>User {
         name: Symbol,
@@ -2050,9 +2151,11 @@
     Loc,
     Unit,
     BitVec(usize),
-    <span class="doccomment">/// Sort constructor application (e.g. `Set&lt;int&gt;`)
+    <span class="doccomment">/// Sort constructor application (e.g. `Set&lt;int&gt;` or `Map&lt;int, int&gt;`)
     </span>App(SortCtor, List&lt;Sort&gt;),
-    Func(FuncSort),
+    Func(PolyFuncSort),
+    <span class="doccomment">/// sort variable
+    </span>Var(usize),
     <span class="doccomment">/// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     </span>Record(DefId),
@@ -2066,7 +2169,35 @@
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FuncSort {
-    <span class="kw">pub </span>inputs_and_output: List&lt;Sort&gt;,
+    <span class="doccomment">/// inputs and output in order
+    </span><span class="kw">pub </span>inputs_and_output: List&lt;Sort&gt;,
+}
+
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>PolyFuncSort {
+    <span class="kw">pub </span>params: usize,
+    <span class="kw">pub </span>fsort: FuncSort,
+}
+
+<span class="kw">impl </span>PolyFuncSort {
+    <span class="kw">pub fn </span>new(params: usize, inputs: Vec&lt;Sort&gt;, output: Sort) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>fsort = FuncSort::new(inputs, output);
+        <span class="self">Self </span>{ params, fsort }
+    }
+
+    <span class="kw">pub fn </span>skip_binders(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FuncSort {
+        <span class="self">self</span>.fsort.clone()
+    }
+
+    <span class="kw">pub fn </span>instantiate(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; FuncSort {
+        <span class="kw">let </span>inputs_and_output = <span class="self">self
+            </span>.skip_binders()
+            .inputs_and_output
+            .iter()
+            .map(|sort| sort.subst(<span class="kw-2">&amp;</span>args))
+            .collect();
+        FuncSort { inputs_and_output }
+    }
 }
 
 <span class="attr">#[derive(Clone)]
@@ -2152,6 +2283,7 @@
     <span class="kw">pub fn </span>arity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="kw">match </span><span class="self">self </span>{
             SortCtor::Set =&gt; <span class="number">1</span>,
+            SortCtor::Map =&gt; <span class="number">2</span>,
             SortCtor::User { arity, .. } =&gt; <span class="kw-2">*</span>arity,
         }
     }
@@ -2269,7 +2401,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>FuncDecl {
     <span class="kw">pub </span>name: Symbol,
-    <span class="kw">pub </span>sort: FuncSort,
+    <span class="kw">pub </span>sort: PolyFuncSort,
     <span class="kw">pub </span>kind: FuncKind,
 }
 
@@ -2345,7 +2477,7 @@
 
     <span class="doccomment">/// Whether the sort is a function with return sort bool
     </span><span class="kw">pub fn </span>is_pred(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Func(fsort) <span class="kw">if </span>fsort.output().is_bool())
+        <span class="macro">matches!</span>(<span class="self">self</span>, Sort::Func(fsort) <span class="kw">if </span>fsort.skip_binders().output().is_bool())
     }
 
     <span class="kw">pub fn </span>default_infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; InferMode {
@@ -2358,6 +2490,32 @@
 
     <span class="kw">pub fn </span>set(t: Sort) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::App(SortCtor::Set, List::singleton(t))
+    }
+
+    <span class="kw">pub fn </span>map(k: Sort, v: Sort) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::App(SortCtor::Map, List::from_vec(<span class="macro">vec!</span>[k, v]))
+    }
+
+    <span class="doccomment">/// replace all &quot;sort-parameters&quot; (indexed 0...n-1) with the corresponding sort in `subst`
+    </span><span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, subst: <span class="kw-2">&amp;</span>[Sort]) -&gt; Sort {
+        <span class="kw">match </span><span class="self">self </span>{
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(<span class="kw">_</span>)
+            | Sort::Param(<span class="kw">_</span>)
+            | Sort::Wildcard
+            | Sort::Record(<span class="kw">_</span>)
+            | Sort::Infer(<span class="kw">_</span>) =&gt; <span class="self">self</span>.clone(),
+            Sort::Var(i) =&gt; subst[<span class="kw-2">*</span>i].clone(),
+            Sort::App(c, args) =&gt; {
+                <span class="kw">let </span>args = args.iter().map(|arg| arg.subst(subst)).collect();
+                Sort::App(c.clone(), args)
+            }
+            Sort::Func(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected subst in (nested) func-sort&quot;</span>),
+        }
     }
 }
 
@@ -2395,9 +2553,9 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;FuncSort&gt; <span class="kw">for </span>Sort {
-    <span class="kw">fn </span>from(sort: FuncSort) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Func(sort)
+<span class="kw">impl </span>From&lt;PolyFuncSort&gt; <span class="kw">for </span>Sort {
+    <span class="kw">fn </span>from(fsort: PolyFuncSort) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Func(fsort)
     }
 }
 
@@ -2619,10 +2777,11 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         name: Symbol,
         fixpoint_name: Symbol,
+        params: usize,
         inputs: Vec&lt;Sort&gt;,
         output: Sort,
     ) {
-        <span class="kw">let </span>sort = FuncSort::new(inputs, output);
+        <span class="kw">let </span>sort = PolyFuncSort::new(params, inputs, output);
         <span class="self">self</span>.func_decls
             .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
     }
@@ -2632,24 +2791,28 @@
         </span><span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;bv_int_to_bv32&quot;</span>),
             Symbol::intern(<span class="string">&quot;int_to_bv32&quot;</span>),
+            <span class="number">0</span>,
             <span class="macro">vec!</span>[Sort::Int],
             Sort::BitVec(<span class="number">32</span>),
         );
         <span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;bv_bv32_to_int&quot;</span>),
             Symbol::intern(<span class="string">&quot;bv32_to_int&quot;</span>),
+            <span class="number">0</span>,
             <span class="macro">vec!</span>[Sort::BitVec(<span class="number">32</span>)],
             Sort::Int,
         );
         <span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;bv_sub&quot;</span>),
             Symbol::intern(<span class="string">&quot;bvsub&quot;</span>),
+            <span class="number">0</span>,
             <span class="macro">vec!</span>[Sort::BitVec(<span class="number">32</span>), Sort::BitVec(<span class="number">32</span>)],
             Sort::BitVec(<span class="number">32</span>),
         );
         <span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;bv_and&quot;</span>),
             Symbol::intern(<span class="string">&quot;bvand&quot;</span>),
+            <span class="number">0</span>,
             <span class="macro">vec!</span>[Sort::BitVec(<span class="number">32</span>), Sort::BitVec(<span class="number">32</span>)],
             Sort::BitVec(<span class="number">32</span>),
         );
@@ -2658,26 +2821,53 @@
         </span><span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;set_empty&quot;</span>),
             Symbol::intern(<span class="string">&quot;Set_empty&quot;</span>),
+            <span class="number">1</span>,
             <span class="macro">vec!</span>[Sort::Int],
-            Sort::set(Sort::Int),
+            Sort::set(Sort::Var(<span class="number">0</span>)),
         );
         <span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;set_singleton&quot;</span>),
             Symbol::intern(<span class="string">&quot;Set_sng&quot;</span>),
-            <span class="macro">vec!</span>[Sort::Int],
-            Sort::set(Sort::Int),
+            <span class="number">1</span>,
+            <span class="macro">vec!</span>[Sort::Var(<span class="number">0</span>)],
+            Sort::set(Sort::Var(<span class="number">0</span>)),
         );
         <span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;set_union&quot;</span>),
             Symbol::intern(<span class="string">&quot;Set_cup&quot;</span>),
-            <span class="macro">vec!</span>[Sort::set(Sort::Int), Sort::set(Sort::Int)],
-            Sort::set(Sort::Int),
+            <span class="number">1</span>,
+            <span class="macro">vec!</span>[Sort::set(Sort::Var(<span class="number">0</span>)), Sort::set(Sort::Var(<span class="number">0</span>))],
+            Sort::set(Sort::Var(<span class="number">0</span>)),
         );
         <span class="self">self</span>.insert_theory_func(
             Symbol::intern(<span class="string">&quot;set_is_in&quot;</span>),
             Symbol::intern(<span class="string">&quot;Set_mem&quot;</span>),
-            <span class="macro">vec!</span>[Sort::Int, Sort::set(Sort::Int)],
+            <span class="number">1</span>,
+            <span class="macro">vec!</span>[Sort::Var(<span class="number">0</span>), Sort::set(Sort::Var(<span class="number">0</span>))],
             Sort::Bool,
+        );
+
+        <span class="comment">// Map operations
+        </span><span class="self">self</span>.insert_theory_func(
+            Symbol::intern(<span class="string">&quot;map_default&quot;</span>),
+            Symbol::intern(<span class="string">&quot;Map_default&quot;</span>),
+            <span class="number">2</span>,
+            <span class="macro">vec!</span>[Sort::Var(<span class="number">1</span>)],
+            Sort::map(Sort::Var(<span class="number">0</span>), Sort::Var(<span class="number">1</span>)),
+        );
+        <span class="self">self</span>.insert_theory_func(
+            Symbol::intern(<span class="string">&quot;map_select&quot;</span>),
+            Symbol::intern(<span class="string">&quot;Map_select&quot;</span>),
+            <span class="number">2</span>,
+            <span class="macro">vec!</span>[Sort::map(Sort::Var(<span class="number">0</span>), Sort::Var(<span class="number">1</span>)), Sort::Var(<span class="number">0</span>)],
+            Sort::Var(<span class="number">1</span>),
+        );
+        <span class="self">self</span>.insert_theory_func(
+            Symbol::intern(<span class="string">&quot;map_store&quot;</span>),
+            Symbol::intern(<span class="string">&quot;Map_store&quot;</span>),
+            <span class="number">2</span>,
+            <span class="macro">vec!</span>[Sort::map(Sort::Var(<span class="number">0</span>), Sort::Var(<span class="number">1</span>)), Sort::Var(<span class="number">0</span>), Sort::Var(<span class="number">1</span>)],
+            Sort::map(Sort::Var(<span class="number">0</span>), Sort::Var(<span class="number">1</span>)),
         );
     }
 
@@ -2888,7 +3078,7 @@
             TyKind::Constr(pred, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{{{ty:?} | {pred:?}}}&quot;</span>),
             TyKind::RawPtr(ty, Mutability::Not) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;*const {ty:?}&quot;</span>),
             TyKind::RawPtr(ty, Mutability::Mut) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;*mut {ty:?}&quot;</span>),
-            TyKind::Hole =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;_&quot;</span>),
+            TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;_&quot;</span>),
             TyKind::OpaqueDef(def_id, args, refine_args, <span class="kw">_</span>) =&gt; {
                 <span class="macro">write!</span>(
                     f,
@@ -3076,6 +3266,7 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             SortCtor::Set =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Set&quot;</span>),
+            SortCtor::Map =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Map&quot;</span>),
             SortCtor::User { name, .. } =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, name),
         }
     }
@@ -3087,6 +3278,7 @@
             Sort::Bool =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;bool&quot;</span>),
             Sort::Int =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;int&quot;</span>),
             Sort::Real =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;real&quot;</span>),
+            Sort::Var(n) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;@{}&quot;</span>, n),
             Sort::BitVec(w) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;bitvec({w})&quot;</span>),
             Sort::Loc =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;loc&quot;</span>),
             Sort::Func(sort) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{sort}&quot;</span>),
@@ -3096,6 +3288,16 @@
             Sort::Wildcard =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;_&quot;</span>),
             Sort::Infer(vid) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{vid:?}&quot;</span>),
             Sort::App(ctor, args) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{ctor}&lt;{}&gt;&quot;</span>, args.iter().join(<span class="string">&quot;, &quot;</span>)),
+        }
+    }
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>PolyFuncSort {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">if </span><span class="self">self</span>.params &gt; <span class="number">0 </span>{
+            <span class="macro">write!</span>(f, <span class="string">&quot;for&lt;{}&gt;{}&quot;</span>, <span class="self">self</span>.params, <span class="self">self</span>.fsort)
+        } <span class="kw">else </span>{
+            <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.fsort)
         }
     }
 }

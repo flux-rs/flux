@@ -1,17 +1,17 @@
 <!DOCTYPE HTML>
-<html lang="en" class="sidebar-visible no-js light">
+<html lang="en" class="light" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
         <title>Flux Documentation</title>
-        <meta name="robots" content="noindex" />
+        <meta name="robots" content="noindex">
 
 
         <!-- Custom HTML head -->
         
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="theme-color" content="#ffffff" />
+        <meta name="theme-color" content="#ffffff">
 
         <link rel="icon" href="favicon.svg">
         <link rel="shortcut icon" href="favicon.png">
@@ -33,7 +33,7 @@
         <link rel="stylesheet" href="css/flux.css">
 
     </head>
-    <body>
+    <body class="sidebar-visible no-js">
     <div id="body-container">
         <!-- Provide site root to javascript -->
         <script>
@@ -63,24 +63,29 @@
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             var html = document.querySelector('html');
-            html.classList.remove('no-js')
             html.classList.remove('light')
             html.classList.add(theme);
-            html.classList.add('js');
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
         </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var html = document.querySelector('html');
+            var body = document.querySelector('body');
             var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
             } else {
                 sidebar = 'hidden';
             }
-            html.classList.remove('sidebar-visible');
-            html.classList.add("sidebar-" + sidebar);
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
@@ -118,9 +123,9 @@
                                 <div id="menu-bar-hover-placeholder"></div>
                 <div id="menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
-                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
                             <i class="fa fa-bars"></i>
-                        </button>
+                        </label>
                         <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
                             <i class="fa fa-paint-brush"></i>
                         </button>
@@ -575,9 +580,9 @@ fn add1(x: i32) -&gt; i32 {
 }
 $ cargo xtask run test.rs
 </code></pre>
-<p>The command will use a super set of the flags passed when running regression tests<sup class="footnote-reference"><a href="#flags">1</a></sup>.
-Thus, a common workflow is to identify a failing test, copy it to a different file, and then
-run Flux on it with <code>cargo xtask run</code>.</p>
+<p>The command will use a super set of the flags passed when running regression tests.
+Thus, a common workflow is to identify a failing test and run it directly with <code>cargo xtask run</code>,
+or alternatively copy it to a different file.</p>
 <p>You may also find useful to create a directory in the root of the project and add it to
 <a href="https://git-scm.com/docs/gitignore"><code>.git/info/exclude</code></a>.
 You can keep files there, outside of version control, and test Flux against them.
@@ -585,7 +590,7 @@ I have a directory called <code>attic/</code> where I keep a file named <code>pl
 To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 <h2 id="reporting-locations-where-errors-are-emitted"><a class="header" href="#reporting-locations-where-errors-are-emitted">Reporting locations where errors are emitted</a></h2>
 <p>When you use <code>cargo xtask run</code> you'll see that we report the location an error was emitted, e.g.,</p>
-<pre><code>error[FLUX]: refinement type error
+<pre><code class="language-console">error[FLUX]: refinement type error
  --&gt; attic/playground.rs:4:5
   |
 4 |     0
@@ -645,11 +650,6 @@ check_crate
     total time:   16995.32ms
 total time: 17014.19ms
 </code></pre>
-<div class="footnote-definition" id="flags"><sup class="footnote-definition-label">1</sup>
-<p><code>cargo xtask run</code> passes extra flags to enable the <code>register_tool</code> and
-<code>custom_inner_attributes</code> features, and to register <code>flux</code> as a tool. So you don't need to
-copy those crate attributes from a test file. We plan to remove those attributes from test files.</p>
-</div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="high-level-architecture"><a class="header" href="#high-level-architecture">High-level Architecture</a></h1>
 <p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
 <h2 id="crates"><a class="header" href="#crates">Crates</a></h2>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/sortck.rs`."><title>sortck.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_fhir_analysis/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/sortck.rs`."><title>sortck.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_fhir_analysis/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -551,7 +551,42 @@
 <a href="#551" id="551">551</a>
 <a href="#552" id="552">552</a>
 <a href="#553" id="553">553</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, iter};
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, collections::HashSet, iter};
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
@@ -573,6 +608,8 @@
     sorts: UnordMap&lt;fhir::Name, fhir::Sort&gt;,
     unification_table: InPlaceUnificationTable&lt;fhir::SortVid&gt;,
     wfckresults: fhir::WfckResults,
+    <span class="doccomment">/// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
+    </span>eq_vids: HashSet&lt;fhir::SortVid&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
@@ -582,6 +619,7 @@
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
             sorts: Default::default(),
+            eq_vids: Default::default(),
         }
     }
 
@@ -615,6 +653,7 @@
         expected: <span class="kw-2">&amp;</span>fhir::Sort,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_to_func(expected, <span class="kw-2">*</span>fhir_id) {
+            <span class="kw">let </span>fsort = fsort.skip_binders();
             <span class="self">self</span>.push_layer(params);
 
             <span class="kw">if </span>params.len() != fsort.inputs().len() {
@@ -859,7 +898,7 @@
     }
 
     <span class="kw">fn </span>synth_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>fhir::Func) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FuncSort, ErrorGuaranteed&gt; {
-        <span class="kw">match </span>func {
+        <span class="kw">let </span>func_sort = <span class="kw">match </span>func {
             fhir::Func::Var(var, fhir_id) =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self</span>[<span class="kw-2">&amp;</span>var.name].clone();
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_to_func(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fhir_id) {
@@ -878,7 +917,16 @@
                     .sort
                     .clone())
             }
-        }
+        };
+        func_sort.map(|fsort| <span class="self">self</span>.instantiate_func_sort(fsort))
+    }
+
+    <span class="kw">fn </span>instantiate_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: fhir::PolyFuncSort) -&gt; fhir::FuncSort {
+        <span class="kw">let </span>args: Vec&lt;fhir::Sort&gt; =
+            std::iter::repeat_with(|| fhir::Sort::Infer(<span class="self">self</span>.next_eq_sort_vid()))
+                .take(fsort.params)
+                .collect();
+        fsort.instantiate(<span class="kw-2">&amp;</span>args)
     }
 }
 
@@ -946,7 +994,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sort: <span class="kw-2">&amp;</span>fhir::Sort,
         fhir_id: FhirId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::FuncSort&gt; {
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PolyFuncSort&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_func(sort) {
             <span class="prelude-val">Some</span>(fsort)
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(fhir::Sort::Func(fsort)) = <span class="self">self</span>.is_single_field_record(sort) {
@@ -965,11 +1013,23 @@
                 <span class="self">self</span>.unification_table.unify_var_var(<span class="kw-2">*</span>vid2, <span class="kw-2">*</span>vid2).ok()<span class="question-mark">?</span>;
                 <span class="prelude-val">Some</span>(fhir::Sort::Infer(<span class="kw-2">*</span>vid1))
             }
-            (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid)) =&gt; {
+            (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid))
+                <span class="kw">if </span>!<span class="self">self</span>.is_eq_sort_vid(<span class="kw-2">*</span>vid) || <span class="self">self</span>.has_equality(sort) =&gt;
+            {
                 <span class="self">self</span>.unification_table
                     .unify_var_value(<span class="kw-2">*</span>vid, <span class="prelude-val">Some</span>(sort.clone()))
                     .ok()<span class="question-mark">?</span>;
                 <span class="prelude-val">Some</span>(sort.clone())
+            }
+            (fhir::Sort::App(c1, args1), fhir::Sort::App(c2, args2)) =&gt; {
+                <span class="kw">if </span>c1 != c2 || args1.len() != args2.len() {
+                    <span class="kw">return </span><span class="prelude-val">None</span>;
+                }
+                <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[];
+                <span class="kw">for </span>(t1, t2) <span class="kw">in </span>args1.iter().zip(args2.iter()) {
+                    args.push(<span class="self">self</span>.try_equate(t1, t2)<span class="question-mark">?</span>);
+                }
+                <span class="prelude-val">Some</span>(fhir::Sort::App(c1.clone(), args.into()))
             }
             <span class="kw">_ if </span>sort1 == sort2 =&gt; <span class="prelude-val">Some</span>(sort1.clone()),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -978,6 +1038,16 @@
 
     <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::SortVid {
         <span class="self">self</span>.unification_table.new_key(<span class="prelude-val">None</span>)
+    }
+
+    <span class="kw">fn </span>next_eq_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::SortVid {
+        <span class="kw">let </span>vid = <span class="self">self</span>.next_sort_vid();
+        <span class="self">self</span>.eq_vids.insert(vid);
+        vid
+    }
+
+    <span class="kw">fn </span>is_eq_sort_vid(<span class="kw-2">&amp;</span><span class="self">self</span>, vid: fhir::SortVid) -&gt; bool {
+        <span class="self">self</span>.eq_vids.contains(<span class="kw-2">&amp;</span>vid)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_params_sorts(
@@ -1027,7 +1097,7 @@
             .map_or(<span class="bool-val">false</span>, |s| <span class="macro">matches!</span>(s, fhir::Sort::Int))
     }
 
-    <span class="kw">fn </span>is_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::FuncSort&gt; {
+    <span class="kw">fn </span>is_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PolyFuncSort&gt; {
         <span class="self">self</span>.resolve_sort(sort).and_then(|s| {
             <span class="kw">if let </span>fhir::Sort::Func(fsort) = s {
                 <span class="prelude-val">Some</span>(fsort)

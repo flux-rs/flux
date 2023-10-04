@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/desugar.rs`."><title>desugar.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-47e7ab555ef2818a.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (9f5fc1bd4 2023-09-02)" data-channel="nightly" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-f194925aa375ae96.css" data-theme-dark-css="dark-1dd4d1ce031e15de.css" data-theme-ayu-css="ayu-49e58d069f567085.css" ><script src="../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-ef3a2de404864b0b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-f194925aa375ae96.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1dd4d1ce031e15de.css"><link rel="stylesheet" href="../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_desugar/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/desugar.rs`."><title>desugar.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_desugar/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1857,33 +1857,6 @@
 <a href="#1857" id="1857">1857</a>
 <a href="#1858" id="1858">1858</a>
 <a href="#1859" id="1859">1859</a>
-<a href="#1860" id="1860">1860</a>
-<a href="#1861" id="1861">1861</a>
-<a href="#1862" id="1862">1862</a>
-<a href="#1863" id="1863">1863</a>
-<a href="#1864" id="1864">1864</a>
-<a href="#1865" id="1865">1865</a>
-<a href="#1866" id="1866">1866</a>
-<a href="#1867" id="1867">1867</a>
-<a href="#1868" id="1868">1868</a>
-<a href="#1869" id="1869">1869</a>
-<a href="#1870" id="1870">1870</a>
-<a href="#1871" id="1871">1871</a>
-<a href="#1872" id="1872">1872</a>
-<a href="#1873" id="1873">1873</a>
-<a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, iter, slice};
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1910,10 +1883,14 @@
     Span, Symbol,
 };
 
+<span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
+
+<span class="kw">use </span><span class="kw">crate</span>::resolver::ResolverOutput;
+
 <span class="kw">pub fn </span>desugar_qualifier(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     qualifier: <span class="kw-2">&amp;</span>surface::Qualifier,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Qualifier, ErrorGuaranteed&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Qualifier&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>binders = Binders::from_params(genv, <span class="kw-2">&amp;</span>qualifier.args)<span class="question-mark">?</span>;
     <span class="kw">let </span>index_gen = IndexGen::new();
     <span class="kw">let </span>cx = ExprCtxt::new(genv, FluxOwnerId::Flux(qualifier.name.name), <span class="kw-2">&amp;</span>index_gen);
@@ -1927,10 +1904,7 @@
     })
 }
 
-<span class="kw">pub fn </span>desugar_defn(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
-    defn: surface::FuncDef,
-) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::Defn&gt;, ErrorGuaranteed&gt; {
+<span class="kw">pub fn </span>desugar_defn(genv: <span class="kw-2">&amp;</span>GlobalEnv, defn: surface::FuncDef) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::Defn&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = defn.body {
         <span class="kw">let </span><span class="kw-2">mut </span>binders = Binders::from_params(genv, <span class="kw-2">&amp;</span>defn.args)<span class="question-mark">?</span>;
         <span class="kw">let </span>local_id_gen = IndexGen::new();
@@ -1949,14 +1923,14 @@
     sess: <span class="kw-2">&amp;</span>FluxSession,
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     defn: <span class="kw-2">&amp;</span>surface::FuncDef,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FuncDecl, ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>inputs_and_output: Vec&lt;fhir::Sort&gt; = defn
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FuncDecl&gt; {
+    <span class="kw">let </span>inputs: Vec&lt;fhir::Sort&gt; = defn
         .args
         .iter()
         .map(|arg| resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>arg.sort))
         .try_collect_exhaust()<span class="question-mark">?</span>;
-    inputs_and_output.push(resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>defn.output)<span class="question-mark">?</span>);
-    <span class="kw">let </span>sort = fhir::FuncSort { inputs_and_output: List::from(inputs_and_output) };
+    <span class="kw">let </span>output = resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>defn.output)<span class="question-mark">?</span>;
+    <span class="kw">let </span>sort = fhir::PolyFuncSort::new(<span class="number">0</span>, inputs, output);
     <span class="kw">let </span>kind = <span class="kw">if </span>defn.body.is_some() { fhir::FuncKind::Def } <span class="kw">else </span>{ fhir::FuncKind::Uif };
     <span class="prelude-val">Ok</span>(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
@@ -1966,7 +1940,7 @@
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     owner_id: OwnerId,
     refined_by: <span class="kw-2">&amp;</span>surface::RefinedBy,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefinedBy, ErrorGuaranteed&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefinedBy&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>set = FxHashSet::default();
     refined_by.all_params().try_for_each_exhaust(|param| {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(old) = set.replace(param.name) {
@@ -1992,9 +1966,10 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DesugarCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     local_id_gen: IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: OwnerId,
+    resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ResolverOutput,
+    opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
 }
 
 <span class="doccomment">/// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -2048,33 +2023,25 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         owner: OwnerId,
+        resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ResolverOutput,
         opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     ) -&gt; DesugarCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), opaque_tys }
+        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), resolver_output, opaque_tys }
     }
 
     <span class="kw">fn </span>with_new_owner&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="kw-2">mut </span><span class="self">self</span>, owner: OwnerId) -&gt; DesugarCtxt&lt;<span class="lifetime">&#39;b</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        DesugarCtxt::new(<span class="self">self</span>.genv, owner, <span class="self">self</span>.opaque_tys.as_deref_mut())
+        DesugarCtxt::new(<span class="self">self</span>.genv, owner, <span class="self">self</span>.resolver_output, <span class="self">self</span>.opaque_tys.as_deref_mut())
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>as_lift_cx&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="kw-2">mut </span><span class="self">self</span>) -&gt; LiftCtxt&lt;<span class="lifetime">&#39;b</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        LiftCtxt::new(
-            <span class="self">self</span>.genv.tcx,
-            <span class="self">self</span>.genv.sess,
-            <span class="self">self</span>.owner,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.local_id_gen,
-            <span class="self">self</span>.opaque_tys.as_deref_mut(),
-        )
+        LiftCtxt::new(<span class="self">self</span>.genv.tcx, <span class="self">self</span>.genv.sess, <span class="self">self</span>.owner, <span class="self">self</span>.opaque_tys.as_deref_mut())
     }
 
     <span class="kw">fn </span>as_expr_ctxt&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="self">self</span>) -&gt; ExprCtxt&lt;<span class="lifetime">&#39;b</span>, <span class="lifetime">&#39;tcx</span>&gt; {
         ExprCtxt::new(<span class="self">self</span>.genv, FluxOwnerId::Rust(<span class="self">self</span>.owner), <span class="kw-2">&amp;</span><span class="self">self</span>.local_id_gen)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_generics(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>surface::Generics,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics, ErrorGuaranteed&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_generics(<span class="kw-2">&amp;</span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>surface::Generics) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&gt; {
         <span class="kw">let </span>hir_generics = <span class="self">self</span>.genv.hir().get_generics(<span class="self">self</span>.owner.def_id).unwrap();
         <span class="kw">let </span>generics_map: FxHashMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = hir_generics
             .params
@@ -2109,9 +2076,9 @@
 
     <span class="kw">fn </span>desugar_predicates(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        predicates: <span class="kw-2">&amp;</span>Vec&lt;surface::WhereBoundPredicate&lt;Res&gt;&gt;,
+        predicates: <span class="kw-2">&amp;</span>Vec&lt;surface::WhereBoundPredicate&gt;,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericPredicates, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericPredicates&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
         <span class="kw">for </span>pred <span class="kw">in </span>predicates {
             res.push(<span class="self">self</span>.desugar_predicate(pred, binders)<span class="question-mark">?</span>);
@@ -2121,9 +2088,9 @@
 
     <span class="kw">fn </span>desugar_predicate(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        pred: <span class="kw-2">&amp;</span>surface::WhereBoundPredicate&lt;Res&gt;,
+        pred: <span class="kw-2">&amp;</span>surface::WhereBoundPredicate,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::WhereBoundPredicate, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::WhereBoundPredicate&gt; {
         <span class="kw">let </span>bounded_ty = <span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>pred.bounded_ty, binders)<span class="question-mark">?</span>;
         <span class="kw">let </span>bounds = <span class="self">self</span>.desugar_generic_bounds(<span class="kw-2">&amp;</span>pred.bounds, binders)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
@@ -2131,9 +2098,9 @@
 
     <span class="kw">fn </span>desugar_generic_bounds(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        bounds: <span class="kw-2">&amp;</span>surface::GenericBounds&lt;Res&gt;,
+        bounds: <span class="kw-2">&amp;</span>surface::GenericBounds,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericBounds, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericBounds&gt; {
         bounds
             .iter()
             .map(|bound| {
@@ -2147,9 +2114,9 @@
 
     <span class="kw">fn </span>desugar_trait_ref(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        trait_ref: <span class="kw-2">&amp;</span>surface::TraitRef&lt;Res&gt;,
+        trait_ref: <span class="kw-2">&amp;</span>surface::TraitRef,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyTraitRef, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyTraitRef&gt; {
         <span class="prelude-val">Ok</span>(fhir::PolyTraitRef {
             bound_generic_params: <span class="macro">vec!</span>[],
             trait_ref: <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>trait_ref.path, binders)<span class="question-mark">?</span>,
@@ -2158,9 +2125,9 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_struct_def(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        struct_def: surface::StructDef&lt;Res&gt;,
+        struct_def: <span class="kw-2">&amp;</span>surface::StructDef,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::StructDef, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::StructDef&gt; {
         binders.push_layer();
         binders.insert_params(
             <span class="self">self</span>.genv,
@@ -2210,9 +2177,9 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_enum_def(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        enum_def: <span class="kw-2">&amp;</span>surface::EnumDef&lt;Res&gt;,
+        enum_def: <span class="kw-2">&amp;</span>surface::EnumDef,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::EnumDef, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::EnumDef&gt; {
         <span class="kw">let </span>def_id = <span class="self">self</span>.owner.def_id;
         <span class="kw">let </span>ItemKind::Enum(hir_enum, <span class="kw">_</span>) = <span class="kw-2">&amp;</span><span class="self">self</span>.genv.hir().expect_item(def_id).kind <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">&quot;expected enum&quot;</span>);
@@ -2248,13 +2215,13 @@
 
     <span class="kw">fn </span>desugar_enum_variant_def(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        variant_def: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;surface::VariantDef&lt;Res&gt;&gt;,
+        variant_def: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;surface::VariantDef&gt;,
         hir_variant: <span class="kw-2">&amp;</span>hir::Variant,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantDef, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantDef&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(variant_def) = variant_def {
             binders.push_layer();
-            binders.gather_params_variant(<span class="self">self</span>.genv, variant_def)<span class="question-mark">?</span>;
+            <span class="self">self</span>.gather_params_variant(variant_def, binders)<span class="question-mark">?</span>;
             <span class="kw">let </span>fields = iter::zip(<span class="kw-2">&amp;</span>variant_def.fields, hir_variant.data.fields())
                 .map(|(ty, hir_field)| {
                     <span class="prelude-val">Ok</span>(fhir::FieldDef {
@@ -2282,9 +2249,9 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_type_alias(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        ty_alias: surface::TyAlias&lt;Res&gt;,
+        ty_alias: <span class="kw-2">&amp;</span>surface::TyAlias,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TyAlias, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TyAlias&gt; {
         binders.push_layer();
         binders.insert_params(<span class="self">self</span>.genv, ty_alias.refined_by.all_params())<span class="question-mark">?</span>;
 
@@ -2306,15 +2273,15 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_fn_sig(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        fn_sig: <span class="kw-2">&amp;</span>surface::FnSig&lt;Res&gt;,
+        fn_sig: <span class="kw-2">&amp;</span>surface::FnSig,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::GenericPredicates, fhir::FnSig), ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(fhir::GenericPredicates, fhir::FnSig)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
 
         <span class="comment">// Desugar inputs
         </span>binders.push_layer();
-        binders.gather_input_params_fn_sig(<span class="self">self</span>.genv, fn_sig)<span class="question-mark">?</span>;
-        binders.gather_params_predicates(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>fn_sig.predicates)<span class="question-mark">?</span>;
+        <span class="self">self</span>.gather_input_params_fn_sig(fn_sig, binders)<span class="question-mark">?</span>;
+        <span class="self">self</span>.gather_params_predicates(<span class="kw-2">&amp;</span>fn_sig.predicates, binders)<span class="question-mark">?</span>;
 
         <span class="comment">// Desugar predicates -- after we have gathered the input params
         </span><span class="kw">let </span>generic_preds = <span class="self">self</span>.desugar_predicates(<span class="kw-2">&amp;</span>fn_sig.predicates, binders)<span class="question-mark">?</span>;
@@ -2333,7 +2300,7 @@
 
         <span class="comment">// Desugar output
         </span>binders.push_layer();
-        binders.gather_output_params_fn_sig(<span class="self">self</span>.genv, fn_sig)<span class="question-mark">?</span>;
+        <span class="self">self</span>.gather_output_params_fn_sig(fn_sig, binders)<span class="question-mark">?</span>;
         <span class="kw">let </span>ret = <span class="self">self</span>.desugar_asyncness(fn_sig.asyncness, <span class="kw-2">&amp;</span>fn_sig.returns, binders);
 
         <span class="kw">let </span>ensures = fn_sig
@@ -2358,9 +2325,9 @@
 
     <span class="kw">fn </span>desugar_constraint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        cstr: <span class="kw-2">&amp;</span>surface::Constraint&lt;Res&gt;,
+        cstr: <span class="kw-2">&amp;</span>surface::Constraint,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Constraint, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Constraint&gt; {
         <span class="kw">match </span>cstr {
             surface::Constraint::Type(bind, ty) =&gt; {
                 <span class="kw">let </span>loc = <span class="self">self</span>.as_expr_ctxt().resolve_loc(binders, <span class="kw-2">*</span>bind);
@@ -2376,32 +2343,24 @@
 
     <span class="kw">fn </span>desugar_fun_arg(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        arg: <span class="kw-2">&amp;</span>surface::Arg&lt;Res&gt;,
+        arg: <span class="kw-2">&amp;</span>surface::Arg,
         binders: <span class="kw-2">&amp;mut </span>Binders,
         requires: <span class="kw-2">&amp;mut </span>Vec&lt;fhir::Constraint&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&gt; {
         <span class="kw">match </span>arg {
             surface::Arg::Constr(bind, path, pred) =&gt; {
                 <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(path, binders)<span class="question-mark">?</span>;
                 <span class="kw">let </span>pred = <span class="self">self</span>.as_expr_ctxt().desugar_expr(binders, pred)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>ty = <span class="kw">if let </span><span class="prelude-val">Some</span>(idx) = <span class="self">self</span>.ident_into_refine_arg(<span class="kw-2">*</span>bind, binders)<span class="question-mark">? </span>{
-                    fhir::Ty {
-                        kind: fhir::TyKind::Indexed(bty, idx),
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                        span: path.span,
-                    }
+                    fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
                 } <span class="kw">else </span>{
-                    fhir::Ty {
-                        kind: fhir::TyKind::BaseTy(bty),
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                        span: path.span,
-                    }
+                    fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
                 };
 
                 <span class="kw">let </span>span = path.span.to(pred.span);
                 <span class="kw">let </span>kind = fhir::TyKind::Constr(pred, Box::new(ty));
-                <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
+                <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
             }
             surface::Arg::StrgRef(loc, ty) =&gt; {
                 <span class="kw">let </span>span = loc.span;
@@ -2409,7 +2368,7 @@
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, ty, binders)<span class="question-mark">?</span>;
                 requires.push(fhir::Constraint::Type(loc, ty));
                 <span class="kw">let </span>kind = fhir::TyKind::Ptr(<span class="self">self</span>.mk_lft_hole(), loc);
-                <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
+                <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
             }
             surface::Arg::Ty(bind, ty) =&gt; <span class="self">self</span>.desugar_ty(<span class="kw-2">*</span>bind, ty, binders),
         }
@@ -2417,29 +2376,26 @@
 
     <span class="kw">fn </span>desugar_asyncness(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        asyncness: surface::Async&lt;Res&gt;,
-        returns: <span class="kw-2">&amp;</span>surface::FnRetTy&lt;Res&gt;,
+        asyncness: surface::Async,
+        returns: <span class="kw-2">&amp;</span>surface::FnRetTy,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&gt; {
         <span class="kw">match </span>asyncness {
-            surface::Async::Yes { res, span } =&gt; {
-                <span class="kw">if let </span>Res::Def(DefKind::OpaqueTy, def_id) = res {
-                    <span class="kw">let </span>def_id = def_id.expect_local();
-                    <span class="kw">let </span>owner_id = hir::OwnerId { def_id };
+            surface::Async::Yes { node_id, span } =&gt; {
+                <span class="kw">let </span>item_id = <span class="self">self</span>.resolver_output.impl_trait_res_map[<span class="kw-2">&amp;</span>node_id];
+                <span class="kw">let </span>def_id = item_id.owner_id.def_id;
+                <span class="kw">let </span>res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
-                    <span class="kw">let </span>opaque_ty = <span class="self">self
-                        </span>.with_new_owner(owner_id)
-                        .desugar_opaque_ty_for_async(returns, binders)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.insert_opaque_ty(def_id, opaque_ty);
+                <span class="kw">let </span>opaque_ty = <span class="self">self
+                    </span>.with_new_owner(item_id.owner_id)
+                    .desugar_opaque_ty_for_async(returns, binders)<span class="question-mark">?</span>;
+                <span class="self">self</span>.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
-                    <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>[], binders)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                    <span class="kw">let </span>refine_args = binders.bot_layer().to_refine_args(<span class="self">self</span>, span);
-                    <span class="kw">let </span>kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>);
-                    <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
-                } <span class="kw">else </span>{
-                    <span class="macro">span_bug!</span>(span, <span class="string">&quot;invalid resolution for asyncness&quot;</span>)
-                }
+                <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>[], binders)<span class="question-mark">?</span>;
+                <span class="kw">let </span>item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
+                <span class="kw">let </span>refine_args = binders.bot_layer().to_refine_args(<span class="self">self</span>, span);
+                <span class="kw">let </span>kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>);
+                <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
             }
             surface::Async::No =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.desugar_fn_ret_ty(returns, binders)<span class="question-mark">?</span>),
         }
@@ -2447,9 +2403,9 @@
 
     <span class="kw">fn </span>desugar_opaque_ty_for_async(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        returns: <span class="kw-2">&amp;</span>surface::FnRetTy&lt;Res&gt;,
+        returns: <span class="kw-2">&amp;</span>surface::FnRetTy,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&gt; {
         <span class="kw">let </span>output = <span class="self">self</span>.desugar_fn_ret_ty(returns, binders)<span class="question-mark">?</span>;
         <span class="kw">let </span>bound = fhir::GenericBound::LangItemTrait(
             hir::LangItem::Future,
@@ -2464,14 +2420,14 @@
 
     <span class="kw">fn </span>desugar_fn_ret_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        returns: <span class="kw-2">&amp;</span>surface::FnRetTy&lt;Res&gt;,
+        returns: <span class="kw-2">&amp;</span>surface::FnRetTy,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&gt; {
         <span class="kw">match </span>returns {
             surface::FnRetTy::Ty(ty) =&gt; <span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, ty, binders),
             surface::FnRetTy::Default(span) =&gt; {
                 <span class="kw">let </span>kind = fhir::TyKind::Tuple(<span class="macro">vec!</span>[]);
-                <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span: <span class="kw-2">*</span>span })
+                <span class="prelude-val">Ok</span>(fhir::Ty { kind, span: <span class="kw-2">*</span>span })
             }
         }
     }
@@ -2479,12 +2435,19 @@
     <span class="kw">fn </span>desugar_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         bind: <span class="prelude-ty">Option</span>&lt;surface::Ident&gt;,
-        ty: <span class="kw-2">&amp;</span>surface::Ty&lt;Res&gt;,
+        ty: <span class="kw-2">&amp;</span>surface::Ty,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&gt; {
         <span class="kw">let </span>span = ty.span;
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-            surface::TyKind::Base(bty) =&gt; <span class="kw">return </span><span class="self">self</span>.desugar_bty_bind(bind, bty, binders),
+            surface::TyKind::Base(bty) =&gt; {
+                <span class="comment">// CODESYNC(type-holes, 3)
+                </span><span class="kw">if let </span>surface::BaseTyKind::Path(path) = <span class="kw-2">&amp;</span>bty.kind &amp;&amp; path.is_hole() {
+                    fhir::TyKind::Hole(<span class="self">self</span>.next_fhir_id())
+                } <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="self">self</span>.desugar_bty_bind(bind, bty, binders)
+                }
+            }
             surface::TyKind::Indexed { bty, indices } =&gt; {
                 <span class="kw">let </span>bty = <span class="self">self</span>.desugar_bty(bty, binders)<span class="question-mark">?</span>;
                 <span class="kw">let </span>idx = <span class="self">self</span>.desugar_indices(<span class="kw-2">&amp;</span>bty, indices, binders)<span class="question-mark">?</span>;
@@ -2494,7 +2457,7 @@
                 <span class="kw">let </span>ty_span = ty.span;
                 <span class="kw">let </span>bty_span = bty.span;
 
-                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = index_sort(<span class="self">self</span>.genv, bty) <span class="kw">else </span>{
+                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = index_sort(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, bty) <span class="kw">else </span>{
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
                 };
 
@@ -2515,16 +2478,9 @@
                     },
                     is_binder: <span class="bool-val">false</span>,
                 };
-                <span class="kw">let </span>indexed = fhir::Ty {
-                    kind: fhir::TyKind::Indexed(bty, idx),
-                    fhir_id: <span class="self">self</span>.next_fhir_id(),
-                    span: bty_span,
-                };
-                <span class="kw">let </span>constr = fhir::Ty {
-                    kind: fhir::TyKind::Constr(pred, Box::new(indexed)),
-                    fhir_id: <span class="self">self</span>.next_fhir_id(),
-                    span: ty_span,
-                };
+                <span class="kw">let </span>indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
+                <span class="kw">let </span>constr =
+                    fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
                 fhir::TyKind::Exists(params, Box::new(constr))
             }
             surface::TyKind::GeneralExists { params, ty, pred } =&gt; {
@@ -2541,11 +2497,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(pred) = pred {
                     <span class="kw">let </span>pred = <span class="self">self</span>.as_expr_ctxt().desugar_expr(binders, pred)<span class="question-mark">?</span>;
                     <span class="kw">let </span>span = ty.span.to(pred.span);
-                    ty = fhir::Ty {
-                        kind: fhir::TyKind::Constr(pred, Box::new(ty)),
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                        span,
-                    };
+                    ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
                 }
                 <span class="kw">let </span>params = binders.pop_layer().into_params(<span class="self">self</span>);
 
@@ -2574,34 +2526,29 @@
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, ty, binders)<span class="question-mark">?</span>;
                 fhir::TyKind::Array(Box::new(ty), fhir::ArrayLen { val: len.val, span: len.span })
             }
-            surface::TyKind::Hole =&gt; fhir::TyKind::Hole,
-            surface::TyKind::ImplTrait(res, bounds) =&gt; {
-                <span class="kw">if let </span>Res::Def(DefKind::OpaqueTy, def_id) = res {
-                    <span class="kw">let </span>def_id = def_id.expect_local();
-                    <span class="kw">let </span>owner_id = hir::OwnerId { def_id };
+            surface::TyKind::ImplTrait(node_id, bounds) =&gt; {
+                <span class="kw">let </span>item_id = <span class="self">self</span>.resolver_output.impl_trait_res_map[<span class="kw-2">&amp;</span>node_id];
+                <span class="kw">let </span>def_id = item_id.owner_id.def_id;
+                <span class="kw">let </span>res = Res::Def(DefKind::OpaqueTy, def_id.to_def_id());
 
-                    <span class="kw">let </span>opaque_ty = <span class="self">self
-                        </span>.with_new_owner(owner_id)
-                        .desugar_opaque_ty_for_impl_trait(bounds, binders)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.insert_opaque_ty(def_id, opaque_ty);
+                <span class="kw">let </span>opaque_ty = <span class="self">self
+                    </span>.with_new_owner(item_id.owner_id)
+                    .desugar_opaque_ty_for_impl_trait(bounds, binders)<span class="question-mark">?</span>;
+                <span class="self">self</span>.insert_opaque_ty(def_id, opaque_ty);
 
-                    <span class="kw">let </span>item_id = hir::ItemId { owner_id };
-                    <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(<span class="kw-2">*</span>res, <span class="kw-2">&amp;</span>[], binders)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>refine_args = binders.bot_layer().to_refine_args(<span class="self">self</span>, ty.span);
-                    fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>)
-                } <span class="kw">else </span>{
-                    <span class="macro">span_bug!</span>(ty.span, <span class="string">&quot;unexpected opaque type&quot;</span>)
-                }
+                <span class="kw">let </span>(args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>[], binders)<span class="question-mark">?</span>;
+                <span class="kw">let </span>refine_args = binders.bot_layer().to_refine_args(<span class="self">self</span>, ty.span);
+                fhir::TyKind::OpaqueDef(item_id, args, refine_args, <span class="bool-val">false</span>)
             }
         };
-        <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
+        <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
     }
 
     <span class="kw">fn </span>desugar_opaque_ty_for_impl_trait(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        bounds: <span class="kw-2">&amp;</span>surface::GenericBounds&lt;Res&gt;,
+        bounds: <span class="kw-2">&amp;</span>surface::GenericBounds,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&gt; {
         <span class="kw">let </span>bounds = <span class="self">self</span>.desugar_generic_bounds(bounds, binders)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::OpaqueTy { bounds })
     }
@@ -2615,7 +2562,7 @@
         bty: <span class="kw-2">&amp;</span>fhir::BaseTy,
         idxs: <span class="kw-2">&amp;</span>surface::Indices,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefineArg, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefineArg&gt; {
         <span class="kw">if let </span>[surface::RefineArg::Bind(ident, ..)] = <span class="kw-2">&amp;</span>idxs.indices[..] {
             <span class="self">self</span>.ident_into_refine_arg(<span class="kw-2">*</span>ident, binders)
                 .transpose()
@@ -2634,7 +2581,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         args: <span class="kw-2">&amp;</span>[surface::RefineArg],
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;fhir::RefineArg&gt;, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;fhir::RefineArg&gt;&gt; {
         args.iter()
             .map(|idx| <span class="self">self</span>.desugar_refine_arg(idx, binders))
             .try_collect_exhaust()
@@ -2644,7 +2591,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         arg: <span class="kw-2">&amp;</span>surface::RefineArg,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefineArg, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefineArg&gt; {
         <span class="kw">match </span>arg {
             surface::RefineArg::Bind(ident, ..) =&gt; {
                 <span class="self">self</span>.ident_into_refine_arg(<span class="kw-2">*</span>ident, binders)<span class="question-mark">?
@@ -2670,7 +2617,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         ident: surface::Ident,
         binders: <span class="kw-2">&amp;</span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::RefineArg&gt;, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::RefineArg&gt;&gt; {
         <span class="kw">match </span>binders.get(ident) {
             <span class="prelude-val">Some</span>(Binder::Refined(name, ..)) =&gt; {
                 <span class="kw">let </span>kind = fhir::ExprKind::Var(fhir::Ident::new(<span class="kw-2">*</span>name, ident));
@@ -2684,9 +2631,9 @@
 
     <span class="kw">fn </span>desugar_bty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        bty: <span class="kw-2">&amp;</span>surface::BaseTy&lt;Res&gt;,
+        bty: <span class="kw-2">&amp;</span>surface::BaseTy,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
             surface::BaseTyKind::Path(path) =&gt; <span class="self">self</span>.desugar_path_to_bty(path, binders),
             surface::BaseTyKind::Slice(ty) =&gt; {
@@ -2696,30 +2643,27 @@
         }
     }
 
-    <span class="kw">fn </span>desugar_path(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        path: <span class="kw-2">&amp;</span>surface::Path&lt;Res&gt;,
-        binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Path, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>(args, bindings) = <span class="self">self</span>.desugar_generic_args(path.res, <span class="kw-2">&amp;</span>path.generics, binders)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>desugar_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path, binders: <span class="kw-2">&amp;mut </span>Binders) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Path&gt; {
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
+        <span class="kw">let </span>(args, bindings) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>path.generics, binders)<span class="question-mark">?</span>;
         <span class="kw">let </span>refine = <span class="self">self</span>.desugar_refine_args(<span class="kw-2">&amp;</span>path.refine, binders)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::Path { res: path.res, args, bindings, refine, span: path.span })
+        <span class="prelude-val">Ok</span>(fhir::Path { res, args, bindings, refine, span: path.span })
     }
 
     <span class="kw">fn </span>desugar_path_to_bty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        path: <span class="kw-2">&amp;</span>surface::Path&lt;Res&gt;,
+        path: <span class="kw-2">&amp;</span>surface::Path,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&gt; {
         <span class="prelude-val">Ok</span>(fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, <span class="self">self</span>.desugar_path(path, binders)<span class="question-mark">?</span>)))
     }
 
     <span class="kw">fn </span>desugar_generic_args(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         res: Res,
-        args: <span class="kw-2">&amp;</span>[surface::GenericArg&lt;Res&gt;],
+        args: <span class="kw-2">&amp;</span>[surface::GenericArg],
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;fhir::GenericArg&gt;, Vec&lt;fhir::TypeBinding&gt;), ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Vec&lt;fhir::GenericArg&gt;, Vec&lt;fhir::TypeBinding&gt;)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>fhir_args = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">if let </span>Res::Def(
@@ -2753,9 +2697,9 @@
     <span class="kw">fn </span>desugar_bty_bind(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         bind: <span class="prelude-ty">Option</span>&lt;surface::Ident&gt;,
-        bty: <span class="kw-2">&amp;</span>surface::BaseTy&lt;Res&gt;,
+        bty: <span class="kw-2">&amp;</span>surface::BaseTy,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&gt; {
         <span class="kw">let </span>bty = <span class="self">self</span>.desugar_bty(bty, binders)<span class="question-mark">?</span>;
         <span class="kw">let </span>span = bty.span;
         <span class="kw">let </span>kind = <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(idx) = <span class="self">self</span>.ident_into_refine_arg(bind, binders)<span class="question-mark">? </span>{
@@ -2763,14 +2707,14 @@
         } <span class="kw">else </span>{
             fhir::TyKind::BaseTy(bty)
         };
-        <span class="prelude-val">Ok</span>(fhir::Ty { kind, fhir_id: <span class="self">self</span>.next_fhir_id(), span })
+        <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
     }
 
     <span class="kw">fn </span>desugar_variant_ret(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        ret: <span class="kw-2">&amp;</span>surface::VariantRet&lt;Res&gt;,
+        ret: <span class="kw-2">&amp;</span>surface::VariantRet,
         binders: <span class="kw-2">&amp;mut </span>Binders,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantRet, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantRet&gt; {
         <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(<span class="kw-2">&amp;</span>ret.path, binders)<span class="question-mark">?</span>;
         <span class="kw">let </span>idx = <span class="self">self</span>.desugar_indices(<span class="kw-2">&amp;</span>bty, <span class="kw-2">&amp;</span>ret.indices, binders)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::VariantRet { bty, idx })
@@ -2802,11 +2746,7 @@
         <span class="self">Self </span>{ genv, local_id_gen, owner }
     }
 
-    <span class="kw">fn </span>desugar_expr(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        binders: <span class="kw-2">&amp;</span>Binders,
-        expr: <span class="kw-2">&amp;</span>surface::Expr,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Expr, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>desugar_expr(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>Binders, expr: <span class="kw-2">&amp;</span>surface::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Expr&gt; {
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
             surface::ExprKind::QPath(qpath) =&gt; {
                 <span class="kw">match </span><span class="self">self</span>.resolve_qpath(binders, qpath)<span class="question-mark">? </span>{
@@ -2868,18 +2808,14 @@
         <span class="prelude-val">Ok</span>(fhir::Expr { kind, span: expr.span, fhir_id: <span class="self">self</span>.next_fhir_id() })
     }
 
-    <span class="kw">fn </span>desugar_exprs(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        binders: <span class="kw-2">&amp;</span>Binders,
-        exprs: <span class="kw-2">&amp;</span>[surface::Expr],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;fhir::Expr&gt;, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>desugar_exprs(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>Binders, exprs: <span class="kw-2">&amp;</span>[surface::Expr]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;fhir::Expr&gt;&gt; {
         exprs
             .iter()
             .map(|e| <span class="self">self</span>.desugar_expr(binders, e))
             .try_collect_exhaust()
     }
 
-    <span class="kw">fn </span>desugar_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, lit: surface::Lit) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Lit, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>desugar_lit(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, lit: surface::Lit) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Lit&gt; {
         <span class="kw">match </span>lit.kind {
             surface::LitKind::Integer =&gt; {
                 <span class="kw">let </span><span class="prelude-val">Ok</span>(n) = lit.symbol.as_str().parse::&lt;i128&gt;() <span class="kw">else </span>{
@@ -2899,11 +2835,7 @@
         }
     }
 
-    <span class="kw">fn </span>resolve_func(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        binders: <span class="kw-2">&amp;</span>Binders,
-        func: surface::Ident,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;FuncRes, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>resolve_func(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>Binders, func: surface::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;FuncRes&gt; {
         <span class="kw">match </span>binders.get(func) {
             <span class="prelude-val">Some</span>(Binder::Refined(name, ..)) =&gt; {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(FuncRes::Param(fhir::Ident::new(<span class="kw-2">*</span>name, func)))
@@ -2919,11 +2851,7 @@
         <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnresolvedVar::from_ident(func)))
     }
 
-    <span class="kw">fn </span>resolve_qpath(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        binders: <span class="kw-2">&amp;</span>Binders,
-        qpath: <span class="kw-2">&amp;</span>surface::QPathExpr,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;QPathRes, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>resolve_qpath(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>Binders, qpath: <span class="kw-2">&amp;</span>surface::QPathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;QPathRes&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>qpath.segments[..] {
             [var] =&gt; {
                 <span class="kw">match </span>binders.get(var) {
@@ -2948,11 +2876,7 @@
         }
     }
 
-    <span class="kw">fn </span>resolve_loc(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        binders: <span class="kw-2">&amp;</span>Binders,
-        loc: surface::Ident,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ident, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>resolve_loc(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>Binders, loc: surface::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ident&gt; {
         <span class="kw">match </span>binders.get(loc) {
             <span class="prelude-val">Some</span>(Binder::Refined(name, ..)) =&gt; <span class="prelude-val">Ok</span>(fhir::Ident::new(<span class="kw-2">*</span>name, loc)),
             <span class="prelude-val">Some</span>(Binder::Unrefined) =&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidUnrefinedParam::new(loc))),
@@ -2966,11 +2890,282 @@
     }
 }
 
+<span class="kw">impl </span>DesugarCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>gather_params_variant(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        variant_def: <span class="kw-2">&amp;</span>surface::VariantDef,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">for </span>ty <span class="kw">in </span><span class="kw-2">&amp;</span>variant_def.fields {
+            <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Input, binders)<span class="question-mark">?</span>;
+        }
+        <span class="comment">// Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
+        </span><span class="self">self</span>.gather_params_variant_ret(<span class="kw-2">&amp;</span>variant_def.ret, binders)<span class="question-mark">?</span>;
+
+        <span class="comment">// Check binders in `VariantRet`
+        </span>variant_def
+            .ret
+            .indices
+            .indices
+            .iter()
+            .try_for_each_exhaust(|idx| {
+                <span class="kw">if let </span>surface::RefineArg::Bind(<span class="kw">_</span>, kind, span) = idx {
+                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::IllegalBinder::new(<span class="kw-2">*</span>span, <span class="kw-2">*</span>kind)))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(())
+                }
+            })
+    }
+
+    <span class="kw">fn </span>gather_params_variant_ret(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        ret: <span class="kw-2">&amp;</span>surface::VariantRet,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="self">self</span>.gather_params_path(<span class="kw-2">&amp;</span>ret.path, TypePos::Other, binders)<span class="question-mark">?</span>;
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>ret.path.node_id];
+        <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv.sort_of_res(res) <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
+        };
+        <span class="self">self</span>.gather_params_indices(sort, <span class="kw-2">&amp;</span>ret.indices, TypePos::Other, binders)
+    }
+
+    <span class="kw">fn </span>gather_params_predicates(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        predicates: <span class="kw-2">&amp;</span>[surface::WhereBoundPredicate],
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
+            <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>predicate.bounded_ty, TypePos::Other, binders)<span class="question-mark">?</span>;
+            <span class="kw">for </span>bound <span class="kw">in </span><span class="kw-2">&amp;</span>predicate.bounds {
+                <span class="self">self</span>.gather_params_path(<span class="kw-2">&amp;</span>bound.path, TypePos::Other, binders)<span class="question-mark">?</span>;
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>gather_input_params_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, fn_sig: <span class="kw-2">&amp;</span>surface::FnSig, binders: <span class="kw-2">&amp;mut </span>Binders) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">for </span>param <span class="kw">in </span>fn_sig.generics.iter().flat_map(|g| <span class="kw-2">&amp;</span>g.params) {
+            <span class="kw">let </span>surface::GenericParamKind::Refine { sort } = <span class="kw-2">&amp;</span>param.kind <span class="kw">else </span>{ <span class="kw">continue </span>};
+            binders.insert_binder(
+                <span class="self">self</span>.genv.sess,
+                param.name,
+                Binder::Refined(
+                    binders.fresh(),
+                    resolve_sort(<span class="self">self</span>.genv.sess, <span class="self">self</span>.genv.map().sort_decls(), sort)<span class="question-mark">?</span>,
+                    <span class="bool-val">false</span>,
+                ),
+            )<span class="question-mark">?</span>;
+        }
+        <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.args {
+            <span class="self">self</span>.gather_params_fun_arg(arg, binders)<span class="question-mark">?</span>;
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>gather_output_params_fn_sig(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        fn_sig: <span class="kw-2">&amp;</span>surface::FnSig,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span>surface::FnRetTy::Ty(ty) = <span class="kw-2">&amp;</span>fn_sig.returns {
+            <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Output, binders)<span class="question-mark">?</span>;
+        }
+        <span class="kw">for </span>cstr <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.ensures {
+            <span class="kw">if let </span>surface::Constraint::Type(<span class="kw">_</span>, ty) = cstr {
+                <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Output, binders)<span class="question-mark">?</span>;
+            };
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>gather_params_fun_arg(<span class="kw-2">&amp;</span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::Arg, binders: <span class="kw-2">&amp;mut </span>Binders) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">match </span>arg {
+            surface::Arg::Constr(bind, path, <span class="kw">_</span>) =&gt; {
+                <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
+                binders.insert_binder(
+                    <span class="self">self</span>.genv.sess,
+                    <span class="kw-2">*</span>bind,
+                    binders.binder_from_res(<span class="self">self</span>.genv, res),
+                )<span class="question-mark">?</span>;
+            }
+            surface::Arg::StrgRef(loc, ty) =&gt; {
+                binders.insert_binder(
+                    <span class="self">self</span>.genv.sess,
+                    <span class="kw-2">*</span>loc,
+                    Binder::Refined(binders.fresh(), fhir::Sort::Loc, <span class="bool-val">false</span>),
+                )<span class="question-mark">?</span>;
+                <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Input, binders)<span class="question-mark">?</span>;
+            }
+            surface::Arg::Ty(bind, ty) =&gt; {
+                <span class="self">self</span>.gather_params_ty(<span class="kw-2">*</span>bind, ty, TypePos::Input, binders)<span class="question-mark">?</span>;
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>gather_params_ty(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        bind: <span class="prelude-ty">Option</span>&lt;surface::Ident&gt;,
+        ty: <span class="kw-2">&amp;</span>surface::Ty,
+        pos: TypePos,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
+            surface::TyKind::Indexed { bty, indices } =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(<span class="self">self</span>.genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
+                }
+                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = index_sort(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, bty) <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::RefinedUnrefinableType::new(ty.span)));
+                };
+                <span class="self">self</span>.gather_params_indices(sort, indices, pos, binders)<span class="question-mark">?</span>;
+                <span class="self">self</span>.gather_params_bty(bty, pos, binders)
+            }
+            surface::TyKind::Base(bty) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(
+                        <span class="self">self</span>.genv.sess,
+                        bind,
+                        binders.binder_from_bty(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, bty),
+                    )<span class="question-mark">?</span>;
+                }
+                <span class="self">self</span>.gather_params_bty(bty, pos, binders)
+            }
+
+            surface::TyKind::Ref(<span class="kw">_</span>, ty) | surface::TyKind::Constr(<span class="kw">_</span>, ty) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(<span class="self">self</span>.genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
+                }
+                <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, pos, binders)
+            }
+            surface::TyKind::Tuple(tys) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(<span class="self">self</span>.genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
+                }
+                <span class="kw">for </span>ty <span class="kw">in </span>tys {
+                    <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, pos, binders)<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+            surface::TyKind::Array(ty, <span class="kw">_</span>) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(<span class="self">self</span>.genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
+                }
+                <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Other, binders)
+            }
+            surface::TyKind::Exists { bty, .. } =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(<span class="self">self</span>.genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
+                }
+                <span class="self">self</span>.gather_params_bty(bty, pos, binders)
+            }
+            surface::TyKind::GeneralExists { ty, .. } =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
+                    binders.insert_binder(<span class="self">self</span>.genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
+                }
+                <span class="comment">// Declaring parameters with @ inside and existential has weird behavior if names
+                // are being shadowed. Thus, we don&#39;t allow it to keep things simple. We could eventually
+                // allow it if we resolve the weird behavior by detecting shadowing.
+                </span><span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Other, binders)
+            }
+            surface::TyKind::ImplTrait(<span class="kw">_</span>, bounds) =&gt; {
+                <span class="kw">for </span>bound <span class="kw">in </span>bounds {
+                    <span class="self">self</span>.gather_params_path(<span class="kw-2">&amp;</span>bound.path, TypePos::Other, binders)<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+        }
+    }
+
+    <span class="kw">fn </span>gather_params_indices(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        sort: fhir::Sort,
+        indices: <span class="kw-2">&amp;</span>surface::Indices,
+        pos: TypePos,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span>[surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
+            <span class="kw">if </span>!pos.is_binder_allowed(kind) {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::IllegalBinder::new(span, kind)));
+            }
+            binders.insert_binder(<span class="self">self</span>.genv.sess, ident, binders.binder_from_sort(sort))<span class="question-mark">?</span>;
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>sorts = as_tuple(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>sort);
+            <span class="kw">if </span>sorts.len() != indices.indices.len() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::RefineArgCountMismatch::new(
+                    indices.span,
+                    sorts.len(),
+                    indices.indices.len(),
+                )));
+            }
+
+            <span class="kw">for </span>(idx, sort) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>indices.indices, sorts) {
+                <span class="kw">if let </span>surface::RefineArg::Bind(ident, kind, span) = idx {
+                    <span class="kw">if </span>!pos.is_binder_allowed(<span class="kw-2">*</span>kind) {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::IllegalBinder::new(<span class="kw-2">*</span>span, <span class="kw-2">*</span>kind)));
+                    }
+                    binders.insert_binder(
+                        <span class="self">self</span>.genv.sess,
+                        <span class="kw-2">*</span>ident,
+                        binders.binder_from_sort(sort.clone()),
+                    )<span class="question-mark">?</span>;
+                }
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>gather_params_path(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        path: <span class="kw-2">&amp;</span>surface::Path,
+        pos: TypePos,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="comment">// CODESYNC(type-holes, 3)
+        </span><span class="kw">if </span>path.is_hole() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
+        <span class="kw">let </span>pos = <span class="kw">if </span><span class="self">self</span>.genv.is_box(res) { pos } <span class="kw">else </span>{ TypePos::Other };
+        path.generics
+            .iter()
+            .try_for_each_exhaust(|arg| <span class="self">self</span>.gather_params_generic_arg(arg, pos, binders))
+    }
+
+    <span class="kw">fn </span>gather_params_generic_arg(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        arg: <span class="kw-2">&amp;</span>surface::GenericArg,
+        pos: TypePos,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">match </span>arg {
+            surface::GenericArg::Type(ty) =&gt; <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, pos, binders),
+            surface::GenericArg::Constraint(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, pos, binders),
+        }
+    }
+
+    <span class="kw">fn </span>gather_params_bty(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        bty: <span class="kw-2">&amp;</span>surface::BaseTy,
+        pos: TypePos,
+        binders: <span class="kw-2">&amp;mut </span>Binders,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
+            surface::BaseTyKind::Path(path) =&gt; <span class="self">self</span>.gather_params_path(path, pos, binders),
+            surface::BaseTyKind::Slice(ty) =&gt; {
+                <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Other, binders)
+            }
+        }
+    }
+}
+
 <span class="kw">fn </span>resolve_sort(
     sess: <span class="kw-2">&amp;</span>FluxSession,
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     sort: <span class="kw-2">&amp;</span>surface::Sort,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
     <span class="kw">match </span>sort {
         surface::Sort::Base(sort) =&gt; resolve_base_sort(sess, sort_decls, sort),
         surface::Sort::Func { inputs, output } =&gt; {
@@ -2985,20 +3180,20 @@
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     inputs: <span class="kw-2">&amp;</span>[surface::BaseSort],
     output: <span class="kw-2">&amp;</span>surface::BaseSort,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FuncSort, ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>inputs_and_output: Vec&lt;fhir::Sort&gt; = inputs
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyFuncSort&gt; {
+    <span class="kw">let </span>inputs: Vec&lt;fhir::Sort&gt; = inputs
         .iter()
         .map(|sort| resolve_base_sort(sess, sort_decls, sort))
         .try_collect_exhaust()<span class="question-mark">?</span>;
-    inputs_and_output.push(resolve_base_sort(sess, sort_decls, output)<span class="question-mark">?</span>);
-    <span class="prelude-val">Ok</span>(fhir::FuncSort { inputs_and_output: List::from_vec(inputs_and_output) })
+    <span class="kw">let </span>output = resolve_base_sort(sess, sort_decls, output)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(fhir::PolyFuncSort::new(<span class="number">0</span>, inputs, output))
 }
 
 <span class="kw">fn </span>resolve_base_sort(
     sess: <span class="kw-2">&amp;</span>FluxSession,
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     base: <span class="kw-2">&amp;</span>surface::BaseSort,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
     <span class="kw">match </span>base {
         surface::BaseSort::Ident(ident) =&gt; resolve_base_sort_ident(sess, sort_decls, ident),
         surface::BaseSort::BitVec(w) =&gt; <span class="prelude-val">Ok</span>(fhir::Sort::BitVec(<span class="kw-2">*</span>w)),
@@ -3006,12 +3201,11 @@
     }
 }
 
-<span class="kw">fn </span>resolve_sort_ctor(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    ident: surface::Ident,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::SortCtor, ErrorGuaranteed&gt; {
+<span class="kw">fn </span>resolve_sort_ctor(sess: <span class="kw-2">&amp;</span>FluxSession, ident: surface::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::SortCtor&gt; {
     <span class="kw">if </span>ident.name == SORTS.set {
         <span class="prelude-val">Ok</span>(fhir::SortCtor::Set)
+    } <span class="kw">else if </span>ident.name == SORTS.map {
+        <span class="prelude-val">Ok</span>(fhir::SortCtor::Map)
     } <span class="kw">else </span>{
         <span class="prelude-val">Err</span>(sess.emit_err(errors::UnresolvedSort::new(ident)))
     }
@@ -3022,7 +3216,7 @@
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     ident: surface::Ident,
     args: <span class="kw-2">&amp;</span>Vec&lt;surface::BaseSort&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
     <span class="kw">let </span>ctor = resolve_sort_ctor(sess, ident)<span class="question-mark">?</span>;
     <span class="kw">let </span>arity = ctor.arity();
     <span class="kw">if </span>args.len() == arity {
@@ -3040,7 +3234,7 @@
     sess: <span class="kw-2">&amp;</span>FluxSession,
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     ident: <span class="kw-2">&amp;</span>surface::Ident,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
     <span class="kw">if </span>ident.name == SORTS.int {
         <span class="prelude-val">Ok</span>(fhir::Sort::Int)
     } <span class="kw">else if </span>ident.name == sym::bool {
@@ -3063,7 +3257,7 @@
     <span class="kw">fn </span>from_params&lt;<span class="lifetime">&#39;a</span>&gt;(
         genv: <span class="kw-2">&amp;</span>GlobalEnv,
         params: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>surface::RefineParam&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>binders = <span class="self">Self</span>::new();
         binders.push_layer();
         binders.insert_params(genv, params)<span class="question-mark">?</span>;
@@ -3074,7 +3268,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span>GlobalEnv,
         params: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>surface::RefineParam&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">for </span>param <span class="kw">in </span>params {
             <span class="self">self</span>.insert_binder(
                 genv.sess,
@@ -3102,269 +3296,8 @@
         sess: <span class="kw-2">&amp;</span>FluxSession,
         ident: surface::Ident,
         binder: Binder,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="self">self</span>.top_layer().insert(sess, ident, binder)
-    }
-
-    <span class="kw">fn </span>gather_params_variant(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        variant_def: <span class="kw-2">&amp;</span>surface::VariantDef&lt;Res&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">for </span>ty <span class="kw">in </span><span class="kw-2">&amp;</span>variant_def.fields {
-            <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Input)<span class="question-mark">?</span>;
-        }
-        <span class="comment">// Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
-        </span><span class="self">self</span>.gather_params_variant_ret(genv, <span class="kw-2">&amp;</span>variant_def.ret)<span class="question-mark">?</span>;
-
-        <span class="comment">// Check binders in `VariantRet`
-        </span>variant_def
-            .ret
-            .indices
-            .indices
-            .iter()
-            .try_for_each_exhaust(|idx| {
-                <span class="kw">if let </span>surface::RefineArg::Bind(<span class="kw">_</span>, kind, span) = idx {
-                    <span class="prelude-val">Err</span>(genv.sess.emit_err(errors::IllegalBinder::new(<span class="kw-2">*</span>span, <span class="kw-2">*</span>kind)))
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Ok</span>(())
-                }
-            })
-    }
-
-    <span class="kw">fn </span>gather_params_variant_ret(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        ret: <span class="kw-2">&amp;</span>surface::VariantRet&lt;Res&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="self">self</span>.gather_params_path(genv, <span class="kw-2">&amp;</span>ret.path, TypePos::Other)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_res(ret.path.res) <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(genv
-                .sess
-                .emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
-        };
-        <span class="self">self</span>.gather_params_indices(genv, sort, <span class="kw-2">&amp;</span>ret.indices, TypePos::Other)
-    }
-
-    <span class="kw">fn </span>gather_params_predicates(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        predicates: <span class="kw-2">&amp;</span>[surface::WhereBoundPredicate&lt;Res&gt;],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
-            <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>predicate.bounded_ty, TypePos::Other)<span class="question-mark">?</span>;
-            <span class="kw">for </span>bound <span class="kw">in </span><span class="kw-2">&amp;</span>predicate.bounds {
-                <span class="self">self</span>.gather_params_path(genv, <span class="kw-2">&amp;</span>bound.path, TypePos::Other)<span class="question-mark">?</span>;
-            }
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>gather_input_params_fn_sig(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        fn_sig: <span class="kw-2">&amp;</span>surface::FnSig&lt;Res&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">for </span>param <span class="kw">in </span>fn_sig.generics.iter().flat_map(|g| <span class="kw-2">&amp;</span>g.params) {
-            <span class="kw">let </span>surface::GenericParamKind::Refine { sort } = <span class="kw-2">&amp;</span>param.kind <span class="kw">else </span>{ <span class="kw">continue </span>};
-            <span class="self">self</span>.insert_binder(
-                genv.sess,
-                param.name,
-                Binder::Refined(
-                    <span class="self">self</span>.fresh(),
-                    resolve_sort(genv.sess, genv.map().sort_decls(), sort)<span class="question-mark">?</span>,
-                    <span class="bool-val">false</span>,
-                ),
-            )<span class="question-mark">?</span>;
-        }
-        <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.args {
-            <span class="self">self</span>.gather_params_fun_arg(genv, arg)<span class="question-mark">?</span>;
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>gather_output_params_fn_sig(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        fn_sig: <span class="kw-2">&amp;</span>surface::FnSig&lt;Res&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if let </span>surface::FnRetTy::Ty(ty) = <span class="kw-2">&amp;</span>fn_sig.returns {
-            <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Output)<span class="question-mark">?</span>;
-        }
-        <span class="kw">for </span>cstr <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.ensures {
-            <span class="kw">if let </span>surface::Constraint::Type(<span class="kw">_</span>, ty) = cstr {
-                <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Output)<span class="question-mark">?</span>;
-            };
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>gather_params_fun_arg(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        arg: <span class="kw-2">&amp;</span>surface::Arg&lt;Res&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span>arg {
-            surface::Arg::Constr(bind, path, <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.insert_binder(genv.sess, <span class="kw-2">*</span>bind, <span class="self">self</span>.binder_from_res(genv, path.res))<span class="question-mark">?</span>;
-            }
-            surface::Arg::StrgRef(loc, ty) =&gt; {
-                <span class="self">self</span>.insert_binder(
-                    genv.sess,
-                    <span class="kw-2">*</span>loc,
-                    Binder::Refined(<span class="self">self</span>.fresh(), fhir::Sort::Loc, <span class="bool-val">false</span>),
-                )<span class="question-mark">?</span>;
-                <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Input)<span class="question-mark">?</span>;
-            }
-            surface::Arg::Ty(bind, ty) =&gt; {
-                <span class="self">self</span>.gather_params_ty(genv, <span class="kw-2">*</span>bind, ty, TypePos::Input)<span class="question-mark">?</span>;
-            }
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>gather_params_ty(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        bind: <span class="prelude-ty">Option</span>&lt;surface::Ident&gt;,
-        ty: <span class="kw-2">&amp;</span>surface::Ty&lt;Res&gt;,
-        pos: TypePos,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-            surface::TyKind::Indexed { bty, indices } =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
-                }
-                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = index_sort(genv, bty) <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(genv
-                        .sess
-                        .emit_err(errors::RefinedUnrefinableType::new(ty.span)));
-                };
-                <span class="self">self</span>.gather_params_indices(genv, sort, indices, pos)<span class="question-mark">?</span>;
-                <span class="self">self</span>.gather_params_bty(genv, bty, pos)
-            }
-            surface::TyKind::Base(bty) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, <span class="self">self</span>.binder_from_bty(genv, bty))<span class="question-mark">?</span>;
-                }
-                <span class="self">self</span>.gather_params_bty(genv, bty, pos)
-            }
-
-            surface::TyKind::Ref(<span class="kw">_</span>, ty) | surface::TyKind::Constr(<span class="kw">_</span>, ty) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
-                }
-                <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, pos)
-            }
-            surface::TyKind::Tuple(tys) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
-                }
-                <span class="kw">for </span>ty <span class="kw">in </span>tys {
-                    <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, pos)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-            surface::TyKind::Array(ty, <span class="kw">_</span>) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
-                }
-                <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Other)
-            }
-            surface::TyKind::Exists { bty, .. } =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
-                }
-                <span class="self">self</span>.gather_params_bty(genv, bty, pos)
-            }
-            surface::TyKind::GeneralExists { ty, .. } =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="self">self</span>.insert_binder(genv.sess, bind, Binder::Unrefined)<span class="question-mark">?</span>;
-                }
-                <span class="comment">// Declaring parameters with @ inside and existential has weird behavior if names
-                // are being shadowed. Thus, we don&#39;t allow it to keep things simple. We could eventually
-                // allow it if we resolve the weird behavior by detecting shadowing.
-                </span><span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Other)
-            }
-            surface::TyKind::Hole =&gt; <span class="prelude-val">Ok</span>(()),
-            surface::TyKind::ImplTrait(<span class="kw">_</span>, bounds) =&gt; {
-                <span class="kw">for </span>bound <span class="kw">in </span>bounds {
-                    <span class="self">self</span>.gather_params_path(genv, <span class="kw-2">&amp;</span>bound.path, TypePos::Other)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-        }
-    }
-
-    <span class="kw">fn </span>gather_params_indices(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        sort: fhir::Sort,
-        indices: <span class="kw-2">&amp;</span>surface::Indices,
-        pos: TypePos,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if let </span>[surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
-            <span class="kw">if </span>!pos.is_binder_allowed(kind) {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess.emit_err(errors::IllegalBinder::new(span, kind)));
-            }
-            <span class="self">self</span>.insert_binder(genv.sess, ident, <span class="self">self</span>.binder_from_sort(sort))<span class="question-mark">?</span>;
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>sorts = as_tuple(genv, <span class="kw-2">&amp;</span>sort);
-            <span class="kw">if </span>sorts.len() != indices.indices.len() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess.emit_err(errors::RefineArgCountMismatch::new(
-                    indices.span,
-                    sorts.len(),
-                    indices.indices.len(),
-                )));
-            }
-
-            <span class="kw">for </span>(idx, sort) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>indices.indices, sorts) {
-                <span class="kw">if let </span>surface::RefineArg::Bind(ident, kind, span) = idx {
-                    <span class="kw">if </span>!pos.is_binder_allowed(<span class="kw-2">*</span>kind) {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess.emit_err(errors::IllegalBinder::new(<span class="kw-2">*</span>span, <span class="kw-2">*</span>kind)));
-                    }
-                    <span class="self">self</span>.insert_binder(genv.sess, <span class="kw-2">*</span>ident, <span class="self">self</span>.binder_from_sort(sort.clone()))<span class="question-mark">?</span>;
-                }
-            }
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>gather_params_path(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        path: <span class="kw-2">&amp;</span>surface::Path&lt;Res&gt;,
-        pos: TypePos,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">let </span>pos = <span class="kw">if </span>genv.is_box(path.res) { pos } <span class="kw">else </span>{ TypePos::Other };
-        path.generics
-            .iter()
-            .try_for_each_exhaust(|arg| <span class="self">self</span>.gather_params_generic_arg(genv, arg, pos))
-    }
-
-    <span class="kw">fn </span>gather_params_generic_arg(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        arg: <span class="kw-2">&amp;</span>surface::GenericArg&lt;Res&gt;,
-        pos: TypePos,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span>arg {
-            surface::GenericArg::Type(ty) =&gt; <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, pos),
-            surface::GenericArg::Constraint(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, pos),
-        }
-    }
-
-    <span class="kw">fn </span>gather_params_bty(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        bty: <span class="kw-2">&amp;</span>surface::BaseTy&lt;Res&gt;,
-        pos: TypePos,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-            surface::BaseTyKind::Path(path) =&gt; <span class="self">self</span>.gather_params_path(genv, path, pos),
-            surface::BaseTyKind::Slice(ty) =&gt; <span class="self">self</span>.gather_params_ty(genv, <span class="prelude-val">None</span>, ty, TypePos::Other),
-        }
     }
 
     <span class="kw">fn </span>bot_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Layer {
@@ -3399,8 +3332,13 @@
         }
     }
 
-    <span class="kw">fn </span>binder_from_bty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, bty: <span class="kw-2">&amp;</span>surface::BaseTy&lt;Res&gt;) -&gt; Binder {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = index_sort(genv, bty) {
+    <span class="kw">fn </span>binder_from_bty(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
+        bty: <span class="kw-2">&amp;</span>surface::BaseTy,
+    ) -&gt; Binder {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = index_sort(genv, resolver_output, bty) {
             <span class="self">self</span>.binder_from_sort(sort)
         } <span class="kw">else </span>{
             Binder::Unrefined
@@ -3448,12 +3386,7 @@
         <span class="self">self</span>.map.get(key.borrow())
     }
 
-    <span class="kw">fn </span>insert(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        sess: <span class="kw-2">&amp;</span>FluxSession,
-        ident: surface::Ident,
-        binder: Binder,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sess: <span class="kw-2">&amp;</span>FluxSession, ident: surface::Ident, binder: Binder) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">match </span><span class="self">self</span>.map.entry(ident) {
             IndexEntry::Occupied(entry) =&gt; {
                 <span class="prelude-val">Err</span>(sess.emit_err(errors::DuplicateParam::new(<span class="kw-2">*</span>entry.key(), ident)))
@@ -3471,7 +3404,7 @@
         span: Span,
     ) -&gt; Vec&lt;fhir::RefineArg&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>refine_args = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>(ident, binder) <span class="kw">in </span><span class="self">self</span>.map.iter() {
+        <span class="kw">for </span>(ident, binder) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.map {
             <span class="kw">match </span>binder {
                 Binder::Refined(name, <span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                     <span class="kw">let </span>ident = fhir::Ident::new(<span class="kw-2">*</span>name, <span class="kw-2">*</span>ident);
@@ -3502,9 +3435,16 @@
     }
 }
 
-<span class="kw">fn </span>index_sort(genv: <span class="kw-2">&amp;</span>GlobalEnv, bty: <span class="kw-2">&amp;</span>surface::BaseTy&lt;Res&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
+<span class="kw">fn </span>index_sort(
+    genv: <span class="kw-2">&amp;</span>GlobalEnv,
+    resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
+    bty: <span class="kw-2">&amp;</span>surface::BaseTy,
+) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-        surface::BaseTyKind::Path(path) =&gt; genv.sort_of_res(path.res),
+        surface::BaseTyKind::Path(path) =&gt; {
+            <span class="kw">let </span>res = resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
+            genv.sort_of_res(res)
+        }
         surface::BaseTyKind::Slice(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Int),
     }
 }
@@ -3557,10 +3497,16 @@
     int: Symbol,
     real: Symbol,
     set: Symbol,
+    map: Symbol,
 }
 
 <span class="kw">static </span>SORTS: std::sync::LazyLock&lt;Sorts&gt; = std::sync::LazyLock::new(|| {
-    Sorts { int: Symbol::intern(<span class="string">&quot;int&quot;</span>), real: Symbol::intern(<span class="string">&quot;real&quot;</span>), set: Symbol::intern(<span class="string">&quot;Set&quot;</span>) }
+    Sorts {
+        int: Symbol::intern(<span class="string">&quot;int&quot;</span>),
+        real: Symbol::intern(<span class="string">&quot;real&quot;</span>),
+        set: Symbol::intern(<span class="string">&quot;Set&quot;</span>),
+        map: Symbol::intern(<span class="string">&quot;Map&quot;</span>),
+    }
 });
 
 <span class="kw">mod </span>errors {
