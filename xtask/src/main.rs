@@ -23,7 +23,10 @@ xflags::xflags! {
             repeated opts: OsString
         }
         /// Install flux binaries to ~/.cargo/bin
-        cmd install { }
+        cmd install {
+            /// Build the flux-driver binary in debug mode (with the 'dev' profile) instead of release mode
+            optional --debug
+        }
         /// Build the documentation
         cmd doc {
             optional -o,--open
@@ -80,8 +83,13 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn install(sh: Shell, _: Install) -> anyhow::Result<()> {
-    cmd!(sh, "cargo install --path crates/flux-driver --force").run()?;
+fn install(sh: Shell, args: Install) -> anyhow::Result<()> {
+    let Install { debug } = args;
+    let mut opts = vec!["--force"];
+    if debug {
+        opts.push("--debug");
+    }
+    cmd!(sh, "cargo install --path crates/flux-driver {opts...}").run()?;
     cmd!(sh, "cargo install --path crates/flux-bin --force").run()?;
     Ok(())
 }
