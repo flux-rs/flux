@@ -533,7 +533,7 @@ impl PolyFuncSort {
             .skip_binders()
             .inputs_and_output
             .iter()
-            .map(|sort| sort.subst(&args))
+            .map(|sort| sort.subst(args))
             .collect();
         FuncSort { inputs_and_output }
     }

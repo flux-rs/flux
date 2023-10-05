@@ -8,7 +8,7 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{ParamTy, ToPredicate, TyCtxt},
+    ty::{ParamTy, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -24,17 +24,17 @@ use crate::{
     rustc::ty::{BoundRegionKind, FreeRegion},
 };
 
-pub(crate) struct Normalizer<'sess, 'tcx, 'a> {
+pub(crate) struct Normalizer<'sess, 'tcx, 'cx> {
     genv: &'sess GlobalEnv<'sess, 'tcx>,
-    selcx: SelectionContext<'a, 'tcx>,
+    selcx: SelectionContext<'cx, 'tcx>,
     def_id: DefId,
     param_env: Vec<Clause>,
 }
 
-impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
+impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
     pub(crate) fn new(
         genv: &'sess GlobalEnv<'sess, 'tcx>,
-        infcx: &'a InferCtxt<'tcx>,
+        infcx: &'cx InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],
     ) -> QueryResult<Self> {
@@ -79,6 +79,7 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
                     .unwrap()
                     .skip_binder()
                     .self_ty();
+
                 let generics = TVarSubst::mk_subst(&rustc_self_ty, obligation.self_ty());
 
                 // 2. Get the associated type in the impl block and apply the substitution to it
@@ -89,6 +90,7 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
                     .find(|item| item.trait_item_def_id == Some(obligation.def_id))
                     .map(|item| item.def_id)
                     .unwrap();
+
                 Ok(self
                     .genv
                     .type_of(assoc_type_id)?
@@ -133,14 +135,13 @@ impl<'sess, 'tcx, 'a> Normalizer<'sess, 'tcx, 'a> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult<()> {
-        let trait_pred = Obligation {
-            cause: ObligationCause::dummy(),
-            param_env: self.rustc_param_env(),
-            predicate: into_rustc_alias_ty(self.tcx(), obligation)
-                .trait_ref(self.tcx())
-                .to_predicate(self.tcx()),
-            recursion_depth: 5,
-        };
+        let trait_pred = Obligation::with_depth(
+            self.tcx(),
+            ObligationCause::dummy(),
+            5,
+            self.rustc_param_env(),
+            into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
+        );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
                 candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
@@ -187,6 +188,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 }
 
+#[derive(Debug)]
 pub enum Candidate {
     UserDefinedImpl(DefId),
     ParamEnv(ProjectionPredicate),
