@@ -1581,6 +1581,7 @@ fn index_sort(
     resolver_output: &ResolverOutput,
     bty: &surface::BaseTy,
 ) -> Option<fhir::Sort> {
+    // CODESYNC(sort-of, 4) sorts should be given consistently
     match &bty.kind {
         surface::BaseTyKind::Path(path) => {
             let res = resolver_output.path_res_map[&path.node_id];

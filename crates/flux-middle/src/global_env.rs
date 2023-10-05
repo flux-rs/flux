@@ -200,35 +200,53 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn sort_of_res(&self, res: fhir::Res) -> Option<fhir::Sort> {
-        let sort = match res {
-            fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => fhir::Sort::Int,
-            fhir::Res::PrimTy(PrimTy::Bool) => fhir::Sort::Bool,
-            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => fhir::Sort::Unit,
+        // CODESYNC(sort-of, 4) sorts should be given consistently
+        match res {
+            fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
+            fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
+            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => {
+                Some(fhir::Sort::Unit)
+            }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
-                fhir::Sort::Record(def_id)
+                Some(fhir::Sort::Record(def_id))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => {
                 let self_ty = self.tcx.type_of(alias_to).skip_binder();
-                if let rustc_type_ir::TyKind::Adt(adt_def, _) = self_ty.kind() {
-                    fhir::Sort::Record(adt_def.did())
-                } else {
-                    bug!("unexpected res {res:?}")
-                }
+                self.sort_of_self_ty(self_ty)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
                 let param = self.get_generic_param(def_id.expect_local());
                 match &param.kind {
-                    fhir::GenericParamKind::BaseTy => fhir::Sort::Param(def_id),
-                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => {
-                        return None
-                    }
+                    fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
+                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
                 }
             }
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
-            | fhir::Res::SelfTyParam { .. } => return None,
+            | fhir::Res::SelfTyParam { .. } => None,
             fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
-        };
-        Some(sort)
+        }
+    }
+
+    fn sort_of_self_ty(&self, ty: rustc_middle::ty::Ty) -> Option<fhir::Sort> {
+        use rustc_middle::ty;
+        // CODESYNC(sort-of, 4) sorts should be given consistently
+        match ty.kind() {
+            ty::TyKind::Bool => Some(fhir::Sort::Bool),
+            ty::TyKind::Slice(_) | ty::TyKind::Int(_) | ty::TyKind::Uint(_) => {
+                Some(fhir::Sort::Int)
+            }
+            ty::TyKind::Adt(adt_def, _) => Some(fhir::Sort::Record(adt_def.did())),
+            ty::TyKind::Param(_) => todo!(),
+            ty::TyKind::Float(_)
+            | ty::TyKind::Str
+            | ty::TyKind::Char
+            | ty::TyKind::RawPtr(_)
+            | ty::TyKind::Ref(..)
+            | ty::TyKind::Tuple(_)
+            | ty::TyKind::Array(..)
+            | ty::TyKind::Never => Some(fhir::Sort::Unit),
+            _ => bug!("unexpected self ty {ty:?}"),
+        }
     }
 
     pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
