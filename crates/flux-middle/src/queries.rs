@@ -268,7 +268,8 @@ impl<'tcx> Queries<'tcx> {
             } else {
                 let generics = genv.generics_of(def_id)?;
                 let ty = genv.lower_type_of(def_id)?.skip_binder();
-                Ok(rty::EarlyBinder(Refiner::default(genv, &generics).refine_poly_ty(&ty)?))
+                let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
+                Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
             }
         })
     }
