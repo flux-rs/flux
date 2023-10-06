@@ -3,7 +3,6 @@ use std::iter;
 #[allow(unused_imports)]
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -80,7 +79,10 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
                     .skip_binder()
                     .self_ty();
 
-                let generics = TVarSubst::mk_subst(&rustc_self_ty, obligation.self_ty());
+                let generics = self.tcx().generics_of(impl_def_id);
+
+                let args =
+                    TVarSubst::mk_subst(self.tcx(), generics, &rustc_self_ty, obligation.self_ty());
 
                 // 2. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = self
@@ -94,7 +96,7 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
                 Ok(self
                     .genv
                     .type_of(assoc_type_id)?
-                    .instantiate(&generics, &[])
+                    .instantiate(&args, &[])
                     .into_ty())
             }
         }
@@ -321,25 +323,37 @@ fn into_rustc_bound_region(bound_region: BoundRegion) -> rustc_middle::ty::Bound
 
 #[derive(Debug)]
 struct TVarSubst {
-    map: FxHashMap<ParamTy, Ty>,
+    args: Vec<Option<GenericArg>>,
 }
 
 impl TVarSubst {
-    fn mk_subst(src: &rustc_middle::ty::Ty, dst: &Ty) -> Vec<GenericArg> {
-        let mut subst = TVarSubst { map: FxHashMap::default() };
+    fn mk_subst<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        generics: &'tcx rustc_middle::ty::Generics,
+        src: &rustc_middle::ty::Ty,
+        dst: &Ty,
+    ) -> Vec<GenericArg> {
+        let mut subst = TVarSubst { args: vec![None; generics.count()] };
         subst.infer_from_ty(src, dst);
         subst
-            .map
-            .iter()
-            .sorted_by_key(|(pty, _)| pty.index)
-            .map(|(_, ty)| GenericArg::Ty(ty.clone()))
+            .args
+            .into_iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                if let Some(arg) = arg {
+                    arg
+                } else {
+                    let param = generics.param_at(idx, tcx);
+                    bug!("cannot infer substitution for param {param:?}");
+                }
+            })
             .collect()
     }
 
-    fn insert(&mut self, pty: &ParamTy, ty: &Ty) {
-        match self.map.insert(*pty, ty.clone()) {
-            None => (),
-            Some(_) => bug!("duplicate insert"),
+    fn insert_param_ty(&mut self, pty: ParamTy, ty: &Ty) {
+        let arg = GenericArg::Ty(ty.clone());
+        if self.args[pty.index as usize].replace(arg).is_some() {
+            bug!("duplicate insert");
         }
     }
 
@@ -351,34 +365,34 @@ impl TVarSubst {
 
     fn infer_from_ty(&mut self, src: &rustc_middle::ty::Ty, dst: &Ty) {
         use rustc_middle::ty;
-        match src.kind().clone() {
-            ty::TyKind::Param(pty) => self.insert(&pty, dst),
+        match src.kind() {
+            ty::TyKind::Param(pty) => self.insert_param_ty(*pty, dst),
             ty::TyKind::Adt(_, src_subst) => {
                 // NOTE: see https://github.com/flux-rs/flux/pull/478#issuecomment-1650983695
-                if let Some(dst) = dst.as_bty_skipping_existentials() &&
-                   !dst.has_escaping_bvars() &&
-                   let BaseTy::Adt(_, dst_subst) = dst.clone()
-                   {
-                        debug_assert_eq!(src_subst.len(), dst_subst.len());
-                        iter::zip(src_subst, &dst_subst)
-                            .for_each(|(src_arg, dst_arg)| self.infer_from_arg(&src_arg, dst_arg));
-                   } else {
-                        bug!("unexpected base_ty");
-                   }
+                if let Some(dst) = dst.as_bty_skipping_existentials()
+                    && !dst.has_escaping_bvars()
+                    && let BaseTy::Adt(_, dst_subst) = dst
+                {
+                    debug_assert_eq!(src_subst.len(), dst_subst.len());
+                    for (src_arg, dst_arg) in iter::zip(*src_subst, dst_subst) {
+                        self.infer_from_arg(&src_arg, dst_arg);
+                    }
+                } else {
+                    bug!("unexpected type {dst:?}");
+                }
             }
             ty::TyKind::Array(src, _) => {
                 if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(&src, dst);
+                    self.infer_from_ty(src, dst);
                 } else {
-                    bug!("unexpected base_ty");
+                    bug!("unexpected type {dst:?}");
                 }
             }
-
             ty::TyKind::Slice(src) => {
                 if let Some(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(&src, dst);
+                    self.infer_from_ty(src, dst);
                 } else {
-                    bug!("unexpected base_ty");
+                    bug!("unexpected type {dst:?}");
                 }
             }
             ty::TyKind::Tuple(src_tys) => {
@@ -387,7 +401,7 @@ impl TVarSubst {
                     iter::zip(src_tys.iter(), dst_tys.iter())
                         .for_each(|(src, dst)| self.infer_from_ty(&src, dst));
                 } else {
-                    bug!("unexpected base_ty");
+                    bug!("unexpected type {dst:?}");
                 }
             }
             _ => {}
