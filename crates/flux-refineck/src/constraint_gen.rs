@@ -466,7 +466,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn fresh_kvar(&mut self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
+    pub(crate) fn fresh_kvar(&mut self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
         self.kvar_gen.fresh(sorts, encoding)
     }
 

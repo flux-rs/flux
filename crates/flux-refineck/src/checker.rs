@@ -1101,6 +1101,10 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .with_span(span)?;
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place),
+            GhostStatement::PtrToBorrow(place) => {
+                let gen = &mut self.constr_gen(rcx, span);
+                env.ptr_to_borrow(rcx, gen, place).with_span(span)?;
+            }
         }
         dbg::statement!("end", stmt, rcx, env);
         Ok(())

@@ -530,7 +530,7 @@ impl PolyFuncSort {
 
     pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
         let inputs_and_output = self
-            .skip_binders()
+            .fsort
             .inputs_and_output
             .iter()
             .map(|sort| sort.subst(args))

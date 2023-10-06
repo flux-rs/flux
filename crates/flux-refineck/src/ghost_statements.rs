@@ -1,4 +1,7 @@
+//! Ghost statements are statements that are not part of the original mir, but are added from information
+//! extracted from the compiler or some additional analysis.
 mod fold_unfold;
+mod points_to;
 
 use std::{fmt, io, iter};
 
@@ -18,17 +21,18 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{mir::Location, ty::TyCtxt};
 
 pub(crate) struct GhostStatements {
-    pub at_location: LocationMap,
-    pub at_goto: GotoMap,
+    at_location: LocationMap,
+    at_edge: EdgeMap,
 }
 
 type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
-type GotoMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
+type EdgeMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
 
 pub(crate) enum GhostStatement {
     Fold(Place),
     Unfold(Place),
     Unblock(Place),
+    PtrToBorrow(Place),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -51,31 +55,13 @@ pub(crate) fn compute_ghost_statements(
 impl GhostStatements {
     fn new(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
-        let fold_unfolds = fold_unfold::run_analysis(genv, &body)?;
-        let mut at_location = LocationMap::default();
-        let mut at_goto = GotoMap::default();
-        for (point, stmts) in fold_unfolds.into_statements() {
-            match point {
-                Point::Location(location) => at_location.entry(location).or_default().extend(stmts),
-                Point::Edge(from, to) => {
-                    at_goto
-                        .entry(from)
-                        .or_default()
-                        .entry(to)
-                        .or_default()
-                        .extend(stmts);
-                }
-            }
-        }
-        for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
-            let stmts = borrows.into_iter().map(|bidx| {
-                let borrow = body.borrow_data(bidx);
-                let place = lowering::lower_place(&borrow.borrowed_place).unwrap();
-                GhostStatement::Unblock(place)
-            });
-            at_location.entry(location).or_default().extend(stmts);
-        }
-        let stmts = Self { at_location, at_goto };
+
+        let mut stmts = Self { at_location: LocationMap::default(), at_edge: EdgeMap::default() };
+
+        fold_unfold::add_ghost_statements(&mut stmts, genv, &body)?;
+        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), def_id)?;
+        stmts.add_unblocks(&body);
+
         if config::dump_mir() {
             let mut writer =
                 dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
@@ -84,11 +70,46 @@ impl GhostStatements {
         Ok(stmts)
     }
 
+    fn add_unblocks(&mut self, body: &Body) {
+        for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
+            let stmts = borrows.into_iter().map(|bidx| {
+                let borrow = body.borrow_data(bidx);
+                let place = lowering::lower_place(&borrow.borrowed_place).unwrap();
+                GhostStatement::Unblock(place)
+            });
+            self.at_location.entry(location).or_default().extend(stmts);
+        }
+    }
+
+    fn insert_at(&mut self, point: Point, stmt: GhostStatement) {
+        self.extend_at(point, [stmt]);
+    }
+
+    fn extend_at(&mut self, point: Point, stmts: impl IntoIterator<Item = GhostStatement>) {
+        match point {
+            Point::Location(location) => {
+                self.at_location.entry(location).or_default().extend(stmts);
+            }
+            Point::Edge(from, to) => {
+                self.at_edge
+                    .entry(from)
+                    .or_default()
+                    .entry(to)
+                    .or_default()
+                    .extend(stmts);
+            }
+        }
+    }
+
+    fn at(&mut self, point: Point) -> StatementsAt {
+        StatementsAt { stmts: self, point }
+    }
+
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {
         match point {
             Point::Location(location) => self.at_location.get(&location).into_iter().flatten(),
             Point::Edge(from, to) => {
-                self.at_goto
+                self.at_edge
                     .get(&from)
                     .and_then(|m| m.get(&to))
                     .into_iter()
@@ -115,7 +136,7 @@ impl GhostStatements {
                         }
                     }
                     PassWhere::AfterTerminator(bb) => {
-                        if let Some(map) = self.at_goto.get(&bb) {
+                        if let Some(map) = self.at_edge.get(&bb) {
                             writeln!(w)?;
                             for (target, stmts) in map {
                                 write!(w, "        -> {target:?} {{")?;
@@ -124,6 +145,7 @@ impl GhostStatements {
                                 }
                                 write!(w, "\n        }}")?;
                             }
+                            writeln!(w)?;
                         }
                     }
                     _ => {}
@@ -132,6 +154,17 @@ impl GhostStatements {
             },
             w,
         )
+    }
+}
+
+struct StatementsAt<'a> {
+    stmts: &'a mut GhostStatements,
+    point: Point,
+}
+
+impl StatementsAt<'_> {
+    fn insert(&mut self, stmt: GhostStatement) {
+        self.stmts.insert_at(self.point, stmt);
     }
 }
 
@@ -171,6 +204,7 @@ impl fmt::Debug for GhostStatement {
             GhostStatement::Fold(place) => write!(f, "fold({place:?})"),
             GhostStatement::Unfold(place) => write!(f, "unfold({place:?})"),
             GhostStatement::Unblock(place) => write!(f, "unblock({place:?})"),
+            GhostStatement::PtrToBorrow(place) => write!(f, "ptr_to_borrow({place:?})"),
         }
     }
 }

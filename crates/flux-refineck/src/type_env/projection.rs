@@ -327,19 +327,14 @@ impl LookupResult<'_> {
         Updater::update(self.bindings, self.cursor, unblocked);
     }
 
-    pub(crate) fn block(self) -> Ty {
-        let ty = self.ty.clone();
-        self.block_with(ty)
-    }
-
     pub(crate) fn block_with(self, new_ty: Ty) -> Ty {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult {
+    pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
         let ty = fold(self.bindings, rcx, gen, &self.ty, self.is_strg)?;
-        self.update(ty);
-        Ok(())
+        self.update(ty.clone());
+        Ok(ty)
     }
 
     pub(crate) fn path(&self) -> Path {
@@ -800,7 +795,7 @@ fn fold(
             let deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)?;
             Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
         }
-        TyKind::Downcast(adt, args, ty, variant_idx, fields) => {
+        TyKind::Downcast(adt, args, ty_, variant_idx, fields) => {
             if is_strg {
                 let variant_sig = gen
                     .genv
@@ -822,7 +817,7 @@ fn fold(
 
                 Ok(ty)
             } else {
-                Ok(ty.clone())
+                Ok(ty_.clone())
             }
         }
         TyKind::Indexed(BaseTy::Tuple(fields), idx) => {

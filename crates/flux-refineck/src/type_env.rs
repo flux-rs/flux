@@ -12,7 +12,7 @@ use flux_middle::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Ref, Region, Ty, TyKind, INNERMOST,
+        PtrKind, Region, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -110,6 +110,58 @@ impl TypeEnv<'_> {
         }
     }
 
+    /// Converts a pointer `ptr(mut, l)` to a borrow `&mut T` for a type `T` that needs to be inferred.
+    /// For example, given the environment
+    /// ```ignore
+    /// x: i32[a], p: ptr(mut, x)`
+    /// ```
+    ///
+    /// Converting the pointer to a borrow will produce
+    ///
+    /// ```ignore
+    /// x: †i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
+    /// ```
+    ///
+    /// together with a constraint
+    ///
+    /// ```ignore
+    /// i32[a] <: i32{v: $k(v)}
+    /// ```
+    pub(crate) fn ptr_to_borrow(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        gen: &mut ConstrGen,
+        place: &Place,
+    ) -> Result<(), CheckerErrKind> {
+        // place: ptr(mut, path)
+        let ptr_lookup = self.bindings.lookup(place);
+        let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() else {
+            tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
+        };
+
+        // path: old_ty
+        let old_ty = self.bindings.lookup(path).fold(rcx, gen)?;
+
+        let mut infcx = gen.infcx(rcx, ConstrReason::Other);
+
+        // old_ty <: new_ty
+        let new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
+            debug_assert_eq!(kind, HoleKind::Pred);
+            infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+        });
+        infcx.subtyping(rcx, &old_ty, &new_ty)?;
+
+        // path: new_ty, place: &mut new_ty
+        self.bindings.lookup(path).block_with(new_ty.clone());
+        self.bindings
+            .lookup(place)
+            .update(Ty::mk_ref(*re, new_ty, Mutability::Mut));
+
+        rcx.replace_evars(&infcx.solve().unwrap());
+
+        Ok(())
+    }
+
     pub(crate) fn assign(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -156,18 +208,13 @@ impl TypeEnv<'_> {
         self.bindings.lookup(path).block_with(new_ty)
     }
 
-    pub(crate) fn block(&mut self, path: &Path) -> Ty {
-        self.bindings.lookup(path).block()
-    }
-
     pub(crate) fn check_goto(
-        mut self,
+        self,
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
     ) -> Result<(), CheckerErrKind> {
-        // Infer subst
         let mut infcx = gen.infcx(rcx, ConstrReason::Goto(target));
 
         let bb_env = bb_env
@@ -179,29 +226,8 @@ impl TypeEnv<'_> {
             infcx.check_pred(rcx, constr);
         }
 
-        let bb_env = bb_env.bindings.flatten();
-
-        // Convert pointers to borrows
-        for (path, _, ty2) in &bb_env {
-            let ty1 = self.bindings.get(path);
-            match (ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
-                    debug_assert_eq!(r1, r2);
-                    let ty = self.bindings.lookup(ptr_path).block_with(bound.clone());
-                    infcx.subtyping(rcx, &ty, bound)?;
-
-                    self.update(path, Ty::mk_ref(*r1, bound.clone(), Mutability::Mut));
-                }
-                (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
-                    debug_assert_eq!(r1, r2);
-                    let ty = self.bindings.get(ptr_path);
-                    self.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
-                }
-                _ => (),
-            }
-        }
-
         // Check subtyping
+        let bb_env = bb_env.bindings.flatten();
         for (path, _, ty2) in bb_env {
             let ty1 = self.bindings.get(&path);
             infcx.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked())?;
@@ -218,7 +244,8 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         place: &Place,
     ) -> Result<(), CheckerErrKind> {
-        self.bindings.lookup(place).fold(rcx, gen)
+        self.bindings.lookup(place).fold(rcx, gen)?;
+        Ok(())
     }
 
     pub(crate) fn unfold(
@@ -251,10 +278,6 @@ impl TypeEnv<'_> {
     pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
-    }
-
-    fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.lookup(path).update(ty);
     }
 }
 
@@ -347,14 +370,6 @@ impl BasicBlockEnvShape {
         }
     }
 
-    fn block(&mut self, path: &Path) -> Ty {
-        self.bindings.lookup(path).block()
-    }
-
-    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
-        self.bindings.lookup(path).block_with(new_ty)
-    }
-
     fn update(&mut self, path: &Path, ty: Ty) {
         self.bindings.lookup(path).update(ty);
     }
@@ -362,62 +377,8 @@ impl BasicBlockEnvShape {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub(crate) fn join(&mut self, mut other: TypeEnv) -> Result<bool, CheckerErrKind> {
+    pub(crate) fn join(&mut self, other: TypeEnv) -> Result<bool, CheckerErrKind> {
         let paths = self.bindings.paths();
-
-        // Convert pointers to borrows
-        for path in &paths {
-            let ty1 = self.bindings.get(path);
-            let ty2 = other.bindings.get(path);
-            match (ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(PtrKind::Shr(r1), path1), TyKind::Ptr(PtrKind::Shr(r2), path2))
-                    if path1 != path2 =>
-                {
-                    debug_assert_eq!(r1, r2);
-                    let ty1 = self.block(path1);
-                    let ty2 = self.block(path2);
-
-                    self.update(path, Ty::mk_ref(*r1, ty1, Mutability::Not));
-                    other.update(path, Ty::mk_ref(*r2, ty2, Mutability::Not));
-                }
-                (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), Ref!(r2, _, Mutability::Not)) => {
-                    debug_assert_eq!(r1, r2);
-                    let ty = self.block(ptr_path);
-                    self.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
-                }
-                (Ref!(r1, _, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) => {
-                    debug_assert_eq!(r1, r2);
-                    let ty = other.block(ptr_path);
-                    other.update(path, Ty::mk_ref(*r1, ty, Mutability::Not));
-                }
-                (TyKind::Ptr(PtrKind::Mut(r1), path1), TyKind::Ptr(PtrKind::Mut(r2), path2))
-                    if path1 != path2 =>
-                {
-                    debug_assert_eq!(r1, r2);
-                    let ty1 = self.bindings.get(path1).with_holes();
-                    let ty2 = other.bindings.get(path2).with_holes();
-
-                    self.update(path, Ty::mk_ref(*r1, ty1.clone(), Mutability::Mut));
-                    other.update(path, Ty::mk_ref(*r1, ty2.clone(), Mutability::Mut));
-
-                    self.block_with(path1, ty1);
-                    other.block_with(path2, ty2);
-                }
-                (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), Ref!(r2, bound, Mutability::Mut)) => {
-                    debug_assert_eq!(r1, r2);
-                    let bound = bound.with_holes();
-                    self.block_with(ptr_path, bound.clone());
-                    self.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
-                }
-                (Ref!(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) => {
-                    debug_assert_eq!(r1, r2);
-                    let bound = bound.with_holes();
-                    other.block_with(ptr_path, bound.clone());
-                    other.update(path, Ty::mk_ref(*r1, bound, Mutability::Mut));
-                }
-                _ => {}
-            }
-        }
 
         // Join types
         let mut modified = false;
@@ -738,5 +699,9 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(TypeEnv<'_> => "type_env", BasicBlockEnvShape => "type_env_infer", BasicBlockEnv => "basic_block_env");
+    impl_debug_with_default_cx! {
+        TypeEnv<'_> => "type_env",
+        BasicBlockEnvShape => "basic_block_env_shape",
+        BasicBlockEnv => "basic_block_env"
+    }
 }
