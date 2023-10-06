@@ -1,6 +1,22 @@
 //! This module implements a points-to analysis for mutable references.
 //!
-//! We use the result of the analysis to insert ghost statements that 0l
+//! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
+//! have to be converted to borrows (`&mut T`). For example, given the function
+//! ```ignore
+//! fn foo(mut x: i32, mut y: i32, b: bool) {
+//!     let r;
+//!     if b {
+//!         r = &mut x
+//!     } else {
+//!         r = &mut y
+//!     }
+//! }
+//! ```
+//! In the then branch (resp. else) we know `r` must poin to `x` (resp. `y`). During refinement checking,
+//! we will give `r` types `ptr(x)` and `ptr(y)` in each branch respectively. However, at the join point
+//! `r` could pointn to either `x` or `y`. Thus, we use the result of the analysis to insert a ghost
+//! statement at the end of each branch to convert the pointers to a borrow `&mut T` for a type `T` that
+//! needs to be inferred.
 use std::{collections::VecDeque, fmt, iter, ops::Range};
 
 use flux_middle::{
@@ -50,6 +66,10 @@ pub(crate) fn add_ghost_statements<'tcx>(
 
 type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>;
 
+/// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
+/// a may analysis. If you want to know if a reference definitiely points to a location you have to
+/// combine it with the result of a definitely initialized analysis. See module level documentation
+/// for more details.
 struct PointsToAnalysis<'a> {
     fn_sig: Option<rty::EarlyBinder<rty::PolyFnSig>>,
     map: &'a Map,
