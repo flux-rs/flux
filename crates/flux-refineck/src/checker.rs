@@ -76,6 +76,7 @@ pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: impl Into<DefId>,
         refparams: &'a [Expr],
         rcx: &RefineCtxt,
@@ -415,7 +416,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 let obligs = self
                     .mode
-                    .constr_gen(self.genv, self.def_id, &self.refparams, rcx, span)
+                    .constr_gen(
+                        self.genv,
+                        &self.body.infcx,
+                        self.def_id,
+                        &self.refparams,
+                        rcx,
+                        span,
+                    )
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 self.check_closure_obligs(rcx, obligs)?;
@@ -517,10 +525,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty, CheckerError> {
-        let region_infcx = &self.body.infcx;
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, region_infcx, did, fn_sig, generic_args, actuals)
+            .check_fn_call(rcx, env, did, fn_sig, generic_args, actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -731,7 +738,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             let obligs = self
                 .mode
-                .constr_gen(self.genv, self.def_id, &self.refparams, &rcx, span)
+                .constr_gen(self.genv, &self.body.infcx, self.def_id, &self.refparams, &rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(span)?;
             self.check_closure_obligs(&mut rcx, obligs)?;
@@ -1101,7 +1108,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
         self.mode
-            .constr_gen(self.genv, self.def_id, &self.refparams, rcx, span)
+            .constr_gen(self.genv, &self.body.infcx, self.def_id, &self.refparams, rcx, span)
     }
 
     #[track_caller]
@@ -1122,6 +1129,7 @@ impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: impl Into<DefId>,
         refparams: &'a [Expr],
         _rcx: &RefineCtxt,
@@ -1129,6 +1137,7 @@ impl Mode for ShapeMode {
     ) -> ConstrGen<'a, 'tcx> {
         ConstrGen::new(
             genv,
+            infcx,
             def_id.into(),
             refparams,
             |_: &[_], _| Expr::hole(HoleKind::Pred),
@@ -1184,6 +1193,7 @@ impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: impl Into<DefId>,
         refparams: &'a [Expr],
         rcx: &RefineCtxt,
@@ -1192,6 +1202,7 @@ impl Mode for RefineMode {
         let scope = rcx.scope();
         ConstrGen::new(
             genv,
+            infcx,
             def_id.into(),
             refparams,
             move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
@@ -1221,6 +1232,7 @@ impl Mode for RefineMode {
 
         let gen = &mut ConstrGen::new(
             ck.genv,
+            &ck.body.infcx,
             ck.def_id.into(),
             &ck.refparams,
             |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),

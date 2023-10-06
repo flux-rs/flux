@@ -7,7 +7,6 @@ use flux_common::{bug, iter::IterExt};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
@@ -236,15 +235,15 @@ pub trait TypeFoldable: TypeVisitable {
         self.try_fold_with(folder).into_ok()
     }
 
-    fn normalize_projections(
+    fn normalize_projections<'tcx>(
         &self,
-        genv: &GlobalEnv,
+        genv: &GlobalEnv<'_, 'tcx>,
+        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],
     ) -> QueryResult<Self> {
-        let infcx = genv.tcx.infer_ctxt().build();
         let mut normalizer =
-            projections::Normalizer::new(genv, &infcx, callsite_def_id, refine_params)?;
+            projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)?;
         self.try_fold_with(&mut normalizer)
     }
 
