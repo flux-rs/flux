@@ -157,7 +157,7 @@ pub struct Path {
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
-    TupleProj(Var, List<u32>),
+    Var(Var),
 }
 
 newtype_index! {
@@ -534,23 +534,10 @@ impl Expr {
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
-        if let ExprKind::Local(local) = self.kind() {
-            return Some(Loc::Local(*local));
-        }
-
-        let mut proj = vec![];
-        let mut expr = self;
-        while let ExprKind::TupleProj(e, field) = expr.kind() {
-            proj.push(*field);
-            expr = e;
-        }
-        proj.reverse();
-        let proj = List::from(proj);
-
-        if let ExprKind::Var(var) = expr.kind() {
-            Some(Loc::TupleProj(*var, proj))
-        } else {
-            None
+        match self.kind() {
+            ExprKind::Local(local) => Some(Loc::Local(*local)),
+            ExprKind::Var(var) => Some(Loc::Var(*var)),
+            _ => None,
         }
     }
 
@@ -682,11 +669,7 @@ impl Loc {
     pub fn to_expr(&self) -> Expr {
         match self {
             Loc::Local(local) => Expr::local(*local, None),
-            Loc::TupleProj(var, proj) => {
-                proj.iter()
-                    .copied()
-                    .fold(var.to_expr(), |e, p| Expr::tuple_proj(e, p, None))
-            }
+            Loc::Var(var) => Expr::var(*var, None),
         }
     }
 }
@@ -750,7 +733,7 @@ impl From<Loc> for Path {
 
 impl From<Name> for Loc {
     fn from(name: Name) -> Self {
-        Loc::TupleProj(Var::Free(name), List::empty())
+        Loc::Var(Var::Free(name))
     }
 }
 
@@ -930,13 +913,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
-                Loc::TupleProj(var, proj) => {
-                    w!("{:?}", var)?;
-                    for field in proj {
-                        w!(".{}", ^field)?;
-                    }
-                    Ok(())
-                }
+                Loc::Var(var) => w!("{:?}", var),
             }
         }
     }
