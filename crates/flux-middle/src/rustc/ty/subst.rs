@@ -75,8 +75,7 @@ impl Subst for Region {
             Region::ReFree(..)
             | Region::ReLateBound(_, _)
             | Region::ReStatic
-            | Region::ReVar(_)
-            | Region::ReErased => *self,
+            | Region::ReVar(_) => *self,
         }
     }
 }

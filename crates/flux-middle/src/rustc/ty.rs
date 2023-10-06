@@ -238,7 +238,6 @@ pub enum Region {
     ReStatic,
     ReVar(RegionVid),
     ReFree(FreeRegion),
-    ReErased,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -715,7 +714,6 @@ pub(crate) fn region_to_string(region: Region) -> String {
         Region::ReEarlyBound(region) => region.name.to_string(),
         Region::ReStatic => "'static".to_string(),
         Region::ReVar(rvid) => format!("{rvid:?}"),
-        Region::ReErased => "'<erased>".to_string(),
         Region::ReFree(..) => "'<free>".to_string(),
     }
 }

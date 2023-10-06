@@ -771,9 +771,11 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
             Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
         }
         RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
-        RegionKind::ReErased => Ok(Region::ReErased),
         RegionKind::ReStatic => Ok(Region::ReStatic),
-        RegionKind::ReFree(_) | RegionKind::RePlaceholder(_) | RegionKind::ReError(_) => {
+        RegionKind::ReFree(_)
+        | RegionKind::RePlaceholder(_)
+        | RegionKind::ReError(_)
+        | RegionKind::ReErased => {
             Err(UnsupportedReason::new(format!("unsupported region `{region:?}`")))
         }
     }
