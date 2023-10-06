@@ -110,7 +110,8 @@ impl TypeEnv<'_> {
         }
     }
 
-    /// Converts a pointer `ptr(mut, l)` to a borrow `&mut T`. For example, given the environment
+    /// Converts a pointer `ptr(mut, l)` to a borrow `&mut T` for a type `T` that needs to be inferred.
+    /// For example, given the environment
     /// ```ignore
     /// x: i32[a], p: ptr(mut, x)`
     /// ```
@@ -118,7 +119,7 @@ impl TypeEnv<'_> {
     /// Converting the pointer to a borrow will produce
     ///
     /// ```ignore
-    /// x: i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
+    /// x: †i32{v: $k(v)}, p: &mut i32{v: $k(v)}`
     /// ```
     ///
     /// together with a constraint
