@@ -484,9 +484,8 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
         match &self.kind {
             TerminatorKind::Return => write!(f, "return"),
             TerminatorKind::Unreachable => write!(f, "unreachable"),
-            TerminatorKind::Call {
-                func, generic_args, args, destination, target, unwind, ..
-            } => {
+            TerminatorKind::Call { args, destination, target, unwind, resolved_call, .. } => {
+                let (func, generic_args) = resolved_call;
                 let fname = rustc_middle::ty::tls::with(|tcx| {
                     let path = tcx.def_path(*func);
                     path.data.iter().join("::")
