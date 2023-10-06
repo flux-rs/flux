@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_common::{index::IndexGen, tracked_span_bug};
+use flux_common::tracked_span_bug;
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -18,7 +18,8 @@ use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::{RegionVid, Variance};
+use rustc_infer::infer::{LateBoundRegionConversionTime, RegionVariableOrigin::LateBoundRegion};
+use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
 use crate::{
@@ -33,7 +34,6 @@ pub struct ConstrGen<'a, 'tcx> {
     def_id: DefId,
     refparams: &'a [Expr],
     kvar_gen: Box<dyn KVarGen + 'a>,
-    rvid_gen: &'a IndexGen<RegionVid>,
     span: Span,
 }
 
@@ -95,13 +95,12 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         def_id: DefId,
         refparams: &'a [Expr],
         kvar_gen: G,
-        rvid_gen: &'a IndexGen<RegionVid>,
         span: Span,
     ) -> Self
     where
         G: KVarGen + 'a,
     {
-        ConstrGen { genv, def_id, refparams, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, def_id, refparams, kvar_gen: Box::new(kvar_gen), span }
     }
 
     pub(crate) fn check_pred(
@@ -149,6 +148,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
+        region_infcx: &rustc_infer::infer::InferCtxt,
         callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
@@ -179,7 +179,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
 
         let genv = self.genv;
         let callsite_def_id = self.def_id;
-        let rvid_gen = self.rvid_gen;
+        let span = self.span;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
         let snapshot = rcx.snapshot();
@@ -194,7 +194,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &refine_args)
             .replace_bound_vars(
-                |_| rty::ReVar(rvid_gen.fresh()),
+                |br| {
+                    let re = region_infcx.next_region_var(LateBoundRegion(
+                        span,
+                        br.kind.to_rustc(),
+                        LateBoundRegionConversionTime::FnCall,
+                    ));
+                    rty::ReVar(re.as_var())
+                },
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
             .normalize_projections(genv, callsite_def_id, infcx.refparams)?;

@@ -49,6 +49,17 @@ pub enum BoundRegionKind {
     BrEnv,
 }
 
+impl BoundRegionKind {
+    pub fn to_rustc(self) -> rustc_middle::ty::BoundRegionKind {
+        use rustc_middle::ty;
+        match self {
+            BoundRegionKind::BrAnon => ty::BoundRegionKind::BrAnon(None),
+            BoundRegionKind::BrNamed(def_id, sym) => ty::BoundRegionKind::BrNamed(def_id, sym),
+            BoundRegionKind::BrEnv => ty::BoundRegionKind::BrEnv,
+        }
+    }
+}
+
 #[derive(Hash, Eq, PartialEq)]
 pub struct GenericParamDef {
     pub def_id: DefId,
