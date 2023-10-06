@@ -245,10 +245,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     let ty = env.block_with(path, bound.clone());
                     infcx.subtyping(rcx, &ty, bound)?;
                 }
-                (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
-                    let ty = env.get(path).unblocked();
-                    infcx.subtyping(rcx, &ty, bound)?;
-                }
                 _ => infcx.subtyping(rcx, actual, &formal)?,
             }
         }
@@ -319,8 +315,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         generic_args: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty, CheckerErrKind> {
-        // rn we are only calling `check_constructor` from path_tree when folding so we mark this
-        // as a folding error.
+        // rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
         // Replace holes in generic arguments with fresh inference variables
@@ -362,11 +357,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env.block_with(path, bound.clone());
-                    infcx.subtyping(rcx, &ty, bound)?;
-                }
-                (TyKind::Ptr(PtrKind::Shr(_), path), Ref!(_, bound, Mutability::Not)) => {
-                    // TODO(pack-closure): why is this not put into `infcx.subtyping`?
-                    let ty = env.get(path);
                     infcx.subtyping(rcx, &ty, bound)?;
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty)?,
