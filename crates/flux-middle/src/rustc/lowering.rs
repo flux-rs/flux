@@ -766,7 +766,7 @@ fn lower_bound_region_kind(
             Ok(BoundRegionKind::BrNamed(def_id, sym))
         }
         rustc_ty::BoundRegionKind::BrAnon(_) => Ok(BoundRegionKind::BrAnon),
-        _ => Err(UnsupportedReason::new(format!("unsupported bound region kind `{kind:?}`"))),
+        rustc_ty::BoundRegionKind::BrEnv => Ok(BoundRegionKind::BrEnv),
     }
 }
 

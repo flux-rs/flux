@@ -21,7 +21,7 @@ use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::ty::{BoundRegionKind, FreeRegion},
+    rustc::ty::FreeRegion,
 };
 
 pub(crate) struct Normalizer<'sess, 'tcx, 'cx> {
@@ -310,31 +310,13 @@ fn into_rustc_region(tcx: TyCtxt, re: Region) -> rustc_middle::ty::Region {
         Region::ReStatic => tcx.lifetimes.re_static,
         Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
         Region::ReFree(FreeRegion { scope, bound_region }) => {
-            rustc_middle::ty::Region::new_free(
-                tcx,
-                scope,
-                into_rustc_bound_region_kind(bound_region),
-            )
+            rustc_middle::ty::Region::new_free(tcx, scope, bound_region.to_rustc())
         }
     }
 }
 
-fn into_rustc_bound_region_kind(
-    bound_region: BoundRegionKind,
-) -> rustc_middle::ty::BoundRegionKind {
-    use rustc_middle::ty;
-    match bound_region {
-        BoundRegionKind::BrAnon => ty::BoundRegionKind::BrAnon(None),
-        BoundRegionKind::BrNamed(def_id, sym) => ty::BoundRegionKind::BrNamed(def_id, sym),
-        BoundRegionKind::BrEnv => ty::BoundRegionKind::BrEnv,
-    }
-}
-
 fn into_rustc_bound_region(bound_region: BoundRegion) -> rustc_middle::ty::BoundRegion {
-    rustc_middle::ty::BoundRegion {
-        var: bound_region.var,
-        kind: into_rustc_bound_region_kind(bound_region.kind),
-    }
+    rustc_middle::ty::BoundRegion { var: bound_region.var, kind: bound_region.kind.to_rustc() }
 }
 
 #[derive(Debug)]

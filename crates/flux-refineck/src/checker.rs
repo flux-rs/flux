@@ -1,11 +1,6 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{
-    bug, dbg,
-    index::{IndexGen, IndexVec},
-    iter::IterExt,
-    tracked_span_bug,
-};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -34,7 +29,8 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::bit_set::BitSet;
-use rustc_middle::{mir as rustc_mir, ty::RegionVid};
+use rustc_infer::infer::NllRegionVariableOrigin;
+use rustc_middle::mir::{SourceInfo, SwitchTargets};
 use rustc_span::Span;
 
 use self::errors::{CheckerError, ResultExt};
@@ -56,7 +52,6 @@ pub struct CheckerConfig {
 
 pub(crate) struct Checker<'ck, 'tcx, M> {
     genv: &'ck GlobalEnv<'ck, 'tcx>,
-    rvid_gen: IndexGen<RegionVid>,
     config: CheckerConfig,
     /// [`LocalDefId`] of the function-like item being checked.
     def_id: LocalDefId,
@@ -81,9 +76,9 @@ pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: impl Into<DefId>,
         refparams: &'a [Expr],
-        rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx>;
@@ -206,8 +201,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let rvid_gen = init_region_gen(&body);
-
         let exprs = if let Some(exprs) = refparams {
             exprs
         } else {
@@ -218,8 +211,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let poly_sig = poly_sig.instantiate_identity(&exprs);
 
-        let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReVar(rvid_gen.fresh()), |sort, _| rcx.define_vars(sort));
+        let fn_sig = poly_sig.replace_bound_vars(
+            |_| {
+                let re = body
+                    .infcx
+                    .next_nll_region_var(NllRegionVariableOrigin::FreeRegion);
+                rty::ReVar(re.as_var())
+            },
+            |sort, _| rcx.define_vars(sort),
+        );
 
         let env = Self::init(&mut rcx, &body, &fn_sig, config);
 
@@ -234,7 +234,6 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let mut ck = Checker {
             def_id,
             genv,
-            rvid_gen,
             generics,
             refparams: exprs,
             body: &body,
@@ -350,7 +349,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         env: &mut TypeEnv,
         place: &Place,
         ty: Ty,
-        source_info: rustc_mir::SourceInfo,
+        source_info: SourceInfo,
     ) -> Result<(), CheckerError> {
         let ty = rcx.unpack(&ty);
         let gen = &mut self.constr_gen(rcx, source_info.span);
@@ -417,7 +416,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 let obligs = self
                     .mode
-                    .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, rcx, span)
+                    .constr_gen(
+                        self.genv,
+                        &self.body.infcx,
+                        self.def_id,
+                        &self.refparams,
+                        rcx,
+                        span,
+                    )
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 self.check_closure_obligs(rcx, obligs)?;
@@ -640,7 +646,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         Ok(Guard::Pred(pred))
     }
 
-    fn check_if(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
+    fn check_if(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let mk = |bits| {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, idx) => {
@@ -668,7 +674,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         successors
     }
 
-    fn check_match(discr_ty: &Ty, targets: &rustc_mir::SwitchTargets) -> Vec<(BasicBlock, Guard)> {
+    fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let (adt_def, place) = discr_ty.expect_discr();
 
         let mut successors = vec![];
@@ -732,7 +738,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             let obligs = self
                 .mode
-                .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, &rcx, span)
+                .constr_gen(self.genv, &self.body.infcx, self.def_id, &self.refparams, &rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(span)?;
             self.check_closure_obligs(&mut rcx, obligs)?;
@@ -1102,7 +1108,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
         self.mode
-            .constr_gen(self.genv, self.def_id, &self.refparams, &self.rvid_gen, rcx, span)
+            .constr_gen(self.genv, &self.body.infcx, self.def_id, &self.refparams, rcx, span)
     }
 
     #[track_caller]
@@ -1123,18 +1129,18 @@ impl Mode for ShapeMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: impl Into<DefId>,
         refparams: &'a [Expr],
-        rvid_gen: &'a IndexGen<RegionVid>,
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         ConstrGen::new(
             genv,
+            infcx,
             def_id.into(),
             refparams,
             |_: &[_], _| Expr::hole(HoleKind::Pred),
-            rvid_gen,
             span,
         )
     }
@@ -1187,19 +1193,19 @@ impl Mode for RefineMode {
     fn constr_gen<'a, 'tcx>(
         &'a mut self,
         genv: &'a GlobalEnv<'a, 'tcx>,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: impl Into<DefId>,
         refparams: &'a [Expr],
-        rvid_gen: &'a IndexGen<RegionVid>,
         rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'tcx> {
         let scope = rcx.scope();
         ConstrGen::new(
             genv,
+            infcx,
             def_id.into(),
             refparams,
             move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
-            rvid_gen,
             span,
         )
     }
@@ -1226,10 +1232,10 @@ impl Mode for RefineMode {
 
         let gen = &mut ConstrGen::new(
             ck.genv,
+            &ck.body.infcx,
             ck.def_id.into(),
             &ck.refparams,
             |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
-            &ck.rvid_gen,
             terminator_span,
         );
         env.check_goto(&mut rcx, gen, bb_env, target)
@@ -1312,34 +1318,6 @@ fn snapshot_at_dominator<'a>(
 ) -> &'a Snapshot {
     let dominator = body.dominators().immediate_dominator(bb).unwrap();
     snapshots[dominator].as_ref().unwrap()
-}
-
-/// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
-/// different position in a type. For example, given a function
-///
-/// `fn foo<'a, 'b>(x: &'a S<'a>, y: &'b u32)`
-///
-/// `rustc` will generate variables `?2` and `?3` for the universal regions `'a` and `'b` (the variable
-/// `?0` correspond to `'static` and `?1` to the implicit lifetime of the function body). Additionally,
-/// it will assign `x` type &'?4 S<'?5>` and `y` type `&'?6 u32` (together with some constraints relating
-/// region variables).
-///
-/// The exact ids picked for `'a` and `'b` are not too relevant to us, the important part is the regions
-/// used in the types of `x` and `y`. To recover the correct regions, whenever there's an assignment
-/// of a refinement type `T` to a variable with (unrefined) Rust type `S`, we _match_ both types to infer
-/// a region substition. For this to work, we need to give a different variable id to every position
-/// in `T`. To avoid clashes, we need to use fresh ids, so we start enumerating from the last id generated
-/// by borrow checking.
-///
-/// The ids generated during refinement type checking are purely instrumental and they should never
-/// appear in a type bound in the environment.
-///
-/// Besides generating ids when checking a function's body, we also need to generate fresh ids at
-/// function calls.
-///
-/// [region variable ids]: RegionVid
-fn init_region_gen(body: &Body) -> IndexGen<RegionVid> {
-    IndexGen::skipping(body.region_inference_context().var_infos.len())
 }
 
 pub(crate) mod errors {
