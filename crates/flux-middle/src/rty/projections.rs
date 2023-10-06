@@ -7,7 +7,7 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{ParamTy, TyCtxt},
+    ty::{EarlyBoundRegion, ParamTy, TyCtxt},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -357,9 +357,20 @@ impl TVarSubst {
         }
     }
 
+    fn insert_early_bound_region(&mut self, ebr: EarlyBoundRegion, re: Region) {
+        let arg = GenericArg::Lifetime(re);
+        if self.args[ebr.index as usize].replace(arg).is_some() {
+            bug!("duplicate insert");
+        }
+    }
+
     fn infer_from_arg(&mut self, src: &rustc_middle::ty::GenericArg, dst: &GenericArg) {
-        if let GenericArg::Ty(dst) = dst {
-            self.infer_from_ty(&src.as_type().unwrap(), dst);
+        match dst {
+            GenericArg::Ty(dst) => {
+                self.infer_from_ty(&src.as_type().unwrap(), dst);
+            }
+            GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
+            _ => (),
         }
     }
 
@@ -404,7 +415,21 @@ impl TVarSubst {
                     bug!("unexpected type {dst:?}");
                 }
             }
+            ty::TyKind::Ref(src_re, src_ty, _) => {
+                if let Some(BaseTy::Ref(dst_re, dst_ty, _)) = dst.as_bty_skipping_existentials() {
+                    self.infer_from_region(src_re, dst_re);
+                    self.infer_from_ty(src_ty, dst_ty);
+                } else {
+                    bug!("unexpected type {dst:?}");
+                }
+            }
             _ => {}
+        }
+    }
+
+    fn infer_from_region(&mut self, src: &rustc_middle::ty::Region, dst: &Region) {
+        if let rustc_middle::ty::RegionKind::ReEarlyBound(ebr) = src.kind() {
+            self.insert_early_bound_region(ebr, *dst);
         }
     }
 }
