@@ -4,14 +4,17 @@ use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
+use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
+    traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
         TyCtxt,
     },
 };
 use rustc_span::Span;
+use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     mir::{
@@ -34,6 +37,8 @@ use crate::{
 
 pub struct LoweringCtxt<'a, 'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
+    param_env: ParamEnv<'tcx>,
+    selcx: SelectionContext<'a, 'tcx>,
     sess: &'sess FluxSession,
     rustc_mir: &'a rustc_mir::Body<'tcx>,
 }
@@ -49,7 +54,11 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         sess: &'sess FluxSession,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let lower = LoweringCtxt { tcx, sess, rustc_mir: &body_with_facts.body };
+        let infcx = infer_ctxt(tcx, &body_with_facts);
+        let param_env = tcx.param_env(body_with_facts.body.source.def_id());
+        let selcx = SelectionContext::new(&infcx);
+        let mut lower =
+            LoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: &body_with_facts.body };
 
         let basic_blocks = lower
             .rustc_mir
@@ -67,11 +76,12 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        Ok(Body { basic_blocks, local_decls, fake_predecessors, body_with_facts })
+        let body = Body { basic_blocks, local_decls, fake_predecessors, body_with_facts };
+        Ok(body)
     }
 
     fn lower_basic_block_data(
-        &self,
+        &mut self,
         data: &rustc_mir::BasicBlockData<'tcx>,
     ) -> Result<BasicBlockData<'tcx>, ErrorGuaranteed> {
         let data = BasicBlockData {
@@ -182,7 +192,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     }
 
     fn lower_terminator(
-        &self,
+        &mut self,
         terminator: &rustc_mir::Terminator<'tcx>,
     ) -> Result<Terminator<'tcx>, ErrorGuaranteed> {
         let span = terminator.source_info.span;
@@ -295,24 +305,32 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     }
 
     fn resolve_call(
-        &self,
+        &mut self,
         callee_id: DefId,
         args: rustc_middle::ty::GenericArgsRef<'tcx>,
     ) -> Result<(DefId, CallArgs<'tcx>), UnsupportedReason> {
-        // NOTE(nilehmann) tcx.resolve_instance used to panic without this check but none of the tests
-        // are failing now. Leaving it here in case the problem comes back.
-        // if args.needs_infer() {
-        //     return Ok(None);
-        // }
+        let tcx = self.tcx;
+        let mut try_resolve = || {
+            if let Some(trait_id) = tcx.trait_of_item(callee_id) {
+                let trait_ref = rustc_ty::TraitRef::from_method(self.tcx, trait_id, args);
+                let obligation =
+                    Obligation::new(self.tcx, ObligationCause::dummy(), self.param_env, trait_ref);
+                let impl_source = self.selcx.select(&obligation).ok()??;
+                let impl_source = self.selcx.infcx.resolve_vars_if_possible(impl_source);
+                let ImplSource::UserDefined(impl_data) = impl_source else { return None };
 
-        // this produced erased regions in the substitution for early bound regions
-        let param_env = self.tcx.param_env(self.rustc_mir.source.def_id());
-        let (resolved_id, resolved_args) = self
-            .tcx
-            .resolve_instance(param_env.and((callee_id, args)))
-            .ok()
-            .flatten()
-            .map_or_else(|| (callee_id, args), |instance| (instance.def_id(), instance.args));
+                let assoc_id = tcx
+                    .impl_item_implementor_ids(impl_data.impl_def_id)
+                    .get(&callee_id)?;
+                let assoc_item = tcx.associated_item(assoc_id);
+
+                Some((assoc_item.def_id, impl_data.args))
+            } else {
+                None
+            }
+        };
+
+        let (resolved_id, resolved_args) = try_resolve().unwrap_or((callee_id, args));
 
         let call_args =
             CallArgs { lowered: lower_generic_args(self.tcx, resolved_args)?, orig: resolved_args };
@@ -880,6 +898,19 @@ fn lower_clause<'tcx>(
         }
     };
     Ok(Clause::new(kind))
+}
+
+/// Replicate the `InferCtxt` used for mir typeck by generating region variables for every region in
+/// the `RegionInferenceContext`
+fn infer_ctxt<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    body_with_facts: &BodyWithBorrowckFacts<'tcx>,
+) -> rustc_infer::infer::InferCtxt<'tcx> {
+    let infcx = tcx.infer_ctxt().build();
+    for info in &body_with_facts.region_inference_context.var_infos {
+        infcx.next_region_var(info.origin);
+    }
+    infcx
 }
 
 mod errors {
