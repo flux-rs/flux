@@ -835,7 +835,7 @@ impl Sort {
         Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
 
-    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `args`
+    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `subst`
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Int
