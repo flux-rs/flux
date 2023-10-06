@@ -26,6 +26,9 @@ itertools = "0.10.5"
 [workspace.lints.rust]
 unused_extern_crates = "warn"
 
+[workspace.lints.rustdoc]
+private_intra_doc_links = "allow"
+
 [workspace.lints.clippy]
 cloned-instead-of-copied = "warn"
 explicit-into-iter-loop = "warn"

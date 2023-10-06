@@ -1,10 +1,9 @@
-use flux_common::index::IndexVec;
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
-use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
+use rustc_infer::traits::Obligation;
 use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
@@ -18,9 +17,9 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     mir::{
-        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BorrowKind, CallArgs,
-        CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, PointerCast,
-        Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, BorrowKind,
+        CallArgs, CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem,
+        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
@@ -54,7 +53,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         sess: &'sess FluxSession,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let infcx = infer_ctxt(tcx, &body_with_facts);
+        let infcx = replicate_infer_ctxt(tcx, &body_with_facts);
         let param_env = tcx.param_env(body_with_facts.body.source.def_id());
         let selcx = SelectionContext::new(&infcx);
         let mut lower =
@@ -67,8 +66,6 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        let fake_predecessors = mk_fake_predecessors(&basic_blocks);
-
         let local_decls = lower
             .rustc_mir
             .local_decls
@@ -76,7 +73,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        let body = Body { basic_blocks, local_decls, fake_predecessors, body_with_facts };
+        let body = Body::new(basic_blocks, local_decls, body_with_facts, infcx);
         Ok(body)
     }
 
@@ -566,32 +563,6 @@ impl UnsupportedReason {
     }
 }
 
-/// [NOTE:Fake Predecessors] The `FalseEdge/imaginary_target` edges mess up
-/// the `is_join_point` computation which creates spurious join points that
-/// lose information e.g. in match arms, the k+1-th arm has the k-th arm as
-/// a "fake" predecessor so we lose the assumptions specific to the k+1-th
-/// arm due to a spurious join. This code corrects for this problem by
-/// computing the number of "fake" predecessors and decreasing them from
-/// the total number of "predecessors" returned by `rustc`.
-/// The option is to recompute "predecessors" from scratch but we may miss
-/// some cases there. (see also [`is_join_point`])
-///
-/// [`is_join_point`]: crate::rustc::mir::Body::is_join_point
-fn mk_fake_predecessors(
-    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
-) -> IndexVec<BasicBlock, usize> {
-    let mut res: IndexVec<BasicBlock, usize> = basic_blocks.iter().map(|_| 0).collect();
-
-    for bb in basic_blocks {
-        if let Some(terminator) = &bb.terminator {
-            if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
-                res[imaginary_target] += 1;
-            }
-        }
-    }
-    res
-}
-
 pub(crate) fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
@@ -900,19 +871,6 @@ fn lower_clause<'tcx>(
         }
     };
     Ok(Clause::new(kind))
-}
-
-/// Replicate the `InferCtxt` used for mir typeck by generating region variables for every region in
-/// the `RegionInferenceContext`
-fn infer_ctxt<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    body_with_facts: &BodyWithBorrowckFacts<'tcx>,
-) -> rustc_infer::infer::InferCtxt<'tcx> {
-    let infcx = tcx.infer_ctxt().build();
-    for info in &body_with_facts.region_inference_context.var_infos {
-        infcx.next_region_var(info.origin);
-    }
-    infcx
 }
 
 mod errors {

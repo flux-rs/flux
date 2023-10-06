@@ -13,10 +13,11 @@ use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex, RegionInfere
 use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::{self, MutBorrowKind},
-    ty::{FloatTy, IntTy, UintTy},
+    ty::{FloatTy, IntTy, TyCtxt, UintTy},
 };
 pub use rustc_middle::{
     mir::{
@@ -37,8 +38,11 @@ use crate::{
 pub struct Body<'tcx> {
     pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
     pub local_decls: IndexVec<Local, LocalDecl>,
-    pub fake_predecessors: IndexVec<BasicBlock, usize>,
-    pub(super) body_with_facts: BodyWithBorrowckFacts<'tcx>,
+    /// See [`replicate_infer_ctxt`]
+    pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
+    /// See [`mk_fake_predecessors`]
+    fake_predecessors: IndexVec<BasicBlock, usize>,
+    body_with_facts: BodyWithBorrowckFacts<'tcx>,
 }
 
 #[derive(Debug)]
@@ -269,6 +273,16 @@ impl Statement {
 }
 
 impl<'tcx> Body<'tcx> {
+    pub fn new(
+        basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
+        local_decls: IndexVec<Local, LocalDecl>,
+        body_with_facts: BodyWithBorrowckFacts<'tcx>,
+        infcx: rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> Self {
+        let fake_predecessors = mk_fake_predecessors(&basic_blocks);
+        Self { basic_blocks, local_decls, fake_predecessors, body_with_facts, infcx }
+    }
+
     pub fn span(&self) -> Span {
         self.body_with_facts.body.span
     }
@@ -436,6 +450,44 @@ impl PlaceElem {
             _ => None,
         }
     }
+}
+
+/// Replicate the [`InferCtxt`] used for mir typeck by generating region variables for every region in
+/// the `RegionInferenceContext`
+///
+/// [`InferCtxt`]: rustc_infer::infer::InferCtxt
+pub(crate) fn replicate_infer_ctxt<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    body_with_facts: &BodyWithBorrowckFacts<'tcx>,
+) -> rustc_infer::infer::InferCtxt<'tcx> {
+    let infcx = tcx.infer_ctxt().build();
+    for info in &body_with_facts.region_inference_context.var_infos {
+        infcx.next_region_var(info.origin);
+    }
+    infcx
+}
+
+/// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
+/// join points that lose information e.g. in match arms, the k+1-th arm has the k-th arm as a "fake"
+/// predecessor so we lose the assumptions specific to the k+1-th arm due to a spurious join. This code
+/// corrects for this problem by computing the number of "fake" predecessors and decreasing them from
+/// the total number of "predecessors" returned by `rustc`.  The option is to recompute "predecessors"
+/// from scratch but we may miss some cases there. (see also [`is_join_point`])
+///
+/// [`is_join_point`]: crate::rustc::mir::Body::is_join_point
+fn mk_fake_predecessors(
+    basic_blocks: &IndexVec<BasicBlock, BasicBlockData>,
+) -> IndexVec<BasicBlock, usize> {
+    let mut res: IndexVec<BasicBlock, usize> = basic_blocks.iter().map(|_| 0).collect();
+
+    for bb in basic_blocks {
+        if let Some(terminator) = &bb.terminator {
+            if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
+                res[imaginary_target] += 1;
+            }
+        }
+    }
+    res
 }
 
 impl fmt::Debug for Body<'_> {
