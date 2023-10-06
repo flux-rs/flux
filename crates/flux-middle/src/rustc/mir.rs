@@ -280,7 +280,7 @@ impl<'tcx> Body<'tcx> {
         infcx: rustc_infer::infer::InferCtxt<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
-        Self { basic_blocks, local_decls, fake_predecessors, body_with_facts, infcx }
+        Self { basic_blocks, local_decls, infcx, fake_predecessors, body_with_facts }
     }
 
     pub fn span(&self) -> Span {
@@ -307,14 +307,6 @@ impl<'tcx> Body<'tcx> {
     }
 
     #[inline]
-    pub fn reverse_postorder<'a>(&'a self) -> impl ExactSizeIterator<Item = BasicBlock> + 'tcx
-    where
-        'a: 'tcx,
-    {
-        mir::traversal::reverse_postorder(&self.body_with_facts.body).map(|(bb, _)| bb)
-    }
-
-    #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
         let total_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len();
         let real_preds = total_preds - self.fake_predecessors[bb];
@@ -326,16 +318,6 @@ impl<'tcx> Body<'tcx> {
     #[inline]
     pub fn dominators(&self) -> &Dominators<BasicBlock> {
         self.body_with_facts.body.basic_blocks.dominators()
-    }
-
-    #[inline]
-    pub fn join_points<'a>(&'a self) -> impl Iterator<Item = BasicBlock> + 'tcx
-    where
-        'a: 'tcx,
-    {
-        self.basic_blocks
-            .indices()
-            .filter(|bb| self.is_join_point(*bb))
     }
 
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
