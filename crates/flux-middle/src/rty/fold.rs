@@ -286,7 +286,7 @@ pub trait TypeFoldable: TypeVisitable {
     }
 
     /// Turns each [`TyKind::Indexed`] into a [`TyKind::Exists`] with a [`TyKind::Constr`] and a
-    /// [`hole`]. Also replaces all existing predicates with a [`hole`].
+    /// [`hole`]. It also replaces all existing predicates with a [`hole`].
     /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: ExprKind::Hole

@@ -1,3 +1,5 @@
+//! Ghost statements are statements that are not part of the original mir, but are added from information
+//! extracted from the compiler or some additional analysis.
 mod fold_unfold;
 mod points_to;
 
@@ -19,8 +21,8 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{mir::Location, ty::TyCtxt};
 
 pub(crate) struct GhostStatements {
-    pub at_location: LocationMap,
-    pub at_edge: EdgeMap,
+    at_location: LocationMap,
+    at_edge: EdgeMap,
 }
 
 type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
