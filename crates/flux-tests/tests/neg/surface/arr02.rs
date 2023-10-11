@@ -14,3 +14,10 @@ fn test01() -> i32 {
     *arr[1] += 1;
     v1 //~ ERROR refinement type
 }
+
+#[flux::sig(fn() -> i32{v: v < 0})]
+fn test02() -> i32 {
+    let v = 42;
+    let arr = [&v, &v];
+    *arr[0] //~ ERROR refinement type
+}
