@@ -7,20 +7,18 @@ use std::{env, io, process::exit};
 use flux_driver::callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
 
-const CMD_RUSTC: &str = "rustc";
-
 mod logger;
 
 fn main() -> io::Result<()> {
     let resolve_logs = logger::install()?;
 
+    // Check if we are being called from cargo.
+    let in_cargo = env::var("CARGO").is_ok();
+
     // HACK(nilehmann)
-    // * Setting RUSTC_WRAPPER causes Cargo to pass 'rustc' as the first argument. We igore the
-    //   argument and use it to determine if the binary is being called from cargo.
-    // * Disable incremental compilation because that makes the borrow checker to not run
-    //   and we fail to retrieve the mir.
+    // Disable incremental compilation because that makes the borrow checker to not run
+    // and we fail to retrieve the mir.
     let mut args = vec![];
-    let mut in_cargo = false;
     let mut is_codegen = false;
     for arg in env::args() {
         if arg.starts_with("-C") || arg.starts_with("--codegen") {
@@ -32,11 +30,7 @@ fn main() -> io::Result<()> {
                 args.push("-C".to_string());
                 is_codegen = false;
             }
-            if arg.ends_with(CMD_RUSTC) {
-                in_cargo = true;
-            } else {
-                args.push(arg);
-            }
+            args.push(arg);
         }
     }
     // Add the sysroot path to the arguments.
