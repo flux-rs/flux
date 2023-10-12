@@ -1,6 +1,6 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 //!
-//! # NOTE
+//! # [NOTE:Generics-and-Desugaring]
 //!
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
@@ -56,7 +56,7 @@ pub fn desugar_struct_def(
     let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
     genv.map().insert_generics(def_id, generics);
 
-    // Desugar of struct_def needs to happen AFTER inserting generics. See crate level comment
+    // Desugar of struct_def needs to happen AFTER inserting generics. See [NOTE:Generics-and-Desugaring]
     let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();

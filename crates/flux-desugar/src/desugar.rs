@@ -1372,7 +1372,7 @@ fn resolve_app_sort(
 }
 
 fn resolve_base_sort_ident(
-    sess: &FluxSession,
+    _sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
     ident: &surface::Ident,
 ) -> Result<fhir::Sort> {
@@ -1386,7 +1386,8 @@ fn resolve_base_sort_ident(
         let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
         Ok(fhir::Sort::App(ctor, List::empty()))
     } else {
-        Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
+        panic!("ICE: unknown sort: {:?}", ident.name);
+        // Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
     }
 }
 
