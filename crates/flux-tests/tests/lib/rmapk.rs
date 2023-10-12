@@ -7,7 +7,6 @@
     fn set_is_empty(s: Set<int>) -> bool { s == set_empty(0) }
     fn set_emp() -> Set<int> { set_empty(0) }
 }]
-
 /// define a type indexed by a map
 #[flux::opaque]
 #[flux::refined_by(keys: Set<int>, vals: Map<int, int>)]
