@@ -268,6 +268,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::Sort::Real
             | fhir::Sort::Unit
             | fhir::Sort::BitVec(_)
+            | fhir::Sort::Param(_)
             | fhir::Sort::Var(_) => true,
             fhir::Sort::Record(def_id) => {
                 self.index_sorts_of(*def_id)
@@ -275,11 +276,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     .all(|sort| self.has_equality(sort))
             }
             fhir::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
-            fhir::Sort::Loc
-            | fhir::Sort::Func(_)
-            | fhir::Sort::Param(_)
-            | fhir::Sort::Wildcard
-            | fhir::Sort::Infer(_) => false,
+            fhir::Sort::Loc | fhir::Sort::Func(_) | fhir::Sort::Wildcard | fhir::Sort::Infer(_) => {
+                false
+            }
         }
     }
 
