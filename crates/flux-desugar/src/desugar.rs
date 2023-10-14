@@ -17,6 +17,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
+use rustc_middle::ty::Generics;
 use rustc_span::{
     def_id::LocalDefId,
     sym::{self},
@@ -52,7 +53,7 @@ pub fn desugar_defn(genv: &GlobalEnv, defn: surface::FuncDef) -> Result<Option<f
         let cx = ExprCtxt::new(genv, FluxOwnerId::Flux(defn.name.name), &local_id_gen);
         let expr = cx.desugar_expr(&binders, &body)?;
         let name = defn.name.name;
-        let sort = resolve_sort(genv.sess, genv.map().sort_decls(), &defn.output)?;
+        let sort = resolve_sort(genv.sess, genv.map().sort_decls(), None, &defn.output)?;
         let args = binders.pop_layer().into_params(&cx);
         Ok(Some(fhir::Defn { name, args, sort, expr }))
     } else {
@@ -68,9 +69,9 @@ pub fn func_def_to_func_decl(
     let inputs: Vec<fhir::Sort> = defn
         .args
         .iter()
-        .map(|arg| resolve_sort(sess, sort_decls, &arg.sort))
+        .map(|arg| resolve_sort(sess, sort_decls, None, &arg.sort))
         .try_collect_exhaust()?;
-    let output = resolve_sort(sess, sort_decls, &defn.output)?;
+    let output = resolve_sort(sess, sort_decls, None, &defn.output)?;
     let sort = fhir::PolyFuncSort::new(0, inputs, output);
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
@@ -80,6 +81,7 @@ pub fn desugar_refined_by(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
     owner_id: OwnerId,
+    generics: &rustc_middle::ty::Generics,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy> {
     let mut set = FxHashSet::default();
@@ -93,13 +95,15 @@ pub fn desugar_refined_by(
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params
         .iter()
-        .map(|param| resolve_sort(sess, sort_decls, &param.sort))
+        .map(|param| resolve_sort(sess, sort_decls, Some(generics), &param.sort))
         .try_collect_exhaust()?;
 
     let index_params: Vec<_> = refined_by
         .index_params
         .iter()
-        .map(|param| Ok((param.name.name, resolve_sort(sess, sort_decls, &param.sort)?)))
+        .map(|param| {
+            Ok((param.name.name, resolve_sort(sess, sort_decls, Some(generics), &param.sort)?))
+        })
         .try_collect_exhaust()?;
 
     Ok(fhir::RefinedBy::new(owner_id.def_id, early_bound_params, index_params, refined_by.span))
@@ -272,6 +276,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.push_layer();
         binders.insert_params(
             self.genv,
+            Some(self.owner),
             struct_def
                 .refined_by
                 .iter()
@@ -334,6 +339,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.push_layer();
         binders.insert_params(
             self.genv,
+            Some(self.owner),
             enum_def
                 .refined_by
                 .iter()
@@ -394,7 +400,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::TyAlias> {
         binders.push_layer();
-        binders.insert_params(self.genv, ty_alias.refined_by.all_params())?;
+        binders.insert_params(self.genv, Some(self.owner), ty_alias.refined_by.all_params())?;
 
         let ty = self.desugar_ty(None, &ty_alias.ty, binders)?;
 
@@ -580,6 +586,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::Ty> {
         let span = ty.span;
+        let generics = self.genv.tcx.generics_of(self.owner.def_id);
         let kind = match &ty.kind {
             surface::TyKind::Base(bty) => {
                 // CODESYNC(type-holes, 3)
@@ -628,8 +635,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 binders.push_layer();
                 for param in params {
                     let fresh = binders.fresh();
-                    let sort =
-                        resolve_sort(self.sess(), self.genv.map().sort_decls(), &param.sort)?;
+                    let sort = resolve_sort(
+                        self.sess(),
+                        self.genv.map().sort_decls(),
+                        Some(generics),
+                        &param.sort,
+                    )?;
                     let binder = Binder::Refined(fresh, sort.clone(), false);
                     binders.insert_binder(self.sess(), param.name, binder)?;
                 }
@@ -746,7 +757,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::RefineArg::Abs(params, body, span) => {
                 binders.push_layer();
-                binders.insert_params(self.genv, params)?;
+                binders.insert_params(self.genv, Some(self.owner), params)?;
                 let body = self.as_expr_ctxt().desugar_expr(binders, body)?;
                 let params = binders.pop_layer().into_params(self);
                 Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
@@ -1086,6 +1097,7 @@ impl DesugarCtxt<'_, '_> {
     }
 
     fn gather_input_params_fn_sig(&self, fn_sig: &surface::FnSig, binders: &mut Binders) -> Result {
+        let generics = self.genv.tcx.generics_of(self.owner.def_id);
         for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
             let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
             binders.insert_binder(
@@ -1093,7 +1105,12 @@ impl DesugarCtxt<'_, '_> {
                 param.name,
                 Binder::Refined(
                     binders.fresh(),
-                    resolve_sort(self.genv.sess, self.genv.map().sort_decls(), sort)?,
+                    resolve_sort(
+                        self.genv.sess,
+                        self.genv.map().sort_decls(),
+                        Some(generics),
+                        sort,
+                    )?,
                     false,
                 ),
             )?;
@@ -1305,6 +1322,7 @@ impl DesugarCtxt<'_, '_> {
 fn resolve_sort(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
+    _generics: Option<&Generics>,
     sort: &surface::Sort,
 ) -> Result<fhir::Sort> {
     match sort {
@@ -1402,22 +1420,24 @@ impl Binders {
     ) -> Result<Self> {
         let mut binders = Self::new();
         binders.push_layer();
-        binders.insert_params(genv, params)?;
+        binders.insert_params(genv, None, params)?;
         Ok(binders)
     }
 
     fn insert_params<'a>(
         &mut self,
         genv: &GlobalEnv,
+        owner: Option<OwnerId>,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result {
+        let generics = owner.map(|id| genv.tcx.generics_of(id));
         for param in params {
             self.insert_binder(
                 genv.sess,
                 param.name,
                 Binder::Refined(
                     self.fresh(),
-                    resolve_sort(genv.sess, genv.map().sort_decls(), &param.sort)?,
+                    resolve_sort(genv.sess, genv.map().sort_decls(), generics, &param.sort)?,
                     false,
                 ),
             )?;
