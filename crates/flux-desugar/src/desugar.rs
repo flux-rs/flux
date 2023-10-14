@@ -53,7 +53,7 @@ pub fn desugar_defn(genv: &GlobalEnv, defn: surface::FuncDef) -> Result<Option<f
         let cx = ExprCtxt::new(genv, FluxOwnerId::Flux(defn.name.name), &local_id_gen);
         let expr = cx.desugar_expr(&binders, &body)?;
         let name = defn.name.name;
-        let sort = resolve_sort(genv.sess, genv.map().sort_decls(), None, &defn.output)?;
+        let sort = SortResolver::resolve(genv.sess, genv.map().sort_decls(), None, &defn.output)?;
         let args = binders.pop_layer().into_params(&cx);
         Ok(Some(fhir::Defn { name, args, sort, expr }))
     } else {
@@ -69,9 +69,9 @@ pub fn func_def_to_func_decl(
     let inputs: Vec<fhir::Sort> = defn
         .args
         .iter()
-        .map(|arg| resolve_sort(sess, sort_decls, None, &arg.sort))
+        .map(|arg| SortResolver::resolve(sess, sort_decls, None, &arg.sort))
         .try_collect_exhaust()?;
-    let output = resolve_sort(sess, sort_decls, None, &defn.output)?;
+    let output = SortResolver::resolve(sess, sort_decls, None, &defn.output)?;
     let sort = fhir::PolyFuncSort::new(0, inputs, output);
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
@@ -95,14 +95,17 @@ pub fn desugar_refined_by(
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params
         .iter()
-        .map(|param| resolve_sort(sess, sort_decls, Some(generics), &param.sort))
+        .map(|param| SortResolver::resolve(sess, sort_decls, Some(generics), &param.sort))
         .try_collect_exhaust()?;
 
     let index_params: Vec<_> = refined_by
         .index_params
         .iter()
         .map(|param| {
-            Ok((param.name.name, resolve_sort(sess, sort_decls, Some(generics), &param.sort)?))
+            Ok((
+                param.name.name,
+                SortResolver::resolve(sess, sort_decls, Some(generics), &param.sort)?,
+            ))
         })
         .try_collect_exhaust()?;
 
@@ -635,7 +638,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 binders.push_layer();
                 for param in params {
                     let fresh = binders.fresh();
-                    let sort = resolve_sort(
+                    let sort = SortResolver::resolve(
                         self.sess(),
                         self.genv.map().sort_decls(),
                         Some(generics),
@@ -1105,7 +1108,7 @@ impl DesugarCtxt<'_, '_> {
                 param.name,
                 Binder::Refined(
                     binders.fresh(),
-                    resolve_sort(
+                    SortResolver::resolve(
                         self.genv.sess,
                         self.genv.map().sort_decls(),
                         Some(generics),
@@ -1319,95 +1322,198 @@ impl DesugarCtxt<'_, '_> {
     }
 }
 
-fn resolve_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    _generics: Option<&Generics>,
-    sort: &surface::Sort,
-) -> Result<fhir::Sort> {
-    match sort {
-        surface::Sort::Base(sort) => resolve_base_sort(sess, sort_decls, sort),
-        surface::Sort::Func { inputs, output } => {
-            Ok(resolve_func_sort(sess, sort_decls, inputs, output)?.into())
+struct SortResolver<'a> {
+    sess: &'a FluxSession,
+    sort_decls: &'a fhir::SortDecls,
+    generics: Option<&'a Generics>,
+}
+
+impl<'a> SortResolver<'a> {
+    pub fn resolve(
+        sess: &'a FluxSession,
+        sort_decls: &'a fhir::SortDecls,
+        generics: Option<&'a Generics>,
+        sort: &surface::Sort,
+    ) -> Result<fhir::Sort> {
+        let sr = Self { sess, sort_decls, generics };
+        sr.resolve_sort(sort)
+    }
+
+    fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
+        match sort {
+            surface::Sort::Base(sort) => self.resolve_base_sort(sort),
+            surface::Sort::Func { inputs, output } => {
+                Ok(self.resolve_func_sort(inputs, output)?.into())
+            }
+            surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
         }
-        surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
     }
-}
 
-fn resolve_func_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    inputs: &[surface::BaseSort],
-    output: &surface::BaseSort,
-) -> Result<fhir::PolyFuncSort> {
-    let inputs: Vec<fhir::Sort> = inputs
-        .iter()
-        .map(|sort| resolve_base_sort(sess, sort_decls, sort))
-        .try_collect_exhaust()?;
-    let output = resolve_base_sort(sess, sort_decls, output)?;
-    Ok(fhir::PolyFuncSort::new(0, inputs, output))
-}
-
-fn resolve_base_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    base: &surface::BaseSort,
-) -> Result<fhir::Sort> {
-    match base {
-        surface::BaseSort::Ident(ident) => resolve_base_sort_ident(sess, sort_decls, ident),
-        surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
-        surface::BaseSort::App(ident, args) => resolve_app_sort(sess, sort_decls, *ident, args),
-    }
-}
-
-fn resolve_sort_ctor(sess: &FluxSession, ident: surface::Ident) -> Result<fhir::SortCtor> {
-    if ident.name == SORTS.set {
-        Ok(fhir::SortCtor::Set)
-    } else if ident.name == SORTS.map {
-        Ok(fhir::SortCtor::Map)
-    } else {
-        Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
-    }
-}
-
-fn resolve_app_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    ident: surface::Ident,
-    args: &Vec<surface::BaseSort>,
-) -> Result<fhir::Sort> {
-    let ctor = resolve_sort_ctor(sess, ident)?;
-    let arity = ctor.arity();
-    if args.len() == arity {
-        let args = args
+    fn resolve_func_sort(
+        &self,
+        inputs: &[surface::BaseSort],
+        output: &surface::BaseSort,
+    ) -> Result<fhir::PolyFuncSort> {
+        let inputs: Vec<fhir::Sort> = inputs
             .iter()
-            .map(|arg| resolve_base_sort(sess, sort_decls, arg))
+            .map(|sort| self.resolve_base_sort(sort))
             .try_collect_exhaust()?;
-        Ok(fhir::Sort::App(ctor, args))
-    } else {
-        Err(sess.emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+        let output = self.resolve_base_sort(output)?;
+        Ok(fhir::PolyFuncSort::new(0, inputs, output))
+    }
+
+    fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort> {
+        match base {
+            surface::BaseSort::Ident(ident) => self.resolve_base_sort_ident(ident),
+            surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
+            surface::BaseSort::App(ident, args) => self.resolve_app_sort(*ident, args),
+        }
+    }
+
+    fn resolve_sort_ctor(&self, ident: surface::Ident) -> Result<fhir::SortCtor> {
+        if ident.name == SORTS.set {
+            Ok(fhir::SortCtor::Set)
+        } else if ident.name == SORTS.map {
+            Ok(fhir::SortCtor::Map)
+        } else {
+            Err(self.sess.emit_err(errors::UnresolvedSort::new(ident)))
+        }
+    }
+
+    fn resolve_app_sort(
+        &self,
+        ident: surface::Ident,
+        args: &Vec<surface::BaseSort>,
+    ) -> Result<fhir::Sort> {
+        let ctor = self.resolve_sort_ctor(ident)?;
+        let arity = ctor.arity();
+        if args.len() == arity {
+            let args = args
+                .iter()
+                .map(|arg| self.resolve_base_sort(arg))
+                .try_collect_exhaust()?;
+            Ok(fhir::Sort::App(ctor, args))
+        } else {
+            Err(self
+                .sess
+                .emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+        }
+    }
+
+    fn resolve_base_sort_ident(&self, ident: &surface::Ident) -> Result<fhir::Sort> {
+        if ident.name == SORTS.int {
+            Ok(fhir::Sort::Int)
+        } else if ident.name == sym::bool {
+            Ok(fhir::Sort::Bool)
+        } else if ident.name == SORTS.real {
+            Ok(fhir::Sort::Real)
+        } else if self.sort_decls.get(&ident.name).is_some() {
+            let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
+            Ok(fhir::Sort::App(ctor, List::empty()))
+        } else {
+            panic!("ICE: unknown sort: {:?} with {:?}", ident.name, self.generics);
+            // Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
+        }
     }
 }
 
-fn resolve_base_sort_ident(
-    _sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    ident: &surface::Ident,
-) -> Result<fhir::Sort> {
-    if ident.name == SORTS.int {
-        Ok(fhir::Sort::Int)
-    } else if ident.name == sym::bool {
-        Ok(fhir::Sort::Bool)
-    } else if ident.name == SORTS.real {
-        Ok(fhir::Sort::Real)
-    } else if sort_decls.get(&ident.name).is_some() {
-        let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
-        Ok(fhir::Sort::App(ctor, List::empty()))
-    } else {
-        panic!("ICE: unknown sort: {:?}", ident.name);
-        // Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
-    }
-}
+// fn resolve_sort(
+//     sess: &FluxSession,
+//     sort_decls: &fhir::SortDecls,
+//     generics: Option<&Generics>,
+//     sort: &surface::Sort,
+// ) -> Result<fhir::Sort> {
+//     match sort {
+//         surface::Sort::Base(sort) => resolve_base_sort(sess, sort_decls, generics, sort),
+//         surface::Sort::Func { inputs, output } => {
+//             Ok(resolve_func_sort(sess, sort_decls, generics, inputs, output)?.into())
+//         }
+//         surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
+//     }
+// }
+
+// fn resolve_func_sort(
+//     sess: &FluxSession,
+//     sort_decls: &fhir::SortDecls,
+//     generics: Option<&Generics>,
+//     inputs: &[surface::BaseSort],
+//     output: &surface::BaseSort,
+// ) -> Result<fhir::PolyFuncSort> {
+//     let inputs: Vec<fhir::Sort> = inputs
+//         .iter()
+//         .map(|sort| resolve_base_sort(sess, sort_decls, generics, sort))
+//         .try_collect_exhaust()?;
+//     let output = resolve_base_sort(sess, sort_decls, generics, output)?;
+//     Ok(fhir::PolyFuncSort::new(0, inputs, output))
+// }
+
+// fn resolve_base_sort(
+//     sess: &FluxSession,
+//     sort_decls: &fhir::SortDecls,
+//     generics: Option<&Generics>,
+//     base: &surface::BaseSort,
+// ) -> Result<fhir::Sort> {
+//     match base {
+//         surface::BaseSort::Ident(ident) => {
+//             resolve_base_sort_ident(sess, sort_decls, generics, ident)
+//         }
+//         surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
+//         surface::BaseSort::App(ident, args) => {
+//             resolve_app_sort(sess, sort_decls, generics, *ident, args)
+//         }
+//     }
+// }
+
+// fn resolve_sort_ctor(sess: &FluxSession, ident: surface::Ident) -> Result<fhir::SortCtor> {
+//     if ident.name == SORTS.set {
+//         Ok(fhir::SortCtor::Set)
+//     } else if ident.name == SORTS.map {
+//         Ok(fhir::SortCtor::Map)
+//     } else {
+//         Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
+//     }
+// }
+
+// fn resolve_app_sort(
+//     sess: &FluxSession,
+//     sort_decls: &fhir::SortDecls,
+//     generics: Option<&Generics>,
+//     ident: surface::Ident,
+//     args: &Vec<surface::BaseSort>,
+// ) -> Result<fhir::Sort> {
+//     let ctor = resolve_sort_ctor(sess, ident)?;
+//     let arity = ctor.arity();
+//     if args.len() == arity {
+//         let args = args
+//             .iter()
+//             .map(|arg| resolve_base_sort(sess, sort_decls, generics, arg))
+//             .try_collect_exhaust()?;
+//         Ok(fhir::Sort::App(ctor, args))
+//     } else {
+//         Err(sess.emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+//     }
+// }
+
+// fn resolve_base_sort_ident(
+//     _sess: &FluxSession,
+//     sort_decls: &fhir::SortDecls,
+//     generics: Option<&Generics>,
+//     ident: &surface::Ident,
+// ) -> Result<fhir::Sort> {
+//     if ident.name == SORTS.int {
+//         Ok(fhir::Sort::Int)
+//     } else if ident.name == sym::bool {
+//         Ok(fhir::Sort::Bool)
+//     } else if ident.name == SORTS.real {
+//         Ok(fhir::Sort::Real)
+//     } else if sort_decls.get(&ident.name).is_some() {
+//         let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
+//         Ok(fhir::Sort::App(ctor, List::empty()))
+//     } else {
+//         panic!("ICE: unknown sort: {:?} with {generics:?}", ident.name);
+//         // Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
+//     }
+// }
 
 impl Binders {
     pub(crate) fn new() -> Binders {
@@ -1437,7 +1543,12 @@ impl Binders {
                 param.name,
                 Binder::Refined(
                     self.fresh(),
-                    resolve_sort(genv.sess, genv.map().sort_decls(), generics, &param.sort)?,
+                    SortResolver::resolve(
+                        genv.sess,
+                        genv.map().sort_decls(),
+                        generics,
+                        &param.sort,
+                    )?,
                     false,
                 ),
             )?;
