@@ -498,7 +498,7 @@ pub enum Sort {
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     /// the List<Sort> is for the type parameters of (generic) record sorts
-    Record(DefId, List<Sort>),
+    Record(DefId /* TODO:NEXT , List<Sort> */),
     /// The sort associated to a type variable
     Param(DefId),
     /// A sort that needs to be inferred

@@ -209,7 +209,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let sort = self[var.name].clone();
                 match sort {
                     fhir::Sort::Record(def_id) => {
-                        println!("TRACE: synth_expr: var {var:?} => {sort:?} ({def_id:?})");
+                        // println!("TRACE: synth_expr: var {var:?} => {sort:?} ({def_id:?})");
                         self.genv
                             .field_sort(def_id, fld.name)
                             .cloned()
