@@ -13,7 +13,7 @@ pub fn empty<T>() -> RSet<T> {
 }
 
 #[flux::trusted]
-#[flux::sig(fn(set: &strg RSet[@s], elem: T) ensures set: RSet[ set_union(set_singleton(x), s) ])]
+#[flux::sig(fn<T as base>(set: &strg RSet<T>[@s], elem: T) ensures set: RSet[ set_union(set_singleton(elem), s) ])]
 pub fn insert<T>(set: &mut RSet<T>, elem: T)
 where
     T: Eq + Hash,
@@ -22,7 +22,7 @@ where
 }
 
 #[flux::trusted]
-#[flux::sig(fn(set: &Set<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
+#[flux::sig(fn<T as base>(set: &RSet<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
 pub fn contains<T>(set: &RSet<T>, elem: &T) -> bool
 where
     T: Eq + Hash,
