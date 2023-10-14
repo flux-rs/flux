@@ -160,7 +160,6 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
             let refined_by = if let Some(refined_by) = refined_by {
                 let def_id = owner_id.to_def_id();
                 let generics = tcx.generics_of(def_id);
-                println!("TRACE: {def_id:?} has generics: {generics:?}");
                 desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, generics, refined_by)?
             } else {
                 lift::lift_refined_by(tcx, owner_id)
