@@ -101,7 +101,7 @@ impl LookupMode for Unfold<'_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.1.unpacker().shallow().unpack(ty)
+        self.1.unpacker().shallow(true).unpack(ty)
     }
 
     fn downcast_struct(
@@ -531,13 +531,13 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.rcx.unpacker().shallow().unpack(ty)
+        self.rcx.unpacker().shallow(true).unpack(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.rcx.unpacker().shallow();
+        let mut unpacker = self.rcx.unpacker().shallow(true);
         if self.in_ref == Some(Mutability::Mut) {
-            unpacker = unpacker.no_unpack_exists();
+            unpacker = unpacker.unpack_exists(false);
         }
         unpacker.unpack(ty)
     }

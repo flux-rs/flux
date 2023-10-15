@@ -173,7 +173,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) = (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind()
             {
-                rcx.unpacker().unpack_inside_mut_ref().unpack(actual)
+                rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
             } else {
                 actual.clone()
             }

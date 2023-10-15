@@ -4,7 +4,6 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use bitflags::bitflags;
 use flux_common::index::{IndexGen, IndexVec};
 use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
@@ -270,7 +269,9 @@ impl<'rcx> RefineCtxt<'rcx> {
 pub(crate) struct Unpacker<'a, 'rcx> {
     rcx: &'a mut RefineCtxt<'rcx>,
     in_mut_ref: bool,
-    flags: UnpackFlags,
+    unpack_inside_mut_ref: bool,
+    shallow: bool,
+    unpack_exists: bool,
     assume_invariants: AssumeInvariants,
 }
 
@@ -287,21 +288,28 @@ impl AssumeInvariants {
 
 impl<'a, 'rcx> Unpacker<'a, 'rcx> {
     fn new(rcx: &'a mut RefineCtxt<'rcx>, assume_invariants: AssumeInvariants) -> Self {
-        Self { rcx, in_mut_ref: false, flags: UnpackFlags::empty(), assume_invariants }
+        Self {
+            rcx,
+            in_mut_ref: false,
+            unpack_inside_mut_ref: false,
+            shallow: false,
+            unpack_exists: true,
+            assume_invariants,
+        }
     }
 
-    pub(crate) fn unpack_inside_mut_ref(mut self) -> Self {
-        self.flags |= UnpackFlags::EXISTS_IN_MUT_REF;
+    pub(crate) fn unpack_inside_mut_ref(mut self, unpack_inside_mut_ref: bool) -> Self {
+        self.unpack_inside_mut_ref = unpack_inside_mut_ref;
         self
     }
 
-    pub(crate) fn shallow(mut self) -> Self {
-        self.flags |= UnpackFlags::SHALLOW;
+    pub(crate) fn shallow(mut self, shallow: bool) -> Self {
+        self.shallow = shallow;
         self
     }
 
-    pub(crate) fn no_unpack_exists(mut self) -> Self {
-        self.flags |= UnpackFlags::NO_UNPACK_EXISTS;
+    pub(crate) fn unpack_exists(mut self, unpack_exists: bool) -> Self {
+        self.unpack_exists = unpack_exists;
         self
     }
 
@@ -312,15 +320,14 @@ impl<'a, 'rcx> Unpacker<'a, 'rcx> {
 
 impl TypeFolder for Unpacker<'_, '_> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        let flags = self.flags;
         match ty.kind() {
             TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
-            TyKind::Exists(bound_ty) if !flags.contains(UnpackFlags::NO_UNPACK_EXISTS) => {
+            TyKind::Exists(bound_ty) if self.unpack_exists => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes the refered type too specific. We only have this as a workaround to
                 // infer parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                if !self.in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
+                if !self.in_mut_ref || self.unpack_inside_mut_ref {
                     let bound_ty = bound_ty
                         .replace_bound_exprs_with(|sort, _| self.rcx.define_vars(sort))
                         .fold_with(self);
@@ -336,15 +343,13 @@ impl TypeFolder for Unpacker<'_, '_> {
                 self.rcx.assume_pred(pred);
                 ty.fold_with(self)
             }
-            TyKind::Downcast(..) if !self.flags.contains(UnpackFlags::SHALLOW) => {
-                ty.super_fold_with(self)
-            }
+            TyKind::Downcast(..) if !self.shallow => ty.super_fold_with(self),
             _ => ty.clone(),
         }
     }
 
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
-        if self.flags.contains(UnpackFlags::SHALLOW) {
+        if self.shallow {
             return bty.clone();
         }
         match bty {
@@ -444,15 +449,6 @@ impl NodePtr {
 
     fn next_name_idx(&self) -> usize {
         self.borrow().nbindings + usize::from(self.borrow().is_forall())
-    }
-}
-
-bitflags! {
-    #[derive(Copy, Clone)]
-    pub struct UnpackFlags: u8 {
-        const EXISTS_IN_MUT_REF = 0b001;
-        const SHALLOW           = 0b010;
-        const NO_UNPACK_EXISTS  = 0b100;
     }
 }
 
