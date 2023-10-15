@@ -361,7 +361,7 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
         let Some(elem) = self.cursor.next() else {
             return self.unfold(ty);
         };
-        let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+        let ty = self.unpack(ty);
         match elem {
             PlaceElem::Deref => self.deref(&ty),
             PlaceElem::Field(f) => self.field(&ty, f),
@@ -413,11 +413,11 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
         } else if ty.is_struct() {
-            let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+            let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
             Ok(ty)
         } else if ty.is_array() || ty.is_slice() {
-            Ok(self.rcx.unpack_with(ty, UnpackFlags::SHALLOW))
+            Ok(self.unpack(ty))
         } else {
             Ok(ty.clone())
         }
@@ -478,7 +478,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 let mut fields = downcast_struct(self.genv, adt, args, idx)?
                     .into_iter()
                     .map(|ty| {
-                        let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
+                        let ty = self.unpack_for_downcast(&ty);
                         self.assume_invariants(&ty);
                         ty
                     })
@@ -503,7 +503,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 let fields = downcast(self.genv, self.rcx, adt, args, variant, idx)?
                     .into_iter()
                     .map(|ty| {
-                        let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
+                        let ty = self.unpack_for_downcast(&ty);
                         self.assume_invariants(&ty);
                         ty
                     })
@@ -532,6 +532,19 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
         Ok(())
     }
 
+    fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.rcx.unpack_with(ty, UnpackFlags::SHALLOW)
+    }
+
+    fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
+        let flags = if self.in_ref == Some(Mutability::Mut) {
+            UnpackFlags::NO_UNPACK_EXISTS | UnpackFlags::SHALLOW
+        } else {
+            UnpackFlags::SHALLOW
+        };
+        self.rcx.unpack_with(ty, flags)
+    }
+
     fn assume_invariants(&mut self, ty: &Ty) {
         self.rcx
             .assume_invariants(ty, self.checker_conf.check_overflow);
@@ -540,14 +553,6 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn change_root(&mut self, path: &Path) {
         self.has_work = true;
         self.cursor.change_root(path);
-    }
-
-    fn unpack_flags_for_downcast(&self) -> UnpackFlags {
-        if self.in_ref == Some(Mutability::Mut) {
-            UnpackFlags::NO_UNPACK_EXISTS
-        } else {
-            UnpackFlags::empty()
-        }
     }
 
     fn should_continue(&mut self) -> bool {
