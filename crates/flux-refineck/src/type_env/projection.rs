@@ -17,9 +17,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::{
-    checker::errors::CheckerErrKind,
-    constraint_gen::ConstrGen,
-    refine_tree::{RefineCtxt, UnpackFlags},
+    checker::errors::CheckerErrKind, constraint_gen::ConstrGen, refine_tree::RefineCtxt,
     CheckerConfig,
 };
 
@@ -103,7 +101,7 @@ impl LookupMode for Unfold<'_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.1.unpack_with(ty, UnpackFlags::SHALLOW)
+        self.1.unpacker().shallow().unpack(ty)
     }
 
     fn downcast_struct(
@@ -533,16 +531,15 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.rcx.unpack_with(ty, UnpackFlags::SHALLOW)
+        self.rcx.unpacker().shallow().unpack(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let flags = if self.in_ref == Some(Mutability::Mut) {
-            UnpackFlags::NO_UNPACK_EXISTS | UnpackFlags::SHALLOW
-        } else {
-            UnpackFlags::SHALLOW
-        };
-        self.rcx.unpack_with(ty, flags)
+        let mut unpacker = self.rcx.unpacker().shallow();
+        if self.in_ref == Some(Mutability::Mut) {
+            unpacker = unpacker.no_unpack_exists();
+        }
+        unpacker.unpack(ty)
     }
 
     fn assume_invariants(&mut self, ty: &Ty) {

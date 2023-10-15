@@ -160,7 +160,7 @@ impl<'a> RefineSubtree<'a> {
     }
 }
 
-impl RefineCtxt<'_> {
+impl<'rcx> RefineCtxt<'rcx> {
     #[allow(unused)]
     pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
         RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
@@ -226,72 +226,12 @@ impl RefineCtxt<'_> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn unpack_with(&mut self, ty: &Ty, flags: UnpackFlags) -> Ty {
-        struct Unpacker<'a, 'rcx> {
-            rcx: &'a mut RefineCtxt<'rcx>,
-            in_mut_ref: bool,
-            flags: UnpackFlags,
-        }
-
-        impl TypeFolder for Unpacker<'_, '_> {
-            fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                let flags = self.flags;
-                match ty.kind() {
-                    TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
-                    TyKind::Exists(bound_ty) if !flags.contains(UnpackFlags::NO_UNPACK_EXISTS) => {
-                        // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-                        // that makes the refered type too specific. We only have this as a workaround to
-                        // infer parameters under mutable references and it should be removed once we implement
-                        // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                        if !self.in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                            bound_ty
-                                .replace_bound_exprs_with(|sort, _| self.rcx.define_vars(sort))
-                                .fold_with(self)
-                        } else {
-                            ty.clone()
-                        }
-                    }
-                    TyKind::Constr(pred, ty) => {
-                        self.rcx.assume_pred(pred);
-                        ty.fold_with(self)
-                    }
-                    TyKind::Downcast(..) if !self.flags.contains(UnpackFlags::SHALLOW) => {
-                        ty.super_fold_with(self)
-                    }
-                    _ => ty.clone(),
-                }
-            }
-
-            fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
-                if self.flags.contains(UnpackFlags::SHALLOW) {
-                    return bty.clone();
-                }
-                match bty {
-                    BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                        let (boxed, alloc) = box_args(substs);
-                        let boxed = boxed.fold_with(self);
-                        BaseTy::adt(
-                            adt_def.clone(),
-                            vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
-                        )
-                    }
-                    BaseTy::Ref(r, ty, mutbl) => {
-                        let in_mut_ref = self.in_mut_ref;
-                        self.in_mut_ref = matches!(mutbl, Mutability::Mut);
-                        let ty = ty.fold_with(self);
-                        self.in_mut_ref = in_mut_ref;
-                        BaseTy::Ref(*r, ty, *mutbl)
-                    }
-                    BaseTy::Tuple(_) => bty.super_fold_with(self),
-                    _ => bty.clone(),
-                }
-            }
-        }
-        ty.fold_with(&mut Unpacker { rcx: self, in_mut_ref: false, flags })
+    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.unpacker().unpack(ty)
     }
 
-    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.unpack_with(ty, UnpackFlags::empty())
+    pub(crate) fn unpacker(&mut self) -> Unpacker<'_, 'rcx> {
+        Unpacker::new(self, AssumeInvariants::No)
     }
 
     pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
@@ -324,6 +264,108 @@ impl RefineCtxt<'_> {
 
     pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
+    }
+}
+
+pub(crate) struct Unpacker<'a, 'rcx> {
+    rcx: &'a mut RefineCtxt<'rcx>,
+    in_mut_ref: bool,
+    flags: UnpackFlags,
+    assume_invariants: AssumeInvariants,
+}
+
+pub(crate) enum AssumeInvariants {
+    Yes { check_overflow: bool },
+    No,
+}
+
+impl AssumeInvariants {
+    pub(crate) fn yes(check_overflow: bool) -> Self {
+        Self::Yes { check_overflow }
+    }
+}
+
+impl<'a, 'rcx> Unpacker<'a, 'rcx> {
+    fn new(rcx: &'a mut RefineCtxt<'rcx>, assume_invariants: AssumeInvariants) -> Self {
+        Self { rcx, in_mut_ref: false, flags: UnpackFlags::empty(), assume_invariants }
+    }
+
+    pub(crate) fn unpack_inside_mut_ref(mut self) -> Self {
+        self.flags |= UnpackFlags::EXISTS_IN_MUT_REF;
+        self
+    }
+
+    pub(crate) fn shallow(mut self) -> Self {
+        self.flags |= UnpackFlags::SHALLOW;
+        self
+    }
+
+    pub(crate) fn no_unpack_exists(mut self) -> Self {
+        self.flags |= UnpackFlags::NO_UNPACK_EXISTS;
+        self
+    }
+
+    pub(crate) fn unpack(mut self, ty: &Ty) -> Ty {
+        ty.fold_with(&mut self)
+    }
+}
+
+impl TypeFolder for Unpacker<'_, '_> {
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        let flags = self.flags;
+        match ty.kind() {
+            TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
+            TyKind::Exists(bound_ty) if !flags.contains(UnpackFlags::NO_UNPACK_EXISTS) => {
+                // HACK(nilehmann) In general we shouldn't unpack through mutable references because
+                // that makes the refered type too specific. We only have this as a workaround to
+                // infer parameters under mutable references and it should be removed once we implement
+                // opening of mutable references. See also `ConstrGen::check_fn_call`.
+                if !self.in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
+                    let bound_ty = bound_ty
+                        .replace_bound_exprs_with(|sort, _| self.rcx.define_vars(sort))
+                        .fold_with(self);
+                    if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
+                        self.rcx.assume_invariants(&bound_ty, check_overflow);
+                    }
+                    bound_ty
+                } else {
+                    ty.clone()
+                }
+            }
+            TyKind::Constr(pred, ty) => {
+                self.rcx.assume_pred(pred);
+                ty.fold_with(self)
+            }
+            TyKind::Downcast(..) if !self.flags.contains(UnpackFlags::SHALLOW) => {
+                ty.super_fold_with(self)
+            }
+            _ => ty.clone(),
+        }
+    }
+
+    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
+        if self.flags.contains(UnpackFlags::SHALLOW) {
+            return bty.clone();
+        }
+        match bty {
+            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
+                let (boxed, alloc) = box_args(substs);
+                let boxed = boxed.fold_with(self);
+                BaseTy::adt(
+                    adt_def.clone(),
+                    vec![GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                )
+            }
+            BaseTy::Ref(r, ty, mutbl) => {
+                let in_mut_ref = self.in_mut_ref;
+                self.in_mut_ref = matches!(mutbl, Mutability::Mut);
+                let ty = ty.fold_with(self);
+                self.in_mut_ref = in_mut_ref;
+                BaseTy::Ref(*r, ty, *mutbl)
+            }
+            BaseTy::Tuple(_) => bty.super_fold_with(self),
+            _ => bty.clone(),
+        }
     }
 }
 
