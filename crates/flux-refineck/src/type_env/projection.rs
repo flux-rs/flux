@@ -87,9 +87,7 @@ pub(crate) struct LookupResult<'a> {
 pub(crate) trait LookupMode {
     type Error = !;
 
-    fn unpack(&mut self, ty: &Ty) -> Ty {
-        ty.clone()
-    }
+    fn unpack(&mut self, ty: &Ty) -> Ty;
 
     fn downcast_struct(
         &mut self,
@@ -123,6 +121,10 @@ struct NoUnfold;
 impl LookupMode for NoUnfold {
     fn downcast_struct(&mut self, _: &AdtDef, _: &[GenericArg], _: &Index) -> Result<Vec<Ty>, !> {
         tracked_span_bug!("cannot unfold in `NoUnfold` mode")
+    }
+
+    fn unpack(&mut self, ty: &Ty) -> Ty {
+        ty.clone()
     }
 }
 
@@ -687,7 +689,7 @@ impl Cursor {
     }
 }
 
-pub(crate) fn downcast(
+fn downcast(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
@@ -713,7 +715,7 @@ pub(crate) fn downcast(
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
-pub(crate) fn downcast_struct(
+fn downcast_struct(
     genv: &GlobalEnv,
     adt: &AdtDef,
     args: &[GenericArg],
@@ -743,7 +745,7 @@ fn struct_variant(
 ///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
-pub(crate) fn downcast_enum(
+fn downcast_enum(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,

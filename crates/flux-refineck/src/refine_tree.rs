@@ -198,8 +198,8 @@ impl RefineCtxt<'_> {
     }
 
     /// Given a [`sort`] that may contain nested tuples, it destructs the tuples recursively, generating
-    /// multiple fresh variables instead of a single variable of tuple sort. It returns the "eta-expanded"
-    /// tuple of fresh variables.
+    /// multiple fresh variables and returning the "eta-expanded" tuple of fresh variables. This is in contrast
+    /// to generating a single fresh variable of tuple sort.
     ///
     /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
     /// `a0: int`, `a1: bool`, and `a2: int`.
@@ -310,17 +310,13 @@ impl RefineCtxt<'_> {
             }
 
             fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!, ()> {
-                if let TyKind::Indexed(bty, idx) = ty.kind() {
+                if let TyKind::Indexed(bty, idx) = ty.kind() && !idx.has_escaping_bvars() {
                     for invariant in bty.invariants(self.overflow_checking) {
                         let invariant = invariant.pred.replace_bound_expr(&idx.expr);
                         self.rcx.assume_pred(invariant);
                     }
                 }
-                if !matches!(ty.kind(), TyKind::Exists(..)) {
-                    ty.super_visit_with(self)
-                } else {
-                    ControlFlow::Continue(())
-                }
+                ty.super_visit_with(self)
             }
         }
         ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
