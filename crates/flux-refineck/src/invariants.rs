@@ -52,7 +52,7 @@ fn check_invariant(
             .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
         for ty in variant.fields() {
-            let ty = rcx.unpack(ty);
+            let ty = rcx.unpack(ty, crate::refine_tree::AssumeInvariants::No);
             rcx.assume_invariants(&ty, checker_config.check_overflow);
         }
         let (.., idx) = variant.ret.expect_adt();

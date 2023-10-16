@@ -600,7 +600,6 @@ dependencies = [
 name = "flux-refineck"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "flux-common",
  "flux-config",
  "flux-errors",
