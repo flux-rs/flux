@@ -324,8 +324,8 @@ impl TypeFolder for Unpacker<'_, '_> {
             TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
             TyKind::Exists(bound_ty) if self.unpack_exists => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
-                // that makes the refered type too specific. We only have this as a workaround to
-                // infer parameters under mutable references and it should be removed once we implement
+                // that makes referent type too specific. We only have this as a workaround to infer
+                // parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !self.in_mut_ref || self.unpack_inside_mut_ref {
                     let bound_ty = bound_ty
