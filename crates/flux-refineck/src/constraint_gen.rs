@@ -25,7 +25,7 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{RefineCtxt, Scope, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
 
@@ -173,7 +173,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) = (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind()
             {
-                rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
+                rcx.unpacker(AssumeInvariants::No).unpack_inside_mut_ref(true).unpack(actual)
             } else {
                 actual.clone()
             }

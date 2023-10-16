@@ -17,7 +17,9 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::{
-    checker::errors::CheckerErrKind, constraint_gen::ConstrGen, refine_tree::RefineCtxt,
+    checker::errors::CheckerErrKind,
+    constraint_gen::ConstrGen,
+    refine_tree::{AssumeInvariants, RefineCtxt},
     CheckerConfig,
 };
 
@@ -101,7 +103,10 @@ impl LookupMode for Unfold<'_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.1.unpacker().shallow(true).unpack(ty)
+        self.1
+            .unpacker(AssumeInvariants::No)
+            .shallow(true)
+            .unpack(ty)
     }
 
     fn downcast_struct(
@@ -316,13 +321,13 @@ impl LookupResult<'_> {
         old
     }
 
-    pub(crate) fn unblock(self, rcx: &mut RefineCtxt) {
+    pub(crate) fn unblock(self, rcx: &mut RefineCtxt, check_overflow: bool) {
         if self.ty.is_uninit() {
             return;
         }
         let mut unblocked = self.ty.unblocked();
         if self.is_strg {
-            unblocked = rcx.unpack(&unblocked);
+            unblocked = rcx.unpack(&unblocked, AssumeInvariants::yes(check_overflow));
         }
         Updater::update(self.bindings, self.cursor, unblocked);
     }
@@ -475,11 +480,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
                 let mut fields = downcast_struct(self.genv, adt, args, idx)?
                     .into_iter()
-                    .map(|ty| {
-                        let ty = self.unpack_for_downcast(&ty);
-                        self.assume_invariants(&ty);
-                        ty
-                    })
+                    .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 let args = args.with_holes();
@@ -500,11 +501,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
                 let fields = downcast(self.genv, self.rcx, adt, args, variant, idx)?
                     .into_iter()
-                    .map(|ty| {
-                        let ty = self.unpack_for_downcast(&ty);
-                        self.assume_invariants(&ty);
-                        ty
-                    })
+                    .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
                 Ty::downcast(adt.clone(), args.with_holes(), ty.clone(), variant, fields.into())
             }
@@ -531,20 +528,21 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.rcx.unpacker().shallow(true).unpack(ty)
+        self.rcx
+            .unpacker(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .shallow(true)
+            .unpack(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.rcx.unpacker().shallow(true);
+        let mut unpacker = self.rcx.unpacker(AssumeInvariants::No).shallow(true);
         if self.in_ref == Some(Mutability::Mut) {
             unpacker = unpacker.unpack_exists(false);
         }
-        unpacker.unpack(ty)
-    }
-
-    fn assume_invariants(&mut self, ty: &Ty) {
+        let ty = unpacker.unpack(ty);
         self.rcx
-            .assume_invariants(ty, self.checker_conf.check_overflow);
+            .assume_invariants(&ty, self.checker_conf.check_overflow);
+        ty
     }
 
     fn change_root(&mut self, path: &Path) {

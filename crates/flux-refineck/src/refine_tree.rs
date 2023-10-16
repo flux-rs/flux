@@ -225,12 +225,12 @@ impl<'rcx> RefineCtxt<'rcx> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.unpacker().unpack(ty)
+    pub(crate) fn unpack(&mut self, ty: &Ty, assume_invariants: AssumeInvariants) -> Ty {
+        self.unpacker(assume_invariants).unpack(ty)
     }
 
-    pub(crate) fn unpacker(&mut self) -> Unpacker<'_, 'rcx> {
-        Unpacker::new(self, AssumeInvariants::No)
+    pub(crate) fn unpacker(&mut self, assume_invariants: AssumeInvariants) -> Unpacker<'_, 'rcx> {
+        Unpacker::new(self, assume_invariants)
     }
 
     pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
