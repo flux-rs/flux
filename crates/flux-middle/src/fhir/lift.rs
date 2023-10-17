@@ -11,7 +11,7 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
-use crate::fhir;
+use crate::{fhir, intern::List};
 
 pub struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -375,6 +375,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             bty,
             idx: fhir::RefineArg::Record(
                 self.owner.to_def_id(),
+                List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
                 vec![],
                 generics.span.shrink_to_hi(),
             ),

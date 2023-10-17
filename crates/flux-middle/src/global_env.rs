@@ -180,14 +180,16 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
         match &bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, fhir::Path { res, .. })) => {
-                self.sort_of_res(*res)
-            }
+            fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => self.sort_of_path(path),
             fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
         }
     }
 
-    pub fn index_sorts_of(&self, def_id: impl Into<DefId>) -> &[fhir::Sort] {
+    pub fn index_sorts_of(
+        &self,
+        def_id: impl Into<DefId>,
+        sort_args: List<fhir::Sort>,
+    ) -> &[fhir::Sort] {
         let def_id = def_id.into();
         if let Some(local_id) = def_id.as_local().or_else(|| self.map().get_extern(def_id)) {
             self.map().refined_by(local_id).index_sorts()
@@ -199,35 +201,99 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn sort_of_res(&self, res: fhir::Res) -> Option<fhir::Sort> {
-        // CODESYNC(sort-of, 4) sorts should be given consistently
-        match res {
+    pub fn sort_of_path(&self, path: &fhir::Path) -> Option<fhir::Sort> {
+        match path.res {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
             fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
             fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => {
                 Some(fhir::Sort::Unit)
             }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
-                Some(fhir::Sort::Record(def_id))
-            }
-            fhir::Res::SelfTyAlias { alias_to, .. } => {
-                let self_ty = self.tcx.type_of(alias_to).skip_binder();
-                self.sort_of_self_ty(self_ty)
-            }
-            fhir::Res::Def(DefKind::TyParam, def_id) => {
-                let param = self.get_generic_param(def_id.expect_local());
-                match &param.kind {
-                    fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
-                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+                // println!("TRACE: sort_of_path (1) {def_id:?} with args = {:?}", path.args);
+                let mut sort_args = vec![];
+                for arg in path.args.iter() {
+                    if let fhir::GenericArg::Type(ty) = arg &&
+                       let Some(sort) = self.sort_of_ty(ty)
+                    {
+                        // let path = ty.as_path()?;
+                        // sort_args.push(self.sort_of_path(path)?);
+                        // let sort = self.sort_of_ty(ty);
+                        // println!("TRACE: sort_of_path (2) {ty:?} => {sort:?}");
+                        sort_args.push(sort);
+                    }
                 }
+                Some(fhir::Sort::Record(def_id, List::from_vec(sort_args)))
             }
+            fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to),
+            fhir::Res::Def(DefKind::TyParam, def_id) => self.sort_of_generic_param(def_id),
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
             | fhir::Res::SelfTyParam { .. } => None,
-            fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
+            fhir::Res::Def(..) => bug!("unexpected res {:?}", path.res),
         }
     }
 
-    fn sort_of_self_ty(&self, ty: rustc_middle::ty::Ty) -> Option<fhir::Sort> {
+    pub fn sort_of_self_ty_alias(&self, alias_to: DefId) -> Option<fhir::Sort> {
+        // let self_ty = self.tcx.type_of(alias_to).skip_binder();
+        let self_ty = self.tcx.type_of(alias_to).instantiate_identity();
+        // println!("TRACE: sort_of_path (3) {alias_to:?} is {self_ty:?}");
+        let res = self.sort_of_self_ty(alias_to, self_ty);
+        // println!("TRACE: sort_of_path (4) {self_ty:?} ==> {res:?}");
+        res
+    }
+
+    fn sort_of_generic_param(&self, def_id: DefId) -> Option<fhir::Sort> {
+        let param = self.get_generic_param(def_id.expect_local());
+        match &param.kind {
+            fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
+            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+        }
+    }
+
+    // pub fn sort_of_res(&self, res: fhir::Res) -> Option<fhir::Sort> {
+    //     // CODESYNC(sort-of, 4) sorts should be given consistently
+    //     match res {
+    //         fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
+    //         fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
+    //         fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => {
+    //             Some(fhir::Sort::Unit)
+    //         }
+    //         fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
+    //             Some(fhir::Sort::Record(def_id))
+    //         }
+    //         fhir::Res::SelfTyAlias { alias_to, .. } => {
+    //             let self_ty = self.tcx.type_of(alias_to).skip_binder();
+    //             self.sort_of_self_ty(self_ty)
+    //         }
+    //         fhir::Res::Def(DefKind::TyParam, def_id) => {
+    //             let param = self.get_generic_param(def_id.expect_local());
+    //             match &param.kind {
+    //                 fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
+    //                 fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+    //             }
+    //         }
+    //         fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
+    //         | fhir::Res::SelfTyParam { .. } => None,
+    //         fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
+    //     }
+    // }
+
+    fn sort_of_ty(&self, ty: &fhir::Ty) -> Option<fhir::Sort> {
+        match &ty.kind {
+            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => {
+                self.sort_of_path(bty.as_path()?)
+            }
+            fhir::TyKind::Exists(_, ty) | fhir::TyKind::Constr(_, ty) => self.sort_of_ty(ty),
+            fhir::TyKind::RawPtr(_, _)
+            | fhir::TyKind::Ref(_, _)
+            | fhir::TyKind::Tuple(_)
+            | fhir::TyKind::Array(_, _)
+            | fhir::TyKind::Never => Some(fhir::Sort::Unit),
+            fhir::TyKind::Hole(_) => Some(fhir::Sort::Wildcard),
+            _ => bug!("unexpected ty {ty:?}"),
+        }
+    }
+
+    fn sort_of_self_ty(&self, def_id: DefId, ty: rustc_middle::ty::Ty) -> Option<fhir::Sort> {
         use rustc_middle::ty;
         // CODESYNC(sort-of, 4) sorts should be given consistently
         match ty.kind() {
@@ -235,8 +301,24 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             ty::TyKind::Slice(_) | ty::TyKind::Int(_) | ty::TyKind::Uint(_) => {
                 Some(fhir::Sort::Int)
             }
-            ty::TyKind::Adt(adt_def, _) => Some(fhir::Sort::Record(adt_def.did())),
-            ty::TyKind::Param(_) => todo!(),
+            ty::TyKind::Adt(adt_def, args) => {
+                let mut sort_args = vec![];
+                for arg in args.iter() {
+                    if let Some(ty) = arg.as_type() &&
+                       let Some(sort) = self.sort_of_self_ty(def_id, ty)
+                    {
+                        sort_args.push(sort)
+                    }
+                }
+                Some(fhir::Sort::Record(adt_def.did(), List::from_vec(sort_args)))
+            }
+            ty::TyKind::Param(p) => {
+                let generic_param_def = self
+                    .tcx
+                    .generics_of(def_id)
+                    .param_at(p.index as usize, self.tcx);
+                self.sort_of_generic_param(generic_param_def.def_id)
+            }
             ty::TyKind::Float(_)
             | ty::TyKind::Str
             | ty::TyKind::Char
@@ -270,8 +352,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::Sort::BitVec(_)
             | fhir::Sort::Param(_)
             | fhir::Sort::Var(_) => true,
-            fhir::Sort::Record(def_id) => {
-                self.index_sorts_of(*def_id)
+            fhir::Sort::Record(def_id, sort_args) => {
+                self.index_sorts_of(*def_id, sort_args.clone())
                     .iter()
                     .all(|sort| self.has_equality(sort))
             }
@@ -288,7 +370,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         args.iter().all(|sort| self.has_equality(sort))
     }
 
-    pub fn field_sort(&self, def_id: DefId, fld: Symbol) -> Option<&fhir::Sort> {
+    pub fn field_sort(
+        &self,
+        def_id: DefId,
+        sort_args: List<fhir::Sort>,
+        fld: Symbol,
+    ) -> Option<&fhir::Sort> {
+        let generics = self.generics_of(def_id);
+        // println!("TRACE: field_sort of {def_id:?} with {generics:?}");
         if let Some(local_id) = def_id.as_local() {
             self.map().refined_by(local_id).field_sort(fld)
         } else {

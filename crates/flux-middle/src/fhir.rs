@@ -392,7 +392,7 @@ pub enum RefineArg {
         is_binder: bool,
     },
     Abs(Vec<RefineParam>, Expr, Span, FhirId),
-    Record(DefId, Vec<RefineArg>, Span),
+    Record(DefId, List<Sort>, Vec<RefineArg>, Span),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -432,7 +432,6 @@ pub struct TypeBinding {
 pub enum GenericArg {
     Lifetime(Lifetime),
     Type(Ty),
-    // Constraint(SurfaceIdent, Ty),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -498,7 +497,7 @@ pub enum Sort {
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     /// the List<Sort> is for the type parameters of (generic) record sorts
-    Record(DefId /* TODO:NEXT , List<Sort> */),
+    Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
     /// A sort that needs to be inferred
@@ -632,9 +631,8 @@ impl SortCtor {
 impl Ty {
     pub fn as_path(&self) -> Option<&Path> {
         match &self.kind {
-            TyKind::BaseTy(BaseTy {
-                kind: BaseTyKind::Path(QPath::Resolved(None, path)), ..
-            }) => Some(path),
+            TyKind::BaseTy(bty) | TyKind::Indexed(bty, _) => bty.as_path(),
+            TyKind::Constr(_, ty) | TyKind::Exists(_, ty) => ty.as_path(),
             _ => None,
         }
     }
@@ -646,6 +644,12 @@ impl BaseTy {
             self.kind,
             BaseTyKind::Path(QPath::Resolved(_, Path { res: Res::PrimTy(PrimTy::Bool), .. }))
         )
+    }
+    pub fn as_path(&self) -> Option<&Path> {
+        match &self.kind {
+            BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
+            _ => None,
+        }
     }
 }
 
@@ -847,7 +851,7 @@ impl Sort {
             | Sort::BitVec(_)
             | Sort::Param(_)
             | Sort::Wildcard
-            | Sort::Record(_)
+            | Sort::Record(_, _)
             | Sort::Infer(_) => self.clone(),
             Sort::Var(i) => subst[*i].clone(),
             Sort::App(c, args) => {
@@ -1623,7 +1627,18 @@ impl fmt::Debug for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
-            Sort::Record(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
+            Sort::Record(def_id, sort_args) => {
+                if sort_args.is_empty() {
+                    write!(f, "{}", pretty::def_id_to_string(*def_id))
+                } else {
+                    write!(
+                        f,
+                        "{}<{}>",
+                        pretty::def_id_to_string(*def_id),
+                        sort_args.iter().join(", ")
+                    )
+                }
+            }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),

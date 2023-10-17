@@ -150,6 +150,8 @@ pub fn desugar_fn_sig(
         // Desugar of fn_sig needs to happen AFTER inserting generics. See crate level comment
         let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig, &mut Binders::new())?;
 
+        // println!("TRACE: desugar_fn_sig {owner_id:?} => {fn_sig:?}");
+
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
         }

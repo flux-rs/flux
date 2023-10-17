@@ -247,6 +247,20 @@ pub enum TyKind {
     ImplTrait(NodeId, GenericBounds),
 }
 
+impl Ty {
+    pub fn as_bty(&self) -> Option<&BaseTy> {
+        match &self.kind {
+            TyKind::Base(bty) | TyKind::Indexed { bty, .. } | TyKind::Exists { bty, .. } => {
+                Some(bty)
+            }
+            TyKind::GeneralExists { ty, .. } | TyKind::Constr(_, ty) => ty.as_bty(),
+            TyKind::Ref(_, _)
+            | TyKind::Tuple(_)
+            | TyKind::Array(_, _)
+            | TyKind::ImplTrait(_, _) => None,
+        }
+    }
+}
 #[derive(Debug)]
 pub struct BaseTy {
     pub kind: BaseTyKind,

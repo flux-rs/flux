@@ -498,7 +498,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 Ok(())
             }
             fhir::RefineArg::Abs(_, body, ..) => self.check_param_uses_expr(infcx, body, true),
-            fhir::RefineArg::Record(_, flds, ..) => {
+            fhir::RefineArg::Record(_, _, flds, ..) => {
                 flds.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_refine_arg(infcx, arg))
             }

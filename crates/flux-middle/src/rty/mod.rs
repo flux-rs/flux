@@ -205,7 +205,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     invariants: Vec<Invariant>,
-    sort: Sort,
+    sort: Sort, // TODO: Binder<Sort>
     opaque: bool,
     rustc: rustc::ty::AdtDef,
 }
