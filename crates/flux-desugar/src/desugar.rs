@@ -1658,7 +1658,7 @@ fn sort_of_surface_path(
         fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
             // TODO: duplication with sort_of_path
             let mut sort_args = vec![];
-            for arg in path.generics.iter() {
+            for arg in &path.generics {
                 if let surface::GenericArg::Type(ty) = arg &&
                    let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind &&
                    let Some(sort) = sort_of_surface_path(genv, resolver_output, path)
@@ -1680,6 +1680,7 @@ fn sort_of_surface_path(
             None
         }
         fhir::Res::SelfTyAlias { alias_to, .. } => genv.sort_of_self_ty_alias(alias_to),
+
         fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
     }
 }

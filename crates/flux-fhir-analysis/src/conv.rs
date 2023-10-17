@@ -197,7 +197,7 @@ fn sort_args_for_adt(genv: &GlobalEnv, def_id: impl Into<DefId>) -> List<fhir::S
     let mut sort_args = vec![];
     for param in &genv.tcx.generics_of(def_id.into()).params {
         if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind {
-            sort_args.push(fhir::Sort::Param(param.def_id))
+            sort_args.push(fhir::Sort::Param(param.def_id));
         }
     }
     List::from_vec(sort_args)
