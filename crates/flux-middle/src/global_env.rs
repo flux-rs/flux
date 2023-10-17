@@ -188,7 +188,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn index_sorts_of(
         &self,
         def_id: impl Into<DefId>,
-        _sort_args: List<fhir::Sort>,
+        sort_args: List<fhir::Sort>,
     ) -> &[fhir::Sort] {
         let def_id = def_id.into();
         if let Some(local_id) = def_id.as_local().or_else(|| self.map().get_extern(def_id)) {
@@ -209,16 +209,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 Some(fhir::Sort::Unit)
             }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
-                // println!("TRACE: sort_of_path (1) {def_id:?} with args = {:?}", path.args);
                 let mut sort_args = vec![];
                 for arg in &path.args {
                     if let fhir::GenericArg::Type(ty) = arg &&
                        let Some(sort) = self.sort_of_ty(ty)
                     {
-                        // let path = ty.as_path()?;
-                        // sort_args.push(self.sort_of_path(path)?);
-                        // let sort = self.sort_of_ty(ty);
-                        // println!("TRACE: sort_of_path (2) {ty:?} => {sort:?}");
                         sort_args.push(sort);
                     }
                 }
@@ -369,10 +364,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn field_sort(
         &self,
         def_id: DefId,
-        _sort_args: List<fhir::Sort>,
+        sort_args: List<fhir::Sort>,
         fld: Symbol,
     ) -> Option<&fhir::Sort> {
-        let _generics = self.generics_of(def_id);
+        let generics = self.generics_of(def_id);
         // println!("TRACE: field_sort of {def_id:?} with {generics:?}");
         if let Some(local_id) = def_id.as_local() {
             self.map().refined_by(local_id).field_sort(fld)
