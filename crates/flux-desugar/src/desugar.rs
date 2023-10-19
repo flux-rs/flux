@@ -77,26 +77,6 @@ pub fn func_def_to_func_decl(
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
-fn sort_params(
-    generics: &rustc_middle::ty::Generics,
-    refined_by: &surface::RefinedBy,
-) -> Vec<DefId> {
-    let sort_params: FxHashSet<_> = refined_by
-        .sort_params
-        .iter()
-        .map(|ident| ident.name)
-        .collect();
-    let mut params = vec![];
-    for param in &generics.params {
-        if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind &&
-           sort_params.contains(&param.name)
-        {
-            params.push(param.def_id);
-        }
-    }
-    params
-}
-
 pub fn desugar_refined_by(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,

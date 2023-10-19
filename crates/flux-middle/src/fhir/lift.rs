@@ -20,12 +20,12 @@ pub struct LiftCtxt<'a, 'tcx> {
     owner: OwnerId,
 }
 
-pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
+pub fn lift_refined_by(tcx: TyCtxt, sess: &FluxSession, owner_id: OwnerId) -> fhir::RefinedBy {
     let def_id = owner_id.def_id;
     let item = tcx.hir().expect_item(def_id);
     match item.kind {
         hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-            fhir::RefinedBy::new(def_id, [], [], [], item.ident.span)
+            fhir::RefinedBy::trivial(def_id, item.ident.span)
         }
         _ => {
             bug!("expected struct, enum or type alias");

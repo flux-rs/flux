@@ -30,7 +30,7 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{ExtendUnord, UnordMap, UnordSet},
 };
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
@@ -789,7 +789,7 @@ impl Generics {
 impl RefinedBy {
     pub fn new(
         def_id: impl Into<DefId>,
-        sort_params: impl IntoIterator<Item = DefId>,
+        generics: &Generics,
         early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         span: Span,
@@ -800,8 +800,42 @@ impl RefinedBy {
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        let sort_params = sort_params.into_iter().collect();
+        // let sort_params = sort_params.into_iter().collect();
+        let sort_params = Self::sort_params(generics, &sorts);
         RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
+    }
+
+    fn sort_params(generics: &Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
+        // let sort_params: FxHashSet<_> = refined_by
+        // .sort_params
+        // .iter()
+        // .map(|ident| ident.name)
+        // .collect();
+        let mut sort_params: FxHashSet<DefId> = Default::default();
+
+        TODO_walk_over_sorts_to_gather_all_Param_defids();
+
+        let mut params = vec![];
+        for param in &generics.params {
+            let def_id = param.def_id.to_def_id();
+            if let GenericParamKind::Type { .. } = param.kind &&
+               sort_params.contains(&def_id)
+            {
+                params.push(def_id);
+            }
+        }
+        params
+    }
+
+    pub fn trivial(def_id: impl Into<DefId>, span: Span) -> Self {
+        RefinedBy {
+            def_id: def_id.into(),
+            sort_params: vec![],
+            span,
+            index_params: Default::default(),
+            early_bound: 0,
+            sorts: vec![],
+        }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
