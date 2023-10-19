@@ -104,6 +104,7 @@ pub struct VariantRet {
 
 #[derive(Debug, Default)]
 pub struct RefinedBy {
+    pub sort_params: Vec<Ident>,
     pub early_bound_params: Vec<RefineParam>,
     pub index_params: Vec<RefineParam>,
     pub span: Span,

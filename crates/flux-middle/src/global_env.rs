@@ -188,15 +188,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn index_sorts_of(
         &self,
         def_id: impl Into<DefId>,
-        sort_args: List<fhir::Sort>,
-    ) -> &[fhir::Sort] {
+        sort_args: &[fhir::Sort],
+    ) -> Vec<fhir::Sort> {
         let def_id = def_id.into();
         if let Some(local_id) = def_id.as_local().or_else(|| self.map().get_extern(def_id)) {
-            self.map().refined_by(local_id).index_sorts()
+            self.map().refined_by(local_id).index_sorts(sort_args)
         } else {
             self.cstore()
                 .refined_by(def_id)
-                .map(fhir::RefinedBy::index_sorts)
+                .map(|rby| rby.index_sorts(sort_args))
                 .unwrap_or_default()
         }
     }
@@ -322,13 +322,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn early_bound_sorts_of(&self, def_id: DefId) -> &[fhir::Sort] {
+    pub fn early_bound_sorts_of(&self, def_id: DefId, sort_args: &[fhir::Sort]) -> Vec<fhir::Sort> {
         if let Some(local_id) = def_id.as_local() {
-            self.map().refined_by(local_id).early_bound_sorts()
+            self.map().refined_by(local_id).early_bound_sorts(sort_args)
         } else {
             self.cstore()
                 .refined_by(def_id)
-                .map(fhir::RefinedBy::early_bound_sorts)
+                .map(|refined_by| refined_by.early_bound_sorts(sort_args))
                 .unwrap_or_default()
         }
     }
@@ -344,7 +344,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::Sort::Param(_)
             | fhir::Sort::Var(_) => true,
             fhir::Sort::Record(def_id, sort_args) => {
-                self.index_sorts_of(*def_id, sort_args.clone())
+                self.index_sorts_of(*def_id, sort_args)
                     .iter()
                     .all(|sort| self.has_equality(sort))
             }
@@ -366,16 +366,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         def_id: DefId,
         sort_args: List<fhir::Sort>,
         fld: Symbol,
-    ) -> Option<&fhir::Sort> {
-        let generics = self.generics_of(def_id);
-        // println!("TRACE: field_sort of {def_id:?} with {generics:?}");
-        if let Some(local_id) = def_id.as_local() {
-            self.map().refined_by(local_id).field_sort(fld)
+    ) -> Option<fhir::Sort> {
+        let poly_sort = if let Some(local_id) = def_id.as_local() {
+            self.map().refined_by(local_id).field_sort(fld, &sort_args)
         } else {
             self.cstore()
                 .refined_by(def_id)
-                .and_then(|refined_by| refined_by.field_sort(fld))
-        }
+                .and_then(|refined_by| refined_by.field_sort(fld, &sort_args))
+        };
+        poly_sort
     }
 
     pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {

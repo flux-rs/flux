@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, iter, slice};
+use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
@@ -19,7 +19,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_middle::ty::Generics;
 use rustc_span::{
-    def_id::LocalDefId,
+    def_id::{DefId, LocalDefId},
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -77,6 +77,26 @@ pub fn func_def_to_func_decl(
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
+fn sort_params(
+    generics: &rustc_middle::ty::Generics,
+    refined_by: &surface::RefinedBy,
+) -> Vec<DefId> {
+    let sort_params: FxHashSet<_> = refined_by
+        .sort_params
+        .iter()
+        .map(|ident| ident.name)
+        .collect();
+    let mut params = vec![];
+    for param in &generics.params {
+        if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind &&
+           sort_params.contains(&param.name)
+        {
+            params.push(param.def_id);
+        }
+    }
+    params
+}
+
 pub fn desugar_refined_by(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
@@ -108,8 +128,14 @@ pub fn desugar_refined_by(
             ))
         })
         .try_collect_exhaust()?;
-
-    Ok(fhir::RefinedBy::new(owner_id.def_id, early_bound_params, index_params, refined_by.span))
+    let sort_params: Vec<_> = sort_params(generics, refined_by);
+    Ok(fhir::RefinedBy::new(
+        owner_id.def_id,
+        sort_params,
+        early_bound_params,
+        index_params,
+        refined_by.span,
+    ))
 }
 
 pub(crate) struct DesugarCtxt<'a, 'tcx> {
@@ -718,8 +744,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         idxs: &surface::Indices,
         binders: &mut Binders,
     ) -> Result<fhir::RefineArg> {
-        // let sort = self.genv.sort_of_bty(bty);
-        // println!("TRACE: desugar_indices {bty:?}: sort = {sort:?}");
         if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
@@ -1684,11 +1708,11 @@ fn sort_of_surface_path(
         fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
     }
 }
-fn as_tuple<'a>(genv: &'a GlobalEnv, sort: &'a fhir::Sort) -> &'a [fhir::Sort] {
+fn as_tuple<'a>(genv: &'a GlobalEnv, sort: &'a fhir::Sort) -> Vec<fhir::Sort> {
     if let fhir::Sort::Record(def_id, sort_args) = sort {
-        genv.index_sorts_of(*def_id, sort_args.clone())
+        genv.index_sorts_of(*def_id, sort_args)
     } else {
-        slice::from_ref(sort)
+        vec![sort.clone()]
     }
 }
 

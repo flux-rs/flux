@@ -1,6 +1,6 @@
 use std::hash::Hash;
 #[flux::opaque]
-#[flux::refined_by(elems: Set<Tiger>)]
+#[flux::refined_by(<Tiger> { elems: Set<Tiger> })]
 pub struct RSet<Tiger> {
     pub inner: std::collections::HashSet<Tiger>,
 }
@@ -39,9 +39,20 @@ where
     set.inner.contains(elem)
 }
 
-// pub fn test() {
-//     let mut s = empty();
-//     insert(&mut s, 1);
-//     assert(contains(&s, &1));
-//     assert(!contains(&s, &2));
-// }
+pub fn test() {
+    let mut s = empty();
+    let v0 = 666;
+    let v1 = 667;
+    insert(&mut s, v0);
+    assert(contains(&s, &v0));
+    assert(!contains(&s, &v1));
+}
+
+#[flux::sig(fn(&i32[5]))]
+fn foo(z: &i32) {}
+
+fn bar() {
+    let x = 5;
+    foo(&x);
+    foo(&5);
+}

@@ -210,7 +210,7 @@ pub(crate) fn adt_def_for_struct(
 ) -> rty::AdtDef {
     let def_id = struct_def.owner_id;
     let sort_args = sort_args_for_adt(genv, def_id);
-    let sort = rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(def_id, sort_args)));
+    let sort = rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(def_id, &sort_args)));
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
@@ -222,7 +222,7 @@ pub(crate) fn adt_def_for_enum(
 ) -> rty::AdtDef {
     let def_id = enum_def.owner_id;
     let sort_args = sort_args_for_adt(genv, def_id);
-    let sort = rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(def_id, sort_args)));
+    let sort = rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(def_id, &sort_args)));
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(enum_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, false)
 }
@@ -654,7 +654,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(rty::Ty::param(param_ty));
             }
         }
-        // println!("TRACE: conv_base_ty {bty:?} {sort:?}");
         let sort = conv_sort(self.genv, &sort.unwrap());
         if sort.is_unit() {
             let idx = rty::Index::from(rty::Expr::unit());
@@ -1158,8 +1157,8 @@ pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(genv, fsort)),
-        fhir::Sort::Record(def_id, args) => {
-            rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(*def_id, args.clone())))
+        fhir::Sort::Record(def_id, sort_args) => {
+            rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(*def_id, sort_args)))
         }
         fhir::Sort::App(ctor, args) => {
             let ctor = conv_sort_ctor(ctor);

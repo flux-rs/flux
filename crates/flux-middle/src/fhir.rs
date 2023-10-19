@@ -537,6 +537,17 @@ impl PolyFuncSort {
             .collect();
         FuncSort { inputs_and_output }
     }
+
+    pub fn param_subst(&self, subst: &SortParamSubst) -> PolyFuncSort {
+        let params = self.params;
+        let args = self
+            .fsort
+            .inputs_and_output
+            .iter()
+            .map(|arg| arg.param_subst(subst))
+            .collect();
+        PolyFuncSort { params, fsort: FuncSort { inputs_and_output: args } }
+    }
 }
 
 #[derive(Clone)]
@@ -734,6 +745,8 @@ impl Ident {
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
+    /// Sort parameters e.g. #[flux::refined_by(<T> { elems: Set<T> } )]
+    sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -776,6 +789,7 @@ impl Generics {
 impl RefinedBy {
     pub fn new(
         def_id: impl Into<DefId>,
+        sort_params: impl IntoIterator<Item = DefId>,
         early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         span: Span,
@@ -786,25 +800,48 @@ impl RefinedBy {
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        RefinedBy { def_id: def_id.into(), span, index_params, early_bound, sorts }
+        let sort_params = sort_params.into_iter().collect();
+        RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
         self.index_params.get_index_of(&fld)
     }
 
-    pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
-        self.index_params.get(&fld)
+    fn param_subst(&self, sort_args: &[Sort]) -> SortParamSubst {
+        // TODO: check arities?
+        self.sort_params
+            .iter()
+            .zip(sort_args)
+            .map(|(def_id, sort)| (*def_id, sort.clone()))
+            .collect()
     }
 
-    pub fn early_bound_sorts(&self) -> &[Sort] {
-        &self.sorts[..self.early_bound]
+    pub fn field_sort(&self, fld: Symbol, sort_args: &[Sort]) -> Option<Sort> {
+        let subst = self.param_subst(sort_args);
+        self.index_params
+            .get(&fld)
+            .map(|sort| sort.param_subst(&subst))
     }
 
-    pub fn index_sorts(&self) -> &[Sort] {
-        &self.sorts[self.early_bound..]
+    pub fn early_bound_sorts(&self, sort_args: &[Sort]) -> Vec<Sort> {
+        let subst = &self.param_subst(sort_args);
+        self.sorts[..self.early_bound]
+            .iter()
+            .map(|sort| sort.param_subst(subst))
+            .collect()
+    }
+
+    pub fn index_sorts(&self, sort_args: &[Sort]) -> Vec<Sort> {
+        let subst = &self.param_subst(sort_args);
+        self.sorts[self.early_bound..]
+            .iter()
+            .map(|sort| sort.param_subst(subst))
+            .collect()
     }
 }
+
+type SortParamSubst = FxHashMap<DefId, Sort>;
 
 impl Sort {
     /// Returns `true` if the sort is [`Bool`].
@@ -840,7 +877,7 @@ impl Sort {
         Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
 
-    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `subst`
+    /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Int
@@ -859,6 +896,28 @@ impl Sort {
                 Sort::App(c.clone(), args)
             }
             Sort::Func(_) => bug!("unexpected subst in (nested) func-sort"),
+        }
+    }
+
+    /// replace all `Param(def_id)` with their respective sort in `subst`
+    fn param_subst(&self, subst: &SortParamSubst) -> Sort {
+        match self {
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(_)
+            | Sort::Wildcard
+            | Sort::Record(_, _)
+            | Sort::Var(_)
+            | Sort::Infer(_) => self.clone(),
+            Sort::Param(def_id) => subst.get(def_id).unwrap_or(self).clone(),
+            Sort::App(c, args) => {
+                let args = args.iter().map(|arg| arg.param_subst(subst)).collect();
+                Sort::App(c.clone(), args)
+            }
+            Sort::Func(fsort) => Sort::Func(fsort.param_subst(subst)), // bug!("unexpected subst in (nested) func-sort {self:?}"),
         }
     }
 }

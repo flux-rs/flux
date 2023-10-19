@@ -6,7 +6,6 @@ use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId, WfckResults},
     global_env::GlobalEnv,
-    intern::List,
 };
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
@@ -47,7 +46,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.check_abs(params, body, span, fhir_id, expected)
             }
             fhir::RefineArg::Record(def_id, sort_args, flds, span) => {
-                self.check_record(*def_id, sort_args.clone(), flds, *span)?;
+                self.check_record(*def_id, sort_args, flds, *span)?;
                 let found = fhir::Sort::Record(*def_id, sort_args.clone());
                 if &found != expected {
                     return Err(self.emit_sort_mismatch(*span, expected, &found));
@@ -93,7 +92,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn check_record(
         &mut self,
         def_id: DefId,
-        sort_args: List<fhir::Sort>,
+        sort_args: &[fhir::Sort],
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
@@ -107,7 +106,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             )));
         }
         izip!(args, sorts)
-            .map(|(arg, expected)| self.check_refine_arg(arg, expected))
+            .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
             .try_collect_exhaust()
     }
 
@@ -211,11 +210,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let sort = self[var.name].clone();
                 match &sort {
                     fhir::Sort::Record(def_id, sort_args) => {
-                        // println!("TRACE: synth_expr: var {var:?} => {sort:?} ({def_id:?})");
-                        // let sort_args = sort_args.clone();
                         self.genv
                             .field_sort(*def_id, sort_args.clone(), fld.name)
-                            .cloned()
                             .ok_or_else(|| self.emit_field_not_found(&sort, *fld))
                     }
                     fhir::Sort::Bool | fhir::Sort::Int | fhir::Sort::Real => {
@@ -523,10 +519,12 @@ impl<'a> InferCtxt<'a, '_> {
         })
     }
 
-    fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<&'a fhir::Sort> {
+    fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<fhir::Sort> {
         self.resolve_sort(sort).and_then(|s| {
-            if let fhir::Sort::Record(def_id, sort_args) = s && let [sort] = self.genv.index_sorts_of(def_id, sort_args) {
-                Some(sort)
+            if let fhir::Sort::Record(def_id, sort_args) = s &&
+               let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
+            {
+                Some(sort.clone())
             } else {
                 None
             }
