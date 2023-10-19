@@ -45,5 +45,5 @@ pub fn test() {
     let v1 = 667;
     insert(&mut s, v0);
     assert(contains(&s, &v0));
-    assert(!contains(&s, &v1));
+    assert(contains(&s, &v1)); //~ ERROR refinement type
 }
