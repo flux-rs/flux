@@ -19,7 +19,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_middle::ty::Generics;
 use rustc_span::{
-    def_id::{DefId, LocalDefId},
+    def_id::LocalDefId,
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -108,10 +108,9 @@ pub fn desugar_refined_by(
             ))
         })
         .try_collect_exhaust()?;
-    let sort_params: Vec<_> = sort_params(generics, refined_by);
     Ok(fhir::RefinedBy::new(
         owner_id.def_id,
-        sort_params,
+        &generics,
         early_bound_params,
         index_params,
         refined_by.span,

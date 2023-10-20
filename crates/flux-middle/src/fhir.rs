@@ -789,7 +789,7 @@ impl Generics {
 impl RefinedBy {
     pub fn new(
         def_id: impl Into<DefId>,
-        generics: &Generics,
+        generics: &rustc_middle::ty::Generics,
         early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         span: Span,
@@ -800,25 +800,21 @@ impl RefinedBy {
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        // let sort_params = sort_params.into_iter().collect();
         let sort_params = Self::sort_params(generics, &sorts);
         RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
     }
 
-    fn sort_params(generics: &Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
-        // let sort_params: FxHashSet<_> = refined_by
-        // .sort_params
-        // .iter()
-        // .map(|ident| ident.name)
-        // .collect();
+    fn sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
         let mut sort_params: FxHashSet<DefId> = Default::default();
 
-        TODO_walk_over_sorts_to_gather_all_Param_defids();
+        for sort in sorts {
+            sort.gather_sort_params(&mut sort_params);
+        }
 
         let mut params = vec![];
         for param in &generics.params {
-            let def_id = param.def_id.to_def_id();
-            if let GenericParamKind::Type { .. } = param.kind &&
+            let def_id = param.def_id;
+            if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind &&
                sort_params.contains(&def_id)
             {
                 params.push(def_id);
@@ -952,6 +948,34 @@ impl Sort {
                 Sort::App(c.clone(), args)
             }
             Sort::Func(fsort) => Sort::Func(fsort.param_subst(subst)), // bug!("unexpected subst in (nested) func-sort {self:?}"),
+        }
+    }
+
+    pub fn gather_sort_params(&self, params: &mut FxHashSet<DefId>) {
+        match self {
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(_)
+            | Sort::Var(_)
+            | Sort::Infer(_)
+            | Sort::Wildcard => {}
+            Sort::Param(def_id) => {
+                params.insert(*def_id);
+            }
+            Sort::App(_, args) => {
+                for arg in args {
+                    arg.gather_sort_params(params);
+                }
+            }
+            Sort::Func(fsort) => {
+                for arg in &fsort.fsort.inputs_and_output {
+                    arg.gather_sort_params(params);
+                }
+            }
+            Sort::Record(_, _) => bug!("unexpected record sort"),
         }
     }
 }
