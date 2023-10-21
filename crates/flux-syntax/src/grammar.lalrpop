@@ -10,7 +10,7 @@ use lalrpop_util::ParseError;
 
 grammar(cx: &mut ParseCtxt<'_>);
 
-Generics: surface::Generics = {
+pub Generics: surface::Generics = {
     <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
         surface::Generics {
             params,

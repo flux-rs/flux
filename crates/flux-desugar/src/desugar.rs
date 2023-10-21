@@ -196,9 +196,25 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     pub(crate) fn desugar_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
         let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
-        let generics_map: FxHashMap<_, _> = hir_generics
-            .params
-            .iter()
+
+        let hir_generic_params = hir_generics.params.iter();
+        // let parent_generic_params = self
+        //     .genv
+        //     .tcx
+        //     .opt_local_parent(self.owner.def_id)
+        //     .map(|parent_def_id| {
+        //         self.genv
+        //             .hir()
+        //             .get_generics(parent_def_id)
+        //             .unwrap()
+        //             .params
+        //             .iter()
+        //     })
+        //     .into_iter()
+        //     .flatten();
+
+        let generics_map: FxHashMap<_, _> = hir_generic_params
+            // .chain(parent_generic_params)
             .flat_map(|param| {
                 if let hir::ParamName::Plain(name) = param.name {
                     Some((name, param.def_id))
@@ -1076,19 +1092,6 @@ impl DesugarCtxt<'_, '_> {
                 }
             })
     }
-    // ORIGINAL
-    // fn gather_params_variant_ret(
-    //     &self,
-    //     ret: &surface::VariantRet,
-    //     binders: &mut Binders,
-    // ) -> Result {
-    //     self.gather_params_path(&ret.path, TypePos::Other, binders)?;
-    //     let res = self.resolver_output.path_res_map[&ret.path.node_id];
-    //     let Some(sort) = self.genv.sort_of_res(res) else {
-    //         return Err(self.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
-    //     };
-    //     self.gather_params_indices(sort, &ret.indices, TypePos::Other, binders)
-    // }
 
     fn gather_params_variant_ret(
         &self,
@@ -1096,7 +1099,6 @@ impl DesugarCtxt<'_, '_> {
         binders: &mut Binders,
     ) -> Result {
         self.gather_params_path(&ret.path, TypePos::Other, binders)?;
-        // let Some(sort) = self.resolver_output.sort_of_surface_path(&ret.path) else {
         let Some(sort) = sort_of_surface_path(self.genv, self.resolver_output, &ret.path) else {
             return Err(self.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
         };
@@ -1520,14 +1522,6 @@ impl Binders {
         Binder::Refined(self.fresh(), sort, true)
     }
 
-    // fn binder_from_res(&self, genv: &GlobalEnv, res: fhir::Res) -> Binder {
-    //     if let Some(sort) = genv.sort_of_res(res) {
-    //         self.binder_from_sort(sort)
-    //     } else {
-    //         Binder::Unrefined
-    //     }
-    // }
-
     fn binder_from_bty(
         &self,
         genv: &GlobalEnv,
@@ -1637,14 +1631,15 @@ fn index_sort(
     bty: &surface::BaseTy,
 ) -> Option<fhir::Sort> {
     // CODESYNC(sort-of, 4) sorts should be given consistently
-    match &bty.kind {
+    let res = match &bty.kind {
         surface::BaseTyKind::Path(path) => {
             sort_of_surface_path(genv, resolver_output, path)
             // let res = resolver_output.path_res_map[&path.node_id];
             // genv.sort_of_res(res)
         }
         surface::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
-    }
+    };
+    res
 }
 
 fn sort_of_surface_path(
@@ -1673,6 +1668,7 @@ fn sort_of_surface_path(
         }
         fhir::Res::Def(DefKind::TyParam, def_id) => {
             let param = genv.get_generic_param(def_id.expect_local());
+
             match &param.kind {
                 fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
                 fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,

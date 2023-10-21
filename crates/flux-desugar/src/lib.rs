@@ -178,10 +178,19 @@ pub fn desugar_fn_sig(
 pub fn desugar_generics_and_predicates(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
+    resolver_output: &ResolverOutput,
+    generics: Option<&surface::Generics>,
 ) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-    let (generics, predicates) =
+    let (lifted_generics, predicates) =
         LiftCtxt::new(genv.tcx, genv.sess, owner_id, None).lift_generics_with_predicates()?;
+
+    let generics = if let Some(generics) = generics {
+        let cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+        cx.desugar_generics(generics)?
+    } else {
+        lifted_generics
+    };
+    let def_id = owner_id.def_id;
     genv.map().insert_generics(def_id, generics);
     genv.map_mut().insert_generic_predicates(def_id, predicates);
     Ok(())

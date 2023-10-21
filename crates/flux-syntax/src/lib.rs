@@ -41,6 +41,14 @@ impl ParseSess {
         parse!(self, grammar::RefinedByParser, tokens, span)
     }
 
+    pub fn parse_generics(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<surface::Generics> {
+        parse!(self, grammar::GenericsParser, tokens, span)
+    }
+
     pub fn parse_type_alias(
         &mut self,
         tokens: &TokenStream,
