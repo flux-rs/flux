@@ -13,3 +13,13 @@ pub fn test() {
     assert(s.contains(&v0));
     assert(!s.contains(&v1));
 }
+
+#[flux::sig(fn () -> RSet<i32{v:666<=v}>)]
+pub fn test1() -> RSet<i32> {
+    let mut s = RSet::new();
+    let v0 = 666;
+    let v1 = 667;
+    s.insert(v0);
+    s.insert(v1);
+    s
+}
