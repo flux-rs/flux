@@ -276,7 +276,7 @@ fn desugar_item(
             desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)?;
         }
         hir::ItemKind::OpaqueTy(_) => {
-            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None)?
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None)?;
         }
         hir::ItemKind::Enum(..) => {
             let enum_def = &specs.enums[&owner_id];

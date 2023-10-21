@@ -31,8 +31,8 @@ impl<K, V> RMap<K, V> {
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(&RMap<K, V>[@m], k: K) -> Option<&V[map_get(m, k)]>)]
-    pub fn get(&self, k: K) -> Option<&V>
+    #[flux::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_get(m, k)]>)]
+    pub fn get(&self, k: &K) -> Option<&V>
     where
         K: Eq + Hash,
     {

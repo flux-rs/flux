@@ -38,6 +38,7 @@ pub struct Qualifier {
 #[derive(Debug)]
 pub struct FuncDef {
     pub name: Ident,
+    pub sort_vars: Vec<Ident>,
     pub args: Vec<RefineParam>,
     pub output: Sort,
     /// Body of the function. If not present this definition corresponds to an uninterpreted function.

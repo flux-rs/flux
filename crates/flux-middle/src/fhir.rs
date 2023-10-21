@@ -775,6 +775,7 @@ pub enum FuncKind {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
+    pub params: usize,
     pub args: Vec<RefineParam>,
     pub sort: Sort,
     pub expr: Expr,

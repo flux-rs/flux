@@ -96,13 +96,18 @@ Qualifier: surface::Qualifier = {
 }
 
 FuncDef: surface::FuncDef = {
-    "fn" <name:Ident> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
-        surface::FuncDef { name, args, output, body: Some(body) }
+    "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
+        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: Some(body) }
     },
-    "fn" <name:Ident> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
-        surface::FuncDef { name, args, output, body: None }
+    "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
+        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: None }
     }
 }
+
+SortVars: Vec<Ident> = {
+    "<" <vars:Comma<Ident>> ">" => vars,
+}
+
 
 SortDecl: surface::SortDecl = {
     "opaque" "sort" <name:Ident> ";" => {
