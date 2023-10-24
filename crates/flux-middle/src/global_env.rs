@@ -240,34 +240,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    // pub fn sort_of_res(&self, res: fhir::Res) -> Option<fhir::Sort> {
-    //     // CODESYNC(sort-of, 4) sorts should be given consistently
-    //     match res {
-    //         fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
-    //         fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
-    //         fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => {
-    //             Some(fhir::Sort::Unit)
-    //         }
-    //         fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
-    //             Some(fhir::Sort::Record(def_id))
-    //         }
-    //         fhir::Res::SelfTyAlias { alias_to, .. } => {
-    //             let self_ty = self.tcx.type_of(alias_to).skip_binder();
-    //             self.sort_of_self_ty(self_ty)
-    //         }
-    //         fhir::Res::Def(DefKind::TyParam, def_id) => {
-    //             let param = self.get_generic_param(def_id.expect_local());
-    //             match &param.kind {
-    //                 fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
-    //                 fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
-    //             }
-    //         }
-    //         fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
-    //         | fhir::Res::SelfTyParam { .. } => None,
-    //         fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
-    //     }
-    // }
-
     fn sort_of_ty(&self, ty: &fhir::Ty) -> Option<fhir::Sort> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => {

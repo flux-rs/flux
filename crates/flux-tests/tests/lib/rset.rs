@@ -8,7 +8,7 @@ pub struct RSet<T> {
     pub inner: std::collections::HashSet<T>,
 }
 
-#[flux::generics(<T as base>)]
+#[flux::generics(T as base)]
 impl<T> RSet<T> {
     #[flux::trusted]
     #[flux::sig(fn() -> RSet<T>[set_empty(0)])]

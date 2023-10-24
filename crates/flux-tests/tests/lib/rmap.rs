@@ -14,7 +14,7 @@ pub struct RMap<K, V> {
     inner: std::collections::HashMap<K, V>,
 }
 
-#[flux::generics(<K as base, V as base>)]
+#[flux::generics(K as base, V as base)]
 impl<K, V> RMap<K, V> {
     #[flux::trusted]
     pub fn new() -> Self {

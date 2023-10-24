@@ -17,7 +17,7 @@ pub struct RMap<K, V> {
     inner: std::collections::HashMap<K, V>,
 }
 
-#[flux::generics(<K as base, V as base>)]
+#[flux::generics(K as base, V as base)]
 impl<K, V> RMap<K, V> {
     #[flux::trusted]
     #[flux::sig(fn() -> RMap<K, V>{m: m.keys == set_empty(0)})]

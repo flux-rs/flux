@@ -11,7 +11,7 @@ use lalrpop_util::ParseError;
 grammar(cx: &mut ParseCtxt<'_>);
 
 pub Generics: surface::Generics = {
-    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
+    <lo:@L> <params:Comma<GenericParam>> <hi:@R> => {
         surface::Generics {
             params,
             span: cx.map_span(lo, hi),
@@ -59,10 +59,6 @@ pub TyAlias: surface::TyAlias = {
             span: cx.map_span(lo, hi)
         }
     }
-}
-
-SortParams: Vec<Ident> = {
-    "<" <params:Comma<Ident>> ">" => params,
 }
 
 pub RefinedBy: surface::RefinedBy = {
@@ -150,7 +146,7 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
-    <generics:Generics?>
+    <generics:("<" Generics ">")?>
     "(" <args:Args> ")"
     <ret_lo:@L> <ret_hi:@R>
     <returns:("->" <Ty>)?>
@@ -166,6 +162,7 @@ pub FnSig: surface::FnSig = {
         } else {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
+        let generics = generics.map(|z| z.1);
         surface::FnSig {
             asyncness,
             generics,

@@ -1,6 +1,6 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 //!
-//! # [NOTE:Generics-and-Desugaring]
+//! # Generics-and-Desugaring
 //!
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
@@ -56,7 +56,7 @@ pub fn desugar_struct_def(
     let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
     genv.map().insert_generics(def_id, generics);
 
-    // Desugar of struct_def needs to happen AFTER inserting generics. See [NOTE:Generics-and-Desugaring]
+    // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
     let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
@@ -173,8 +173,9 @@ pub fn desugar_fn_sig(
 }
 
 /// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
-/// for items that don't have surface syntax (impl blocks, traits, ...). In this cases we just [lift]
-/// them from hir.
+/// for items that don't have surface syntax (impl blocks, traits, ...), or for `impl` blocks with
+/// explicit `generics` annotations. In the former case, we use `desugar`; in the latter cases we
+/// just [lift] them from hir.
 pub fn desugar_generics_and_predicates(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
