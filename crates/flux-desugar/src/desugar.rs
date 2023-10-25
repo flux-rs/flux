@@ -131,6 +131,7 @@ pub(crate) struct DesugarCtxt<'a, 'tcx> {
     owner: OwnerId,
     resolver_output: &'a ResolverOutput,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
+    sort_resolver: SortResolver<'a>,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -187,7 +188,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         resolver_output: &'a ResolverOutput,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), resolver_output, opaque_tys }
+        let generics = genv.tcx.generics_of(owner);
+        let sort_resolver =
+            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics);
+        DesugarCtxt {
+            genv,
+            owner,
+            local_id_gen: IndexGen::new(),
+            sort_resolver,
+            resolver_output,
+            opaque_tys,
+        }
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> DesugarCtxt<'b, 'tcx> {
@@ -291,9 +302,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::StructDef> {
         binders.push_layer();
-        binders.insert_params_with_owner(
+        binders.insert_params(
             self.genv,
-            self.owner,
+            &self.sort_resolver,
             struct_def
                 .refined_by
                 .iter()
@@ -354,9 +365,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             .try_collect_exhaust()?;
 
         binders.push_layer();
-        binders.insert_params_with_owner(
+        binders.insert_params(
             self.genv,
-            self.owner,
+            &self.sort_resolver,
             enum_def
                 .refined_by
                 .iter()
@@ -417,11 +428,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::TyAlias> {
         binders.push_layer();
-        binders.insert_params_with_owner(
-            self.genv,
-            self.owner,
-            ty_alias.refined_by.all_params(),
-        )?;
+        binders.insert_params(self.genv, &self.sort_resolver, ty_alias.refined_by.all_params())?;
 
         let ty = self.desugar_ty(None, &ty_alias.ty, binders)?;
 
@@ -778,7 +785,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::RefineArg::Abs(params, body, span) => {
                 binders.push_layer();
-                binders.insert_params_with_owner(self.genv, self.owner, params)?;
+                binders.insert_params(self.genv, &self.sort_resolver, params)?;
                 let body = self.as_expr_ctxt().desugar_expr(binders, body)?;
                 let params = binders.pop_layer().into_params(self);
                 Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
@@ -1445,13 +1452,13 @@ impl<'a> SortResolver<'a> {
             Ok(fhir::Sort::Bool)
         } else if ident.name == SORTS.real {
             Ok(fhir::Sort::Real)
-        } else if self.sort_decls.get(&ident.name).is_some() {
-            let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
-            Ok(fhir::Sort::App(ctor, List::empty()))
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
             Ok(fhir::Sort::Param(*def_id))
         } else if let Some(idx) = self.sort_params.get(&ident.name) {
             Ok(fhir::Sort::Var(*idx))
+        } else if self.sort_decls.get(&ident.name).is_some() {
+            let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
+            Ok(fhir::Sort::App(ctor, List::empty()))
         } else {
             Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident)))
         }
@@ -1472,24 +1479,6 @@ impl Binders {
         binders.push_layer();
         binders.insert_params(genv, sort_resolver, params)?;
         Ok(binders)
-    }
-
-    fn insert_params_with_owner<'a>(
-        &mut self,
-        genv: &GlobalEnv,
-        owner: OwnerId,
-        params: impl IntoIterator<Item = &'a surface::RefineParam>,
-    ) -> Result {
-        let generics = genv.tcx.generics_of(owner);
-        let sr = SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics);
-        for param in params {
-            self.insert_binder(
-                genv.sess,
-                param.name,
-                Binder::Refined(self.fresh(), sr.resolve_sort(&param.sort)?, false),
-            )?;
-        }
-        Ok(())
     }
 
     fn insert_params<'a>(
