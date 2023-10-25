@@ -1659,6 +1659,7 @@ fn sort_of_surface_path(
     resolver_output: &ResolverOutput,
     path: &surface::Path,
 ) -> Option<fhir::Sort> {
+    // CODESYNC(sort-of, 4) sorts should be given consistently
     let res = resolver_output.path_res_map[&path.node_id];
 
     match res {
