@@ -58,6 +58,8 @@ pub fn desugar_struct_def(
     } else {
         cx.as_lift_cx().lift_generics_with_predicates()?
     };
+    let refined_by = genv.map().refined_by(owner_id.def_id);
+    let generics = generics.with_refined_by(refined_by);
     genv.map().insert_generics(def_id, generics);
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring

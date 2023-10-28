@@ -747,7 +747,7 @@ pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
     /// Sort parameters e.g. #[flux::refined_by(<T> { elems: Set<T> } )]
-    sort_params: HashSet<DefId>,
+    sort_params: Vec<DefId>, // TODO: Why do we need order (why do tests break with HashSet?)
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -786,6 +786,19 @@ impl Generics {
     pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParam {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
+
+    pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
+        let mut params = vec![];
+        for param in self.params {
+            let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
+                GenericParamKind::BaseTy
+            } else {
+                param.kind
+            };
+            params.push(GenericParam { def_id: param.def_id, kind })
+        }
+        Generics { params }
+    }
 }
 
 impl RefinedBy {
@@ -806,20 +819,20 @@ impl RefinedBy {
         RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
     }
 
-    fn sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> HashSet<DefId> {
+    fn sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
         let mut sort_params: HashSet<DefId> = Default::default();
 
         for sort in sorts {
             sort.gather_sort_params(&mut sort_params);
         }
 
-        let mut params: HashSet<DefId> = Default::default();
+        let mut params = vec![];
         for param in &generics.params {
             let def_id = param.def_id;
             if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind &&
                sort_params.contains(&def_id)
             {
-                params.insert(def_id);
+                params.push(def_id);
             }
         }
         params

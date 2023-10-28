@@ -6,6 +6,7 @@ use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     intern::List,
+    rty::GenericParamDefKind,
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind, PrimTy};
@@ -1161,9 +1162,11 @@ impl DesugarCtxt<'_, '_> {
     fn gather_params_fun_arg(&self, arg: &surface::Arg, binders: &mut Binders) -> Result {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                let Some(sort) = sort_of_surface_path(self.genv, self.resolver_output, path) else {
+                let zz = sort_of_surface_path(self.genv, self.resolver_output, path);
+                let Some(sort) = zz else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(path.span)));
                 };
+
                 binders.insert_binder(self.genv.sess, *bind, binders.binder_from_sort(sort))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
@@ -1643,6 +1646,7 @@ fn sort_of_surface_path(
     path: &surface::Path,
 ) -> Option<fhir::Sort> {
     // CODESYNC(sort-of, 4) sorts should be given consistently
+
     let res = resolver_output.path_res_map[&path.node_id];
 
     match res {
@@ -1651,20 +1655,23 @@ fn sort_of_surface_path(
         fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => Some(fhir::Sort::Unit),
         fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
             // TODO: duplication with sort_of_path
+            let Ok(generics) = genv.generics_of(def_id) else { return None };
             let mut sort_args = vec![];
-            for arg in &path.generics {
-                if let surface::GenericArg::Type(ty) = arg &&
-                   let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind &&
-                   let Some(sort) = sort_of_surface_path(genv, resolver_output, path)
-                {
-                        sort_args.push(sort);
+            for (param, arg) in generics.params.iter().zip(&path.generics) {
+                if param.kind == GenericParamDefKind::BaseTy {
+                    let surface::GenericArg::Type(ty) = arg else { return None };
+                    let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind else {
+                        return None;
+                    };
+                    let sort = sort_of_surface_path(genv, resolver_output, path)?;
+                    sort_args.push(sort);
                 }
             }
+            println!("TRACE: sort_of_surface_path: {def_id:?} {sort_args:?}");
             Some(fhir::Sort::Record(def_id, List::from_vec(sort_args)))
         }
         fhir::Res::Def(DefKind::TyParam, def_id) => {
             let param = genv.get_generic_param(def_id.expect_local());
-
             match &param.kind {
                 fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
                 fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,

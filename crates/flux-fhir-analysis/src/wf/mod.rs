@@ -12,6 +12,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent, WfckResults},
     global_env::GlobalEnv,
+    rty::GenericParamDefKind,
 };
 use rustc_data_structures::{
     snapshot_map::{self, SnapshotMap},
@@ -409,12 +410,14 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::GenericArg],
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(def_id) = adt_id &&
-           let Ok(generics) = self.genv.generics_of(def_id) &&
-           let Some(local_def_id) = def_id.as_local()
+           let Ok(generics) = self.genv.generics_of(def_id)
+           //&&
+           // let Some(local_def_id) = def_id.as_local()
         {
-           let refined_by = self.genv.map().refined_by(local_def_id);
+           // let refined_by = self.genv.map().refined_by(local_def_id);
            for (arg, param) in args.iter().zip(generics.params.iter()) {
-             if refined_by.is_base_generic(param.def_id) {
+             // if refined_by.is_base_generic(param.def_id) {
+             if param.kind == GenericParamDefKind::BaseTy {
                 if let fhir::GenericArg::Type(ty) = arg {
                    self.check_ty_is_base(ty)?
                 }

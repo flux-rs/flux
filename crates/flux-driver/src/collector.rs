@@ -226,6 +226,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let refined_by = attrs.refined_by();
 
+        let generics = attrs.generics();
+
         let fields = data
             .fields()
             .iter()
@@ -247,7 +249,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs.structs.insert(
             owner_id,
-            surface::StructDef { refined_by, generics: None, fields, opaque, invariants },
+            surface::StructDef { refined_by, generics, fields, opaque, invariants },
         );
 
         Ok(())
