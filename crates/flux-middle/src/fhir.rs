@@ -20,6 +20,7 @@ pub mod lift;
 
 use std::{
     borrow::{Borrow, Cow},
+    collections::HashSet,
     fmt,
 };
 
@@ -30,7 +31,7 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{ExtendUnord, UnordMap, UnordSet},
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
@@ -746,7 +747,7 @@ pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
     /// Sort parameters e.g. #[flux::refined_by(<T> { elems: Set<T> } )]
-    sort_params: Vec<DefId>,
+    sort_params: HashSet<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -805,20 +806,20 @@ impl RefinedBy {
         RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
     }
 
-    fn sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
-        let mut sort_params: FxHashSet<DefId> = Default::default();
+    fn sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> HashSet<DefId> {
+        let mut sort_params: HashSet<DefId> = Default::default();
 
         for sort in sorts {
             sort.gather_sort_params(&mut sort_params);
         }
 
-        let mut params = vec![];
+        let mut params: HashSet<DefId> = Default::default();
         for param in &generics.params {
             let def_id = param.def_id;
             if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind &&
                sort_params.contains(&def_id)
             {
-                params.push(def_id);
+                params.insert(def_id);
             }
         }
         params
@@ -827,7 +828,7 @@ impl RefinedBy {
     pub fn trivial(def_id: impl Into<DefId>, span: Span) -> Self {
         RefinedBy {
             def_id: def_id.into(),
-            sort_params: vec![],
+            sort_params: Default::default(),
             span,
             index_params: Default::default(),
             early_bound: 0,
@@ -869,6 +870,10 @@ impl RefinedBy {
             .iter()
             .map(|sort| sort.param_subst(subst))
             .collect()
+    }
+
+    pub fn is_base_generic(&self, def_id: DefId) -> bool {
+        self.sort_params.contains(&def_id)
     }
 }
 
@@ -952,7 +957,7 @@ impl Sort {
         }
     }
 
-    pub fn gather_sort_params(&self, params: &mut FxHashSet<DefId>) {
+    pub fn gather_sort_params(&self, params: &mut HashSet<DefId>) {
         match self {
             Sort::Int
             | Sort::Bool

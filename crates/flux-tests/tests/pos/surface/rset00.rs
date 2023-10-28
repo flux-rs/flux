@@ -47,3 +47,23 @@ pub fn test() {
     assert(contains(&s, &v0));
     assert(!contains(&s, &v1));
 }
+
+// i32[10]
+
+#[flux::sig(fn(RSet<i32{v: v > 0}>[@s], y:i32{set_is_in(y, s.elems)}) )]
+pub fn test2(s: RSet<i32>, y: i32) {
+    assert(contains(&s, &y));
+}
+
+#[flux::sig(fn<T as base>(RSet<T>[@s], y:T{set_is_in(y, s.elems)}))]
+pub fn test3<T>(s: RSet<T>, y: T)
+where
+    T: Eq + Hash,
+{
+    assert(contains(&s, &y));
+}
+
+#[flux::sig(fn(RSet<i32{v: 0 <= v}>[@s], y:i32{0 <= y && set_is_in(y, s.elems)}) )]
+pub fn test4(s: RSet<i32>, y: i32) {
+    test3(s, y)
+}

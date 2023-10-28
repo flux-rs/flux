@@ -1,6 +1,6 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 //!
-//! # Generics-and-Desugaring
+//! # Generics and Desugaring
 //!
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
@@ -53,7 +53,11 @@ pub fn desugar_struct_def(
     let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
 
     // Desugar and insert generics
-    let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+    let (generics, predicates) = if let Some(generics) = &struct_def.generics {
+        (cx.desugar_generics(generics)?, cx.as_lift_cx().lift_predicates()?)
+    } else {
+        cx.as_lift_cx().lift_generics_with_predicates()?
+    };
     genv.map().insert_generics(def_id, generics);
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring

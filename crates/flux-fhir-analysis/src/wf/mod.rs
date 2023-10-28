@@ -19,7 +19,7 @@ use rustc_data_structures::{
 };
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
-use rustc_hir::{def::DefKind, OwnerId};
+use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
@@ -234,7 +234,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match bound {
             fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, &trait_ref.trait_ref),
             fhir::GenericBound::LangItemTrait(_, args, bindings) => {
-                self.check_generic_args(infcx, args)?;
+                self.check_generic_args(infcx, None, args)?;
                 self.check_type_bindings(infcx, bindings)?;
                 Ok(())
             }
@@ -362,7 +362,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::TyKind::OpaqueDef(_, args, _refine_args, _) => {
                 // TODO sanity check the _refine_args (though they should never fail!) but we'd need their expected sorts
-                self.check_generic_args(infcx, args)
+                self.check_generic_args(infcx, None, args)
             }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole(_) | fhir::TyKind::Never => Ok(()),
@@ -382,11 +382,55 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_collect_exhaust()
     }
 
+    fn check_ty_is_base(&self, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
+        match &ty.kind {
+            fhir::TyKind::BaseTy(_) | fhir::TyKind::Indexed(_, _) => Ok(()),
+            fhir::TyKind::Tuple(tys) => {
+                for ty in tys {
+                    self.check_ty_is_base(&ty)?
+                }
+                Ok(())
+            }
+            fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(_, ty) => self.check_ty_is_base(&ty),
+
+            fhir::TyKind::Ptr(_, _)
+            | fhir::TyKind::Ref(_, _)
+            | fhir::TyKind::Array(_, _)
+            | fhir::TyKind::RawPtr(_, _)
+            | fhir::TyKind::OpaqueDef(_, _, _, _)
+            | fhir::TyKind::Never
+            | fhir::TyKind::Hole(_) => self.emit_err(errors::InvalidBaseInstance::new(ty)),
+        }
+    }
+
+    fn check_generic_args_kinds(
+        &self,
+        adt_id: Option<DefId>,
+        args: &[fhir::GenericArg],
+    ) -> Result<(), ErrorGuaranteed> {
+        if let Some(def_id) = adt_id &&
+           let Ok(generics) = self.genv.generics_of(def_id) &&
+           let Some(local_def_id) = def_id.as_local()
+        {
+           let refined_by = self.genv.map().refined_by(local_def_id);
+           for (arg, param) in args.iter().zip(generics.params.iter()) {
+             if refined_by.is_base_generic(param.def_id) {
+                if let fhir::GenericArg::Type(ty) = arg {
+                   self.check_ty_is_base(ty)?
+                }
+             }
+           }
+        }
+        Ok(())
+    }
+
     fn check_generic_args(
         &mut self,
         infcx: &mut InferCtxt,
+        adt_id: Option<DefId>,
         args: &[fhir::GenericArg],
     ) -> Result<(), ErrorGuaranteed> {
+        self.check_generic_args_kinds(adt_id, args)?;
         args.iter()
             .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
     }
@@ -453,7 +497,12 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::PrimTy(..) => {}
         }
         let snapshot = self.xi.snapshot();
-        let args = self.check_generic_args(infcx, &path.args);
+        let adt_id = match &path.res {
+            // TODO:Enums
+            fhir::Res::Def(DefKind::Struct, did) => Some(*did),
+            _ => None,
+        };
+        let args = self.check_generic_args(infcx, adt_id, &path.args);
         let bindings = self.check_type_bindings(infcx, &path.bindings);
         if !self.genv.is_box(path.res) {
             self.xi.rollback_to(snapshot);

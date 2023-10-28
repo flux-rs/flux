@@ -16,7 +16,7 @@ use rustc_span::Span;
 use super::errors;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+    pub genv: &'a GlobalEnv<'a, 'tcx>,
     sorts: UnordMap<fhir::Name, fhir::Sort>,
     unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
@@ -35,6 +35,76 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
+    // CUT
+    // pub(super) fn check_refine_params(
+    //     &mut self,
+    //     owner_id: OwnerId,
+    //     refine_params: &[fhir::RefineParam],
+    // ) -> Result<(), ErrorGuaranteed> {
+    //     let allowed_generics: HashSet<DefId> = self
+    //         .genv
+    //         .generics_of(owner_id)
+    //         .emit(self.genv.sess)?
+    //         .params
+    //         .iter()
+    //         .filter_map(|param| {
+    //             if let GenericParamDefKind::BaseTy = param.kind {
+    //                 Some(param.def_id)
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
+    //     println!("TRACE: check_refine_params {owner_id:?} {allowed_generics:?} {refine_params:?}");
+    //     for refine_param in refine_params {
+    //         self.check_sort(&allowed_generics, &refine_param.sort)?
+    //     }
+    //     Ok(())
+    // }
+
+    // CUT
+    // fn check_sort(
+    //     &self,
+    //     allowed_generics: &HashSet<DefId>,
+    //     sort: &fhir::Sort,
+    // ) -> Result<(), ErrorGuaranteed> {
+    //     match sort {
+    //         fhir::Sort::Int
+    //         | fhir::Sort::Bool
+    //         | fhir::Sort::Real
+    //         | fhir::Sort::Loc
+    //         | fhir::Sort::Unit
+    //         | fhir::Sort::BitVec(_)
+    //         | fhir::Sort::Var(_)
+    //         | fhir::Sort::Infer(_)
+    //         | fhir::Sort::Wildcard => Ok(()),
+    //         fhir::Sort::App(_, sorts) => {
+    //             for sort in sorts {
+    //                 self.check_sort(allowed_generics, sort)?;
+    //             }
+    //             Ok(())
+    //         }
+    //         fhir::Sort::Func(poly_func_sort) => {
+    //             for sort in &poly_func_sort.skip_binders().inputs_and_output {
+    //                 self.check_sort(allowed_generics, sort)?;
+    //             }
+    //             Ok(())
+    //         }
+    //         fhir::Sort::Record(_, sorts) => {
+    //             for sort in sorts {
+    //                 self.check_sort(allowed_generics, sort)?;
+    //             }
+    //             Ok(())
+    //         }
+    //         fhir::Sort::Param(def_id) => {
+    //             if allowed_generics.contains(def_id) {
+    //                 Ok(())
+    //             } else {
+    //                 Err(self.emit_err(errors::InvalidGenericSort::new(span, sort)))
+    //             }
+    //         }
+    //     }
+    // }
     pub(super) fn check_refine_arg(
         &mut self,
         arg: &fhir::RefineArg,

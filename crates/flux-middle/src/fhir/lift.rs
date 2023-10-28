@@ -151,6 +151,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         self.lift_generics_inner(generics)
     }
 
+    pub fn lift_predicates(&mut self) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
+        let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
+        self.lift_generic_predicates(generics)
+    }
+
     fn lift_generic_param(
         &mut self,
         param: &hir::GenericParam,

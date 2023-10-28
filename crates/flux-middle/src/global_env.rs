@@ -252,7 +252,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::TyKind::Array(_, _)
             | fhir::TyKind::Never => Some(fhir::Sort::Unit),
             fhir::TyKind::Hole(_) => Some(fhir::Sort::Wildcard),
-            _ => bug!("unexpected ty {ty:?}"),
+            fhir::TyKind::Ptr(_, _) => None,
+            fhir::TyKind::OpaqueDef(_, _, _, _) => None,
         }
     }
 

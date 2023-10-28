@@ -75,6 +75,7 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct StructDef {
+    pub generics: Option<Generics>,
     pub refined_by: Option<RefinedBy>,
     pub fields: Vec<Option<Ty>>,
     pub opaque: bool,

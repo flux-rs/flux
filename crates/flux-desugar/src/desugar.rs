@@ -1367,23 +1367,6 @@ impl<'a> SortResolver<'a> {
         Self { sess, sort_decls, sort_params: Default::default(), generic_params }
     }
 
-    // pub fn resolve(
-    //     sess: &'a FluxSession,
-    //     sort_decls: &'a fhir::SortDecls,
-    //     sort_vars: Option<&[surface::Ident]>,
-    //     generics: Option<&'a Generics>,
-    //     sort: &surface::Sort,
-    // ) -> Result<fhir::Sort> {
-    //     let generic_params = generics
-    //         .map(|g| g.params.iter().map(|p| (p.name, p.def_id)).collect())
-    //         .unwrap_or_default();
-    //     let sort_params = sort_vars
-    //         .map(|vars| vars.iter().enumerate().map(|(i, v)| (v.name, i)).collect())
-    //         .unwrap_or_default();
-    //     let sr = Self { sess, sort_decls, generic_params, sort_params };
-    //     sr.resolve_sort(sort)
-    // }
-
     fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
         match sort {
             surface::Sort::Base(sort) => self.resolve_base_sort(sort),
