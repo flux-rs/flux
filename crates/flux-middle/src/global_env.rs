@@ -13,7 +13,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     cstore::CrateStoreDyn,
-    fhir::{self, FluxLocalDefId, VariantIdx},
+    fhir::{self, FluxLocalDefId, GenericParamKind, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryResult},
     rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
@@ -159,7 +159,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
-        self.map().get_generics(owner).unwrap().get_param(def_id)
+        self.map()
+            .get_generics(owner.to_def_id())
+            .unwrap()
+            .get_param(def_id)
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
@@ -202,6 +205,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn sort_of_path(&self, path: &fhir::Path) -> Option<fhir::Sort> {
+        // CODESYNC(sort-of-path, 2) sorts should be given consistently
         match path.res {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
             fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
@@ -210,13 +214,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
-                for arg in &path.args {
-                    if let fhir::GenericArg::Type(ty) = arg &&
-                       let Some(sort) = self.sort_of_ty(ty)
-                    {
-                        sort_args.push(sort);
+                if let Some(generics) = self.map().get_generics(def_id) {
+                    for (param, arg) in generics.params.iter().zip(&path.args) {
+                        if let GenericParamKind::SplTy = param.kind {
+                            let fhir::GenericArg::Type(ty) = arg else { return None };
+                            let sort = self.sort_of_ty(ty)?;
+                            sort_args.push(sort);
+                        }
                     }
-                }
+                };
                 Some(fhir::Sort::Record(def_id, List::from_vec(sort_args)))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to),
@@ -235,7 +241,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     fn sort_of_generic_param(&self, def_id: DefId) -> Option<fhir::Sort> {
         let param = self.get_generic_param(def_id.expect_local());
         match &param.kind {
-            fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
+            fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
+                Some(fhir::Sort::Param(def_id))
+            }
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         }
     }
@@ -259,7 +267,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     fn sort_of_self_ty(&self, def_id: DefId, ty: rustc_middle::ty::Ty) -> Option<fhir::Sort> {
         use rustc_middle::ty;
-        // CODESYNC(sort-of, 4) sorts should be given consistently
+        // CODESYNC(sort-of, 3) sorts should be given consistently
         match ty.kind() {
             ty::TyKind::Bool => Some(fhir::Sort::Bool),
             ty::TyKind::Slice(_) | ty::TyKind::Int(_) | ty::TyKind::Uint(_) => {

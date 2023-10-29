@@ -160,7 +160,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
             let is_trait = (def_kind == DefKind::Trait).then_some(local_id);
             let generics = genv
                 .map()
-                .get_generics(local_id)
+                .get_generics(local_id.to_def_id())
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
             let refine_params = genv
                 .map()

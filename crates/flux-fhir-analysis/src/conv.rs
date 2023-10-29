@@ -162,6 +162,7 @@ pub(crate) fn conv_generics(
                 fhir::GenericParamKind::Type { default } => {
                     rty::GenericParamDefKind::Type { has_default: default.is_some() }
                 }
+                fhir::GenericParamKind::SplTy => rty::GenericParamDefKind::SplTy,
                 fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
                 fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
             };
@@ -395,8 +396,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 Ok(rty::BoundVariableKind::Region(kind))
             }
-            fhir::GenericParamKind::Type { default: _ } => bug!("unexpected!"),
-            fhir::GenericParamKind::BaseTy => bug!("unexpected!"),
+            fhir::GenericParamKind::Type { default: _ }
+            | fhir::GenericParamKind::BaseTy
+            | fhir::GenericParamKind::SplTy => bug!("unexpected!"),
         }
     }
 
@@ -635,6 +637,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
         let sort = self.genv.sort_of_bty(bty);
+        // if sort.is_none() {
+        //     println!("TRACE: conv_base_ty {bty:?} ==> None");
+        // }
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {

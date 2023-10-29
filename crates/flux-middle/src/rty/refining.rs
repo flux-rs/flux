@@ -231,6 +231,9 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             (rty::GenericParamDefKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
+            (rty::GenericParamDefKind::SplTy, rustc::ty::GenericArg::Ty(ty)) => {
+                Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
+            }
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::BaseTy(self.refine_poly_ty(ty)?))
             }
@@ -320,7 +323,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             }
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
-                    rty::GenericParamDefKind::Type { .. } => {
+                    rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::SplTy => {
                         return Ok(rty::Binder::new(rty::Ty::param(*param_ty), List::empty()));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),

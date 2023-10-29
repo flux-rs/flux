@@ -53,14 +53,7 @@ pub fn desugar_struct_def(
     let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
 
     // Desugar and insert generics
-    let (generics, predicates) = if let Some(generics) = &struct_def.generics {
-        (cx.desugar_generics(generics)?, cx.as_lift_cx().lift_predicates()?)
-    } else {
-        cx.as_lift_cx().lift_generics_with_predicates()?
-    };
-    let refined_by = genv.map().refined_by(owner_id.def_id);
-    let generics = generics.with_refined_by(refined_by);
-    genv.map().insert_generics(def_id, generics);
+    let predicates = cx.as_lift_cx().lift_predicates()?;
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
     let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;

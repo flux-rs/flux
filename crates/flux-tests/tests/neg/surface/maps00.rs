@@ -13,7 +13,6 @@ pub fn test() {
 
     m.set(k0, 1);
     m.set(k1, 2);
-
     assert(*m.get(&k0).unwrap() == 1);
     assert(*m.get(&k1).unwrap() == 2);
     assert(*m.get(&k2).unwrap() == 3); //~ ERROR refinement type

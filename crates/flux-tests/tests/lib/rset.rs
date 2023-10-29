@@ -8,6 +8,7 @@ pub struct RSet<T> {
     pub inner: std::collections::HashSet<T>,
 }
 
+// TODO: (RJ) I get some odd error with `T as spl` ...?
 #[flux::generics(T as base)]
 impl<T> RSet<T> {
     #[flux::trusted]

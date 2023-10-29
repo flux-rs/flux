@@ -65,6 +65,7 @@ pub struct GenericParam {
 #[derive(Debug)]
 pub enum GenericParamKind {
     Type { default: Option<Ty> },
+    SplTy,
     BaseTy,
     Lifetime,
 }
@@ -144,7 +145,7 @@ type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_has
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Map {
-    generics: Cache<LocalDefId, Box<Generics>>,
+    generics: Cache<DefId, Box<Generics>>,
     predicates: ItemPredicates,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -791,7 +792,7 @@ impl Generics {
         let mut params = vec![];
         for param in self.params {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
-                GenericParamKind::BaseTy
+                GenericParamKind::SplTy
             } else {
                 param.kind
             };
@@ -1090,7 +1091,7 @@ impl Map {
     }
 
     pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id, Box::new(generics));
+        self.generics.insert(def_id.to_def_id(), Box::new(generics));
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
@@ -1101,7 +1102,7 @@ impl Map {
         self.opaque_tys.extend_unord(opaque_tys.into_items());
     }
 
-    pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
+    pub fn get_generics(&self, def_id: DefId) -> Option<&Generics> {
         self.generics.get(&def_id)
     }
 

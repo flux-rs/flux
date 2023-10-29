@@ -153,10 +153,11 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .err()
         .or(err);
 
-    // Register RefinedBys
+    // Register RefinedBys (for structs and enums, which also registers their Generics)
     err = specs
         .refined_bys()
         .try_for_each_exhaust(|(owner_id, refined_by)| {
+            let generics = lift::lift_generics(tcx, sess, owner_id)?;
             let refined_by = if let Some(refined_by) = refined_by {
                 let def_id = owner_id.to_def_id();
                 let generics = tcx.generics_of(def_id);
@@ -164,6 +165,7 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
             } else {
                 lift::lift_refined_by(tcx, owner_id)
             };
+            map.insert_generics(owner_id.def_id, generics.with_refined_by(&refined_by));
             map.insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
         })

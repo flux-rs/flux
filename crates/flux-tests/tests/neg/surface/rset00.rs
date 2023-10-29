@@ -15,7 +15,7 @@ pub fn id<A>(s: RSet<A>) -> RSet<A> {
 fn assert(_b: bool) {}
 
 #[flux::trusted]
-#[flux::sig(fn() -> RSet<T>[set_empty(0)])]
+#[flux::sig(fn<T as base>() -> RSet<T>[set_empty(0)])]
 pub fn empty<T>() -> RSet<T> {
     let inner = std::collections::HashSet::new();
     RSet { inner }

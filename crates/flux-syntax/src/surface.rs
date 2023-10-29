@@ -60,6 +60,7 @@ pub struct GenericParam {
 #[derive(Debug)]
 pub enum GenericParamKind {
     Type,
+    Spl,
     Base,
     Refine { sort: Sort },
 }

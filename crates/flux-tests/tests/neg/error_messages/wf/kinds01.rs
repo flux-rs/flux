@@ -5,32 +5,13 @@ use std::hash::Hash;
 
 use rset::RSet;
 
-fn mk_eq_hash() -> impl Eq + Hash {
-    0
-}
+// this is OK because we just dont generate an index for `soup`
+#[flux::sig(fn(soup:RSet<Tinker>))]
+pub fn test04<Tinker: Eq + Hash>(_s: RSet<Tinker>) {}
 
-#[flux::sig(fn<T as base>(x:T) -> T[x])]
-fn id<T>(x: T) {}
-
-pub fn test_base() {
-    let z = mk_eq_hash(); // TODO: REJECT
-    id(z);
-}
-
-fn bob(x: T) {
-    id(x) // TODO: REJECT-but-actually-ok
-}
-
-fn test_bob(x: T) {
-    let z = mk_eq_hash();
-    bob(z) // TODO: REJECT-but-actually-ok
-}
-
-/// TODO: This currently crashes. We should gracefully reject it.
-///     x: impl Eq + Hash
-/// This will try to create an `RSet<impl Eq + Hash>` which can't be put into RSet
-fn test02() {
-    let x = mk_eq_hash();
-    let mut s = RSet::new();
-    s.insert(x);
+#[flux::sig(fn(RSet<T>[@salt]))] //~ ERROR type cannot be refined
+pub fn test05<T>(_s: RSet<T>)
+where
+    T: Eq + Hash,
+{
 }

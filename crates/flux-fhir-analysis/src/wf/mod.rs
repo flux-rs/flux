@@ -411,13 +411,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(def_id) = adt_id &&
            let Ok(generics) = self.genv.generics_of(def_id)
-           //&&
-           // let Some(local_def_id) = def_id.as_local()
         {
-           // let refined_by = self.genv.map().refined_by(local_def_id);
            for (arg, param) in args.iter().zip(generics.params.iter()) {
-             // if refined_by.is_base_generic(param.def_id) {
-             if param.kind == GenericParamDefKind::BaseTy {
+             if param.kind == GenericParamDefKind::SplTy {
                 if let fhir::GenericArg::Type(ty) = arg {
                    self.check_ty_is_base(ty)?
                 }

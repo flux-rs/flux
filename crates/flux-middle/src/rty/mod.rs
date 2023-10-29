@@ -83,6 +83,7 @@ pub struct GenericParamDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
+    SplTy,
     BaseTy,
     Lifetime,
     Const { has_default: bool },
@@ -438,10 +439,19 @@ impl GenericArg {
             bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
         }
     }
+    pub fn is_valid_base_arg(&self) -> bool {
+        let res = match self {
+            GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
+            GenericArg::BaseTy(bty) => bty.skip_binder_as_ref().kind().is_valid_base_ty(),
+            _ => false,
+        };
+        // println!("TRACE: is_valid_base arg: {:?} => {res:?}", self);
+        res
+    }
 
     fn from_param_def(param: &GenericParamDef) -> Self {
         match param.kind {
-            GenericParamDefKind::Type { .. } => {
+            GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Ty(Ty::param(param_ty))
             }
@@ -769,6 +779,10 @@ impl<T> Binder<T> {
 
     pub fn skip_binder(self) -> T {
         self.value
+    }
+
+    pub fn skip_binder_as_ref(&self) -> &T {
+        &self.value
     }
 
     pub fn rebind<U>(self, value: U) -> Binder<U> {
@@ -1296,6 +1310,19 @@ impl TyKind {
     fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
     }
+
+    fn is_valid_base_ty(&self) -> bool {
+        match self {
+            TyKind::Param(_) | TyKind::Indexed(_, _) | TyKind::Exists(_) => true,
+            TyKind::Constr(_, ty) => ty.kind().is_valid_base_ty(),
+            TyKind::Uninit
+            | TyKind::Ptr(_, _)
+            | TyKind::Discr(_, _)
+            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Blocked(_)
+            | TyKind::Alias(_, _) => false,
+        }
+    }
 }
 
 impl TyS {
@@ -1468,7 +1495,7 @@ impl BaseTy {
     }
 
     pub fn sort(&self) -> Sort {
-        // CODESYNC(sort-of, 4) sorts should be given consistently
+        // CODESYNC(sort-of, 3) sorts should be given consistently
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,

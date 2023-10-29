@@ -9,7 +9,7 @@ use std::hash::Hash;
 
 /// define a type indexed by a map
 #[flux::opaque]
-#[flux::refined_by(map: Map<K, V>)]
+#[flux::refined_by(vals: Map<K, V>)]
 pub struct RMap<K, V> {
     inner: std::collections::HashMap<K, V>,
 }
@@ -17,12 +17,15 @@ pub struct RMap<K, V> {
 #[flux::generics(K as base, V as base)]
 impl<K, V> RMap<K, V> {
     #[flux::trusted]
+
+    /// #[flux::sig(fn() -> RMap<K, V>{m: true})]   "OK"    i.e. wraps K, V in existential
+    /// #[flux::sig(fn() -> RMap<K, V>{m: true})]   "CRASH" i.e. wraps K, V in LAMBDA
     pub fn new() -> Self {
         Self { inner: std::collections::HashMap::new() }
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(self: &strg RMap<K,V>[@m], k: K, v: V) ensures self: RMap<K,V>[map_set(m, k, v)])]
+    #[flux::sig(fn(self: &strg RMap<K,V>[@m], k: K, v: V) ensures self: RMap<K,V>[map_set(m.vals, k, v)])]
     pub fn set(&mut self, k: K, v: V)
     where
         K: Eq + Hash,
@@ -31,11 +34,11 @@ impl<K, V> RMap<K, V> {
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_get(m, k)]>)]
+    #[flux::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_get(m.vals, k)]>)]
     pub fn get(&self, k: &K) -> Option<&V>
     where
         K: Eq + Hash,
     {
-        self.inner.get(&k)
+        self.inner.get(k)
     }
 }
