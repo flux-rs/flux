@@ -796,7 +796,7 @@ impl Generics {
             } else {
                 param.kind
             };
-            params.push(GenericParam { def_id: param.def_id, kind })
+            params.push(GenericParam { def_id: param.def_id, kind });
         }
         Generics { params }
     }

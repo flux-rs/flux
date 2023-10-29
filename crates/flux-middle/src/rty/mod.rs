@@ -440,13 +440,11 @@ impl GenericArg {
         }
     }
     pub fn is_valid_base_arg(&self) -> bool {
-        let res = match self {
+        match self {
             GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
             GenericArg::BaseTy(bty) => bty.skip_binder_as_ref().kind().is_valid_base_ty(),
             _ => false,
-        };
-        // println!("TRACE: is_valid_base arg: {:?} => {res:?}", self);
-        res
+        }
     }
 
     fn from_param_def(param: &GenericParamDef) -> Self {

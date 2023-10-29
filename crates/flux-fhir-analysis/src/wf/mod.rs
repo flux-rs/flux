@@ -388,11 +388,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::TyKind::BaseTy(_) | fhir::TyKind::Indexed(_, _) => Ok(()),
             fhir::TyKind::Tuple(tys) => {
                 for ty in tys {
-                    self.check_ty_is_base(&ty)?
+                    self.check_ty_is_base(ty)?;
                 }
                 Ok(())
             }
-            fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(_, ty) => self.check_ty_is_base(&ty),
+            fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(_, ty) => self.check_ty_is_base(ty),
 
             fhir::TyKind::Ptr(_, _)
             | fhir::TyKind::Ref(_, _)
@@ -415,7 +415,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
            for (arg, param) in args.iter().zip(generics.params.iter()) {
              if param.kind == GenericParamDefKind::SplTy {
                 if let fhir::GenericArg::Type(ty) = arg {
-                   self.check_ty_is_base(ty)?
+                   self.check_ty_is_base(ty)?;
                 }
              }
            }

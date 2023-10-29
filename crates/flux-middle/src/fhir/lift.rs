@@ -33,9 +33,9 @@ pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
     }
 }
 
-pub fn lift_generics<'a, 'tcx>(
-    tcx: TyCtxt<'tcx>,
-    sess: &'a FluxSession,
+pub fn lift_generics(
+    tcx: TyCtxt,
+    sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
     LiftCtxt::new(tcx, sess, owner_id, None).lift_generics()
