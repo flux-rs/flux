@@ -8,7 +8,8 @@ pub struct RSet<T> {
     pub inner: std::collections::HashSet<T>,
 }
 
-// TODO: (RJ) I get some odd error with `T as spl` ...?
+// TODO: (RJ) I get some odd error with `T as spl` / cannot refine if I just remove this annotation!
+// error: internal compiler error: crates/flux-middle/src/rty/subst.rs:353:30: expected base type for generic parameter, found `∃int. { i32[^0#0] | * }`
 #[flux::generics(T as base)]
 impl<T> RSet<T> {
     #[flux::trusted]
