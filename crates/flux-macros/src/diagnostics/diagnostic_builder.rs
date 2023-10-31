@@ -1,4 +1,3 @@
-#![allow(clippy::all, clippy::pedantic)]
 #![deny(unused_must_use)]
 
 use proc_macro2::{Ident, Span, TokenStream};

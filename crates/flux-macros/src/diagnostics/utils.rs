@@ -1,4 +1,3 @@
-#![allow(clippy::all, clippy::pedantic)]
 use std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
@@ -361,7 +360,7 @@ pub(crate) trait HasFieldMap {
                 None => {
                     span_err(
                         span.unwrap(),
-                        &format!("`{field}` doesn't refer to a field on this type"),
+                        format!("`{field}` doesn't refer to a field on this type"),
                     )
                     .emit();
                     quote! {
