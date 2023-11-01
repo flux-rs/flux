@@ -178,11 +178,6 @@
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(lazy_cell)]
 
 </span><span class="kw">use </span>std::{io::Read, path::PathBuf, sync::LazyLock};
@@ -238,10 +233,6 @@
     log_dir().join(<span class="kw-2">&amp;</span>CONFIG.cache_file)
 }
 
-<span class="kw">pub fn </span>driver_path() -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>PathBuf&gt; {
-    CONFIG.driver_path.as_ref()
-}
-
 <span class="kw">pub fn </span>check_overflow() -&gt; bool {
     CONFIG.check_overflow
 }
@@ -258,7 +249,6 @@
 
 <span class="attr">#[derive(Deserialize)]
 </span><span class="kw">struct </span>Config {
-    driver_path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
     log_dir: PathBuf,
     dump_constraint: bool,
     dump_checker_trace: bool,

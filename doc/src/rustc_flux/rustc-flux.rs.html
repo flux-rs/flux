@@ -35,6 +35,12 @@
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
 <a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     process::{exit, Command},
@@ -42,8 +48,8 @@
 
 <span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>flux_bin::utils::{
-    extend_env_var_with_path, get_flux_driver_path, get_ld_library_path, get_rust_toolchain,
-    EXIT_ERR, LIB_PATH,
+    get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path, prepend_path_to_env_var,
+    sysroot_dir, EXIT_ERR, LIB_PATH,
 };
 
 <span class="kw">fn </span>main() {
@@ -60,12 +66,18 @@
 <span class="kw">fn </span>run() -&gt; <span class="prelude-ty">Result</span>&lt;i32&gt; {
     <span class="kw">let </span>flux_driver_path = get_flux_driver_path()<span class="question-mark">?</span>;
     <span class="kw">let </span>rust_toolchain = get_rust_toolchain()<span class="question-mark">?</span>;
-    <span class="kw">let </span>ld_library_path = get_ld_library_path(<span class="kw-2">&amp;</span>rust_toolchain)<span class="question-mark">?</span>;
-    <span class="kw">let </span>extended_lib_path = extend_env_var_with_path(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
+    <span class="kw">let </span>ld_library_path = get_rustc_driver_lib_path(<span class="kw-2">&amp;</span>rust_toolchain)<span class="question-mark">?</span>;
+    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>exit_code = Command::new(flux_driver_path)
         <span class="comment">// Skip the invocation of rustc-flux itself
         </span>.args(env::args().skip(<span class="number">1</span>))
+        .arg(<span class="string">&quot;-Zcrate-attr=feature(register_tool,custom_inner_attributes)&quot;</span>)
+        .arg(<span class="string">&quot;-Zcrate-attr=register_tool(flux)&quot;</span>)
+        .arg(<span class="string">&quot;-L&quot;</span>)
+        .arg(sysroot_dir())
+        .arg(<span class="string">&quot;--extern&quot;</span>)
+        .arg(<span class="string">&quot;flux_rs&quot;</span>)
         .env(LIB_PATH, extended_lib_path)
         .status()<span class="question-mark">?
         </span>.code();

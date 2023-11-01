@@ -1,1 +1,1 @@
-window.ALL_CRATES = ["cargo_flux","flux_attrs","flux_attrs_proc_macros_build","flux_bin","flux_common","flux_config","flux_desugar","flux_driver","flux_errors","flux_fhir_analysis","flux_fixpoint","flux_macros","flux_metadata","flux_middle","flux_refineck","flux_rs","flux_syntax","flux_tests","rustc_flux","xtask"];
+window.ALL_CRATES = ["cargo_flux","flux_bin","flux_common","flux_config","flux_desugar","flux_driver","flux_errors","flux_fhir_analysis","flux_fixpoint","flux_macros","flux_metadata","flux_middle","flux_refineck","flux_syntax","flux_tests","rustc_flux","xtask"];

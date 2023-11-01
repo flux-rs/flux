@@ -411,17 +411,38 @@
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
 </span><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::{infer::InferCtxt, traits::Obligation};
 <span class="kw">use </span>rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{ParamTy, ToPredicate, TyCtxt},
+    ty::{EarlyBoundRegion, ParamTy, TyCtxt},
 };
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
@@ -434,20 +455,20 @@
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::ty::{BoundRegionKind, FreeRegion},
+    rustc::ty::FreeRegion,
 };
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;cx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    selcx: SelectionContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    selcx: SelectionContext&lt;<span class="lifetime">&#39;cx</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
     param_env: Vec&lt;Clause&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; Normalizer&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;cx</span>&gt; Normalizer&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;cx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;cx </span>InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         callsite_def_id: DefId,
         refine_params: <span class="kw-2">&amp;</span>[Expr],
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
@@ -492,7 +513,11 @@
                     .unwrap()
                     .skip_binder()
                     .self_ty();
-                <span class="kw">let </span>generics = TVarSubst::mk_subst(<span class="kw-2">&amp;</span>rustc_self_ty, obligation.self_ty());
+
+                <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(impl_def_id);
+
+                <span class="kw">let </span>args =
+                    TVarSubst::mk_subst(<span class="self">self</span>.tcx(), generics, <span class="kw-2">&amp;</span>rustc_self_ty, obligation.self_ty());
 
                 <span class="comment">// 2. Get the associated type in the impl block and apply the substitution to it
                 </span><span class="kw">let </span>assoc_type_id = <span class="self">self
@@ -502,10 +527,11 @@
                     .find(|item| item.trait_item_def_id == <span class="prelude-val">Some</span>(obligation.def_id))
                     .map(|item| item.def_id)
                     .unwrap();
+
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.genv
                     .type_of(assoc_type_id)<span class="question-mark">?
-                    </span>.instantiate(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>[])
+                    </span>.instantiate(<span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
                     .into_ty())
             }
         }
@@ -546,14 +572,13 @@
         obligation: <span class="kw-2">&amp;</span>AliasTy,
         candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
     ) -&gt; QueryResult&lt;()&gt; {
-        <span class="kw">let </span>trait_pred = Obligation {
-            cause: ObligationCause::dummy(),
-            param_env: <span class="self">self</span>.rustc_param_env(),
-            predicate: into_rustc_alias_ty(<span class="self">self</span>.tcx(), obligation)
-                .trait_ref(<span class="self">self</span>.tcx())
-                .to_predicate(<span class="self">self</span>.tcx()),
-            recursion_depth: <span class="number">5</span>,
-        };
+        <span class="kw">let </span>trait_pred = Obligation::with_depth(
+            <span class="self">self</span>.tcx(),
+            ObligationCause::dummy(),
+            <span class="number">5</span>,
+            <span class="self">self</span>.rustc_param_env(),
+            into_rustc_alias_ty(<span class="self">self</span>.tcx(), obligation).trait_ref(<span class="self">self</span>.tcx()),
+        );
         <span class="kw">match </span><span class="self">self</span>.selcx.select(<span class="kw-2">&amp;</span>trait_pred) {
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ImplSource::UserDefined(impl_data))) =&gt; {
                 candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
@@ -600,7 +625,8 @@
     }
 }
 
-<span class="kw">pub enum </span>Candidate {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>Candidate {
     UserDefinedImpl(DefId),
     ParamEnv(ProjectionPredicate),
     TraitDef(ProjectionPredicate),
@@ -720,95 +746,99 @@
         Region::ReEarlyBound(ebr) =&gt; rustc_middle::ty::Region::new_early_bound(tcx, ebr),
         Region::ReStatic =&gt; tcx.lifetimes.re_static,
         Region::ReVar(rvid) =&gt; rustc_middle::ty::Region::new_var(tcx, rvid),
-        Region::ReErased =&gt; tcx.lifetimes.re_erased,
         Region::ReFree(FreeRegion { scope, bound_region }) =&gt; {
-            rustc_middle::ty::Region::new_free(
-                tcx,
-                scope,
-                into_rustc_bound_region_kind(bound_region),
-            )
+            rustc_middle::ty::Region::new_free(tcx, scope, bound_region.to_rustc())
         }
-    }
-}
-
-<span class="kw">fn </span>into_rustc_bound_region_kind(
-    bound_region: BoundRegionKind,
-) -&gt; rustc_middle::ty::BoundRegionKind {
-    <span class="kw">use </span>rustc_middle::ty;
-    <span class="kw">match </span>bound_region {
-        BoundRegionKind::BrAnon =&gt; ty::BoundRegionKind::BrAnon(<span class="prelude-val">None</span>),
-        BoundRegionKind::BrNamed(def_id, sym) =&gt; ty::BoundRegionKind::BrNamed(def_id, sym),
-        BoundRegionKind::BrEnv =&gt; ty::BoundRegionKind::BrEnv,
     }
 }
 
 <span class="kw">fn </span>into_rustc_bound_region(bound_region: BoundRegion) -&gt; rustc_middle::ty::BoundRegion {
-    rustc_middle::ty::BoundRegion {
-        var: bound_region.var,
-        kind: into_rustc_bound_region_kind(bound_region.kind),
-    }
+    rustc_middle::ty::BoundRegion { var: bound_region.var, kind: bound_region.kind.to_rustc() }
 }
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>TVarSubst {
-    map: FxHashMap&lt;ParamTy, Ty&gt;,
+    args: Vec&lt;<span class="prelude-ty">Option</span>&lt;GenericArg&gt;&gt;,
 }
 
 <span class="kw">impl </span>TVarSubst {
-    <span class="kw">fn </span>mk_subst(src: <span class="kw-2">&amp;</span>rustc_middle::ty::Ty, dst: <span class="kw-2">&amp;</span>Ty) -&gt; Vec&lt;GenericArg&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst { map: FxHashMap::default() };
+    <span class="kw">fn </span>mk_subst&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>rustc_middle::ty::Generics,
+        src: <span class="kw-2">&amp;</span>rustc_middle::ty::Ty,
+        dst: <span class="kw-2">&amp;</span>Ty,
+    ) -&gt; Vec&lt;GenericArg&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst { args: <span class="macro">vec!</span>[<span class="prelude-val">None</span>; generics.count()] };
         subst.infer_from_ty(src, dst);
         subst
-            .map
-            .iter()
-            .sorted_by_key(|(pty, <span class="kw">_</span>)| pty.index)
-            .map(|(<span class="kw">_</span>, ty)| GenericArg::Ty(ty.clone()))
+            .args
+            .into_iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(arg) = arg {
+                    arg
+                } <span class="kw">else </span>{
+                    <span class="kw">let </span>param = generics.param_at(idx, tcx);
+                    <span class="macro">bug!</span>(<span class="string">&quot;cannot infer substitution for param {param:?}&quot;</span>);
+                }
+            })
             .collect()
     }
 
-    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pty: <span class="kw-2">&amp;</span>ParamTy, ty: <span class="kw-2">&amp;</span>Ty) {
-        <span class="kw">match </span><span class="self">self</span>.map.insert(<span class="kw-2">*</span>pty, ty.clone()) {
-            <span class="prelude-val">None </span>=&gt; (),
-            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;duplicate insert&quot;</span>),
+    <span class="kw">fn </span>insert_param_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pty: ParamTy, ty: <span class="kw-2">&amp;</span>Ty) {
+        <span class="kw">let </span>arg = GenericArg::Ty(ty.clone());
+        <span class="kw">if </span><span class="self">self</span>.args[pty.index <span class="kw">as </span>usize].replace(arg).is_some() {
+            <span class="macro">bug!</span>(<span class="string">&quot;duplicate insert&quot;</span>);
+        }
+    }
+
+    <span class="kw">fn </span>insert_early_bound_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyBoundRegion, re: Region) {
+        <span class="kw">let </span>arg = GenericArg::Lifetime(re);
+        <span class="kw">if </span><span class="self">self</span>.args[ebr.index <span class="kw">as </span>usize].replace(arg).is_some() {
+            <span class="macro">bug!</span>(<span class="string">&quot;duplicate insert&quot;</span>);
         }
     }
 
     <span class="kw">fn </span>infer_from_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: <span class="kw-2">&amp;</span>rustc_middle::ty::GenericArg, dst: <span class="kw-2">&amp;</span>GenericArg) {
-        <span class="kw">if let </span>GenericArg::Ty(dst) = dst {
-            <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>src.as_type().unwrap(), dst);
+        <span class="kw">match </span>dst {
+            GenericArg::Ty(dst) =&gt; {
+                <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>src.as_type().unwrap(), dst);
+            }
+            GenericArg::Lifetime(dst) =&gt; <span class="self">self</span>.infer_from_region(<span class="kw-2">&amp;</span>src.as_region().unwrap(), dst),
+            <span class="kw">_ </span>=&gt; (),
         }
     }
 
     <span class="kw">fn </span>infer_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: <span class="kw-2">&amp;</span>rustc_middle::ty::Ty, dst: <span class="kw-2">&amp;</span>Ty) {
         <span class="kw">use </span>rustc_middle::ty;
-        <span class="kw">match </span>src.kind().clone() {
-            ty::TyKind::Param(pty) =&gt; <span class="self">self</span>.insert(<span class="kw-2">&amp;</span>pty, dst),
+        <span class="kw">match </span>src.kind() {
+            ty::TyKind::Param(pty) =&gt; <span class="self">self</span>.insert_param_ty(<span class="kw-2">*</span>pty, dst),
             ty::TyKind::Adt(<span class="kw">_</span>, src_subst) =&gt; {
                 <span class="comment">// NOTE: see https://github.com/flux-rs/flux/pull/478#issuecomment-1650983695
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(dst) = dst.as_bty_skipping_existentials() &amp;&amp;
-                   !dst.has_escaping_bvars() &amp;&amp;
-                   <span class="kw">let </span>BaseTy::Adt(<span class="kw">_</span>, dst_subst) = dst.clone()
-                   {
-                        <span class="macro">debug_assert_eq!</span>(src_subst.len(), dst_subst.len());
-                        iter::zip(src_subst, <span class="kw-2">&amp;</span>dst_subst)
-                            .for_each(|(src_arg, dst_arg)| <span class="self">self</span>.infer_from_arg(<span class="kw-2">&amp;</span>src_arg, dst_arg));
-                   } <span class="kw">else </span>{
-                        <span class="macro">bug!</span>(<span class="string">&quot;unexpected base_ty&quot;</span>);
-                   }
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(dst) = dst.as_bty_skipping_existentials()
+                    &amp;&amp; !dst.has_escaping_bvars()
+                    &amp;&amp; <span class="kw">let </span>BaseTy::Adt(<span class="kw">_</span>, dst_subst) = dst
+                {
+                    <span class="macro">debug_assert_eq!</span>(src_subst.len(), dst_subst.len());
+                    <span class="kw">for </span>(src_arg, dst_arg) <span class="kw">in </span>iter::zip(<span class="kw-2">*</span>src_subst, dst_subst) {
+                        <span class="self">self</span>.infer_from_arg(<span class="kw-2">&amp;</span>src_arg, dst_arg);
+                    }
+                } <span class="kw">else </span>{
+                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected type {dst:?}&quot;</span>);
+                }
             }
             ty::TyKind::Array(src, <span class="kw">_</span>) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Array(dst, <span class="kw">_</span>)) = dst.as_bty_skipping_existentials() {
-                    <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>src, dst);
+                    <span class="self">self</span>.infer_from_ty(src, dst);
                 } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected base_ty&quot;</span>);
+                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected type {dst:?}&quot;</span>);
                 }
             }
-
             ty::TyKind::Slice(src) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
-                    <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>src, dst);
+                    <span class="self">self</span>.infer_from_ty(src, dst);
                 } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected base_ty&quot;</span>);
+                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected type {dst:?}&quot;</span>);
                 }
             }
             ty::TyKind::Tuple(src_tys) =&gt; {
@@ -817,10 +847,24 @@
                     iter::zip(src_tys.iter(), dst_tys.iter())
                         .for_each(|(src, dst)| <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>src, dst));
                 } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected base_ty&quot;</span>);
+                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected type {dst:?}&quot;</span>);
+                }
+            }
+            ty::TyKind::Ref(src_re, src_ty, <span class="kw">_</span>) =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Ref(dst_re, dst_ty, <span class="kw">_</span>)) = dst.as_bty_skipping_existentials() {
+                    <span class="self">self</span>.infer_from_region(src_re, dst_re);
+                    <span class="self">self</span>.infer_from_ty(src_ty, dst_ty);
+                } <span class="kw">else </span>{
+                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected type {dst:?}&quot;</span>);
                 }
             }
             <span class="kw">_ </span>=&gt; {}
+        }
+    }
+
+    <span class="kw">fn </span>infer_from_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: <span class="kw-2">&amp;</span>rustc_middle::ty::Region, dst: <span class="kw-2">&amp;</span>Region) {
+        <span class="kw">if let </span>rustc_middle::ty::RegionKind::ReEarlyBound(ebr) = src.kind() {
+            <span class="self">self</span>.insert_early_bound_region(ebr, <span class="kw-2">*</span>dst);
         }
     }
 }

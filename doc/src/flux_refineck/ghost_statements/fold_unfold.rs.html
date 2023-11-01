@@ -844,48 +844,6 @@
 <a href="#844" id="844">844</a>
 <a href="#845" id="845">845</a>
 <a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
-<a href="#882" id="882">882</a>
-<a href="#883" id="883">883</a>
-<a href="#884" id="884">884</a>
-<a href="#885" id="885">885</a>
-<a href="#886" id="886">886</a>
-<a href="#887" id="887">887</a>
-<a href="#888" id="888">888</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -910,28 +868,21 @@
 <span class="kw">use </span>rustc_index::{bit_set::BitSet, Idx, IndexVec};
 <span class="kw">use </span>rustc_middle::mir::START_BLOCK;
 
+<span class="kw">use super</span>::{GhostStatements, StatementsAt};
 <span class="kw">use crate</span>::{
     ghost_statements::{GhostStatement, Point},
     queue::WorkQueue,
 };
 
-<span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>FoldUnfolds {
-    fold_unfolds: FxHashMap&lt;Point, Vec&lt;GhostStatement&gt;&gt;,
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_analysis&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>add_ghost_statements&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    stmts: <span class="kw-2">&amp;mut </span>GhostStatements,
     genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     body: <span class="kw-2">&amp;</span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; QueryResult&lt;FoldUnfolds&gt; {
+) -&gt; QueryResult {
     <span class="kw">let </span><span class="kw-2">mut </span>bb_envs = FxHashMap::default();
     FoldUnfoldAnalysis::new(genv, body, <span class="kw-2">&amp;mut </span>bb_envs, Infer).run()<span class="question-mark">?</span>;
 
-    <span class="kw">let </span><span class="kw-2">mut </span>fold_unfolds = FoldUnfolds::default();
-    FoldUnfoldAnalysis::new(genv, body, <span class="kw-2">&amp;mut </span>bb_envs, Elaboration { data: <span class="kw-2">&amp;mut </span>fold_unfolds })
-        .run()<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(fold_unfolds)
+    FoldUnfoldAnalysis::new(genv, body, <span class="kw-2">&amp;mut </span>bb_envs, Elaboration { stmts }).run()
 }
 
 <span class="attr">#[derive(Clone)]
@@ -973,12 +924,13 @@
 <span class="kw">struct </span>Infer;
 
 <span class="kw">struct </span>Elaboration&lt;<span class="lifetime">&#39;a</span>&gt; {
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FoldUnfolds,
+    stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>GhostStatements,
 }
 
-<span class="kw">struct </span>FoldUnfoldsAt&lt;<span class="lifetime">&#39;a</span>&gt; {
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FoldUnfolds,
-    point: Point,
+<span class="kw">impl </span>Elaboration&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>insert_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point, stmt: GhostStatement) {
+        <span class="self">self</span>.stmts.insert_at(point, stmt);
+    }
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1039,7 +991,7 @@
             ProjResult::None =&gt; {}
             ProjResult::Fold =&gt; {
                 <span class="kw">let </span>place = place.clone();
-                analysis.mode.data.insert_fold_at(point, place);
+                analysis.mode.insert_at(point, GhostStatement::Fold(place));
             }
             ProjResult::Unfold =&gt; {
                 <span class="kw">let </span>projection = <span class="kw">match </span>kind {
@@ -1047,7 +999,9 @@
                     ProjKind::Other =&gt; place.projection[..place.projection.len() - <span class="number">1</span>].to_vec(),
                 };
                 <span class="kw">let </span>place = Place::new(place.local, projection);
-                analysis.mode.data.insert_unfold_at(point, place);
+                analysis
+                    .mode
+                    .insert_at(point, GhostStatement::Unfold(place));
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -1059,16 +1013,17 @@
         target: BasicBlock,
         env: Env,
     ) -&gt; QueryResult&lt;bool&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>fold_unfolds =
-            FoldUnfoldsAt { point: Point::Edge(from, target), data: analysis.mode.data };
-        env.collect_fold_unfolds_at_goto(<span class="kw-2">&amp;</span>analysis.bb_envs[<span class="kw-2">&amp;</span>target], <span class="kw-2">&amp;mut </span>fold_unfolds);
+        <span class="kw">let </span>point = Point::Edge(from, target);
+        env.collect_fold_unfolds_at_goto(
+            <span class="kw-2">&amp;</span>analysis.bb_envs[<span class="kw-2">&amp;</span>target],
+            <span class="kw-2">&amp;mut </span>analysis.mode.stmts.at(point),
+        );
         <span class="prelude-val">Ok</span>(!analysis.visited.contains(target))
     }
 
     <span class="kw">fn </span>ret(analysis: <span class="kw-2">&amp;mut </span>FoldUnfoldAnalysis&lt;<span class="self">Self</span>&gt;, bb: BasicBlock, env: Env) {
         <span class="kw">let </span>point = Point::Location(analysis.body.terminator_loc(bb));
-        <span class="kw">let </span><span class="kw-2">mut </span>fold_unfolds = FoldUnfoldsAt { point, data: analysis.mode.data };
-        env.collect_folds_at_ret(analysis.body, <span class="kw-2">&amp;mut </span>fold_unfolds);
+        env.collect_folds_at_ret(analysis.body, <span class="kw-2">&amp;mut </span>analysis.mode.stmts.at(point));
     }
 }
 
@@ -1326,19 +1281,15 @@
         <span class="prelude-val">Ok</span>(modified)
     }
 
-    <span class="kw">fn </span>collect_fold_unfolds_at_goto(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Env, fold_unfolds: <span class="kw-2">&amp;mut </span>FoldUnfoldsAt) {
+    <span class="kw">fn </span>collect_fold_unfolds_at_goto(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>Env, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
         <span class="kw">for </span>(local, node) <span class="kw">in </span><span class="self">self</span>.map.iter_enumerated() {
-            node.collect_fold_unfolds(
-                <span class="kw-2">&amp;</span>other.map[local],
-                <span class="kw-2">&amp;mut </span>Place::new(local, <span class="macro">vec!</span>[]),
-                fold_unfolds,
-            );
+            node.collect_fold_unfolds(<span class="kw-2">&amp;</span>other.map[local], <span class="kw-2">&amp;mut </span>Place::new(local, <span class="macro">vec!</span>[]), stmts);
         }
     }
 
-    <span class="kw">fn </span>collect_folds_at_ret(<span class="kw-2">&amp;</span><span class="self">self</span>, body: <span class="kw-2">&amp;</span>Body, fold_unfolds: <span class="kw-2">&amp;mut </span>FoldUnfoldsAt) {
+    <span class="kw">fn </span>collect_folds_at_ret(<span class="kw-2">&amp;</span><span class="self">self</span>, body: <span class="kw-2">&amp;</span>Body, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
         <span class="kw">for </span>local <span class="kw">in </span>body.args_iter() {
-            <span class="self">self</span>.map[local].collect_folds_at_ret(<span class="kw-2">&amp;mut </span>Place::new(local, <span class="macro">vec!</span>[]), fold_unfolds);
+            <span class="self">self</span>.map[local].collect_folds_at_ret(<span class="kw-2">&amp;mut </span>Place::new(local, <span class="macro">vec!</span>[]), stmts);
         }
     }
 }
@@ -1541,16 +1492,11 @@
         <span class="prelude-val">Ok</span>((modified1, modified2))
     }
 
-    <span class="kw">fn </span>collect_fold_unfolds(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        other: <span class="kw-2">&amp;</span>PlaceNode,
-        place: <span class="kw-2">&amp;mut </span>Place,
-        fold_unfolds: <span class="kw-2">&amp;mut </span>FoldUnfoldsAt,
-    ) {
+    <span class="kw">fn </span>collect_fold_unfolds(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>PlaceNode, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
         <span class="kw">let </span>(fields1, fields2) = <span class="kw">match </span>(<span class="self">self</span>, other) {
             (PlaceNode::Deref(<span class="kw">_</span>, node1), PlaceNode::Deref(<span class="kw">_</span>, node2)) =&gt; {
                 place.projection.push(PlaceElem::Deref);
-                node1.collect_fold_unfolds(node2, place, fold_unfolds);
+                node1.collect_fold_unfolds(node2, place, stmts);
                 place.projection.pop();
                 <span class="kw">return</span>;
             }
@@ -1572,30 +1518,30 @@
             }
             (PlaceNode::Ty(<span class="kw">_</span>), PlaceNode::Ty(<span class="kw">_</span>)) =&gt; <span class="kw">return</span>,
             (PlaceNode::Ty(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
-                other.collect_unfolds(place, fold_unfolds);
+                other.collect_unfolds(place, stmts);
                 <span class="kw">return</span>;
             }
             (<span class="kw">_</span>, PlaceNode::Ty(<span class="kw">_</span>)) =&gt; {
-                fold_unfolds.insert_fold(place.clone());
+                stmts.insert(GhostStatement::Fold(place.clone()));
                 <span class="kw">return</span>;
             }
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;{self:?} {other:?}&quot;</span>),
         };
         <span class="kw">for </span>(i, (node1, node2)) <span class="kw">in </span>iter::zip(fields1, fields2).enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            node1.collect_fold_unfolds(node2, place, fold_unfolds);
+            node1.collect_fold_unfolds(node2, place, stmts);
             place.projection.pop();
         }
     }
 
-    <span class="kw">fn </span>collect_unfolds(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, fold_unfolds: <span class="kw-2">&amp;mut </span>FoldUnfoldsAt) -&gt; bool {
+    <span class="kw">fn </span>collect_unfolds(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) -&gt; bool {
         <span class="kw">let </span>fields = <span class="kw">match </span><span class="self">self </span>{
             PlaceNode::Ty(<span class="kw">_</span>) =&gt; {
                 <span class="kw">return </span><span class="bool-val">true</span>;
             }
             PlaceNode::Deref(<span class="kw">_</span>, node) =&gt; {
                 place.projection.push(PlaceElem::Deref);
-                node.collect_unfolds(place, fold_unfolds);
+                node.collect_unfolds(place, stmts);
                 place.projection.pop();
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
@@ -1612,11 +1558,11 @@
         <span class="kw">let </span><span class="kw-2">mut </span>all_leafs = <span class="bool-val">true</span>;
         <span class="kw">for </span>(i, node) <span class="kw">in </span>fields.iter().enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leafs &amp;= node.collect_unfolds(place, fold_unfolds);
+            all_leafs &amp;= node.collect_unfolds(place, stmts);
             place.projection.pop();
         }
         <span class="kw">if </span>all_leafs {
-            fold_unfolds.insert_unfold(place.clone());
+            stmts.insert(GhostStatement::Unfold(place.clone()));
         }
         <span class="kw">if let </span>PlaceNode::Downcast(adt, ..) = <span class="self">self </span>&amp;&amp; adt.is_enum() {
             place.projection.pop();
@@ -1625,14 +1571,14 @@
         <span class="bool-val">true
     </span>}
 
-    <span class="kw">fn </span>collect_folds_at_ret(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, fold_unfolds: <span class="kw-2">&amp;mut </span>FoldUnfoldsAt) {
+    <span class="kw">fn </span>collect_folds_at_ret(<span class="kw-2">&amp;</span><span class="self">self</span>, place: <span class="kw-2">&amp;mut </span>Place, stmts: <span class="kw-2">&amp;mut </span>StatementsAt) {
         <span class="kw">let </span>fields = <span class="kw">match </span><span class="self">self </span>{
             PlaceNode::Deref(ty, deref) =&gt; {
                 place.projection.push(PlaceElem::Deref);
                 <span class="kw">if </span>ty.is_mut_ref() {
-                    fold_unfolds.insert_fold(place.clone());
+                    stmts.insert(GhostStatement::Fold(place.clone()));
                 } <span class="kw">else if </span>ty.is_box() {
-                    deref.collect_folds_at_ret(place, fold_unfolds);
+                    deref.collect_folds_at_ret(place, stmts);
                 }
                 place.projection.pop();
                 <span class="kw">return</span>;
@@ -1650,42 +1596,12 @@
         };
         <span class="kw">for </span>(i, node) <span class="kw">in </span>fields.iter().enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            node.collect_folds_at_ret(place, fold_unfolds);
+            node.collect_folds_at_ret(place, stmts);
             place.projection.pop();
         }
         <span class="kw">if let </span>PlaceNode::Downcast(adt, ..) = <span class="self">self </span>&amp;&amp; adt.is_enum() {
             place.projection.pop();
         }
-    }
-}
-
-<span class="kw">impl </span>FoldUnfolds {
-    <span class="kw">fn </span>insert_fold_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point, place: Place) {
-        <span class="self">self</span>.fold_unfolds
-            .entry(point)
-            .or_default()
-            .push(GhostStatement::Fold(place));
-    }
-
-    <span class="kw">fn </span>insert_unfold_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point, place: Place) {
-        <span class="self">self</span>.fold_unfolds
-            .entry(point)
-            .or_default()
-            .push(GhostStatement::Unfold(place));
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_statements(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Point, Vec&lt;GhostStatement&gt;)&gt; {
-        <span class="self">self</span>.fold_unfolds.into_iter()
-    }
-}
-
-<span class="kw">impl </span>FoldUnfoldsAt&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>insert_fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: Place) {
-        <span class="self">self</span>.data.insert_fold_at(<span class="self">self</span>.point, place);
-    }
-
-    <span class="kw">fn </span>insert_unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: Place) {
-        <span class="self">self</span>.data.insert_unfold_at(<span class="self">self</span>.point, place);
     }
 }
 

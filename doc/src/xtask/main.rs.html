@@ -104,13 +104,68 @@
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     ffi::OsString,
     path::{Path, PathBuf},
 };
 
-<span class="kw">use </span>flux_tests::{find_flux_path, rustc_flags};
+<span class="kw">use </span>flux_bin::utils::{default_sysroot_dir, FLUX_SYSROOT};
 <span class="kw">use </span>xshell::{cmd, Shell};
 
 <span class="macro">xflags::xflags! </span>{
@@ -128,8 +183,15 @@
             <span class="doccomment">/// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
             </span>repeated opts: OsString
         }
-        <span class="doccomment">/// Install flux binaries to ~/.cargo/bin
-        </span>cmd install { }
+        <span class="doccomment">/// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
+        </span>cmd install {
+            <span class="doccomment">/// Build the flux-driver binary in debug mode (with the &#39;dev&#39; profile) instead of release mode
+            </span>optional --debug
+        }
+        <span class="doccomment">/// Uninstall flux binaries and libraries
+        </span>cmd uninstall { }
+        <span class="doccomment">/// Generate precompiled libraries
+        </span>cmd build-sysroot { }
         <span class="doccomment">/// Build the documentation
         </span>cmd doc {
             optional -o,--open
@@ -142,7 +204,6 @@
         <span class="prelude-val">Ok</span>(cmd) =&gt; cmd,
         <span class="prelude-val">Err</span>(err) =&gt; {
             <span class="kw">if </span>err.is_help() {
-                <span class="macro">println!</span>(<span class="string">&quot;{err}&quot;</span>);
                 std::process::exit(<span class="number">0</span>);
             } <span class="kw">else </span>{
                 <span class="macro">eprintln!</span>(<span class="string">&quot;error: {err}\n&quot;</span>);
@@ -157,13 +218,16 @@
     <span class="kw">match </span>cmd.subcommand {
         XtaskCmd::Test(args) =&gt; test(sh, args),
         XtaskCmd::Run(args) =&gt; run(sh, args),
-        XtaskCmd::Install(args) =&gt; install(sh, args),
+        XtaskCmd::Install(args) =&gt; install(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>args),
         XtaskCmd::Doc(args) =&gt; doc(sh, args),
+        XtaskCmd::BuildSysroot(<span class="kw">_</span>) =&gt; build_sysroot(<span class="kw-2">&amp;</span>sh),
+        XtaskCmd::Uninstall(<span class="kw">_</span>) =&gt; uninstall(<span class="kw-2">&amp;</span>sh),
     }
 }
 
 <span class="kw">fn </span>test(sh: Shell, args: Test) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>Test { filter } = args;
+    build_sysroot(<span class="kw-2">&amp;</span>sh)<span class="question-mark">?</span>;
     <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build&quot;</span>).run()<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(filter) = filter {
@@ -176,19 +240,48 @@
 
 <span class="kw">fn </span>run(sh: Shell, args: Run) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>Run { input, opts } = args;
+    build_sysroot(<span class="kw-2">&amp;</span>sh)<span class="question-mark">?</span>;
     <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build&quot;</span>).run()<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>flux_path = find_flux_path();
-    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = rustc_flags();
+    <span class="kw">let </span>flux_path = flux_tests::find_flux_path();
+    <span class="kw">let </span>_env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
+    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = flux_tests::rustc_flags();
     rustc_flags.extend([<span class="string">&quot;-Ztrack-diagnostics=y&quot;</span>.to_string()]);
 
     <span class="macro">cmd!</span>(sh, <span class="string">&quot;{flux_path} {rustc_flags...} {opts...} {input}&quot;</span>).run()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>install(sh: Shell, <span class="kw">_</span>: Install) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path crates/flux-driver --force&quot;</span>).run()<span class="question-mark">?</span>;
+<span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
     <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path crates/flux-bin --force&quot;</span>).run()<span class="question-mark">?</span>;
+    install_driver(sh, args)<span class="question-mark">?</span>;
+    install_libs(sh, args)<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>install_driver(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="kw">let </span>profile = args.profile();
+    <span class="kw">let </span>out_dir = default_sysroot_dir();
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver {profile} --out-dir {out_dir}&quot;</span>)
+        .run()<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>install_libs(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="comment">// CODESYNC(build-sysroot, 5)
+    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;FLUX_BUILD_SYSROOT&quot;</span>, <span class="string">&quot;1&quot;</span>);
+
+    <span class="kw">let </span>profile = args.profile();
+    <span class="kw">let </span>out_dir = default_sysroot_dir();
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options {profile} -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn </span>uninstall(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo uninstall -p flux-bin&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">println!</span>(<span class="string">&quot;$ rm -rf ~/.flux&quot;</span>);
+    std::fs::remove_dir_all(default_sysroot_dir())<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -209,5 +302,22 @@
     .nth(<span class="number">1</span>)
     .unwrap()
     .to_path_buf()
+}
+
+<span class="kw">fn </span>build_sysroot(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="comment">// CODESYNC(build-sysroot, 5)
+    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;FLUX_BUILD_SYSROOT&quot;</span>, <span class="string">&quot;1&quot;</span>);
+    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -p flux-rs&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">impl </span>Install {
+    <span class="kw">fn </span>profile(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">if </span><span class="self">self</span>.debug {
+            <span class="string">&quot;--debug&quot;
+        </span>} <span class="kw">else </span>{
+            <span class="string">&quot;--release&quot;
+        </span>}
+    }
 }
 </code></pre></div></section></main></body></html>

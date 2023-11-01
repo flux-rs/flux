@@ -706,40 +706,6 @@
 <a href="#706" id="706">706</a>
 <a href="#707" id="707">707</a>
 <a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>projection;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -754,7 +720,7 @@
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Ref, Region, Ty, TyKind, INNERMOST,
+        PtrKind, Region, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -767,7 +733,7 @@
     checker::errors::CheckerErrKind,
     constraint_gen::{ConstrGen, ConstrReason},
     fixpoint_encoding::{KVarEncoding, KVarStore},
-    refine_tree::{RefineCtxt, Scope},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,
 };
@@ -852,6 +818,58 @@
         }
     }
 
+    <span class="doccomment">/// Converts a pointer `ptr(mut, l)` to a borrow `&amp;mut T` for a type `T` that needs to be inferred.
+    /// For example, given the environment
+    /// ```ignore
+    /// x: i32[a], p: ptr(mut, x)`
+    /// ```
+    ///
+    /// Converting the pointer to a borrow will produce
+    ///
+    /// ```ignore
+    /// x: †i32{v: $k(v)}, p: &amp;mut i32{v: $k(v)}`
+    /// ```
+    ///
+    /// together with a constraint
+    ///
+    /// ```ignore
+    /// i32[a] &lt;: i32{v: $k(v)}
+    /// ```
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_borrow(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        gen: <span class="kw-2">&amp;mut </span>ConstrGen,
+        place: <span class="kw-2">&amp;</span>Place,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
+        <span class="comment">// place: ptr(mut, path)
+        </span><span class="kw">let </span>ptr_lookup = <span class="self">self</span>.bindings.lookup(place);
+        <span class="kw">let </span>TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() <span class="kw">else </span>{
+            <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;ptr_to_borrow called on non mutable pointer type&quot;</span>)
+        };
+
+        <span class="comment">// path: old_ty
+        </span><span class="kw">let </span>old_ty = <span class="self">self</span>.bindings.lookup(path).fold(rcx, gen)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>infcx = gen.infcx(rcx, ConstrReason::Other);
+
+        <span class="comment">// old_ty &lt;: new_ty
+        </span><span class="kw">let </span>new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
+            <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
+            infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+        });
+        infcx.subtyping(rcx, <span class="kw-2">&amp;</span>old_ty, <span class="kw-2">&amp;</span>new_ty)<span class="question-mark">?</span>;
+
+        <span class="comment">// path: new_ty, place: &amp;mut new_ty
+        </span><span class="self">self</span>.bindings.lookup(path).block_with(new_ty.clone());
+        <span class="self">self</span>.bindings
+            .lookup(place)
+            .update(Ty::mk_ref(<span class="kw-2">*</span>re, new_ty, Mutability::Mut));
+
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().unwrap());
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
@@ -886,31 +904,27 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt) {
-        <span class="self">self</span>.bindings.fmap_mut(|ty| rcx.unpack(ty));
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, check_overflow: bool) {
+        <span class="self">self</span>.bindings
+            .fmap_mut(|ty| rcx.unpack(ty, AssumeInvariants::yes(check_overflow)));
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place) {
-        <span class="self">self</span>.bindings.lookup(place).unblock(rcx);
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place, check_overflow: bool) {
+        <span class="self">self</span>.bindings.lookup(place).unblock(rcx, check_overflow);
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty) -&gt; Ty {
         <span class="self">self</span>.bindings.lookup(path).block_with(new_ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
-        <span class="self">self</span>.bindings.lookup(path).block()
-    }
-
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_goto(
-        <span class="kw-2">mut </span><span class="self">self</span>,
+        <span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         gen: <span class="kw-2">&amp;mut </span>ConstrGen,
         bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
-        <span class="comment">// Infer subst
-        </span><span class="kw">let </span><span class="kw-2">mut </span>infcx = gen.infcx(rcx, ConstrReason::Goto(target));
+        <span class="kw">let </span><span class="kw-2">mut </span>infcx = gen.infcx(rcx, ConstrReason::Goto(target));
 
         <span class="kw">let </span>bb_env = bb_env
             .data
@@ -921,30 +935,9 @@
             infcx.check_pred(rcx, constr);
         }
 
-        <span class="kw">let </span>bb_env = bb_env.bindings.flatten();
-
-        <span class="comment">// Convert pointers to borrows
-        </span><span class="kw">for </span>(path, <span class="kw">_</span>, ty2) <span class="kw">in </span><span class="kw-2">&amp;</span>bb_env {
-            <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(path);
-            <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), <span class="macro">Ref!</span>(r2, bound, Mutability::Mut)) =&gt; {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>ty = <span class="self">self</span>.bindings.lookup(ptr_path).block_with(bound.clone());
-                    infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
-
-                    <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, bound.clone(), Mutability::Mut));
-                }
-                (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), <span class="macro">Ref!</span>(r2, <span class="kw">_</span>, Mutability::Not)) =&gt; {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>ty = <span class="self">self</span>.bindings.get(ptr_path);
-                    <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, ty, Mutability::Not));
-                }
-                <span class="kw">_ </span>=&gt; (),
-            }
-        }
-
         <span class="comment">// Check subtyping
-        </span><span class="kw">for </span>(path, <span class="kw">_</span>, ty2) <span class="kw">in </span>bb_env {
+        </span><span class="kw">let </span>bb_env = bb_env.bindings.flatten();
+        <span class="kw">for </span>(path, <span class="kw">_</span>, ty2) <span class="kw">in </span>bb_env {
             <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(<span class="kw-2">&amp;</span>path);
             infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty1.unblocked(), <span class="kw-2">&amp;</span>ty2.unblocked())<span class="question-mark">?</span>;
         }
@@ -960,7 +953,8 @@
         gen: <span class="kw-2">&amp;mut </span>ConstrGen,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
-        <span class="self">self</span>.bindings.lookup(place).fold(rcx, gen)
+        <span class="self">self</span>.bindings.lookup(place).fold(rcx, gen)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
@@ -993,10 +987,6 @@
     <span class="kw">pub fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarSol) {
         <span class="self">self</span>.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
-    }
-
-    <span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, ty: Ty) {
-        <span class="self">self</span>.bindings.lookup(path).update(ty);
     }
 }
 
@@ -1089,14 +1079,6 @@
         }
     }
 
-    <span class="kw">fn </span>block(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
-        <span class="self">self</span>.bindings.lookup(path).block()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty) -&gt; Ty {
-        <span class="self">self</span>.bindings.lookup(path).block_with(new_ty)
-    }
-
     <span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, ty: Ty) {
         <span class="self">self</span>.bindings.lookup(path).update(ty);
     }
@@ -1104,62 +1086,8 @@
     <span class="doccomment">/// join(self, genv, other) consumes the bindings in other, to &quot;update&quot;
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>other: TypeEnv) -&gt; <span class="prelude-ty">Result</span>&lt;bool, CheckerErrKind&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: TypeEnv) -&gt; <span class="prelude-ty">Result</span>&lt;bool, CheckerErrKind&gt; {
         <span class="kw">let </span>paths = <span class="self">self</span>.bindings.paths();
-
-        <span class="comment">// Convert pointers to borrows
-        </span><span class="kw">for </span>path <span class="kw">in </span><span class="kw-2">&amp;</span>paths {
-            <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(path);
-            <span class="kw">let </span>ty2 = other.bindings.get(path);
-            <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
-                (TyKind::Ptr(PtrKind::Shr(r1), path1), TyKind::Ptr(PtrKind::Shr(r2), path2))
-                    <span class="kw">if </span>path1 != path2 =&gt;
-                {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>ty1 = <span class="self">self</span>.block(path1);
-                    <span class="kw">let </span>ty2 = <span class="self">self</span>.block(path2);
-
-                    <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, ty1, Mutability::Not));
-                    other.update(path, Ty::mk_ref(<span class="kw-2">*</span>r2, ty2, Mutability::Not));
-                }
-                (TyKind::Ptr(PtrKind::Shr(r1), ptr_path), <span class="macro">Ref!</span>(r2, <span class="kw">_</span>, Mutability::Not)) =&gt; {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>ty = <span class="self">self</span>.block(ptr_path);
-                    <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, ty, Mutability::Not));
-                }
-                (<span class="macro">Ref!</span>(r1, <span class="kw">_</span>, Mutability::Not), TyKind::Ptr(PtrKind::Shr(r2), ptr_path)) =&gt; {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>ty = other.block(ptr_path);
-                    other.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, ty, Mutability::Not));
-                }
-                (TyKind::Ptr(PtrKind::Mut(r1), path1), TyKind::Ptr(PtrKind::Mut(r2), path2))
-                    <span class="kw">if </span>path1 != path2 =&gt;
-                {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(path1).with_holes();
-                    <span class="kw">let </span>ty2 = other.bindings.get(path2).with_holes();
-
-                    <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, ty1.clone(), Mutability::Mut));
-                    other.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, ty2.clone(), Mutability::Mut));
-
-                    <span class="self">self</span>.block_with(path1, ty1);
-                    other.block_with(path2, ty2);
-                }
-                (TyKind::Ptr(PtrKind::Mut(r1), ptr_path), <span class="macro">Ref!</span>(r2, bound, Mutability::Mut)) =&gt; {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>bound = bound.with_holes();
-                    <span class="self">self</span>.block_with(ptr_path, bound.clone());
-                    <span class="self">self</span>.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, bound, Mutability::Mut));
-                }
-                (<span class="macro">Ref!</span>(r1, bound, Mutability::Mut), TyKind::Ptr(PtrKind::Mut(r2), ptr_path)) =&gt; {
-                    <span class="macro">debug_assert_eq!</span>(r1, r2);
-                    <span class="kw">let </span>bound = bound.with_holes();
-                    other.block_with(ptr_path, bound.clone());
-                    other.update(path, Ty::mk_ref(<span class="kw-2">*</span>r1, bound, Mutability::Mut));
-                }
-                <span class="kw">_ </span>=&gt; {}
-            }
-        }
 
         <span class="comment">// Join types
         </span><span class="kw">let </span><span class="kw-2">mut </span>modified = <span class="bool-val">false</span>;
@@ -1480,6 +1408,10 @@
         }
     }
 
-    <span class="macro">impl_debug_with_default_cx!</span>(TypeEnv&lt;<span class="lifetime">&#39;_</span>&gt; =&gt; <span class="string">&quot;type_env&quot;</span>, BasicBlockEnvShape =&gt; <span class="string">&quot;type_env_infer&quot;</span>, BasicBlockEnv =&gt; <span class="string">&quot;basic_block_env&quot;</span>);
+    <span class="macro">impl_debug_with_default_cx! </span>{
+        TypeEnv&lt;<span class="lifetime">&#39;_</span>&gt; =&gt; <span class="string">&quot;type_env&quot;</span>,
+        BasicBlockEnvShape =&gt; <span class="string">&quot;basic_block_env_shape&quot;</span>,
+        BasicBlockEnv =&gt; <span class="string">&quot;basic_block_env&quot;
+    </span>}
 }
 </code></pre></div></section></main></body></html>

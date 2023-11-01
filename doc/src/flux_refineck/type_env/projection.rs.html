@@ -895,9 +895,6 @@
 <a href="#895" id="895">895</a>
 <a href="#896" id="896">896</a>
 <a href="#897" id="897">897</a>
-<a href="#898" id="898">898</a>
-<a href="#899" id="899">899</a>
-<a href="#900" id="900">900</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -919,7 +916,7 @@
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
     constraint_gen::ConstrGen,
-    refine_tree::{RefineCtxt, UnpackFlags},
+    refine_tree::{AssumeInvariants, RefineCtxt},
     CheckerConfig,
 };
 
@@ -987,9 +984,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>LookupMode {
     <span class="kw">type </span>Error = !;
 
-    <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        ty.clone()
-    }
+    <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty;
 
     <span class="kw">fn </span>downcast_struct(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -1005,7 +1000,10 @@
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="self">self</span>.<span class="number">1</span>.unpack_with(ty, UnpackFlags::SHALLOW)
+        <span class="self">self</span>.<span class="number">1
+            </span>.unpacker(AssumeInvariants::No)
+            .shallow(<span class="bool-val">true</span>)
+            .unpack(ty)
     }
 
     <span class="kw">fn </span>downcast_struct(
@@ -1023,6 +1021,10 @@
 <span class="kw">impl </span>LookupMode <span class="kw">for </span>NoUnfold {
     <span class="kw">fn </span>downcast_struct(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>AdtDef, <span class="kw">_</span>: <span class="kw-2">&amp;</span>[GenericArg], <span class="kw">_</span>: <span class="kw-2">&amp;</span>Index) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, !&gt; {
         <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;cannot unfold in `NoUnfold` mode&quot;</span>)
+    }
+
+    <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        ty.clone()
     }
 }
 
@@ -1216,30 +1218,25 @@
         old
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, check_overflow: bool) {
         <span class="kw">if </span><span class="self">self</span>.ty.is_uninit() {
             <span class="kw">return</span>;
         }
         <span class="kw">let </span><span class="kw-2">mut </span>unblocked = <span class="self">self</span>.ty.unblocked();
         <span class="kw">if </span><span class="self">self</span>.is_strg {
-            unblocked = rcx.unpack(<span class="kw-2">&amp;</span>unblocked);
+            unblocked = rcx.unpack(<span class="kw-2">&amp;</span>unblocked, AssumeInvariants::yes(check_overflow));
         }
         Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, unblocked);
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block(<span class="self">self</span>) -&gt; Ty {
-        <span class="kw">let </span>ty = <span class="self">self</span>.ty.clone();
-        <span class="self">self</span>.block_with(ty)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="self">self</span>, new_ty: Ty) -&gt; Ty {
         <span class="self">self</span>.update(Ty::blocked(new_ty))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, gen: <span class="kw-2">&amp;mut </span>ConstrGen) -&gt; CheckerResult {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, gen: <span class="kw-2">&amp;mut </span>ConstrGen) -&gt; CheckerResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = fold(<span class="self">self</span>.bindings, rcx, gen, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="self">self</span>.is_strg)<span class="question-mark">?</span>;
-        <span class="self">self</span>.update(ty);
-        <span class="prelude-val">Ok</span>(())
+        <span class="self">self</span>.update(ty.clone());
+        <span class="prelude-val">Ok</span>(ty)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Path {
@@ -1264,7 +1261,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(elem) = <span class="self">self</span>.cursor.next() <span class="kw">else </span>{
             <span class="kw">return </span><span class="self">self</span>.unfold(ty);
         };
-        <span class="kw">let </span>ty = <span class="self">self</span>.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+        <span class="kw">let </span>ty = <span class="self">self</span>.unpack(ty);
         <span class="kw">match </span>elem {
             PlaceElem::Deref =&gt; <span class="self">self</span>.deref(<span class="kw-2">&amp;</span>ty),
             PlaceElem::Field(f) =&gt; <span class="self">self</span>.field(<span class="kw-2">&amp;</span>ty, f),
@@ -1316,11 +1313,11 @@
                 <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
         } <span class="kw">else if </span>ty.is_struct() {
-            <span class="kw">let </span>ty = <span class="self">self</span>.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+            <span class="kw">let </span>ty = <span class="self">self</span>.unpack(ty);
             <span class="kw">let </span>ty = <span class="self">self</span>.downcast(<span class="kw-2">&amp;</span>ty, FIRST_VARIANT)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(ty)
         } <span class="kw">else if </span>ty.is_array() || ty.is_slice() {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.rcx.unpack_with(ty, UnpackFlags::SHALLOW))
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.unpack(ty))
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(ty.clone())
         }
@@ -1380,11 +1377,7 @@
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>fields = downcast_struct(<span class="self">self</span>.genv, adt, args, idx)<span class="question-mark">?
                     </span>.into_iter()
-                    .map(|ty| {
-                        <span class="kw">let </span>ty = <span class="self">self</span>.rcx.unpack_with(<span class="kw-2">&amp;</span>ty, <span class="self">self</span>.unpack_flags_for_downcast());
-                        <span class="self">self</span>.assume_invariants(<span class="kw-2">&amp;</span>ty);
-                        ty
-                    })
+                    .map(|ty| <span class="self">self</span>.unpack_for_downcast(<span class="kw-2">&amp;</span>ty))
                     .collect_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = args.with_holes();
@@ -1405,11 +1398,7 @@
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
                 <span class="kw">let </span>fields = downcast(<span class="self">self</span>.genv, <span class="self">self</span>.rcx, adt, args, variant, idx)<span class="question-mark">?
                     </span>.into_iter()
-                    .map(|ty| {
-                        <span class="kw">let </span>ty = <span class="self">self</span>.rcx.unpack_with(<span class="kw-2">&amp;</span>ty, <span class="self">self</span>.unpack_flags_for_downcast());
-                        <span class="self">self</span>.assume_invariants(<span class="kw-2">&amp;</span>ty);
-                        ty
-                    })
+                    .map(|ty| <span class="self">self</span>.unpack_for_downcast(<span class="kw-2">&amp;</span>ty))
                     .collect_vec();
                 Ty::downcast(adt.clone(), args.with_holes(), ty.clone(), variant, fields.into())
             }
@@ -1435,22 +1424,27 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
+    <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="self">self</span>.rcx
-            .assume_invariants(ty, <span class="self">self</span>.checker_conf.check_overflow);
+            .unpacker(AssumeInvariants::yes(<span class="self">self</span>.checker_conf.check_overflow))
+            .shallow(<span class="bool-val">true</span>)
+            .unpack(ty)
+    }
+
+    <span class="kw">fn </span>unpack_for_downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        <span class="kw">let </span><span class="kw-2">mut </span>unpacker = <span class="self">self</span>.rcx.unpacker(AssumeInvariants::No).shallow(<span class="bool-val">true</span>);
+        <span class="kw">if </span><span class="self">self</span>.in_ref == <span class="prelude-val">Some</span>(Mutability::Mut) {
+            unpacker = unpacker.unpack_exists(<span class="bool-val">false</span>);
+        }
+        <span class="kw">let </span>ty = unpacker.unpack(ty);
+        <span class="self">self</span>.rcx
+            .assume_invariants(<span class="kw-2">&amp;</span>ty, <span class="self">self</span>.checker_conf.check_overflow);
+        ty
     }
 
     <span class="kw">fn </span>change_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) {
         <span class="self">self</span>.has_work = <span class="bool-val">true</span>;
         <span class="self">self</span>.cursor.change_root(path);
-    }
-
-    <span class="kw">fn </span>unpack_flags_for_downcast(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UnpackFlags {
-        <span class="kw">if </span><span class="self">self</span>.in_ref == <span class="prelude-val">Some</span>(Mutability::Mut) {
-            UnpackFlags::NO_UNPACK_EXISTS
-        } <span class="kw">else </span>{
-            UnpackFlags::empty()
-        }
     }
 
     <span class="kw">fn </span>should_continue(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
@@ -1592,7 +1586,7 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>downcast(
+<span class="kw">fn </span>downcast(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
@@ -1618,7 +1612,7 @@
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>downcast_struct(
+</span><span class="kw">fn </span>downcast_struct(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>[GenericArg],
@@ -1648,7 +1642,7 @@
 ///     1. *Instantiate* the type to fresh names `z&#39;...` to get `(y:t&#39;...) =&gt; T[j&#39;...]`
 ///     2. *Unpack* the fields using `y:t&#39;...`
 ///     3. *Assert* the constraint `i == j&#39;...`
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>downcast_enum(
+</span><span class="kw">fn </span>downcast_enum(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
@@ -1700,7 +1694,7 @@
             <span class="kw">let </span>deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty, <span class="kw-2">*</span>mutbl))
         }
-        TyKind::Downcast(adt, args, ty, variant_idx, fields) =&gt; {
+        TyKind::Downcast(adt, args, ty_, variant_idx, fields) =&gt; {
             <span class="kw">if </span>is_strg {
                 <span class="kw">let </span>variant_sig = gen
                     .genv
@@ -1722,7 +1716,7 @@
 
                 <span class="prelude-val">Ok</span>(ty)
             } <span class="kw">else </span>{
-                <span class="prelude-val">Ok</span>(ty.clone())
+                <span class="prelude-val">Ok</span>(ty_.clone())
             }
         }
         TyKind::Indexed(BaseTy::Tuple(fields), idx) =&gt; {

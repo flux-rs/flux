@@ -1114,7 +1114,6 @@
 <a href="#1114" id="1114">1114</a>
 <a href="#1115" id="1115">1115</a>
 <a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1124,7 +1123,6 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
@@ -1353,15 +1351,15 @@
         <span class="self">self</span>.try_fold_with(folder).into_ok()
     }
 
-    <span class="kw">fn </span>normalize_projections(
+    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">&#39;tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         callsite_def_id: DefId,
         refine_params: <span class="kw-2">&amp;</span>[Expr],
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>infcx = genv.tcx.infer_ctxt().build();
         <span class="kw">let </span><span class="kw-2">mut </span>normalizer =
-            projections::Normalizer::new(genv, <span class="kw-2">&amp;</span>infcx, callsite_def_id, refine_params)<span class="question-mark">?</span>;
+            projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)<span class="question-mark">?</span>;
         <span class="self">self</span>.try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
     }
 
@@ -1404,7 +1402,7 @@
     }
 
     <span class="doccomment">/// Turns each [`TyKind::Indexed`] into a [`TyKind::Exists`] with a [`TyKind::Constr`] and a
-    /// [`hole`]. Also replaces all existing predicates with a [`hole`].
+    /// [`hole`]. It also replaces all existing predicates with a [`hole`].
     /// For example, `Vec&lt;{v. i32[v] | v &gt; 0}&gt;[n]` becomes `{n. Vec&lt;{v. i32[v] | *}&gt;[n] | *}`.
     ///
     /// [`hole`]: ExprKind::Hole

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PlaceOrValue","StateData"],"fn":["add_ghost_statements","debug_with_context","debug_with_context_rec","excluded_locals"],"struct":["Children","CollectPointerToBorrows","Map","PlaceIndex","PlaceInfo","PointsToAnalysis","State","ValueIndex"],"type":["Results"]};

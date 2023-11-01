@@ -389,6 +389,7 @@
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -659,7 +660,8 @@
             } <span class="kw">else </span>{
                 <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
-                <span class="prelude-val">Ok</span>(rty::EarlyBinder(Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_ty(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>))
+                <span class="kw">let </span>ty = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_ty(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
             }
         })
     }

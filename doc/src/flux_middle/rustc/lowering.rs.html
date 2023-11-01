@@ -961,35 +961,28 @@
 <a href="#961" id="961">961</a>
 <a href="#962" id="962">962</a>
 <a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::index::IndexVec;
-<span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
+</pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_borrowck::consumers::BodyWithBorrowckFacts;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_infer::traits::Obligation;
 <span class="kw">use </span>rustc_middle::{
     mir::{<span class="self">self </span><span class="kw">as </span>rustc_mir, ConstValue},
+    traits::{ImplSource, ObligationCause},
     ty::{
         <span class="self">self </span><span class="kw">as </span>rustc_ty, adjustment <span class="kw">as </span>rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
         TyCtxt,
     },
 };
 <span class="kw">use </span>rustc_span::Span;
+<span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
 <span class="kw">use super</span>::{
     mir::{
-        AggregateKind, AssertKind, BasicBlock, BasicBlockData, BinOp, Body, BorrowKind, CallArgs,
-        CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem, PointerCast,
-        Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, BorrowKind,
+        CallArgs, CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem,
+        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
@@ -1006,6 +999,8 @@
 
 <span class="kw">pub struct </span>LoweringCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    param_env: ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    selcx: SelectionContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
     rustc_mir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
 }
@@ -1021,7 +1016,11 @@
         sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
         body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Body&lt;<span class="lifetime">&#39;tcx</span>&gt;, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>lower = LoweringCtxt { tcx, sess, rustc_mir: <span class="kw-2">&amp;</span>body_with_facts.body };
+        <span class="kw">let </span>infcx = replicate_infer_ctxt(tcx, <span class="kw-2">&amp;</span>body_with_facts);
+        <span class="kw">let </span>param_env = tcx.param_env(body_with_facts.body.source.def_id());
+        <span class="kw">let </span>selcx = SelectionContext::new(<span class="kw-2">&amp;</span>infcx);
+        <span class="kw">let </span><span class="kw-2">mut </span>lower =
+            LoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: <span class="kw-2">&amp;</span>body_with_facts.body };
 
         <span class="kw">let </span>basic_blocks = lower
             .rustc_mir
@@ -1030,8 +1029,6 @@
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>fake_predecessors = mk_fake_predecessors(<span class="kw-2">&amp;</span>basic_blocks);
-
         <span class="kw">let </span>local_decls = lower
             .rustc_mir
             .local_decls
@@ -1039,11 +1036,12 @@
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(Body { basic_blocks, local_decls, fake_predecessors, body_with_facts })
+        <span class="kw">let </span>body = Body::new(basic_blocks, local_decls, body_with_facts, infcx);
+        <span class="prelude-val">Ok</span>(body)
     }
 
     <span class="kw">fn </span>lower_basic_block_data(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         data: <span class="kw-2">&amp;</span>rustc_mir::BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;, ErrorGuaranteed&gt; {
         <span class="kw">let </span>data = BasicBlockData {
@@ -1154,7 +1152,7 @@
     }
 
     <span class="kw">fn </span>lower_terminator(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         terminator: <span class="kw-2">&amp;</span>rustc_mir::Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;, ErrorGuaranteed&gt; {
         <span class="kw">let </span>span = terminator.source_info.span;
@@ -1267,24 +1265,32 @@
     }
 
     <span class="kw">fn </span>resolve_call(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         callee_id: DefId,
         args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(DefId, CallArgs&lt;<span class="lifetime">&#39;tcx</span>&gt;), UnsupportedReason&gt; {
-        <span class="comment">// NOTE(nilehmann) tcx.resolve_instance used to panic without this check but none of the tests
-        // are failing now. Leaving it here in case the problem comes back.
-        // if args.needs_infer() {
-        //     return Ok(None);
-        // }
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx;
+        <span class="kw">let </span><span class="kw-2">mut </span>try_resolve = || {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(trait_id) = tcx.trait_of_item(callee_id) {
+                <span class="kw">let </span>trait_ref = rustc_ty::TraitRef::from_method(<span class="self">self</span>.tcx, trait_id, args);
+                <span class="kw">let </span>obligation =
+                    Obligation::new(<span class="self">self</span>.tcx, ObligationCause::dummy(), <span class="self">self</span>.param_env, trait_ref);
+                <span class="kw">let </span>impl_source = <span class="self">self</span>.selcx.select(<span class="kw-2">&amp;</span>obligation).ok()<span class="question-mark">??</span>;
+                <span class="kw">let </span>impl_source = <span class="self">self</span>.selcx.infcx.resolve_vars_if_possible(impl_source);
+                <span class="kw">let </span>ImplSource::UserDefined(impl_data) = impl_source <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
 
-        // this produced erased regions in the substitution for early bound regions
-        </span><span class="kw">let </span>param_env = <span class="self">self</span>.tcx.param_env(<span class="self">self</span>.rustc_mir.source.def_id());
-        <span class="kw">let </span>(resolved_id, resolved_args) = <span class="self">self
-            </span>.tcx
-            .resolve_instance(param_env.and((callee_id, args)))
-            .ok()
-            .flatten()
-            .map_or_else(|| (callee_id, args), |instance| (instance.def_id(), instance.args));
+                <span class="kw">let </span>assoc_id = tcx
+                    .impl_item_implementor_ids(impl_data.impl_def_id)
+                    .get(<span class="kw-2">&amp;</span>callee_id)<span class="question-mark">?</span>;
+                <span class="kw">let </span>assoc_item = tcx.associated_item(assoc_id);
+
+                <span class="prelude-val">Some</span>((assoc_item.def_id, impl_data.args))
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>}
+        };
+
+        <span class="kw">let </span>(resolved_id, resolved_args) = try_resolve().unwrap_or((callee_id, args));
 
         <span class="kw">let </span>call_args =
             CallArgs { lowered: lower_generic_args(<span class="self">self</span>.tcx, resolved_args)<span class="question-mark">?</span>, orig: resolved_args };
@@ -1520,32 +1526,6 @@
     }
 }
 
-<span class="doccomment">/// [NOTE:Fake Predecessors] The `FalseEdge/imaginary_target` edges mess up
-/// the `is_join_point` computation which creates spurious join points that
-/// lose information e.g. in match arms, the k+1-th arm has the k-th arm as
-/// a &quot;fake&quot; predecessor so we lose the assumptions specific to the k+1-th
-/// arm due to a spurious join. This code corrects for this problem by
-/// computing the number of &quot;fake&quot; predecessors and decreasing them from
-/// the total number of &quot;predecessors&quot; returned by `rustc`.
-/// The option is to recompute &quot;predecessors&quot; from scratch but we may miss
-/// some cases there. (see also [`is_join_point`])
-///
-/// [`is_join_point`]: crate::rustc::mir::Body::is_join_point
-</span><span class="kw">fn </span>mk_fake_predecessors(
-    basic_blocks: <span class="kw-2">&amp;</span>IndexVec&lt;BasicBlock, BasicBlockData&gt;,
-) -&gt; IndexVec&lt;BasicBlock, usize&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>res: IndexVec&lt;BasicBlock, usize&gt; = basic_blocks.iter().map(|<span class="kw">_</span>| <span class="number">0</span>).collect();
-
-    <span class="kw">for </span>bb <span class="kw">in </span>basic_blocks {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(terminator) = <span class="kw-2">&amp;</span>bb.terminator {
-            <span class="kw">if let </span>TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
-                res[imaginary_target] += <span class="number">1</span>;
-            }
-        }
-    }
-    res
-}
-
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_fn_sig&lt;<span class="lifetime">&#39;tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     fn_sig: rustc_ty::PolyFnSig&lt;<span class="lifetime">&#39;tcx</span>&gt;,
@@ -1725,9 +1705,11 @@
             <span class="prelude-val">Ok</span>(Region::ReLateBound(debruijn, lower_bound_region(bregion)<span class="question-mark">?</span>))
         }
         RegionKind::ReEarlyBound(bregion) =&gt; <span class="prelude-val">Ok</span>(Region::ReEarlyBound(bregion)),
-        RegionKind::ReErased =&gt; <span class="prelude-val">Ok</span>(Region::ReErased),
         RegionKind::ReStatic =&gt; <span class="prelude-val">Ok</span>(Region::ReStatic),
-        RegionKind::ReFree(<span class="kw">_</span>) | RegionKind::RePlaceholder(<span class="kw">_</span>) | RegionKind::ReError(<span class="kw">_</span>) =&gt; {
+        RegionKind::ReFree(<span class="kw">_</span>)
+        | RegionKind::RePlaceholder(<span class="kw">_</span>)
+        | RegionKind::ReError(<span class="kw">_</span>)
+        | RegionKind::ReErased =&gt; {
             <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported region `{region:?}`&quot;</span>)))
         }
     }
@@ -1747,7 +1729,7 @@
             <span class="prelude-val">Ok</span>(BoundRegionKind::BrNamed(def_id, sym))
         }
         rustc_ty::BoundRegionKind::BrAnon(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(BoundRegionKind::BrAnon),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported bound region kind `{kind:?}`&quot;</span>))),
+        rustc_ty::BoundRegionKind::BrEnv =&gt; <span class="prelude-val">Ok</span>(BoundRegionKind::BrEnv),
     }
 }
 

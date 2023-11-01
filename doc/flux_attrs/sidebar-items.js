@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ExternItem"],"fn":["create_dummy_ident","create_dummy_ident_from_path","create_dummy_struct","extern_spec","flux","generic_params_to_args","params_to_args","transform_extern_spec"],"mod":["ast"],"struct":["ExternFn","ExternItemImpl"]};

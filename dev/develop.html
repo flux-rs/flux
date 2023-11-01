@@ -237,6 +237,16 @@ To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 -Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:114:15   &lt;------- this
 </code></pre>
 <p>You can also pass <code>-Ztrack-diagnostics=y</code> to enable it if you are not using <code>cargo xtask run</code></p>
+<h2 id="running-outside-the-project"><a class="header" href="#running-outside-the-project">Running outside the project</a></h2>
+<p>To run Flux in a package outside the flux respo you need to install the binaries globally. You can
+do that using <code>cargo xtask install</code>. If you are continuously testing new changes it could be annoying
+to do it each time. To deal with this, you can set the <code>FLUX_SYSROOT</code> environment variable to change the
+location where <code>cargo-flux</code> and <code>rustc-flux</code> load the <code>flux-driver</code>. You can set it globally to point
+to the <code>target/debug</code> directory inside your local copy of the repo. This way you won't have to run
+<code>cargo xtask install</code> after every change and you can be sure you'll be using the latest local debug
+build. Just be aware that the <code>rustc-flux</code> and <code>cargo-flux</code> binaries are built for a specific toolchain,
+and you will get a dynamic linking error if the <code>flux-driver</code> was compiled with a different one. This
+is to say, you should at least run <code>cargo xtask install</code> every time after the toolchain is updated.</p>
 <h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
 <p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
 <p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>

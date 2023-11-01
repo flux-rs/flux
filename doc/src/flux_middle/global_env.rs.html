@@ -364,6 +364,24 @@
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
 <a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, rc::Rc};
 
 <span class="kw">use </span>flux_common::bug;
@@ -566,35 +584,53 @@
     }
 
     <span class="kw">pub fn </span>sort_of_res(<span class="kw-2">&amp;</span><span class="self">self</span>, res: fhir::Res) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">let </span>sort = <span class="kw">match </span>res {
-            fhir::Res::PrimTy(PrimTy::Int(<span class="kw">_</span>) | PrimTy::Uint(<span class="kw">_</span>)) =&gt; fhir::Sort::Int,
-            fhir::Res::PrimTy(PrimTy::Bool) =&gt; fhir::Sort::Bool,
-            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) =&gt; fhir::Sort::Unit,
+        <span class="comment">// CODESYNC(sort-of, 4) sorts should be given consistently
+        </span><span class="kw">match </span>res {
+            fhir::Res::PrimTy(PrimTy::Int(<span class="kw">_</span>) | PrimTy::Uint(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Int),
+            fhir::Res::PrimTy(PrimTy::Bool) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Bool),
+            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) =&gt; {
+                <span class="prelude-val">Some</span>(fhir::Sort::Unit)
+            }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) =&gt; {
-                fhir::Sort::Record(def_id)
+                <span class="prelude-val">Some</span>(fhir::Sort::Record(def_id))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } =&gt; {
                 <span class="kw">let </span>self_ty = <span class="self">self</span>.tcx.type_of(alias_to).skip_binder();
-                <span class="kw">if let </span>rustc_type_ir::TyKind::Adt(adt_def, <span class="kw">_</span>) = self_ty.kind() {
-                    fhir::Sort::Record(adt_def.did())
-                } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected res {res:?}&quot;</span>)
-                }
+                <span class="self">self</span>.sort_of_self_ty(self_ty)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
                 <span class="kw">let </span>param = <span class="self">self</span>.get_generic_param(def_id.expect_local());
                 <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
-                    fhir::GenericParamKind::BaseTy =&gt; fhir::Sort::Param(def_id),
-                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime =&gt; {
-                        <span class="kw">return </span><span class="prelude-val">None
-                    </span>}
+                    fhir::GenericParamKind::BaseTy =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Param(def_id)),
+                    fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime =&gt; <span class="prelude-val">None</span>,
                 }
             }
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, <span class="kw">_</span>)
-            | fhir::Res::SelfTyParam { .. } =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+            | fhir::Res::SelfTyParam { .. } =&gt; <span class="prelude-val">None</span>,
             fhir::Res::Def(..) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected res {res:?}&quot;</span>),
-        };
-        <span class="prelude-val">Some</span>(sort)
+        }
+    }
+
+    <span class="kw">fn </span>sort_of_self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: rustc_middle::ty::Ty) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
+        <span class="kw">use </span>rustc_middle::ty;
+        <span class="comment">// CODESYNC(sort-of, 4) sorts should be given consistently
+        </span><span class="kw">match </span>ty.kind() {
+            ty::TyKind::Bool =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Bool),
+            ty::TyKind::Slice(<span class="kw">_</span>) | ty::TyKind::Int(<span class="kw">_</span>) | ty::TyKind::Uint(<span class="kw">_</span>) =&gt; {
+                <span class="prelude-val">Some</span>(fhir::Sort::Int)
+            }
+            ty::TyKind::Adt(adt_def, <span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Record(adt_def.did())),
+            ty::TyKind::Param(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            ty::TyKind::Float(<span class="kw">_</span>)
+            | ty::TyKind::Str
+            | ty::TyKind::Char
+            | ty::TyKind::RawPtr(<span class="kw">_</span>)
+            | ty::TyKind::Ref(..)
+            | ty::TyKind::Tuple(<span class="kw">_</span>)
+            | ty::TyKind::Array(..)
+            | ty::TyKind::Never =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Unit),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected self ty {ty:?}&quot;</span>),
+        }
     }
 
     <span class="kw">pub fn </span>early_bound_sorts_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="kw-2">&amp;</span>[fhir::Sort] {

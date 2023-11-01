@@ -140,7 +140,7 @@
             .replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
 
         <span class="kw">for </span>ty <span class="kw">in </span>variant.fields() {
-            <span class="kw">let </span>ty = rcx.unpack(ty);
+            <span class="kw">let </span>ty = rcx.unpack(ty, <span class="kw">crate</span>::refine_tree::AssumeInvariants::No);
             rcx.assume_invariants(<span class="kw-2">&amp;</span>ty, checker_config.check_overflow);
         }
         <span class="kw">let </span>(.., idx) = variant.ret.expect_adt();

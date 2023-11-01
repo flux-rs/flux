@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["find_file_in_target_dir","find_flux_path","find_flux_rs_lib_path","rustc_flags"]};
+window.SIDEBAR_ITEMS = {"fn":["find_file_in_target_dir","find_flux_path","rustc_flags"]};

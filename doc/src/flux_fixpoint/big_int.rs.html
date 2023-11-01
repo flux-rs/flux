@@ -84,53 +84,42 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 
 <span class="doccomment">/// A signed integer in the range [-2^128, 2^128], represented by a `u128` and an explicit sign.
 ///
-/// In the logic, we have to work with natural numbers so we could represent them with arbitrary
-/// precision integers. We instead take the simpler approach of using a fixed size representation
-/// that allows us to store any Rust literal, i.e., we can reprent both `i128::MIN` and `u128::MAX`.
-/// Since we don&#39;t do much arithmetic, except for some simple constant folding when simplifying
-/// constraints, we choose to deal with overflow in those cases. We may change the representation in
-/// the future if this become a problem.
-</span><span class="attr">#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+/// In the logic, we work with natural numbers so we could represent them with arbitrary precision
+/// integers. We instead take the simpler approach of using a fixed size representation that allows
+/// us to store any Rust literal, i.e., we can reprent both `i128::MIN` and `u128::MAX`. Since we
+/// never do arithmetic, this representation doesn&#39;t present any problems. We may choose to change
+/// the representation in the future (and use arbitrary precision integers) if this ever become a
+/// problem, e.g., if we want to do (precise) arithmetic during constant folding.
+</span><span class="attr">#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord)]
 </span><span class="kw">pub struct </span>BigInt {
     sign: Sign,
     val: u128,
 }
 
-<span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+<span class="doccomment">/// This are in order so negative is less than non-negative.
+</span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord)]
 </span><span class="kw">enum </span>Sign {
-    NonNegative,
     Negative,
+    NonNegative,
 }
 
 <span class="kw">impl </span>BigInt {
     <span class="kw">pub const </span>ZERO: BigInt = BigInt { sign: Sign::NonNegative, val: <span class="number">0 </span>};
     <span class="kw">pub const </span>ONE: BigInt = BigInt { sign: Sign::NonNegative, val: <span class="number">1 </span>};
 
-    <span class="kw">pub fn </span>to_int(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;i128&gt; {
-        <span class="kw">match </span><span class="self">self</span>.sign {
-            Sign::NonNegative =&gt; i128::try_from(<span class="self">self</span>.val).ok(),
-            Sign::Negative =&gt; <span class="prelude-val">Some</span>(-(i128::try_from(<span class="self">self</span>.val).ok()<span class="question-mark">?</span>)),
-        }
-    }
-
-    <span class="doccomment">/// Given the bit width of a signed integer type, produces the maximum integer for
+    <span class="doccomment">/// Given the bit width of a signed integer type, produces the minimum integer for
     /// that type, i.e., -2^(bit_width - 1).
     </span><span class="kw">pub fn </span>int_min(bit_width: u32) -&gt; BigInt {
         BigInt { sign: Sign::Negative, val: <span class="number">1u128 </span>&lt;&lt; (bit_width - <span class="number">1</span>) }
     }
 
-    <span class="doccomment">/// Given the bit width of a signed integer type, produces the minimum integer for
+    <span class="doccomment">/// Given the bit width of a signed integer type, produces the maximum integer for
     /// that type, i.e., 2^(bit_width - 1) - 1.
     </span><span class="kw">pub fn </span>int_max(bit_width: u32) -&gt; BigInt {
         (i128::MAX &gt;&gt; (<span class="number">128 </span>- bit_width)).into()
@@ -164,7 +153,8 @@
 
 <span class="kw">impl </span>From&lt;i32&gt; <span class="kw">for </span>BigInt {
     <span class="kw">fn </span>from(val: i32) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>val &lt; <span class="number">0 </span>{
+        <span class="comment">// TODO(nilehmann) use Flux to prove this doesn&#39;t overflow
+        </span><span class="kw">if </span>val &lt; <span class="number">0 </span>{
             BigInt { sign: Sign::Negative, val: -(val <span class="kw">as </span>i64) <span class="kw">as </span>u128 }
         } <span class="kw">else </span>{
             BigInt { sign: Sign::NonNegative, val: val <span class="kw">as </span>u128 }

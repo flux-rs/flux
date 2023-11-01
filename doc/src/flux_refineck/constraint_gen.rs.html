@@ -819,9 +819,32 @@
 <a href="#819" id="819">819</a>
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
-<span class="kw">use </span>flux_common::{index::IndexGen, tracked_span_bug};
+<span class="kw">use </span>flux_common::tracked_span_bug;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -839,22 +862,23 @@
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_middle::ty::{RegionVid, Variance};
+<span class="kw">use </span>rustc_infer::infer::{LateBoundRegionConversionTime, RegionVariableOrigin::LateBoundRegion};
+<span class="kw">use </span>rustc_middle::ty::Variance;
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{RefineCtxt, Scope, Snapshot, UnpackFlags},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
 
 <span class="kw">pub struct </span>ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub </span>genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
     refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
     kvar_gen: Box&lt;<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>&gt;,
-    rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
     span: Span,
 }
 
@@ -870,6 +894,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
     refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
     kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">&#39;a</span>),
@@ -913,16 +938,16 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub fn </span>new&lt;G&gt;(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         kvar_gen: G,
-        rvid_gen: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexGen&lt;RegionVid&gt;,
         span: Span,
     ) -&gt; <span class="self">Self
     </span><span class="kw">where
         </span>G: KVarGen + <span class="lifetime">&#39;a</span>,
     {
-        ConstrGen { genv, def_id, refparams, kvar_gen: Box::new(kvar_gen), rvid_gen, span }
+        ConstrGen { genv, region_infcx, def_id, refparams, kvar_gen: Box::new(kvar_gen), span }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(
@@ -990,17 +1015,18 @@
         )
         .map(|(actual, formal)| {
             <span class="kw">if let </span>(<span class="macro">Ref!</span>(.., Mutability::Mut), <span class="macro">Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut)) = (actual.kind(), formal.kind())
-                   &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind() {
-                    rcx.unpack_with(actual, UnpackFlags::EXISTS_IN_MUT_REF)
-                } <span class="kw">else </span>{
-                    actual.clone()
-                }
+                &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
+            {
+                rcx.unpacker(AssumeInvariants::No).unpack_inside_mut_ref(<span class="bool-val">true</span>).unpack(actual)
+            } <span class="kw">else </span>{
+                actual.clone()
+            }
         })
         .collect_vec();
 
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">let </span>callsite_def_id = <span class="self">self</span>.def_id;
-        <span class="kw">let </span>rvid_gen = <span class="self">self</span>.rvid_gen;
+        <span class="kw">let </span>span = <span class="self">self</span>.span;
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Call);
         <span class="kw">let </span>snapshot = rcx.snapshot();
@@ -1015,10 +1041,17 @@
         </span><span class="kw">let </span>inst_fn_sig = fn_sig
             .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
             .replace_bound_vars(
-                |<span class="kw">_</span>| rty::ReVar(rvid_gen.fresh()),
+                |br| {
+                    <span class="kw">let </span>re = infcx.region_infcx.next_region_var(LateBoundRegion(
+                        span,
+                        br.kind.to_rustc(),
+                        LateBoundRegionConversionTime::FnCall,
+                    ));
+                    rty::ReVar(re.as_var())
+                },
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projections(genv, callsite_def_id, infcx.refparams)<span class="question-mark">?</span>;
+            .normalize_projections(genv, infcx.region_infcx, callsite_def_id, infcx.refparams)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>obligs = <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
             mk_obligations(genv, did, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)<span class="question-mark">?
@@ -1056,10 +1089,6 @@
                     <span class="kw">let </span>ty = env.block_with(path, bound.clone());
                     infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
                 }
-                (TyKind::Ptr(PtrKind::Shr(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Not)) =&gt; {
-                    <span class="kw">let </span>ty = env.get(path).unblocked();
-                    infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
-                }
                 <span class="kw">_ </span>=&gt; infcx.subtyping(rcx, actual, <span class="kw-2">&amp;</span>formal)<span class="question-mark">?</span>,
             }
         }
@@ -1069,7 +1098,12 @@
         </span><span class="kw">for </span>pred <span class="kw">in </span><span class="kw-2">&amp;</span>obligs {
             <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = pred.kind() {
                 <span class="kw">let </span>impl_elem = Ty::projection(projection_pred.projection_ty)
-                    .normalize_projections(infcx.genv, callsite_def_id, infcx.refparams)<span class="question-mark">?</span>;
+                    .normalize_projections(
+                        infcx.genv,
+                        infcx.region_infcx,
+                        callsite_def_id,
+                        infcx.refparams,
+                    )<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 </span>infcx.subtyping(rcx, <span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>projection_pred.term)<span class="question-mark">?</span>;
@@ -1093,7 +1127,12 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Obligations, CheckerErrKind&gt; {
         <span class="kw">let </span>ret_place_ty = env.lookup_place(<span class="self">self</span>.genv, rcx, Place::RETURN)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>output = output.normalize_projections(<span class="self">self</span>.genv, <span class="self">self</span>.def_id, <span class="self">self</span>.refparams)<span class="question-mark">?</span>;
+        <span class="kw">let </span>output = output.normalize_projections(
+            <span class="self">self</span>.genv,
+            <span class="self">self</span>.region_infcx,
+            <span class="self">self</span>.def_id,
+            <span class="self">self</span>.refparams,
+        )<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Ret);
 
@@ -1120,8 +1159,7 @@
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         fields: <span class="kw-2">&amp;</span>[Ty],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
-        <span class="comment">// rn we are only calling `check_constructor` from path_tree when folding so we mark this
-        // as a folding error.
+        <span class="comment">// rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         </span><span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Fold);
 
         <span class="comment">// Replace holes in generic arguments with fresh inference variables
@@ -1165,11 +1203,6 @@
                     <span class="kw">let </span>ty = env.block_with(path, bound.clone());
                     infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
                 }
-                (TyKind::Ptr(PtrKind::Shr(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Not)) =&gt; {
-                    <span class="comment">// TODO(pack-closure): why is this not put into `infcx.subtyping`?
-                    </span><span class="kw">let </span>ty = env.get(path);
-                    infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
-                }
                 <span class="kw">_ </span>=&gt; infcx.subtyping(rcx, ty, <span class="kw-2">&amp;</span>arr_ty)<span class="question-mark">?</span>,
             }
         }
@@ -1181,6 +1214,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infcx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, reason: ConstrReason) -&gt; InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
         InferCtxt::new(
             <span class="self">self</span>.genv,
+            <span class="self">self</span>.region_infcx,
             <span class="self">self</span>.def_id,
             <span class="self">self</span>.refparams,
             rcx,
@@ -1193,6 +1227,7 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(
         genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
@@ -1202,7 +1237,17 @@
         <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = EVarGen::new();
         <span class="kw">let </span><span class="kw-2">mut </span>scopes = FxIndexMap::default();
         scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        <span class="self">Self </span>{ genv, def_id, refparams, kvar_gen, evar_gen, tag, scopes, obligs: Vec::new() }
+        <span class="self">Self </span>{
+            genv,
+            region_infcx,
+            def_id,
+            refparams,
+            kvar_gen,
+            evar_gen,
+            tag,
+            scopes,
+            obligs: Vec::new(),
+        }
     }
 
     <span class="kw">fn </span>obligations(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;rty::Clause&gt; {
@@ -1265,7 +1310,7 @@
         }
     }
 
-    <span class="kw">fn </span>fresh_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh_kvar(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
         <span class="self">self</span>.kvar_gen.fresh(sorts, encoding)
     }
 
@@ -1446,6 +1491,7 @@
         <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         <span class="prelude-val">Ok</span>(Ty::projection(alias_ty).normalize_projections(
             <span class="self">self</span>.genv,
+            <span class="self">self</span>.region_infcx,
             <span class="self">self</span>.def_id,
             <span class="self">self</span>.refparams,
         )<span class="question-mark">?</span>)

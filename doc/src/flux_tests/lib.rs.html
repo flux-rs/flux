@@ -25,60 +25,30 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::path::PathBuf;
+</pre></div><pre class="rust"><code><span class="attr">#![feature(register_tool)]
+</span><span class="kw">use </span>std::path::PathBuf;
 
 <span class="kw">pub fn </span>find_flux_path() -&gt; PathBuf {
-    <span class="kw">let </span>executable_name = <span class="kw">if </span><span class="macro">cfg!</span>(windows) { <span class="string">&quot;flux-driver.exe&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;flux-driver&quot; </span>};
+    <span class="kw">let </span>executable_name = <span class="kw">if </span><span class="macro">cfg!</span>(windows) { <span class="string">&quot;rustc-flux.exe&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;rustc-flux&quot; </span>};
     find_file_in_target_dir(executable_name)
 }
 
-<span class="kw">pub fn </span>rustc_flags() -&gt; Vec&lt;String&gt; {
-    <span class="macro">vec!</span>[
-        <span class="string">&quot;-Zcrate-attr=feature(register_tool,custom_inner_attributes)&quot;</span>.to_string(),
-        <span class="string">&quot;-Zcrate-attr=register_tool(flux)&quot;</span>.to_string(),
-        <span class="string">&quot;--crate-type=rlib&quot;</span>.to_string(),
-        <span class="string">&quot;--edition=2021&quot;</span>.to_string(),
-        <span class="macro">format!</span>(<span class="string">&quot;--extern=flux_rs={}&quot;</span>, find_flux_rs_lib_path().display()),
-    ]
-}
-
-<span class="kw">fn </span>find_flux_rs_lib_path() -&gt; PathBuf {
-    <span class="kw">let </span>flux_rs_lib = <span class="kw">if </span><span class="macro">cfg!</span>(target_os = <span class="string">&quot;linux&quot;</span>) {
-        <span class="string">&quot;libflux_rs.so&quot;
-    </span>} <span class="kw">else if </span><span class="macro">cfg!</span>(target_os = <span class="string">&quot;macos&quot;</span>) {
-        <span class="string">&quot;libflux_rs.dylib&quot;
-    </span>} <span class="kw">else </span>{
-        <span class="macro">todo!</span>(<span class="string">&quot;implement for windows&quot;</span>)
-    };
-    find_file_in_target_dir(flux_rs_lib)
+<span class="doccomment">/// Rustc flags to pass Flux when running tests
+</span><span class="kw">pub fn </span>rustc_flags() -&gt; Vec&lt;String&gt; {
+    <span class="macro">vec!</span>[<span class="string">&quot;--crate-type=rlib&quot;</span>.to_string(), <span class="string">&quot;--edition=2021&quot;</span>.to_string()]
 }
 
 <span class="kw">fn </span>find_file_in_target_dir(file: <span class="kw-2">&amp;</span>str) -&gt; PathBuf {
     <span class="kw">let </span>target_directory = <span class="kw">if </span><span class="macro">cfg!</span>(debug_assertions) { <span class="string">&quot;debug&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;release&quot; </span>};
-    <span class="kw">let </span>local_flux_driver_path: PathBuf = [<span class="string">&quot;target&quot;</span>, target_directory, file].into_iter().collect();
-    <span class="kw">if </span>local_flux_driver_path.exists() {
-        <span class="kw">return </span>local_flux_driver_path;
+    <span class="kw">let </span>local_path: PathBuf = [<span class="string">&quot;target&quot;</span>, target_directory, file].into_iter().collect();
+    <span class="kw">if </span>local_path.exists() {
+        <span class="kw">return </span>local_path;
     }
-    <span class="kw">let </span>workspace_flux_driver_path: PathBuf = [<span class="string">&quot;..&quot;</span>, <span class="string">&quot;..&quot;</span>, <span class="string">&quot;target&quot;</span>, target_directory, file]
+    <span class="kw">let </span>workspace_path: PathBuf = [<span class="string">&quot;..&quot;</span>, <span class="string">&quot;..&quot;</span>, <span class="string">&quot;target&quot;</span>, target_directory, file]
         .into_iter()
         .collect();
-    <span class="kw">if </span>workspace_flux_driver_path.exists() {
-        <span class="kw">return </span>workspace_flux_driver_path;
+    <span class="kw">if </span>workspace_path.exists() {
+        <span class="kw">return </span>workspace_path;
     }
     <span class="macro">panic!</span>(<span class="string">&quot;Could not find {file}&quot;</span>);
 }

@@ -888,9 +888,7 @@
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
-<a href="#891" id="891">891</a>
-</pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::all, clippy::pedantic)]
-</span><span class="kw">use </span>std::{
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
     fmt,
@@ -1252,7 +1250,7 @@
                 </span><span class="prelude-val">None </span>=&gt; {
                     span_err(
                         span.unwrap(),
-                        <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;`{field}` doesn&#39;t refer to a field on this type&quot;</span>),
+                        <span class="macro">format!</span>(<span class="string">&quot;`{field}` doesn&#39;t refer to a field on this type&quot;</span>),
                     )
                     .emit();
                     <span class="macro">quote! </span>{

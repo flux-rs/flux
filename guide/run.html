@@ -189,11 +189,6 @@ instead of running <code>cargo check</code>, you should run</p>
 <pre><code class="language-bash">cargo-flux check
 </code></pre>
 <p>in order to get <code>flux</code> to check your code.</p>
-<h2 id="developing-locally"><a class="header" href="#developing-locally">Developing locally</a></h2>
-<p>You can set the <code>FLUX_DRIVER_PATH</code> environment variable to <code>./target/debug/flux-driver</code> if you
-want <code>cargo-flux</code> and <code>rustc-flux</code> to use the version of <code>flux-driver</code> that is built
-when you run <code>cargo build</code>. This is useful if you want to run <code>cargo build</code> instead
-of <code>cargo xtask install</code> every time you make a change.</p>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.

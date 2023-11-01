@@ -1857,6 +1857,7 @@
 <a href="#1857" id="1857">1857</a>
 <a href="#1858" id="1858">1858</a>
 <a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, iter, slice};
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -3440,7 +3441,8 @@
     resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
     bty: <span class="kw-2">&amp;</span>surface::BaseTy,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-    <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
+    <span class="comment">// CODESYNC(sort-of, 4) sorts should be given consistently
+    </span><span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
         surface::BaseTyKind::Path(path) =&gt; {
             <span class="kw">let </span>res = resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
             genv.sort_of_res(res)

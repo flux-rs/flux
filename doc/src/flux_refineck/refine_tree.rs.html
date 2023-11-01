@@ -806,13 +806,46 @@
 <a href="#806" id="806">806</a>
 <a href="#807" id="807">807</a>
 <a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
 };
 
-<span class="kw">use </span>bitflags::bitflags;
 <span class="kw">use </span>flux_common::index::{IndexGen, IndexVec};
 <span class="kw">use </span>flux_fixpoint <span class="kw">as </span>fixpoint;
 <span class="kw">use </span>flux_middle::rty::{
@@ -968,7 +1001,7 @@
     }
 }
 
-<span class="kw">impl </span>RefineCtxt&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;rcx</span>&gt; RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt; {
     <span class="attr">#[allow(unused)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>as_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineSubtree {
         RefineSubtree { root: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)), tree: <span class="self">self</span>.tree }
@@ -1006,8 +1039,8 @@
     }
 
     <span class="doccomment">/// Given a [`sort`] that may contain nested tuples, it destructs the tuples recursively, generating
-    /// multiple fresh variables instead of a single variable of tuple sort. It returns the &quot;eta-expanded&quot;
-    /// tuple of fresh variables.
+    /// multiple fresh variables and returning the &quot;eta-expanded&quot; tuple of fresh variables. This is in contrast
+    /// to generating a single fresh variable of tuple sort.
     ///
     /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
     /// `a0: int`, `a1: bool`, and `a2: int`.
@@ -1034,72 +1067,12 @@
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, flags: UnpackFlags) -&gt; Ty {
-        <span class="kw">struct </span>Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
-            rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
-            in_mut_ref: bool,
-            flags: UnpackFlags,
-        }
-
-        <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
-            <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-                <span class="kw">let </span>flags = <span class="self">self</span>.flags;
-                <span class="kw">match </span>ty.kind() {
-                    TyKind::Indexed(bty, idxs) =&gt; Ty::indexed(bty.fold_with(<span class="self">self</span>), idxs.clone()),
-                    TyKind::Exists(bound_ty) <span class="kw">if </span>!flags.contains(UnpackFlags::NO_UNPACK_EXISTS) =&gt; {
-                        <span class="comment">// HACK(nilehmann) In general we shouldn&#39;t unpack through mutable references because
-                        // that makes the refered type too specific. We only have this as a workaround to
-                        // infer parameters under mutable references and it should be removed once we implement
-                        // opening of mutable references. See also `ConstrGen::check_fn_call`.
-                        </span><span class="kw">if </span>!<span class="self">self</span>.in_mut_ref || flags.contains(UnpackFlags::EXISTS_IN_MUT_REF) {
-                            bound_ty
-                                .replace_bound_exprs_with(|sort, <span class="kw">_</span>| <span class="self">self</span>.rcx.define_vars(sort))
-                                .fold_with(<span class="self">self</span>)
-                        } <span class="kw">else </span>{
-                            ty.clone()
-                        }
-                    }
-                    TyKind::Constr(pred, ty) =&gt; {
-                        <span class="self">self</span>.rcx.assume_pred(pred);
-                        ty.fold_with(<span class="self">self</span>)
-                    }
-                    TyKind::Downcast(..) <span class="kw">if </span>!<span class="self">self</span>.flags.contains(UnpackFlags::SHALLOW) =&gt; {
-                        ty.super_fold_with(<span class="self">self</span>)
-                    }
-                    <span class="kw">_ </span>=&gt; ty.clone(),
-                }
-            }
-
-            <span class="kw">fn </span>fold_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
-                <span class="kw">if </span><span class="self">self</span>.flags.contains(UnpackFlags::SHALLOW) {
-                    <span class="kw">return </span>bty.clone();
-                }
-                <span class="kw">match </span>bty {
-                    BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; {
-                        <span class="kw">let </span>(boxed, alloc) = box_args(substs);
-                        <span class="kw">let </span>boxed = boxed.fold_with(<span class="self">self</span>);
-                        BaseTy::adt(
-                            adt_def.clone(),
-                            <span class="macro">vec!</span>[GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
-                        )
-                    }
-                    BaseTy::Ref(r, ty, mutbl) =&gt; {
-                        <span class="kw">let </span>in_mut_ref = <span class="self">self</span>.in_mut_ref;
-                        <span class="self">self</span>.in_mut_ref = <span class="macro">matches!</span>(mutbl, Mutability::Mut);
-                        <span class="kw">let </span>ty = ty.fold_with(<span class="self">self</span>);
-                        <span class="self">self</span>.in_mut_ref = in_mut_ref;
-                        BaseTy::Ref(<span class="kw-2">*</span>r, ty, <span class="kw-2">*</span>mutbl)
-                    }
-                    BaseTy::Tuple(<span class="kw">_</span>) =&gt; bty.super_fold_with(<span class="self">self</span>),
-                    <span class="kw">_ </span>=&gt; bty.clone(),
-                }
-            }
-        }
-        ty.fold_with(<span class="kw-2">&amp;mut </span>Unpacker { rcx: <span class="self">self</span>, in_mut_ref: <span class="bool-val">false</span>, flags })
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, assume_invariants: AssumeInvariants) -&gt; Ty {
+        <span class="self">self</span>.unpacker(assume_invariants).unpack(ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="self">self</span>.unpack_with(ty, UnpackFlags::empty())
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpacker(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assume_invariants: AssumeInvariants) -&gt; Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;rcx</span>&gt; {
+        Unpacker::new(<span class="self">self</span>, assume_invariants)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
@@ -1118,17 +1091,13 @@
             }
 
             <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;!, ()&gt; {
-                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = ty.kind() {
+                <span class="kw">if let </span>TyKind::Indexed(bty, idx) = ty.kind() &amp;&amp; !idx.has_escaping_bvars() {
                     <span class="kw">for </span>invariant <span class="kw">in </span>bty.invariants(<span class="self">self</span>.overflow_checking) {
                         <span class="kw">let </span>invariant = invariant.pred.replace_bound_expr(<span class="kw-2">&amp;</span>idx.expr);
                         <span class="self">self</span>.rcx.assume_pred(invariant);
                     }
                 }
-                <span class="kw">if </span>!<span class="macro">matches!</span>(ty.kind(), TyKind::Exists(..)) {
-                    ty.super_visit_with(<span class="self">self</span>)
-                } <span class="kw">else </span>{
-                    ControlFlow::Continue(())
-                }
+                ty.super_visit_with(<span class="self">self</span>)
             }
         }
         ty.visit_with(<span class="kw-2">&amp;mut </span>Visitor { rcx: <span class="self">self</span>, overflow_checking });
@@ -1136,6 +1105,114 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replace_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evars: <span class="kw-2">&amp;</span>EVarSol) {
         <span class="self">self</span>.ptr.borrow_mut().replace_evars(evars);
+    }
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
+    rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
+    in_mut_ref: bool,
+    unpack_inside_mut_ref: bool,
+    shallow: bool,
+    unpack_exists: bool,
+    assume_invariants: AssumeInvariants,
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>AssumeInvariants {
+    Yes { check_overflow: bool },
+    No,
+}
+
+<span class="kw">impl </span>AssumeInvariants {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>yes(check_overflow: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Yes { check_overflow }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
+    <span class="kw">fn </span>new(rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;, assume_invariants: AssumeInvariants) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            rcx,
+            in_mut_ref: <span class="bool-val">false</span>,
+            unpack_inside_mut_ref: <span class="bool-val">false</span>,
+            shallow: <span class="bool-val">false</span>,
+            unpack_exists: <span class="bool-val">true</span>,
+            assume_invariants,
+        }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack_inside_mut_ref(<span class="kw-2">mut </span><span class="self">self</span>, unpack_inside_mut_ref: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.unpack_inside_mut_ref = unpack_inside_mut_ref;
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>shallow(<span class="kw-2">mut </span><span class="self">self</span>, shallow: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.shallow = shallow;
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack_exists(<span class="kw-2">mut </span><span class="self">self</span>, unpack_exists: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.unpack_exists = unpack_exists;
+        <span class="self">self
+    </span>}
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        ty.fold_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        <span class="kw">match </span>ty.kind() {
+            TyKind::Indexed(bty, idxs) =&gt; Ty::indexed(bty.fold_with(<span class="self">self</span>), idxs.clone()),
+            TyKind::Exists(bound_ty) <span class="kw">if </span><span class="self">self</span>.unpack_exists =&gt; {
+                <span class="comment">// HACK(nilehmann) In general we shouldn&#39;t unpack through mutable references because
+                // that makes referent type too specific. We only have this as a workaround to infer
+                // parameters under mutable references and it should be removed once we implement
+                // opening of mutable references. See also `ConstrGen::check_fn_call`.
+                </span><span class="kw">if </span>!<span class="self">self</span>.in_mut_ref || <span class="self">self</span>.unpack_inside_mut_ref {
+                    <span class="kw">let </span>bound_ty = bound_ty
+                        .replace_bound_exprs_with(|sort, <span class="kw">_</span>| <span class="self">self</span>.rcx.define_vars(sort))
+                        .fold_with(<span class="self">self</span>);
+                    <span class="kw">if let </span>AssumeInvariants::Yes { check_overflow } = <span class="self">self</span>.assume_invariants {
+                        <span class="self">self</span>.rcx.assume_invariants(<span class="kw-2">&amp;</span>bound_ty, check_overflow);
+                    }
+                    bound_ty
+                } <span class="kw">else </span>{
+                    ty.clone()
+                }
+            }
+            TyKind::Constr(pred, ty) =&gt; {
+                <span class="self">self</span>.rcx.assume_pred(pred);
+                ty.fold_with(<span class="self">self</span>)
+            }
+            TyKind::Downcast(..) <span class="kw">if </span>!<span class="self">self</span>.shallow =&gt; ty.super_fold_with(<span class="self">self</span>),
+            <span class="kw">_ </span>=&gt; ty.clone(),
+        }
+    }
+
+    <span class="kw">fn </span>fold_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
+        <span class="kw">if </span><span class="self">self</span>.shallow {
+            <span class="kw">return </span>bty.clone();
+        }
+        <span class="kw">match </span>bty {
+            BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; {
+                <span class="kw">let </span>(boxed, alloc) = box_args(substs);
+                <span class="kw">let </span>boxed = boxed.fold_with(<span class="self">self</span>);
+                BaseTy::adt(
+                    adt_def.clone(),
+                    <span class="macro">vec!</span>[GenericArg::Ty(boxed), GenericArg::Ty(alloc.clone())],
+                )
+            }
+            BaseTy::Ref(r, ty, mutbl) =&gt; {
+                <span class="kw">let </span>in_mut_ref = <span class="self">self</span>.in_mut_ref;
+                <span class="self">self</span>.in_mut_ref = <span class="macro">matches!</span>(mutbl, Mutability::Mut);
+                <span class="kw">let </span>ty = ty.fold_with(<span class="self">self</span>);
+                <span class="self">self</span>.in_mut_ref = in_mut_ref;
+                BaseTy::Ref(<span class="kw-2">*</span>r, ty, <span class="kw-2">*</span>mutbl)
+            }
+            BaseTy::Tuple(<span class="kw">_</span>) =&gt; bty.super_fold_with(<span class="self">self</span>),
+            <span class="kw">_ </span>=&gt; bty.clone(),
+        }
     }
 }
 
@@ -1214,15 +1291,6 @@
 
     <span class="kw">fn </span>next_name_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.borrow().nbindings + usize::from(<span class="self">self</span>.borrow().is_forall())
-    }
-}
-
-<span class="macro">bitflags! </span>{
-    <span class="attr">#[derive(Copy, Clone)]
-    </span><span class="kw">pub struct </span>UnpackFlags: u8 {
-        <span class="kw">const </span>EXISTS_IN_MUT_REF = <span class="number">0b001</span>;
-        <span class="kw">const </span>SHALLOW           = <span class="number">0b010</span>;
-        <span class="kw">const </span>NO_UNPACK_EXISTS  = <span class="number">0b100</span>;
     }
 }
 

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DiagnosticDerive","LintDiagnosticDerive","Mismatch"]};
+window.SIDEBAR_ITEMS = {"fn":["generate_test"],"struct":["DiagnosticDerive","LintDiagnosticDerive","Mismatch"]};

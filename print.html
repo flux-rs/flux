@@ -199,7 +199,9 @@ If you are using <code>rustup</code>, no special action is needed as it should i
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo xtask install
 </code></pre>
-<p>This will install <code>flux-driver</code>, <code>rustc-flux</code> and <code>cargo-flux</code>. Note that you should not call <code>flux-driver</code> directly, but rather use <code>rustc-flux</code> and <code>cargo-flux</code>.</p>
+<p>This will the binaries <code>rustc-flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
+respectively to run flux on either a single file or on a project using cargo. The installation process will
+also copy some files to <code>$HOME/.flux</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
 <p>You can run <code>flux</code> on a single file or entire crate.</p>
 <h2 id="running-on-a-file-rustc-flux"><a class="header" href="#running-on-a-file-rustc-flux">Running on a File: <code>rustc-flux</code></a></h2>
@@ -217,11 +219,6 @@ instead of running <code>cargo check</code>, you should run</p>
 <pre><code class="language-bash">cargo-flux check
 </code></pre>
 <p>in order to get <code>flux</code> to check your code.</p>
-<h2 id="developing-locally"><a class="header" href="#developing-locally">Developing locally</a></h2>
-<p>You can set the <code>FLUX_DRIVER_PATH</code> environment variable to <code>./target/debug/flux-driver</code> if you
-want <code>cargo-flux</code> and <code>rustc-flux</code> to use the version of <code>flux-driver</code> that is built
-when you run <code>cargo build</code>. This is useful if you want to run <code>cargo build</code> instead
-of <code>cargo xtask install</code> every time you make a change.</p>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.
@@ -598,6 +595,16 @@ To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 -Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:114:15   &lt;------- this
 </code></pre>
 <p>You can also pass <code>-Ztrack-diagnostics=y</code> to enable it if you are not using <code>cargo xtask run</code></p>
+<h2 id="running-outside-the-project"><a class="header" href="#running-outside-the-project">Running outside the project</a></h2>
+<p>To run Flux in a package outside the flux respo you need to install the binaries globally. You can
+do that using <code>cargo xtask install</code>. If you are continuously testing new changes it could be annoying
+to do it each time. To deal with this, you can set the <code>FLUX_SYSROOT</code> environment variable to change the
+location where <code>cargo-flux</code> and <code>rustc-flux</code> load the <code>flux-driver</code>. You can set it globally to point
+to the <code>target/debug</code> directory inside your local copy of the repo. This way you won't have to run
+<code>cargo xtask install</code> after every change and you can be sure you'll be using the latest local debug
+build. Just be aware that the <code>rustc-flux</code> and <code>cargo-flux</code> binaries are built for a specific toolchain,
+and you will get a dynamic linking error if the <code>flux-driver</code> was compiled with a different one. This
+is to say, you should at least run <code>cargo xtask install</code> every time after the toolchain is updated.</p>
 <h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
 <p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
 <p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>

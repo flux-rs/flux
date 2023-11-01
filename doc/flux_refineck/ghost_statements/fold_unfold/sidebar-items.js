@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["PlaceNode","ProjKind","ProjResult"],"fn":["downcast","downcast_struct","run_analysis"],"struct":["Elaboration","Env","FoldUnfoldAnalysis","FoldUnfolds","FoldUnfoldsAt","Infer"],"trait":["Mode"]};
+window.SIDEBAR_ITEMS = {"enum":["PlaceNode","ProjKind","ProjResult"],"fn":["add_ghost_statements","downcast","downcast_struct"],"struct":["Elaboration","Env","FoldUnfoldAnalysis","Infer"],"trait":["Mode"]};

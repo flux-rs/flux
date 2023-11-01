@@ -2095,6 +2095,7 @@
 <a href="#2095" id="2095">2095</a>
 <a href="#2096" id="2096">2096</a>
 <a href="#2097" id="2097">2097</a>
+<a href="#2098" id="2098">2098</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3565,7 +3566,8 @@
     }
 
     <span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
-        <span class="kw">match </span><span class="self">self </span>{
+        <span class="comment">// CODESYNC(sort-of, 4) sorts should be given consistently
+        </span><span class="kw">match </span><span class="self">self </span>{
             BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Slice(<span class="kw">_</span>) =&gt; Sort::Int,
             BaseTy::Bool =&gt; Sort::Bool,
             BaseTy::Adt(adt_def, <span class="kw">_</span>) =&gt; adt_def.sort().clone(),
@@ -3973,7 +3975,7 @@
                 TyKind::Alias(AliasKind::Projection, alias_ty) =&gt; {
                     <span class="kw">let </span>assoc_name = cx.tcx.item_name(alias_ty.def_id);
                     <span class="kw">let </span>trait_ref = cx.tcx.parent(alias_ty.def_id);
-                    <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?} as {:?}&gt;::{:?}&quot;</span>, <span class="kw-2">&amp;</span>alias_ty.args[<span class="number">0</span>], trait_ref, ^assoc_name)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?} as {:?}&gt;::{}&quot;</span>, <span class="kw-2">&amp;</span>alias_ty.args[<span class="number">0</span>], trait_ref, ^assoc_name)<span class="question-mark">?</span>;
                     <span class="kw">if </span>alias_ty.args.len() &gt; <span class="number">1 </span>{
                         <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span>alias_ty.args[<span class="number">1</span>..]))<span class="question-mark">?</span>;
                     }

@@ -174,7 +174,44 @@
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
-</pre></div><pre class="rust"><code><span class="kw">mod </span>fold_unfold;
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Ghost statements are statements that are not part of the original mir, but are added from information
+//! extracted from the compiler or some additional analysis.
+</span><span class="kw">mod </span>fold_unfold;
+<span class="kw">mod </span>points_to;
 
 <span class="kw">use </span>std::{fmt, io, iter};
 
@@ -194,17 +231,18 @@
 <span class="kw">use </span>rustc_middle::{mir::Location, ty::TyCtxt};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>GhostStatements {
-    <span class="kw">pub </span>at_location: LocationMap,
-    <span class="kw">pub </span>at_goto: GotoMap,
+    at_location: LocationMap,
+    at_edge: EdgeMap,
 }
 
 <span class="kw">type </span>LocationMap = FxHashMap&lt;Location, Vec&lt;GhostStatement&gt;&gt;;
-<span class="kw">type </span>GotoMap = FxHashMap&lt;BasicBlock, FxHashMap&lt;BasicBlock, Vec&lt;GhostStatement&gt;&gt;&gt;;
+<span class="kw">type </span>EdgeMap = FxHashMap&lt;BasicBlock, FxHashMap&lt;BasicBlock, Vec&lt;GhostStatement&gt;&gt;&gt;;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>GhostStatement {
     Fold(Place),
     Unfold(Place),
     Unblock(Place),
+    PtrToBorrow(Place),
 }
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -227,31 +265,13 @@
 <span class="kw">impl </span>GhostStatements {
     <span class="kw">fn </span>new(genv: <span class="kw-2">&amp;</span>GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>body = genv.mir(def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>fold_unfolds = fold_unfold::run_analysis(genv, <span class="kw-2">&amp;</span>body)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>at_location = LocationMap::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>at_goto = GotoMap::default();
-        <span class="kw">for </span>(point, stmts) <span class="kw">in </span>fold_unfolds.into_statements() {
-            <span class="kw">match </span>point {
-                Point::Location(location) =&gt; at_location.entry(location).or_default().extend(stmts),
-                Point::Edge(from, to) =&gt; {
-                    at_goto
-                        .entry(from)
-                        .or_default()
-                        .entry(to)
-                        .or_default()
-                        .extend(stmts);
-                }
-            }
-        }
-        <span class="kw">for </span>(location, borrows) <span class="kw">in </span>body.calculate_borrows_out_of_scope_at_location() {
-            <span class="kw">let </span>stmts = borrows.into_iter().map(|bidx| {
-                <span class="kw">let </span>borrow = body.borrow_data(bidx);
-                <span class="kw">let </span>place = lowering::lower_place(<span class="kw-2">&amp;</span>borrow.borrowed_place).unwrap();
-                GhostStatement::Unblock(place)
-            });
-            at_location.entry(location).or_default().extend(stmts);
-        }
-        <span class="kw">let </span>stmts = <span class="self">Self </span>{ at_location, at_goto };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>stmts = <span class="self">Self </span>{ at_location: LocationMap::default(), at_edge: EdgeMap::default() };
+
+        fold_unfold::add_ghost_statements(<span class="kw-2">&amp;mut </span>stmts, genv, <span class="kw-2">&amp;</span>body)<span class="question-mark">?</span>;
+        points_to::add_ghost_statements(<span class="kw-2">&amp;mut </span>stmts, genv, body.rustc_body(), def_id)<span class="question-mark">?</span>;
+        stmts.add_unblocks(<span class="kw-2">&amp;</span>body);
+
         <span class="kw">if </span>config::dump_mir() {
             <span class="kw">let </span><span class="kw-2">mut </span>writer =
                 dbg::writer_for_item(genv.tcx, def_id.to_def_id(), <span class="string">&quot;ghost.mir&quot;</span>).unwrap();
@@ -260,11 +280,46 @@
         <span class="prelude-val">Ok</span>(stmts)
     }
 
+    <span class="kw">fn </span>add_unblocks(<span class="kw-2">&amp;mut </span><span class="self">self</span>, body: <span class="kw-2">&amp;</span>Body) {
+        <span class="kw">for </span>(location, borrows) <span class="kw">in </span>body.calculate_borrows_out_of_scope_at_location() {
+            <span class="kw">let </span>stmts = borrows.into_iter().map(|bidx| {
+                <span class="kw">let </span>borrow = body.borrow_data(bidx);
+                <span class="kw">let </span>place = lowering::lower_place(<span class="kw-2">&amp;</span>borrow.borrowed_place).unwrap();
+                GhostStatement::Unblock(place)
+            });
+            <span class="self">self</span>.at_location.entry(location).or_default().extend(stmts);
+        }
+    }
+
+    <span class="kw">fn </span>insert_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point, stmt: GhostStatement) {
+        <span class="self">self</span>.extend_at(point, [stmt]);
+    }
+
+    <span class="kw">fn </span>extend_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point, stmts: <span class="kw">impl </span>IntoIterator&lt;Item = GhostStatement&gt;) {
+        <span class="kw">match </span>point {
+            Point::Location(location) =&gt; {
+                <span class="self">self</span>.at_location.entry(location).or_default().extend(stmts);
+            }
+            Point::Edge(from, to) =&gt; {
+                <span class="self">self</span>.at_edge
+                    .entry(from)
+                    .or_default()
+                    .entry(to)
+                    .or_default()
+                    .extend(stmts);
+            }
+        }
+    }
+
+    <span class="kw">fn </span>at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point) -&gt; StatementsAt {
+        StatementsAt { stmts: <span class="self">self</span>, point }
+    }
+
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>statements_at(<span class="kw-2">&amp;</span><span class="self">self</span>, point: Point) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>GhostStatement&gt; {
         <span class="kw">match </span>point {
             Point::Location(location) =&gt; <span class="self">self</span>.at_location.get(<span class="kw-2">&amp;</span>location).into_iter().flatten(),
             Point::Edge(from, to) =&gt; {
-                <span class="self">self</span>.at_goto
+                <span class="self">self</span>.at_edge
                     .get(<span class="kw-2">&amp;</span>from)
                     .and_then(|m| m.get(<span class="kw-2">&amp;</span>to))
                     .into_iter()
@@ -291,7 +346,7 @@
                         }
                     }
                     PassWhere::AfterTerminator(bb) =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(map) = <span class="self">self</span>.at_goto.get(<span class="kw-2">&amp;</span>bb) {
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(map) = <span class="self">self</span>.at_edge.get(<span class="kw-2">&amp;</span>bb) {
                             <span class="macro">writeln!</span>(w)<span class="question-mark">?</span>;
                             <span class="kw">for </span>(target, stmts) <span class="kw">in </span>map {
                                 <span class="macro">write!</span>(w, <span class="string">&quot;        -&gt; {target:?} {{&quot;</span>)<span class="question-mark">?</span>;
@@ -300,6 +355,7 @@
                                 }
                                 <span class="macro">write!</span>(w, <span class="string">&quot;\n        }}&quot;</span>)<span class="question-mark">?</span>;
                             }
+                            <span class="macro">writeln!</span>(w)<span class="question-mark">?</span>;
                         }
                     }
                     <span class="kw">_ </span>=&gt; {}
@@ -308,6 +364,17 @@
             },
             w,
         )
+    }
+}
+
+<span class="kw">struct </span>StatementsAt&lt;<span class="lifetime">&#39;a</span>&gt; {
+    stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>GhostStatements,
+    point: Point,
+}
+
+<span class="kw">impl </span>StatementsAt&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, stmt: GhostStatement) {
+        <span class="self">self</span>.stmts.insert_at(<span class="self">self</span>.point, stmt);
     }
 }
 
@@ -347,6 +414,7 @@
             GhostStatement::Fold(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;fold({place:?})&quot;</span>),
             GhostStatement::Unfold(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unfold({place:?})&quot;</span>),
             GhostStatement::Unblock(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unblock({place:?})&quot;</span>),
+            GhostStatement::PtrToBorrow(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;ptr_to_borrow({place:?})&quot;</span>),
         }
     }
 }
