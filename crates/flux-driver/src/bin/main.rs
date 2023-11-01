@@ -12,8 +12,8 @@ mod logger;
 fn main() -> io::Result<()> {
     let resolve_logs = logger::install()?;
 
-    // Check if we are being called from cargo.
-    let in_cargo = env::var("CARGO").is_ok();
+    // CODESYNC(flux-cargo) Check if we are being called from cargo.
+    let in_cargo = env::var("FLUX_CARGO").is_ok();
 
     // HACK(nilehmann)
     // Disable incremental compilation because that makes the borrow checker to not run

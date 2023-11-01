@@ -1,4 +1,4 @@
-#![allow(clippy::all)]
+#![allow(clippy::all, clippy::pedantic)]
 use std::{
     collections::{HashMap, HashSet},
     fs::read_to_string,
