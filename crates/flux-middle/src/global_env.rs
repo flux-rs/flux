@@ -13,10 +13,10 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     cstore::CrateStoreDyn,
-    fhir::{self, FluxLocalDefId, GenericParamKind, VariantIdx},
+    fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryResult},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
+    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner, GenericParamDefKind},
     rustc::{self, ty},
 };
 
@@ -159,10 +159,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
-        self.map()
-            .get_generics(owner.to_def_id())
-            .unwrap()
-            .get_param(def_id)
+        self.map().get_generics(owner).unwrap().get_param(def_id)
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
@@ -214,9 +211,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
-                if let Some(generics) = self.map().get_generics(def_id) {
+                if let Ok(generics) = self.generics_of(def_id) {
                     for (param, arg) in generics.params.iter().zip(&path.args) {
-                        if let GenericParamKind::SplTy = param.kind {
+                        if let GenericParamDefKind::SplTy = param.kind {
                             let fhir::GenericArg::Type(ty) = arg else { return None };
                             let sort = self.sort_of_ty(ty)?;
                             sort_args.push(sort);

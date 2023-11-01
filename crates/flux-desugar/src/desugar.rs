@@ -3,9 +3,10 @@ use std::{borrow::Borrow, iter};
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
-    fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, GenericParamKind, Res},
+    fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     intern::List,
+    rty::GenericParamDefKind,
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind, PrimTy};
@@ -1655,9 +1656,9 @@ fn sort_of_surface_path(
         fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
             // TODO: duplication with sort_of_path
             let mut sort_args = vec![];
-            if let Some(generics) = genv.map().get_generics(def_id) {
+            if let Ok(generics) = genv.generics_of(def_id) {
                 for (param, arg) in generics.params.iter().zip(&path.generics) {
-                    if let GenericParamKind::SplTy = param.kind {
+                    if let GenericParamDefKind::SplTy = param.kind {
                         let surface::GenericArg::Type(ty) = arg else { return None };
                         let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind else {
                             return None;
@@ -1672,10 +1673,10 @@ fn sort_of_surface_path(
         fhir::Res::Def(DefKind::TyParam, def_id) => {
             let param = genv.get_generic_param(def_id.expect_local());
             match &param.kind {
-                fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
-                    Some(fhir::Sort::Param(def_id))
-                }
-                fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+                fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
+                fhir::GenericParamKind::Type { .. }
+                | fhir::GenericParamKind::Lifetime
+                | fhir::GenericParamKind::SplTy => None,
             }
         }
 

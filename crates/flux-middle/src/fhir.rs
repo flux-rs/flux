@@ -145,7 +145,7 @@ type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_has
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Map {
-    generics: Cache<DefId, Box<Generics>>,
+    generics: Cache<LocalDefId, Box<Generics>>,
     predicates: ItemPredicates,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -540,7 +540,7 @@ impl PolyFuncSort {
         FuncSort { inputs_and_output }
     }
 
-    pub fn param_subst(&self, subst: &SortParamSubst) -> PolyFuncSort {
+    fn mk_param_subst(&self, subst: &SortParamSubst) -> PolyFuncSort {
         let params = self.params;
         let args = self
             .fsort
@@ -644,8 +644,7 @@ impl SortCtor {
 impl Ty {
     pub fn as_path(&self) -> Option<&Path> {
         match &self.kind {
-            TyKind::BaseTy(bty) | TyKind::Indexed(bty, _) => bty.as_path(),
-            TyKind::Constr(_, ty) | TyKind::Exists(_, ty) => ty.as_path(),
+            TyKind::BaseTy(bty) => bty.as_path(),
             _ => None,
         }
     }
@@ -816,11 +815,11 @@ impl RefinedBy {
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        let sort_params = Self::sort_params(generics, &sorts);
+        let sort_params = Self::gather_sort_params(generics, &sorts);
         RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
     }
 
-    fn sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
+    fn gather_sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> Vec<DefId> {
         let mut sort_params: HashSet<DefId> = Default::default();
 
         for sort in sorts {
@@ -886,12 +885,12 @@ impl RefinedBy {
             .collect()
     }
 
-    pub fn is_base_generic(&self, def_id: DefId) -> bool {
+    fn is_base_generic(&self, def_id: DefId) -> bool {
         self.sort_params.contains(&def_id)
     }
 }
 
-type SortParamSubst = FxHashMap<DefId, Sort>;
+type SortParamSubst = UnordMap<DefId, Sort>;
 
 impl Sort {
     /// Returns `true` if the sort is [`Bool`].
@@ -962,16 +961,21 @@ impl Sort {
             | Sort::Record(_, _)
             | Sort::Var(_)
             | Sort::Infer(_) => self.clone(),
-            Sort::Param(def_id) => subst.get(def_id).unwrap_or(self).clone(),
+            Sort::Param(def_id) => {
+                subst
+                    .get(def_id)
+                    .unwrap_or_else(|| bug!("expected sort for param `{def_id:?}`"))
+                    .clone()
+            }
             Sort::App(c, args) => {
                 let args = args.iter().map(|arg| arg.param_subst(subst)).collect();
                 Sort::App(c.clone(), args)
             }
-            Sort::Func(fsort) => Sort::Func(fsort.param_subst(subst)), // bug!("unexpected subst in (nested) func-sort {self:?}"),
+            Sort::Func(fsort) => Sort::Func(fsort.mk_param_subst(subst)), // bug!("unexpected subst in (nested) func-sort {self:?}"),
         }
     }
 
-    pub fn gather_sort_params(&self, params: &mut HashSet<DefId>) {
+    fn gather_sort_params(&self, params: &mut HashSet<DefId>) {
         match self {
             Sort::Int
             | Sort::Bool
@@ -1091,7 +1095,7 @@ impl Map {
     }
 
     pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id.to_def_id(), Box::new(generics));
+        self.generics.insert(def_id, Box::new(generics));
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
@@ -1102,7 +1106,7 @@ impl Map {
         self.opaque_tys.extend_unord(opaque_tys.into_items());
     }
 
-    pub fn get_generics(&self, def_id: DefId) -> Option<&Generics> {
+    pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
         self.generics.get(&def_id)
     }
 

@@ -206,7 +206,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     invariants: Vec<Invariant>,
-    sort: Sort, // TODO: Binder<Sort>
+    sort: Sort, // TODO: Binder<Sort> as there may be Var in `Sort`
     opaque: bool,
     rustc: rustc::ty::AdtDef,
 }
@@ -442,7 +442,7 @@ impl GenericArg {
     pub fn is_valid_base_arg(&self) -> bool {
         match self {
             GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
-            GenericArg::BaseTy(bty) => bty.skip_binder_as_ref().kind().is_valid_base_ty(),
+            GenericArg::BaseTy(bty) => bty.as_ref().skip_binder().kind().is_valid_base_ty(),
             _ => false,
         }
     }
@@ -777,10 +777,6 @@ impl<T> Binder<T> {
 
     pub fn skip_binder(self) -> T {
         self.value
-    }
-
-    pub fn skip_binder_as_ref(&self) -> &T {
-        &self.value
     }
 
     pub fn rebind<U>(self, value: U) -> Binder<U> {
