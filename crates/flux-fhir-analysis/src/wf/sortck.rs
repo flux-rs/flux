@@ -208,7 +208,6 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = self[var.name].clone();
-                // println!("TRACE: synth_expr {:?} ==> {sort:?}", var.source_info.name);
                 match &sort {
                     fhir::Sort::Record(def_id, sort_args) => {
                         self.genv
