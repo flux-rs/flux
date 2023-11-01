@@ -1,7 +1,6 @@
 use std::{env, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use flux_config as config;
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
@@ -12,26 +11,29 @@ pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
 pub const EXIT_ERR: i32 = -1;
 
-pub fn get_default_flux_driver_path() -> Result<PathBuf> {
-    let mut default_flux_path =
-        env::current_exe().map(|path| path.with_file_name("flux-driver"))?;
-    if cfg!(target_os = "windows") {
-        default_flux_path.set_extension("exe");
-    }
-    Ok(default_flux_path)
+pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
+
+/// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
+pub fn sysroot_dir() -> PathBuf {
+    env::var(FLUX_SYSROOT).map_or_else(|_| default_sysroot_dir(), PathBuf::from)
+}
+
+/// Return the default sysroot
+pub fn default_sysroot_dir() -> PathBuf {
+    home::home_dir()
+        .expect("Couldn't find home directory")
+        .join(".flux")
 }
 
 pub fn get_flux_driver_path() -> Result<PathBuf> {
-    let flux_driver_path = config::driver_path()
-        .cloned()
-        .map_or_else(get_default_flux_driver_path, Ok)?;
-    if !flux_driver_path.is_file() {
-        return Err(anyhow!(
-            "flux executable {:?} does not exist or is not a file",
-            flux_driver_path
-        ));
+    let mut path = sysroot_dir().join("flux-driver");
+    if cfg!(target_os = "windows") {
+        path.set_extension("exe");
     }
-    Ok(flux_driver_path)
+    if !path.is_file() {
+        return Err(anyhow!("flux executable {:?} does not exist or is not a file", path));
+    }
+    Ok(path)
 }
 
 pub fn get_rust_toolchain() -> Result<String> {
@@ -46,9 +48,9 @@ pub fn get_rust_toolchain() -> Result<String> {
         .map(|channel| channel.name().to_string())
 }
 
-pub fn get_ld_library_path(rust_toolchain: &str) -> Result<PathBuf> {
-    let rustup_home_path = get_rustup_home()?;
-    let toolchains_path = rustup_home_path.join("toolchains");
+/// Path from where to load the rustc-driver library from
+pub fn get_rustc_driver_lib_path(rust_toolchain: &str) -> Result<PathBuf> {
+    let toolchains_path = home::rustup_home()?.join("toolchains");
     if toolchains_path.is_dir() {
         let entries = fs::read_dir(toolchains_path)?;
         for entry in entries {
@@ -68,30 +70,13 @@ pub fn get_ld_library_path(rust_toolchain: &str) -> Result<PathBuf> {
     Err(anyhow!("Could not read Rustup toolchains folder"))
 }
 
-pub fn get_rustup_home() -> Result<PathBuf> {
-    env::var("RUSTUP_HOME").map(PathBuf::from).or_else(|e| {
-        match e {
-            env::VarError::NotPresent => {
-                dirs::home_dir()
-                    .ok_or_else(|| anyhow!("Could not get OS's home dir"))
-                    .map(|home_dir| home_dir.join(".rustup"))
-            }
-            _ => Err(anyhow::Error::from(e)),
-        }
-    })
-}
-
 /// Prepends the path so that it's the first checked.
-pub fn extend_env_var_with_path(var_name: &str, new_path: PathBuf) -> Result<OsString> {
-    let mut paths = env::var(var_name)
-        .map(|paths_str| env::split_paths(&paths_str).collect())
-        .or_else(|err| {
-            match err {
-                env::VarError::NotPresent => Ok(Vec::new()),
-                e => Err(e),
-            }
-        })?;
-    // clone the path so we can report it in the error message.
+pub fn prepend_path_to_env_var(var_name: &str, new_path: PathBuf) -> Result<OsString> {
+    let mut paths = match env::var(var_name) {
+        Ok(paths) => env::split_paths(&paths).collect(),
+        Err(env::VarError::NotPresent) => vec![],
+        Err(e) => Err(e)?,
+    };
     paths.insert(0, new_path);
     env::join_paths(paths).map_err(anyhow::Error::from)
 }

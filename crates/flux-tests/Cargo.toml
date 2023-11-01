@@ -9,6 +9,7 @@ doctest = false
 test = false
 
 [dev-dependencies]
+flux-bin.workspace = true
 itertools.workspace = true
 
 compiletest_rs = "0.10"

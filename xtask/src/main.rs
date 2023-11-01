@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use flux_tests::{find_flux_path, rustc_flags};
+use flux_bin::utils::{default_sysroot_dir, FLUX_SYSROOT};
 use xshell::{cmd, Shell};
 
 xflags::xflags! {
@@ -22,11 +22,15 @@ xflags::xflags! {
             /// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
             repeated opts: OsString
         }
-        /// Install flux binaries to ~/.cargo/bin
+        /// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
         cmd install {
             /// Build the flux-driver binary in debug mode (with the 'dev' profile) instead of release mode
             optional --debug
         }
+        /// Uninstall flux binaries and libraries
+        cmd uninstall { }
+        /// Generate precompiled libraries
+        cmd build-sysroot { }
         /// Build the documentation
         cmd doc {
             optional -o,--open
@@ -39,7 +43,6 @@ fn main() -> anyhow::Result<()> {
         Ok(cmd) => cmd,
         Err(err) => {
             if err.is_help() {
-                println!("{err}");
                 std::process::exit(0);
             } else {
                 eprintln!("error: {err}\n");
@@ -54,13 +57,16 @@ fn main() -> anyhow::Result<()> {
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
-        XtaskCmd::Install(args) => install(sh, args),
+        XtaskCmd::Install(args) => install(&sh, &args),
         XtaskCmd::Doc(args) => doc(sh, args),
+        XtaskCmd::BuildSysroot(_) => build_sysroot(&sh),
+        XtaskCmd::Uninstall(_) => uninstall(&sh),
     }
 }
 
 fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let Test { filter } = args;
+    build_sysroot(&sh)?;
     cmd!(sh, "cargo build").run()?;
 
     if let Some(filter) = filter {
@@ -73,24 +79,48 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
 
 fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
     let Run { input, opts } = args;
+    build_sysroot(&sh)?;
     cmd!(sh, "cargo build").run()?;
 
-    let flux_path = find_flux_path();
-    let mut rustc_flags = rustc_flags();
+    let flux_path = flux_tests::find_flux_path();
+    let _env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
+    let mut rustc_flags = flux_tests::rustc_flags();
     rustc_flags.extend(["-Ztrack-diagnostics=y".to_string()]);
 
     cmd!(sh, "{flux_path} {rustc_flags...} {opts...} {input}").run()?;
     Ok(())
 }
 
-fn install(sh: Shell, args: Install) -> anyhow::Result<()> {
-    let Install { debug } = args;
-    let mut opts = vec!["--force"];
-    if debug {
-        opts.push("--debug");
-    }
-    cmd!(sh, "cargo install --path crates/flux-driver {opts...}").run()?;
+fn install(sh: &Shell, args: &Install) -> anyhow::Result<()> {
     cmd!(sh, "cargo install --path crates/flux-bin --force").run()?;
+    install_driver(sh, args)?;
+    install_libs(sh, args)?;
+
+    Ok(())
+}
+
+fn install_driver(sh: &Shell, args: &Install) -> anyhow::Result<()> {
+    let profile = args.profile();
+    let out_dir = default_sysroot_dir();
+    cmd!(sh, "cargo build -Zunstable-options --bin flux-driver {profile} --out-dir {out_dir}")
+        .run()?;
+    Ok(())
+}
+
+fn install_libs(sh: &Shell, args: &Install) -> anyhow::Result<()> {
+    // CODESYNC(build-sysroot, 5)
+    let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
+
+    let profile = args.profile();
+    let out_dir = default_sysroot_dir();
+    cmd!(sh, "cargo build -Zunstable-options {profile} -p flux-rs --out-dir {out_dir}").run()?;
+    Ok(())
+}
+
+fn uninstall(sh: &Shell) -> anyhow::Result<()> {
+    cmd!(sh, "cargo uninstall -p flux-bin").run()?;
+    println!("$ rm -rf ~/.flux");
+    std::fs::remove_dir_all(default_sysroot_dir())?;
     Ok(())
 }
 
@@ -111,4 +141,21 @@ fn project_root() -> PathBuf {
     .nth(1)
     .unwrap()
     .to_path_buf()
+}
+
+fn build_sysroot(sh: &Shell) -> anyhow::Result<()> {
+    // CODESYNC(build-sysroot, 5)
+    let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
+    cmd!(sh, "cargo build -p flux-rs").run()?;
+    Ok(())
+}
+
+impl Install {
+    fn profile(&self) -> &'static str {
+        if self.debug {
+            "--debug"
+        } else {
+            "--release"
+        }
+    }
 }

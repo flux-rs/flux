@@ -19,7 +19,7 @@ test = false
 [dependencies]
 anyhow = "1.0.75"
 dirs = "5.0.1"
-flux-config.workspace = true
+home.workspace = true
 rust-toolchain-file = "0.1.1"
 
 [lints]

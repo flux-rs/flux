@@ -462,19 +462,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux-attrs-proc-macros-build"
-version = "0.1.0"
-dependencies = [
- "flux-rs",
-]
-
-[[package]]
 name = "flux-bin"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "dirs",
- "flux-config",
+ "home",
  "rust-toolchain-file",
 ]
 
@@ -615,7 +608,6 @@ name = "flux-rs"
 version = "0.1.0"
 dependencies = [
  "flux-attrs",
- "proc-macro2",
 ]
 
 [[package]]
@@ -631,6 +623,7 @@ name = "flux-tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
+ "flux-bin",
  "itertools",
 ]
 
@@ -698,6 +691,15 @@ name = "hermit-abi"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
+
+[[package]]
+name = "home"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5444c27eef6923071f7ebcc33e3444508466a76f7a2b93da00ed6e19f30c1ddb"
+dependencies = [
+ "windows-sys",
+]
 
 [[package]]
 name = "indexmap"
@@ -1826,6 +1828,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "flux-bin",
  "flux-tests",
  "opener",
  "xflags",

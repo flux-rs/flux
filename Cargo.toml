@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/*", "xtask"]
+default-members = ["crates/*", "xtask"]
+members = ["crates/*", "lib/*", "xtask"]
 resolver = "2"
 
 [workspace.package]
@@ -7,6 +8,7 @@ edition = "2021"
 
 [workspace.dependencies]
 flux-attrs = { path = "./crates/flux-attrs", version = "0.1.0" }
+flux-bin = { path = "./crates/flux-bin", version = "0.1.0" }
 flux-common = { path = "./crates/flux-common", version = "0.1.0" }
 flux-config = { path = "./crates/flux-config", version = "0.1.0" }
 flux-desugar = { path = "./crates/flux-desugar", version = "0.1.0" }
@@ -21,6 +23,7 @@ flux-rs = { path = "./crates/flux-rs", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
 flux-tests = { path = "./crates/flux-tests", version = "0.1.0" }
 
+home = "0.5.5"
 itertools = "0.10.5"
 
 [workspace.lints.rust]
