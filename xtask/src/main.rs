@@ -22,11 +22,13 @@ xflags::xflags! {
             /// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
             repeated opts: OsString
         }
-        /// Install flux binaries to ~/.cargo/bin
+        /// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
         cmd install {
             /// Build the flux-driver binary in debug mode (with the 'dev' profile) instead of release mode
             optional --debug
         }
+        /// Uninstall flux binaries and libraries
+        cmd uninstall { }
         /// Generate precompiled libraries
         cmd build-sysroot { }
         /// Build the documentation
@@ -58,6 +60,7 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Install(args) => install(&sh, &args),
         XtaskCmd::Doc(args) => doc(sh, args),
         XtaskCmd::BuildSysroot(_) => build_sysroot(&sh),
+        XtaskCmd::Uninstall(_) => uninstall(&sh),
     }
 }
 
@@ -111,6 +114,13 @@ fn install_libs(sh: &Shell, args: &Install) -> anyhow::Result<()> {
     let profile = args.profile();
     let out_dir = default_sysroot_dir();
     cmd!(sh, "cargo build -Zunstable-options {profile} -p flux-rs --out-dir {out_dir}").run()?;
+    Ok(())
+}
+
+fn uninstall(sh: &Shell) -> anyhow::Result<()> {
+    cmd!(sh, "cargo uninstall -p flux-bin").run()?;
+    println!("$ rm -rf ~/.flux");
+    std::fs::remove_dir_all(default_sysroot_dir())?;
     Ok(())
 }
 

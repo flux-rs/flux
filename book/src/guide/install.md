@@ -29,4 +29,6 @@ Next, run the following to build and install `flux` binaries
 cargo xtask install
 ```
 
-This will install `flux-driver`, `rustc-flux` and `cargo-flux`. Note that you should not call `flux-driver` directly, but rather use `rustc-flux` and `cargo-flux`.
+This will the binaries `rustc-flux` and `cargo-flux` in your cargo home. These two binaries should be used
+respectively to run flux on either a single file or on a project using cargo. The installation process will
+also copy some files to `$HOME/.flux`.
