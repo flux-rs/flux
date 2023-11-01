@@ -80,6 +80,18 @@ error[FLUX]: refinement type error
 
 You can also pass `-Ztrack-diagnostics=y` to enable it if you are not using `cargo xtask run`
 
+## Running outside the project
+
+To run Flux in a package outside the flux respo you need to install the binaries globally. You can
+do that using `cargo xtask install`. If you are continuously testing new changes it could be annoying
+to do it each time. To deal with this, you can set the `FLUX_SYSROOT` environment variable to change the
+location where `cargo-flux` and `rustc-flux` load the `flux-driver`. You can set it globally to point
+to the `target/debug` directory inside your local copy of the repo. This way you won't have to run
+`cargo xtask install` after every change and you can be sure you'll be using the latest local debug
+build. Just be aware that the `rustc-flux` and `cargo-flux` binaries are built for a specific toolchain,
+and you will get a dynamic linking error if the `flux-driver` was compiled with a different one. This
+is to say, you should at least run `cargo xtask install` every time after the toolchain is updated.
+
 ## Profiling Flux
 
 Set `FLUX_DUMP_TIMINGS=true` to have flux write timing diagnostics to `./log/timings`.

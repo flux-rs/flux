@@ -29,13 +29,6 @@ cargo-flux check
 
 in order to get `flux` to check your code.
 
-## Developing locally
-
-You can set the `FLUX_DRIVER_PATH` environment variable to `./target/debug/flux-driver` if you
-want `cargo-flux` and `rustc-flux` to use the version of `flux-driver` that is built
-when you run `cargo build`. This is useful if you want to run `cargo build` instead
-of `cargo xtask install` every time you make a change.
-
 ## A tiny example
 
 The following example declares a function `inc`
