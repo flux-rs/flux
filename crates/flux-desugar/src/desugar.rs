@@ -6,7 +6,7 @@ use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     intern::List,
-    rty::GenericParamDefKind,
+    rty::{self},
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind, PrimTy};
@@ -1658,7 +1658,7 @@ fn sort_of_surface_path(
             let mut sort_args = vec![];
             if let Ok(generics) = genv.generics_of(def_id) {
                 for (param, arg) in generics.params.iter().zip(&path.generics) {
-                    if let GenericParamDefKind::SplTy = param.kind {
+                    if let rty::GenericParamDefKind::SplTy = param.kind {
                         let surface::GenericArg::Type(ty) = arg else { return None };
                         let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind else {
                             return None;

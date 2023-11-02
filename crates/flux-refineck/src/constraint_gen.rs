@@ -156,7 +156,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         for (idx, arg) in generic_args.iter().enumerate() {
             let param = generics.param_at(idx, self.genv)?;
             match param.kind {
-                GenericParamDefKind::SplTy | GenericParamDefKind::BaseTy => {
+                GenericParamDefKind::BaseTy => {
                     if !arg.is_valid_base_arg() {
                         return Err(CheckerErrKind::InvalidGenericArg);
                     }
