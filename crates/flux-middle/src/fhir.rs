@@ -737,7 +737,6 @@ impl Ident {
 /// bound Var -> Generic id. e.g. if we have RMap<K, V> refined_by(keys: Set<K>)
 /// then RMapIdx = forall #0. { keys: Set<#0> }
 /// and sort_params = vec![0]  i.e. maps Var(0) to Generic(0)
-
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
