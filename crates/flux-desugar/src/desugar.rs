@@ -105,7 +105,6 @@ pub fn desugar_refined_by(
         }
     })?;
 
-    // CUT let sr = SortResolver::with_generics(sess, sort_decls, generics);
     let sr = SortResolver::with_sort_params(sess, sort_decls, &refined_by.sort_vars);
 
     let early_bound_params: Vec<_> = refined_by

@@ -751,7 +751,6 @@ impl Ident {
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
-    // sort_params: Vec<DefId>,
     sort_params: Vec<usize>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
@@ -822,25 +821,6 @@ impl RefinedBy {
             .collect();
         RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
     }
-
-    // fn gather_sort_params(generics: &rustc_middle::ty::Generics, sorts: &Vec<Sort>) -> Vec<usize> {
-    //     let mut sort_params: HashSet<DefId> = Default::default();
-
-    //     for sort in sorts {
-    //         sort.gather_sort_params(&mut sort_params);
-    //     }
-
-    //     let mut params = vec![];
-    //     for param in &generics.params {
-    //         let def_id = param.def_id;
-    //         if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind &&
-    //            sort_params.contains(&def_id)
-    //         {
-    //             params.push(def_id);
-    //         }
-    //     }
-    //     params
-    // }
 
     pub fn trivial(def_id: impl Into<DefId>, span: Span) -> Self {
         RefinedBy {
@@ -942,61 +922,6 @@ impl Sort {
             }
         }
     }
-
-    // /// replace all `Param(def_id)` with their respective sort in `subst`
-    // fn param_subst(&self, subst: &SortParamSubst) -> Sort {
-    //     match self {
-    //         Sort::Int
-    //         | Sort::Bool
-    //         | Sort::Real
-    //         | Sort::Loc
-    //         | Sort::Unit
-    //         | Sort::BitVec(_)
-    //         | Sort::Wildcard
-    //         | Sort::Record(_, _)
-    //         | Sort::Var(_)
-    //         | Sort::Infer(_) => self.clone(),
-    //         Sort::Param(def_id) => {
-    //             subst
-    //                 .get(def_id)
-    //                 .unwrap_or_else(|| bug!("expected sort for param `{def_id:?}`"))
-    //                 .clone()
-    //         }
-    //         Sort::App(c, args) => {
-    //             let args = args.iter().map(|arg| arg.param_subst(subst)).collect();
-    //             Sort::App(c.clone(), args)
-    //         }
-    //         Sort::Func(fsort) => Sort::Func(fsort.mk_param_subst(subst)), // bug!("unexpected subst in (nested) func-sort {self:?}"),
-    //     }
-    // }
-
-    // fn gather_sort_params(&self, params: &mut HashSet<DefId>) {
-    //     match self {
-    //         Sort::Int
-    //         | Sort::Bool
-    //         | Sort::Real
-    //         | Sort::Loc
-    //         | Sort::Unit
-    //         | Sort::BitVec(_)
-    //         | Sort::Var(_)
-    //         | Sort::Infer(_)
-    //         | Sort::Wildcard => {}
-    //         Sort::Param(def_id) => {
-    //             params.insert(*def_id);
-    //         }
-    //         Sort::App(_, args) => {
-    //             for arg in args {
-    //                 arg.gather_sort_params(params);
-    //             }
-    //         }
-    //         Sort::Func(fsort) => {
-    //             for arg in &fsort.fsort.inputs_and_output {
-    //                 arg.gather_sort_params(params);
-    //             }
-    //         }
-    //         Sort::Record(_, _) => bug!("unexpected record sort"),
-    //     }
-    // }
 }
 
 impl ena::unify::UnifyKey for SortVid {
