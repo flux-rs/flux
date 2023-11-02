@@ -9,7 +9,7 @@ use std::hash::Hash;
 
 /// define a type indexed by a map
 #[flux::opaque]
-#[flux::refined_by(vals: Map<K, V>)]
+#[flux::refined_by(<K, V> { vals: Map<K, V> } )]
 pub struct RMap<K, V> {
     inner: std::collections::HashMap<K, V>,
 }

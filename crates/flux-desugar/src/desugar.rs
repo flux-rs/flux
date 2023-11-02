@@ -104,7 +104,9 @@ pub fn desugar_refined_by(
             Ok(())
         }
     })?;
-    let sr = SortResolver::with_generics(sess, sort_decls, generics);
+
+    // CUT let sr = SortResolver::with_generics(sess, sort_decls, generics);
+    let sr = SortResolver::with_sort_params(sess, sort_decls, &refined_by.sort_vars);
 
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params
@@ -117,11 +119,24 @@ pub fn desugar_refined_by(
         .iter()
         .map(|param| Ok((param.name.name, sr.resolve_sort(&param.sort)?)))
         .try_collect_exhaust()?;
+
+    let generic_idx: FxHashMap<Symbol, usize> = generics
+        .params
+        .iter()
+        .enumerate()
+        .map(|(i, param)| (param.name, i))
+        .collect();
+    let sort_params = refined_by
+        .sort_vars
+        .iter()
+        .map(|ident| generic_idx[&ident.name])
+        .collect();
+
     Ok(fhir::RefinedBy::new(
         owner_id.def_id,
-        generics,
         early_bound_params,
         index_params,
+        sort_params,
         refined_by.span,
     ))
 }

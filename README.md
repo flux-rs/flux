@@ -17,5 +17,9 @@ For an overview, take a look at the [`flux` website](https://flux-rs.github.io).
 Documentation, including installation and usage guides can be found on the
 [website](https://flux-rs.github.io/flux).
 
+# TODO:rset
 
-TRACE: insert_fn_sig DefId(0:14 ~ maps00[5caf]::rmap::{impl#0}::new) fn() -> {a0:RMap<sortof(K), sortof(V)>. RMap[K, V][a0] | true}
+1. add `Binder` to refined_by
+2. replace Param with Var in desugar
+3. update field-sort
+4. update param_subst (subst_param)

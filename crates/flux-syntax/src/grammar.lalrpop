@@ -48,6 +48,7 @@ pub TyAlias: surface::TyAlias = {
     <ty:Ty>
     <hi:@R> => {
         let refined_by = surface::RefinedBy {
+            sort_vars: vec![],
             early_bound_params: early_bound_params.unwrap_or_default(),
             index_params: index_params.unwrap_or_default(),
             span: cx.map_span(refined_by_lo, refined_by_hi)
@@ -63,7 +64,14 @@ pub TyAlias: surface::TyAlias = {
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
+    <lo:@L>  <sort_vars:SortVars> "{" <index_params:RefineParams<"!">> "}" <hi:@R> => surface::RefinedBy {
+        sort_vars,
+        index_params,
+        early_bound_params: vec![],
+        span: cx.map_span(lo, hi)
+    },
+    <lo:@L>  <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
+        sort_vars: vec![],
         index_params,
         early_bound_params: vec![],
         span: cx.map_span(lo, hi)
