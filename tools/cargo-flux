@@ -1,3 +1,0 @@
-#!/bin/bash
-
-CARGO_INCREMENTAL=0 RUSTUP_TOOLCHAIN=nightly-2022-12-30 DYLD_FALLBACK_LIBRARY_PATH=~/.rustup/toolchains/nightly-2022-12-30-x86_64-aarch64-apple-darwin/lib RUSTC_WRAPPER=~/research/flux/target/release/flux cargo $@

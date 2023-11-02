@@ -31,6 +31,7 @@ fn run() -> Result<i32> {
         .args(env::args().skip(1))
         .arg("-Zcrate-attr=feature(register_tool,custom_inner_attributes)")
         .arg("-Zcrate-attr=register_tool(flux)")
+        .arg("-Zcrate-attr=register_tool(flux_tool)")
         .arg("-L")
         .arg(sysroot_dir())
         .arg("--extern")
