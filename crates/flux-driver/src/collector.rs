@@ -41,6 +41,7 @@ pub type Ignores = UnordSet<IgnoreKey>;
 pub(crate) struct Specs {
     pub fn_sigs: UnordMap<OwnerId, FnSpec>,
     pub structs: FxHashMap<OwnerId, surface::StructDef>,
+    pub impls: FxHashMap<OwnerId, surface::Generics>,
     pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
@@ -101,6 +102,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
+                ItemKind::Impl(_) => collector.parse_impl_spec(owner_id, attrs),
                 _ => Ok(()),
             };
         }
@@ -185,6 +187,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
+    fn parse_impl_spec(
+        &mut self,
+        owner_id: OwnerId,
+        attrs: &[Attribute],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs)?;
+        self.report_dups(&attrs)?;
+
+        if let Some(generics) = attrs.generics() {
+            self.specs.impls.insert(owner_id, generics);
+        }
+
+        Ok(())
+    }
+
     fn parse_tyalias_spec(
         &mut self,
         owner_id: OwnerId,
@@ -209,6 +226,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let refined_by = attrs.refined_by();
 
+        let generics = attrs.generics();
+
         let fields = data
             .fields()
             .iter()
@@ -228,9 +247,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .insert(extern_def_id, owner_id.def_id);
         }
 
-        self.specs
-            .structs
-            .insert(owner_id, surface::StructDef { refined_by, fields, opaque, invariants });
+        self.specs.structs.insert(
+            owner_id,
+            surface::StructDef { refined_by, generics, fields, opaque, invariants },
+        );
 
         Ok(())
     }
@@ -361,6 +381,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("refined_by", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)?
             }
+            ("generics", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_generics, FluxAttrKind::Generics)?
+            }
             ("field", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)?
             }
@@ -489,6 +512,7 @@ impl Specs {
     fn new() -> Specs {
         Specs {
             fn_sigs: Default::default(),
+            impls: Default::default(),
             structs: Default::default(),
             enums: Default::default(),
             qualifs: Vec::default(),
@@ -546,6 +570,7 @@ enum FluxAttrKind {
     Opaque,
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
+    Generics(surface::Generics),
     QualNames(surface::QualNames),
     Items(Vec<surface::Item>),
     TypeAlias(surface::TyAlias),
@@ -636,6 +661,10 @@ impl FluxAttrs {
         read_attr!(self, RefinedBy)
     }
 
+    fn generics(&mut self) -> Option<surface::Generics> {
+        read_attr!(self, Generics)
+    }
+
     fn field(&mut self) -> Option<surface::Ty> {
         read_attr!(self, Field)
     }
@@ -674,6 +703,7 @@ impl FluxAttrKind {
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
+            FluxAttrKind::Generics(_) => attr_name!(Generics),
             FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
             FluxAttrKind::Field(_) => attr_name!(Field),

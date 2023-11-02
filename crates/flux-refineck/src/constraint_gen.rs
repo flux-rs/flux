@@ -9,8 +9,9 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr,
-        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, HoleKind, InferMode,
-        Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
+        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind,
+        HoleKind, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
+        TupleTree, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -146,6 +147,26 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         Ok(res)
     }
 
+    fn check_generic_args(
+        &self,
+        did: DefId,
+        generic_args: &[GenericArg],
+    ) -> Result<(), CheckerErrKind> {
+        let generics = self.genv.generics_of(did)?;
+        for (idx, arg) in generic_args.iter().enumerate() {
+            let param = generics.param_at(idx, self.genv)?;
+            match param.kind {
+                GenericParamDefKind::BaseTy => {
+                    if !arg.is_valid_base_arg() {
+                        return Err(CheckerErrKind::InvalidGenericArg);
+                    }
+                }
+                _ => continue,
+            }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
@@ -183,6 +204,10 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let genv = self.genv;
         let callsite_def_id = self.def_id;
         let span = self.span;
+
+        if let Some(did) = callee_def_id {
+            self.check_generic_args(did, generic_args)?;
+        }
 
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
         let snapshot = rcx.snapshot();
@@ -698,7 +723,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
-                tracked_span_bug!("sgeneric argument subtyping for base types is not implemented");
+                tracked_span_bug!("generic argument subtyping for base types is not implemented");
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => Ok(()),
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),

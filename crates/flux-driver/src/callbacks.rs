@@ -153,15 +153,18 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .err()
         .or(err);
 
-    // Register RefinedBys
+    // Register RefinedBys (for structs and enums, which also registers their Generics)
     err = specs
         .refined_bys()
         .try_for_each_exhaust(|(owner_id, refined_by)| {
+            let generics = lift::lift_generics(tcx, sess, owner_id)?;
             let refined_by = if let Some(refined_by) = refined_by {
-                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, refined_by)?
+                let generics = tcx.generics_of(owner_id);
+                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, generics, refined_by)?
             } else {
                 lift::lift_refined_by(tcx, owner_id)
             };
+            map.insert_generics(owner_id.def_id, generics.with_refined_by(&refined_by));
             map.insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
         })
@@ -273,7 +276,9 @@ fn desugar_item(
             let ty_alias = specs.ty_aliases[&owner_id].as_ref();
             desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)?;
         }
-        hir::ItemKind::OpaqueTy(_) => desugar::desugar_generics_and_predicates(genv, owner_id)?,
+        hir::ItemKind::OpaqueTy(_) => {
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None)?;
+        }
         hir::ItemKind::Enum(..) => {
             let enum_def = &specs.enums[&owner_id];
             desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output)?;
@@ -283,7 +288,7 @@ fn desugar_item(
             desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)?;
         }
         hir::ItemKind::Trait(.., items) => {
-            desugar::desugar_generics_and_predicates(genv, owner_id)?;
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None)?;
             items.iter().try_for_each_exhaust(|trait_item| {
                 desugar_assoc_item(
                     genv,
@@ -295,7 +300,8 @@ fn desugar_item(
             })?;
         }
         hir::ItemKind::Impl(impl_) => {
-            desugar::desugar_generics_and_predicates(genv, owner_id)?;
+            let generics = specs.impls.get(&owner_id);
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, generics)?;
             impl_.items.iter().try_for_each_exhaust(|impl_item| {
                 desugar_assoc_item(
                     genv,
@@ -316,11 +322,13 @@ fn desugar_assoc_item(
     specs: &mut Specs,
     owner_id: OwnerId,
     kind: hir::AssocItemKind,
-    resolver_outpt: &ResolverOutput,
+    resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     match kind {
-        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id, resolver_outpt),
-        hir::AssocItemKind::Type => desugar::desugar_generics_and_predicates(genv, owner_id),
+        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id, resolver_output),
+        hir::AssocItemKind::Type => {
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None)
+        }
         hir::AssocItemKind::Const => Ok(()),
     }
 }

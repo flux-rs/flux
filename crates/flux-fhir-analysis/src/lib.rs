@@ -294,7 +294,6 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
         }
         DefKind::Fn | DefKind::AssocFn => {
             let owner_id = OwnerId { def_id };
-
             let fn_sig = genv.map().get_fn_sig(def_id);
             let mut wfckresults = wf::check_fn_sig(genv, fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv.tcx, genv.sess, &mut wfckresults, owner_id, fn_sig)?;

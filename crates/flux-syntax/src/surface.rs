@@ -38,6 +38,7 @@ pub struct Qualifier {
 #[derive(Debug)]
 pub struct FuncDef {
     pub name: Ident,
+    pub sort_vars: Vec<Ident>,
     pub args: Vec<RefineParam>,
     pub output: Sort,
     /// Body of the function. If not present this definition corresponds to an uninterpreted function.
@@ -59,6 +60,7 @@ pub struct GenericParam {
 #[derive(Debug)]
 pub enum GenericParamKind {
     Type,
+    Spl,
     Base,
     Refine { sort: Sort },
 }
@@ -74,6 +76,7 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct StructDef {
+    pub generics: Option<Generics>,
     pub refined_by: Option<RefinedBy>,
     pub fields: Vec<Option<Ty>>,
     pub opaque: bool,
@@ -247,6 +250,20 @@ pub enum TyKind {
     ImplTrait(NodeId, GenericBounds),
 }
 
+impl Ty {
+    pub fn as_bty(&self) -> Option<&BaseTy> {
+        match &self.kind {
+            TyKind::Base(bty) | TyKind::Indexed { bty, .. } | TyKind::Exists { bty, .. } => {
+                Some(bty)
+            }
+            TyKind::GeneralExists { ty, .. } | TyKind::Constr(_, ty) => ty.as_bty(),
+            TyKind::Ref(_, _)
+            | TyKind::Tuple(_)
+            | TyKind::Array(_, _)
+            | TyKind::ImplTrait(_, _) => None,
+        }
+    }
+}
 #[derive(Debug)]
 pub struct BaseTy {
     pub kind: BaseTyKind,

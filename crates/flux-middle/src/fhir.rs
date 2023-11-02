@@ -61,9 +61,10 @@ pub struct GenericParam {
     pub kind: GenericParamKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GenericParamKind {
     Type { default: Option<Ty> },
+    SplTy,
     BaseTy,
     Lifetime,
 }
@@ -392,7 +393,7 @@ pub enum RefineArg {
         is_binder: bool,
     },
     Abs(Vec<RefineParam>, Expr, Span, FhirId),
-    Record(DefId, Vec<RefineArg>, Span),
+    Record(DefId, List<Sort>, Vec<RefineArg>, Span),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -432,7 +433,6 @@ pub struct TypeBinding {
 pub enum GenericArg {
     Lifetime(Lifetime),
     Type(Ty),
-    // Constraint(SurfaceIdent, Ty),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -497,7 +497,8 @@ pub enum Sort {
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
-    Record(DefId),
+    /// the List<Sort> is for the type parameters of (generic) record sorts
+    Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
     /// A sort that needs to be inferred
@@ -631,9 +632,7 @@ impl SortCtor {
 impl Ty {
     pub fn as_path(&self) -> Option<&Path> {
         match &self.kind {
-            TyKind::BaseTy(BaseTy {
-                kind: BaseTyKind::Path(QPath::Resolved(None, path)), ..
-            }) => Some(path),
+            TyKind::BaseTy(bty) => bty.as_path(),
             _ => None,
         }
     }
@@ -645,6 +644,13 @@ impl BaseTy {
             self.kind,
             BaseTyKind::Path(QPath::Resolved(_, Path { res: Res::PrimTy(PrimTy::Bool), .. }))
         )
+    }
+
+    pub fn as_path(&self) -> Option<&Path> {
+        match &self.kind {
+            BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
+            _ => None,
+        }
     }
 }
 
@@ -725,10 +731,17 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
+///
+/// Sort parameters e.g. #[flux::refined_by( elems: Set<T> )] tracks the mapping from
+/// bound Var -> Generic id. e.g. if we have RMap<K, V> refined_by(keys: Set<K>)
+/// then RMapIdx = forall #0. { keys: Set<#0> }
+/// and sort_params = vec![T]  i.e. maps Var(0) to T
+
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
+    sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -757,6 +770,7 @@ pub enum FuncKind {
 #[derive(Debug)]
 pub struct Defn {
     pub name: Symbol,
+    pub params: usize,
     pub args: Vec<RefineParam>,
     pub sort: Sort,
     pub expr: Expr,
@@ -766,6 +780,19 @@ impl Generics {
     pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParam {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
+
+    pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
+        let mut params = vec![];
+        for param in self.params {
+            let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
+                GenericParamKind::SplTy
+            } else {
+                param.kind.clone()
+            };
+            params.push(GenericParam { def_id: param.def_id, kind });
+        }
+        Generics { params }
+    }
 }
 
 impl RefinedBy {
@@ -773,6 +800,7 @@ impl RefinedBy {
         def_id: impl Into<DefId>,
         early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
+        sort_params: Vec<DefId>,
         span: Span,
     ) -> Self {
         let mut sorts = early_bound_params.into_iter().collect_vec();
@@ -781,23 +809,44 @@ impl RefinedBy {
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        RefinedBy { def_id: def_id.into(), span, index_params, early_bound, sorts }
+        RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
+    }
+
+    pub fn trivial(def_id: impl Into<DefId>, span: Span) -> Self {
+        RefinedBy {
+            def_id: def_id.into(),
+            sort_params: Default::default(),
+            span,
+            index_params: Default::default(),
+            early_bound: 0,
+            sorts: vec![],
+        }
     }
 
     pub fn field_index(&self, fld: Symbol) -> Option<usize> {
         self.index_params.get_index_of(&fld)
     }
 
-    pub fn field_sort(&self, fld: Symbol) -> Option<&Sort> {
-        self.index_params.get(&fld)
+    pub fn field_sort(&self, fld: Symbol, args: &[Sort]) -> Option<Sort> {
+        self.index_params.get(&fld).map(|sort| sort.subst(args))
     }
 
-    pub fn early_bound_sorts(&self) -> &[Sort] {
-        &self.sorts[..self.early_bound]
+    pub fn early_bound_sorts(&self, args: &[Sort]) -> Vec<Sort> {
+        self.sorts[..self.early_bound]
+            .iter()
+            .map(|sort| sort.subst(args))
+            .collect()
     }
 
-    pub fn index_sorts(&self) -> &[Sort] {
-        &self.sorts[self.early_bound..]
+    pub fn index_sorts(&self, args: &[Sort]) -> Vec<Sort> {
+        self.sorts[self.early_bound..]
+            .iter()
+            .map(|sort| sort.subst(args))
+            .collect()
+    }
+
+    fn is_base_generic(&self, def_id: DefId) -> bool {
+        self.sort_params.contains(&def_id)
     }
 }
 
@@ -835,7 +884,7 @@ impl Sort {
         Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
 
-    /// replace all "sort-parameters" (indexed 0...n-1) with the corresponding sort in `subst`
+    /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Int
@@ -846,14 +895,21 @@ impl Sort {
             | Sort::BitVec(_)
             | Sort::Param(_)
             | Sort::Wildcard
-            | Sort::Record(_)
+            | Sort::Record(_, _)
             | Sort::Infer(_) => self.clone(),
             Sort::Var(i) => subst[*i].clone(),
             Sort::App(c, args) => {
                 let args = args.iter().map(|arg| arg.subst(subst)).collect();
                 Sort::App(c.clone(), args)
             }
-            Sort::Func(_) => bug!("unexpected subst in (nested) func-sort"),
+            Sort::Func(fsort) => {
+                if fsort.params == 0 {
+                    let fsort = fsort.instantiate(subst);
+                    Sort::Func(PolyFuncSort { params: 0, fsort })
+                } else {
+                    bug!("unexpected subst in (nested) func-sort")
+                }
+            }
         }
     }
 }
@@ -1622,7 +1678,18 @@ impl fmt::Debug for Sort {
             Sort::Loc => write!(f, "loc"),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::Unit => write!(f, "()"),
-            Sort::Record(def_id) => write!(f, "{}", pretty::def_id_to_string(*def_id)),
+            Sort::Record(def_id, sort_args) => {
+                if sort_args.is_empty() {
+                    write!(f, "{}", pretty::def_id_to_string(*def_id))
+                } else {
+                    write!(
+                        f,
+                        "{}<{}>",
+                        pretty::def_id_to_string(*def_id),
+                        sort_args.iter().join(", ")
+                    )
+                }
+            }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),

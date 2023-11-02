@@ -80,6 +80,9 @@ fhir_analysis_expected_numeric =
 fhir_analysis_no_equality =
     values of sort `{$sort}` cannot be compared for equality
 
+fhir_analysis_invalid_base_instance =
+    values of this type cannot be used as base sorted instances
+
 fhir_analysis_param_not_determined =
     parameter `{$sym}` cannot be determined
     .label = undetermined parameter
@@ -153,4 +156,3 @@ fhir_analysis_assoc_type_not_found =
     associated type not found
     .label = cannot resolve this associated type
     .note = flux cannot resolved associated types if they are defined in a super trait
-

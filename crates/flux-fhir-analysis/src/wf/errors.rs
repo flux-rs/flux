@@ -197,6 +197,20 @@ impl<'a> InvalidPrimitiveDotAccess<'a> {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_invalid_base_instance, code = "FLUX")]
+pub(super) struct InvalidBaseInstance<'a> {
+    #[primary_span]
+    span: Span,
+    ty: &'a fhir::Ty,
+}
+
+impl<'a> InvalidBaseInstance<'a> {
+    pub(super) fn new(ty: &'a fhir::Ty) -> Self {
+        Self { ty, span: ty.span }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_no_equality, code = "FLUX")]
 pub(super) struct NoEquality<'a> {
     #[primary_span]

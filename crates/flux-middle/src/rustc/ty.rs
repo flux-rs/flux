@@ -473,7 +473,8 @@ impl TyKind {
 
 impl Ty {
     pub fn mk_adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> Ty {
-        TyKind::Adt(adt_def, args.into()).intern()
+        let args = args.into();
+        TyKind::Adt(adt_def, args).intern()
     }
 
     pub fn mk_closure(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {

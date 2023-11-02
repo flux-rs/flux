@@ -11,7 +11,7 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
-use crate::fhir;
+use crate::{fhir, intern::List};
 
 pub struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -25,12 +25,20 @@ pub fn lift_refined_by(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy {
     let item = tcx.hir().expect_item(def_id);
     match item.kind {
         hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-            fhir::RefinedBy::new(def_id, [], [], item.ident.span)
+            fhir::RefinedBy::trivial(def_id, item.ident.span)
         }
         _ => {
             bug!("expected struct, enum or type alias");
         }
     }
+}
+
+pub fn lift_generics(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    owner_id: OwnerId,
+) -> Result<fhir::Generics, ErrorGuaranteed> {
+    LiftCtxt::new(tcx, sess, owner_id, None).lift_generics()
 }
 
 pub fn lift_type_alias(
@@ -149,6 +157,11 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     pub fn lift_generics(&mut self) -> Result<fhir::Generics, ErrorGuaranteed> {
         let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
         self.lift_generics_inner(generics)
+    }
+
+    pub fn lift_predicates(&mut self) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
+        let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
+        self.lift_generic_predicates(generics)
     }
 
     fn lift_generic_param(
@@ -375,6 +388,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             bty,
             idx: fhir::RefineArg::Record(
                 self.owner.to_def_id(),
+                List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
                 vec![],
                 generics.span.shrink_to_hi(),
             ),

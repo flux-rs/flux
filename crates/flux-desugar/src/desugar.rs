@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, iter, slice};
+use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
@@ -6,9 +6,11 @@ use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     intern::List,
+    rty::{self},
 };
 use flux_syntax::surface;
-use hir::{def::DefKind, ItemKind};
+use hir::{def::DefKind, ItemKind, PrimTy};
+use itertools::Itertools;
 use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
@@ -17,6 +19,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
+use rustc_middle::ty::Generics;
 use rustc_span::{
     def_id::LocalDefId,
     sym::{self},
@@ -32,7 +35,11 @@ pub fn desugar_qualifier(
     genv: &GlobalEnv,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier> {
-    let mut binders = Binders::from_params(genv, &qualifier.args)?;
+    let sort_params = &[];
+    let sort_resolver =
+        SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), sort_params);
+
+    let mut binders = Binders::from_params(genv, &sort_resolver, &qualifier.args)?;
     let index_gen = IndexGen::new();
     let cx = ExprCtxt::new(genv, FluxOwnerId::Flux(qualifier.name.name), &index_gen);
     let expr = cx.desugar_expr(&binders, &qualifier.expr);
@@ -47,14 +54,18 @@ pub fn desugar_qualifier(
 
 pub fn desugar_defn(genv: &GlobalEnv, defn: surface::FuncDef) -> Result<Option<fhir::Defn>> {
     if let Some(body) = defn.body {
-        let mut binders = Binders::from_params(genv, &defn.args)?;
+        let sort_params = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
+        let sort_resolver =
+            SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), &sort_params);
+        let mut binders = Binders::from_params(genv, &sort_resolver, &defn.args)?;
         let local_id_gen = IndexGen::new();
         let cx = ExprCtxt::new(genv, FluxOwnerId::Flux(defn.name.name), &local_id_gen);
         let expr = cx.desugar_expr(&binders, &body)?;
         let name = defn.name.name;
-        let sort = resolve_sort(genv.sess, genv.map().sort_decls(), &defn.output)?;
+        let params = defn.sort_vars.len();
+        let sort = sort_resolver.resolve_sort(&defn.output)?;
         let args = binders.pop_layer().into_params(&cx);
-        Ok(Some(fhir::Defn { name, args, sort, expr }))
+        Ok(Some(fhir::Defn { name, params, args, sort, expr }))
     } else {
         Ok(None)
     }
@@ -65,21 +76,76 @@ pub fn func_def_to_func_decl(
     sort_decls: &fhir::SortDecls,
     defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl> {
+    let params = defn.sort_vars.len();
+    let sort_vars = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
+    let sr = SortResolver::with_sort_params(sess, sort_decls, &sort_vars);
     let inputs: Vec<fhir::Sort> = defn
         .args
         .iter()
-        .map(|arg| resolve_sort(sess, sort_decls, &arg.sort))
+        .map(|arg| sr.resolve_sort(&arg.sort))
         .try_collect_exhaust()?;
-    let output = resolve_sort(sess, sort_decls, &defn.output)?;
-    let sort = fhir::PolyFuncSort::new(0, inputs, output);
+    let output = sr.resolve_sort(&defn.output)?;
+    let sort = fhir::PolyFuncSort::new(params, inputs, output);
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
+fn gather_base_sort_vars(
+    generics: &FxHashSet<Symbol>,
+    base_sort: &surface::BaseSort,
+    sort_vars: &mut FxHashSet<Symbol>,
+) {
+    match base_sort {
+        surface::BaseSort::Ident(x) => {
+            if generics.contains(&x.name) {
+                sort_vars.insert(x.name);
+            }
+        }
+        surface::BaseSort::BitVec(_) => {}
+        surface::BaseSort::App(_, base_sorts) => {
+            for base_sort in base_sorts {
+                gather_base_sort_vars(generics, base_sort, sort_vars);
+            }
+        }
+    }
+}
+fn gather_sort_vars(
+    generics: &FxHashSet<Symbol>,
+    sort: &surface::Sort,
+    sort_vars: &mut FxHashSet<Symbol>,
+) {
+    match sort {
+        surface::Sort::Base(base_sort) => gather_base_sort_vars(generics, base_sort, sort_vars),
+        surface::Sort::Func { inputs, output } => {
+            for base_sort in inputs {
+                gather_base_sort_vars(generics, base_sort, sort_vars);
+            }
+            gather_base_sort_vars(generics, output, sort_vars);
+        }
+        surface::Sort::Infer => {}
+    }
+}
+
+fn gather_refined_by_sort_vars(
+    generics: &rustc_middle::ty::Generics,
+    refined_by: &surface::RefinedBy,
+) -> Vec<Symbol> {
+    let generics_syms: FxHashSet<Symbol> = generics.params.iter().map(|param| param.name).collect();
+    let mut sort_idents = FxHashSet::default();
+    for refine_param in &refined_by.index_params {
+        gather_sort_vars(&generics_syms, &refine_param.sort, &mut sort_idents);
+    }
+    generics
+        .params
+        .iter()
+        .filter_map(|param| if sort_idents.contains(&param.name) { Some(param.name) } else { None })
+        .collect()
+}
 pub fn desugar_refined_by(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
     owner_id: OwnerId,
+    generics: &rustc_middle::ty::Generics,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy> {
     let mut set = FxHashSet::default();
@@ -90,19 +156,36 @@ pub fn desugar_refined_by(
             Ok(())
         }
     })?;
+
+    let sort_vars = gather_refined_by_sort_vars(generics, refined_by);
+    let sr = SortResolver::with_sort_params(sess, sort_decls, &sort_vars);
+
     let early_bound_params: Vec<_> = refined_by
         .early_bound_params
         .iter()
-        .map(|param| resolve_sort(sess, sort_decls, &param.sort))
+        .map(|param| sr.resolve_sort(&param.sort))
         .try_collect_exhaust()?;
 
     let index_params: Vec<_> = refined_by
         .index_params
         .iter()
-        .map(|param| Ok((param.name.name, resolve_sort(sess, sort_decls, &param.sort)?)))
+        .map(|param| Ok((param.name.name, sr.resolve_sort(&param.sort)?)))
         .try_collect_exhaust()?;
 
-    Ok(fhir::RefinedBy::new(owner_id.def_id, early_bound_params, index_params, refined_by.span))
+    let generic_idx: FxHashMap<Symbol, hir::def_id::DefId> = generics
+        .params
+        .iter()
+        .map(|param| (param.name, param.def_id))
+        .collect();
+    let sort_params = sort_vars.iter().map(|sym| generic_idx[&sym]).collect();
+
+    Ok(fhir::RefinedBy::new(
+        owner_id.def_id,
+        early_bound_params,
+        index_params,
+        sort_params,
+        refined_by.span,
+    ))
 }
 
 pub(crate) struct DesugarCtxt<'a, 'tcx> {
@@ -111,6 +194,7 @@ pub(crate) struct DesugarCtxt<'a, 'tcx> {
     owner: OwnerId,
     resolver_output: &'a ResolverOutput,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
+    sort_resolver: SortResolver<'a>,
 }
 
 /// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -167,7 +251,17 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         resolver_output: &'a ResolverOutput,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> DesugarCtxt<'a, 'tcx> {
-        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), resolver_output, opaque_tys }
+        let generics = genv.tcx.generics_of(owner);
+        let sort_resolver =
+            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics);
+        DesugarCtxt {
+            genv,
+            owner,
+            local_id_gen: IndexGen::new(),
+            sort_resolver,
+            resolver_output,
+            opaque_tys,
+        }
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> DesugarCtxt<'b, 'tcx> {
@@ -184,6 +278,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
 
     pub(crate) fn desugar_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
         let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
+
         let generics_map: FxHashMap<_, _> = hir_generics
             .params
             .iter()
@@ -201,6 +296,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             let kind = match &param.kind {
                 surface::GenericParamKind::Type => fhir::GenericParamKind::Type { default: None },
                 surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
+                surface::GenericParamKind::Spl => fhir::GenericParamKind::SplTy,
                 surface::GenericParamKind::Refine { .. } => {
                     continue;
                 }
@@ -272,6 +368,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.push_layer();
         binders.insert_params(
             self.genv,
+            &self.sort_resolver,
             struct_def
                 .refined_by
                 .iter()
@@ -334,6 +431,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders.push_layer();
         binders.insert_params(
             self.genv,
+            &self.sort_resolver,
             enum_def
                 .refined_by
                 .iter()
@@ -394,7 +492,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::TyAlias> {
         binders.push_layer();
-        binders.insert_params(self.genv, ty_alias.refined_by.all_params())?;
+        binders.insert_params(self.genv, &self.sort_resolver, ty_alias.refined_by.all_params())?;
 
         let ty = self.desugar_ty(None, &ty_alias.ty, binders)?;
 
@@ -580,6 +678,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &mut Binders,
     ) -> Result<fhir::Ty> {
         let span = ty.span;
+        let generics = self.genv.tcx.generics_of(self.owner.def_id);
         let kind = match &ty.kind {
             surface::TyKind::Base(bty) => {
                 // CODESYNC(type-holes, 3)
@@ -626,10 +725,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::GeneralExists { params, ty, pred } => {
                 binders.push_layer();
+                let sr = SortResolver::with_generics(
+                    self.sess(),
+                    self.genv.map().sort_decls(),
+                    generics,
+                );
                 for param in params {
                     let fresh = binders.fresh();
-                    let sort =
-                        resolve_sort(self.sess(), self.genv.map().sort_decls(), &param.sort)?;
+                    let sort = sr.resolve_sort(&param.sort)?;
                     let binder = Binder::Refined(fresh, sort.clone(), false);
                     binders.insert_binder(self.sess(), param.name, binder)?;
                 }
@@ -708,9 +811,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             self.ident_into_refine_arg(*ident, binders)
                 .transpose()
                 .unwrap()
-        } else if let Some(fhir::Sort::Record(def_id)) = self.genv.sort_of_bty(bty) {
+        } else if let Some(fhir::Sort::Record(def_id, sort_args)) = self.genv.sort_of_bty(bty) {
             let flds = self.desugar_refine_args(&idxs.indices, binders)?;
-            Ok(fhir::RefineArg::Record(def_id, flds, idxs.span))
+            Ok(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
             self.desugar_refine_arg(arg, binders)
         } else {
@@ -746,7 +849,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::RefineArg::Abs(params, body, span) => {
                 binders.push_layer();
-                binders.insert_params(self.genv, params)?;
+                binders.insert_params(self.genv, &self.sort_resolver, params)?;
                 let body = self.as_expr_ctxt().desugar_expr(binders, body)?;
                 let params = binders.pop_layer().into_params(self);
                 Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
@@ -1064,8 +1167,7 @@ impl DesugarCtxt<'_, '_> {
         binders: &mut Binders,
     ) -> Result {
         self.gather_params_path(&ret.path, TypePos::Other, binders)?;
-        let res = self.resolver_output.path_res_map[&ret.path.node_id];
-        let Some(sort) = self.genv.sort_of_res(res) else {
+        let Some(sort) = sort_of_surface_path(self.genv, self.resolver_output, &ret.path) else {
             return Err(self.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
         };
         self.gather_params_indices(sort, &ret.indices, TypePos::Other, binders)
@@ -1086,16 +1188,15 @@ impl DesugarCtxt<'_, '_> {
     }
 
     fn gather_input_params_fn_sig(&self, fn_sig: &surface::FnSig, binders: &mut Binders) -> Result {
+        let generics = self.genv.tcx.generics_of(self.owner.def_id);
+        let sr =
+            SortResolver::with_generics(self.genv.sess, self.genv.map().sort_decls(), generics);
         for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
             let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
             binders.insert_binder(
                 self.genv.sess,
                 param.name,
-                Binder::Refined(
-                    binders.fresh(),
-                    resolve_sort(self.genv.sess, self.genv.map().sort_decls(), sort)?,
-                    false,
-                ),
+                Binder::Refined(binders.fresh(), sr.resolve_sort(sort)?, false),
             )?;
         }
         for arg in &fn_sig.args {
@@ -1124,12 +1225,12 @@ impl DesugarCtxt<'_, '_> {
     fn gather_params_fun_arg(&self, arg: &surface::Arg, binders: &mut Binders) -> Result {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                let res = self.resolver_output.path_res_map[&path.node_id];
-                binders.insert_binder(
-                    self.genv.sess,
-                    *bind,
-                    binders.binder_from_res(self.genv, res),
-                )?;
+                let zz = sort_of_surface_path(self.genv, self.resolver_output, path);
+                let Some(sort) = zz else {
+                    return Err(self.emit_err(errors::RefinedUnrefinableType::new(path.span)));
+                };
+
+                binders.insert_binder(self.genv.sess, *bind, binders.binder_from_sort(sort))?;
             }
             surface::Arg::StrgRef(loc, ty) => {
                 binders.insert_binder(
@@ -1302,91 +1403,114 @@ impl DesugarCtxt<'_, '_> {
     }
 }
 
-fn resolve_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    sort: &surface::Sort,
-) -> Result<fhir::Sort> {
-    match sort {
-        surface::Sort::Base(sort) => resolve_base_sort(sess, sort_decls, sort),
-        surface::Sort::Func { inputs, output } => {
-            Ok(resolve_func_sort(sess, sort_decls, inputs, output)?.into())
-        }
-        surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
-    }
+struct SortResolver<'a> {
+    sess: &'a FluxSession,
+    sort_decls: &'a fhir::SortDecls,
+    generic_params: FxHashMap<Symbol, rustc_span::def_id::DefId>,
+    sort_params: FxHashMap<Symbol, usize>,
 }
 
-fn resolve_func_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    inputs: &[surface::BaseSort],
-    output: &surface::BaseSort,
-) -> Result<fhir::PolyFuncSort> {
-    let inputs: Vec<fhir::Sort> = inputs
-        .iter()
-        .map(|sort| resolve_base_sort(sess, sort_decls, sort))
-        .try_collect_exhaust()?;
-    let output = resolve_base_sort(sess, sort_decls, output)?;
-    Ok(fhir::PolyFuncSort::new(0, inputs, output))
-}
-
-fn resolve_base_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    base: &surface::BaseSort,
-) -> Result<fhir::Sort> {
-    match base {
-        surface::BaseSort::Ident(ident) => resolve_base_sort_ident(sess, sort_decls, ident),
-        surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
-        surface::BaseSort::App(ident, args) => resolve_app_sort(sess, sort_decls, *ident, args),
-    }
-}
-
-fn resolve_sort_ctor(sess: &FluxSession, ident: surface::Ident) -> Result<fhir::SortCtor> {
-    if ident.name == SORTS.set {
-        Ok(fhir::SortCtor::Set)
-    } else if ident.name == SORTS.map {
-        Ok(fhir::SortCtor::Map)
-    } else {
-        Err(sess.emit_err(errors::UnresolvedSort::new(ident)))
-    }
-}
-
-fn resolve_app_sort(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    ident: surface::Ident,
-    args: &Vec<surface::BaseSort>,
-) -> Result<fhir::Sort> {
-    let ctor = resolve_sort_ctor(sess, ident)?;
-    let arity = ctor.arity();
-    if args.len() == arity {
-        let args = args
+impl<'a> SortResolver<'a> {
+    pub fn with_sort_params(
+        sess: &'a FluxSession,
+        sort_decls: &'a fhir::SortDecls,
+        sort_params: &[Symbol],
+    ) -> Self {
+        let sort_params = sort_params
             .iter()
-            .map(|arg| resolve_base_sort(sess, sort_decls, arg))
-            .try_collect_exhaust()?;
-        Ok(fhir::Sort::App(ctor, args))
-    } else {
-        Err(sess.emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+            .enumerate()
+            .map(|(i, v)| (*v, i))
+            .collect();
+        Self { sess, sort_decls, generic_params: Default::default(), sort_params }
     }
-}
 
-fn resolve_base_sort_ident(
-    sess: &FluxSession,
-    sort_decls: &fhir::SortDecls,
-    ident: &surface::Ident,
-) -> Result<fhir::Sort> {
-    if ident.name == SORTS.int {
-        Ok(fhir::Sort::Int)
-    } else if ident.name == sym::bool {
-        Ok(fhir::Sort::Bool)
-    } else if ident.name == SORTS.real {
-        Ok(fhir::Sort::Real)
-    } else if sort_decls.get(&ident.name).is_some() {
-        let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
-        Ok(fhir::Sort::App(ctor, List::empty()))
-    } else {
-        Err(sess.emit_err(errors::UnresolvedSort::new(*ident)))
+    pub fn with_generics(
+        sess: &'a FluxSession,
+        sort_decls: &'a fhir::SortDecls,
+        generics: &'a Generics,
+    ) -> Self {
+        let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
+        Self { sess, sort_decls, sort_params: Default::default(), generic_params }
+    }
+
+    fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
+        match sort {
+            surface::Sort::Base(sort) => self.resolve_base_sort(sort),
+            surface::Sort::Func { inputs, output } => {
+                Ok(self.resolve_func_sort(inputs, output)?.into())
+            }
+            surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
+        }
+    }
+
+    fn resolve_func_sort(
+        &self,
+        inputs: &[surface::BaseSort],
+        output: &surface::BaseSort,
+    ) -> Result<fhir::PolyFuncSort> {
+        let inputs: Vec<fhir::Sort> = inputs
+            .iter()
+            .map(|sort| self.resolve_base_sort(sort))
+            .try_collect_exhaust()?;
+        let output = self.resolve_base_sort(output)?;
+        Ok(fhir::PolyFuncSort::new(0, inputs, output))
+    }
+
+    fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort> {
+        match base {
+            surface::BaseSort::Ident(ident) => self.resolve_base_sort_ident(ident),
+            surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
+            surface::BaseSort::App(ident, args) => self.resolve_app_sort(*ident, args),
+        }
+    }
+
+    fn resolve_sort_ctor(&self, ident: surface::Ident) -> Result<fhir::SortCtor> {
+        if ident.name == SORTS.set {
+            Ok(fhir::SortCtor::Set)
+        } else if ident.name == SORTS.map {
+            Ok(fhir::SortCtor::Map)
+        } else {
+            Err(self.sess.emit_err(errors::UnresolvedSort::new(ident)))
+        }
+    }
+
+    fn resolve_app_sort(
+        &self,
+        ident: surface::Ident,
+        args: &Vec<surface::BaseSort>,
+    ) -> Result<fhir::Sort> {
+        let ctor = self.resolve_sort_ctor(ident)?;
+        let arity = ctor.arity();
+        if args.len() == arity {
+            let args = args
+                .iter()
+                .map(|arg| self.resolve_base_sort(arg))
+                .try_collect_exhaust()?;
+            Ok(fhir::Sort::App(ctor, args))
+        } else {
+            Err(self
+                .sess
+                .emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+        }
+    }
+
+    fn resolve_base_sort_ident(&self, ident: &surface::Ident) -> Result<fhir::Sort> {
+        if ident.name == SORTS.int {
+            Ok(fhir::Sort::Int)
+        } else if ident.name == sym::bool {
+            Ok(fhir::Sort::Bool)
+        } else if ident.name == SORTS.real {
+            Ok(fhir::Sort::Real)
+        } else if let Some(def_id) = self.generic_params.get(&ident.name) {
+            Ok(fhir::Sort::Param(*def_id))
+        } else if let Some(idx) = self.sort_params.get(&ident.name) {
+            Ok(fhir::Sort::Var(*idx))
+        } else if self.sort_decls.get(&ident.name).is_some() {
+            let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
+            Ok(fhir::Sort::App(ctor, List::empty()))
+        } else {
+            Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident)))
+        }
     }
 }
 
@@ -1397,28 +1521,27 @@ impl Binders {
 
     fn from_params<'a>(
         genv: &GlobalEnv,
+        sort_resolver: &SortResolver,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result<Self> {
         let mut binders = Self::new();
         binders.push_layer();
-        binders.insert_params(genv, params)?;
+        binders.insert_params(genv, sort_resolver, params)?;
         Ok(binders)
     }
 
     fn insert_params<'a>(
         &mut self,
         genv: &GlobalEnv,
+        sort_resolver: &SortResolver,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result {
+        // let sr = SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), sort_params);
         for param in params {
             self.insert_binder(
                 genv.sess,
                 param.name,
-                Binder::Refined(
-                    self.fresh(),
-                    resolve_sort(genv.sess, genv.map().sort_decls(), &param.sort)?,
-                    false,
-                ),
+                Binder::Refined(self.fresh(), sort_resolver.resolve_sort(&param.sort)?, false),
             )?;
         }
         Ok(())
@@ -1463,14 +1586,6 @@ impl Binders {
 
     fn binder_from_sort(&self, sort: fhir::Sort) -> Binder {
         Binder::Refined(self.fresh(), sort, true)
-    }
-
-    fn binder_from_res(&self, genv: &GlobalEnv, res: fhir::Res) -> Binder {
-        if let Some(sort) = genv.sort_of_res(res) {
-            self.binder_from_sort(sort)
-        } else {
-            Binder::Unrefined
-        }
     }
 
     fn binder_from_bty(
@@ -1581,21 +1696,65 @@ fn index_sort(
     resolver_output: &ResolverOutput,
     bty: &surface::BaseTy,
 ) -> Option<fhir::Sort> {
-    // CODESYNC(sort-of, 4) sorts should be given consistently
+    // CODESYNC(sort-of, 3) sorts should be given consistently
     match &bty.kind {
-        surface::BaseTyKind::Path(path) => {
-            let res = resolver_output.path_res_map[&path.node_id];
-            genv.sort_of_res(res)
-        }
+        surface::BaseTyKind::Path(path) => sort_of_surface_path(genv, resolver_output, path),
         surface::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
     }
 }
 
-fn as_tuple<'a>(genv: &'a GlobalEnv, sort: &'a fhir::Sort) -> &'a [fhir::Sort] {
-    if let fhir::Sort::Record(def_id) = sort {
-        genv.index_sorts_of(*def_id)
+fn sort_of_surface_path(
+    genv: &GlobalEnv,
+    resolver_output: &ResolverOutput,
+    path: &surface::Path,
+) -> Option<fhir::Sort> {
+    // CODESYNC(sort-of-path, 2) sorts should be given consistently
+    let res = resolver_output.path_res_map[&path.node_id];
+
+    match res {
+        fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
+        fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
+        fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => Some(fhir::Sort::Unit),
+        fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
+            // TODO: duplication with sort_of_path
+            let mut sort_args = vec![];
+            if let Ok(generics) = genv.generics_of(def_id) {
+                for (param, arg) in generics.params.iter().zip(&path.generics) {
+                    if let rty::GenericParamDefKind::SplTy = param.kind {
+                        let surface::GenericArg::Type(ty) = arg else { return None };
+                        let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind else {
+                            return None;
+                        };
+                        let sort = sort_of_surface_path(genv, resolver_output, path)?;
+                        sort_args.push(sort);
+                    }
+                }
+            };
+            Some(fhir::Sort::Record(def_id, List::from_vec(sort_args)))
+        }
+        fhir::Res::Def(DefKind::TyParam, def_id) => {
+            let param = genv.get_generic_param(def_id.expect_local());
+            match &param.kind {
+                fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
+                fhir::GenericParamKind::Type { .. }
+                | fhir::GenericParamKind::Lifetime
+                | fhir::GenericParamKind::SplTy => None,
+            }
+        }
+
+        fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) | fhir::Res::SelfTyParam { .. } => {
+            None
+        }
+        fhir::Res::SelfTyAlias { alias_to, .. } => genv.sort_of_self_ty_alias(alias_to),
+
+        fhir::Res::Def(..) => bug!("unexpected res {res:?}"),
+    }
+}
+fn as_tuple<'a>(genv: &'a GlobalEnv, sort: &'a fhir::Sort) -> Vec<fhir::Sort> {
+    if let fhir::Sort::Record(def_id, sort_args) = sort {
+        genv.index_sorts_of(*def_id, sort_args)
     } else {
-        slice::from_ref(sort)
+        vec![sort.clone()]
     }
 }
 

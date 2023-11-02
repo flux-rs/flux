@@ -10,8 +10,8 @@ use lalrpop_util::ParseError;
 
 grammar(cx: &mut ParseCtxt<'_>);
 
-Generics: surface::Generics = {
-    <lo:@L> "<" <params:Comma<GenericParam>> ">" <hi:@R> => {
+pub Generics: surface::Generics = {
+    <lo:@L> <params:Comma<GenericParam>> <hi:@R> => {
         surface::Generics {
             params,
             span: cx.map_span(lo, hi),
@@ -25,6 +25,7 @@ GenericParam: surface::GenericParam = {
         let kind = match kind.as_str() {
             "type" => surface::GenericParamKind::Type,
             "base" => surface::GenericParamKind::Base,
+            "spl"  => surface::GenericParamKind::Spl,
             _ => return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         };
         Ok(surface::GenericParam { name, kind })
@@ -62,7 +63,7 @@ pub TyAlias: surface::TyAlias = {
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L> <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
+    <lo:@L>  <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
         index_params,
         early_bound_params: vec![],
         span: cx.map_span(lo, hi)
@@ -92,13 +93,18 @@ Qualifier: surface::Qualifier = {
 }
 
 FuncDef: surface::FuncDef = {
-    "fn" <name:Ident> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
-        surface::FuncDef { name, args, output, body: Some(body) }
+    "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
+        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: Some(body) }
     },
-    "fn" <name:Ident> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
-        surface::FuncDef { name, args, output, body: None }
+    "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
+        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: None }
     }
 }
+
+SortVars: Vec<Ident> = {
+    "<" <vars:Comma<Ident>> ">" => vars,
+}
+
 
 SortDecl: surface::SortDecl = {
     "opaque" "sort" <name:Ident> ";" => {
@@ -141,7 +147,7 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
-    <generics:Generics?>
+    <generics:("<" Generics ">")?>
     "(" <args:Args> ")"
     <ret_lo:@L> <ret_hi:@R>
     <returns:("->" <Ty>)?>
@@ -157,6 +163,7 @@ pub FnSig: surface::FnSig = {
         } else {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
+        let generics = generics.map(|z| z.1);
         surface::FnSig {
             asyncness,
             generics,
