@@ -1,42 +1,27 @@
+#![feature(register_tool)]
 use std::path::PathBuf;
 
 pub fn find_flux_path() -> PathBuf {
-    let executable_name = if cfg!(windows) { "flux-driver.exe" } else { "flux-driver" };
+    let executable_name = if cfg!(windows) { "rustc-flux.exe" } else { "rustc-flux" };
     find_file_in_target_dir(executable_name)
 }
 
+/// Rustc flags to pass Flux when running tests
 pub fn rustc_flags() -> Vec<String> {
-    vec![
-        "-Zcrate-attr=feature(register_tool,custom_inner_attributes)".to_string(),
-        "-Zcrate-attr=register_tool(flux)".to_string(),
-        "--crate-type=rlib".to_string(),
-        "--edition=2021".to_string(),
-        format!("--extern=flux_rs={}", find_flux_rs_lib_path().display()),
-    ]
-}
-
-fn find_flux_rs_lib_path() -> PathBuf {
-    let flux_rs_lib = if cfg!(target_os = "linux") {
-        "libflux_rs.so"
-    } else if cfg!(target_os = "macos") {
-        "libflux_rs.dylib"
-    } else {
-        todo!("implement for windows")
-    };
-    find_file_in_target_dir(flux_rs_lib)
+    vec!["--crate-type=rlib".to_string(), "--edition=2021".to_string()]
 }
 
 fn find_file_in_target_dir(file: &str) -> PathBuf {
     let target_directory = if cfg!(debug_assertions) { "debug" } else { "release" };
-    let local_flux_driver_path: PathBuf = ["target", target_directory, file].into_iter().collect();
-    if local_flux_driver_path.exists() {
-        return local_flux_driver_path;
+    let local_path: PathBuf = ["target", target_directory, file].into_iter().collect();
+    if local_path.exists() {
+        return local_path;
     }
-    let workspace_flux_driver_path: PathBuf = ["..", "..", "target", target_directory, file]
+    let workspace_path: PathBuf = ["..", "..", "target", target_directory, file]
         .into_iter()
         .collect();
-    if workspace_flux_driver_path.exists() {
-        return workspace_flux_driver_path;
+    if workspace_path.exists() {
+        return workspace_path;
     }
     panic!("Could not find {file}");
 }

@@ -19,7 +19,7 @@ use rustc_hir::def_id::DefId;
 use crate::{
     checker::errors::CheckerErrKind,
     constraint_gen::ConstrGen,
-    refine_tree::{RefineCtxt, UnpackFlags},
+    refine_tree::{AssumeInvariants, RefineCtxt},
     CheckerConfig,
 };
 
@@ -87,9 +87,7 @@ pub(crate) struct LookupResult<'a> {
 pub(crate) trait LookupMode {
     type Error = !;
 
-    fn unpack(&mut self, ty: &Ty) -> Ty {
-        ty.clone()
-    }
+    fn unpack(&mut self, ty: &Ty) -> Ty;
 
     fn downcast_struct(
         &mut self,
@@ -105,7 +103,10 @@ impl LookupMode for Unfold<'_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.1.unpack_with(ty, UnpackFlags::SHALLOW)
+        self.1
+            .unpacker(AssumeInvariants::No)
+            .shallow(true)
+            .unpack(ty)
     }
 
     fn downcast_struct(
@@ -123,6 +124,10 @@ struct NoUnfold;
 impl LookupMode for NoUnfold {
     fn downcast_struct(&mut self, _: &AdtDef, _: &[GenericArg], _: &Index) -> Result<Vec<Ty>, !> {
         tracked_span_bug!("cannot unfold in `NoUnfold` mode")
+    }
+
+    fn unpack(&mut self, ty: &Ty) -> Ty {
+        ty.clone()
     }
 }
 
@@ -316,13 +321,13 @@ impl LookupResult<'_> {
         old
     }
 
-    pub(crate) fn unblock(self, rcx: &mut RefineCtxt) {
+    pub(crate) fn unblock(self, rcx: &mut RefineCtxt, check_overflow: bool) {
         if self.ty.is_uninit() {
             return;
         }
         let mut unblocked = self.ty.unblocked();
         if self.is_strg {
-            unblocked = rcx.unpack(&unblocked);
+            unblocked = rcx.unpack(&unblocked, AssumeInvariants::yes(check_overflow));
         }
         Updater::update(self.bindings, self.cursor, unblocked);
     }
@@ -359,7 +364,7 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
         let Some(elem) = self.cursor.next() else {
             return self.unfold(ty);
         };
-        let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+        let ty = self.unpack(ty);
         match elem {
             PlaceElem::Deref => self.deref(&ty),
             PlaceElem::Field(f) => self.field(&ty, f),
@@ -411,11 +416,11 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
                 Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
         } else if ty.is_struct() {
-            let ty = self.rcx.unpack_with(ty, UnpackFlags::SHALLOW);
+            let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
             Ok(ty)
         } else if ty.is_array() || ty.is_slice() {
-            Ok(self.rcx.unpack_with(ty, UnpackFlags::SHALLOW))
+            Ok(self.unpack(ty))
         } else {
             Ok(ty.clone())
         }
@@ -475,11 +480,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
                 let mut fields = downcast_struct(self.genv, adt, args, idx)?
                     .into_iter()
-                    .map(|ty| {
-                        let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
-                        self.assume_invariants(&ty);
-                        ty
-                    })
+                    .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 let args = args.with_holes();
@@ -500,11 +501,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
                 let fields = downcast(self.genv, self.rcx, adt, args, variant, idx)?
                     .into_iter()
-                    .map(|ty| {
-                        let ty = self.rcx.unpack_with(&ty, self.unpack_flags_for_downcast());
-                        self.assume_invariants(&ty);
-                        ty
-                    })
+                    .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
                 Ty::downcast(adt.clone(), args.with_holes(), ty.clone(), variant, fields.into())
             }
@@ -530,22 +527,27 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
         Ok(())
     }
 
-    fn assume_invariants(&mut self, ty: &Ty) {
+    fn unpack(&mut self, ty: &Ty) -> Ty {
         self.rcx
-            .assume_invariants(ty, self.checker_conf.check_overflow);
+            .unpacker(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .shallow(true)
+            .unpack(ty)
+    }
+
+    fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
+        let mut unpacker = self.rcx.unpacker(AssumeInvariants::No).shallow(true);
+        if self.in_ref == Some(Mutability::Mut) {
+            unpacker = unpacker.unpack_exists(false);
+        }
+        let ty = unpacker.unpack(ty);
+        self.rcx
+            .assume_invariants(&ty, self.checker_conf.check_overflow);
+        ty
     }
 
     fn change_root(&mut self, path: &Path) {
         self.has_work = true;
         self.cursor.change_root(path);
-    }
-
-    fn unpack_flags_for_downcast(&self) -> UnpackFlags {
-        if self.in_ref == Some(Mutability::Mut) {
-            UnpackFlags::NO_UNPACK_EXISTS
-        } else {
-            UnpackFlags::empty()
-        }
     }
 
     fn should_continue(&mut self) -> bool {
@@ -687,7 +689,7 @@ impl Cursor {
     }
 }
 
-pub(crate) fn downcast(
+fn downcast(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
@@ -713,7 +715,7 @@ pub(crate) fn downcast(
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
-pub(crate) fn downcast_struct(
+fn downcast_struct(
     genv: &GlobalEnv,
     adt: &AdtDef,
     args: &[GenericArg],
@@ -743,7 +745,7 @@ fn struct_variant(
 ///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) => T[j'...]`
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
-pub(crate) fn downcast_enum(
+fn downcast_enum(
     genv: &GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,

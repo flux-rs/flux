@@ -53,10 +53,6 @@ pub fn cache_path() -> PathBuf {
     log_dir().join(&CONFIG.cache_file)
 }
 
-pub fn driver_path() -> Option<&'static PathBuf> {
-    CONFIG.driver_path.as_ref()
-}
-
 pub fn check_overflow() -> bool {
     CONFIG.check_overflow
 }
@@ -73,7 +69,6 @@ pub struct CrateConfig {
 
 #[derive(Deserialize)]
 struct Config {
-    driver_path: Option<PathBuf>,
     log_dir: PathBuf,
     dump_constraint: bool,
     dump_checker_trace: bool,

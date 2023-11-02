@@ -1,4 +1,4 @@
-#![allow(clippy::all, clippy::pedantic)]
+#![allow(clippy::pedantic)]
 #![deny(unused_must_use)]
 
 use proc_macro2::TokenStream;
@@ -205,7 +205,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
 
                 throw_span_err!(
                     attr.span().unwrap(),
-                    &format!(
+                    format!(
                         "diagnostic slug must be first argument of a `#[{name}(...)]` attribute"
                     )
                 );
@@ -586,7 +586,9 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     }
                 }
                 _ => {
-                    if let Some(span) = span_field && !no_span {
+                    if let Some(span) = span_field
+                        && !no_span
+                    {
                         quote! { #diag.#name(#span, #message); }
                     } else {
                         quote! { #diag.#name(#message); }

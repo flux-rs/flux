@@ -15,7 +15,6 @@ flux-macros.workspace = true
 flux-middle.workspace = true
 itertools.workspace = true
 
-bitflags = "2.4"
 tracing = "0.1"
 
 

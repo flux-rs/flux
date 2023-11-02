@@ -39,7 +39,7 @@ use crate::{
     fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
     queue::WorkQueue,
-    refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
 };
@@ -257,7 +257,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
             let mut env = M::enter_basic_block(&mut ck, &mut rcx, bb);
-            env.unpack(&mut rcx);
+            env.unpack(&mut rcx, ck.config.check_overflow);
             ck.check_basic_block(rcx, env, bb)?;
         }
 
@@ -276,7 +276,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match constr {
                 rty::Constraint::Type(path, ty) => {
                     let loc = path.to_loc().unwrap();
-                    let ty = rcx.unpack(ty);
+                    let ty = rcx.unpack(ty, AssumeInvariants::No);
+                    rcx.assume_invariants(&ty, config.check_overflow);
                     env.alloc_universal_loc(loc, ty);
                 }
                 rty::Constraint::Pred(e) => {
@@ -286,7 +287,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         }
 
         for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-            let ty = rcx.unpack(ty);
+            let ty = rcx.unpack(ty, AssumeInvariants::No);
             rcx.assume_invariants(&ty, config.check_overflow);
             env.alloc_with_ty(local, ty);
         }
@@ -351,7 +352,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         ty: Ty,
         source_info: SourceInfo,
     ) -> Result<(), CheckerError> {
-        let ty = rcx.unpack(&ty);
+        let ty = rcx.unpack(&ty, AssumeInvariants::yes(self.config.check_overflow));
         let gen = &mut self.constr_gen(rcx, source_info.span);
         env.assign(rcx, gen, place, ty).with_src_info(source_info)
     }
@@ -484,7 +485,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     &actuals,
                 )?;
 
-                let ret = rcx.unpack(&ret);
+                let ret = rcx.unpack(&ret, AssumeInvariants::No);
                 rcx.assume_invariants(&ret, self.config.check_overflow);
                 let mut gen = self.constr_gen(rcx, terminator_span);
                 env.assign(rcx, &mut gen, destination, ret)
@@ -535,7 +536,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty) => {
-                    let updated_ty = rcx.unpack(updated_ty);
+                    let updated_ty = rcx.unpack(updated_ty, AssumeInvariants::No);
+                    rcx.assume_invariants(&updated_ty, self.config.check_overflow);
                     env.update_path(path, updated_ty);
                 }
                 Constraint::Pred(e) => rcx.assume_pred(e.clone()),
@@ -1039,7 +1041,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
             Operand::Constant(c) => self.check_constant(c)?,
         };
-        Ok(rcx.unpack(&ty))
+        Ok(rcx.unpack(&ty, AssumeInvariants::yes(self.config.check_overflow)))
     }
 
     fn check_constant(&mut self, c: &Constant) -> Result<Ty, CheckerError> {
@@ -1100,7 +1102,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 env.unfold(self.genv, rcx, place, self.config)
                     .with_span(span)?;
             }
-            GhostStatement::Unblock(place) => env.unblock(rcx, place),
+            GhostStatement::Unblock(place) => env.unblock(rcx, place, self.config.check_overflow),
             GhostStatement::PtrToBorrow(place) => {
                 let gen = &mut self.constr_gen(rcx, span);
                 env.ptr_to_borrow(rcx, gen, place).with_span(span)?;

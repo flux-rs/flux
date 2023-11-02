@@ -462,19 +462,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux-attrs-proc-macros-build"
-version = "0.1.0"
-dependencies = [
- "flux-rs",
-]
-
-[[package]]
 name = "flux-bin"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "dirs",
- "flux-config",
+ "home",
  "rust-toolchain-file",
 ]
 
@@ -600,7 +593,6 @@ dependencies = [
 name = "flux-refineck"
 version = "0.1.0"
 dependencies = [
- "bitflags 2.4.0",
  "flux-common",
  "flux-config",
  "flux-errors",
@@ -616,7 +608,6 @@ name = "flux-rs"
 version = "0.1.0"
 dependencies = [
  "flux-attrs",
- "proc-macro2",
 ]
 
 [[package]]
@@ -632,6 +623,7 @@ name = "flux-tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
+ "flux-bin",
  "itertools",
 ]
 
@@ -699,6 +691,15 @@ name = "hermit-abi"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
+
+[[package]]
+name = "home"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5444c27eef6923071f7ebcc33e3444508466a76f7a2b93da00ed6e19f30c1ddb"
+dependencies = [
+ "windows-sys",
+]
 
 [[package]]
 name = "indexmap"
@@ -820,9 +821,9 @@ checksum = "9cdc71e17332e86d2e1d38c1f99edcb6288ee11b815fb1a4b049eaa2114d369b"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.4.3"
+version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09fc20d2ca12cb9f044c93e3bd6d32d523e6e2ec3db4f7b2939cd99026ecd3f0"
+checksum = "da2479e8c062e40bf0066ffa0bc823de0a9368974af99c9f6df941d2c231e03f"
 
 [[package]]
 name = "lock_api"
@@ -1176,9 +1177,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.4"
+version = "0.38.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a962918ea88d644592894bc6dc55acc6c0956488adcebbfb6e273506b7fd6e5"
+checksum = "745ecfa778e66b2b63c88a61cb36e0eea109e803b0b86bf9879fbc77c70e86ed"
 dependencies = [
  "bitflags 2.4.0",
  "errno",
@@ -1827,6 +1828,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "flux-bin",
  "flux-tests",
  "opener",
  "xflags",

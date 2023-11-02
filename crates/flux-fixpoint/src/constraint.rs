@@ -624,12 +624,10 @@ impl Constant {
         }
     }
 
-    /// Converts to an i128 and returns None if there is an overflow
-    fn to_int(self) -> Option<i128> {
-        if let Constant::Int(n) = self {
-            n.to_int()
-        } else {
-            None
+    fn to_int(self) -> Option<BigInt> {
+        match self {
+            Constant::Int(n) => Some(n),
+            _ => None,
         }
     }
 

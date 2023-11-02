@@ -4,6 +4,7 @@
 use std::{env, path::PathBuf};
 
 use compiletest_rs::{common::Mode, Config};
+use flux_bin::utils::FLUX_SYSROOT;
 use flux_tests::{find_flux_path, rustc_flags};
 use itertools::Itertools;
 
@@ -20,6 +21,8 @@ fn test_runner(_: &[&()]) {
     let mut config = config();
 
     config.target_rustcflags = Some(rustc_flags().join(" "));
+
+    env::set_var(FLUX_SYSROOT, config.rustc_path.parent().unwrap());
 
     let path: PathBuf = ["tests", "pos"].iter().collect();
     if path.exists() {

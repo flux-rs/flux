@@ -806,7 +806,7 @@ impl ToTokens for Item {
 impl ToTokens for ItemFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let ItemFn { attrs, vis, sig, block } = self;
-        #[cfg(feature = "enabled")]
+        #[cfg(flux_sysroot)]
         {
             let flux_sig = ToTokensFlux(sig);
             quote!(#[flux::sig(#flux_sig)]).to_tokens(tokens);
@@ -904,7 +904,7 @@ impl ToTokens for ImplItem {
 impl ToTokens for ImplItemFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let ImplItemFn { attrs, vis, sig, block } = self;
-        #[cfg(feature = "enabled")]
+        #[cfg(flux_sysroot)]
         {
             let flux_sig = ToTokensFlux(sig);
             quote!(#[flux::sig(#flux_sig)]).to_tokens(tokens);
