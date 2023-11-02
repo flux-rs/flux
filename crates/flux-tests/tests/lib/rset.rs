@@ -3,7 +3,7 @@
 use std::hash::Hash;
 
 #[flux::opaque]
-#[flux::refined_by(<T> {elems: Set<T>})]
+#[flux::refined_by(elems: Set<T>)]
 pub struct RSet<T> {
     pub inner: std::collections::HashSet<T>,
 }
