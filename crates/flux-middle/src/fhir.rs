@@ -538,17 +538,6 @@ impl PolyFuncSort {
             .collect();
         FuncSort { inputs_and_output }
     }
-
-    // fn mk_param_subst(&self, subst: &SortParamSubst) -> PolyFuncSort {
-    //     let params = self.params;
-    //     let args = self
-    //         .fsort
-    //         .inputs_and_output
-    //         .iter()
-    //         .map(|arg| arg.param_subst(subst))
-    //         .collect();
-    //     PolyFuncSort { params, fsort: FuncSort { inputs_and_output: args } }
-    // }
 }
 
 #[derive(Clone)]
