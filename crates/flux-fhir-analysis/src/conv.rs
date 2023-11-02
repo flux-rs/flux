@@ -637,9 +637,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
     fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
         let sort = self.genv.sort_of_bty(bty);
-        // if sort.is_none() {
-        //     println!("TRACE: conv_base_ty {bty:?} ==> None");
-        // }
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {

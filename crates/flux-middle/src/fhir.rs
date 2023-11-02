@@ -656,6 +656,7 @@ impl BaseTy {
             BaseTyKind::Path(QPath::Resolved(_, Path { res: Res::PrimTy(PrimTy::Bool), .. }))
         )
     }
+
     pub fn as_path(&self) -> Option<&Path> {
         match &self.kind {
             BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
