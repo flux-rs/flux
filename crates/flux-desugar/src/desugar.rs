@@ -104,7 +104,7 @@ fn gather_base_sort_vars(
         surface::BaseSort::BitVec(_) => {}
         surface::BaseSort::App(_, base_sorts) => {
             for base_sort in base_sorts {
-                gather_base_sort_vars(generics, base_sort, sort_vars)
+                gather_base_sort_vars(generics, base_sort, sort_vars);
             }
         }
     }
@@ -172,11 +172,10 @@ pub fn desugar_refined_by(
         .map(|param| Ok((param.name.name, sr.resolve_sort(&param.sort)?)))
         .try_collect_exhaust()?;
 
-    let generic_idx: FxHashMap<Symbol, usize> = generics
+    let generic_idx: FxHashMap<Symbol, hir::def_id::DefId> = generics
         .params
         .iter()
-        .enumerate()
-        .map(|(i, param)| (param.name, i))
+        .map(|param| (param.name, param.def_id))
         .collect();
     let sort_params = sort_vars.iter().map(|sym| generic_idx[&sym]).collect();
 

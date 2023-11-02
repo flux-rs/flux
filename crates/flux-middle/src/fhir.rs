@@ -746,13 +746,13 @@ impl Ident {
 /// Sort parameters e.g. #[flux::refined_by( elems: Set<T> )] tracks the mapping from
 /// bound Var -> Generic id. e.g. if we have RMap<K, V> refined_by(keys: Set<K>)
 /// then RMapIdx = forall #0. { keys: Set<#0> }
-/// and sort_params = vec![0]  i.e. maps Var(0) to Generic(0)
+/// and sort_params = vec![T]  i.e. maps Var(0) to T
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
-    sort_params: Vec<usize>,
+    sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -794,8 +794,8 @@ impl Generics {
 
     pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
         let mut params = vec![];
-        for (idx, param) in self.params.iter().enumerate() {
-            let kind = if refined_by.is_base_generic(idx) {
+        for param in self.params {
+            let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
                 GenericParamKind::SplTy
             } else {
                 param.kind.clone()
@@ -811,7 +811,7 @@ impl RefinedBy {
         def_id: impl Into<DefId>,
         early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
-        sort_params: Vec<usize>,
+        sort_params: Vec<DefId>,
         span: Span,
     ) -> Self {
         let mut sorts = early_bound_params.into_iter().collect_vec();
@@ -856,8 +856,8 @@ impl RefinedBy {
             .collect()
     }
 
-    fn is_base_generic(&self, param_idx: usize) -> bool {
-        self.sort_params.contains(&param_idx)
+    fn is_base_generic(&self, def_id: DefId) -> bool {
+        self.sort_params.contains(&def_id)
     }
 }
 
