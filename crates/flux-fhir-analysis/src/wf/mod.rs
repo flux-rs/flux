@@ -417,7 +417,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 if let fhir::GenericArg::Type(ty) = arg {
                     self.check_ty_is_base(ty)?;
                 } else {
-                    bug!("expected type argument got `{arg:?}`")
+                    bug!("expected type argument got `{arg:?}`");
                 }
             }
         }
@@ -498,7 +498,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
         let snapshot = self.xi.snapshot();
 
-        if let fhir::Res::Def(_kind, did) = &path.res /*&& !matches!(_kind, DefKind::TyParam) */ && path.args.len() > 0 {
+        if let fhir::Res::Def(_kind, did) = &path.res /*&& !matches!(_kind, DefKind::TyParam) */ && !path.args.is_empty() {
             self.check_generic_args(infcx, *did, &path.args)?;
         }
         let bindings = self.check_type_bindings(infcx, &path.bindings);
