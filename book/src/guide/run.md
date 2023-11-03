@@ -38,9 +38,6 @@ to register the `flux` tool in order to
 add refinement annotations to functions.
 
 ```rust
-#![feature(register_tool)]
-#![register_tool(flux)]
-
 #[flux::sig(fn(x: i32) -> i32{v: x < v})]
 pub fn inc(x: i32) -> i32 {
     x - 1
@@ -57,9 +54,9 @@ you should see in your output
 
 ```text
 error[FLUX]: postcondition might not hold
- --> test0.rs:6:5
+ --> test0.rs:3:5
   |
-6 |     x - 1
+3 |     x - 1
   |     ^^^^^
 ```
 
@@ -99,18 +96,6 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 }
 ```
 
-If you want to change the `flux-driver` used by `cargo-flux`, then also specify the
-`FLUX_PATH` like in the example below, which uses the version generated when you
-run `cargo build`.
-
-``` json
-{
-  "rust-analyzer.check.extraEnv": {
-    "FLUX_DRIVER_PATH": "/path/to/flux-repo/target/debug/flux-driver",
-  }
-}
-```
-
 **Note:** Make sure to edit the paths in the above snippet to point to the correct locations on your machine.
 
 ## Configuration
@@ -121,10 +106,10 @@ You can set various `env` variables to customize the behavior of `flux`.
 
 * `FLUX_CONFIG` tells `flux` where to find a config file for these settings.
   * By default, `flux` searches its directory for a `flux.toml` or `.flux.toml`.
-* `FLUX_DRIVER_PATH=path/to/flux-driver` tells `cargo-flux` and `rustc-flux` where to find the `flux` binary.
-  * Defaults to the default `flux-driver` installation (typically found in `~/.cargo/bin`).
-* `FLUX_LOG_DIR=path/to/log/` with default `./log/`
-* `FLUX_DUMP_CONSTRAINT=1` sets the directory where constraints, timing and cache are saved.
+* `FLUX_SYSROOT` tells `cargo-flux` and `rustc-flux` where to find the `flux-driver` binary.
+  * Defaults to the default installation location in `~/.flux`.
+* `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
+* `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
 * `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
 * `FLUX_DUMP_TIMINGS=1` saves the profile information
 * `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
@@ -166,12 +151,12 @@ was overridden by setting the environment variable `FLUX_DUMP_MIR=0`.
 ### Crate Config
 
 Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux::cfg]`.
-This can only be used in nightly and requires enabling the feature `custom_inner_attributes`
+This annotation relies on the unstable custom inner attributes feature. To be able to use with a
+non-nightly compiler you have to put it under a `cfg_attr`.
 For example, to enable overflow checking:
 
 ```rust
-#![feature(custom_inner_attributes)]
-#![flux:cfg(check_overflow = true)]
+#![cfg_attr(flux, flux::cfg(check_overflow = true))]
 ```
 
 The only flag supported now is overflow checking.
