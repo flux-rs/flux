@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["lift_fn","lift_refined_by","lift_self_ty","lift_type_alias"],"mod":["errors"],"struct":["LiftCtxt"]};
+window.SIDEBAR_ITEMS = {"fn":["lift_fn","lift_generics","lift_refined_by","lift_self_ty","lift_type_alias"],"mod":["errors"],"struct":["LiftCtxt"]};

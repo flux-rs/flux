@@ -190,9 +190,18 @@
 <a href="#190" id="190">190</a>
 <a href="#191" id="191">191</a>
 <a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 //!
-//! # NOTE
+//! # Generics and Desugaring
 //!
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
@@ -245,10 +254,9 @@
     <span class="kw">let </span><span class="kw-2">mut </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
 
     <span class="comment">// Desugar and insert generics
-    </span><span class="kw">let </span>(generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()<span class="question-mark">?</span>;
-    genv.map().insert_generics(def_id, generics);
+    </span><span class="kw">let </span>predicates = cx.as_lift_cx().lift_predicates()<span class="question-mark">?</span>;
 
-    <span class="comment">// Desugar of struct_def needs to happen AFTER inserting generics. See crate level comment
+    <span class="comment">// Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
     </span><span class="kw">let </span>struct_def = cx.desugar_struct_def(struct_def, <span class="kw-2">&amp;mut </span>Binders::new())<span class="question-mark">?</span>;
     <span class="kw">if </span>config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, <span class="string">&quot;fhir&quot;</span>, <span class="kw-2">&amp;</span>struct_def).unwrap();
@@ -365,15 +373,25 @@
 }
 
 <span class="doccomment">/// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
-/// for items that don&#39;t have surface syntax (impl blocks, traits, ...). In this cases we just [lift]
-/// them from hir.
+/// for items that don&#39;t have surface syntax (impl blocks, traits, ...), or for `impl` blocks with
+/// explicit `generics` annotations. In the former case, we use `desugar`; in the latter cases we
+/// just [lift] them from hir.
 </span><span class="kw">pub fn </span>desugar_generics_and_predicates(
     genv: <span class="kw-2">&amp;mut </span>GlobalEnv,
     owner_id: OwnerId,
+    resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
+    generics: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::Generics&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">let </span>def_id = owner_id.def_id;
-    <span class="kw">let </span>(generics, predicates) =
+    <span class="kw">let </span>(lifted_generics, predicates) =
         LiftCtxt::new(genv.tcx, genv.sess, owner_id, <span class="prelude-val">None</span>).lift_generics_with_predicates()<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>generics = <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = generics {
+        <span class="kw">let </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
+        cx.desugar_generics(generics)<span class="question-mark">?
+    </span>} <span class="kw">else </span>{
+        lifted_generics
+    };
+    <span class="kw">let </span>def_id = owner_id.def_id;
     genv.map().insert_generics(def_id, generics);
     genv.map_mut().insert_generic_predicates(def_id, predicates);
     <span class="prelude-val">Ok</span>(())

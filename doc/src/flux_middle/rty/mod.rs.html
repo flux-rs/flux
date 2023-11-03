@@ -2096,6 +2096,27 @@
 <a href="#2096" id="2096">2096</a>
 <a href="#2097" id="2097">2097</a>
 <a href="#2098" id="2098">2098</a>
+<a href="#2099" id="2099">2099</a>
+<a href="#2100" id="2100">2100</a>
+<a href="#2101" id="2101">2101</a>
+<a href="#2102" id="2102">2102</a>
+<a href="#2103" id="2103">2103</a>
+<a href="#2104" id="2104">2104</a>
+<a href="#2105" id="2105">2105</a>
+<a href="#2106" id="2106">2106</a>
+<a href="#2107" id="2107">2107</a>
+<a href="#2108" id="2108">2108</a>
+<a href="#2109" id="2109">2109</a>
+<a href="#2110" id="2110">2110</a>
+<a href="#2111" id="2111">2111</a>
+<a href="#2112" id="2112">2112</a>
+<a href="#2113" id="2113">2113</a>
+<a href="#2114" id="2114">2114</a>
+<a href="#2115" id="2115">2115</a>
+<a href="#2116" id="2116">2116</a>
+<a href="#2117" id="2117">2117</a>
+<a href="#2118" id="2118">2118</a>
+<a href="#2119" id="2119">2119</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2181,6 +2202,7 @@
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 </span><span class="kw">pub enum </span>GenericParamDefKind {
     Type { has_default: bool },
+    SplTy,
     BaseTy,
     Lifetime,
     Const { has_default: bool },
@@ -2303,8 +2325,8 @@
 <span class="attr">#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>AdtDefData {
     invariants: Vec&lt;Invariant&gt;,
-    sort: Sort,
-    opaque: bool,
+    sort: Sort, <span class="comment">// TODO: Binder&lt;Sort&gt; as there may be Var in `Sort`
+    </span>opaque: bool,
     rustc: rustc::ty::AdtDef,
 }
 
@@ -2536,10 +2558,17 @@
             <span class="macro">bug!</span>(<span class="string">&quot;expected `rty::GenericArg::Ty`, found {:?}&quot;</span>, <span class="self">self</span>)
         }
     }
+    <span class="kw">pub fn </span>is_valid_base_arg(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            GenericArg::Ty(ty) =&gt; ty.kind().is_valid_base_ty(),
+            GenericArg::BaseTy(bty) =&gt; bty.as_ref().skip_binder().kind().is_valid_base_ty(),
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        }
+    }
 
     <span class="kw">fn </span>from_param_def(param: <span class="kw-2">&amp;</span>GenericParamDef) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>param.kind {
-            GenericParamDefKind::Type { .. } =&gt; {
+            GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy =&gt; {
                 <span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
                 GenericArg::Ty(Ty::param(param_ty))
             }
@@ -3394,6 +3423,19 @@
     <span class="kw">fn </span>intern(<span class="self">self</span>) -&gt; Ty {
         Interned::new(TyS { kind: <span class="self">self </span>})
     }
+
+    <span class="kw">fn </span>is_valid_base_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyKind::Param(<span class="kw">_</span>) | TyKind::Indexed(<span class="kw">_</span>, <span class="kw">_</span>) | TyKind::Exists(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+            TyKind::Constr(<span class="kw">_</span>, ty) =&gt; ty.kind().is_valid_base_ty(),
+            TyKind::Uninit
+            | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Blocked(<span class="kw">_</span>)
+            | TyKind::Alias(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+        }
+    }
 }
 
 <span class="kw">impl </span>TyS {
@@ -3566,7 +3608,7 @@
     }
 
     <span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
-        <span class="comment">// CODESYNC(sort-of, 4) sorts should be given consistently
+        <span class="comment">// CODESYNC(sort-of, 3) sorts should be given consistently
         </span><span class="kw">match </span><span class="self">self </span>{
             BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Slice(<span class="kw">_</span>) =&gt; Sort::Int,
             BaseTy::Bool =&gt; Sort::Bool,

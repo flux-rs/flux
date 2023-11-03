@@ -1659,6 +1659,73 @@
 <a href="#1659" id="1659">1659</a>
 <a href="#1660" id="1660">1660</a>
 <a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1722,9 +1789,10 @@
     <span class="kw">pub </span>kind: GenericParamKind,
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub enum </span>GenericParamKind {
     Type { default: <span class="prelude-ty">Option</span>&lt;Ty&gt; },
+    SplTy,
     BaseTy,
     Lifetime,
 }
@@ -2053,7 +2121,7 @@
         </span>is_binder: bool,
     },
     Abs(Vec&lt;RefineParam&gt;, Expr, Span, FhirId),
-    Record(DefId, Vec&lt;RefineArg&gt;, Span),
+    Record(DefId, List&lt;Sort&gt;, Vec&lt;RefineArg&gt;, Span),
 }
 
 <span class="doccomment">/// These are types of things that may be refined with indices or existentials
@@ -2093,8 +2161,7 @@
 </span><span class="kw">pub enum </span>GenericArg {
     Lifetime(Lifetime),
     Type(Ty),
-    <span class="comment">// Constraint(SurfaceIdent, Ty),
-</span>}
+}
 
 <span class="attr">#[derive(Eq, PartialEq, Debug, Copy, Clone)]
 </span><span class="kw">pub enum </span>Res {
@@ -2158,7 +2225,8 @@
     </span>Var(usize),
     <span class="doccomment">/// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
-    </span>Record(DefId),
+    /// the List&lt;Sort&gt; is for the type parameters of (generic) record sorts
+    </span>Record(DefId, List&lt;Sort&gt;),
     <span class="doccomment">/// The sort associated to a type variable
     </span>Param(DefId),
     <span class="doccomment">/// A sort that needs to be inferred
@@ -2292,9 +2360,7 @@
 <span class="kw">impl </span>Ty {
     <span class="kw">pub fn </span>as_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Path&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            TyKind::BaseTy(BaseTy {
-                kind: BaseTyKind::Path(QPath::Resolved(<span class="prelude-val">None</span>, path)), ..
-            }) =&gt; <span class="prelude-val">Some</span>(path),
+            TyKind::BaseTy(bty) =&gt; bty.as_path(),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -2306,6 +2372,13 @@
             <span class="self">self</span>.kind,
             BaseTyKind::Path(QPath::Resolved(<span class="kw">_</span>, Path { res: Res::PrimTy(PrimTy::Bool), .. }))
         )
+    }
+
+    <span class="kw">pub fn </span>as_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Path&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+            BaseTyKind::Path(QPath::Resolved(<span class="prelude-val">None</span>, path)) =&gt; <span class="prelude-val">Some</span>(path),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
     }
 }
 
@@ -2386,10 +2459,17 @@
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
+///
+/// Sort parameters e.g. #[flux::refined_by( elems: Set&lt;T&gt; )] tracks the mapping from
+/// bound Var -&gt; Generic id. e.g. if we have RMap&lt;K, V&gt; refined_by(keys: Set&lt;K&gt;)
+/// then RMapIdx = forall #0. { keys: Set&lt;#0&gt; }
+/// and sort_params = vec![T]  i.e. maps Var(0) to T
+
 </span><span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>RefinedBy {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>span: Span,
+    sort_params: Vec&lt;DefId&gt;,
     <span class="doccomment">/// Index parameters indexed by their name and in the same order they appear in the definition.
     </span>index_params: FxIndexMap&lt;Symbol, Sort&gt;,
     <span class="doccomment">/// The number of early bound parameters
@@ -2418,6 +2498,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Defn {
     <span class="kw">pub </span>name: Symbol,
+    <span class="kw">pub </span>params: usize,
     <span class="kw">pub </span>args: Vec&lt;RefineParam&gt;,
     <span class="kw">pub </span>sort: Sort,
     <span class="kw">pub </span>expr: Expr,
@@ -2427,6 +2508,19 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span>GenericParam {
         <span class="self">self</span>.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
+
+    <span class="kw">pub fn </span>with_refined_by(<span class="self">self</span>, refined_by: <span class="kw-2">&amp;</span>RefinedBy) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>params = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>param <span class="kw">in </span><span class="self">self</span>.params {
+            <span class="kw">let </span>kind = <span class="kw">if </span>refined_by.is_base_generic(param.def_id.to_def_id()) {
+                GenericParamKind::SplTy
+            } <span class="kw">else </span>{
+                param.kind.clone()
+            };
+            params.push(GenericParam { def_id: param.def_id, kind });
+        }
+        Generics { params }
+    }
 }
 
 <span class="kw">impl </span>RefinedBy {
@@ -2434,6 +2528,7 @@
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
         early_bound_params: <span class="kw">impl </span>IntoIterator&lt;Item = Sort&gt;,
         index_params: <span class="kw">impl </span>IntoIterator&lt;Item = (Symbol, Sort)&gt;,
+        sort_params: Vec&lt;DefId&gt;,
         span: Span,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>sorts = early_bound_params.into_iter().collect_vec();
@@ -2442,23 +2537,44 @@
             .into_iter()
             .inspect(|(<span class="kw">_</span>, sort)| sorts.push(sort.clone()))
             .collect();
-        RefinedBy { def_id: def_id.into(), span, index_params, early_bound, sorts }
+        RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
+    }
+
+    <span class="kw">pub fn </span>trivial(def_id: <span class="kw">impl </span>Into&lt;DefId&gt;, span: Span) -&gt; <span class="self">Self </span>{
+        RefinedBy {
+            def_id: def_id.into(),
+            sort_params: Default::default(),
+            span,
+            index_params: Default::default(),
+            early_bound: <span class="number">0</span>,
+            sorts: <span class="macro">vec!</span>[],
+        }
     }
 
     <span class="kw">pub fn </span>field_index(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
         <span class="self">self</span>.index_params.get_index_of(<span class="kw-2">&amp;</span>fld)
     }
 
-    <span class="kw">pub fn </span>field_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Sort&gt; {
-        <span class="self">self</span>.index_params.get(<span class="kw-2">&amp;</span>fld)
+    <span class="kw">pub fn </span>field_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: Symbol, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; <span class="prelude-ty">Option</span>&lt;Sort&gt; {
+        <span class="self">self</span>.index_params.get(<span class="kw-2">&amp;</span>fld).map(|sort| sort.subst(args))
     }
 
-    <span class="kw">pub fn </span>early_bound_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Sort] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.sorts[..<span class="self">self</span>.early_bound]
+    <span class="kw">pub fn </span>early_bound_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; Vec&lt;Sort&gt; {
+        <span class="self">self</span>.sorts[..<span class="self">self</span>.early_bound]
+            .iter()
+            .map(|sort| sort.subst(args))
+            .collect()
     }
 
-    <span class="kw">pub fn </span>index_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Sort] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.sorts[<span class="self">self</span>.early_bound..]
+    <span class="kw">pub fn </span>index_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; Vec&lt;Sort&gt; {
+        <span class="self">self</span>.sorts[<span class="self">self</span>.early_bound..]
+            .iter()
+            .map(|sort| sort.subst(args))
+            .collect()
+    }
+
+    <span class="kw">fn </span>is_base_generic(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; bool {
+        <span class="self">self</span>.sort_params.contains(<span class="kw-2">&amp;</span>def_id)
     }
 }
 
@@ -2496,7 +2612,7 @@
         <span class="self">Self</span>::App(SortCtor::Map, List::from_vec(<span class="macro">vec!</span>[k, v]))
     }
 
-    <span class="doccomment">/// replace all &quot;sort-parameters&quot; (indexed 0...n-1) with the corresponding sort in `subst`
+    <span class="doccomment">/// replace all &quot;sort-vars&quot; (indexed 0...n-1) with the corresponding sort in `subst`
     </span><span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, subst: <span class="kw-2">&amp;</span>[Sort]) -&gt; Sort {
         <span class="kw">match </span><span class="self">self </span>{
             Sort::Int
@@ -2507,14 +2623,21 @@
             | Sort::BitVec(<span class="kw">_</span>)
             | Sort::Param(<span class="kw">_</span>)
             | Sort::Wildcard
-            | Sort::Record(<span class="kw">_</span>)
+            | Sort::Record(<span class="kw">_</span>, <span class="kw">_</span>)
             | Sort::Infer(<span class="kw">_</span>) =&gt; <span class="self">self</span>.clone(),
             Sort::Var(i) =&gt; subst[<span class="kw-2">*</span>i].clone(),
             Sort::App(c, args) =&gt; {
                 <span class="kw">let </span>args = args.iter().map(|arg| arg.subst(subst)).collect();
                 Sort::App(c.clone(), args)
             }
-            Sort::Func(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected subst in (nested) func-sort&quot;</span>),
+            Sort::Func(fsort) =&gt; {
+                <span class="kw">if </span>fsort.params == <span class="number">0 </span>{
+                    <span class="kw">let </span>fsort = fsort.instantiate(subst);
+                    Sort::Func(PolyFuncSort { params: <span class="number">0</span>, fsort })
+                } <span class="kw">else </span>{
+                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected subst in (nested) func-sort&quot;</span>)
+                }
+            }
         }
     }
 }
@@ -3283,7 +3406,18 @@
             Sort::Loc =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;loc&quot;</span>),
             Sort::Func(sort) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{sort}&quot;</span>),
             Sort::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;()&quot;</span>),
-            Sort::Record(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, pretty::def_id_to_string(<span class="kw-2">*</span>def_id)),
+            Sort::Record(def_id, sort_args) =&gt; {
+                <span class="kw">if </span>sort_args.is_empty() {
+                    <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, pretty::def_id_to_string(<span class="kw-2">*</span>def_id))
+                } <span class="kw">else </span>{
+                    <span class="macro">write!</span>(
+                        f,
+                        <span class="string">&quot;{}&lt;{}&gt;&quot;</span>,
+                        pretty::def_id_to_string(<span class="kw-2">*</span>def_id),
+                        sort_args.iter().join(<span class="string">&quot;, &quot;</span>)
+                    )
+                }
+            }
             Sort::Param(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sortof({})&quot;</span>, pretty::def_id_to_string(<span class="kw-2">*</span>def_id)),
             Sort::Wildcard =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;_&quot;</span>),
             Sort::Infer(vid) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{vid:?}&quot;</span>),

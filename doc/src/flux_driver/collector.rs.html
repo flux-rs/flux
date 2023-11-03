@@ -890,6 +890,43 @@
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
 <a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::iter::IterExt;
@@ -933,6 +970,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Specs {
     <span class="kw">pub </span>fn_sigs: UnordMap&lt;OwnerId, FnSpec&gt;,
     <span class="kw">pub </span>structs: FxHashMap&lt;OwnerId, surface::StructDef&gt;,
+    <span class="kw">pub </span>impls: FxHashMap&lt;OwnerId, surface::Generics&gt;,
     <span class="kw">pub </span>enums: FxHashMap&lt;OwnerId, surface::EnumDef&gt;,
     <span class="kw">pub </span>qualifs: Vec&lt;surface::Qualifier&gt;,
     <span class="kw">pub </span>func_defs: Vec&lt;surface::FuncDef&gt;,
@@ -993,6 +1031,7 @@
                 ItemKind::Mod(..) =&gt; collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) =&gt; collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) =&gt; collector.parse_const_spec(item, attrs),
+                ItemKind::Impl(<span class="kw">_</span>) =&gt; collector.parse_impl_spec(owner_id, attrs),
                 <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
             };
         }
@@ -1077,6 +1116,21 @@
         }
     }
 
+    <span class="kw">fn </span>parse_impl_spec(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        owner_id: OwnerId,
+        attrs: <span class="kw-2">&amp;</span>[Attribute],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs)<span class="question-mark">?</span>;
+        <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = attrs.generics() {
+            <span class="self">self</span>.specs.impls.insert(owner_id, generics);
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>parse_tyalias_spec(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         owner_id: OwnerId,
@@ -1101,6 +1155,8 @@
 
         <span class="kw">let </span>refined_by = attrs.refined_by();
 
+        <span class="kw">let </span>generics = attrs.generics();
+
         <span class="kw">let </span>fields = data
             .fields()
             .iter()
@@ -1120,9 +1176,10 @@
                 .insert(extern_def_id, owner_id.def_id);
         }
 
-        <span class="self">self</span>.specs
-            .structs
-            .insert(owner_id, surface::StructDef { refined_by, fields, opaque, invariants });
+        <span class="self">self</span>.specs.structs.insert(
+            owner_id,
+            surface::StructDef { generics, refined_by, fields, opaque, invariants },
+        );
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1219,7 +1276,14 @@
             .filter_map(|attr| {
                 <span class="kw">if let </span>AttrKind::Normal(attr_item, ..) = <span class="kw-2">&amp;</span>attr.kind {
                     <span class="kw">match </span><span class="kw-2">&amp;</span>attr_item.item.path.segments[..] {
-                        [first, ..] <span class="kw">if </span>first.ident.as_str() == <span class="string">&quot;flux&quot; </span>=&gt; <span class="prelude-val">Some</span>(attr_item),
+                        [first, ..] =&gt; {
+                            <span class="kw">let </span>ident = first.ident.as_str();
+                            <span class="kw">if </span>ident == <span class="string">&quot;flux&quot; </span>|| ident == <span class="string">&quot;flux_tool&quot; </span>{
+                                <span class="prelude-val">Some</span>(attr_item)
+                            } <span class="kw">else </span>{
+                                <span class="prelude-val">None
+                            </span>}
+                        }
                         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
                     }
                 } <span class="kw">else </span>{
@@ -1252,6 +1316,9 @@
             </span>}
             (<span class="string">&quot;refined_by&quot;</span>, AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)<span class="question-mark">?
+            </span>}
+            (<span class="string">&quot;generics&quot;</span>, AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="self">self</span>.parse(dargs, ParseSess::parse_generics, FluxAttrKind::Generics)<span class="question-mark">?
             </span>}
             (<span class="string">&quot;field&quot;</span>, AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)<span class="question-mark">?
@@ -1381,6 +1448,7 @@
     <span class="kw">fn </span>new() -&gt; Specs {
         Specs {
             fn_sigs: Default::default(),
+            impls: Default::default(),
             structs: Default::default(),
             enums: Default::default(),
             qualifs: Vec::default(),
@@ -1438,6 +1506,7 @@
     Opaque,
     FnSig(surface::FnSig),
     RefinedBy(surface::RefinedBy),
+    Generics(surface::Generics),
     QualNames(surface::QualNames),
     Items(Vec&lt;surface::Item&gt;),
     TypeAlias(surface::TyAlias),
@@ -1528,6 +1597,10 @@
         <span class="macro">read_attr!</span>(<span class="self">self</span>, RefinedBy)
     }
 
+    <span class="kw">fn </span>generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::Generics&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, Generics)
+    }
+
     <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::Ty&gt; {
         <span class="macro">read_attr!</span>(<span class="self">self</span>, Field)
     }
@@ -1566,6 +1639,7 @@
             FluxAttrKind::FnSig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(FnSig),
             FluxAttrKind::ConstSig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(ConstSig),
             FluxAttrKind::RefinedBy(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(RefinedBy),
+            FluxAttrKind::Generics(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Generics),
             FluxAttrKind::Items(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Items),
             FluxAttrKind::QualNames(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(QualNames),
             FluxAttrKind::Field(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Field),

@@ -587,6 +587,52 @@
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -596,11 +642,12 @@
 
 <span class="kw">use </span>std::iter;
 
-<span class="kw">use </span>flux_common::{iter::IterExt, span_bug};
-<span class="kw">use </span>flux_errors::FluxSession;
+<span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
+<span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, FluxOwnerId, SurfaceIdent, WfckResults},
     global_env::GlobalEnv,
+    rty::GenericParamDefKind,
 };
 <span class="kw">use </span>rustc_data_structures::{
     snapshot_map::{<span class="self">self</span>, SnapshotMap},
@@ -608,7 +655,7 @@
 };
 <span class="kw">use </span>rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 <span class="kw">use </span>rustc_hash::FxHashSet;
-<span class="kw">use </span>rustc_hir::{def::DefKind, OwnerId};
+<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 <span class="kw">use </span>rustc_span::Symbol;
 
 <span class="kw">use </span><span class="self">self</span>::sortck::InferCtxt;
@@ -822,8 +869,9 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>bound {
             fhir::GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_path(infcx, <span class="kw-2">&amp;</span>trait_ref.trait_ref),
-            fhir::GenericBound::LangItemTrait(<span class="kw">_</span>, args, bindings) =&gt; {
-                <span class="self">self</span>.check_generic_args(infcx, args)<span class="question-mark">?</span>;
+            fhir::GenericBound::LangItemTrait(lang_item, args, bindings) =&gt; {
+                <span class="kw">let </span>def_id = <span class="self">self</span>.genv.tcx.require_lang_item(<span class="kw-2">*</span>lang_item, <span class="prelude-val">None</span>);
+                <span class="self">self</span>.check_generic_args(infcx, def_id, args)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_type_bindings(infcx, bindings)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(())
             }
@@ -949,9 +997,10 @@
                 <span class="self">self</span>.check_type(infcx, ty)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_pred(infcx, pred)
             }
-            fhir::TyKind::OpaqueDef(<span class="kw">_</span>, args, _refine_args, <span class="kw">_</span>) =&gt; {
+            fhir::TyKind::OpaqueDef(item_id, args, _refine_args, <span class="kw">_</span>) =&gt; {
                 <span class="comment">// TODO sanity check the _refine_args (though they should never fail!) but we&#39;d need their expected sorts
-                </span><span class="self">self</span>.check_generic_args(infcx, args)
+                </span><span class="kw">let </span>def_id = item_id.owner_id.to_def_id();
+                <span class="self">self</span>.check_generic_args(infcx, def_id, args)
             }
             fhir::TyKind::RawPtr(ty, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_type(infcx, ty),
             fhir::TyKind::Hole(<span class="kw">_</span>) | fhir::TyKind::Never =&gt; <span class="prelude-val">Ok</span>(()),
@@ -971,11 +1020,52 @@
             .try_collect_exhaust()
     }
 
+    <span class="kw">fn </span>check_ty_is_base(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
+            fhir::TyKind::BaseTy(<span class="kw">_</span>) | fhir::TyKind::Indexed(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
+            fhir::TyKind::Tuple(tys) =&gt; {
+                <span class="kw">for </span>ty <span class="kw">in </span>tys {
+                    <span class="self">self</span>.check_ty_is_base(ty)<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+            fhir::TyKind::Constr(<span class="kw">_</span>, ty) | fhir::TyKind::Exists(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.check_ty_is_base(ty),
+
+            fhir::TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
+            | fhir::TyKind::Ref(<span class="kw">_</span>, <span class="kw">_</span>)
+            | fhir::TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
+            | fhir::TyKind::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)
+            | fhir::TyKind::OpaqueDef(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
+            | fhir::TyKind::Never
+            | fhir::TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="self">self</span>.emit_err(errors::InvalidBaseInstance::new(ty)),
+        }
+    }
+
+    <span class="kw">fn </span>check_generic_args_kinds(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+        args: <span class="kw-2">&amp;</span>[fhir::GenericArg],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id).emit(<span class="self">self</span>.genv.sess)<span class="question-mark">?</span>;
+        <span class="kw">for </span>(arg, param) <span class="kw">in </span>iter::zip(args, <span class="kw-2">&amp;</span>generics.params) {
+            <span class="kw">if </span>param.kind == GenericParamDefKind::SplTy {
+                <span class="kw">if let </span>fhir::GenericArg::Type(ty) = arg {
+                    <span class="self">self</span>.check_ty_is_base(ty)<span class="question-mark">?</span>;
+                } <span class="kw">else </span>{
+                    <span class="macro">bug!</span>(<span class="string">&quot;expected type argument got `{arg:?}`&quot;</span>);
+                }
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>check_generic_args(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        def_id: DefId,
         args: <span class="kw-2">&amp;</span>[fhir::GenericArg],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        <span class="self">self</span>.check_generic_args_kinds(def_id, args)<span class="question-mark">?</span>;
         args.iter()
             .try_for_each_exhaust(|arg| <span class="self">self</span>.check_generic_arg(infcx, arg))
     }
@@ -1025,7 +1115,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>path.res {
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) =&gt; {
-                <span class="kw">let </span>sorts = <span class="self">self</span>.genv.early_bound_sorts_of(<span class="kw-2">*</span>def_id);
+                <span class="kw">let </span>sorts = <span class="self">self</span>.genv.early_bound_sorts_of(<span class="kw-2">*</span>def_id, <span class="kw-2">&amp;</span>[]);
                 <span class="kw">if </span>path.refine.len() != sorts.len() {
                     <span class="kw">return </span><span class="self">self</span>.emit_err(errors::EarlyBoundArgCountMismatch::new(
                         path.span,
@@ -1034,7 +1124,7 @@
                     ));
                 }
                 iter::zip(<span class="kw-2">&amp;</span>path.refine, sorts)
-                    .try_for_each_exhaust(|(arg, sort)| <span class="self">self</span>.check_refine_arg(infcx, arg, sort))<span class="question-mark">?</span>;
+                    .try_for_each_exhaust(|(arg, sort)| <span class="self">self</span>.check_refine_arg(infcx, arg, <span class="kw-2">&amp;</span>sort))<span class="question-mark">?</span>;
             }
             fhir::Res::SelfTyParam { .. }
             | fhir::Res::SelfTyAlias { .. }
@@ -1042,12 +1132,14 @@
             | fhir::Res::PrimTy(..) =&gt; {}
         }
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
-        <span class="kw">let </span>args = <span class="self">self</span>.check_generic_args(infcx, <span class="kw-2">&amp;</span>path.args);
+
+        <span class="kw">if let </span>fhir::Res::Def(_kind, did) = <span class="kw-2">&amp;</span>path.res <span class="comment">/*&amp;&amp; !matches!(_kind, DefKind::TyParam) */ </span>&amp;&amp; !path.args.is_empty() {
+            <span class="self">self</span>.check_generic_args(infcx, <span class="kw-2">*</span>did, <span class="kw-2">&amp;</span>path.args)<span class="question-mark">?</span>;
+        }
         <span class="kw">let </span>bindings = <span class="self">self</span>.check_type_bindings(infcx, <span class="kw-2">&amp;</span>path.bindings);
         <span class="kw">if </span>!<span class="self">self</span>.genv.is_box(path.res) {
             <span class="self">self</span>.xi.rollback_to(snapshot);
         }
-        args<span class="question-mark">?</span>;
         bindings<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
@@ -1087,7 +1179,7 @@
                 <span class="prelude-val">Ok</span>(())
             }
             fhir::RefineArg::Abs(<span class="kw">_</span>, body, ..) =&gt; <span class="self">self</span>.check_param_uses_expr(infcx, body, <span class="bool-val">true</span>),
-            fhir::RefineArg::Record(<span class="kw">_</span>, flds, ..) =&gt; {
+            fhir::RefineArg::Record(<span class="kw">_</span>, <span class="kw">_</span>, flds, ..) =&gt; {
                 flds.iter()
                     .try_for_each_exhaust(|arg| <span class="self">self</span>.check_param_uses_refine_arg(infcx, arg))
             }

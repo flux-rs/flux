@@ -1214,6 +1214,23 @@
 <a href="#1214" id="1214">1214</a>
 <a href="#1215" id="1215">1215</a>
 <a href="#1216" id="1216">1216</a>
+<a href="#1217" id="1217">1217</a>
+<a href="#1218" id="1218">1218</a>
+<a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
+<a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1378,6 +1395,7 @@
                 fhir::GenericParamKind::Type { default } =&gt; {
                     rty::GenericParamDefKind::Type { has_default: default.is_some() }
                 }
+                fhir::GenericParamKind::SplTy =&gt; rty::GenericParamDefKind::SplTy,
                 fhir::GenericParamKind::BaseTy =&gt; rty::GenericParamDefKind::BaseTy,
                 fhir::GenericParamKind::Lifetime =&gt; rty::GenericParamDefKind::Lifetime,
             };
@@ -1409,12 +1427,24 @@
     })
 }
 
+<span class="kw">fn </span>sort_args_for_adt(genv: <span class="kw-2">&amp;</span>GlobalEnv, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; List&lt;fhir::Sort&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
+    <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>genv.tcx.generics_of(def_id.into()).params {
+        <span class="kw">if let </span>rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind {
+            sort_args.push(fhir::Sort::Param(param.def_id));
+        }
+    }
+    List::from_vec(sort_args)
+}
+
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>adt_def_for_struct(
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     invariants: Vec&lt;rty::Invariant&gt;,
     struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
 ) -&gt; rty::AdtDef {
-    <span class="kw">let </span>sort = rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(struct_def.owner_id)));
+    <span class="kw">let </span>def_id = struct_def.owner_id;
+    <span class="kw">let </span>sort_args = sort_args_for_adt(genv, def_id);
+    <span class="kw">let </span>sort = rty::Sort::tuple(conv_sorts(genv, <span class="kw-2">&amp;</span>genv.index_sorts_of(def_id, <span class="kw-2">&amp;</span>sort_args)));
     <span class="kw">let </span>adt_def = lowering::lower_adt_def(<span class="kw-2">&amp;</span>genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
@@ -1424,7 +1454,9 @@
     invariants: Vec&lt;rty::Invariant&gt;,
     enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
 ) -&gt; rty::AdtDef {
-    <span class="kw">let </span>sort = rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(enum_def.owner_id)));
+    <span class="kw">let </span>def_id = enum_def.owner_id;
+    <span class="kw">let </span>sort_args = sort_args_for_adt(genv, def_id);
+    <span class="kw">let </span>sort = rty::Sort::tuple(conv_sorts(genv, <span class="kw-2">&amp;</span>genv.index_sorts_of(def_id, <span class="kw-2">&amp;</span>sort_args)));
     <span class="kw">let </span>adt_def = lowering::lower_adt_def(<span class="kw-2">&amp;</span>genv.tcx.adt_def(enum_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, <span class="bool-val">false</span>)
 }
@@ -1597,8 +1629,9 @@
                 <span class="kw">let </span>kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 <span class="prelude-val">Ok</span>(rty::BoundVariableKind::Region(kind))
             }
-            fhir::GenericParamKind::Type { default: <span class="kw">_ </span>} =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected!&quot;</span>),
-            fhir::GenericParamKind::BaseTy =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected!&quot;</span>),
+            fhir::GenericParamKind::Type { default: <span class="kw">_ </span>}
+            | fhir::GenericParamKind::BaseTy
+            | fhir::GenericParamKind::SplTy =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected!&quot;</span>),
         }
     }
 
@@ -1856,7 +1889,6 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Ty::param(param_ty));
             }
         }
-
         <span class="kw">let </span>sort = conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>sort.unwrap());
         <span class="kw">if </span>sort.is_unit() {
             <span class="kw">let </span>idx = rty::Index::from(rty::Expr::unit());
@@ -1926,7 +1958,7 @@
                 <span class="kw">let </span>expr = <span class="self">self</span>.add_coercions(rty::Expr::abs(body), <span class="kw-2">*</span>fhir_id);
                 (expr, rty::TupleTree::Leaf(<span class="bool-val">false</span>))
             }
-            fhir::RefineArg::Record(<span class="kw">_</span>, flds, ..) =&gt; {
+            fhir::RefineArg::Record(<span class="kw">_</span>, <span class="kw">_</span>, flds, ..) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>exprs = <span class="macro">vec!</span>[];
                 <span class="kw">let </span><span class="kw-2">mut </span>is_binder = <span class="macro">vec!</span>[];
                 <span class="kw">for </span>arg <span class="kw">in </span>flds {
@@ -2303,10 +2335,12 @@
     <span class="kw">fn </span>is_record(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             LookupResultKind::LateBoundList {
-                entry: Entry::Sort { sort: fhir::Sort::Record(def_id), .. },
+                entry: Entry::Sort { sort: fhir::Sort::Record(def_id, <span class="kw">_</span>), .. },
                 ..
             } =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id),
-            LookupResultKind::EarlyBound { sort: fhir::Sort::Record(def_id), .. } =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id),
+            LookupResultKind::EarlyBound { sort: fhir::Sort::Record(def_id, <span class="kw">_</span>), .. } =&gt; {
+                <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id)
+            }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -2358,8 +2392,8 @@
         fhir::Sort::Loc =&gt; rty::Sort::Loc,
         fhir::Sort::Unit =&gt; rty::Sort::unit(),
         fhir::Sort::Func(fsort) =&gt; rty::Sort::Func(conv_func_sort(genv, fsort)),
-        fhir::Sort::Record(def_id) =&gt; {
-            rty::Sort::tuple(conv_sorts(genv, genv.index_sorts_of(<span class="kw-2">*</span>def_id)))
+        fhir::Sort::Record(def_id, sort_args) =&gt; {
+            rty::Sort::tuple(conv_sorts(genv, <span class="kw-2">&amp;</span>genv.index_sorts_of(<span class="kw-2">*</span>def_id, sort_args)))
         }
         fhir::Sort::App(ctor, args) =&gt; {
             <span class="kw">let </span>ctor = conv_sort_ctor(ctor);

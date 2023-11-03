@@ -199,7 +199,7 @@ If you are using <code>rustup</code>, no special action is needed as it should i
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo xtask install
 </code></pre>
-<p>This will the binaries <code>rustc-flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
+<p>This will install two binaries <code>rustc-flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
 respectively to run flux on either a single file or on a project using cargo. The installation process will
 also copy some files to <code>$HOME/.flux</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
@@ -226,10 +226,7 @@ We use the nightly feature <code>register_tool</code>
 to register the <code>flux</code> tool in order to
 add refinement annotations to functions.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(register_tool)]
-#![register_tool(flux)]
-
-<span class="boring">fn main() {
+</span><span class="boring">fn main() {
 </span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
 pub fn inc(x: i32) -&gt; i32 {
     x - 1
@@ -240,9 +237,9 @@ pub fn inc(x: i32) -&gt; i32 {
 </code></pre>
 <p>you should see in your output</p>
 <pre><code class="language-text">error[FLUX]: postcondition might not hold
- --&gt; test0.rs:6:5
+ --&gt; test0.rs:3:5
   |
-6 |     x - 1
+3 |     x - 1
   |     ^^^^^
 </code></pre>
 <p>as indeed <code>x - 1</code> is <em>not</em> greater than <code>x</code> as required by the output refinement <code>i32{v: x &lt; v}</code>.</p>
@@ -270,15 +267,6 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
   ]
 }
 </code></pre>
-<p>If you want to change the <code>flux-driver</code> used by <code>cargo-flux</code>, then also specify the
-<code>FLUX_PATH</code> like in the example below, which uses the version generated when you
-run <code>cargo build</code>.</p>
-<pre><code class="language-json">{
-  &quot;rust-analyzer.check.extraEnv&quot;: {
-    &quot;FLUX_DRIVER_PATH&quot;: &quot;/path/to/flux-repo/target/debug/flux-driver&quot;,
-  }
-}
-</code></pre>
 <p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
 <h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
@@ -289,13 +277,13 @@ run <code>cargo build</code>.</p>
 <li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
 </ul>
 </li>
-<li><code>FLUX_DRIVER_PATH=path/to/flux-driver</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux</code> binary.
+<li><code>FLUX_SYSROOT</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux-driver</code> binary.
 <ul>
-<li>Defaults to the default <code>flux-driver</code> installation (typically found in <code>~/.cargo/bin</code>).</li>
+<li>Defaults to the default installation location in <code>~/.flux</code>.</li>
 </ul>
 </li>
-<li><code>FLUX_LOG_DIR=path/to/log/</code> with default <code>./log/</code></li>
-<li><code>FLUX_DUMP_CONSTRAINT=1</code> sets the directory where constraints, timing and cache are saved.</li>
+<li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
+<li><code>FLUX_DUMP_CONSTRAINT=1</code> tell <code>flux</code> to dump constraints generated for each function.</li>
 <li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
 <li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
@@ -326,11 +314,11 @@ containing profiling information. It will <em>not</em> dump the MIR because that
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
 <p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
-This can only be used in nightly and requires enabling the feature <code>custom_inner_attributes</code>
+This annotation relies on the unstable custom inner attributes feature. To be able to use with a
+non-nightly compiler you have to put it under a <code>cfg_attr</code>.
 For example, to enable overflow checking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(custom_inner_attributes)]
-#![flux:cfg(check_overflow = true)]
+</span>#![cfg_attr(flux, flux::cfg(check_overflow = true))]
 <span class="boring">fn main() {
 </span><span class="boring">}</span></code></pre></pre>
 <p>The only flag supported now is overflow checking.</p>
@@ -596,12 +584,12 @@ To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
 </code></pre>
 <p>You can also pass <code>-Ztrack-diagnostics=y</code> to enable it if you are not using <code>cargo xtask run</code></p>
 <h2 id="running-outside-the-project"><a class="header" href="#running-outside-the-project">Running outside the project</a></h2>
-<p>To run Flux in a package outside the flux respo you need to install the binaries globally. You can
+<p>To run Flux in a package outside the flux repo you need to install the binaries globally. You can
 do that using <code>cargo xtask install</code>. If you are continuously testing new changes it could be annoying
 to do it each time. To deal with this, you can set the <code>FLUX_SYSROOT</code> environment variable to change the
 location where <code>cargo-flux</code> and <code>rustc-flux</code> load the <code>flux-driver</code>. You can set it globally to point
 to the <code>target/debug</code> directory inside your local copy of the repo. This way you won't have to run
-<code>cargo xtask install</code> after every change and you can be sure you'll be using the latest local debug
+<code>cargo xtask install</code> after every change, and you can be sure you'll be using the latest local debug
 build. Just be aware that the <code>rustc-flux</code> and <code>cargo-flux</code> binaries are built for a specific toolchain,
 and you will get a dynamic linking error if the <code>flux-driver</code> was compiled with a different one. This
 is to say, you should at least run <code>cargo xtask install</code> every time after the toolchain is updated.</p>

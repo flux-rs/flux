@@ -1414,6 +1414,13 @@
 <a href="#1414" id="1414">1414</a>
 <a href="#1415" id="1415">1415</a>
 <a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2760,6 +2767,7 @@
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
+        InvalidGenericArg,
     }
 
     <span class="kw">impl </span>CheckerError {
@@ -2778,6 +2786,12 @@
                 CheckerErrKind::Inference =&gt; {
                     handler.struct_err_with_code(
                         fluent::refineck_param_inference_error,
+                        flux_errors::diagnostic_id(),
+                    )
+                }
+                CheckerErrKind::InvalidGenericArg =&gt; {
+                    handler.struct_err_with_code(
+                        fluent::refineck_invalid_generic_arg,
                         flux_errors::diagnostic_id(),
                     )
                 }

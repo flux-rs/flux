@@ -394,6 +394,23 @@
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">pub use </span>rustc_ast::{
@@ -434,6 +451,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>FuncDef {
     <span class="kw">pub </span>name: Ident,
+    <span class="kw">pub </span>sort_vars: Vec&lt;Ident&gt;,
     <span class="kw">pub </span>args: Vec&lt;RefineParam&gt;,
     <span class="kw">pub </span>output: Sort,
     <span class="doccomment">/// Body of the function. If not present this definition corresponds to an uninterpreted function.
@@ -455,6 +473,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>GenericParamKind {
     Type,
+    Spl,
     Base,
     Refine { sort: Sort },
 }
@@ -470,6 +489,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>StructDef {
+    <span class="kw">pub </span>generics: <span class="prelude-ty">Option</span>&lt;Generics&gt;,
     <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefinedBy&gt;,
     <span class="kw">pub </span>fields: Vec&lt;<span class="prelude-ty">Option</span>&lt;Ty&gt;&gt;,
     <span class="kw">pub </span>opaque: bool,
@@ -643,6 +663,20 @@
     </span>ImplTrait(NodeId, GenericBounds),
 }
 
+<span class="kw">impl </span>Ty {
+    <span class="kw">pub fn </span>as_bty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BaseTy&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+            TyKind::Base(bty) | TyKind::Indexed { bty, .. } | TyKind::Exists { bty, .. } =&gt; {
+                <span class="prelude-val">Some</span>(bty)
+            }
+            TyKind::GeneralExists { ty, .. } | TyKind::Constr(<span class="kw">_</span>, ty) =&gt; ty.as_bty(),
+            TyKind::Ref(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Tuple(<span class="kw">_</span>)
+            | TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::ImplTrait(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        }
+    }
+}
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>BaseTy {
     <span class="kw">pub </span>kind: BaseTyKind,

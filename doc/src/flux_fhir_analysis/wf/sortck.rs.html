@@ -586,6 +586,8 @@
 <a href="#586" id="586">586</a>
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, collections::HashSet, iter};
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -604,7 +606,7 @@
 <span class="kw">use </span><span class="kw">super</span>::errors;
 
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    <span class="kw">pub </span>genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     sorts: UnordMap&lt;fhir::Name, fhir::Sort&gt;,
     unification_table: InPlaceUnificationTable&lt;fhir::SortVid&gt;,
     wfckresults: fhir::WfckResults,
@@ -633,9 +635,9 @@
             fhir::RefineArg::Abs(params, body, span, fhir_id) =&gt; {
                 <span class="self">self</span>.check_abs(params, body, span, fhir_id, expected)
             }
-            fhir::RefineArg::Record(def_id, flds, span) =&gt; {
-                <span class="self">self</span>.check_record(<span class="kw-2">*</span>def_id, flds, <span class="kw-2">*</span>span)<span class="question-mark">?</span>;
-                <span class="kw">let </span>found = fhir::Sort::Record(<span class="kw-2">*</span>def_id);
+            fhir::RefineArg::Record(def_id, sort_args, flds, span) =&gt; {
+                <span class="self">self</span>.check_record(<span class="kw-2">*</span>def_id, sort_args, flds, <span class="kw-2">*</span>span)<span class="question-mark">?</span>;
+                <span class="kw">let </span>found = fhir::Sort::Record(<span class="kw-2">*</span>def_id, sort_args.clone());
                 <span class="kw">if </span><span class="kw-2">&amp;</span>found != expected {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(<span class="kw-2">*</span>span, expected, <span class="kw-2">&amp;</span>found));
                 }
@@ -680,10 +682,11 @@
     <span class="kw">fn </span>check_record(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         def_id: DefId,
+        sort_args: <span class="kw-2">&amp;</span>[fhir::Sort],
         args: <span class="kw-2">&amp;</span>[fhir::RefineArg],
         span: Span,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">let </span>sorts = <span class="self">self</span>.genv.index_sorts_of(def_id);
+        <span class="kw">let </span>sorts = <span class="self">self</span>.genv.index_sorts_of(def_id, sort_args);
         <span class="kw">if </span>args.len() != sorts.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                 <span class="prelude-val">Some</span>(span),
@@ -693,7 +696,7 @@
             )));
         }
         <span class="macro">izip!</span>(args, sorts)
-            .map(|(arg, expected)| <span class="self">self</span>.check_refine_arg(arg, expected))
+            .map(|(arg, expected)| <span class="self">self</span>.check_refine_arg(arg, <span class="kw-2">&amp;</span>expected))
             .try_collect_exhaust()
     }
 
@@ -795,11 +798,10 @@
             }
             fhir::ExprKind::Dot(var, fld) =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self</span>[var.name].clone();
-                <span class="kw">match </span>sort {
-                    fhir::Sort::Record(def_id) =&gt; {
+                <span class="kw">match </span><span class="kw-2">&amp;</span>sort {
+                    fhir::Sort::Record(def_id, sort_args) =&gt; {
                         <span class="self">self</span>.genv
-                            .field_sort(def_id, fld.name)
-                            .cloned()
+                            .field_sort(<span class="kw-2">*</span>def_id, sort_args.clone(), fld.name)
                             .ok_or_else(|| <span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld))
                     }
                     fhir::Sort::Bool | fhir::Sort::Int | fhir::Sort::Real =&gt; {
@@ -1107,10 +1109,12 @@
         })
     }
 
-    <span class="kw">fn </span>is_single_field_record(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort&gt; {
+    <span class="kw">fn </span>is_single_field_record(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
         <span class="self">self</span>.resolve_sort(sort).and_then(|s| {
-            <span class="kw">if let </span>fhir::Sort::Record(def_id) = s &amp;&amp; <span class="kw">let </span>[sort] = <span class="self">self</span>.genv.index_sorts_of(def_id) {
-                <span class="prelude-val">Some</span>(sort)
+            <span class="kw">if let </span>fhir::Sort::Record(def_id, sort_args) = s &amp;&amp;
+               <span class="kw">let </span>[sort] = <span class="kw-2">&amp;</span><span class="self">self</span>.genv.index_sorts_of(def_id, <span class="kw-2">&amp;</span>sort_args)[..]
+            {
+                <span class="prelude-val">Some</span>(sort.clone())
             } <span class="kw">else </span>{
                 <span class="prelude-val">None
             </span>}

@@ -728,6 +728,7 @@
 <a href="#728" id="728">728</a>
 <a href="#729" id="729">729</a>
 <a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1203,7 +1204,8 @@
 
 <span class="kw">impl </span>Ty {
     <span class="kw">pub fn </span>mk_adt(adt_def: AdtDef, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; Ty {
-        TyKind::Adt(adt_def, args.into()).intern()
+        <span class="kw">let </span>args = args.into();
+        TyKind::Adt(adt_def, args).intern()
     }
 
     <span class="kw">pub fn </span>mk_closure(def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; Ty {

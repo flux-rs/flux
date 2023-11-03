@@ -1858,7 +1858,166 @@
 <a href="#1858" id="1858">1858</a>
 <a href="#1859" id="1859">1859</a>
 <a href="#1860" id="1860">1860</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, iter, slice};
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
+<a href="#1978" id="1978">1978</a>
+<a href="#1979" id="1979">1979</a>
+<a href="#1980" id="1980">1980</a>
+<a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
+<a href="#2007" id="2007">2007</a>
+<a href="#2008" id="2008">2008</a>
+<a href="#2009" id="2009">2009</a>
+<a href="#2010" id="2010">2010</a>
+<a href="#2011" id="2011">2011</a>
+<a href="#2012" id="2012">2012</a>
+<a href="#2013" id="2013">2013</a>
+<a href="#2014" id="2014">2014</a>
+<a href="#2015" id="2015">2015</a>
+<a href="#2016" id="2016">2016</a>
+<a href="#2017" id="2017">2017</a>
+<a href="#2018" id="2018">2018</a>
+<a href="#2019" id="2019">2019</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, iter};
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -1866,9 +2025,11 @@
     fhir::{<span class="self">self</span>, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
     intern::List,
+    rty::{<span class="self">self</span>},
 };
 <span class="kw">use </span>flux_syntax::surface;
-<span class="kw">use </span>hir::{def::DefKind, ItemKind};
+<span class="kw">use </span>hir::{def::DefKind, ItemKind, PrimTy};
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
@@ -1877,6 +2038,7 @@
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::OwnerId;
+<span class="kw">use </span>rustc_middle::ty::Generics;
 <span class="kw">use </span>rustc_span::{
     def_id::LocalDefId,
     sym::{<span class="self">self</span>},
@@ -1892,7 +2054,11 @@
     genv: <span class="kw-2">&amp;</span>GlobalEnv,
     qualifier: <span class="kw-2">&amp;</span>surface::Qualifier,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Qualifier&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>binders = Binders::from_params(genv, <span class="kw-2">&amp;</span>qualifier.args)<span class="question-mark">?</span>;
+    <span class="kw">let </span>sort_params = <span class="kw-2">&amp;</span>[];
+    <span class="kw">let </span>sort_resolver =
+        SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), sort_params);
+
+    <span class="kw">let </span><span class="kw-2">mut </span>binders = Binders::from_params(genv, <span class="kw-2">&amp;</span>sort_resolver, <span class="kw-2">&amp;</span>qualifier.args)<span class="question-mark">?</span>;
     <span class="kw">let </span>index_gen = IndexGen::new();
     <span class="kw">let </span>cx = ExprCtxt::new(genv, FluxOwnerId::Flux(qualifier.name.name), <span class="kw-2">&amp;</span>index_gen);
     <span class="kw">let </span>expr = cx.desugar_expr(<span class="kw-2">&amp;</span>binders, <span class="kw-2">&amp;</span>qualifier.expr);
@@ -1907,14 +2073,18 @@
 
 <span class="kw">pub fn </span>desugar_defn(genv: <span class="kw-2">&amp;</span>GlobalEnv, defn: surface::FuncDef) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::Defn&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = defn.body {
-        <span class="kw">let </span><span class="kw-2">mut </span>binders = Binders::from_params(genv, <span class="kw-2">&amp;</span>defn.args)<span class="question-mark">?</span>;
+        <span class="kw">let </span>sort_params = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
+        <span class="kw">let </span>sort_resolver =
+            SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), <span class="kw-2">&amp;</span>sort_params);
+        <span class="kw">let </span><span class="kw-2">mut </span>binders = Binders::from_params(genv, <span class="kw-2">&amp;</span>sort_resolver, <span class="kw-2">&amp;</span>defn.args)<span class="question-mark">?</span>;
         <span class="kw">let </span>local_id_gen = IndexGen::new();
         <span class="kw">let </span>cx = ExprCtxt::new(genv, FluxOwnerId::Flux(defn.name.name), <span class="kw-2">&amp;</span>local_id_gen);
         <span class="kw">let </span>expr = cx.desugar_expr(<span class="kw-2">&amp;</span>binders, <span class="kw-2">&amp;</span>body)<span class="question-mark">?</span>;
         <span class="kw">let </span>name = defn.name.name;
-        <span class="kw">let </span>sort = resolve_sort(genv.sess, genv.map().sort_decls(), <span class="kw-2">&amp;</span>defn.output)<span class="question-mark">?</span>;
+        <span class="kw">let </span>params = defn.sort_vars.len();
+        <span class="kw">let </span>sort = sort_resolver.resolve_sort(<span class="kw-2">&amp;</span>defn.output)<span class="question-mark">?</span>;
         <span class="kw">let </span>args = binders.pop_layer().into_params(<span class="kw-2">&amp;</span>cx);
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fhir::Defn { name, args, sort, expr }))
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fhir::Defn { name, params, args, sort, expr }))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
     }
@@ -1925,21 +2095,76 @@
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     defn: <span class="kw-2">&amp;</span>surface::FuncDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FuncDecl&gt; {
+    <span class="kw">let </span>params = defn.sort_vars.len();
+    <span class="kw">let </span>sort_vars = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
+    <span class="kw">let </span>sr = SortResolver::with_sort_params(sess, sort_decls, <span class="kw-2">&amp;</span>sort_vars);
     <span class="kw">let </span>inputs: Vec&lt;fhir::Sort&gt; = defn
         .args
         .iter()
-        .map(|arg| resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>arg.sort))
+        .map(|arg| sr.resolve_sort(<span class="kw-2">&amp;</span>arg.sort))
         .try_collect_exhaust()<span class="question-mark">?</span>;
-    <span class="kw">let </span>output = resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>defn.output)<span class="question-mark">?</span>;
-    <span class="kw">let </span>sort = fhir::PolyFuncSort::new(<span class="number">0</span>, inputs, output);
+    <span class="kw">let </span>output = sr.resolve_sort(<span class="kw-2">&amp;</span>defn.output)<span class="question-mark">?</span>;
+    <span class="kw">let </span>sort = fhir::PolyFuncSort::new(params, inputs, output);
     <span class="kw">let </span>kind = <span class="kw">if </span>defn.body.is_some() { fhir::FuncKind::Def } <span class="kw">else </span>{ fhir::FuncKind::Uif };
     <span class="prelude-val">Ok</span>(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
+<span class="kw">fn </span>gather_base_sort_vars(
+    generics: <span class="kw-2">&amp;</span>FxHashSet&lt;Symbol&gt;,
+    base_sort: <span class="kw-2">&amp;</span>surface::BaseSort,
+    sort_vars: <span class="kw-2">&amp;mut </span>FxHashSet&lt;Symbol&gt;,
+) {
+    <span class="kw">match </span>base_sort {
+        surface::BaseSort::Ident(x) =&gt; {
+            <span class="kw">if </span>generics.contains(<span class="kw-2">&amp;</span>x.name) {
+                sort_vars.insert(x.name);
+            }
+        }
+        surface::BaseSort::BitVec(<span class="kw">_</span>) =&gt; {}
+        surface::BaseSort::App(<span class="kw">_</span>, base_sorts) =&gt; {
+            <span class="kw">for </span>base_sort <span class="kw">in </span>base_sorts {
+                gather_base_sort_vars(generics, base_sort, sort_vars);
+            }
+        }
+    }
+}
+<span class="kw">fn </span>gather_sort_vars(
+    generics: <span class="kw-2">&amp;</span>FxHashSet&lt;Symbol&gt;,
+    sort: <span class="kw-2">&amp;</span>surface::Sort,
+    sort_vars: <span class="kw-2">&amp;mut </span>FxHashSet&lt;Symbol&gt;,
+) {
+    <span class="kw">match </span>sort {
+        surface::Sort::Base(base_sort) =&gt; gather_base_sort_vars(generics, base_sort, sort_vars),
+        surface::Sort::Func { inputs, output } =&gt; {
+            <span class="kw">for </span>base_sort <span class="kw">in </span>inputs {
+                gather_base_sort_vars(generics, base_sort, sort_vars);
+            }
+            gather_base_sort_vars(generics, output, sort_vars);
+        }
+        surface::Sort::Infer =&gt; {}
+    }
+}
+
+<span class="kw">fn </span>gather_refined_by_sort_vars(
+    generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics,
+    refined_by: <span class="kw-2">&amp;</span>surface::RefinedBy,
+) -&gt; Vec&lt;Symbol&gt; {
+    <span class="kw">let </span>generics_syms: FxHashSet&lt;Symbol&gt; = generics.params.iter().map(|param| param.name).collect();
+    <span class="kw">let </span><span class="kw-2">mut </span>sort_idents = FxHashSet::default();
+    <span class="kw">for </span>refine_param <span class="kw">in </span><span class="kw-2">&amp;</span>refined_by.index_params {
+        gather_sort_vars(<span class="kw-2">&amp;</span>generics_syms, <span class="kw-2">&amp;</span>refine_param.sort, <span class="kw-2">&amp;mut </span>sort_idents);
+    }
+    generics
+        .params
+        .iter()
+        .filter_map(|param| <span class="kw">if </span>sort_idents.contains(<span class="kw-2">&amp;</span>param.name) { <span class="prelude-val">Some</span>(param.name) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
+        .collect()
+}
 <span class="kw">pub fn </span>desugar_refined_by(
     sess: <span class="kw-2">&amp;</span>FluxSession,
     sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
     owner_id: OwnerId,
+    generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics,
     refined_by: <span class="kw-2">&amp;</span>surface::RefinedBy,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefinedBy&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>set = FxHashSet::default();
@@ -1950,19 +2175,36 @@
             <span class="prelude-val">Ok</span>(())
         }
     })<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>sort_vars = gather_refined_by_sort_vars(generics, refined_by);
+    <span class="kw">let </span>sr = SortResolver::with_sort_params(sess, sort_decls, <span class="kw-2">&amp;</span>sort_vars);
+
     <span class="kw">let </span>early_bound_params: Vec&lt;<span class="kw">_</span>&gt; = refined_by
         .early_bound_params
         .iter()
-        .map(|param| resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>param.sort))
+        .map(|param| sr.resolve_sort(<span class="kw-2">&amp;</span>param.sort))
         .try_collect_exhaust()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>index_params: Vec&lt;<span class="kw">_</span>&gt; = refined_by
         .index_params
         .iter()
-        .map(|param| <span class="prelude-val">Ok</span>((param.name.name, resolve_sort(sess, sort_decls, <span class="kw-2">&amp;</span>param.sort)<span class="question-mark">?</span>)))
+        .map(|param| <span class="prelude-val">Ok</span>((param.name.name, sr.resolve_sort(<span class="kw-2">&amp;</span>param.sort)<span class="question-mark">?</span>)))
         .try_collect_exhaust()<span class="question-mark">?</span>;
 
-    <span class="prelude-val">Ok</span>(fhir::RefinedBy::new(owner_id.def_id, early_bound_params, index_params, refined_by.span))
+    <span class="kw">let </span>generic_idx: FxHashMap&lt;Symbol, hir::def_id::DefId&gt; = generics
+        .params
+        .iter()
+        .map(|param| (param.name, param.def_id))
+        .collect();
+    <span class="kw">let </span>sort_params = sort_vars.iter().map(|sym| generic_idx[<span class="kw-2">&amp;</span>sym]).collect();
+
+    <span class="prelude-val">Ok</span>(fhir::RefinedBy::new(
+        owner_id.def_id,
+        early_bound_params,
+        index_params,
+        sort_params,
+        refined_by.span,
+    ))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DesugarCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
@@ -1971,6 +2213,7 @@
     owner: OwnerId,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ResolverOutput,
     opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
+    sort_resolver: SortResolver&lt;<span class="lifetime">&#39;a</span>&gt;,
 }
 
 <span class="doccomment">/// Keeps track of the surface level identifiers in scope and a mapping between them and a
@@ -2027,7 +2270,17 @@
         resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ResolverOutput,
         opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&gt;&gt;,
     ) -&gt; DesugarCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-        DesugarCtxt { genv, owner, local_id_gen: IndexGen::new(), resolver_output, opaque_tys }
+        <span class="kw">let </span>generics = genv.tcx.generics_of(owner);
+        <span class="kw">let </span>sort_resolver =
+            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics);
+        DesugarCtxt {
+            genv,
+            owner,
+            local_id_gen: IndexGen::new(),
+            sort_resolver,
+            resolver_output,
+            opaque_tys,
+        }
     }
 
     <span class="kw">fn </span>with_new_owner&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="kw-2">mut </span><span class="self">self</span>, owner: OwnerId) -&gt; DesugarCtxt&lt;<span class="lifetime">&#39;b</span>, <span class="lifetime">&#39;tcx</span>&gt; {
@@ -2044,6 +2297,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_generics(<span class="kw-2">&amp;</span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>surface::Generics) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Generics&gt; {
         <span class="kw">let </span>hir_generics = <span class="self">self</span>.genv.hir().get_generics(<span class="self">self</span>.owner.def_id).unwrap();
+
         <span class="kw">let </span>generics_map: FxHashMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = hir_generics
             .params
             .iter()
@@ -2061,6 +2315,7 @@
             <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
                 surface::GenericParamKind::Type =&gt; fhir::GenericParamKind::Type { default: <span class="prelude-val">None </span>},
                 surface::GenericParamKind::Base =&gt; fhir::GenericParamKind::BaseTy,
+                surface::GenericParamKind::Spl =&gt; fhir::GenericParamKind::SplTy,
                 surface::GenericParamKind::Refine { .. } =&gt; {
                     <span class="kw">continue</span>;
                 }
@@ -2132,6 +2387,7 @@
         binders.push_layer();
         binders.insert_params(
             <span class="self">self</span>.genv,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.sort_resolver,
             struct_def
                 .refined_by
                 .iter()
@@ -2194,6 +2450,7 @@
         binders.push_layer();
         binders.insert_params(
             <span class="self">self</span>.genv,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.sort_resolver,
             enum_def
                 .refined_by
                 .iter()
@@ -2254,7 +2511,7 @@
         binders: <span class="kw-2">&amp;mut </span>Binders,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::TyAlias&gt; {
         binders.push_layer();
-        binders.insert_params(<span class="self">self</span>.genv, ty_alias.refined_by.all_params())<span class="question-mark">?</span>;
+        binders.insert_params(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.sort_resolver, ty_alias.refined_by.all_params())<span class="question-mark">?</span>;
 
         <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>ty_alias.ty, binders)<span class="question-mark">?</span>;
 
@@ -2440,6 +2697,7 @@
         binders: <span class="kw-2">&amp;mut </span>Binders,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&gt; {
         <span class="kw">let </span>span = ty.span;
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx.generics_of(<span class="self">self</span>.owner.def_id);
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
             surface::TyKind::Base(bty) =&gt; {
                 <span class="comment">// CODESYNC(type-holes, 3)
@@ -2486,10 +2744,14 @@
             }
             surface::TyKind::GeneralExists { params, ty, pred } =&gt; {
                 binders.push_layer();
+                <span class="kw">let </span>sr = SortResolver::with_generics(
+                    <span class="self">self</span>.sess(),
+                    <span class="self">self</span>.genv.map().sort_decls(),
+                    generics,
+                );
                 <span class="kw">for </span>param <span class="kw">in </span>params {
                     <span class="kw">let </span>fresh = binders.fresh();
-                    <span class="kw">let </span>sort =
-                        resolve_sort(<span class="self">self</span>.sess(), <span class="self">self</span>.genv.map().sort_decls(), <span class="kw-2">&amp;</span>param.sort)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>sort = sr.resolve_sort(<span class="kw-2">&amp;</span>param.sort)<span class="question-mark">?</span>;
                     <span class="kw">let </span>binder = Binder::Refined(fresh, sort.clone(), <span class="bool-val">false</span>);
                     binders.insert_binder(<span class="self">self</span>.sess(), param.name, binder)<span class="question-mark">?</span>;
                 }
@@ -2568,9 +2830,9 @@
             <span class="self">self</span>.ident_into_refine_arg(<span class="kw-2">*</span>ident, binders)
                 .transpose()
                 .unwrap()
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(fhir::Sort::Record(def_id)) = <span class="self">self</span>.genv.sort_of_bty(bty) {
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(fhir::Sort::Record(def_id, sort_args)) = <span class="self">self</span>.genv.sort_of_bty(bty) {
             <span class="kw">let </span>flds = <span class="self">self</span>.desugar_refine_args(<span class="kw-2">&amp;</span>idxs.indices, binders)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(fhir::RefineArg::Record(def_id, flds, idxs.span))
+            <span class="prelude-val">Ok</span>(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
         } <span class="kw">else if let </span>[arg] = <span class="kw-2">&amp;</span>idxs.indices[..] {
             <span class="self">self</span>.desugar_refine_arg(arg, binders)
         } <span class="kw">else </span>{
@@ -2606,7 +2868,7 @@
             }
             surface::RefineArg::Abs(params, body, span) =&gt; {
                 binders.push_layer();
-                binders.insert_params(<span class="self">self</span>.genv, params)<span class="question-mark">?</span>;
+                binders.insert_params(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.sort_resolver, params)<span class="question-mark">?</span>;
                 <span class="kw">let </span>body = <span class="self">self</span>.as_expr_ctxt().desugar_expr(binders, body)<span class="question-mark">?</span>;
                 <span class="kw">let </span>params = binders.pop_layer().into_params(<span class="self">self</span>);
                 <span class="prelude-val">Ok</span>(fhir::RefineArg::Abs(params, body, <span class="kw-2">*</span>span, <span class="self">self</span>.next_fhir_id()))
@@ -2924,8 +3186,7 @@
         binders: <span class="kw-2">&amp;mut </span>Binders,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="self">self</span>.gather_params_path(<span class="kw-2">&amp;</span>ret.path, TypePos::Other, binders)<span class="question-mark">?</span>;
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>ret.path.node_id];
-        <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv.sort_of_res(res) <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = sort_of_surface_path(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, <span class="kw-2">&amp;</span>ret.path) <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::RefinedUnrefinableType::new(ret.path.span)));
         };
         <span class="self">self</span>.gather_params_indices(sort, <span class="kw-2">&amp;</span>ret.indices, TypePos::Other, binders)
@@ -2946,16 +3207,15 @@
     }
 
     <span class="kw">fn </span>gather_input_params_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, fn_sig: <span class="kw-2">&amp;</span>surface::FnSig, binders: <span class="kw-2">&amp;mut </span>Binders) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx.generics_of(<span class="self">self</span>.owner.def_id);
+        <span class="kw">let </span>sr =
+            SortResolver::with_generics(<span class="self">self</span>.genv.sess, <span class="self">self</span>.genv.map().sort_decls(), generics);
         <span class="kw">for </span>param <span class="kw">in </span>fn_sig.generics.iter().flat_map(|g| <span class="kw-2">&amp;</span>g.params) {
             <span class="kw">let </span>surface::GenericParamKind::Refine { sort } = <span class="kw-2">&amp;</span>param.kind <span class="kw">else </span>{ <span class="kw">continue </span>};
             binders.insert_binder(
                 <span class="self">self</span>.genv.sess,
                 param.name,
-                Binder::Refined(
-                    binders.fresh(),
-                    resolve_sort(<span class="self">self</span>.genv.sess, <span class="self">self</span>.genv.map().sort_decls(), sort)<span class="question-mark">?</span>,
-                    <span class="bool-val">false</span>,
-                ),
+                Binder::Refined(binders.fresh(), sr.resolve_sort(sort)<span class="question-mark">?</span>, <span class="bool-val">false</span>),
             )<span class="question-mark">?</span>;
         }
         <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.args {
@@ -2984,12 +3244,12 @@
     <span class="kw">fn </span>gather_params_fun_arg(<span class="kw-2">&amp;</span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::Arg, binders: <span class="kw-2">&amp;mut </span>Binders) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">match </span>arg {
             surface::Arg::Constr(bind, path, <span class="kw">_</span>) =&gt; {
-                <span class="kw">let </span>res = <span class="self">self</span>.resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
-                binders.insert_binder(
-                    <span class="self">self</span>.genv.sess,
-                    <span class="kw-2">*</span>bind,
-                    binders.binder_from_res(<span class="self">self</span>.genv, res),
-                )<span class="question-mark">?</span>;
+                <span class="kw">let </span>zz = sort_of_surface_path(<span class="self">self</span>.genv, <span class="self">self</span>.resolver_output, path);
+                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = zz <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::RefinedUnrefinableType::new(path.span)));
+                };
+
+                binders.insert_binder(<span class="self">self</span>.genv.sess, <span class="kw-2">*</span>bind, binders.binder_from_sort(sort))<span class="question-mark">?</span>;
             }
             surface::Arg::StrgRef(loc, ty) =&gt; {
                 binders.insert_binder(
@@ -3162,91 +3422,114 @@
     }
 }
 
-<span class="kw">fn </span>resolve_sort(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
-    sort: <span class="kw-2">&amp;</span>surface::Sort,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
-    <span class="kw">match </span>sort {
-        surface::Sort::Base(sort) =&gt; resolve_base_sort(sess, sort_decls, sort),
-        surface::Sort::Func { inputs, output } =&gt; {
-            <span class="prelude-val">Ok</span>(resolve_func_sort(sess, sort_decls, inputs, output)<span class="question-mark">?</span>.into())
-        }
-        surface::Sort::Infer =&gt; <span class="prelude-val">Ok</span>(fhir::Sort::Wildcard),
-    }
+<span class="kw">struct </span>SortResolver&lt;<span class="lifetime">&#39;a</span>&gt; {
+    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+    sort_decls: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::SortDecls,
+    generic_params: FxHashMap&lt;Symbol, rustc_span::def_id::DefId&gt;,
+    sort_params: FxHashMap&lt;Symbol, usize&gt;,
 }
 
-<span class="kw">fn </span>resolve_func_sort(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
-    inputs: <span class="kw-2">&amp;</span>[surface::BaseSort],
-    output: <span class="kw-2">&amp;</span>surface::BaseSort,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyFuncSort&gt; {
-    <span class="kw">let </span>inputs: Vec&lt;fhir::Sort&gt; = inputs
-        .iter()
-        .map(|sort| resolve_base_sort(sess, sort_decls, sort))
-        .try_collect_exhaust()<span class="question-mark">?</span>;
-    <span class="kw">let </span>output = resolve_base_sort(sess, sort_decls, output)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(fhir::PolyFuncSort::new(<span class="number">0</span>, inputs, output))
-}
-
-<span class="kw">fn </span>resolve_base_sort(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
-    base: <span class="kw-2">&amp;</span>surface::BaseSort,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
-    <span class="kw">match </span>base {
-        surface::BaseSort::Ident(ident) =&gt; resolve_base_sort_ident(sess, sort_decls, ident),
-        surface::BaseSort::BitVec(w) =&gt; <span class="prelude-val">Ok</span>(fhir::Sort::BitVec(<span class="kw-2">*</span>w)),
-        surface::BaseSort::App(ident, args) =&gt; resolve_app_sort(sess, sort_decls, <span class="kw-2">*</span>ident, args),
-    }
-}
-
-<span class="kw">fn </span>resolve_sort_ctor(sess: <span class="kw-2">&amp;</span>FluxSession, ident: surface::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::SortCtor&gt; {
-    <span class="kw">if </span>ident.name == SORTS.set {
-        <span class="prelude-val">Ok</span>(fhir::SortCtor::Set)
-    } <span class="kw">else if </span>ident.name == SORTS.map {
-        <span class="prelude-val">Ok</span>(fhir::SortCtor::Map)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(sess.emit_err(errors::UnresolvedSort::new(ident)))
-    }
-}
-
-<span class="kw">fn </span>resolve_app_sort(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
-    ident: surface::Ident,
-    args: <span class="kw-2">&amp;</span>Vec&lt;surface::BaseSort&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
-    <span class="kw">let </span>ctor = resolve_sort_ctor(sess, ident)<span class="question-mark">?</span>;
-    <span class="kw">let </span>arity = ctor.arity();
-    <span class="kw">if </span>args.len() == arity {
-        <span class="kw">let </span>args = args
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; SortResolver&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">pub fn </span>with_sort_params(
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+        sort_decls: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::SortDecls,
+        sort_params: <span class="kw-2">&amp;</span>[Symbol],
+    ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>sort_params = sort_params
             .iter()
-            .map(|arg| resolve_base_sort(sess, sort_decls, arg))
-            .try_collect_exhaust()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::Sort::App(ctor, args))
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(sess.emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+            .enumerate()
+            .map(|(i, v)| (<span class="kw-2">*</span>v, i))
+            .collect();
+        <span class="self">Self </span>{ sess, sort_decls, generic_params: Default::default(), sort_params }
     }
-}
 
-<span class="kw">fn </span>resolve_base_sort_ident(
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    sort_decls: <span class="kw-2">&amp;</span>fhir::SortDecls,
-    ident: <span class="kw-2">&amp;</span>surface::Ident,
-) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
-    <span class="kw">if </span>ident.name == SORTS.int {
-        <span class="prelude-val">Ok</span>(fhir::Sort::Int)
-    } <span class="kw">else if </span>ident.name == sym::bool {
-        <span class="prelude-val">Ok</span>(fhir::Sort::Bool)
-    } <span class="kw">else if </span>ident.name == SORTS.real {
-        <span class="prelude-val">Ok</span>(fhir::Sort::Real)
-    } <span class="kw">else if </span>sort_decls.get(<span class="kw-2">&amp;</span>ident.name).is_some() {
-        <span class="kw">let </span>ctor = fhir::SortCtor::User { name: ident.name, arity: <span class="number">0 </span>};
-        <span class="prelude-val">Ok</span>(fhir::Sort::App(ctor, List::empty()))
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(sess.emit_err(errors::UnresolvedSort::new(<span class="kw-2">*</span>ident)))
+    <span class="kw">pub fn </span>with_generics(
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+        sort_decls: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::SortDecls,
+        generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Generics,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
+        <span class="self">Self </span>{ sess, sort_decls, sort_params: Default::default(), generic_params }
+    }
+
+    <span class="kw">fn </span>resolve_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>surface::Sort) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
+        <span class="kw">match </span>sort {
+            surface::Sort::Base(sort) =&gt; <span class="self">self</span>.resolve_base_sort(sort),
+            surface::Sort::Func { inputs, output } =&gt; {
+                <span class="prelude-val">Ok</span>(<span class="self">self</span>.resolve_func_sort(inputs, output)<span class="question-mark">?</span>.into())
+            }
+            surface::Sort::Infer =&gt; <span class="prelude-val">Ok</span>(fhir::Sort::Wildcard),
+        }
+    }
+
+    <span class="kw">fn </span>resolve_func_sort(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        inputs: <span class="kw-2">&amp;</span>[surface::BaseSort],
+        output: <span class="kw-2">&amp;</span>surface::BaseSort,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyFuncSort&gt; {
+        <span class="kw">let </span>inputs: Vec&lt;fhir::Sort&gt; = inputs
+            .iter()
+            .map(|sort| <span class="self">self</span>.resolve_base_sort(sort))
+            .try_collect_exhaust()<span class="question-mark">?</span>;
+        <span class="kw">let </span>output = <span class="self">self</span>.resolve_base_sort(output)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(fhir::PolyFuncSort::new(<span class="number">0</span>, inputs, output))
+    }
+
+    <span class="kw">fn </span>resolve_base_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, base: <span class="kw-2">&amp;</span>surface::BaseSort) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
+        <span class="kw">match </span>base {
+            surface::BaseSort::Ident(ident) =&gt; <span class="self">self</span>.resolve_base_sort_ident(ident),
+            surface::BaseSort::BitVec(w) =&gt; <span class="prelude-val">Ok</span>(fhir::Sort::BitVec(<span class="kw-2">*</span>w)),
+            surface::BaseSort::App(ident, args) =&gt; <span class="self">self</span>.resolve_app_sort(<span class="kw-2">*</span>ident, args),
+        }
+    }
+
+    <span class="kw">fn </span>resolve_sort_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: surface::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::SortCtor&gt; {
+        <span class="kw">if </span>ident.name == SORTS.set {
+            <span class="prelude-val">Ok</span>(fhir::SortCtor::Set)
+        } <span class="kw">else if </span>ident.name == SORTS.map {
+            <span class="prelude-val">Ok</span>(fhir::SortCtor::Map)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.sess.emit_err(errors::UnresolvedSort::new(ident)))
+        }
+    }
+
+    <span class="kw">fn </span>resolve_app_sort(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        ident: surface::Ident,
+        args: <span class="kw-2">&amp;</span>Vec&lt;surface::BaseSort&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
+        <span class="kw">let </span>ctor = <span class="self">self</span>.resolve_sort_ctor(ident)<span class="question-mark">?</span>;
+        <span class="kw">let </span>arity = ctor.arity();
+        <span class="kw">if </span>args.len() == arity {
+            <span class="kw">let </span>args = args
+                .iter()
+                .map(|arg| <span class="self">self</span>.resolve_base_sort(arg))
+                .try_collect_exhaust()<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(fhir::Sort::App(ctor, args))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(<span class="self">self
+                </span>.sess
+                .emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+        }
+    }
+
+    <span class="kw">fn </span>resolve_base_sort_ident(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: <span class="kw-2">&amp;</span>surface::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort&gt; {
+        <span class="kw">if </span>ident.name == SORTS.int {
+            <span class="prelude-val">Ok</span>(fhir::Sort::Int)
+        } <span class="kw">else if </span>ident.name == sym::bool {
+            <span class="prelude-val">Ok</span>(fhir::Sort::Bool)
+        } <span class="kw">else if </span>ident.name == SORTS.real {
+            <span class="prelude-val">Ok</span>(fhir::Sort::Real)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.generic_params.get(<span class="kw-2">&amp;</span>ident.name) {
+            <span class="prelude-val">Ok</span>(fhir::Sort::Param(<span class="kw-2">*</span>def_id))
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(idx) = <span class="self">self</span>.sort_params.get(<span class="kw-2">&amp;</span>ident.name) {
+            <span class="prelude-val">Ok</span>(fhir::Sort::Var(<span class="kw-2">*</span>idx))
+        } <span class="kw">else if </span><span class="self">self</span>.sort_decls.get(<span class="kw-2">&amp;</span>ident.name).is_some() {
+            <span class="kw">let </span>ctor = fhir::SortCtor::User { name: ident.name, arity: <span class="number">0 </span>};
+            <span class="prelude-val">Ok</span>(fhir::Sort::App(ctor, List::empty()))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.sess.emit_err(errors::UnresolvedSort::new(<span class="kw-2">*</span>ident)))
+        }
     }
 }
 
@@ -3257,28 +3540,27 @@
 
     <span class="kw">fn </span>from_params&lt;<span class="lifetime">&#39;a</span>&gt;(
         genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        sort_resolver: <span class="kw-2">&amp;</span>SortResolver,
         params: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>surface::RefineParam&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>binders = <span class="self">Self</span>::new();
         binders.push_layer();
-        binders.insert_params(genv, params)<span class="question-mark">?</span>;
+        binders.insert_params(genv, sort_resolver, params)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(binders)
     }
 
     <span class="kw">fn </span>insert_params&lt;<span class="lifetime">&#39;a</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        sort_resolver: <span class="kw-2">&amp;</span>SortResolver,
         params: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>surface::RefineParam&gt;,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">for </span>param <span class="kw">in </span>params {
+        <span class="comment">// let sr = SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), sort_params);
+        </span><span class="kw">for </span>param <span class="kw">in </span>params {
             <span class="self">self</span>.insert_binder(
                 genv.sess,
                 param.name,
-                Binder::Refined(
-                    <span class="self">self</span>.fresh(),
-                    resolve_sort(genv.sess, genv.map().sort_decls(), <span class="kw-2">&amp;</span>param.sort)<span class="question-mark">?</span>,
-                    <span class="bool-val">false</span>,
-                ),
+                Binder::Refined(<span class="self">self</span>.fresh(), sort_resolver.resolve_sort(<span class="kw-2">&amp;</span>param.sort)<span class="question-mark">?</span>, <span class="bool-val">false</span>),
             )<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
@@ -3323,14 +3605,6 @@
 
     <span class="kw">fn </span>binder_from_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: fhir::Sort) -&gt; Binder {
         Binder::Refined(<span class="self">self</span>.fresh(), sort, <span class="bool-val">true</span>)
-    }
-
-    <span class="kw">fn </span>binder_from_res(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, res: fhir::Res) -&gt; Binder {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_res(res) {
-            <span class="self">self</span>.binder_from_sort(sort)
-        } <span class="kw">else </span>{
-            Binder::Unrefined
-        }
     }
 
     <span class="kw">fn </span>binder_from_bty(
@@ -3441,21 +3715,65 @@
     resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
     bty: <span class="kw-2">&amp;</span>surface::BaseTy,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-    <span class="comment">// CODESYNC(sort-of, 4) sorts should be given consistently
+    <span class="comment">// CODESYNC(sort-of, 3) sorts should be given consistently
     </span><span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-        surface::BaseTyKind::Path(path) =&gt; {
-            <span class="kw">let </span>res = resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
-            genv.sort_of_res(res)
-        }
+        surface::BaseTyKind::Path(path) =&gt; sort_of_surface_path(genv, resolver_output, path),
         surface::BaseTyKind::Slice(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Int),
     }
 }
 
-<span class="kw">fn </span>as_tuple&lt;<span class="lifetime">&#39;a</span>&gt;(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[fhir::Sort] {
-    <span class="kw">if let </span>fhir::Sort::Record(def_id) = sort {
-        genv.index_sorts_of(<span class="kw-2">*</span>def_id)
+<span class="kw">fn </span>sort_of_surface_path(
+    genv: <span class="kw-2">&amp;</span>GlobalEnv,
+    resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
+    path: <span class="kw-2">&amp;</span>surface::Path,
+) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
+    <span class="comment">// CODESYNC(sort-of-path, 2) sorts should be given consistently
+    </span><span class="kw">let </span>res = resolver_output.path_res_map[<span class="kw-2">&amp;</span>path.node_id];
+
+    <span class="kw">match </span>res {
+        fhir::Res::PrimTy(PrimTy::Int(<span class="kw">_</span>) | PrimTy::Uint(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Int),
+        fhir::Res::PrimTy(PrimTy::Bool) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Bool),
+        fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Unit),
+        fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) =&gt; {
+            <span class="comment">// TODO: duplication with sort_of_path
+            </span><span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(generics) = genv.generics_of(def_id) {
+                <span class="kw">for </span>(param, arg) <span class="kw">in </span>generics.params.iter().zip(<span class="kw-2">&amp;</span>path.generics) {
+                    <span class="kw">if let </span>rty::GenericParamDefKind::SplTy = param.kind {
+                        <span class="kw">let </span>surface::GenericArg::Type(ty) = arg <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
+                        <span class="kw">let </span>surface::BaseTyKind::Path(path) = <span class="kw-2">&amp;</span>ty.as_bty()<span class="question-mark">?</span>.kind <span class="kw">else </span>{
+                            <span class="kw">return </span><span class="prelude-val">None</span>;
+                        };
+                        <span class="kw">let </span>sort = sort_of_surface_path(genv, resolver_output, path)<span class="question-mark">?</span>;
+                        sort_args.push(sort);
+                    }
+                }
+            };
+            <span class="prelude-val">Some</span>(fhir::Sort::Record(def_id, List::from_vec(sort_args)))
+        }
+        fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
+            <span class="kw">let </span>param = genv.get_generic_param(def_id.expect_local());
+            <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
+                fhir::GenericParamKind::BaseTy =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Param(def_id)),
+                fhir::GenericParamKind::Type { .. }
+                | fhir::GenericParamKind::Lifetime
+                | fhir::GenericParamKind::SplTy =&gt; <span class="prelude-val">None</span>,
+            }
+        }
+
+        fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, <span class="kw">_</span>) | fhir::Res::SelfTyParam { .. } =&gt; {
+            <span class="prelude-val">None
+        </span>}
+        fhir::Res::SelfTyAlias { alias_to, .. } =&gt; genv.sort_of_self_ty_alias(alias_to),
+
+        fhir::Res::Def(..) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected res {res:?}&quot;</span>),
+    }
+}
+<span class="kw">fn </span>as_tuple&lt;<span class="lifetime">&#39;a</span>&gt;(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; Vec&lt;fhir::Sort&gt; {
+    <span class="kw">if let </span>fhir::Sort::Record(def_id, sort_args) = sort {
+        genv.index_sorts_of(<span class="kw-2">*</span>def_id, sort_args)
     } <span class="kw">else </span>{
-        slice::from_ref(sort)
+        <span class="macro">vec!</span>[sort.clone()]
     }
 }
 

@@ -196,10 +196,7 @@ We use the nightly feature <code>register_tool</code>
 to register the <code>flux</code> tool in order to
 add refinement annotations to functions.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(register_tool)]
-#![register_tool(flux)]
-
-<span class="boring">fn main() {
+</span><span class="boring">fn main() {
 </span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
 pub fn inc(x: i32) -&gt; i32 {
     x - 1
@@ -210,9 +207,9 @@ pub fn inc(x: i32) -&gt; i32 {
 </code></pre>
 <p>you should see in your output</p>
 <pre><code class="language-text">error[FLUX]: postcondition might not hold
- --&gt; test0.rs:6:5
+ --&gt; test0.rs:3:5
   |
-6 |     x - 1
+3 |     x - 1
   |     ^^^^^
 </code></pre>
 <p>as indeed <code>x - 1</code> is <em>not</em> greater than <code>x</code> as required by the output refinement <code>i32{v: x &lt; v}</code>.</p>
@@ -240,15 +237,6 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
   ]
 }
 </code></pre>
-<p>If you want to change the <code>flux-driver</code> used by <code>cargo-flux</code>, then also specify the
-<code>FLUX_PATH</code> like in the example below, which uses the version generated when you
-run <code>cargo build</code>.</p>
-<pre><code class="language-json">{
-  &quot;rust-analyzer.check.extraEnv&quot;: {
-    &quot;FLUX_DRIVER_PATH&quot;: &quot;/path/to/flux-repo/target/debug/flux-driver&quot;,
-  }
-}
-</code></pre>
 <p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
 <h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
@@ -259,13 +247,13 @@ run <code>cargo build</code>.</p>
 <li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
 </ul>
 </li>
-<li><code>FLUX_DRIVER_PATH=path/to/flux-driver</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux</code> binary.
+<li><code>FLUX_SYSROOT</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux-driver</code> binary.
 <ul>
-<li>Defaults to the default <code>flux-driver</code> installation (typically found in <code>~/.cargo/bin</code>).</li>
+<li>Defaults to the default installation location in <code>~/.flux</code>.</li>
 </ul>
 </li>
-<li><code>FLUX_LOG_DIR=path/to/log/</code> with default <code>./log/</code></li>
-<li><code>FLUX_DUMP_CONSTRAINT=1</code> sets the directory where constraints, timing and cache are saved.</li>
+<li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
+<li><code>FLUX_DUMP_CONSTRAINT=1</code> tell <code>flux</code> to dump constraints generated for each function.</li>
 <li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
 <li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
@@ -296,11 +284,11 @@ containing profiling information. It will <em>not</em> dump the MIR because that
 was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
 <h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
 <p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
-This can only be used in nightly and requires enabling the feature <code>custom_inner_attributes</code>
+This annotation relies on the unstable custom inner attributes feature. To be able to use with a
+non-nightly compiler you have to put it under a <code>cfg_attr</code>.
 For example, to enable overflow checking:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(custom_inner_attributes)]
-#![flux:cfg(check_overflow = true)]
+</span>#![cfg_attr(flux, flux::cfg(check_overflow = true))]
 <span class="boring">fn main() {
 </span><span class="boring">}</span></code></pre></pre>
 <p>The only flag supported now is overflow checking.</p>

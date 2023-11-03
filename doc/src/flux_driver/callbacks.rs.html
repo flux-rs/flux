@@ -491,9 +491,6 @@
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
 <a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>config::CrateConfig;
 <span class="kw">use </span>desugar::resolver::{Resolver, ResolverOutput};
 <span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt};
@@ -520,15 +517,8 @@
     DEFAULT_LOCALE_RESOURCES,
 };
 
-<span class="kw">pub struct </span>FluxCallbacks {
-    full_compilation: bool,
-}
-
-<span class="kw">impl </span>FluxCallbacks {
-    <span class="kw">pub fn </span>new(full_compilation: bool) -&gt; <span class="self">Self </span>{
-        FluxCallbacks { full_compilation }
-    }
-}
+<span class="attr">#[derive(Default)]
+</span><span class="kw">pub struct </span>FluxCallbacks;
 
 <span class="kw">impl </span>Callbacks <span class="kw">for </span>FluxCallbacks {
     <span class="kw">fn </span>config(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;mut </span>rustc_interface::interface::Config) {
@@ -566,11 +556,7 @@
             sess.finish_diagnostics();
         });
 
-        <span class="kw">if </span><span class="self">self</span>.full_compilation {
-            Compilation::Continue
-        } <span class="kw">else </span>{
-            Compilation::Stop
-        }
+        Compilation::Stop
     }
 }
 
@@ -649,15 +635,18 @@
         .err()
         .or(err);
 
-    <span class="comment">// Register RefinedBys
+    <span class="comment">// Register RefinedBys (for structs and enums, which also registers their Generics)
     </span>err = specs
         .refined_bys()
         .try_for_each_exhaust(|(owner_id, refined_by)| {
+            <span class="kw">let </span>generics = lift::lift_generics(tcx, sess, owner_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>refined_by = <span class="kw">if let </span><span class="prelude-val">Some</span>(refined_by) = refined_by {
-                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, refined_by)<span class="question-mark">?
+                <span class="kw">let </span>generics = tcx.generics_of(owner_id);
+                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, generics, refined_by)<span class="question-mark">?
             </span>} <span class="kw">else </span>{
                 lift::lift_refined_by(tcx, owner_id)
             };
+            map.insert_generics(owner_id.def_id, generics.with_refined_by(<span class="kw-2">&amp;</span>refined_by));
             map.insert_refined_by(owner_id.def_id, refined_by);
             <span class="prelude-val">Ok</span>(())
         })
@@ -769,7 +758,9 @@
             <span class="kw">let </span>ty_alias = specs.ty_aliases[<span class="kw-2">&amp;</span>owner_id].as_ref();
             desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)<span class="question-mark">?</span>;
         }
-        hir::ItemKind::OpaqueTy(<span class="kw">_</span>) =&gt; desugar::desugar_generics_and_predicates(genv, owner_id)<span class="question-mark">?</span>,
+        hir::ItemKind::OpaqueTy(<span class="kw">_</span>) =&gt; {
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+        }
         hir::ItemKind::Enum(..) =&gt; {
             <span class="kw">let </span>enum_def = <span class="kw-2">&amp;</span>specs.enums[<span class="kw-2">&amp;</span>owner_id];
             desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output)<span class="question-mark">?</span>;
@@ -779,7 +770,7 @@
             desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)<span class="question-mark">?</span>;
         }
         hir::ItemKind::Trait(.., items) =&gt; {
-            desugar::desugar_generics_and_predicates(genv, owner_id)<span class="question-mark">?</span>;
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
             items.iter().try_for_each_exhaust(|trait_item| {
                 desugar_assoc_item(
                     genv,
@@ -791,7 +782,8 @@
             })<span class="question-mark">?</span>;
         }
         hir::ItemKind::Impl(impl_) =&gt; {
-            desugar::desugar_generics_and_predicates(genv, owner_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>generics = specs.impls.get(<span class="kw-2">&amp;</span>owner_id);
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, generics)<span class="question-mark">?</span>;
             impl_.items.iter().try_for_each_exhaust(|impl_item| {
                 desugar_assoc_item(
                     genv,
@@ -812,11 +804,13 @@
     specs: <span class="kw-2">&amp;mut </span>Specs,
     owner_id: OwnerId,
     kind: hir::AssocItemKind,
-    resolver_outpt: <span class="kw-2">&amp;</span>ResolverOutput,
+    resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span>kind {
-        hir::AssocItemKind::Fn { .. } =&gt; desugar_fn_sig(genv, specs, owner_id, resolver_outpt),
-        hir::AssocItemKind::Type =&gt; desugar::desugar_generics_and_predicates(genv, owner_id),
+        hir::AssocItemKind::Fn { .. } =&gt; desugar_fn_sig(genv, specs, owner_id, resolver_output),
+        hir::AssocItemKind::Type =&gt; {
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, <span class="prelude-val">None</span>)
+        }
         hir::AssocItemKind::Const =&gt; <span class="prelude-val">Ok</span>(()),
     }
 }

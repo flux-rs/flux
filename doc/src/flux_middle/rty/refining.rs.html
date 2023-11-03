@@ -434,6 +434,9 @@
 <a href="#434" id="434">434</a>
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -667,6 +670,9 @@
             (rty::GenericParamDefKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>))
             }
+            (rty::GenericParamDefKind::SplTy, rustc::ty::GenericArg::Ty(ty)) =&gt; {
+                <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>))
+            }
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::GenericArg::BaseTy(<span class="self">self</span>.refine_poly_ty(ty)<span class="question-mark">?</span>))
             }
@@ -756,7 +762,7 @@
             }
             rustc::ty::TyKind::Param(param_ty) =&gt; {
                 <span class="kw">match </span><span class="self">self</span>.param(<span class="kw-2">*</span>param_ty)<span class="question-mark">?</span>.kind {
-                    rty::GenericParamDefKind::Type { .. } =&gt; {
+                    rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::SplTy =&gt; {
                         <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Binder::new(rty::Ty::param(<span class="kw-2">*</span>param_ty), List::empty()));
                     }
                     rty::GenericParamDefKind::BaseTy =&gt; rty::BaseTy::Param(<span class="kw-2">*</span>param_ty),

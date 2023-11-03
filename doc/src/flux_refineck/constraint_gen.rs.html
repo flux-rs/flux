@@ -842,6 +842,31 @@
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -853,8 +878,9 @@
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr,
-        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, HoleKind, InferMode,
-        Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty, TyKind, Var,
+        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind,
+        HoleKind, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
+        TupleTree, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -990,6 +1016,26 @@
         <span class="prelude-val">Ok</span>(res)
     }
 
+    <span class="kw">fn </span>check_generic_args(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        did: DefId,
+        generic_args: <span class="kw-2">&amp;</span>[GenericArg],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(did)<span class="question-mark">?</span>;
+        <span class="kw">for </span>(idx, arg) <span class="kw">in </span>generic_args.iter().enumerate() {
+            <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            <span class="kw">match </span>param.kind {
+                GenericParamDefKind::BaseTy =&gt; {
+                    <span class="kw">if </span>!arg.is_valid_base_arg() {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(CheckerErrKind::InvalidGenericArg);
+                    }
+                }
+                <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_call(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -1027,6 +1073,10 @@
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">let </span>callsite_def_id = <span class="self">self</span>.def_id;
         <span class="kw">let </span>span = <span class="self">self</span>.span;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
+            <span class="self">self</span>.check_generic_args(did, generic_args)<span class="question-mark">?</span>;
+        }
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Call);
         <span class="kw">let </span>snapshot = rcx.snapshot();
@@ -1542,7 +1592,7 @@
                 }
             }
             (GenericArg::BaseTy(<span class="kw">_</span>), GenericArg::BaseTy(<span class="kw">_</span>)) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;sgeneric argument subtyping for base types is not implemented&quot;</span>);
+                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;generic argument subtyping for base types is not implemented&quot;</span>);
             }
             (GenericArg::Lifetime(<span class="kw">_</span>), GenericArg::Lifetime(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;incompatible generic args: `{arg1:?}` `{arg2:?}&quot;</span>),
