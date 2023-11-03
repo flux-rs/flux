@@ -226,7 +226,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::Def(DefKind::TyParam, def_id) => self.sort_of_generic_param(def_id),
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
             | fhir::Res::SelfTyParam { .. } => None,
-            fhir::Res::Def(..) => bug!("unexpected res {:?}", path.res),
+            fhir::Res::Def(..) => bug!("unexpected res `{:?}`", path.res),
         }
     }
 
@@ -235,7 +235,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.sort_of_self_ty(alias_to, self_ty)
     }
 
-    fn sort_of_generic_param(&self, def_id: DefId) -> Option<fhir::Sort> {
+    pub fn sort_of_generic_param(&self, def_id: DefId) -> Option<fhir::Sort> {
         let param = self.get_generic_param(def_id.expect_local());
         match &param.kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
@@ -273,8 +273,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             ty::TyKind::Adt(adt_def, args) => {
                 let mut sort_args = vec![];
                 for arg in *args {
-                    if let Some(ty) = arg.as_type() &&
-                       let Some(sort) = self.sort_of_self_ty(def_id, ty)
+                    if let Some(ty) = arg.as_type()
+                        && let Some(sort) = self.sort_of_self_ty(def_id, ty)
                     {
                         sort_args.push(sort);
                     }
