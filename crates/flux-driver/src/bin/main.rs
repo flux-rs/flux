@@ -2,7 +2,7 @@
 
 extern crate rustc_driver;
 
-use std::{env, io, process::exit};
+use std::{env, io, ops::Deref, process::exit};
 
 use flux_driver::callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
@@ -14,6 +14,18 @@ fn main() -> io::Result<()> {
 
     // CODESYNC(flux-cargo) Check if we are being called from cargo.
     let in_cargo = env::var("FLUX_CARGO").is_ok();
+    let primary_package = env::var("CARGO_PRIMARY_PACKAGE").is_ok();
+
+    // TODO(nilehmann): we should also run flux on dependencies with flux annotations to produce metadata.
+    // The idea is to opt in to that in the metadata table of the Cargo.toml. Something like
+    // ```
+    // [package.metadata.flux]
+    // export = true
+    // ```
+    // If we are being called from cargo but this is not the primary package, then we just call rustc.
+    if in_cargo && !primary_package {
+        rustc_driver::main();
+    }
 
     // HACK(nilehmann)
     // Disable incremental compilation because that makes the borrow checker to not run
@@ -33,12 +45,16 @@ fn main() -> io::Result<()> {
             args.push(arg);
         }
     }
-    // Add the sysroot path to the arguments.
+
     args.push("--sysroot".into());
     args.push(sysroot().expect("Flux Rust requires rustup to be built."));
     args.push("-Coverflow-checks=off".to_string());
+    args.push("-Zcrate-attr=feature(register_tool, custom_inner_attributes)".to_string());
+    args.push("-Zcrate-attr=register_tool(flux)".to_string());
+    args.push("-Zcrate-attr=register_tool(flux_tool)".to_string());
+    args.push("--cfg=flux".to_string());
 
-    let exit_code = run_compiler(args, in_cargo);
+    let exit_code = catch_with_exit_code(move || RunCompiler::new(&args, &mut FluxCallbacks).run());
     resolve_logs()?;
     exit(exit_code)
 }
@@ -51,11 +67,24 @@ fn sysroot() -> Option<String> {
     Some(format!("{home}/toolchains/{toolchain}"))
 }
 
-/// Run Flux Rust and return the exit status code.
-pub fn run_compiler(args: Vec<String>, in_cargo: bool) -> i32 {
-    // HACK(nilehmann) When running flux we want to stop compilation after analysis
-    // to avoid creating a binary. However, stopping compilation messes up with cargo so we
-    // pass full_compilation=true if we detect we are being called from cargo
-    let mut callbacks = FluxCallbacks::new(in_cargo);
-    catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run())
+/// If a command-line option matches `find_arg`, then apply the predicate `pred` on its value. If
+/// true, then return it. The parameter is assumed to be either `--arg=value` or `--arg value`.
+pub fn arg_value<'a, T: Deref<Target = str>>(
+    args: &'a [T],
+    find_arg: &str,
+    pred: impl Fn(&str) -> bool,
+) -> Option<&'a str> {
+    let mut args = args.iter().map(Deref::deref);
+    while let Some(arg) = args.next() {
+        let mut arg = arg.splitn(2, '=');
+        if arg.next() != Some(find_arg) {
+            continue;
+        }
+
+        match arg.next().or_else(|| args.next()) {
+            Some(v) if pred(v) => return Some(v),
+            _ => {}
+        }
+    }
+    None
 }

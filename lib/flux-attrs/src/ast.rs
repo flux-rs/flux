@@ -809,7 +809,7 @@ impl ToTokens for ItemFn {
         #[cfg(flux_sysroot)]
         {
             let flux_sig = ToTokensFlux(sig);
-            quote!(#[flux::sig(#flux_sig)]).to_tokens(tokens);
+            quote!(#[flux_tool::sig(#flux_sig)]).to_tokens(tokens);
         }
         let rust_sig = ToTokensRust(sig);
         quote! {
@@ -825,7 +825,7 @@ impl ToTokens for ItemType {
         let flux_type = ToTokensFlux(self);
         let rust_type = ToTokensRust(self);
         quote! {
-            #[flux::alias(#flux_type)]
+            #[flux_tool::alias(#flux_type)]
             #rust_type
         }
         .to_tokens(tokens);
@@ -907,7 +907,7 @@ impl ToTokens for ImplItemFn {
         #[cfg(flux_sysroot)]
         {
             let flux_sig = ToTokensFlux(sig);
-            quote!(#[flux::sig(#flux_sig)]).to_tokens(tokens);
+            quote!(#[flux_tool::sig(#flux_sig)]).to_tokens(tokens);
         }
         let rust_sig = ToTokensRust(sig);
         quote! {

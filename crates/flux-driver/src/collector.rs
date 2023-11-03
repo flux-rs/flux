@@ -249,7 +249,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs.structs.insert(
             owner_id,
-            surface::StructDef { refined_by, generics, fields, opaque, invariants },
+            surface::StructDef { generics, refined_by, fields, opaque, invariants },
         );
 
         Ok(())
@@ -347,7 +347,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .filter_map(|attr| {
                 if let AttrKind::Normal(attr_item, ..) = &attr.kind {
                     match &attr_item.item.path.segments[..] {
-                        [first, ..] if first.ident.as_str() == "flux" => Some(attr_item),
+                        [first, ..] => {
+                            let ident = first.ident.as_str();
+                            if ident == "flux" || ident == "flux_tool" {
+                                Some(attr_item)
+                            } else {
+                                None
+                            }
+                        }
                         _ => None,
                     }
                 } else {

@@ -1,19 +1,114 @@
-// When running without flux, all macros are pass-through
+#[cfg(not(flux_sysroot))]
+use attr_dummy as attr_impl;
+#[cfg(flux_sysroot)]
+use attr_sysroot as attr_impl;
 use proc_macro::TokenStream;
 
-#[cfg(not(flux_sysroot))]
 #[proc_macro_attribute]
-pub fn extern_spec(_attrs: TokenStream, _tokens: TokenStream) -> TokenStream {
-    TokenStream::new()
+pub fn alias(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::alias(attr, tokens)
 }
 
-#[cfg(flux_sysroot)]
 #[proc_macro_attribute]
-pub fn extern_spec(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    flux_attrs::extern_spec(attrs.into(), tokens.into()).into()
+pub fn sig(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::sig(attr, tokens)
+}
+
+#[proc_macro_attribute]
+pub fn qualifiers(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::qualifiers(attr, tokens)
+}
+
+#[proc_macro_attribute]
+pub fn refined_by(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::refined_by(attr, tokens)
+}
+
+#[proc_macro_attribute]
+pub fn invariant(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::invariant(attr, tokens)
+}
+
+#[proc_macro_attribute]
+pub fn constant(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::constant(attr, tokens)
+}
+
+#[proc_macro_attribute]
+pub fn opaque(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::opaque(attr, tokens)
+}
+
+#[proc_macro_attribute]
+pub fn trusted(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::trusted(attr, tokens)
 }
 
 #[proc_macro]
 pub fn flux(tokens: TokenStream) -> TokenStream {
     flux_attrs::flux(tokens.into()).into()
+}
+
+#[proc_macro]
+pub fn defs(tokens: TokenStream) -> TokenStream {
+    attr_impl::defs(tokens)
+}
+
+#[proc_macro_attribute]
+pub fn extern_spec(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::extern_spec(attrs, tokens)
+}
+
+#[cfg(flux_sysroot)]
+mod attr_sysroot {
+    use super::*;
+
+    pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+        flux_attrs::extern_spec(attr.into(), tokens.into()).into()
+    }
+
+    pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
+        flux_attrs::refined_by(attr.into(), item.into()).into()
+    }
+
+    pub fn defs(tokens: TokenStream) -> TokenStream {
+        flux_attrs::defs(tokens.into()).into()
+    }
+
+    macro_rules! flux_tool_attrs {
+        ($($name:ident),+ $(,)?) => {
+            $(
+            pub fn $name(attr: TokenStream, item: TokenStream) -> TokenStream {
+                flux_attrs::flux_tool_item_attr(stringify!($name), attr.into(), item.into()).into()
+            }
+            )*
+        };
+    }
+
+    flux_tool_attrs!(alias, sig, qualifiers, constant, invariant, opaque, trusted);
+}
+
+#[cfg(not(flux_sysroot))]
+mod attr_dummy {
+    use super::*;
+
+    pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
+        flux_attrs::refined_by(attr.into(), item.into()).into()
+    }
+
+    pub fn defs(_tokens: TokenStream) -> TokenStream {
+        TokenStream::new()
+    }
+
+    macro_rules! no_op {
+        ($($name:ident),+ $(,)?) => {
+            $(
+            pub fn $name(_attr: TokenStream, item: TokenStream) -> TokenStream {
+                item
+            }
+            )+
+        };
+    }
+
+    no_op!(alias, sig, qualifiers, invariant, constant, opaque, trusted, extern_spec);
 }
