@@ -5,53 +5,53 @@ use attr_sysroot as attr_impl;
 use proc_macro::TokenStream;
 
 #[proc_macro_attribute]
-pub fn alias(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::alias(attrs, tokens)
+pub fn alias(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::alias(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn sig(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::sig(attrs, tokens)
+pub fn sig(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::sig(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn qualifiers(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::qualifiers(attrs, tokens)
+pub fn qualifiers(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::qualifiers(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn refined_by(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::refined_by(attrs, tokens)
+pub fn refined_by(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::refined_by(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn invariant(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::invariant(attrs, tokens)
+pub fn invariant(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::invariant(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn constant(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::constant(attrs, tokens)
+pub fn constant(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::constant(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn ignore(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::ignore(attrs, tokens)
+pub fn opaque(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::opaque(attr, tokens)
 }
 
 #[proc_macro_attribute]
-pub fn opaque(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::opaque(attrs, tokens)
-}
-
-#[proc_macro_attribute]
-pub fn trusted(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::trusted(attrs, tokens)
+pub fn trusted(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::trusted(attr, tokens)
 }
 
 #[proc_macro]
 pub fn flux(tokens: TokenStream) -> TokenStream {
     flux_attrs::flux(tokens.into()).into()
+}
+
+#[proc_macro]
+pub fn defs(tokens: TokenStream) -> TokenStream {
+    attr_impl::defs(tokens)
 }
 
 #[proc_macro_attribute]
@@ -67,26 +67,38 @@ mod attr_sysroot {
         flux_attrs::extern_spec(attr.into(), tokens.into()).into()
     }
 
+    pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
+        flux_attrs::refined_by(attr.into(), item.into()).into()
+    }
+
+    pub fn defs(tokens: TokenStream) -> TokenStream {
+        flux_attrs::defs(tokens.into()).into()
+    }
+
     macro_rules! flux_tool_attrs {
         ($($name:ident),+ $(,)?) => {
             $(
             pub fn $name(attr: TokenStream, item: TokenStream) -> TokenStream {
-                flux_attrs::flux_tool_attr(stringify!($name), attr.into(), item.into()).into()
+                flux_attrs::flux_tool_item_attr(stringify!($name), attr.into(), item.into()).into()
             }
             )*
         };
     }
 
-    flux_tool_attrs!(alias, sig, qualifiers, constant, invariant, ignore, opaque, trusted);
-
-    pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
-        flux_attrs::flux_tool_adt_attr("refined_by", attr.into(), item.into()).into()
-    }
+    flux_tool_attrs!(alias, sig, qualifiers, constant, invariant, opaque, trusted);
 }
 
 #[cfg(not(flux_sysroot))]
 mod attr_dummy {
     use super::*;
+
+    pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
+        flux_attrs::refined_by(attr.into(), item.into()).into()
+    }
+
+    pub fn defs(_tokens: TokenStream) -> TokenStream {
+        TokenStream::new()
+    }
 
     macro_rules! no_op {
         ($($name:ident),+ $(,)?) => {
@@ -98,16 +110,5 @@ mod attr_dummy {
         };
     }
 
-    no_op!(
-        alias,
-        sig,
-        qualifiers,
-        refined_by,
-        invariant,
-        constant,
-        ignore,
-        opaque,
-        trusted,
-        extern_spec,
-    );
+    no_op!(alias, sig, qualifiers, invariant, constant, opaque, trusted, extern_spec);
 }

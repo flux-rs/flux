@@ -24,15 +24,8 @@ use crate::{
     DEFAULT_LOCALE_RESOURCES,
 };
 
-pub struct FluxCallbacks {
-    full_compilation: bool,
-}
-
-impl FluxCallbacks {
-    pub fn new(full_compilation: bool) -> Self {
-        FluxCallbacks { full_compilation }
-    }
-}
+#[derive(Default)]
+pub struct FluxCallbacks;
 
 impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
@@ -70,11 +63,7 @@ impl Callbacks for FluxCallbacks {
             sess.finish_diagnostics();
         });
 
-        if self.full_compilation {
-            Compilation::Continue
-        } else {
-            Compilation::Stop
-        }
+        Compilation::Stop
     }
 }
 

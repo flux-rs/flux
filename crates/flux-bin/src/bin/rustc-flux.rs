@@ -29,9 +29,6 @@ fn run() -> Result<i32> {
     let exit_code = Command::new(flux_driver_path)
         // Skip the invocation of rustc-flux itself
         .args(env::args().skip(1))
-        .arg("-Zcrate-attr=feature(register_tool,custom_inner_attributes)")
-        .arg("-Zcrate-attr=register_tool(flux)")
-        .arg("-Zcrate-attr=register_tool(flux_tool)")
         .arg("-L")
         .arg(sysroot_dir())
         .arg("--extern")

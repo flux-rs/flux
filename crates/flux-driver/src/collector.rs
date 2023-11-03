@@ -249,7 +249,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs.structs.insert(
             owner_id,
-            surface::StructDef { refined_by, generics, fields, opaque, invariants },
+            surface::StructDef { generics, refined_by, fields, opaque, invariants },
         );
 
         Ok(())
