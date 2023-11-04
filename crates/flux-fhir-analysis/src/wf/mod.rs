@@ -147,17 +147,10 @@ pub(crate) fn check_opaque_ty(
     if let Some(parent_local) = parent.as_local() &&
        let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
     {
-        setup_refine_params(&mut infcx, &mut wf, params);
+        wf.insert_refine_params(&mut infcx, params);
     }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())
-}
-
-fn setup_refine_params(infcx: &mut InferCtxt, wf: &mut Wf, params: &[fhir::RefineParam]) {
-    for param in params {
-        wf.modes.insert(param.ident.name, param.infer_mode());
-    }
-    infcx.push_layer(params);
 }
 
 pub(crate) fn check_fn_sig(
@@ -168,7 +161,7 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    setup_refine_params(&mut infcx, &mut wf, &fn_sig.params);
+    wf.insert_refine_params(&mut infcx, &fn_sig.params);
 
     let args = fn_sig
         .args
@@ -202,14 +195,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         Wf { genv, modes: Default::default(), xi: Default::default() }
     }
 
+    fn insert_refine_params(&mut self, infcx: &mut InferCtxt, params: &[fhir::RefineParam]) {
+        for param in params {
+            self.modes.insert(param.ident.name, param.infer_mode());
+        }
+        infcx.push_layer(params);
+    }
+
     fn check_params_are_determined(
         &mut self,
-        env: &InferCtxt,
+        infcx: &InferCtxt,
         params: &[fhir::RefineParam],
     ) -> Result<(), ErrorGuaranteed> {
         params.iter().try_for_each_exhaust(|param| {
             let determined = self.xi.remove(param.name());
-            if self.infer_mode(env, param.name()) == fhir::InferMode::EVar && !determined {
+            if self.infer_mode(infcx, param.name()) == fhir::InferMode::EVar && !determined {
                 return self.emit_err(errors::ParamNotDetermined::new(param.ident));
             }
             Ok(())
