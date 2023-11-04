@@ -1,8 +1,8 @@
 #[flux::refined_by(a: int, b: int, p: (int, int) -> bool)]
 struct Pair {
-    #[flux::field(i32[@a])]
+    #[flux::field(i32[a])]
     fst: i32,
-    #[flux::field({i32[@b] | p(a, b)})]
+    #[flux::field({i32[b] | p(a, b)})]
     snd: i32,
 }
 

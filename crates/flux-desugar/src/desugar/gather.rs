@@ -22,6 +22,8 @@ enum TypePos {
     Input,
     /// Type in output position allowing `#n` binders
     Output,
+    /// A struct field which disallow implicit parameters.
+    Field,
     /// Any other position which doesn't allow binders, e.g., inside generic arguments (except for boxes)
     Other,
 }
@@ -31,12 +33,25 @@ impl TypePos {
         match self {
             TypePos::Input => matches!(kind, surface::BindKind::At),
             TypePos::Output => matches!(kind, surface::BindKind::Pound),
-            TypePos::Other => false,
+            TypePos::Field | TypePos::Other => false,
         }
     }
 }
 
 impl DesugarCtxt<'_, '_> {
+    /// Implicit parameters are not allowed in struct definition but we traverse it to report errors
+    pub(crate) fn gather_params_struct(
+        &self,
+        struct_def: &surface::StructDef,
+        env: &mut Env,
+    ) -> Result {
+        struct_def
+            .fields
+            .iter()
+            .flatten()
+            .try_for_each_exhaust(|ty| self.gather_params_ty(None, ty, TypePos::Field, env))
+    }
+
     pub(crate) fn gather_params_variant(
         &self,
         variant_def: &surface::VariantDef,
@@ -131,7 +146,7 @@ impl DesugarCtxt<'_, '_> {
                 self.gather_params_path(path, TypePos::Input, env)?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                env.insert_implicit(self.genv.sess, *loc)?;
+                env.insert_explicit(self.genv.sess, *loc, fhir::Sort::Loc)?;
                 self.gather_params_ty(None, ty, TypePos::Input, env)?;
             }
             surface::Arg::Ty(bind, ty) => {

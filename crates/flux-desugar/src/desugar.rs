@@ -363,10 +363,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     pub(crate) fn desugar_struct_def(
         &mut self,
         struct_def: &surface::StructDef,
-        binders: &mut Env,
+        env: &mut Env,
     ) -> Result<fhir::StructDef> {
-        binders.push_layer();
-        binders.insert_params(
+        env.push_layer();
+        env.insert_params(
             self.genv,
             &self.sort_resolver,
             struct_def
@@ -374,11 +374,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .iter()
                 .flat_map(surface::RefinedBy::all_params),
         )?;
+        // Ghather params to report errors
+        self.gather_params_struct(struct_def, env)?;
 
         let invariants = struct_def
             .invariants
             .iter()
-            .map(|invariant| self.as_expr_ctxt().desugar_expr(binders, invariant))
+            .map(|invariant| self.as_expr_ctxt().desugar_expr(env, invariant))
             .try_collect_exhaust()?;
 
         let kind = if struct_def.opaque {
@@ -394,7 +396,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .map(|(ty, hir_field)| {
                     if let Some(ty) = ty {
                         Ok(fhir::FieldDef {
-                            ty: self.desugar_ty(None, ty, binders)?,
+                            ty: self.desugar_ty(None, ty, env)?,
                             def_id: hir_field.def_id,
                             lifted: false,
                         })
@@ -407,7 +409,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         };
         Ok(fhir::StructDef {
             owner_id: self.owner,
-            params: binders.pop_layer().into_params(self),
+            params: env.pop_layer().into_params(self),
             kind,
             invariants,
         })
@@ -729,11 +731,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::TyKind::GeneralExists { params, ty, pred } => {
                 env.push_layer();
-                // let sr = SortResolver::with_generics(
-                //     self.sess(),
-                //     self.genv.map().sort_decls(),
-                //     generics,
-                // );
                 for param in params {
                     let sort = self.sort_resolver.resolve_sort(&param.sort)?;
                     env.insert_explicit(self.sess(), param.name, sort)?;

@@ -9,9 +9,9 @@ use rvec::RVec;
 
 #[flux::refined_by(x: int, y:int)]
 pub struct Pair {
-    #[flux::field(i32[@x])]
+    #[flux::field(i32[x])]
     pub x: i32,
-    #[flux::field(i32[@y])]
+    #[flux::field(i32[y])]
     pub y: i32,
 }
 
