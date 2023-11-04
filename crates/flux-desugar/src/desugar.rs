@@ -18,7 +18,7 @@ use rustc_data_structures::{
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
-use rustc_hir::OwnerId;
+use rustc_hir::{def_id::DefId, OwnerId};
 use rustc_middle::ty::Generics;
 use rustc_span::{
     def_id::LocalDefId,
@@ -201,6 +201,7 @@ pub(crate) struct DesugarCtxt<'a, 'tcx> {
 /// [`Binder`].
 pub(crate) struct Env {
     name_gen: IndexGen<fhir::Name>,
+    implicit_sorts: FxHashMap<fhir::Name, fhir::Sort>,
     layers: Vec<Layer>,
 }
 
@@ -805,46 +806,46 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
             self.ident_into_refine_arg(*ident, env).transpose().unwrap()
         } else if let fhir::Sort::Record(def_id, sort_args) = sort {
-            let flds = self.desugar_refine_args(&idxs.indices, env)?;
+            let sorts = self.genv.index_sorts_of(def_id, &sort_args);
+            if sorts.len() != idxs.indices.len() {
+                return Err(self.emit_err(errors::RefineArgCountMismatch::new(idxs, &sorts)));
+            }
+            let flds = iter::zip(&idxs.indices, sorts)
+                .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
+                .try_collect_exhaust()?;
             Ok(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
-            self.desugar_refine_arg(arg, env)
+            self.desugar_refine_arg(arg, Some(sort), env)
         } else {
             span_bug!(bty.span, "invalid index on non-record type")
         }
     }
 
-    fn desugar_refine_args(
-        &mut self,
-        args: &[surface::RefineArg],
-        binders: &mut Env,
-    ) -> Result<Vec<fhir::RefineArg>> {
-        args.iter()
-            .map(|idx| self.desugar_refine_arg(idx, binders))
-            .try_collect_exhaust()
-    }
-
     fn desugar_refine_arg(
         &mut self,
         arg: &surface::RefineArg,
-        binders: &mut Env,
+        sort: Option<fhir::Sort>,
+        env: &mut Env,
     ) -> Result<fhir::RefineArg> {
         match arg {
             surface::RefineArg::Bind(ident, ..) => {
-                self.ident_into_refine_arg(*ident, binders)?
+                if let Some(sort) = sort {
+                    env.resolve_implicit_param(*ident, sort);
+                }
+                self.ident_into_refine_arg(*ident, env)?
                     .ok_or_else(|| self.emit_err(errors::InvalidUnrefinedParam::new(*ident)))
             }
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg::Expr {
-                    expr: self.as_expr_ctxt().desugar_expr(binders, expr)?,
+                    expr: self.as_expr_ctxt().desugar_expr(env, expr)?,
                     is_binder: false,
                 })
             }
             surface::RefineArg::Abs(params, body, span) => {
-                binders.push_layer();
-                binders.insert_params(self.genv, &self.sort_resolver, params)?;
-                let body = self.as_expr_ctxt().desugar_expr(binders, body)?;
-                let params = binders.pop_layer().into_params(self);
+                env.push_layer();
+                env.insert_params(self.genv, &self.sort_resolver, params)?;
+                let body = self.as_expr_ctxt().desugar_expr(env, body)?;
+                let params = env.pop_layer().into_params(self);
                 Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
             }
         }
@@ -879,7 +880,11 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_path(&mut self, path: &surface::Path, binders: &mut Env) -> Result<fhir::Path> {
         let res = self.resolver_output.path_res_map[&path.node_id];
         let (args, bindings) = self.desugar_generic_args(res, &path.generics, binders)?;
-        let refine = self.desugar_refine_args(&path.refine, binders)?;
+        let refine = path
+            .refine
+            .iter()
+            .map(|arg| self.desugar_refine_arg(arg, None, binders))
+            .try_collect_exhaust()?;
         Ok(fhir::Path { res, args, bindings, refine, span: path.span })
     }
 
@@ -1238,7 +1243,7 @@ impl<'a> SortResolver<'a> {
 
 impl Env {
     pub(crate) fn new() -> Env {
-        Env { name_gen: IndexGen::new(), layers: vec![] }
+        Env { name_gen: IndexGen::new(), implicit_sorts: Default::default(), layers: vec![] }
     }
 
     fn from_params<'a>(
@@ -1250,6 +1255,16 @@ impl Env {
         binders.push_layer();
         binders.insert_params(genv, sort_resolver, params)?;
         Ok(binders)
+    }
+
+    fn resolve_implicit_param(&mut self, ident: surface::Ident, sort: fhir::Sort) {
+        if let Some(Param::Implicit(name)) = self.get(ident) {
+            if self.implicit_sorts.insert(*name, sort).is_some() {
+                span_bug!(ident.span, "resolve_implicit_param called twice on the same param");
+            }
+        } else {
+            span_bug!(ident.span, "resolve_implicit_param called on non-implicit param");
+        }
     }
 
     fn insert_params<'a>(
@@ -1437,7 +1452,8 @@ static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
 
 mod errors {
     use flux_macros::Diagnostic;
-    use flux_syntax::surface::{BindKind, QPathExpr};
+    use flux_middle::fhir;
+    use flux_syntax::surface::{self, BindKind, QPathExpr};
     use itertools::Itertools;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
@@ -1544,8 +1560,8 @@ mod errors {
     }
 
     impl RefineArgCountMismatch {
-        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
-            Self { span, expected, found }
+        pub(super) fn new(idxs: &surface::Indices, sorts: &[fhir::Sort]) -> Self {
+            Self { span: idxs.span, expected: sorts.len(), found: idxs.indices.len() }
         }
     }
 
