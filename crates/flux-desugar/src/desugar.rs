@@ -201,7 +201,6 @@ pub(crate) struct DesugarCtxt<'a, 'tcx> {
 /// [`Binder`].
 pub(crate) struct Env {
     name_gen: IndexGen<fhir::Name>,
-    implicit_sorts: FxHashMap<fhir::Name, fhir::Sort>,
     layers: Vec<Layer>,
 }
 
@@ -804,7 +803,6 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             span_bug!(bty.span, "desugar_indices called on unrefinable bty`{bty:?}`")
         });
         if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
-            env.resolve_implicit_param(*ident, sort);
             self.ident_into_refine_arg(*ident, env).transpose().unwrap()
         } else if let fhir::Sort::Record(def_id, sort_args) = sort {
             let flds = self.desugar_refine_args(&idxs.indices, env)?;
@@ -1240,17 +1238,7 @@ impl<'a> SortResolver<'a> {
 
 impl Env {
     pub(crate) fn new() -> Env {
-        Env { name_gen: IndexGen::new(), implicit_sorts: Default::default(), layers: vec![] }
-    }
-
-    fn resolve_implicit_param(&mut self, ident: surface::Ident, sort: fhir::Sort) {
-        if let Some(Param::Implicit(name)) = self.get(ident) {
-            if let Some(_) = self.implicit_sorts.insert(*name, sort) {
-                span_bug!(ident.span, "resolve_implicit_param called twice on same implicit param");
-            }
-        } else {
-            span_bug!(ident.span, "resolve_implicit_param called on non-implicit param");
-        }
+        Env { name_gen: IndexGen::new(), layers: vec![] }
     }
 
     fn from_params<'a>(
@@ -1402,14 +1390,14 @@ impl Layer {
     fn into_params<'a, 'tcx>(self, cx: &impl DesugarContext<'a, 'tcx>) -> Vec<fhir::RefineParam> {
         let mut params = vec![];
         for (ident, binder) in self.map {
-            match binder {
-                Param::Explicit(name, sort) => {
-                    let ident = fhir::Ident::new(name, ident);
-                    let fhir_id = cx.next_fhir_id();
-                    params.push(fhir::RefineParam { ident, sort, implicit: false, fhir_id });
-                }
-                Param::Unrefined => {}
-            }
+            let (name, sort) = match binder {
+                Param::Unrefined => continue,
+                Param::Explicit(name, sort) => (name, sort),
+                Param::Implicit(name) => (name, fhir::Sort::Wildcard),
+            };
+            let ident = fhir::Ident::new(name, ident);
+            let fhir_id = cx.next_fhir_id();
+            params.push(fhir::RefineParam { ident, sort, implicit: false, fhir_id });
         }
         params
     }
