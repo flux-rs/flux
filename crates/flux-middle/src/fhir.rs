@@ -859,6 +859,14 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
+    /// Returns `true` if the sort is [`Wildcard`].
+    ///
+    /// [`Wildcard`]: Sort::Wildcard
+    #[must_use]
+    pub fn is_wildcard(&self) -> bool {
+        matches!(self, Self::Wildcard)
+    }
+
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }

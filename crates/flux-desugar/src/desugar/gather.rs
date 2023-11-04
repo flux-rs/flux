@@ -126,7 +126,7 @@ impl DesugarCtxt<'_, '_> {
                 if self.path_is_refinable(path) {
                     env.insert_implicit(self.genv.sess, *bind)?;
                 } else {
-                    env.insert_unrefined(self.genv.sess, *bind)?;
+                    return Err(self.emit_err(RefinedUnrefinableType::new(path.span)));
                 }
                 self.gather_params_path(path, TypePos::Input, env)?;
             }

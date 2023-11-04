@@ -18,7 +18,7 @@ use rustc_data_structures::{
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
-use rustc_hir::{def_id::DefId, OwnerId};
+use rustc_hir::OwnerId;
 use rustc_middle::ty::Generics;
 use rustc_span::{
     def_id::LocalDefId,
@@ -201,7 +201,6 @@ pub(crate) struct DesugarCtxt<'a, 'tcx> {
 /// [`Binder`].
 pub(crate) struct Env {
     name_gen: IndexGen<fhir::Name>,
-    implicit_sorts: FxHashMap<fhir::Name, fhir::Sort>,
     layers: Vec<Layer>,
 }
 
@@ -213,11 +212,12 @@ struct Layer {
 /// The different kind of binders that can appear in the surface syntax
 #[derive(Debug, Clone)]
 pub(crate) enum Param {
-    /// An explicit parameter.
-    Explicit(fhir::Name, fhir::Sort),
-    /// A parameter that was declared implicitly _implicitly_ with the `@` or `#` syntax. It'll
-    /// desugar to an explicit parameter.
-    Implicit(fhir::Name),
+    /// A parameter to a refinable type that will be desugared as an explicit parameter.
+    /// The boolean indicates whether the binder was declared _implicitly_ with the `@` or `#`
+    /// syntax.
+    ///
+    /// [inference mode]: fhir::InferMode
+    Refined(fhir::Name, fhir::Sort, /*implicit*/ bool),
     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
     /// situation "eagerly" as it will often result in better error messages, e.g., we will
     /// fail if a type parameter `T` of kind `typ` (which cannot be refined) is used as an indexed
@@ -583,15 +583,22 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     fn desugar_fun_arg(
         &mut self,
         arg: &surface::Arg,
-        binders: &mut Env,
+        env: &mut Env,
         requires: &mut Vec<fhir::Constraint>,
     ) -> Result<fhir::Ty> {
         match arg {
             surface::Arg::Constr(bind, path, pred) => {
-                let bty = self.desugar_path_to_bty(path, binders)?;
-                let pred = self.as_expr_ctxt().desugar_expr(binders, pred)?;
+                let bty = self.desugar_path_to_bty(path, env)?;
 
-                let ty = if let Some(idx) = self.ident_into_refine_arg(*bind, binders)? {
+                let sort = self
+                    .genv
+                    .sort_of_bty(&bty)
+                    .unwrap_or_else(|| span_bug!(bty.span, "refined unrefinable type"));
+                env.resolve_implicit_param(*bind, sort);
+
+                let pred = self.as_expr_ctxt().desugar_expr(env, pred)?;
+
+                let ty = if let Some(idx) = self.ident_into_refine_arg(*bind, env)? {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
                 } else {
                     fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
@@ -603,13 +610,13 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let span = loc.span;
-                let loc = self.as_expr_ctxt().resolve_loc(binders, *loc)?;
-                let ty = self.desugar_ty(None, ty, binders)?;
+                let loc = self.as_expr_ctxt().resolve_loc(env, *loc)?;
+                let ty = self.desugar_ty(None, ty, env)?;
                 requires.push(fhir::Constraint::Type(loc, ty));
                 let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), loc);
                 Ok(fhir::Ty { kind, span })
             }
-            surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty, binders),
+            surface::Arg::Ty(bind, ty) => self.desugar_ty(*bind, ty, env),
         }
     }
 
@@ -804,6 +811,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             span_bug!(bty.span, "desugar_indices called on unrefinable bty`{bty:?}`")
         });
         if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
+            env.resolve_implicit_param(*ident, sort);
             self.ident_into_refine_arg(*ident, env).transpose().unwrap()
         } else if let fhir::Sort::Record(def_id, sort_args) = sort {
             let sorts = self.genv.index_sorts_of(def_id, &sort_args);
@@ -857,7 +865,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         binders: &Env,
     ) -> Result<Option<fhir::RefineArg>> {
         match binders.get(ident) {
-            Some(Param::Explicit(name, ..) | Param::Implicit(name)) => {
+            Some(Param::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
                 let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
                 Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
@@ -939,8 +947,14 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         env: &mut Env,
     ) -> Result<fhir::Ty> {
         let bty = self.desugar_bty(bty, env)?;
+
         let span = bty.span;
         let kind = if let Some(bind) = bind && let Some(idx) = self.ident_into_refine_arg(bind, env)? {
+            let sort = self
+                .genv
+                .sort_of_bty(&bty)
+                .unwrap_or_else(|| span_bug!(bty.span, "refined unrefinable type"));
+            env.resolve_implicit_param(bind, sort);
             fhir::TyKind::Indexed(bty, idx)
         } else {
             fhir::TyKind::BaseTy(bty)
@@ -1075,7 +1089,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn resolve_func(&self, binders: &Env, func: surface::Ident) -> Result<FuncRes> {
         match binders.get(func) {
-            Some(Param::Explicit(name, ..) | Param::Implicit(name)) => {
+            Some(Param::Refined(name, ..)) => {
                 return Ok(FuncRes::Param(fhir::Ident::new(*name, func)))
             }
             Some(Param::Unrefined) => {
@@ -1093,7 +1107,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         match &qpath.segments[..] {
             [var] => {
                 match binders.get(var) {
-                    Some(Param::Explicit(name, ..) | Param::Implicit(name)) => {
+                    Some(Param::Refined(name, ..)) => {
                         return Ok(QPathRes::Param(fhir::Ident::new(*name, *var)))
                     }
                     Some(Param::Unrefined) => {
@@ -1116,9 +1130,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 
     fn resolve_loc(&self, binders: &Env, loc: surface::Ident) -> Result<fhir::Ident> {
         match binders.get(loc) {
-            Some(Param::Explicit(name, ..) | Param::Implicit(name)) => {
-                Ok(fhir::Ident::new(*name, loc))
-            }
+            Some(Param::Refined(name, ..)) => Ok(fhir::Ident::new(*name, loc)),
             Some(Param::Unrefined) => Err(self.emit_err(errors::InvalidUnrefinedParam::new(loc))),
             None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc))),
         }
@@ -1243,7 +1255,7 @@ impl<'a> SortResolver<'a> {
 
 impl Env {
     pub(crate) fn new() -> Env {
-        Env { name_gen: IndexGen::new(), implicit_sorts: Default::default(), layers: vec![] }
+        Env { name_gen: IndexGen::new(), layers: vec![] }
     }
 
     fn from_params<'a>(
@@ -1258,12 +1270,17 @@ impl Env {
     }
 
     fn resolve_implicit_param(&mut self, ident: surface::Ident, sort: fhir::Sort) {
-        if let Some(Param::Implicit(name)) = self.get(ident) {
-            if self.implicit_sorts.insert(*name, sort).is_some() {
-                span_bug!(ident.span, "resolve_implicit_param called twice on the same param");
+        if let Some(Param::Refined(_, old_sort, implicit)) = self.get_mut(ident) {
+            if !*implicit {
+                span_bug!(ident.span, "`resolve_implicit_param` called on non-implicit param");
+            }
+            if old_sort.is_wildcard() {
+                *old_sort = sort;
+            } else {
+                span_bug!(ident.span, "`resolve_implicit_param` called on resolved param");
             }
         } else {
-            span_bug!(ident.span, "resolve_implicit_param called on non-implicit param");
+            span_bug!(ident.span, "parameter not found");
         }
     }
 
@@ -1287,17 +1304,21 @@ impl Env {
         self.iter_layers(|layer| layer.get(ident.borrow()))
     }
 
+    fn get_mut(&mut self, ident: impl Borrow<surface::Ident>) -> Option<&mut Param> {
+        self.iter_layers_mut(|layer| layer.get_mut(ident.borrow()))
+    }
+
     fn insert_explicit(
         &mut self,
         sess: &FluxSession,
         ident: surface::Ident,
         sort: fhir::Sort,
     ) -> Result {
-        self.insert_param(sess, ident, Param::Explicit(self.fresh(), sort))
+        self.insert_param(sess, ident, Param::Refined(self.fresh(), sort, false))
     }
 
     fn insert_implicit(&mut self, sess: &FluxSession, ident: surface::Ident) -> Result {
-        self.insert_param(sess, ident, Param::Implicit(self.fresh()))
+        self.insert_param(sess, ident, Param::Refined(self.fresh(), fhir::Sort::Wildcard, true))
     }
 
     fn insert_unrefined(&mut self, sess: &FluxSession, ident: surface::Ident) -> Result {
@@ -1318,6 +1339,13 @@ impl Env {
 
     fn iter_layers<'a, T>(&'a self, f: impl FnMut(&'a Layer) -> Option<T>) -> Option<T> {
         self.layers.iter().rev().find_map(f)
+    }
+
+    fn iter_layers_mut<'a, T>(
+        &'a mut self,
+        f: impl FnMut(&'a mut Layer) -> Option<T>,
+    ) -> Option<T> {
+        self.layers.iter_mut().rev().find_map(f)
     }
 
     fn push_layer(&mut self) {
@@ -1369,6 +1397,10 @@ impl Layer {
         self.map.get(key.borrow())
     }
 
+    fn get_mut(&mut self, key: impl Borrow<surface::Ident>) -> Option<&mut Param> {
+        self.map.get_mut(key.borrow())
+    }
+
     fn insert(&mut self, sess: &FluxSession, ident: surface::Ident, binder: Param) -> Result {
         match self.map.entry(ident) {
             IndexEntry::Occupied(entry) => {
@@ -1389,7 +1421,7 @@ impl Layer {
         let mut refine_args = vec![];
         for (ident, binder) in &self.map {
             match binder {
-                Param::Explicit(name, _) | Param::Implicit(name) => {
+                Param::Refined(name, ..) => {
                     let ident = fhir::Ident::new(*name, *ident);
                     let kind = ExprKind::Var(ident);
                     let fhir_id = cx.next_fhir_id();
@@ -1405,14 +1437,14 @@ impl Layer {
     fn into_params<'a, 'tcx>(self, cx: &impl DesugarContext<'a, 'tcx>) -> Vec<fhir::RefineParam> {
         let mut params = vec![];
         for (ident, binder) in self.map {
-            let (name, sort) = match binder {
-                Param::Unrefined => continue,
-                Param::Explicit(name, sort) => (name, sort),
-                Param::Implicit(name) => (name, fhir::Sort::Wildcard),
-            };
-            let ident = fhir::Ident::new(name, ident);
-            let fhir_id = cx.next_fhir_id();
-            params.push(fhir::RefineParam { ident, sort, implicit: false, fhir_id });
+            match binder {
+                Param::Refined(name, sort, implicit) => {
+                    let ident = fhir::Ident::new(name, ident);
+                    let fhir_id = cx.next_fhir_id();
+                    params.push(fhir::RefineParam { ident, sort, implicit, fhir_id });
+                }
+                Param::Unrefined => {}
+            }
         }
         params
     }
