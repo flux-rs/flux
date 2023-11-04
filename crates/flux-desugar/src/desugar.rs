@@ -590,15 +590,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             surface::Arg::Constr(bind, path, pred) => {
                 let bty = self.desugar_path_to_bty(path, env)?;
 
-                let sort = self
-                    .genv
-                    .sort_of_bty(&bty)
-                    .unwrap_or_else(|| span_bug!(bty.span, "refined unrefinable type"));
-                env.resolve_implicit_param(*bind, sort);
-
                 let pred = self.as_expr_ctxt().desugar_expr(env, pred)?;
 
-                let ty = if let Some(idx) = self.ident_into_refine_arg(*bind, env)? {
+                let sort = self.genv.sort_of_bty(&bty);
+                let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, sort, env)? {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
                 } else {
                     fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
@@ -798,13 +793,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         idxs: &surface::Indices,
         env: &mut Env,
     ) -> Result<fhir::RefineArg> {
-        let sort = self.genv.sort_of_bty(bty).unwrap_or_else(|| {
-            span_bug!(bty.span, "desugar_indices called on unrefinable bty`{bty:?}`")
-        });
+        let sort = self.genv.sort_of_bty(bty);
         if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
-            env.resolve_implicit_param(*ident, sort);
-            self.ident_into_refine_arg(*ident, env).transpose().unwrap()
-        } else if let fhir::Sort::Record(def_id, sort_args) = sort {
+            self.bind_into_refine_arg(*ident, sort, env)
+                .transpose()
+                .unwrap()
+        } else if let Some(fhir::Sort::Record(def_id, sort_args)) = sort {
             let sorts = self.genv.index_sorts_of(def_id, &sort_args);
             if sorts.len() != idxs.indices.len() {
                 return Err(self.emit_err(errors::RefineArgCountMismatch::new(idxs, &sorts)));
@@ -814,7 +808,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .try_collect_exhaust()?;
             Ok(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
-            self.desugar_refine_arg(arg, Some(sort), env)
+            self.desugar_refine_arg(arg, sort, env)
         } else {
             span_bug!(bty.span, "invalid index on non-record type")
         }
@@ -828,10 +822,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
     ) -> Result<fhir::RefineArg> {
         match arg {
             surface::RefineArg::Bind(ident, ..) => {
-                if let Some(sort) = sort {
-                    env.resolve_implicit_param(*ident, sort);
-                }
-                self.ident_into_refine_arg(*ident, env)?
+                self.bind_into_refine_arg(*ident, sort, env)?
                     .ok_or_else(|| self.emit_err(errors::InvalidUnrefinedParam::new(*ident)))
             }
             surface::RefineArg::Expr(expr) => {
@@ -850,11 +841,15 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         }
     }
 
-    fn ident_into_refine_arg(
+    fn bind_into_refine_arg(
         &self,
         ident: surface::Ident,
-        env: &Env,
+        sort: Option<fhir::Sort>,
+        env: &mut Env,
     ) -> Result<Option<fhir::RefineArg>> {
+        if let Some(sort) = sort {
+            env.resolve_implicit_param(ident, sort);
+        }
         match env.get(ident) {
             Some(Param::Refined(name, ..)) => {
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(*name, ident));
@@ -936,12 +931,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let bty = self.desugar_bty(bty, env)?;
 
         let span = bty.span;
-        let kind = if let Some(bind) = bind && let Some(idx) = self.ident_into_refine_arg(bind, env)? {
-            let sort = self
-                .genv
-                .sort_of_bty(&bty)
-                .unwrap_or_else(|| span_bug!(bty.span, "refined unrefinable type"));
-            env.resolve_implicit_param(bind, sort);
+        let kind = if let Some(bind) = bind
+            && let sort = self.genv.sort_of_bty(&bty)
+            && let Some(idx) = self.bind_into_refine_arg(bind, sort, env)?
+        {
             fhir::TyKind::Indexed(bty, idx)
         } else {
             fhir::TyKind::BaseTy(bty)
