@@ -1720,12 +1720,17 @@ fn sort_of_surface_path(
             let mut sort_args = vec![];
             if let Ok(generics) = genv.generics_of(def_id) {
                 for (param, arg) in generics.params.iter().zip(&path.generics) {
+                    println!("TRACE (0): sort_of_surface_path {param:?} {arg:?}");
                     if let rty::GenericParamDefKind::SplTy = param.kind {
+                        println!("TRACE (1): sort_of_surface_path");
                         let surface::GenericArg::Type(ty) = arg else { return None };
+                        println!("TRACE (2): sort_of_surface_path");
                         let surface::BaseTyKind::Path(path) = &ty.as_bty()?.kind else {
                             return None;
                         };
+                        println!("TRACE (3): sort_of_surface_path {path:?}");
                         let sort = sort_of_surface_path(genv, resolver_output, path)?;
+                        println!("TRACE (4): sort_of_surface_path");
                         sort_args.push(sort);
                     }
                 }
@@ -1734,6 +1739,7 @@ fn sort_of_surface_path(
         }
         fhir::Res::Def(DefKind::TyParam, def_id) => {
             let param = genv.get_generic_param(def_id.expect_local());
+            println!("TRACE (5): sort_of_surface_path {def_id:?} ==> {param:?}");
             match &param.kind {
                 fhir::GenericParamKind::BaseTy => Some(fhir::Sort::Param(def_id)),
                 fhir::GenericParamKind::Type { .. }

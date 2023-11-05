@@ -26,6 +26,7 @@ struct ExternFn {
 }
 
 struct ExternItemImpl {
+    attrs: Vec<Attribute>,
     impl_token: Token![impl],
     generics: Generics,
     self_ty: Box<Type>,
@@ -39,8 +40,8 @@ impl ExternItem {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
             ExternItem::Struct(ItemStruct { attrs, .. })
-            | ExternItem::Fn(ExternFn { attrs, .. }) => mem::replace(attrs, new),
-            ExternItem::Impl(ExternItemImpl { .. }) => vec![],
+            | ExternItem::Fn(ExternFn { attrs, .. })
+            | ExternItem::Impl(ExternItemImpl { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -80,7 +81,9 @@ impl ToTokens for ExternItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let dummy_struct = self.dummy_struct();
         dummy_struct.to_tokens(tokens);
+        // println!("TRACE: to_tokens {:?}", self.attrs);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+        tokens.append_all(&self.attrs);
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
         let dummy_ident = self.dummy_ident.as_ref().unwrap();
@@ -157,6 +160,7 @@ impl Parse for ExternFn {
 
 impl Parse for ExternItemImpl {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
         let generics = input.parse()?;
         let self_ty = input.parse()?;
@@ -168,6 +172,7 @@ impl Parse for ExternItemImpl {
         }
 
         Ok(ExternItemImpl {
+            attrs,
             impl_token,
             generics,
             self_ty,

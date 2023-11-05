@@ -429,7 +429,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub(crate) fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
-        self.map().get_extern(def_id).map(LocalDefId::to_def_id)
+        let res = self.map().get_extern(def_id).map(LocalDefId::to_def_id);
+        println!("TRACE: lookup_extern {def_id:?} ==> {res:?}");
+        res
     }
 
     pub(crate) fn is_fn_once_output(&self, def_id: DefId) -> bool {
