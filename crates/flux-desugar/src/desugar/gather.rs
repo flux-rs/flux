@@ -2,14 +2,15 @@
 //!
 //! A parameter can be declared explicitly with a sort as in `fn<refine n: int>(i32[n])` or implicitly
 //! with the `@` or `#` syntax, e.g., `fn foo(&i32[@n])`.
-use flux_common::{iter::IterExt, span_bug};
+use flux_common::iter::IterExt;
+use flux_errors::FluxSession;
 use flux_middle::fhir;
 use flux_syntax::surface;
+use rustc_data_structures::fx::{FxIndexMap, IndexEntry};
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::def::DefKind;
 
 use super::{
-    errors::{IllegalBinder, RefinedUnrefinableType},
+    errors::{DuplicateParam, IllegalBinder},
     DesugarCtxt, Env,
 };
 
@@ -38,18 +39,70 @@ impl TypePos {
     }
 }
 
+#[derive(Default)]
+struct Params {
+    map: FxIndexMap<surface::Ident, Param>,
+}
+
+enum Param {
+    Explicit(fhir::Sort),
+    At,
+    Pound,
+    Colon,
+    SyntaxError,
+}
+
+impl Params {
+    pub(crate) fn insert_into_env(self, env: &mut Env) {
+        for (ident, param) in self.map {
+            let param = match param {
+                Param::Explicit(sort) => super::Param::Refined(env.fresh(), sort, false),
+                Param::At | Param::Pound | Param::Colon => {
+                    super::Param::Refined(env.fresh(), fhir::Sort::Wildcard, true)
+                }
+                Param::SyntaxError => super::Param::Unrefined,
+            };
+            env.insert_unchecked(ident, param);
+        }
+    }
+}
+
+impl From<surface::BindKind> for Param {
+    fn from(kind: surface::BindKind) -> Self {
+        match kind {
+            surface::BindKind::At => Param::At,
+            surface::BindKind::Pound => Param::Pound,
+        }
+    }
+}
+
+impl Params {
+    fn insert(&mut self, sess: &FluxSession, ident: surface::Ident, param: Param) -> Result {
+        match self.map.entry(ident) {
+            IndexEntry::Occupied(entry) => {
+                Err(sess.emit_err(DuplicateParam::new(*entry.key(), ident)))
+            }
+            IndexEntry::Vacant(entry) => {
+                entry.insert(param);
+                Ok(())
+            }
+        }
+    }
+}
+
 impl DesugarCtxt<'_, '_> {
     /// Implicit parameters are not allowed in struct definition but we traverse it to report errors
-    pub(crate) fn gather_params_struct(
-        &self,
-        struct_def: &surface::StructDef,
-        env: &mut Env,
-    ) -> Result {
+    pub(crate) fn gather_params_struct(&self, struct_def: &surface::StructDef) -> Result {
+        let mut params = Params::default();
         struct_def
             .fields
             .iter()
             .flatten()
-            .try_for_each_exhaust(|ty| self.gather_params_ty(None, ty, TypePos::Field, env))
+            .try_for_each_exhaust(|ty| {
+                self.gather_params_ty(None, ty, TypePos::Field, &mut params)
+            })?;
+        debug_assert!(params.map.is_empty());
+        Ok(())
     }
 
     pub(crate) fn gather_params_variant(
@@ -57,11 +110,12 @@ impl DesugarCtxt<'_, '_> {
         variant_def: &surface::VariantDef,
         env: &mut Env,
     ) -> Result {
+        let mut params = Params::default();
         for ty in &variant_def.fields {
-            self.gather_params_ty(None, ty, TypePos::Input, env)?;
+            self.gather_params_ty(None, ty, TypePos::Input, &mut params)?;
         }
         // Traverse `VariantRet` to find illegal binders and report invalid refinement errors.
-        self.gather_params_variant_ret(&variant_def.ret, env)?;
+        self.gather_params_variant_ret(&variant_def.ret, &mut params)?;
 
         // Check params in `VariantRet`
         variant_def
@@ -75,12 +129,16 @@ impl DesugarCtxt<'_, '_> {
                 } else {
                     Ok(())
                 }
-            })
+            })?;
+
+        params.insert_into_env(env);
+
+        Ok(())
     }
 
-    fn gather_params_variant_ret(&self, ret: &surface::VariantRet, env: &mut Env) -> Result {
-        self.gather_params_path(&ret.path, TypePos::Other, env)?;
-        self.gather_params_indices(&ret.indices, TypePos::Other, env)
+    fn gather_params_variant_ret(&self, ret: &surface::VariantRet, params: &mut Params) -> Result {
+        self.gather_params_path(&ret.path, TypePos::Other, params)?;
+        self.gather_params_indices(&ret.indices, TypePos::Other, params)
     }
 
     /// Parameters cannot be defined inside predicates but we traverse it to report errors if we
@@ -88,14 +146,15 @@ impl DesugarCtxt<'_, '_> {
     pub(crate) fn gather_params_predicates(
         &self,
         predicates: &[surface::WhereBoundPredicate],
-        env: &mut Env,
     ) -> Result {
+        let mut params = Params::default();
         for predicate in predicates {
-            self.gather_params_ty(None, &predicate.bounded_ty, TypePos::Other, env)?;
+            self.gather_params_ty(None, &predicate.bounded_ty, TypePos::Other, &mut params)?;
             for bound in &predicate.bounds {
-                self.gather_params_path(&bound.path, TypePos::Other, env)?;
+                self.gather_params_path(&bound.path, TypePos::Other, &mut params)?;
             }
         }
+        debug_assert!(params.map.is_empty());
         Ok(())
     }
 
@@ -104,18 +163,19 @@ impl DesugarCtxt<'_, '_> {
         fn_sig: &surface::FnSig,
         env: &mut Env,
     ) -> Result {
+        let mut params = Params::default();
         for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
             let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
-            env.insert_explicit(
+            params.insert(
                 self.genv.sess,
                 param.name,
-                self.sort_resolver.resolve_sort(sort)?,
+                Param::Explicit(self.sort_resolver.resolve_sort(sort)?),
             )?;
         }
         for arg in &fn_sig.args {
-            self.gather_params_fun_arg(arg, env)?;
+            self.gather_params_fun_arg(arg, &mut params)?;
         }
-
+        params.insert_into_env(env);
         Ok(())
     }
 
@@ -124,33 +184,31 @@ impl DesugarCtxt<'_, '_> {
         fn_sig: &surface::FnSig,
         env: &mut Env,
     ) -> Result {
+        let mut params = Params::default();
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
-            self.gather_params_ty(None, ty, TypePos::Output, env)?;
+            self.gather_params_ty(None, ty, TypePos::Output, &mut params)?;
         }
         for cstr in &fn_sig.ensures {
             if let surface::Constraint::Type(_, ty) = cstr {
-                self.gather_params_ty(None, ty, TypePos::Output, env)?;
+                self.gather_params_ty(None, ty, TypePos::Output, &mut params)?;
             };
         }
+        params.insert_into_env(env);
         Ok(())
     }
 
-    fn gather_params_fun_arg(&self, arg: &surface::Arg, env: &mut Env) -> Result {
+    fn gather_params_fun_arg(&self, arg: &surface::Arg, params: &mut Params) -> Result {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
-                if self.path_is_refinable(path) {
-                    env.insert_implicit(self.genv.sess, *bind)?;
-                } else {
-                    return Err(self.emit_err(RefinedUnrefinableType::new(path.span)));
-                }
-                self.gather_params_path(path, TypePos::Input, env)?;
+                params.insert(self.genv.sess, *bind, Param::Colon)?;
+                self.gather_params_path(path, TypePos::Input, params)?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                env.insert_explicit(self.genv.sess, *loc, fhir::Sort::Loc)?;
-                self.gather_params_ty(None, ty, TypePos::Input, env)?;
+                params.insert(self.genv.sess, *loc, Param::Explicit(fhir::Sort::Loc))?;
+                self.gather_params_ty(None, ty, TypePos::Input, params)?;
             }
             surface::Arg::Ty(bind, ty) => {
-                self.gather_params_ty(*bind, ty, TypePos::Input, env)?;
+                self.gather_params_ty(*bind, ty, TypePos::Input, params)?;
             }
         }
         Ok(())
@@ -161,69 +219,61 @@ impl DesugarCtxt<'_, '_> {
         bind: Option<surface::Ident>,
         ty: &surface::Ty,
         pos: TypePos,
-        env: &mut Env,
+        params: &mut Params,
     ) -> Result {
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
                 if let Some(bind) = bind {
-                    env.insert_unrefined(self.genv.sess, bind)?;
+                    params.insert(self.genv.sess, bind, Param::SyntaxError)?;
                 }
-                if self.bty_is_refinable(bty) {
-                    self.gather_params_indices(indices, pos, env)?;
-                } else {
-                    Err(self.emit_err(RefinedUnrefinableType::new(ty.span)))?;
-                }
-                self.gather_params_bty(bty, pos, env)
+                self.gather_params_indices(indices, pos, params)?;
+                self.gather_params_bty(bty, pos, params)
             }
             surface::TyKind::Base(bty) => {
                 if let Some(bind) = bind {
-                    if self.bty_is_refinable(bty) {
-                        env.insert_implicit(self.genv.sess, bind)?;
-                    } else {
-                        env.insert_unrefined(self.genv.sess, bind)?;
-                    }
+                    params.insert(self.genv.sess, bind, Param::Colon)?;
                 }
-                self.gather_params_bty(bty, pos, env)
+                self.gather_params_bty(bty, pos, params)
             }
             surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
                 if let Some(bind) = bind {
-                    env.insert_unrefined(self.genv.sess, bind)?;
+                    params.insert(self.genv.sess, bind, Param::SyntaxError)?;
                 }
-                self.gather_params_ty(None, ty, pos, env)
+                self.gather_params_ty(None, ty, pos, params)
             }
             surface::TyKind::Tuple(tys) => {
                 if let Some(bind) = bind {
-                    env.insert_unrefined(self.genv.sess, bind)?;
+                    params.insert(self.genv.sess, bind, Param::SyntaxError)?;
                 }
                 for ty in tys {
-                    self.gather_params_ty(None, ty, pos, env)?;
+                    self.gather_params_ty(None, ty, pos, params)?;
                 }
                 Ok(())
             }
             surface::TyKind::Array(ty, _) => {
                 if let Some(bind) = bind {
-                    env.insert_unrefined(self.genv.sess, bind)?;
+                    params.insert(self.genv.sess, bind, Param::SyntaxError)?;
                 }
-                self.gather_params_ty(None, ty, TypePos::Other, env)
+                self.gather_params_ty(None, ty, TypePos::Other, params)
             }
             surface::TyKind::Exists { bty, .. } => {
                 if let Some(bind) = bind {
-                    env.insert_unrefined(self.genv.sess, bind)?;
+                    params.insert(self.genv.sess, bind, Param::SyntaxError)?;
                 }
-                self.gather_params_bty(bty, pos, env)
+                self.gather_params_bty(bty, pos, params)
             }
             surface::TyKind::GeneralExists { ty, .. } => {
                 if let Some(bind) = bind {
-                    env.insert_unrefined(self.genv.sess, bind)?;
+                    params.insert(self.genv.sess, bind, Param::SyntaxError)?;
                 }
                 // Declaring parameters with @ inside and existential has weird behavior if names
                 // are being shadowed. Thus, we don't allow it to keep things simple. We could eventually
                 // allow it if we resolve the weird behavior by detecting shadowing.
-                self.gather_params_ty(None, ty, TypePos::Other, env)
+                self.gather_params_ty(None, ty, TypePos::Other, params)
             }
             surface::TyKind::ImplTrait(_, bounds) => {
                 for bound in bounds {
-                    self.gather_params_path(&bound.path, TypePos::Other, env)?;
+                    self.gather_params_path(&bound.path, TypePos::Other, params)?;
                 }
                 Ok(())
             }
@@ -234,27 +284,25 @@ impl DesugarCtxt<'_, '_> {
         &self,
         indices: &surface::Indices,
         pos: TypePos,
-        env: &mut Env,
+        params: &mut Params,
     ) -> Result {
-        if let [surface::RefineArg::Bind(ident, kind, span)] = indices.indices[..] {
-            if !pos.is_binder_allowed(kind) {
-                return Err(self.emit_err(IllegalBinder::new(span, kind)));
-            }
-            env.insert_implicit(self.genv.sess, ident)?;
-        } else {
-            for idx in &indices.indices {
-                if let surface::RefineArg::Bind(ident, kind, span) = idx {
-                    if !pos.is_binder_allowed(*kind) {
-                        return Err(self.emit_err(IllegalBinder::new(*span, *kind)));
-                    }
-                    env.insert_implicit(self.genv.sess, *ident)?;
+        for idx in &indices.indices {
+            if let surface::RefineArg::Bind(ident, kind, span) = idx {
+                if !pos.is_binder_allowed(*kind) {
+                    return Err(self.emit_err(IllegalBinder::new(*span, *kind)));
                 }
+                params.insert(self.genv.sess, *ident, (*kind).into())?;
             }
         }
         Ok(())
     }
 
-    fn gather_params_path(&self, path: &surface::Path, pos: TypePos, env: &mut Env) -> Result {
+    fn gather_params_path(
+        &self,
+        path: &surface::Path,
+        pos: TypePos,
+        params: &mut Params,
+    ) -> Result {
         // CODESYNC(type-holes, 3) type holes do not have a corresponding `Res`.
         if path.is_hole() {
             return Ok(());
@@ -272,48 +320,32 @@ impl DesugarCtxt<'_, '_> {
         let pos = if self.genv.is_box(res) { pos } else { TypePos::Other };
         path.generics
             .iter()
-            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(arg, pos, env))
+            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(arg, pos, params))
     }
 
     fn gather_params_generic_arg(
         &self,
         arg: &surface::GenericArg,
         pos: TypePos,
-        env: &mut Env,
+        params: &mut Params,
     ) -> Result {
         match arg {
-            surface::GenericArg::Type(ty) => self.gather_params_ty(None, ty, pos, env),
-            surface::GenericArg::Constraint(_, ty) => self.gather_params_ty(None, ty, pos, env),
+            surface::GenericArg::Type(ty) => self.gather_params_ty(None, ty, pos, params),
+            surface::GenericArg::Constraint(_, ty) => self.gather_params_ty(None, ty, pos, params),
         }
     }
 
-    fn gather_params_bty(&self, bty: &surface::BaseTy, pos: TypePos, env: &mut Env) -> Result {
+    fn gather_params_bty(
+        &self,
+        bty: &surface::BaseTy,
+        pos: TypePos,
+        params: &mut Params,
+    ) -> Result {
         match &bty.kind {
-            surface::BaseTyKind::Path(path) => self.gather_params_path(path, pos, env),
-            surface::BaseTyKind::Slice(ty) => self.gather_params_ty(None, ty, TypePos::Other, env),
-        }
-    }
-
-    fn bty_is_refinable(&self, ty: &surface::BaseTy) -> bool {
-        match &ty.kind {
-            surface::BaseTyKind::Path(path) => self.path_is_refinable(path),
-            surface::BaseTyKind::Slice(_) => true,
-        }
-    }
-
-    fn path_is_refinable(&self, path: &surface::Path) -> bool {
-        let res = self.resolver_output.path_res_map[&path.node_id];
-        match res {
-            fhir::Res::Def(DefKind::TyParam, def_id) => {
-                self.genv.sort_of_generic_param(def_id).is_some()
+            surface::BaseTyKind::Path(path) => self.gather_params_path(path, pos, params),
+            surface::BaseTyKind::Slice(ty) => {
+                self.gather_params_ty(None, ty, TypePos::Other, params)
             }
-            fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, _)
-            | fhir::Res::PrimTy(_) => true,
-            fhir::Res::SelfTyAlias { alias_to, .. } => {
-                self.genv.sort_of_self_ty_alias(alias_to).is_some()
-            }
-            fhir::Res::SelfTyParam { .. } => false,
-            fhir::Res::Def(..) => span_bug!(path.span, "unexpected res `{res:?}`"),
         }
     }
 }

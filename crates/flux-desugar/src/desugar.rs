@@ -375,7 +375,7 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
                 .flat_map(surface::RefinedBy::all_params),
         )?;
         // Ghather params to report errors
-        self.gather_params_struct(struct_def, env)?;
+        self.gather_params_struct(struct_def)?;
 
         let invariants = struct_def
             .invariants
@@ -520,7 +520,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         // Desugar inputs
         env.push_layer();
         self.gather_input_params_fn_sig(fn_sig, env)?;
-        self.gather_params_predicates(&fn_sig.predicates, env)?;
+
+        // Gather params in predicates to report errors
+        self.gather_params_predicates(&fn_sig.predicates)?;
 
         // Desugar predicates -- after we have gathered the input params
         let generic_preds = self.desugar_predicates(&fn_sig.predicates, env)?;
@@ -1294,12 +1296,8 @@ impl Env {
         self.insert_param(sess, ident, Param::Refined(self.fresh(), sort, false))
     }
 
-    fn insert_implicit(&mut self, sess: &FluxSession, ident: surface::Ident) -> Result {
-        self.insert_param(sess, ident, Param::Refined(self.fresh(), fhir::Sort::Wildcard, true))
-    }
-
-    fn insert_unrefined(&mut self, sess: &FluxSession, ident: surface::Ident) -> Result {
-        self.insert_param(sess, ident, Param::Unrefined)
+    fn insert_unchecked(&mut self, ident: surface::Ident, param: Param) {
+        self.top_layer().insert_unchecked(ident, param);
     }
 
     fn insert_param(&mut self, sess: &FluxSession, ident: surface::Ident, binder: Param) -> Result {
@@ -1376,6 +1374,10 @@ impl Layer {
 
     fn get_mut(&mut self, key: impl Borrow<surface::Ident>) -> Option<&mut Param> {
         self.map.get_mut(key.borrow())
+    }
+
+    fn insert_unchecked(&mut self, ident: surface::Ident, param: Param) {
+        self.map.insert(ident, param);
     }
 
     fn insert(&mut self, sess: &FluxSession, ident: surface::Ident, binder: Param) -> Result {
