@@ -2,7 +2,7 @@ mod env;
 mod gather;
 use std::iter;
 
-use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
+use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
@@ -841,9 +841,10 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Some(param) => {
                 if let Some(sort) = sort {
                     param.sort = sort;
-                } else {
-                    return Err(self.emit_err(errors::RefinedUnrefinableType::new(ident.span)));
                 }
+                // else {
+                //     return Err(self.emit_err(errors::RefinedUnrefinableType::new(ident.span)));
+                // }
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(param.name, ident));
                 let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
                 Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
@@ -1323,7 +1324,6 @@ static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
 
 mod errors {
     use flux_macros::Diagnostic;
-    use flux_middle::fhir;
     use flux_syntax::surface::{self, BindKind, QPathExpr};
     use itertools::Itertools;
     use rustc_span::{symbol::Ident, Span, Symbol};

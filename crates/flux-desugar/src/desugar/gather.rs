@@ -12,7 +12,6 @@ use flux_syntax::{
     },
     walk_list,
 };
-use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::ErrorGuaranteed;
 
 use super::{
@@ -79,7 +78,7 @@ impl DesugarCtxt<'_, '_> {
 
         self.gather_params_ty(None, &ty_alias.ty, TypePos::Other, &mut env)?;
 
-        Ok(env.into_desugar_env(&UsedParams::default()))
+        Ok(env.into_desugar_env())
     }
 
     /// Synthetic parameters are not allowed in struct definition but we traverse it to report errors
@@ -104,7 +103,7 @@ impl DesugarCtxt<'_, '_> {
             .flatten()
             .try_for_each_exhaust(|ty| self.gather_params_ty(None, ty, TypePos::Field, &mut env))?;
 
-        Ok(env.into_desugar_env(&UsedParams::default()))
+        Ok(env.into_desugar_env())
     }
 
     pub(super) fn gather_params_variant(
@@ -119,9 +118,9 @@ impl DesugarCtxt<'_, '_> {
 
         self.gather_params_variant_ret(&variant_def.ret, &mut env)?;
 
-        let uses = self.check_param_uses(&mut env, |vis| vis.visit_variant(variant_def))?;
+        self.check_param_uses(&mut env, |vis| vis.visit_variant(variant_def))?;
 
-        Ok(env.into_desugar_env(&uses))
+        Ok(env.into_desugar_env())
     }
 
     fn gather_params_variant_ret(&self, ret: &surface::VariantRet, env: &mut Env) -> Result {
@@ -138,9 +137,9 @@ impl DesugarCtxt<'_, '_> {
         self.gather_params_fn_sig_output(fn_sig, &mut env)?;
         env.exit();
 
-        let uses = self.check_param_uses(&mut env, |vis| vis.visit_fn_sig(fn_sig))?;
+        self.check_param_uses(&mut env, |vis| vis.visit_fn_sig(fn_sig))?;
 
-        Ok(env.into_desugar_env(&uses))
+        Ok(env.into_desugar_env())
     }
 
     fn gather_params_fn_sig_input(&self, fn_sig: &surface::FnSig, env: &mut Env) -> Result {
@@ -353,11 +352,7 @@ impl DesugarCtxt<'_, '_> {
         }
     }
 
-    fn check_param_uses(
-        &self,
-        env: &mut Env,
-        f: impl FnOnce(&mut CheckParamUses),
-    ) -> Result<UsedParams> {
+    fn check_param_uses(&self, env: &mut Env, f: impl FnOnce(&mut CheckParamUses)) -> Result {
         CheckParamUses::new(self.sess(), env).run(f)
     }
 
@@ -376,9 +371,9 @@ impl DesugarCtxt<'_, '_> {
 }
 
 impl Env {
-    fn into_desugar_env(self, uses: &UsedParams) -> env::Env<super::Param> {
+    fn into_desugar_env(self) -> env::Env<super::Param> {
         let name_gen = IndexGen::default();
-        self.filter_map(|scope, ident, param| {
+        self.filter_map(|param, used| {
             match param {
                 Param::Explicit(sort) => {
                     Some(super::Param { name: name_gen.fresh(), sort, synthetic: false })
@@ -391,7 +386,7 @@ impl Env {
                     })
                 }
                 Param::Colon => {
-                    if is_used(uses, scope, ident) {
+                    if used {
                         Some(super::Param {
                             name: name_gen.fresh(),
                             sort: fhir::Sort::Wildcard,
@@ -407,33 +402,23 @@ impl Env {
     }
 }
 
-type UsedParams = UnordMap<ScopeId, UnordSet<surface::Ident>>;
-
-fn is_used(uses: &UsedParams, scope: ScopeId, ident: surface::Ident) -> bool {
-    match uses.get(&scope) {
-        Some(set) => set.contains(&ident),
-        None => false,
-    }
-}
-
 struct CheckParamUses<'a> {
     env: &'a mut Env,
     sess: &'a FluxSession,
-    uses: UsedParams,
     error: Option<ErrorGuaranteed>,
 }
 
 impl<'a> CheckParamUses<'a> {
     fn new(sess: &'a FluxSession, env: &'a mut Env) -> Self {
-        Self { env, sess, uses: Default::default(), error: None }
+        Self { env, sess, error: None }
     }
 
-    fn run(mut self, f: impl FnOnce(&mut Self)) -> Result<UsedParams> {
+    fn run(mut self, f: impl FnOnce(&mut Self)) -> Result {
         f(&mut self);
         if let Some(err) = self.error {
             Err(err)
         } else {
-            Ok(self.uses)
+            Ok(())
         }
     }
 
@@ -443,7 +428,7 @@ impl<'a> CheckParamUses<'a> {
                 self.error = Some(self.sess.emit_err(InvalidUnrefinedParam::new(ident)));
             }
             Some((scope_id, _)) => {
-                self.uses.entry(scope_id).or_default().insert(ident);
+                self.env.scope(scope_id).mark_as_used(ident);
             }
             None => {}
         }

@@ -21,7 +21,7 @@ pub(crate) struct Env<P> {
 impl<P> Env<P> {
     pub(crate) fn new(root: ScopeId) -> Self {
         let mut scopes = FxHashMap::default();
-        scopes.insert(root, Scope { map: Default::default(), id: root });
+        scopes.insert(root, Scope::new());
         Self { scopes, parent: Default::default(), children: Default::default(), root, curr: root }
     }
 
@@ -38,18 +38,21 @@ impl<P> Env<P> {
     }
 
     pub(crate) fn get(&self, ident: Ident) -> Option<&P> {
-        self.find_map(|scope| scope.map.get(&ident))
+        self.find_map(|_, scope| scope.map.get(&ident))
     }
 
     pub(crate) fn get_with_scope(&self, ident: Ident) -> Option<(ScopeId, &P)> {
-        self.find_map(|scope| scope.map.get(&ident).map(|param| (scope.id, param)))
+        self.find_map(|id, scope| scope.map.get(&ident).map(|param| (id, param)))
     }
 
-    fn find_map<'a, T>(&'a self, mut f: impl FnMut(&'a Scope<P>) -> Option<T>) -> Option<T> {
+    fn find_map<'a, T>(
+        &'a self,
+        mut f: impl FnMut(ScopeId, &'a Scope<P>) -> Option<T>,
+    ) -> Option<T> {
         let mut curr = self.curr;
         loop {
             let scope = self.scopes.get(&curr).unwrap();
-            if let Some(res) = f(scope) {
+            if let Some(res) = f(curr, scope) {
                 return Some(res);
             }
             if let Some(parent) = self.parent.get(&curr) {
@@ -65,9 +68,12 @@ impl<P> Env<P> {
         self.scopes.get_mut(&scope_id).unwrap().map.get_mut(&ident)
     }
 
+    pub(crate) fn scope(&mut self, id: ScopeId) -> &mut Scope<P> {
+        self.scopes.get_mut(&id).unwrap()
+    }
+
     pub(crate) fn push(&mut self, id: ScopeId) {
-        let scope = Scope { map: Default::default(), id };
-        self.scopes.insert(id, scope);
+        self.scopes.insert(id, Scope::new());
         self.children.entry(self.curr).or_default().insert(id);
         self.parent.insert(id, self.curr);
         self.curr = id;
@@ -99,17 +105,24 @@ impl<P> Env<P> {
         self.curr = self.parent[&self.curr];
     }
 
-    pub(crate) fn filter_map<T>(self, mut f: impl FnMut(ScopeId, Ident, P) -> Option<T>) -> Env<T> {
+    pub(crate) fn filter_map<T>(self, mut f: impl FnMut(P, bool) -> Option<T>) -> Env<T> {
         let scopes = self
             .scopes
             .into_iter()
-            .map(|(id, scope)| {
+            .map(|(id, mut scope)| {
                 let map = scope
                     .map
                     .into_iter()
-                    .flat_map(|(ident, param)| Some((ident, f(scope.id, ident, param)?)))
+                    .flat_map(|(ident, param)| {
+                        if let Some(r) = f(param, scope.used.contains(&ident)) {
+                            Some((ident, r))
+                        } else {
+                            scope.used.remove(&ident);
+                            None
+                        }
+                    })
                     .collect();
-                (id, Scope { map, id: scope.id })
+                (id, Scope { map, used: scope.used })
             })
             .collect();
         Env {
@@ -180,8 +193,8 @@ impl<P: fmt::Debug> Env<P> {
 
 #[derive(Debug)]
 pub(crate) struct Scope<P> {
-    pub(crate) id: ScopeId,
     map: FxIndexMap<Ident, P>,
+    used: FxHashSet<Ident>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -198,12 +211,21 @@ pub(crate) enum ScopeId {
 }
 
 impl<P> Scope<P> {
+    fn new() -> Self {
+        Self { map: Default::default(), used: Default::default() }
+    }
+
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&Ident, &P)> {
         self.map.iter()
     }
 
     pub(crate) fn into_iter(self) -> impl Iterator<Item = (Ident, P)> {
         self.map.into_iter()
+    }
+
+    pub(crate) fn mark_as_used(&mut self, ident: Ident) {
+        let (key, _) = self.map.get_key_value(&ident).unwrap();
+        self.used.insert(*key);
     }
 
     fn insert(&mut self, sess: &FluxSession, ident: Ident, param: P) -> Result {
