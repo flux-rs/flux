@@ -272,7 +272,6 @@ pub(crate) fn conv_fn_sig(
     fn_sig: &fhir::FnSig,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    println!("TRACE: conv_fn_sig {def_id:?} ==> {fn_sig:?}");
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
@@ -849,7 +848,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let generics = self.genv.generics_of(def_id)?;
         for param in generics.params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
-                println!("TRACE: fill_generic_args_defaults: {param:?}");
                 debug_assert!(has_default);
                 let ty = self
                     .genv

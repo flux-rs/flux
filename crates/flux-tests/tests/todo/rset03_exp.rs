@@ -17,23 +17,28 @@ use flux_rs::extern_spec;
 #[allow(unused, dead_code)]
 #[flux::refined_by(elems : Set < T >)]
 struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
-struct __FluxExternImplStructHashSet<Tiger: Eq + Hash>(HashSet<Tiger>);
-#[flux::generics(Tiger as base)]
-impl<Tiger: Eq + Hash> __FluxExternImplStructHashSet<Tiger> {
+struct __FluxExternImplStructHashSet<Tiger: Eq + Hash, S = RandomState>(HashSet<Tiger, S>);
+#[flux::generics(Tiger as base, S)]
+impl<Tiger: Eq + Hash, S> __FluxExternImplStructHashSet<Tiger, S> {
     #[flux::extern_spec]
+    #[flux::trusted]
     #[flux::sig(fn() -> HashSet < Tiger > [set_empty(0)])]
     fn new() -> HashSet<Tiger> {
         <HashSet<Tiger>>::new()
     }
 
+    #[flux::extern_spec]
+    #[flux::trusted]
     #[flux::sig(fn(set: &strg HashSet<Tiger>[@s], elem:Tiger) -> bool ensures set: HashSet<Tiger>[set_union(set_singleton(elem), s)])]
     fn insert(s: &mut HashSet<Tiger>, elem: Tiger) -> bool {
-        s.insert(elem)
+        <HashSet<Tiger>>::insert(s, elem)
     }
 
+    #[flux::extern_spec]
+    #[flux::trusted]
     #[flux::sig(fn(set: &HashSet<Tiger>[@s], &Tiger[@elem]) -> bool[set_is_in(elem, s.elems)])]
     fn contains(set: &HashSet<Tiger>, elem: &Tiger) -> bool {
-        set.contains(elem)
+        <HashSet<Tiger>>::contains(set, elem)
     }
 }
 #[flux::sig(fn(bool [true]))]

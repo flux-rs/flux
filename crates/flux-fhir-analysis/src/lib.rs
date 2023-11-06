@@ -162,6 +162,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
                 .map()
                 .get_generics(local_id)
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
+            println!("TRACE: (query?) generics_of {def_id:?} ==> {generics:?}");
             let refine_params = genv
                 .map()
                 .get_refine_params(genv.tcx, local_id)

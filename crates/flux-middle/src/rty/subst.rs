@@ -64,12 +64,12 @@ impl RegionSubst {
                 self.infer_from_region(*r1, *r2);
                 self.infer_from_ty(ty1, ty2);
             }
-            (BaseTy::Adt(adt1, args1), ty::TyKind::Adt(adt2, args2)) => {
-                println!(
-                    "TRACE: infer_from_bty: ( {:?}, args1 = {args1:?}) ({:?}, args2 = {args2:?}",
-                    adt1.did(),
-                    adt2.did()
-                );
+            (BaseTy::Adt(_adt1, args1), ty::TyKind::Adt(_adt2, args2)) => {
+                // println!(
+                //     "TRACE: infer_from_bty: ( {:?}, args1 = {args1:?}) ({:?}, args2 = {args2:?}",
+                //     adt1.did(),
+                //     adt2.did()
+                // );
                 debug_assert_eq!(args1.len(), args2.len());
                 for (arg1, arg2) in iter::zip(args1, args2) {
                     match (arg1, arg2) {
