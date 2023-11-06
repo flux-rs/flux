@@ -781,22 +781,28 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         idxs: &surface::Indices,
         env: &mut Env,
     ) -> Result<fhir::RefineArg> {
-        let sort = self.genv.sort_of_bty(bty);
-        if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
-            Ok(self.bind_into_refine_arg(*ident, sort, env)?.unwrap())
-        } else if let Some(fhir::Sort::Record(def_id, sort_args)) = sort {
-            let sorts = self.genv.index_sorts_of(def_id, &sort_args);
-            if sorts.len() != idxs.indices.len() {
-                return Err(self.emit_err(errors::RefineArgCountMismatch::new(idxs, &sorts)));
+        let Some(sort) = self.genv.sort_of_bty(bty) else {
+            return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
+        };
+        if let fhir::Sort::Record(def_id, sort_args) = sort.clone() {
+            if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
+                Ok(self.bind_into_refine_arg(*ident, Some(sort), env)?.unwrap())
+            } else {
+                let sorts = self.genv.index_sorts_of(def_id, &sort_args);
+                if sorts.len() != idxs.indices.len() {
+                    return Err(
+                        self.emit_err(errors::RefineArgCountMismatch::new(idxs, sorts.len()))
+                    );
+                }
+                let flds = iter::zip(&idxs.indices, sorts)
+                    .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
+                    .try_collect_exhaust()?;
+                Ok(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
             }
-            let flds = iter::zip(&idxs.indices, sorts)
-                .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
-                .try_collect_exhaust()?;
-            Ok(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
         } else if let [arg] = &idxs.indices[..] {
-            self.desugar_refine_arg(arg, sort, env)
+            self.desugar_refine_arg(arg, Some(sort), env)
         } else {
-            Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)))
+            Err(self.emit_err(errors::RefineArgCountMismatch::new(idxs, 1)))
         }
     }
 
@@ -1425,8 +1431,8 @@ mod errors {
     }
 
     impl RefineArgCountMismatch {
-        pub(super) fn new(idxs: &surface::Indices, sorts: &[fhir::Sort]) -> Self {
-            Self { span: idxs.span, expected: sorts.len(), found: idxs.indices.len() }
+        pub(super) fn new(idxs: &surface::Indices, expected: usize) -> Self {
+            Self { span: idxs.span, expected, found: idxs.indices.len() }
         }
     }
 
