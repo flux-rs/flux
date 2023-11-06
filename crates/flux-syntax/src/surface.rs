@@ -1,3 +1,5 @@
+pub mod visit;
+
 use std::fmt;
 
 pub use rustc_ast::{
