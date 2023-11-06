@@ -448,7 +448,7 @@ pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
     /// Whether the parameter was declared implicitly with `@` or `#` syntax
-    pub implicit: bool,
+    pub synthetic: bool,
     pub fhir_id: FhirId,
 }
 
@@ -948,7 +948,7 @@ impl RefineParam {
     }
 
     pub fn infer_mode(&self) -> InferMode {
-        if self.sort.is_pred() && !self.implicit {
+        if self.sort.is_pred() && !self.synthetic {
             InferMode::KVar
         } else {
             InferMode::EVar

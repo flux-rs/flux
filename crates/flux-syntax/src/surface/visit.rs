@@ -205,17 +205,29 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
-    vis.visit_async(&fn_sig.asyncness);
-    if let Some(generics) = &fn_sig.generics {
+    let FnSig {
+        asyncness,
+        generics,
+        requires,
+        args,
+        returns,
+        ensures,
+        predicates,
+        span: _span,
+        node_id: _node_id,
+    } = fn_sig;
+
+    vis.visit_async(asyncness);
+    if let Some(generics) = generics {
         vis.visit_generics(generics);
     }
-    if let Some(requires) = &fn_sig.requires {
+    walk_list!(vis, visit_where_predicate, predicates);
+    if let Some(requires) = requires {
         vis.visit_expr(requires);
     }
-    walk_list!(vis, visit_fun_arg, &fn_sig.args);
-    vis.visit_fn_ret_ty(&fn_sig.returns);
-    walk_list!(vis, visit_constraint, &fn_sig.ensures);
-    walk_list!(vis, visit_where_predicate, &fn_sig.predicates);
+    walk_list!(vis, visit_fun_arg, args);
+    vis.visit_fn_ret_ty(returns);
+    walk_list!(vis, visit_constraint, ensures);
 }
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
@@ -286,7 +298,7 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
         RefineArg::Expr(e) => {
             vis.visit_expr(e);
         }
-        RefineArg::Abs(params, e, _span) => {
+        RefineArg::Abs(params, e, _node_id, _span) => {
             walk_list!(vis, visit_refine_param, params);
             vis.visit_expr(e);
         }

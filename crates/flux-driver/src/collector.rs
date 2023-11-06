@@ -249,7 +249,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs.structs.insert(
             owner_id,
-            surface::StructDef { generics, refined_by, fields, opaque, invariants },
+            surface::StructDef {
+                generics,
+                refined_by,
+                fields,
+                opaque,
+                invariants,
+                node_id: self.parse_sess.next_node_id(),
+            },
         );
 
         Ok(())
@@ -286,9 +293,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let invariants = attrs.invariants();
 
-        self.specs
-            .enums
-            .insert(owner_id, surface::EnumDef { refined_by, variants, invariants });
+        self.specs.enums.insert(
+            owner_id,
+            surface::EnumDef {
+                refined_by,
+                variants,
+                invariants,
+                node_id: self.parse_sess.next_node_id(),
+            },
+        );
         Ok(())
     }
 

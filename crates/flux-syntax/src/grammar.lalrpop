@@ -57,6 +57,7 @@ pub TyAlias: surface::TyAlias = {
             generics: generics.unwrap_or_default(),
             refined_by,
             ty,
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi)
         }
     }
@@ -172,7 +173,8 @@ pub FnSig: surface::FnSig = {
             ensures,
             requires,
             predicates,
-            span: cx.map_span(lo, hi)
+            span: cx.map_span(lo, hi),
+            node_id: cx.next_node_id(),
         }
     },
 
@@ -195,7 +197,7 @@ pub Variant: surface::VariantDef = {
             Some(fields) => fields,
             None => vec![],
         };
-        surface::VariantDef { fields, ret, span: cx.map_span(lo, hi) }
+        surface::VariantDef { fields, ret, node_id: cx.next_node_id(), span: cx.map_span(lo, hi) }
     }
 }
 
@@ -248,6 +250,7 @@ Arg: surface::Arg = {
 pub Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi)
     }
 }
@@ -333,7 +336,7 @@ RefineArg: surface::RefineArg = {
     <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, cx.map_span(lo, hi)),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params:RefineParams<"?">> "|" <body:Expr> <hi:@R> => {
-        surface::RefineArg::Abs(params, body, cx.map_span(lo, hi))
+        surface::RefineArg::Abs(params, body, cx.next_node_id(), cx.map_span(lo, hi))
     }
 };
 
