@@ -47,6 +47,10 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
         owner_id: OwnerId,
         struct_def: &surface::StructDef,
     ) -> Result {
+        if !struct_def.needs_resolving() {
+            return Ok(());
+        }
+
         let mut item_resolver =
             ItemLikeResolver::new(self.tcx, self.sess, owner_id, &mut self.output)?;
         struct_def.fields.iter().try_for_each_exhaust(|ty| {
@@ -58,6 +62,10 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
     }
 
     pub fn resolve_enum_def(&mut self, owner_id: OwnerId, enum_def: &surface::EnumDef) -> Result {
+        if !enum_def.needs_resolving() {
+            return Ok(());
+        }
+
         let mut item_resolver =
             ItemLikeResolver::new(self.tcx, self.sess, owner_id, &mut self.output)?;
         enum_def
@@ -447,13 +455,19 @@ impl<'sess> NameResTable<'sess> {
             }
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
-                let hir::QPath::Resolved(None, path) = qpath else {
-                    return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                        qpath.span(),
-                        &format!("unsupported path `{}`", rustc_hir_pretty::qpath_to_string(qpath)),
-                    )));
-                };
-                self.collect_from_path(path)
+                match qpath {
+                    hir::QPath::Resolved(self_ty, path) => {
+                        self.collect_from_path(path)?;
+                        if let Some(self_ty) = self_ty {
+                            self.collect_from_ty(self_ty)?;
+                        }
+                    }
+                    hir::QPath::TypeRelative(ty, _path_segment) => {
+                        self.collect_from_ty(ty)?;
+                    }
+                    hir::QPath::LangItem(..) => {}
+                }
+                Ok(())
             }
             hir::TyKind::OpaqueDef(item_id, ..) => {
                 assert!(self.opaque.is_none());

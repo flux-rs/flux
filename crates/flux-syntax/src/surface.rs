@@ -85,11 +85,25 @@ pub struct StructDef {
     pub invariants: Vec<Expr>,
 }
 
+impl StructDef {
+    /// Whether the struct contains any path that needs to be resolved.
+    pub fn needs_resolving(&self) -> bool {
+        self.fields.iter().any(Option::is_some)
+    }
+}
+
 #[derive(Debug)]
 pub struct EnumDef {
     pub refined_by: Option<RefinedBy>,
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
+}
+
+impl EnumDef {
+    /// Whether the enum contains any path that needs to be resolved.
+    pub fn needs_resolving(&self) -> bool {
+        self.variants.iter().any(Option::is_some)
+    }
 }
 
 #[derive(Debug)]
