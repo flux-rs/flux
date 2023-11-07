@@ -81,7 +81,6 @@ impl ToTokens for ExternItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let dummy_struct = self.dummy_struct();
         dummy_struct.to_tokens(tokens);
-        // println!("TRACE: to_tokens {:?}", self.attrs);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         tokens.append_all(&self.attrs);
         self.impl_token.to_tokens(tokens);

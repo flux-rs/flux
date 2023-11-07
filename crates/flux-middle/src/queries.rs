@@ -198,7 +198,6 @@ impl<'tcx> Queries<'tcx> {
     ) -> QueryResult<rty::Generics> {
         run_with_cache(&self.generics_of, def_id0, || {
             let def_id = genv.lookup_extern(def_id0).unwrap_or(def_id0);
-            println!("TRACE: generics_of {def_id0:?} ==> {def_id:?}");
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {

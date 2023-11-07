@@ -12,7 +12,6 @@ use std::{
     hash::Hash,
 };
 
-use flux_rs::extern_spec;
 #[flux::extern_spec]
 #[allow(unused, dead_code)]
 #[flux::refined_by(elems : Set < T >)]
@@ -20,6 +19,7 @@ struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
 struct __FluxExternImplStructHashSet<Tiger: Eq + Hash, S = RandomState>(HashSet<Tiger, S>);
 #[flux::generics(Tiger as base, S)]
 impl<Tiger: Eq + Hash, S> __FluxExternImplStructHashSet<Tiger, S> {
+    #[allow(dead_code)]
     #[flux::extern_spec]
     #[flux::trusted]
     #[flux::sig(fn() -> HashSet < Tiger > [set_empty(0)])]
@@ -27,6 +27,7 @@ impl<Tiger: Eq + Hash, S> __FluxExternImplStructHashSet<Tiger, S> {
         <HashSet<Tiger>>::new()
     }
 
+    #[allow(dead_code)]
     #[flux::extern_spec]
     #[flux::trusted]
     #[flux::sig(fn(set: &strg HashSet<Tiger>[@s], elem:Tiger) -> bool ensures set: HashSet<Tiger>[set_union(set_singleton(elem), s)])]
@@ -34,13 +35,21 @@ impl<Tiger: Eq + Hash, S> __FluxExternImplStructHashSet<Tiger, S> {
         <HashSet<Tiger>>::insert(s, elem)
     }
 
-    #[flux::extern_spec]
-    #[flux::trusted]
-    #[flux::sig(fn(set: &HashSet<Tiger>[@s], &Tiger[@elem]) -> bool[set_is_in(elem, s.elems)])]
-    fn contains(set: &HashSet<Tiger>, elem: &Tiger) -> bool {
-        <HashSet<Tiger>>::contains(set, elem)
-    }
+    // // NASTY PROBLEM: `contains` takes a `&Q` where the hash must be the same (yuck).
+    // #[flux::extern_spec]
+    // #[flux::trusted]
+    // #[flux::sig(fn(set: &HashSet<Tiger>[@s], &Quux[@elem]) -> bool[set_is_in(elem, s.elems)])]
+    // fn contains<Quux>(set: &HashSet<Tiger>, elem: &Quux) -> bool {
+    //     <HashSet<Tiger>>::contains(set, elem)
+    // }
 }
+
+#[flux::trusted]
+#[flux::sig(fn<T as base>(&HashSet<T>[@s], &T[@elem]) -> bool[set_is_in(elem, s.elems)])]
+fn member<T: Eq + Hash>(s: &HashSet<T>, elem: &T) -> bool {
+    s.contains(elem)
+}
+
 #[flux::sig(fn(bool [true]))]
 fn assert(_b: bool) {}
 pub fn test() {
@@ -48,9 +57,6 @@ pub fn test() {
     let v0 = 666;
     let v1 = 667;
     s.insert(v0);
-    // for v in &s {
-    //     assert(*v >= 666);
-    // }
-    assert(s.contains(&v0));
-    assert(!s.contains(&v1));
+    assert(member(&s, &v0));
+    assert(!member(&s, &v1));
 }

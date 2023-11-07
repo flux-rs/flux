@@ -442,20 +442,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
         // impl functions
         if let Node::ImplItem(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
-            && let _ = println!("TRACE: extract_extern_def_id (0) {def_id:?}")
             && let ImplItemKind::Fn(_, body_id) = &i.kind
-            && let _ = println!("TRACE: extract_extern_def_id (1) {def_id:?}")
             && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
-            && let _ = println!("TRACE: extract_extern_def_id (2) {def_id:?}")
             && let ExprKind::Block(b, _) = e.kind
-            && let _ = println!("TRACE: extract_extern_def_id (3) {def_id:?}")
             && let Some(e) = b.expr
-            && let _ = println!("TRACE: extract_extern_def_id (4) {def_id:?}")
             && let ExprKind::Call(callee, _) = &e.kind
-            && let _ = println!("TRACE: extract_extern_def_id (5) {def_id:?}")
             && let ExprKind::Path(qself) = &callee.kind
         {
-            println!("TRACE: extract_extern_def_id (10) {def_id:?}");
             let typeck_result = self.tcx.typeck(def_id);
             if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
                 return Ok(def_id);

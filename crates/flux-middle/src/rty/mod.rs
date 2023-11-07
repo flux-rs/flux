@@ -598,13 +598,11 @@ impl GeneratorObligPredicate {
 
 impl Generics {
     pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<GenericParamDef> {
-        println!("TRACE: param_at {param_index:?} {:?}", self.parent_count);
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             Ok(self.params[index].clone())
         } else {
             let parent = self.parent.expect("parent_count > 0 but no parent?");
             let parent_generics = genv.generics_of(parent)?;
-            println!("TRACE: param_at {parent:?} ==> {parent_generics:?}");
             parent_generics.param_at(param_index, genv)
         }
     }

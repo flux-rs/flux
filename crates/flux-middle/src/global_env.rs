@@ -357,6 +357,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
+        let def_id = self.lookup_extern(def_id).unwrap_or(def_id);
         if let Some(local_id) = def_id.as_local() {
             self.map().refined_by(local_id).field_index(fld)
         } else {
@@ -431,7 +432,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub(crate) fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
         let res = self.map().get_extern(def_id).map(LocalDefId::to_def_id);
-        println!("TRACE: lookup_extern {def_id:?} ==> {res:?}");
         res
     }
 
