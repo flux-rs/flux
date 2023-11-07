@@ -491,6 +491,9 @@
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
 <a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>config::CrateConfig;
 <span class="kw">use </span>desugar::resolver::{Resolver, ResolverOutput};
 <span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt};
@@ -518,7 +521,10 @@
 };
 
 <span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>FluxCallbacks;
+</span><span class="kw">pub struct </span>FluxCallbacks {
+    <span class="kw">pub </span>full_compilation: bool,
+    <span class="kw">pub </span>verify: bool,
+}
 
 <span class="kw">impl </span>Callbacks <span class="kw">for </span>FluxCallbacks {
     <span class="kw">fn </span>config(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;mut </span>rustc_interface::interface::Config) {
@@ -534,19 +540,30 @@
         compiler: <span class="kw-2">&amp;</span>Compiler,
         queries: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>Queries&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     ) -&gt; Compilation {
+        <span class="kw">if </span><span class="self">self</span>.verify {
+            <span class="self">self</span>.verify(compiler, queries)
+        }
+
+        <span class="kw">if </span><span class="self">self</span>.full_compilation {
+            Compilation::Continue
+        } <span class="kw">else </span>{
+            Compilation::Stop
+        }
+    }
+}
+
+<span class="kw">impl </span>FluxCallbacks {
+    <span class="kw">fn </span>verify&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, compiler: <span class="kw-2">&amp;</span>Compiler, queries: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>Queries&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
         <span class="kw">if </span>compiler
             .session()
             .diagnostic()
             .has_errors_or_lint_errors()
             .is_some()
         {
-            <span class="kw">return </span>Compilation::Stop;
+            <span class="kw">return</span>;
         }
 
         queries.global_ctxt().unwrap().enter(|tcx| {
-            <span class="kw">if </span>!is_tool_registered(tcx) {
-                <span class="kw">return</span>;
-            }
             <span class="kw">let </span>sess = FluxSession::new(
                 <span class="kw-2">&amp;</span>tcx.sess.opts,
                 tcx.sess.parse_sess.clone_source_map(),
@@ -555,8 +572,6 @@
             <span class="kw">let _ </span>= check_crate(tcx, <span class="kw-2">&amp;</span>sess);
             sess.finish_diagnostics();
         });
-
-        Compilation::Stop
     }
 }
 
@@ -975,13 +990,4 @@
     <span class="kw">let </span>original_mir_borrowck = providers.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
 }
-
-<span class="kw">fn </span>is_tool_registered(tcx: TyCtxt) -&gt; bool {
-    <span class="kw">for </span>attr <span class="kw">in </span>tcx.hir().krate_attrs() {
-        <span class="kw">if </span>rustc_ast_pretty::pprust::attribute_to_string(attr) == <span class="string">&quot;#![register_tool(flux)]&quot; </span>{
-            <span class="kw">return </span><span class="bool-val">true</span>;
-        }
-    }
-    <span class="bool-val">false
-</span>}
 </code></pre></div></section></main></body></html>

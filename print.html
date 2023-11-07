@@ -217,6 +217,11 @@ You could for example check a file as a library instead of a binary like so</p>
 <p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
 <pre><code class="language-bash">cargo flux
 </code></pre>
+<p>By default, Flux won't verify a package unless it's explicitly enabled in the manifest.
+To do so add the following to <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[package.metadata.flux]
+enabled = true
+</code></pre>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.
