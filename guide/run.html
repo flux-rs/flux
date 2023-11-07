@@ -183,12 +183,10 @@ For example, the following command checks the file <code>test.rs</code>.</p>
 You could for example check a file as a library instead of a binary like so</p>
 <pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
 </code></pre>
-<h2 id="running-on-a-crate-cargo-flux"><a class="header" href="#running-on-a-crate-cargo-flux">Running on a Crate: <code>cargo-flux</code></a></h2>
-<p>You can use <code>cargo-flux</code> as you would use <code>cargo</code>. For the most part this means
-instead of running <code>cargo check</code>, you should run</p>
-<pre><code class="language-bash">cargo-flux check
+<h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
+<p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
+<pre><code class="language-bash">cargo flux
 </code></pre>
-<p>in order to get <code>flux</code> to check your code.</p>
 <h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
 <p>The following example declares a function <code>inc</code>
 that returns an integer greater than the input.

@@ -782,17 +782,10 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(parent_local) = parent.as_local() &amp;&amp;
        <span class="kw">let </span><span class="prelude-val">Some</span>(params) = genv.map().get_refine_params(genv.tcx, parent_local)
     {
-        setup_refine_params(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>wf, params);
+        wf.insert_refine_params(<span class="kw-2">&amp;mut </span>infcx, params);
     }
     wf.check_opaque_ty(<span class="kw-2">&amp;mut </span>infcx, opaque_ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(infcx.into_results())
-}
-
-<span class="kw">fn </span>setup_refine_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, wf: <span class="kw-2">&amp;mut </span>Wf, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
-    <span class="kw">for </span>param <span class="kw">in </span>params {
-        wf.modes.insert(param.ident.name, param.infer_mode());
-    }
-    infcx.push_layer(params);
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_sig(
@@ -803,7 +796,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(genv);
 
-    setup_refine_params(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;mut </span>wf, <span class="kw-2">&amp;</span>fn_sig.params);
+    wf.insert_refine_params(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>fn_sig.params);
 
     <span class="kw">let </span>args = fn_sig
         .args
@@ -837,14 +830,21 @@
         Wf { genv, modes: Default::default(), xi: Default::default() }
     }
 
+    <span class="kw">fn </span>insert_refine_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
+        <span class="kw">for </span>param <span class="kw">in </span>params {
+            <span class="self">self</span>.modes.insert(param.ident.name, param.infer_mode());
+        }
+        infcx.push_layer(params);
+    }
+
     <span class="kw">fn </span>check_params_are_determined(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;</span>InferCtxt,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         params.iter().try_for_each_exhaust(|param| {
             <span class="kw">let </span>determined = <span class="self">self</span>.xi.remove(param.name());
-            <span class="kw">if </span><span class="self">self</span>.infer_mode(env, param.name()) == fhir::InferMode::EVar &amp;&amp; !determined {
+            <span class="kw">if </span><span class="self">self</span>.infer_mode(infcx, param.name()) == fhir::InferMode::EVar &amp;&amp; !determined {
                 <span class="kw">return </span><span class="self">self</span>.emit_err(errors::ParamNotDetermined::new(param.ident));
             }
             <span class="prelude-val">Ok</span>(())
