@@ -193,23 +193,26 @@ fn resolve_crate(
     specs: &Specs,
 ) -> Result<ResolverOutput, ErrorGuaranteed> {
     let mut resolver = Resolver::new(tcx, sess);
-    for id in tcx.hir_crate_items(()).owners() {
-        match tcx.def_kind(id) {
-            DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
-            DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
-            DefKind::TyAlias { .. } => {
-                if let Some(type_alias) = &specs.ty_aliases[&id] {
-                    resolver.resolve_type_alias(id, type_alias)?;
+    tcx.hir_crate_items(())
+        .owners()
+        .try_for_each_exhaust(|id| {
+            match tcx.def_kind(id) {
+                DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
+                DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
+                DefKind::TyAlias { .. } => {
+                    if let Some(type_alias) = &specs.ty_aliases[&id] {
+                        resolver.resolve_type_alias(id, type_alias)?;
+                    }
                 }
-            }
-            DefKind::Fn | DefKind::AssocFn => {
-                if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
-                    resolver.resolve_fn_sig(id, fn_sig)?;
+                DefKind::Fn | DefKind::AssocFn => {
+                    if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
+                        resolver.resolve_fn_sig(id, fn_sig)?;
+                    }
                 }
+                _ => {}
             }
-            _ => {}
-        }
-    }
+            Ok(())
+        })?;
 
     Ok(resolver.into_output())
 }

@@ -450,7 +450,7 @@ impl<'sess> NameResTable<'sess> {
                 let hir::QPath::Resolved(None, path) = qpath else {
                     return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
                         qpath.span(),
-                        "unsupported type",
+                        &format!("unsupported path `{}`", rustc_hir_pretty::qpath_to_string(qpath)),
                     )));
                 };
                 self.collect_from_path(path)
