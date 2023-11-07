@@ -18,16 +18,13 @@ You could for example check a file as a library instead of a binary like so
 rustc-flux --crate-type=lib path/to/test.rs
 ```
 
-## Running on a Crate: `cargo-flux`
+## Running on a package: `cargo-flux`
 
-You can use `cargo-flux` as you would use `cargo`. For the most part this means
-instead of running `cargo check`, you should run
+Flux is integrated with `cargo` and can be invoked in a package as follows:
 
-``` bash
-cargo-flux check
+```bash
+cargo flux
 ```
-
-in order to get `flux` to check your code.
 
 ## A tiny example
 
