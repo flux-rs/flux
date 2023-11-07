@@ -26,6 +26,14 @@ Flux is integrated with `cargo` and can be invoked in a package as follows:
 cargo flux
 ```
 
+By default, Flux won't verify a package unless it's explicitly enabled in the manifest.
+To do so add the following to `Cargo.toml`:
+
+```toml
+[package.metadata.flux]
+enabled = true
+```
+
 ## A tiny example
 
 The following example declares a function `inc`

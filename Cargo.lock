@@ -515,6 +515,7 @@ dependencies = [
  "flux-refineck",
  "flux-syntax",
  "itertools",
+ "toml 0.8.0",
  "tracing",
  "tracing-subscriber",
  "tracing-timing",

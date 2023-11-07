@@ -2,7 +2,13 @@
 
 extern crate rustc_driver;
 
-use std::{env, io, ops::Deref, process::exit};
+use std::{
+    env, fs,
+    io::{self, Read as _},
+    ops::Deref,
+    path::{Path, PathBuf},
+    process::exit,
+};
 
 use flux_driver::callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, RunCompiler};
@@ -10,20 +16,13 @@ use rustc_driver::{catch_with_exit_code, RunCompiler};
 mod logger;
 
 fn main() -> io::Result<()> {
+    let original_args = env::args().collect::<Vec<_>>();
+
     let resolve_logs = logger::install()?;
 
-    // CODESYNC(flux-cargo) Check if we are being called from cargo.
-    let in_cargo = env::var("FLUX_CARGO").is_ok();
-    let primary_package = env::var("CARGO_PRIMARY_PACKAGE").is_ok();
+    let context = Context::new(&original_args);
 
-    // TODO(nilehmann): we should also run flux on dependencies with flux annotations to produce metadata.
-    // The idea is to opt in to that in the metadata table of the Cargo.toml. Something like
-    // ```
-    // [package.metadata.flux]
-    // export = true
-    // ```
-    // If we are being called from cargo but this is not the primary package, then we just call rustc.
-    if in_cargo && !primary_package {
+    if context.be_rustc() {
         rustc_driver::main();
     }
 
@@ -54,7 +53,10 @@ fn main() -> io::Result<()> {
     args.push("-Zcrate-attr=register_tool(flux_tool)".to_string());
     args.push("--cfg=flux".to_string());
 
-    let exit_code = catch_with_exit_code(move || RunCompiler::new(&args, &mut FluxCallbacks).run());
+    let mut callbacks =
+        FluxCallbacks { full_compilation: context.full_compilation(), verify: context.verify() };
+
+    let exit_code = catch_with_exit_code(move || RunCompiler::new(&args, &mut callbacks).run());
     resolve_logs()?;
     exit(exit_code)
 }
@@ -87,4 +89,78 @@ pub fn arg_value<'a, T: Deref<Target = str>>(
         }
     }
     None
+}
+
+struct FluxMetadata {
+    enabled: bool,
+}
+
+impl FluxMetadata {
+    fn read() -> Option<FluxMetadata> {
+        let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
+            return None;
+        };
+        let manifest_dir = PathBuf::from(manifest_dir);
+        let manifest = FluxMetadata::read_manifest(&manifest_dir);
+        let enabled = manifest
+            .get("package")
+            .and_then(|package| package.get("metadata"))
+            .and_then(|metadata| metadata.get("flux"))
+            .and_then(|flux| flux.get("enabled"))
+            .and_then(|enabled| enabled.as_bool())
+            .unwrap_or(false);
+        Some(FluxMetadata { enabled })
+    }
+
+    fn read_manifest(manifest_dir: &Path) -> toml::Value {
+        let manifest_path = manifest_dir.join("Cargo.toml");
+        let mut contents = String::new();
+        let mut file = fs::File::open(manifest_path).unwrap();
+        file.read_to_string(&mut contents).unwrap();
+        toml::from_str(&contents).unwrap()
+    }
+}
+
+/// The context in which `flux-driver` is being called.
+enum Context {
+    CargoFlux { build_script_build: bool, metadata: Option<FluxMetadata> },
+    RustcFlux,
+}
+
+impl Context {
+    fn new(args: &[String]) -> Context {
+        // CODESYNC(flux-cargo) Check whether we are being called from cargo-flux
+        if env::var("FLUX_CARGO").is_ok() {
+            let build_script_build =
+                arg_value(args, "--crate-name", |val| val == "build_script_build").is_some();
+            Context::CargoFlux { build_script_build, metadata: FluxMetadata::read() }
+        } else {
+            Context::RustcFlux
+        }
+    }
+
+    fn be_rustc(&self) -> bool {
+        match self {
+            Context::CargoFlux { build_script_build, metadata: manifest } => {
+                *build_script_build || manifest.is_none()
+            }
+            Context::RustcFlux => false,
+        }
+    }
+
+    /// Whether the target crate should be verified. We verify a crate if we are being called from
+    /// rustc-flux on a single file or if flux is enabled in the manifest.
+    fn verify(&self) -> bool {
+        match self {
+            Context::CargoFlux { metadata: Some(FluxMetadata { enabled }), .. } => *enabled,
+            Context::CargoFlux { metadata: None, .. } => false,
+            Context::RustcFlux => true,
+        }
+    }
+
+    /// When called from cargo we do a full compilation to generate artifacts needed for proc macro
+    /// dependencies.
+    fn full_compilation(&self) -> bool {
+        matches!(self, Context::CargoFlux { .. })
+    }
 }
