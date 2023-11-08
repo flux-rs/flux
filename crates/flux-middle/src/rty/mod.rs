@@ -24,7 +24,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::ParamConst;
 pub use rustc_middle::{
     mir::Mutability,
@@ -253,7 +253,7 @@ pub struct Binder<T> {
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct EarlyBinder<T>(pub T);
 
-#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Encodable, Decodable)]
 pub enum TupleTree<T>
 where
     [TupleTree<T>]: Internable,
@@ -367,8 +367,8 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
-    Generator(DefId, GenericArgs),
-    GeneratorWitness(Binder<List<Ty>>),
+    Coroutine(DefId, GenericArgs),
+    CoroutineWitness(DefId, GenericArgs),
     Param(ParamTy),
 }
 
@@ -1272,7 +1272,7 @@ impl Ty {
     }
 
     pub fn generator(did: DefId, args: impl Into<List<GenericArg>>) -> Ty {
-        BaseTy::Generator(did, args.into()).into_ty()
+        BaseTy::Coroutine(did, args.into()).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -1503,8 +1503,8 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
-            | BaseTy::Generator(_, _)
-            | BaseTy::GeneratorWitness(_)
+            | BaseTy::Coroutine(_, _)
+            | BaseTy::CoroutineWitness(_, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1960,7 +1960,9 @@ mod pretty {
                         go(cx, f, is_binder, e)?;
                         w!(",")?;
                     }
-                } else if let Some(true) = is_binder.as_leaf() && !cx.hide_binder {
+                } else if let Some(true) = is_binder.as_leaf()
+                    && !cx.hide_binder
+                {
                     w!("@{:?}", expr)?;
                 } else {
                     w!("{:?}", expr)?;
@@ -2036,8 +2038,8 @@ mod pretty {
                 BaseTy::Closure(did, args) => {
                     w!("Closure {:?}<{:?}>", did, args)
                 }
-                BaseTy::Generator(did, args) => {
-                    w!("Generator {:?}", did)?;
+                BaseTy::Coroutine(did, args) => {
+                    w!("Coroutine({:?})", did)?;
                     let args = args
                         .iter()
                         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
@@ -2047,8 +2049,16 @@ mod pretty {
                     }
                     Ok(())
                 }
-                BaseTy::GeneratorWitness(args) => {
-                    w!("GeneratorWitness<{:?}>", args)
+                BaseTy::CoroutineWitness(did, args) => {
+                    w!("CoroutineWitness({:?})", did)?;
+                    let args = args
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                        .collect_vec();
+                    if !args.is_empty() {
+                        w!("<{:?}>", join!(", ", args))?;
+                    }
+                    Ok(())
                 }
             }
         }

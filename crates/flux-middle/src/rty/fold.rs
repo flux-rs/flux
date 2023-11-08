@@ -342,7 +342,9 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re && debruijn >= self.current_index {
+                if let ReLateBound(debruijn, br) = *re
+                    && debruijn >= self.current_index
+                {
                     ReLateBound(debruijn.shifted_in(self.amount), br)
                 } else {
                     *re
@@ -377,7 +379,9 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re && debruijn >= self.current_index {
+                if let ReLateBound(debruijn, br) = *re
+                    && debruijn >= self.current_index
+                {
                     ReLateBound(debruijn.shifted_out(self.amount), br)
                 } else {
                     *re
@@ -858,8 +862,8 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Closure(_, _)
-            | BaseTy::Generator(_, _)
-            | BaseTy::GeneratorWitness(_)
+            | BaseTy::Coroutine(_, _)
+            | BaseTy::CoroutineWitness(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
         }
@@ -892,8 +896,10 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
             BaseTy::Closure(did, args) => BaseTy::Closure(*did, args.try_fold_with(folder)?),
-            BaseTy::Generator(did, args) => BaseTy::Generator(*did, args.try_fold_with(folder)?),
-            BaseTy::GeneratorWitness(args) => BaseTy::GeneratorWitness(args.try_fold_with(folder)?),
+            BaseTy::Coroutine(did, args) => BaseTy::Coroutine(*did, args.try_fold_with(folder)?),
+            BaseTy::CoroutineWitness(did, args) => {
+                BaseTy::CoroutineWitness(*did, args.try_fold_with(folder)?)
+            }
         };
         Ok(bty)
     }

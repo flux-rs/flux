@@ -1,10 +1,10 @@
 use std::{cell::RefCell, fmt};
 
 use flux_config as config;
-use rustc_abi::FieldIdx;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
+use rustc_target::abi::FieldIdx;
 
 use crate::intern::{Internable, Interned};
 
@@ -118,7 +118,7 @@ pub fn pprint_with_default_cx<T: Pretty>(
         #[allow(unused_mut)]
         let mut cx = <T>::default_cx(tcx);
         if let Some(key) = cfg_key
-           && let Some(opts) = flux_config::CONFIG_FILE
+            && let Some(opts) = flux_config::CONFIG_FILE
                 .get("dev")
                 .and_then(|dev| dev.get("pprint"))
                 .and_then(|pprint| pprint.get(key))

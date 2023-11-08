@@ -226,7 +226,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx.def_kind(def_id) == DefKind::Generator {
+        let resume_ty = if genv.tcx.def_kind(def_id) == DefKind::Coroutine {
             Some(fn_sig.args()[1].clone())
         } else {
             None
@@ -431,7 +431,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
-            TerminatorKind::GeneratorDrop => Ok(vec![]),
+            TerminatorKind::CoroutineDrop => Ok(vec![]),
             TerminatorKind::Goto { target } => Ok(vec![(*target, Guard::None)]),
             TerminatorKind::Yield { resume, resume_arg, .. } => {
                 if let Some(resume_ty) = self.resume_ty.clone() {
@@ -817,7 +817,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let res = Ty::closure(*did, tys?);
                 Ok(res)
             }
-            Rvalue::Aggregate(AggregateKind::Generator(did, args), ops) => {
+            Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
                 let generics = genv.generics_of(*did).unwrap();
                 let args = genv.refine_default_generic_args(&generics, args).unwrap();
@@ -990,8 +990,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
             CastKind::Pointer(mir::PointerCast::Unsize) => {
-                if // src is an array
-                   let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
+                if
+                // src is an array
+                let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
                    && let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _) = src_ty.kind()
                    // dst is a slice
                    && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()

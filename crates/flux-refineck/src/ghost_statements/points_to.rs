@@ -173,7 +173,7 @@ impl<'a> PointsToAnalysis<'a> {
             | mir::TerminatorKind::Return
             | mir::TerminatorKind::Unreachable
             | mir::TerminatorKind::Assert { .. }
-            | mir::TerminatorKind::GeneratorDrop
+            | mir::TerminatorKind::CoroutineDrop
             | mir::TerminatorKind::FalseEdge { .. }
             | mir::TerminatorKind::FalseUnwind { .. } => {
                 // These terminators have no effect on the analysis.
@@ -425,7 +425,9 @@ impl Map {
 
         // Trim useless places.
         for opt_place in &mut self.locals {
-            if let Some(place) = *opt_place && self.inner_values[place].is_empty() {
+            if let Some(place) = *opt_place
+                && self.inner_values[place].is_empty()
+            {
                 *opt_place = None;
             }
         }

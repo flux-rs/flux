@@ -34,7 +34,7 @@ impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
 
-        config.override_queries = Some(|_, local, _| {
+        config.override_queries = Some(|_, local| {
             local.mir_borrowck = mir_borrowck;
         });
     }

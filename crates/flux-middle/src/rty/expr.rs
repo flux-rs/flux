@@ -3,12 +3,12 @@ use std::{fmt, iter, slice, sync::OnceLock};
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
-use rustc_abi::FieldIdx;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::mir::Local;
 use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
+use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
@@ -183,7 +183,9 @@ impl ExprKind {
 impl Expr {
     pub fn at_base(self, base: Option<ESpan>) -> Expr {
         let kind = self.kind();
-        if let Some(espan) = self.espan && let Some(base) = base {
+        if let Some(espan) = self.espan
+            && let Some(base) = base
+        {
             kind.clone().intern_at(Some(espan.with_base(base)))
         } else {
             self

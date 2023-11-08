@@ -22,10 +22,10 @@ use super::{
         PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
-        Clause, ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef,
-        GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty,
-        ValueConst, VariantDef,
+        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
+        Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
+        GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty, ValueConst,
+        VariantDef,
     },
 };
 use crate::{
@@ -291,7 +291,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     drop: *drop,
                 }
             }
-            rustc_mir::TerminatorKind::GeneratorDrop => TerminatorKind::GeneratorDrop,
+            rustc_mir::TerminatorKind::CoroutineDrop => TerminatorKind::CoroutineDrop,
             rustc_mir::TerminatorKind::UnwindResume => TerminatorKind::UnwindResume,
             rustc_mir::TerminatorKind::UnwindTerminate(..)
             | rustc_mir::TerminatorKind::InlineAsm { .. } => {
@@ -369,9 +369,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(lower_place(p)?)),
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
-                let kind = self
-                    .lower_cast_kind(*kind)
-                    .ok_or_else(|| UnsupportedReason::new("unsupported cast"))?;
+                let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
+                    UnsupportedReason::new(format!("unsupported cast `{kind:?}`"))
+                })?;
                 let op = self.lower_operand(op)?;
                 let ty = lower_ty(self.tcx, *ty)?;
                 Ok(Rvalue::Cast(kind, op, ty))
@@ -442,9 +442,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let args = lower_generic_args(self.tcx, args)?;
                 Ok(AggregateKind::Closure(*did, args))
             }
-            rustc_mir::AggregateKind::Generator(did, args, _mov) => {
+            rustc_mir::AggregateKind::Coroutine(did, args, _mov) => {
                 let args = lower_generic_args(self.tcx, args)?;
-                Ok(AggregateKind::Generator(*did, args))
+                Ok(AggregateKind::Coroutine(*did, args))
             }
             rustc_mir::AggregateKind::Adt(..) => {
                 Err(UnsupportedReason::new(format!(
@@ -594,7 +594,7 @@ pub(crate) fn lower_bound_vars(
     for var in bound_vars {
         match var {
             rustc_ty::BoundVariableKind::Region(kind) => {
-                vars.push(BoundVariableKind::Region(lower_bound_region_kind(*kind)?));
+                vars.push(BoundVariableKind::Region(*kind));
             }
             _ => {
                 return Err(UnsupportedReason {
@@ -669,17 +669,14 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, alias_ty.args)?;
             Ok(Ty::mk_alias(kind, alias_ty.def_id, args))
         }
-        rustc_ty::Generator(did, args, _) => {
+        rustc_ty::Coroutine(did, args, _) => {
             let args = lower_generic_args(tcx, args)?;
-            Ok(Ty::mk_generator(*did, args))
+            Ok(Ty::mk_coroutine(*did, args))
         }
-        rustc_ty::GeneratorWitness(tys) => {
-            let tys = lower_binder(*tys, |tys| {
-                Ok(List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()?))
-            })?;
-            Ok(Ty::mk_generator_witness(tys))
+        rustc_ty::CoroutineWitness(did, args) => {
+            let args = lower_generic_args(tcx, args)?;
+            Ok(Ty::mk_generator_witness(*did, args))
         }
-        rustc_ty::GeneratorWitnessMIR(_, _) => todo!(),
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }
@@ -755,19 +752,7 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
 fn lower_bound_region(
     bregion: rustc_middle::ty::BoundRegion,
 ) -> Result<BoundRegion, UnsupportedReason> {
-    Ok(BoundRegion { kind: lower_bound_region_kind(bregion.kind)?, var: bregion.var })
-}
-
-fn lower_bound_region_kind(
-    kind: rustc_middle::ty::BoundRegionKind,
-) -> Result<BoundRegionKind, UnsupportedReason> {
-    match kind {
-        rustc_ty::BoundRegionKind::BrNamed(def_id, sym) => {
-            Ok(BoundRegionKind::BrNamed(def_id, sym))
-        }
-        rustc_ty::BoundRegionKind::BrAnon(_) => Ok(BoundRegionKind::BrAnon),
-        rustc_ty::BoundRegionKind::BrEnv => Ok(BoundRegionKind::BrEnv),
-    }
+    Ok(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
 pub fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, UnsupportedReason> {

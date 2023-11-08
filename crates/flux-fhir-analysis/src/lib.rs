@@ -168,7 +168,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
                 .unwrap_or(&[]);
             conv::conv_generics(genv, &rustc_generics, generics, refine_params, is_trait)
         }
-        DefKind::Closure | DefKind::Generator => {
+        DefKind::Closure | DefKind::Coroutine => {
             Ok(rty::Generics {
                 params: List::empty(),
                 refine_params: List::empty(),
@@ -308,7 +308,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             // We currently dont support refinements on an impl item, so there's nothing to check here.
             WfckResults::new(OwnerId { def_id })
         }
-        DefKind::Closure | DefKind::Generator | DefKind::TyParam => {
+        DefKind::Closure | DefKind::Coroutine | DefKind::TyParam => {
             let parent = genv.tcx.local_parent(def_id);
             return genv.check_wf(parent);
         }
