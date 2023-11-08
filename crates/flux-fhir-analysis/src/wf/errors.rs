@@ -253,3 +253,18 @@ impl SortAnnotationNeeded {
         Self { span: param.ident.span() }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_cannot_infer_sort, code = "FLUX")]
+#[note]
+pub(super) struct CannotInferSort {
+    #[primary_span]
+    #[label]
+    span: Span,
+}
+
+impl CannotInferSort {
+    pub(super) fn new(ident: fhir::Ident) -> Self {
+        Self { span: ident.span() }
+    }
+}

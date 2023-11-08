@@ -207,7 +207,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 Ok(sort)
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let sort = self[var.name].clone();
+                let sort = self.ensure_resolved_var(*var)?;
                 match &sort {
                     fhir::Sort::Record(def_id, sort_args) => {
                         self.genv
@@ -485,6 +485,15 @@ impl<'a> InferCtxt<'a, '_> {
             self.unification_table.probe_value(vid)
         } else {
             span_bug!(param.ident.span(), "expected wildcard sort")
+        }
+    }
+
+    fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<fhir::Sort, ErrorGuaranteed> {
+        let sort = self[var.name].clone();
+        if let Some(sort) = self.resolve_sort(&sort) {
+            Ok(sort)
+        } else {
+            Err(self.emit_err(errors::CannotInferSort::new(var)))
         }
     }
 
