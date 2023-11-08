@@ -121,7 +121,9 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
 
         let result = self.check();
 
-        if config::is_cache_enabled() && let Ok(FixpointResult::Safe(_)) = result {
+        if config::is_cache_enabled()
+            && let Ok(FixpointResult::Safe(_)) = result
+        {
             cache.insert(key, hash);
         }
         result

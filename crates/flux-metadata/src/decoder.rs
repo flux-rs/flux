@@ -31,7 +31,7 @@ pub(super) fn decode_crate_metadata(
     let mut file = match fs::File::open(path) {
         Ok(file) => file,
         Err(err) if let io::ErrorKind::NotFound = err.kind() => return None,
-        Err(err) => sess.emit_fatal(errors::DecodeFileError::new(path, err))
+        Err(err) => sess.emit_fatal(errors::DecodeFileError::new(path, err)),
     };
     let mut buf = vec![];
     file.read_to_end(&mut buf)

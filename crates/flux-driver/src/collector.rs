@@ -271,7 +271,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         if opaque && let Some(span) = attrs.contains(attr_name!(Field)) {
-            return Err(self.emit_err(errors::AttrOnOpaque::new(span, field)))
+            return Err(self.emit_err(errors::AttrOnOpaque::new(span, field)));
         }
         Ok(attrs.field())
     }

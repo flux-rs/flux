@@ -302,12 +302,19 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     .try_collect()?;
                 rty::BaseTy::Closure(*did, upvar_tys)
             }
-            rustc::ty::TyKind::Generator(did, args) => {
+            rustc::ty::TyKind::Coroutine(did, args) => {
                 let args = args
                     .iter()
                     .map(|arg| self.refine_generic_arg_raw(arg))
                     .try_collect()?;
-                rty::BaseTy::Generator(*did, args)
+                rty::BaseTy::Coroutine(*did, args)
+            }
+            rustc::ty::TyKind::CoroutineWitness(did, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.refine_generic_arg_raw(arg))
+                    .try_collect()?;
+                rty::BaseTy::CoroutineWitness(*did, args)
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {
@@ -352,12 +359,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
-            }
-            rustc::ty::TyKind::GeneratorWitness(args) => {
-                let args = self.refine_binders(args, |tys| {
-                    Ok(List::from_vec(tys.iter().map(|ty| self.refine_ty(ty)).try_collect_vec()?))
-                })?;
-                rty::BaseTy::GeneratorWitness(args)
             }
         };
         Ok((self.refine)(bty))

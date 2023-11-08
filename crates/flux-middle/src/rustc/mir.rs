@@ -7,7 +7,6 @@ use flux_common::{
     index::{Idx, IndexVec},
 };
 use itertools::Itertools;
-pub use rustc_abi::FieldIdx;
 pub use rustc_borrowck::borrow_set::BorrowData;
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex, RegionInferenceContext};
 use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
@@ -27,7 +26,7 @@ pub use rustc_middle::{
     ty::Variance,
 };
 use rustc_span::{Span, Symbol};
-pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
+pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use super::ty::{GenericArg, GenericArgs, Region, Ty, TyKind};
 use crate::{
@@ -153,7 +152,7 @@ pub enum TerminatorKind<'tcx> {
         resume_arg: Place,
         drop: Option<BasicBlock>,
     },
-    GeneratorDrop,
+    CoroutineDrop,
     UnwindResume,
 }
 
@@ -205,6 +204,7 @@ pub enum CastKind {
     IntToInt,
     FloatToInt,
     IntToFloat,
+    PtrToPtr,
     Pointer(PointerCast),
 }
 
@@ -220,7 +220,7 @@ pub enum AggregateKind {
     Array(Ty),
     Tuple,
     Closure(DefId, GenericArgs),
-    Generator(DefId, GenericArgs),
+    Coroutine(DefId, GenericArgs),
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -600,7 +600,7 @@ impl<'tcx> fmt::Debug for Terminator<'tcx> {
                 write!(f, "falseUnwind -> [real: {real_target:?}, cleanup: {unwind:?}]")
             }
             TerminatorKind::UnwindResume => write!(f, "resume"),
-            TerminatorKind::GeneratorDrop => write!(f, "generator_drop"),
+            TerminatorKind::CoroutineDrop => write!(f, "generator_drop"),
             TerminatorKind::Yield { value, resume, drop, resume_arg } => {
                 write!(
                     f,
@@ -686,7 +686,7 @@ impl fmt::Debug for Rvalue {
                     operands.iter().format(", ")
                 )
             }
-            Rvalue::Aggregate(AggregateKind::Generator(def_id, args), operands) => {
+            Rvalue::Aggregate(AggregateKind::Coroutine(def_id, args), operands) => {
                 write!(
                     f,
                     "generator({}, {args:?}, {:?})",
@@ -721,6 +721,7 @@ impl fmt::Debug for CastKind {
             CastKind::IntToInt => write!(f, "IntToInt"),
             CastKind::FloatToInt => write!(f, "FloatToInt"),
             CastKind::IntToFloat => write!(f, "IntToFloat"),
+            CastKind::PtrToPtr => write!(f, "PtrToPtr"),
             CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
         }
     }

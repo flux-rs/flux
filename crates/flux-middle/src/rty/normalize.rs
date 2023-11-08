@@ -121,7 +121,9 @@ impl<'a> Normalizer<'a> {
 
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
-            ExprKind::GlobalFunc(sym, FuncKind::Def) if let Some(defn) = self.defs.func_defn(sym) => {
+            ExprKind::GlobalFunc(sym, FuncKind::Def)
+                if let Some(defn) = self.defs.func_defn(sym) =>
+            {
                 let res = defn.expr.replace_bound_exprs(args);
                 Self::at_base(res, espan)
             }

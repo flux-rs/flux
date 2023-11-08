@@ -334,7 +334,7 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
             }
             TerminatorKind::Unreachable
             | TerminatorKind::UnwindResume
-            | TerminatorKind::GeneratorDrop => {}
+            | TerminatorKind::CoroutineDrop => {}
         }
         Ok(())
     }
@@ -522,7 +522,7 @@ impl PlaceNode {
                         let PlaceNode::Tuple(.., fields) = self else { unreachable!() };
                         fields
                     }
-                    TyKind::Generator(def_id, args) => {
+                    TyKind::Coroutine(def_id, args) => {
                         let fields = args
                             .as_generator()
                             .upvar_tys()
@@ -562,7 +562,7 @@ impl PlaceNode {
                 true
             }
             PlaceNode::Generator(did, args, _) => {
-                *self = PlaceNode::Ty(Ty::mk_generator(*did, args.clone()));
+                *self = PlaceNode::Ty(Ty::mk_coroutine(*did, args.clone()));
                 true
             }
             PlaceNode::Tuple(fields, ..) => {
@@ -718,7 +718,9 @@ impl PlaceNode {
         if all_leafs {
             stmts.insert(GhostStatement::Unfold(place.clone()));
         }
-        if let PlaceNode::Downcast(adt, ..) = self && adt.is_enum() {
+        if let PlaceNode::Downcast(adt, ..) = self
+            && adt.is_enum()
+        {
             place.projection.pop();
         }
 
@@ -753,7 +755,9 @@ impl PlaceNode {
             node.collect_folds_at_ret(place, stmts);
             place.projection.pop();
         }
-        if let PlaceNode::Downcast(adt, ..) = self && adt.is_enum() {
+        if let PlaceNode::Downcast(adt, ..) = self
+            && adt.is_enum()
+        {
             place.projection.pop();
         }
     }

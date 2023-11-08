@@ -27,7 +27,9 @@ impl RegionSubst {
         struct Folder<'a>(&'a RegionSubst);
         impl TypeFolder for Folder<'_> {
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReVar(rvid) = re && let Some(region) = self.0.map.get(rvid) {
+                if let ReVar(rvid) = re
+                    && let Some(region) = self.0.map.get(rvid)
+                {
                     *region
                 } else {
                     *re
@@ -217,7 +219,9 @@ impl<'a> EVarSubstFolder<'a> {
 
 impl TypeFolder for EVarSubstFolder<'_> {
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::EVar(evar)) = e.kind() && let Some(sol) = self.evars.get(*evar) {
+        if let ExprKind::Var(Var::EVar(evar)) = e.kind()
+            && let Some(sol) = self.evars.get(*evar)
+        {
             sol.clone()
         } else {
             e.super_fold_with(self)

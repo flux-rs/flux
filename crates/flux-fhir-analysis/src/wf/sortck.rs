@@ -392,7 +392,9 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some(sort) = self.is_single_field_record(sort) && sort.is_numeric() {
+        } else if let Some(sort) = self.is_single_field_record(sort)
+            && sort.is_numeric()
+        {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![fhir::Coercion::Project]);
@@ -530,8 +532,8 @@ impl<'a> InferCtxt<'a, '_> {
 
     fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<fhir::Sort> {
         self.resolve_sort(sort).and_then(|s| {
-            if let fhir::Sort::Record(def_id, sort_args) = s &&
-               let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
+            if let fhir::Sort::Record(def_id, sort_args) = s
+                && let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
             {
                 Some(sort.clone())
             } else {

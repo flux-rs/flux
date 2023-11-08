@@ -473,11 +473,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
     fn lift_path(&mut self, path: &hir::Path) -> Result<fhir::Path, ErrorGuaranteed> {
         let Ok(res) = path.res.try_into() else {
-            return self.emit_unsupported(&format!(
-                "unsupported type: `{}` `{:?}`",
-                rustc_hir_pretty::path_to_string(path),
-                path.res
-            ));
+            return self.emit_unsupported(&format!("unsupported res: `{:?}`", path.res));
         };
         let (args, bindings) = match path.segments.last().unwrap().args {
             Some(args) => {

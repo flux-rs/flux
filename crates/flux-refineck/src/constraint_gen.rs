@@ -181,25 +181,21 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
         // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
         // mutable references.
-        let actuals = iter::zip(
-            actuals,
-            fn_sig
-                .as_ref()
-                .skip_binder()
-                .as_ref()
-                .skip_binder()
-                .args(),
-        )
-        .map(|(actual, formal)| {
-            if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) = (actual.kind(), formal.kind())
-                && let TyKind::Indexed(..) = ty.kind()
-            {
-                rcx.unpacker(AssumeInvariants::No).unpack_inside_mut_ref(true).unpack(actual)
-            } else {
-                actual.clone()
-            }
-        })
-        .collect_vec();
+        let actuals =
+            iter::zip(actuals, fn_sig.as_ref().skip_binder().as_ref().skip_binder().args())
+                .map(|(actual, formal)| {
+                    if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
+                        (actual.kind(), formal.kind())
+                        && let TyKind::Indexed(..) = ty.kind()
+                    {
+                        rcx.unpacker(AssumeInvariants::No)
+                            .unpack_inside_mut_ref(true)
+                            .unpack(actual)
+                    } else {
+                        actual.clone()
+                    }
+                })
+                .collect_vec();
 
         let genv = self.genv;
         let callsite_def_id = self.def_id;
@@ -225,7 +221,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |br| {
                     let re = infcx.region_infcx.next_region_var(LateBoundRegion(
                         span,
-                        br.kind.to_rustc(),
+                        br.kind,
                         LateBoundRegionConversionTime::FnCall,
                     ));
                     rty::ReVar(re.as_var())
@@ -684,7 +680,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         ty: &Ty,
         alias_ty: &AliasTy,
     ) -> Result<(), CheckerErrKind> {
-        if let Some(BaseTy::Generator(def_id, args)) = ty.as_bty_skipping_existentials() {
+        if let Some(BaseTy::Coroutine(def_id, args)) = ty.as_bty_skipping_existentials() {
             let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
             self.insert_obligations(obligs);
         } else {
@@ -783,8 +779,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
         if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-           && let scope = &self.scopes[&evar.cx()]
-           && !scope.has_free_vars(e1)
+            && let scope = &self.scopes[&evar.cx()]
+            && !scope.has_free_vars(e1)
         {
             self.evar_gen.unify(*evar, e1, replace);
         }
