@@ -1,7 +1,27 @@
-//! Gathering is the process of traversing a type to collect parameters.
+//! Gathering is the process of building an [`Env`] for a surface item.
 //!
-//! A parameter can be declared explicitly with a sort as in `fn<refine n: int>(i32[n])` or implicitly
-//! with the `@` or `#` syntax, e.g., `fn foo(&i32[@n])`.
+//! # Explicit vs Implicit Scopes
+//!
+//! A parameter can be declared in a *explicit* scope like `fn<refine n: int>(i32[n])` or in an
+//! *implicit* scope with the `@n`, `#n` or `x: T` syntax. Ghatering is the process of traversing
+//! the surface syntax to build an [`Env`] which makes all the scopes explicit.
+//!
+//! # The `x: T` syntax
+//!
+//! Dealing with the `x: T` syntax requires special care as it can be used to declare parameters
+//! for types that don't have a sort which we can only determine in later phases. For example,
+//! consider the following:
+//!
+//! ```ignore
+//! fn foo<T as type>(x: T) { }
+//! ```
+//!
+//! If `T` is declared with kind `type`, the name `x` cannot bind a refinement parameter. We want to
+//! allow to write `x: T` but report an error if `x` is ever used. This is in contrast with writing
+//! `T[@n]` where we report an error at the definition site. To partially deal with this, during
+//! gathering we check if parameters declared with `x: T` are ever used. If they are not, we avoid
+//! generating a parameter in the resulting env.
+//!
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir;
@@ -29,12 +49,11 @@ enum TypePos {
     Input,
     /// Type in output position allowing `#n` params.
     Output,
-    /// A struct field which disallow synthetic params.
+    /// A struct field which disallow any implicitly scoped params.
     Field,
-    /// Type inside a generic argument which disallow synthetic params, except for the generic of a
-    /// [`Box`] which does allow synthetic params.
+    /// Type inside a generic argument which disallow implicitly scoped params (except inside a box)
     Generic,
-    /// Any other position which doesn't allow synthetic params.
+    /// Any other position which doesn't allow implicitly scoped params.
     Other,
 }
 
@@ -47,14 +66,28 @@ impl TypePos {
         }
     }
 }
+
+/// Environment used during gathering.
 type Env = env::Env<Param>;
 
+/// Parameters used during gathering.
 #[derive(Debug)]
 enum Param {
+    /// A parameter declared in an explicit scope.
     Explicit(fhir::Sort),
+    /// A parameter declared with `@n` syntax.
     At,
+    /// A parameter declared with `#n` syntax.
     Pound,
+    /// A parameter declared with `x: T` syntax.
     Colon,
+    /// A parameter which we know syntactically cannot be used, e.g., when writing
+    ///
+    /// ```ignore
+    /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
+    /// ```
+    /// We know syntatically that `x` binds to a non-base type. We track the parameter to report
+    /// errors at the use site.
     SyntaxError,
 }
 
@@ -81,7 +114,6 @@ impl DesugarCtxt<'_, '_> {
         Ok(env.into_desugar_env())
     }
 
-    /// Synthetic parameters are not allowed in struct definition but we traverse it to report errors
     pub(super) fn gather_params_struct(
         &self,
         struct_def: &surface::StructDef,
@@ -376,13 +408,13 @@ impl Env {
         self.filter_map(|param, used| {
             match param {
                 Param::Explicit(sort) => {
-                    Some(super::Param { name: name_gen.fresh(), sort, synthetic: false })
+                    Some(super::Param { name: name_gen.fresh(), sort, implicit: false })
                 }
                 Param::At | Param::Pound => {
                     Some(super::Param {
                         name: name_gen.fresh(),
                         sort: fhir::Sort::Wildcard,
-                        synthetic: true,
+                        implicit: true,
                     })
                 }
                 Param::Colon => {
@@ -390,7 +422,7 @@ impl Env {
                         Some(super::Param {
                             name: name_gen.fresh(),
                             sort: fhir::Sort::Wildcard,
-                            synthetic: true,
+                            implicit: true,
                         })
                     } else {
                         None

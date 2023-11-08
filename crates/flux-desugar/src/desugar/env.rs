@@ -10,6 +10,8 @@ use super::errors::DuplicateParam;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
+/// The environment used for desugaring that tracks parameter names and shadowing. An environment
+/// is a tree formed by nested scopes.
 pub(crate) struct Env<P> {
     scopes: FxHashMap<ScopeId, Scope<P>>,
     parent: FxHashMap<ScopeId, ScopeId>,
@@ -25,10 +27,14 @@ impl<P> Env<P> {
         Self { scopes, parent: Default::default(), children: Default::default(), root, curr: root }
     }
 
+    /// Inserts a parameter in the current scope, returning an error if a parameter with the
+    /// same name is already in the scope.
     pub(crate) fn insert(&mut self, sess: &FluxSession, ident: Ident, param: P) -> Result {
         self.curr().insert(sess, ident, param)
     }
 
+    /// Extends the current scope with a list of parameters reporting an error if there are any
+    /// dupliates.
     pub(crate) fn extend(
         &mut self,
         sess: &FluxSession,
@@ -72,14 +78,24 @@ impl<P> Env<P> {
         self.scopes.get_mut(&id).unwrap()
     }
 
+    /// Push a scope with `id` as a child of the current scope and then enters the new scope.
+    /// The `id` must be different from any scope already in the environment.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `id` is already in the enrvionment
     pub(crate) fn push(&mut self, id: ScopeId) {
-        self.scopes.insert(id, Scope::new());
+        assert!(self.scopes.insert(id, Scope::new()).is_none());
         self.children.entry(self.curr).or_default().insert(id);
         self.parent.insert(id, self.curr);
         self.curr = id;
     }
 
-    /// Remove the current scope and return it.
+    /// Remove the current scope and return it. Then set the current scope to the parent scope.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the current scope has children.
     pub(crate) fn pop(&mut self) -> Scope<P> {
         let children = self.children.remove(&self.curr).unwrap_or_default();
         if !children.is_empty() {
@@ -92,14 +108,24 @@ impl<P> Env<P> {
         self.scopes.remove(&id).unwrap()
     }
 
+    /// Enter a child scope.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `scope` is not a child of the current scope.
     #[track_caller]
-    pub(crate) fn enter(&mut self, id: ScopeId) {
-        if self.curr != self.parent[&id] {
-            panic!("{id:?} is not a children of the current scope");
+    pub(crate) fn enter(&mut self, scope: ScopeId) {
+        if self.curr != self.parent[&scope] {
+            panic!("{scope:?} is not a children of the current scope");
         }
-        self.curr = id;
+        self.curr = scope;
     }
 
+    /// Exit the current scope back into the parent scope.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the current scope is the root scope.
     #[track_caller]
     pub(crate) fn exit(&mut self) {
         self.curr = self.parent[&self.curr];
@@ -199,14 +225,27 @@ pub(crate) struct Scope<P> {
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum ScopeId {
+    /// The scope introduced by a function's input parameters. It contains explicit parameters plus
+    /// synthetic parameters declared with `@x` or `x: T`.
     FnInput(NodeId),
+    /// The scope introduced by a function's output parameters. It contains synthetic parameters
+    /// declared with `#n` syntax.
     FnOutput(NodeId),
+    /// The scope introduced by the `refined_by` annotation in a struct.
     Struct(NodeId),
+    /// The scope introduced by the `refined_by` annotation in a struct. This scope is not relevant
+    /// for variants, but only for the invariants of the type.
     Enum(NodeId),
+    /// The scope introduced by variant. It includes parameters introduced with `@n` syntax.
     Variant(NodeId),
+    /// The scope introduced by type alias. It includes the early bound and index parameters.
     TyAlias(NodeId),
+    /// The scope introduced by lambda abstraction. It includes the parameters of the lambda.
     Abs(NodeId),
+    /// The scope introduced by an existential type. Either the shorthand syntax or the general syntax.
     Exists(NodeId),
+    /// The scope introduced by a flux item like a func definition or a qualifier. It includes
+    /// parameters of the item
     FluxItem,
 }
 

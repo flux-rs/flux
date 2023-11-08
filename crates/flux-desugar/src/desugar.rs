@@ -199,43 +199,13 @@ pub(crate) struct DesugarCtxt<'a, 'tcx> {
     sort_resolver: SortResolver<'a>,
 }
 
-// /// Keeps track of the surface level identifiers in scope and a mapping between them and a
-// /// [`Binder`].
-// pub(crate) struct Env {
-//     name_gen: IndexGen<fhir::Name>,
-//     layers: Vec<Layer>,
-// }
-
-// #[derive(Default, Debug)]
-// struct Layer {
-//     map: FxIndexMap<surface::Ident, Param>,
-// }
-
-// /// The different kind of binders that can appear in the surface syntax
-// #[derive(Debug, Clone)]
-// pub(crate) enum Param {
-//     /// A parameter to a refinable type that will be desugared as an explicit parameter.
-//     /// The boolean indicates whether the binder was declared _implicitly_ with the `@` or `#`
-//     /// syntax.
-//     ///
-//     /// [inference mode]: fhir::InferMode
-//     Refined(fhir::Name, fhir::Sort, /*implicit*/ bool),
-//     /// A binder to an unrefinable type (a type that cannot be refined). We try to catch this
-//     /// situation "eagerly" as it will often result in better error messages, e.g., we will
-//     /// fail if a type parameter `T` of kind `typ` (which cannot be refined) is used as an indexed
-//     /// type `T[@a]` or as an existential `T{v : v > 0}`, but unrefined binders can appear when
-//     /// using argument syntax (`x: T`), thus we track them and report appropriate errors if
-//     /// they are used in any way.
-//     Unrefined,
-// }
-
 type Env = env::Env<Param>;
 
 #[derive(Debug, Clone)]
 struct Param {
     name: fhir::Name,
     sort: fhir::Sort,
-    synthetic: bool,
+    implicit: bool,
 }
 
 struct ExprCtxt<'a, 'tcx> {
@@ -1222,7 +1192,7 @@ impl Env {
             env.insert(
                 genv.sess,
                 param.name,
-                Param { name: name_gen.fresh(), sort, synthetic: false },
+                Param { name: name_gen.fresh(), sort, implicit: false },
             )?;
         }
         Ok(env)
@@ -1281,7 +1251,7 @@ impl Scope<Param> {
             params.push(fhir::RefineParam {
                 ident,
                 sort: param.sort,
-                synthetic: param.synthetic,
+                implicit: param.implicit,
                 fhir_id,
             });
         }

@@ -447,8 +447,8 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Whether the parameter was declared implicitly with `@` or `#` syntax
-    pub synthetic: bool,
+    /// Whether the parameter was implicitly scoped with `@n`, `#n` or `x: T` syntax.
+    pub implicit: bool,
     pub fhir_id: FhirId,
 }
 
@@ -497,7 +497,7 @@ pub enum Sort {
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
-    /// the List<Sort> is for the type parameters of (generic) record sorts
+    /// the `List<Sort>` is for the type parameters of (generic) record sorts
     Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
@@ -505,6 +505,7 @@ pub enum Sort {
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
     Infer(SortVid),
+    /// A sort that couldn't be generated because of an error.
     Error,
 }
 
@@ -732,16 +733,18 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-///
-/// Sort parameters e.g. #[flux::refined_by( elems: Set<T> )] tracks the mapping from
-/// bound Var -> Generic id. e.g. if we have RMap<K, V> refined_by(keys: Set<K>)
-/// then RMapIdx = forall #0. { keys: Set<#0> }
-/// and sort_params = vec![T]  i.e. maps Var(0) to T
-
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
+    /// Tracks the mapping from bound var to generic def ids. e.g. if we have
+    ///
+    /// ```ignore
+    /// #[refined_by(keys: Set<K>)]
+    /// RMap<K, V> { ...}
+    /// ```
+    /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
+    /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
     sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
@@ -950,7 +953,7 @@ impl RefineParam {
     }
 
     pub fn infer_mode(&self) -> InferMode {
-        if self.sort.is_pred() && !self.synthetic {
+        if self.sort.is_pred() && !self.implicit {
             InferMode::KVar
         } else {
             InferMode::EVar

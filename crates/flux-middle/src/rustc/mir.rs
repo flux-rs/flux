@@ -67,7 +67,7 @@ pub struct Body<'tcx> {
     ///
     /// Additionally, the [`InferCtxt`] is used during type projection normalization.
     ///
-    /// [region variable ids]: RegionVid
+    /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
     pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
     /// See [`mk_fake_predecessors`]

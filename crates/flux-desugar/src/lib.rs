@@ -5,7 +5,7 @@
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
 //! kind because only type parameters of sort `base` can be refined. The essential function implementing
-//! this logic is [`GlobalEnv::sort_of_res`]. This function requires the generics for the item being
+//! this logic is [`GlobalEnv::sort_of_path`]. This function requires the generics for the item being
 //! desugared to be register in [`fhir::Map`], thus we need to make sure that when desugaring an item,
 //! generics are registered before desugaring the rest of the item.
 
