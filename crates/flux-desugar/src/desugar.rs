@@ -640,10 +640,12 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
         let kind = match &ty.kind {
             surface::TyKind::Base(bty) => {
                 // CODESYNC(type-holes, 3)
-                if let surface::BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                if let surface::BaseTyKind::Path(path) = &bty.kind
+                    && path.is_hole()
+                {
                     fhir::TyKind::Hole(self.next_fhir_id())
                 } else {
-                    return self.desugar_bty_bind(bind, bty, env)
+                    return self.desugar_bty_bind(bind, bty, env);
                 }
             }
             surface::TyKind::Indexed { bty, indices } => {

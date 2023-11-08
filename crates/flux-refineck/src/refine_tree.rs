@@ -249,7 +249,9 @@ impl<'rcx> RefineCtxt<'rcx> {
             }
 
             fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!, ()> {
-                if let TyKind::Indexed(bty, idx) = ty.kind() && !idx.has_escaping_bvars() {
+                if let TyKind::Indexed(bty, idx) = ty.kind()
+                    && !idx.has_escaping_bvars()
+                {
                     for invariant in bty.invariants(self.overflow_checking) {
                         let invariant = invariant.pred.replace_bound_expr(&idx.expr);
                         self.rcx.assume_pred(invariant);

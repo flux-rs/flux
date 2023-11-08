@@ -648,10 +648,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
             // If it is a type parameter with no sort, it means it is of kind `Type`
-            if let fhir::Res::SelfTyParam { .. } = path.res && sort.is_none() {
+            if let fhir::Res::SelfTyParam { .. } = path.res
+                && sort.is_none()
+            {
                 return Ok(rty::Ty::param(rty::ParamTy { index: 0, name: kw::SelfUpper }));
             }
-            if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res && sort.is_none() {
+            if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res
+                && sort.is_none()
+            {
                 let param_ty = def_id_to_param_ty(self.genv.tcx, def_id.expect_local());
                 return Ok(rty::Ty::param(param_ty));
             }

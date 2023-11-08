@@ -144,8 +144,8 @@ pub(crate) fn check_opaque_ty(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
     let parent = genv.tcx.parent(owner_id.to_def_id());
-    if let Some(parent_local) = parent.as_local() &&
-       let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
+    if let Some(parent_local) = parent.as_local()
+        && let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
     {
         wf.insert_refine_params(&mut infcx, params);
     }
@@ -309,7 +309,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
         fn_sig.requires.iter().try_for_each_exhaust(|constr| {
             if let fhir::Constraint::Type(loc, _) = constr
-               && !output_locs.contains(&loc.name)
+                && !output_locs.contains(&loc.name)
             {
                 self.emit_err(errors::MissingEnsures::new(loc))
             } else {
@@ -499,7 +499,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
         let snapshot = self.xi.snapshot();
 
-        if let fhir::Res::Def(_kind, did) = &path.res && !path.args.is_empty() {
+        if let fhir::Res::Def(_kind, did) = &path.res
+            && !path.args.is_empty()
+        {
             self.check_generic_args(infcx, *did, &path.args)?;
         }
         let bindings = self.check_type_bindings(infcx, &path.bindings);
@@ -569,10 +571,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses_expr(infcx, e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
-                   && let fhir::Func::Var(var, _) = func
-                   && let fhir::InferMode::KVar = self.modes[&var.name]
+                    && let fhir::Func::Var(var, _) = func
+                    && let fhir::InferMode::KVar = self.modes[&var.name]
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(var.span(), &infcx[var.name]));
+                    return self
+                        .emit_err(errors::InvalidParamPos::new(var.span(), &infcx[var.name]));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))

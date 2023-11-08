@@ -407,7 +407,9 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
-        if let TyKind::Indexed(BaseTy::Adt(adt, args), _) = ty.kind() && adt.is_box() {
+        if let TyKind::Indexed(BaseTy::Adt(adt, args), _) = ty.kind()
+            && adt.is_box()
+        {
             if self.in_ref.is_some() {
                 Ok(ty.clone())
             } else {

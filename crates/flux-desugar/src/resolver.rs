@@ -217,7 +217,9 @@ impl<'a> ItemLikeResolver<'a> {
                 // to `fhir::TyKind::Hole`. The path won't have an entry in `path_res_map` which we
                 // should consider during desugaring. Holes in other positions (e.g., _[10] or _{v: v > 0})
                 // will fail resolving so they don't show up in desugaring.
-                if let BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                if let BaseTyKind::Path(path) = &bty.kind
+                    && path.is_hole()
+                {
                     Ok(())
                 } else {
                     self.resolve_bty(bty)
@@ -564,9 +566,9 @@ impl ResKey {
 
     fn from_hir_path(sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self> {
         if let [prefix @ .., _] = path.segments
-           && prefix.iter().any(|segment| segment.args.is_some())
+            && prefix.iter().any(|segment| segment.args.is_some())
         {
-            return Err(sess.emit_err(errors::UnsupportedSignature::new (
+            return Err(sess.emit_err(errors::UnsupportedSignature::new(
                 path.span,
                 "path segments with generic arguments are not supported",
             )));
