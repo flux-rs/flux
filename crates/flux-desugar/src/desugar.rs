@@ -841,10 +841,9 @@ impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> {
             Some(param) => {
                 if let Some(sort) = sort {
                     param.sort = sort;
+                } else {
+                    param.sort = fhir::Sort::Error;
                 }
-                // else {
-                //     return Err(self.emit_err(errors::RefinedUnrefinableType::new(ident.span)));
-                // }
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(param.name, ident));
                 let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
                 Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))

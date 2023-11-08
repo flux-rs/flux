@@ -337,8 +337,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.check_base_ty(infcx, bty),
             fhir::TyKind::Indexed(bty, idx) => {
-                let expected = self.sort_of_bty(bty);
-                self.check_refine_arg(infcx, idx, &expected)?;
+                if let Some(expected) = self.genv.sort_of_bty(bty) {
+                    self.check_refine_arg(infcx, idx, &expected)?;
+                }
                 self.check_base_ty(infcx, bty)
             }
             fhir::TyKind::Exists(params, ty) => {
@@ -498,7 +499,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
         let snapshot = self.xi.snapshot();
 
-        if let fhir::Res::Def(_kind, did) = &path.res /*&& !matches!(_kind, DefKind::TyParam) */ && !path.args.is_empty() {
+        if let fhir::Res::Def(_kind, did) = &path.res && !path.args.is_empty() {
             self.check_generic_args(infcx, *did, &path.args)?;
         }
         let bindings = self.check_type_bindings(infcx, &path.bindings);

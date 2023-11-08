@@ -327,9 +327,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     .all(|sort| self.has_equality(sort))
             }
             fhir::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
-            fhir::Sort::Loc | fhir::Sort::Func(_) | fhir::Sort::Wildcard | fhir::Sort::Infer(_) => {
-                false
-            }
+            fhir::Sort::Loc
+            | fhir::Sort::Func(_)
+            | fhir::Sort::Wildcard
+            | fhir::Sort::Infer(_)
+            | fhir::Sort::Error => false,
         }
     }
 

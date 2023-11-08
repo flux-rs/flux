@@ -505,6 +505,7 @@ pub enum Sort {
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
     Infer(SortVid),
+    Error,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -895,16 +896,6 @@ impl Sort {
     /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::Unit
-            | Sort::BitVec(_)
-            | Sort::Param(_)
-            | Sort::Wildcard
-            | Sort::Record(_, _)
-            | Sort::Infer(_) => self.clone(),
             Sort::Var(i) => subst[*i].clone(),
             Sort::App(c, args) => {
                 let args = args.iter().map(|arg| arg.subst(subst)).collect();
@@ -918,6 +909,17 @@ impl Sort {
                     bug!("unexpected subst in (nested) func-sort")
                 }
             }
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(_)
+            | Sort::Param(_)
+            | Sort::Wildcard
+            | Sort::Record(_, _)
+            | Sort::Infer(_)
+            | Sort::Error => self.clone(),
         }
     }
 }
@@ -1702,6 +1704,7 @@ impl fmt::Debug for Sort {
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),
             Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
+            Sort::Error => write!(f, "err"),
         }
     }
 }

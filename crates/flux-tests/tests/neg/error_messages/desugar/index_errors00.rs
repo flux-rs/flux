@@ -39,8 +39,3 @@ pub struct Chair {
 pub fn mk_chair() -> Chair {
     Chair { x: 0 }
 }
-
-#[flux::sig(fn(x: T) -> i32[x])] //~ ERROR invalid use of refinement parameter
-fn generic<T>(x: T) -> i32 {
-    0
-}

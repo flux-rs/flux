@@ -45,7 +45,7 @@ impl Callbacks for FluxCallbacks {
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
         if self.verify {
-            self.verify(compiler, queries)
+            self.verify(compiler, queries);
         }
 
         if self.full_compilation {
