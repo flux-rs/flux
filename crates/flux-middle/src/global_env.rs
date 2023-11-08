@@ -202,7 +202,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn sort_of_path(&self, path: &fhir::Path) -> Option<fhir::Sort> {
-        // CODESYNC(sort-of-path, 2) sorts should be given consistently
+        // CODESYNC(sort-of, 3) sorts should be given consistently
         match path.res {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(fhir::Sort::Int),
             fhir::Res::PrimTy(PrimTy::Bool) => Some(fhir::Sort::Bool),
