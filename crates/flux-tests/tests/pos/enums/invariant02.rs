@@ -8,7 +8,7 @@
 #[flux::refined_by(n: int)]
 #[flux::invariant(gtzero(n))]
 struct S {
-    #[flux::field({i32[@n] | gtzero(n)})]
+    #[flux::field({i32[n] | gtzero(n)})]
     x: i32,
 }
 

@@ -253,7 +253,7 @@ pub(crate) fn conv_defn(
     rty::Defn { name: defn.name, expr }
 }
 
-pub fn conv_qualifier(
+pub(crate) fn conv_qualifier(
     genv: &GlobalEnv,
     qualifier: &fhir::Qualifier,
     wfckresults: &fhir::WfckResults,
@@ -1144,13 +1144,13 @@ fn conv_sorts<'a>(
         .collect()
 }
 
-pub(crate) fn conv_refine_param(genv: &GlobalEnv, param: &fhir::RefineParam) -> rty::RefineParam {
+fn conv_refine_param(genv: &GlobalEnv, param: &fhir::RefineParam) -> rty::RefineParam {
     let sort = conv_sort(genv, &param.sort);
     let mode = param.infer_mode();
     rty::RefineParam { sort, mode }
 }
 
-pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
+fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
     match sort {
         fhir::Sort::Int => rty::Sort::Int,
         fhir::Sort::Real => rty::Sort::Real,
@@ -1170,8 +1170,10 @@ pub fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(genv.tcx, def_id.expect_local()))
         }
-        fhir::Sort::Wildcard | fhir::Sort::Infer(_) => bug!("unexpected sort `{sort:?}`"),
         fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
+        fhir::Sort::Error | fhir::Sort::Wildcard | fhir::Sort::Infer(_) => {
+            bug!("unexpected sort `{sort:?}`")
+        }
     }
 }
 

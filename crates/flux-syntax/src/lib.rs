@@ -97,7 +97,7 @@ impl ParseSess {
         parse!(self, grammar::ExprParser, tokens, span)
     }
 
-    fn next_node_id(&mut self) -> NodeId {
+    pub fn next_node_id(&mut self) -> NodeId {
         let id = NodeId(self.next_node_id);
         self.next_node_id += 1;
         id

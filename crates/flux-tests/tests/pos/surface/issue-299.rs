@@ -3,7 +3,7 @@
 #[flux::refined_by(a: int)]
 struct S1 {
     f1: S2,
-    #[flux::field(i32[@a])]
+    #[flux::field(i32[a])]
     f2: i32,
     #[flux::field(i32{v: v > 0})]
     f3: i32,
@@ -13,9 +13,9 @@ struct S1 {
 struct S2 {
     #[flux::field(i32)]
     pub f1: i32,
-    #[flux::field(i32[@a])]
+    #[flux::field(i32[a])]
     pub f2: i32,
-    #[flux::field({i32[@b] | b > 0})]
+    #[flux::field({i32[b] | b > 0})]
     pub f3: i32,
     #[flux::field(i32{v: v > 0})]
     pub f4: i32,

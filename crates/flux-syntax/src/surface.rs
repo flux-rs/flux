@@ -14,6 +14,12 @@ use rustc_span::{symbol::kw, Span};
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct NodeId(pub(super) usize);
 
+impl NodeId {
+    pub fn as_usize(&self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Debug)]
 pub struct SortDecl {
     pub name: Ident,
@@ -73,6 +79,7 @@ pub struct TyAlias {
     pub generics: Vec<Ty>,
     pub refined_by: RefinedBy,
     pub ty: Ty,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
@@ -83,6 +90,7 @@ pub struct StructDef {
     pub fields: Vec<Option<Ty>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
+    pub node_id: NodeId,
 }
 
 impl StructDef {
@@ -97,6 +105,7 @@ pub struct EnumDef {
     pub refined_by: Option<RefinedBy>,
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
+    pub node_id: NodeId,
 }
 
 impl EnumDef {
@@ -110,6 +119,7 @@ impl EnumDef {
 pub struct VariantDef {
     pub fields: Vec<Ty>,
     pub ret: VariantRet,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
@@ -183,6 +193,7 @@ pub struct FnSig {
     pub predicates: Vec<WhereBoundPredicate>,
     /// source span
     pub span: Span,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -233,6 +244,7 @@ pub enum Arg {
 #[derive(Debug)]
 pub struct Ty {
     pub kind: TyKind,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
@@ -309,7 +321,7 @@ pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     Bind(Ident, BindKind, Span),
     Expr(Expr),
-    Abs(Vec<RefineParam>, Expr, Span),
+    Abs(Vec<RefineParam>, Expr, NodeId, Span),
 }
 
 #[derive(Debug, Clone, Copy)]

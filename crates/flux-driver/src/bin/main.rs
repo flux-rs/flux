@@ -107,7 +107,7 @@ impl FluxMetadata {
             .and_then(|package| package.get("metadata"))
             .and_then(|metadata| metadata.get("flux"))
             .and_then(|flux| flux.get("enabled"))
-            .and_then(|enabled| enabled.as_bool())
+            .and_then(toml::Value::as_bool)
             .unwrap_or(false);
         Some(FluxMetadata { enabled })
     }

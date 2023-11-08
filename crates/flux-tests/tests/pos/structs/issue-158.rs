@@ -5,7 +5,7 @@ use rvec::RVec;
 
 #[flux::refined_by(size:int)]
 pub struct Bob {
-    #[flux::field(RVec<i32{v: v >= 0}>[@size])]
+    #[flux::field(RVec<i32{v: v >= 0}>[size])]
     elems: RVec<i32>,
 }
 

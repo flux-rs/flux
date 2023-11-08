@@ -447,7 +447,7 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Whether the parameter was declared implicitly with `@` or `#` syntax
+    /// Whether the parameter was implicitly scoped with `@n`, `#n` or `x: T` syntax.
     pub implicit: bool,
     pub fhir_id: FhirId,
 }
@@ -497,7 +497,7 @@ pub enum Sort {
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
-    /// the List<Sort> is for the type parameters of (generic) record sorts
+    /// the `List<Sort>` is for the type parameters of (generic) record sorts
     Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
@@ -505,6 +505,8 @@ pub enum Sort {
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
     Infer(SortVid),
+    /// A sort that couldn't be generated because of an error.
+    Error,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -731,16 +733,18 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-///
-/// Sort parameters e.g. #[flux::refined_by( elems: Set<T> )] tracks the mapping from
-/// bound Var -> Generic id. e.g. if we have RMap<K, V> refined_by(keys: Set<K>)
-/// then RMapIdx = forall #0. { keys: Set<#0> }
-/// and sort_params = vec![T]  i.e. maps Var(0) to T
-
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
+    /// Tracks the mapping from bound var to generic def ids. e.g. if we have
+    ///
+    /// ```ignore
+    /// #[refined_by(keys: Set<K>)]
+    /// RMap<K, V> { ...}
+    /// ```
+    /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
+    /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
     sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
@@ -859,6 +863,14 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
+    /// Returns `true` if the sort is [`Wildcard`].
+    ///
+    /// [`Wildcard`]: Sort::Wildcard
+    #[must_use]
+    pub fn is_wildcard(&self) -> bool {
+        matches!(self, Self::Wildcard)
+    }
+
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -887,16 +899,6 @@ impl Sort {
     /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::Unit
-            | Sort::BitVec(_)
-            | Sort::Param(_)
-            | Sort::Wildcard
-            | Sort::Record(_, _)
-            | Sort::Infer(_) => self.clone(),
             Sort::Var(i) => subst[*i].clone(),
             Sort::App(c, args) => {
                 let args = args.iter().map(|arg| arg.subst(subst)).collect();
@@ -910,6 +912,17 @@ impl Sort {
                     bug!("unexpected subst in (nested) func-sort")
                 }
             }
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(_)
+            | Sort::Param(_)
+            | Sort::Wildcard
+            | Sort::Record(_, _)
+            | Sort::Infer(_)
+            | Sort::Error => self.clone(),
         }
     }
 }
@@ -1694,6 +1707,7 @@ impl fmt::Debug for Sort {
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),
             Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
+            Sort::Error => write!(f, "err"),
         }
     }
 }

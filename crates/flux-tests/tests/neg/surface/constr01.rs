@@ -1,8 +1,8 @@
 #[flux::refined_by(a: int, b: int)]
 struct Foo {
-    #[flux::field({i32[@a] | 0 <= a})]
+    #[flux::field({i32[a] | 0 <= a})]
     x: i32,
-    #[flux::field({i32[@b] | a <= b})]
+    #[flux::field({i32[b] | a <= b})]
     y: i32,
 }
 

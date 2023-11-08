@@ -4,7 +4,7 @@ use rvec::RVec;
 
 #[flux::refined_by(n: int)]
 pub struct S {
-    #[flux::field(usize[@n])]
+    #[flux::field(usize[n])]
     pub size: usize,
     #[flux::field(RVec<i32>[n])]
     pub payload: RVec<i32>,

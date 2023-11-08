@@ -1,6 +1,6 @@
 #[flux::refined_by(f: int)]
 pub struct S {
-    #[flux::field(i32[@f])]
+    #[flux::field(i32[f])]
     f: i32,
 }
 

@@ -5,7 +5,7 @@
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
 //! kind because only type parameters of sort `base` can be refined. The essential function implementing
-//! this logic is [`GlobalEnv::sort_of_res`]. This function requires the generics for the item being
+//! this logic is [`GlobalEnv::sort_of_path`]. This function requires the generics for the item being
 //! desugared to be register in [`fhir::Map`], thus we need to make sure that when desugaring an item,
 //! generics are registered before desugaring the rest of the item.
 
@@ -18,7 +18,7 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use desugar::{Binders, DesugarCtxt};
+use desugar::DesugarCtxt;
 use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
@@ -56,7 +56,7 @@ pub fn desugar_struct_def(
     let predicates = cx.as_lift_cx().lift_predicates()?;
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
-    let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
+    let struct_def = cx.desugar_struct_def(struct_def)?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
     }
@@ -81,7 +81,7 @@ pub fn desugar_enum_def(
     genv.map().insert_generics(def_id, generics);
 
     // Desugar of enum def needs to happen AFTER inserting generics. See crate level comment
-    let enum_def = cx.desugar_enum_def(enum_def, &mut Binders::new())?;
+    let enum_def = cx.desugar_enum_def(enum_def)?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
     }
@@ -107,7 +107,7 @@ pub fn desugar_type_alias(
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of type alias needs to happen AFTER desugaring generics. See crate level comment
-        let ty_alias = cx.desugar_type_alias(ty_alias, &mut Binders::new())?;
+        let ty_alias = cx.desugar_type_alias(ty_alias)?;
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
         }
@@ -147,7 +147,7 @@ pub fn desugar_fn_sig(
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of fn_sig needs to happen AFTER inserting generics. See crate level comment
-        let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig, &mut Binders::new())?;
+        let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
