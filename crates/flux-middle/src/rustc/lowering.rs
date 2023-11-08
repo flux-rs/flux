@@ -419,6 +419,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::IntToInt => Some(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat => Some(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt => Some(CastKind::FloatToInt),
+            rustc_mir::CastKind::PtrToPtr => Some(CastKind::PtrToPtr),
             rustc_mir::CastKind::PointerCoercion(ptr_coercion) => {
                 Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
             }

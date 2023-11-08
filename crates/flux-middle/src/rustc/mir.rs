@@ -204,6 +204,7 @@ pub enum CastKind {
     IntToInt,
     FloatToInt,
     IntToFloat,
+    PtrToPtr,
     Pointer(PointerCast),
 }
 
@@ -720,6 +721,7 @@ impl fmt::Debug for CastKind {
             CastKind::IntToInt => write!(f, "IntToInt"),
             CastKind::FloatToInt => write!(f, "FloatToInt"),
             CastKind::IntToFloat => write!(f, "IntToFloat"),
+            CastKind::PtrToPtr => write!(f, "PtrToPtr"),
             CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
         }
     }

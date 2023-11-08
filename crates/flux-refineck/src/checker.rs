@@ -990,14 +990,12 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
             CastKind::Pointer(mir::PointerCast::Unsize) => {
-                if
-                // src is an array
-                let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
-                   && let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _) = src_ty.kind()
-                   // dst is a slice
-                   && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
-                   && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
-                   && src_mut == dst_mut
+                if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
+                    && let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _) =
+                        src_ty.kind()
+                    && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+                    && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
+                    && src_mut == dst_mut
                 {
                     let dst_ix = Index::from(src_n.clone());
                     let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), dst_ix);
@@ -1008,6 +1006,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
+            | CastKind::PtrToPtr
             | CastKind::Pointer(mir::PointerCast::MutToConstPointer) => {
                 self.genv
                     .refine_default(&self.generics, to)
