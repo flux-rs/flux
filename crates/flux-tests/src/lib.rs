@@ -1,6 +1,9 @@
 #![feature(register_tool)]
 use std::path::PathBuf;
 
+// CODESYNC(sysroot-env) we must use the same env var in flux-bin
+pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
+
 pub fn find_flux_path() -> PathBuf {
     let executable_name = if cfg!(windows) { "rustc-flux.exe" } else { "rustc-flux" };
     find_file_in_target_dir(executable_name)

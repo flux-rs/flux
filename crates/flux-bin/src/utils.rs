@@ -11,6 +11,7 @@ pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
 pub const EXIT_ERR: i32 = -1;
 
+// CODESYNC(sysroot-env) we must use the same env var in flux-tests
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 
 /// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
@@ -19,7 +20,8 @@ pub fn sysroot_dir() -> PathBuf {
 }
 
 /// Return the default sysroot
-pub fn default_sysroot_dir() -> PathBuf {
+// CODESYNC(default-sysroot) we must use the same dir used in xtask
+fn default_sysroot_dir() -> PathBuf {
     home::home_dir()
         .expect("Couldn't find home directory")
         .join(".flux")

@@ -624,7 +624,6 @@ name = "flux-tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
- "flux-bin",
  "itertools",
 ]
 
@@ -1829,8 +1828,8 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "flux-bin",
  "flux-tests",
+ "home",
  "opener",
  "xflags",
  "xshell",

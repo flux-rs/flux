@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use flux_bin::utils::{default_sysroot_dir, FLUX_SYSROOT};
+use flux_tests::{find_flux_path, FLUX_SYSROOT};
 use xshell::{cmd, Shell};
 
 xflags::xflags! {
@@ -82,7 +82,7 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
     build_sysroot(&sh)?;
     cmd!(sh, "cargo build").run()?;
 
-    let flux_path = flux_tests::find_flux_path();
+    let flux_path = find_flux_path();
     let _env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
     let mut rustc_flags = flux_tests::rustc_flags();
     rustc_flags.extend(["-Ztrack-diagnostics=y".to_string()]);
@@ -158,4 +158,11 @@ impl Install {
             "--release"
         }
     }
+}
+
+// CODESYNC(default-sysroot) we must use the same default sysroot used in flux-bin
+fn default_sysroot_dir() -> PathBuf {
+    home::home_dir()
+        .expect("Couldn't find home directory")
+        .join(".flux")
 }
