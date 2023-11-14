@@ -7,7 +7,6 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
-    intern::List,
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind};
@@ -17,7 +16,6 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
-use rustc_middle::ty::Generics;
 use rustc_span::{
     def_id::LocalDefId,
     sym::{self},
@@ -28,7 +26,11 @@ use rustc_span::{
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 use self::env::{Scope, ScopeId};
-use crate::resolver::ResolverOutput;
+use crate::{
+    errors,
+    resolver::ResolverOutput,
+    sort_resolver::{SortResolver, SORTS},
+};
 
 pub fn desugar_qualifier(
     genv: &GlobalEnv,
@@ -143,6 +145,7 @@ fn gather_refined_by_sort_vars(
         .filter_map(|param| if sort_idents.contains(&param.name) { Some(param.name) } else { None })
         .collect()
 }
+
 pub fn desugar_refined_by(
     sess: &FluxSession,
     sort_decls: &fhir::SortDecls,
@@ -1069,117 +1072,6 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
     }
 }
 
-struct SortResolver<'a> {
-    sess: &'a FluxSession,
-    sort_decls: &'a fhir::SortDecls,
-    generic_params: FxHashMap<Symbol, rustc_span::def_id::DefId>,
-    sort_params: FxHashMap<Symbol, usize>,
-}
-
-impl<'a> SortResolver<'a> {
-    pub fn with_sort_params(
-        sess: &'a FluxSession,
-        sort_decls: &'a fhir::SortDecls,
-        sort_params: &[Symbol],
-    ) -> Self {
-        let sort_params = sort_params
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (*v, i))
-            .collect();
-        Self { sess, sort_decls, generic_params: Default::default(), sort_params }
-    }
-
-    pub fn with_generics(
-        sess: &'a FluxSession,
-        sort_decls: &'a fhir::SortDecls,
-        generics: &'a Generics,
-    ) -> Self {
-        let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
-        Self { sess, sort_decls, sort_params: Default::default(), generic_params }
-    }
-
-    fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
-        match sort {
-            surface::Sort::Base(sort) => self.resolve_base_sort(sort),
-            surface::Sort::Func { inputs, output } => {
-                Ok(self.resolve_func_sort(inputs, output)?.into())
-            }
-            surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
-        }
-    }
-
-    fn resolve_func_sort(
-        &self,
-        inputs: &[surface::BaseSort],
-        output: &surface::BaseSort,
-    ) -> Result<fhir::PolyFuncSort> {
-        let inputs: Vec<fhir::Sort> = inputs
-            .iter()
-            .map(|sort| self.resolve_base_sort(sort))
-            .try_collect_exhaust()?;
-        let output = self.resolve_base_sort(output)?;
-        Ok(fhir::PolyFuncSort::new(0, inputs, output))
-    }
-
-    fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort> {
-        match base {
-            surface::BaseSort::Ident(ident) => self.resolve_base_sort_ident(ident),
-            surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
-            surface::BaseSort::App(ident, args) => self.resolve_app_sort(*ident, args),
-        }
-    }
-
-    fn resolve_sort_ctor(&self, ident: surface::Ident) -> Result<fhir::SortCtor> {
-        if ident.name == SORTS.set {
-            Ok(fhir::SortCtor::Set)
-        } else if ident.name == SORTS.map {
-            Ok(fhir::SortCtor::Map)
-        } else {
-            Err(self.sess.emit_err(errors::UnresolvedSort::new(ident)))
-        }
-    }
-
-    fn resolve_app_sort(
-        &self,
-        ident: surface::Ident,
-        args: &Vec<surface::BaseSort>,
-    ) -> Result<fhir::Sort> {
-        let ctor = self.resolve_sort_ctor(ident)?;
-        let arity = ctor.arity();
-        if args.len() == arity {
-            let args = args
-                .iter()
-                .map(|arg| self.resolve_base_sort(arg))
-                .try_collect_exhaust()?;
-            Ok(fhir::Sort::App(ctor, args))
-        } else {
-            Err(self
-                .sess
-                .emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
-        }
-    }
-
-    fn resolve_base_sort_ident(&self, ident: &surface::Ident) -> Result<fhir::Sort> {
-        if ident.name == SORTS.int {
-            Ok(fhir::Sort::Int)
-        } else if ident.name == sym::bool {
-            Ok(fhir::Sort::Bool)
-        } else if ident.name == SORTS.real {
-            Ok(fhir::Sort::Real)
-        } else if let Some(def_id) = self.generic_params.get(&ident.name) {
-            Ok(fhir::Sort::Param(*def_id))
-        } else if let Some(idx) = self.sort_params.get(&ident.name) {
-            Ok(fhir::Sort::Var(*idx))
-        } else if self.sort_decls.get(&ident.name).is_some() {
-            let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
-            Ok(fhir::Sort::App(ctor, List::empty()))
-        } else {
-            Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident)))
-        }
-    }
-}
-
 impl Env {
     fn from_params<'a>(
         genv: &GlobalEnv,
@@ -1274,209 +1166,6 @@ impl<'a, 'tcx> DesugarContext<'a, 'tcx> for DesugarCtxt<'a, 'tcx> {
 impl<'a, 'tcx> DesugarContext<'a, 'tcx> for ExprCtxt<'a, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: self.owner, local_id: self.local_id_gen.fresh() }
-    }
-}
-
-struct Sorts {
-    int: Symbol,
-    real: Symbol,
-    set: Symbol,
-    map: Symbol,
-}
-
-static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
-    Sorts {
-        int: Symbol::intern("int"),
-        real: Symbol::intern("real"),
-        set: Symbol::intern("Set"),
-        map: Symbol::intern("Map"),
-    }
-});
-
-mod errors {
-    use flux_macros::Diagnostic;
-    use flux_syntax::surface::{self, BindKind, QPathExpr};
-    use itertools::Itertools;
-    use rustc_span::{symbol::Ident, Span, Symbol};
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_var, code = "FLUX")]
-    pub(super) struct UnresolvedVar {
-        #[primary_span]
-        #[label]
-        span: Span,
-        var: String,
-    }
-
-    impl UnresolvedVar {
-        pub(super) fn from_qpath(qpath: &QPathExpr) -> Self {
-            Self {
-                span: qpath.span,
-                var: format!("{}", qpath.segments.iter().format_with("::", |s, f| f(&s.name))),
-            }
-        }
-
-        pub(super) fn from_ident(ident: Ident) -> Self {
-            Self { span: ident.span, var: format!("{ident}") }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_param, code = "FLUX")]
-    pub(super) struct DuplicateParam {
-        #[primary_span]
-        #[label]
-        span: Span,
-        name: Symbol,
-        #[label(desugar_first_use)]
-        first_use: Span,
-    }
-
-    impl DuplicateParam {
-        pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
-            debug_assert_eq!(old_ident.name, new_ident.name);
-            Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_sort, code = "FLUX")]
-    pub(super) struct UnresolvedSort {
-        #[primary_span]
-        #[label]
-        span: Span,
-        sort: Ident,
-    }
-
-    impl UnresolvedSort {
-        pub(super) fn new(sort: Ident) -> Self {
-            Self { span: sort.span, sort }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_int_too_large, code = "FLUX")]
-    pub(super) struct IntTooLarge {
-        #[primary_span]
-        pub(super) span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unexpected_literal, code = "FLUX")]
-    pub(super) struct UnexpectedLiteral {
-        #[primary_span]
-        pub(super) span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_invalid_dot_var, code = "FLUX")]
-    pub(super) struct InvalidDotVar {
-        #[primary_span]
-        pub(super) span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_sort_arity_mismatch, code = "FLUX")]
-    pub(super) struct SortArityMismatch {
-        #[primary_span]
-        #[label]
-        span: Span,
-        expected: usize,
-        found: usize,
-    }
-
-    impl SortArityMismatch {
-        pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
-            Self { span, expected, found }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_refine_arg_count_mismatch, code = "FLUX")]
-    pub(super) struct RefineArgCountMismatch {
-        #[primary_span]
-        #[label]
-        span: Span,
-        expected: usize,
-        found: usize,
-    }
-
-    impl RefineArgCountMismatch {
-        pub(super) fn new(idxs: &surface::Indices, expected: usize) -> Self {
-            Self { span: idxs.span, expected, found: idxs.indices.len() }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
-    pub(super) struct InvalidUnrefinedParam {
-        #[primary_span]
-        #[label]
-        span: Span,
-        var: Ident,
-    }
-
-    impl InvalidUnrefinedParam {
-        pub(super) fn new(var: Ident) -> Self {
-            Self { var, span: var.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_invalid_numeric_suffix, code = "FLUX")]
-    pub(super) struct InvalidNumericSuffix {
-        #[primary_span]
-        #[label]
-        span: Span,
-        suffix: Symbol,
-    }
-
-    impl InvalidNumericSuffix {
-        pub(super) fn new(span: Span, suffix: Symbol) -> Self {
-            Self { span, suffix }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_refined_unrefinable_type, code = "FLUX")]
-    pub(super) struct RefinedUnrefinableType {
-        #[primary_span]
-        span: Span,
-    }
-
-    impl RefinedUnrefinableType {
-        pub(super) fn new(span: Span) -> Self {
-            Self { span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_generic_param, code = "FLUX")]
-    #[note]
-    pub(super) struct UnresolvedGenericParam {
-        #[primary_span]
-        span: Span,
-    }
-
-    impl UnresolvedGenericParam {
-        pub(super) fn new(param: Ident) -> Self {
-            Self { span: param.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_illegal_binder, code = "FLUX")]
-    pub(super) struct IllegalBinder {
-        #[primary_span]
-        #[label]
-        span: Span,
-        kind: &'static str,
-    }
-
-    impl IllegalBinder {
-        pub(super) fn new(span: Span, kind: BindKind) -> Self {
-            Self { span, kind: kind.token_str() }
-        }
     }
 }
 

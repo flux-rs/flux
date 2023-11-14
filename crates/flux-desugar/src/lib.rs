@@ -28,7 +28,9 @@ use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 fluent_messages! { "../locales/en-US.ftl" }
 
 mod desugar;
+mod errors;
 pub mod resolver;
+mod sort_resolver;
 
 pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 use flux_middle::{
