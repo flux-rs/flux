@@ -1004,9 +1004,8 @@ impl ToTokens for Field {
         let Field { attrs, vis, mutability: _, ident, colon_token, ty } = self;
         #[cfg(flux_sysroot)]
         {
-            let span = colon_token.span();
             let flux_ty = ToTokensFlux(ty);
-            quote_spanned! {span=>
+            quote! {
                 #[flux_tool::field(#flux_ty)]
             }
             .to_tokens(tokens);

@@ -17,7 +17,7 @@ use rustc_hir::{
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 use rustc_middle::ty::{ScalarInt, TyCtxt};
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, SyntaxContext};
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -490,7 +490,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         parser: impl FnOnce(&mut ParseSess, &TokenStream, Span) -> ParseResult<T>,
         ctor: impl FnOnce(T) -> FluxAttrKind,
     ) -> Result<FluxAttrKind, ErrorGuaranteed> {
-        parser(&mut self.parse_sess, &dargs.tokens, dargs.dspan.entire())
+        let entire = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
+        parser(&mut self.parse_sess, &dargs.tokens, entire)
             .map(ctor)
             .map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
