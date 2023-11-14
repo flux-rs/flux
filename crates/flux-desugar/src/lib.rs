@@ -18,7 +18,7 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use desugar::DesugarCtxt;
+use desugar::RustItemCtxt;
 use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
@@ -52,7 +52,7 @@ pub fn desugar_struct_def(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
     let predicates = cx.as_lift_cx().lift_predicates()?;
 
@@ -75,7 +75,7 @@ pub fn desugar_enum_def(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
     let predicates = cx.as_lift_cx().lift_predicates()?;
 
@@ -99,7 +99,7 @@ pub fn desugar_type_alias(
     let def_id = owner_id.def_id;
 
     if let Some(ty_alias) = ty_alias {
-        let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+        let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
         // Desugar and insert generics
         let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
@@ -135,7 +135,7 @@ pub fn desugar_fn_sig(
     let def_id = owner_id.def_id;
     if let Some(fn_sig) = fn_sig {
         let mut opaque_tys = Default::default();
-        let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
+        let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
 
         // Desugar and insert generics
         let generics = if let Some(generics) = &fn_sig.generics {
@@ -184,7 +184,7 @@ pub fn desugar_generics_and_predicates(
         LiftCtxt::new(genv.tcx, genv.sess, owner_id, None).lift_generics_with_predicates()?;
 
     let generics = if let Some(generics) = generics {
-        let cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+        let cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
         cx.desugar_generics(generics)?
     } else {
         lifted_generics

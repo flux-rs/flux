@@ -37,7 +37,7 @@ use rustc_errors::ErrorGuaranteed;
 use super::{
     env::{self, ScopeId},
     errors::{IllegalBinder, InvalidUnrefinedParam},
-    DesugarCtxt,
+    RustItemCtxt,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -100,7 +100,7 @@ impl From<surface::BindKind> for Param {
     }
 }
 
-impl DesugarCtxt<'_, '_> {
+impl RustItemCtxt<'_, '_> {
     pub(super) fn gather_params_type_alias(
         &self,
         ty_alias: &surface::TyAlias,
