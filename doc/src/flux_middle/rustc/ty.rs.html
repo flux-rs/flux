@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/ty.rs`."><title>ty.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/ty.rs`."><title>ty.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -715,20 +715,6 @@
 <a href="#715" id="715">715</a>
 <a href="#716" id="716">716</a>
 <a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -737,7 +723,6 @@
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -745,11 +730,12 @@
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt,
-        UintTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy,
+        RegionVid, ScalarInt, UintTy,
     },
 };
 <span class="kw">use </span>rustc_span::{symbol::kw, Symbol};
+<span class="kw">use </span>rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 <span class="kw">use </span><span class="self">self</span>::subst::Subst;
 <span class="kw">use crate</span>::{
@@ -768,27 +754,9 @@
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash)]
 </span><span class="kw">pub struct </span>Binder&lt;T&gt;(T, List&lt;BoundVariableKind&gt;);
 
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>BoundVariableKind {
     Region(BoundRegionKind),
-}
-
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
-</span><span class="kw">pub enum </span>BoundRegionKind {
-    BrAnon,
-    BrNamed(DefId, Symbol),
-    BrEnv,
-}
-
-<span class="kw">impl </span>BoundRegionKind {
-    <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::BoundRegionKind {
-        <span class="kw">use </span>rustc_middle::ty;
-        <span class="kw">match </span><span class="self">self </span>{
-            BoundRegionKind::BrAnon =&gt; ty::BoundRegionKind::BrAnon(<span class="prelude-val">None</span>),
-            BoundRegionKind::BrNamed(def_id, sym) =&gt; ty::BoundRegionKind::BrNamed(def_id, sym),
-            BoundRegionKind::BrEnv =&gt; ty::BoundRegionKind::BrEnv,
-        }
-    }
 }
 
 <span class="attr">#[derive(Hash, Eq, PartialEq)]
@@ -894,8 +862,8 @@
     Slice(Ty),
     FnPtr(PolyFnSig),
     Closure(DefId, GenericArgs),
-    Generator(DefId, GenericArgs),
-    GeneratorWitness(Binder&lt;List&lt;Ty&gt;&gt;),
+    Coroutine(DefId, GenericArgs),
+    CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
 }
@@ -988,7 +956,7 @@
     <span class="kw">pub </span>bound_region: BoundRegionKind,
 }
 
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>BoundRegion {
     <span class="kw">pub </span>var: BoundVar,
     <span class="kw">pub </span>kind: BoundRegionKind,
@@ -1212,12 +1180,12 @@
         TyKind::Closure(def_id, args.into()).intern()
     }
 
-    <span class="kw">pub fn </span>mk_generator(def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; Ty {
-        TyKind::Generator(def_id, args.into()).intern()
+    <span class="kw">pub fn </span>mk_coroutine(def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; Ty {
+        TyKind::Coroutine(def_id, args.into()).intern()
     }
 
-    <span class="kw">pub fn </span>mk_generator_witness(args: Binder&lt;List&lt;Ty&gt;&gt;) -&gt; Ty {
-        TyKind::GeneratorWitness(args).intern()
+    <span class="kw">pub fn </span>mk_generator_witness(def_id: DefId, args: GenericArgs) -&gt; Ty {
+        TyKind::CoroutineWitness(def_id, args).intern()
     }
 
     <span class="kw">pub fn </span>mk_alias(kind: AliasKind, def_id: DefId, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; Ty {
@@ -1406,15 +1374,19 @@
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            TyKind::Generator(did, args) =&gt; {
+            TyKind::Coroutine(did, args) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">&quot;Generator {}&quot;</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
                 <span class="kw">if </span>!args.is_empty() {
                     <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?}&gt;&quot;</span>, args.iter().format(<span class="string">&quot;, &quot;</span>))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            TyKind::GeneratorWitness(args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;GeneratorWitness {:?}&quot;</span>, args)
+            TyKind::CoroutineWitness(did, args) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;GeneratorWitness {}&quot;</span>, def_id_to_string(<span class="kw-2">*</span>did))<span class="question-mark">?</span>;
+                <span class="kw">if </span>!args.is_empty() {
+                    <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?}&gt;&quot;</span>, args.iter().format(<span class="string">&quot;, &quot;</span>))<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
             }
             TyKind::Alias(kind, alias_ty) =&gt; {
                 <span class="kw">let </span>def_id = alias_ty.def_id;

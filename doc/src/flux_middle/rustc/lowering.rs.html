@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/lowering.rs`."><title>lowering.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/lowering.rs`."><title>lowering.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -947,20 +947,6 @@
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
 <a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a>
-<a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_borrowck::consumers::BodyWithBorrowckFacts;
@@ -985,10 +971,10 @@
         PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
-        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundRegionKind, BoundVariableKind,
-        Clause, ClauseKind, Const, FieldDef, FnSig, GenericArg, GenericParamDef,
-        GenericParamDefKind, GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty,
-        ValueConst, VariantDef,
+        AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
+        Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
+        GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty, ValueConst,
+        VariantDef,
     },
 };
 <span class="kw">use crate</span>::{
@@ -1254,7 +1240,7 @@
                     drop: <span class="kw-2">*</span>drop,
                 }
             }
-            rustc_mir::TerminatorKind::GeneratorDrop =&gt; TerminatorKind::GeneratorDrop,
+            rustc_mir::TerminatorKind::CoroutineDrop =&gt; TerminatorKind::CoroutineDrop,
             rustc_mir::TerminatorKind::UnwindResume =&gt; TerminatorKind::UnwindResume,
             rustc_mir::TerminatorKind::UnwindTerminate(..)
             | rustc_mir::TerminatorKind::InlineAsm { .. } =&gt; {
@@ -1332,9 +1318,9 @@
             rustc_mir::Rvalue::Discriminant(p) =&gt; <span class="prelude-val">Ok</span>(Rvalue::Discriminant(lower_place(p)<span class="question-mark">?</span>)),
             rustc_mir::Rvalue::Len(place) =&gt; <span class="prelude-val">Ok</span>(Rvalue::Len(lower_place(place)<span class="question-mark">?</span>)),
             rustc_mir::Rvalue::Cast(kind, op, ty) =&gt; {
-                <span class="kw">let </span>kind = <span class="self">self
-                    </span>.lower_cast_kind(<span class="kw-2">*</span>kind)
-                    .ok_or_else(|| UnsupportedReason::new(<span class="string">&quot;unsupported cast&quot;</span>))<span class="question-mark">?</span>;
+                <span class="kw">let </span>kind = <span class="self">self</span>.lower_cast_kind(<span class="kw-2">*</span>kind).ok_or_else(|| {
+                    UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported cast `{kind:?}`&quot;</span>))
+                })<span class="question-mark">?</span>;
                 <span class="kw">let </span>op = <span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = lower_ty(<span class="self">self</span>.tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Rvalue::Cast(kind, op, ty))
@@ -1382,6 +1368,7 @@
             rustc_mir::CastKind::IntToInt =&gt; <span class="prelude-val">Some</span>(CastKind::IntToInt),
             rustc_mir::CastKind::IntToFloat =&gt; <span class="prelude-val">Some</span>(CastKind::IntToFloat),
             rustc_mir::CastKind::FloatToInt =&gt; <span class="prelude-val">Some</span>(CastKind::FloatToInt),
+            rustc_mir::CastKind::PtrToPtr =&gt; <span class="prelude-val">Some</span>(CastKind::PtrToPtr),
             rustc_mir::CastKind::PointerCoercion(ptr_coercion) =&gt; {
                 <span class="prelude-val">Some</span>(CastKind::Pointer(<span class="self">self</span>.lower_pointer_coercion(ptr_coercion)<span class="question-mark">?</span>))
             }
@@ -1405,9 +1392,9 @@
                 <span class="kw">let </span>args = lower_generic_args(<span class="self">self</span>.tcx, args)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(AggregateKind::Closure(<span class="kw-2">*</span>did, args))
             }
-            rustc_mir::AggregateKind::Generator(did, args, _mov) =&gt; {
+            rustc_mir::AggregateKind::Coroutine(did, args, _mov) =&gt; {
                 <span class="kw">let </span>args = lower_generic_args(<span class="self">self</span>.tcx, args)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(AggregateKind::Generator(<span class="kw-2">*</span>did, args))
+                <span class="prelude-val">Ok</span>(AggregateKind::Coroutine(<span class="kw-2">*</span>did, args))
             }
             rustc_mir::AggregateKind::Adt(..) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
@@ -1557,7 +1544,7 @@
     <span class="kw">for </span>var <span class="kw">in </span>bound_vars {
         <span class="kw">match </span>var {
             rustc_ty::BoundVariableKind::Region(kind) =&gt; {
-                vars.push(BoundVariableKind::Region(lower_bound_region_kind(<span class="kw-2">*</span>kind)<span class="question-mark">?</span>));
+                vars.push(BoundVariableKind::Region(<span class="kw-2">*</span>kind));
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason {
@@ -1632,17 +1619,14 @@
             <span class="kw">let </span>args = lower_generic_args(tcx, alias_ty.args)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_alias(kind, alias_ty.def_id, args))
         }
-        rustc_ty::Generator(did, args, <span class="kw">_</span>) =&gt; {
+        rustc_ty::Coroutine(did, args, <span class="kw">_</span>) =&gt; {
             <span class="kw">let </span>args = lower_generic_args(tcx, args)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(Ty::mk_generator(<span class="kw-2">*</span>did, args))
+            <span class="prelude-val">Ok</span>(Ty::mk_coroutine(<span class="kw-2">*</span>did, args))
         }
-        rustc_ty::GeneratorWitness(tys) =&gt; {
-            <span class="kw">let </span>tys = lower_binder(<span class="kw-2">*</span>tys, |tys| {
-                <span class="prelude-val">Ok</span>(List::from_vec(tys.iter().map(|ty| lower_ty(tcx, ty)).try_collect()<span class="question-mark">?</span>))
-            })<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(Ty::mk_generator_witness(tys))
+        rustc_ty::CoroutineWitness(did, args) =&gt; {
+            <span class="kw">let </span>args = lower_generic_args(tcx, args)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(Ty::mk_generator_witness(<span class="kw-2">*</span>did, args))
         }
-        rustc_ty::GeneratorWitnessMIR(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported type `{ty:?}`&quot;</span>))),
     }
 }
@@ -1718,19 +1702,7 @@
 <span class="kw">fn </span>lower_bound_region(
     bregion: rustc_middle::ty::BoundRegion,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;BoundRegion, UnsupportedReason&gt; {
-    <span class="prelude-val">Ok</span>(BoundRegion { kind: lower_bound_region_kind(bregion.kind)<span class="question-mark">?</span>, var: bregion.var })
-}
-
-<span class="kw">fn </span>lower_bound_region_kind(
-    kind: rustc_middle::ty::BoundRegionKind,
-) -&gt; <span class="prelude-ty">Result</span>&lt;BoundRegionKind, UnsupportedReason&gt; {
-    <span class="kw">match </span>kind {
-        rustc_ty::BoundRegionKind::BrNamed(def_id, sym) =&gt; {
-            <span class="prelude-val">Ok</span>(BoundRegionKind::BrNamed(def_id, sym))
-        }
-        rustc_ty::BoundRegionKind::BrAnon(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(BoundRegionKind::BrAnon),
-        rustc_ty::BoundRegionKind::BrEnv =&gt; <span class="prelude-val">Ok</span>(BoundRegionKind::BrEnv),
-    }
+    <span class="prelude-val">Ok</span>(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
 <span class="kw">pub fn </span>lower_generics(generics: <span class="kw-2">&amp;</span>rustc_ty::Generics) -&gt; <span class="prelude-ty">Result</span>&lt;Generics, UnsupportedReason&gt; {

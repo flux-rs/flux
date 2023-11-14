@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir.rs`."><title>fhir.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_middle/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/fhir.rs`."><title>fhir.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1726,6 +1726,20 @@
 <a href="#1726" id="1726">1726</a>
 <a href="#1727" id="1727">1727</a>
 <a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2175,7 +2189,7 @@
 </span><span class="kw">pub struct </span>RefineParam {
     <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>sort: Sort,
-    <span class="doccomment">/// Whether the parameter was declared implicitly with `@` or `#` syntax
+    <span class="doccomment">/// Whether the parameter was implicitly scoped with `@n`, `#n` or `x: T` syntax.
     </span><span class="kw">pub </span>implicit: bool,
     <span class="kw">pub </span>fhir_id: FhirId,
 }
@@ -2225,7 +2239,7 @@
     </span>Var(usize),
     <span class="doccomment">/// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
-    /// the List&lt;Sort&gt; is for the type parameters of (generic) record sorts
+    /// the `List&lt;Sort&gt;` is for the type parameters of (generic) record sorts
     </span>Record(DefId, List&lt;Sort&gt;),
     <span class="doccomment">/// The sort associated to a type variable
     </span>Param(DefId),
@@ -2233,6 +2247,8 @@
     </span>Wildcard,
     <span class="doccomment">/// Sort inference variable generated for a [Sort::Wildcard] during sort checking
     </span>Infer(SortVid),
+    <span class="doccomment">/// A sort that couldn&#39;t be generated because of an error.
+    </span>Error,
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -2459,17 +2475,19 @@
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-///
-/// Sort parameters e.g. #[flux::refined_by( elems: Set&lt;T&gt; )] tracks the mapping from
-/// bound Var -&gt; Generic id. e.g. if we have RMap&lt;K, V&gt; refined_by(keys: Set&lt;K&gt;)
-/// then RMapIdx = forall #0. { keys: Set&lt;#0&gt; }
-/// and sort_params = vec![T]  i.e. maps Var(0) to T
-
 </span><span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>RefinedBy {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>span: Span,
-    sort_params: Vec&lt;DefId&gt;,
+    <span class="doccomment">/// Tracks the mapping from bound var to generic def ids. e.g. if we have
+    ///
+    /// ```ignore
+    /// #[refined_by(keys: Set&lt;K&gt;)]
+    /// RMap&lt;K, V&gt; { ...}
+    /// ```
+    /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set&lt;#0&gt; }`
+    /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
+    </span>sort_params: Vec&lt;DefId&gt;,
     <span class="doccomment">/// Index parameters indexed by their name and in the same order they appear in the definition.
     </span>index_params: FxIndexMap&lt;Symbol, Sort&gt;,
     <span class="doccomment">/// The number of early bound parameters
@@ -2587,6 +2605,14 @@
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Bool)
     }
 
+    <span class="doccomment">/// Returns `true` if the sort is [`Wildcard`].
+    ///
+    /// [`Wildcard`]: Sort::Wildcard
+    </span><span class="attr">#[must_use]
+    </span><span class="kw">pub fn </span>is_wildcard(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Wildcard)
+    }
+
     <span class="kw">pub fn </span>is_numeric(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Int | <span class="self">Self</span>::Real)
     }
@@ -2615,16 +2641,6 @@
     <span class="doccomment">/// replace all &quot;sort-vars&quot; (indexed 0...n-1) with the corresponding sort in `subst`
     </span><span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, subst: <span class="kw-2">&amp;</span>[Sort]) -&gt; Sort {
         <span class="kw">match </span><span class="self">self </span>{
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::Unit
-            | Sort::BitVec(<span class="kw">_</span>)
-            | Sort::Param(<span class="kw">_</span>)
-            | Sort::Wildcard
-            | Sort::Record(<span class="kw">_</span>, <span class="kw">_</span>)
-            | Sort::Infer(<span class="kw">_</span>) =&gt; <span class="self">self</span>.clone(),
             Sort::Var(i) =&gt; subst[<span class="kw-2">*</span>i].clone(),
             Sort::App(c, args) =&gt; {
                 <span class="kw">let </span>args = args.iter().map(|arg| arg.subst(subst)).collect();
@@ -2638,6 +2654,17 @@
                     <span class="macro">bug!</span>(<span class="string">&quot;unexpected subst in (nested) func-sort&quot;</span>)
                 }
             }
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(<span class="kw">_</span>)
+            | Sort::Param(<span class="kw">_</span>)
+            | Sort::Wildcard
+            | Sort::Record(<span class="kw">_</span>, <span class="kw">_</span>)
+            | Sort::Infer(<span class="kw">_</span>)
+            | Sort::Error =&gt; <span class="self">self</span>.clone(),
         }
     }
 }
@@ -3422,6 +3449,7 @@
             Sort::Wildcard =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;_&quot;</span>),
             Sort::Infer(vid) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{vid:?}&quot;</span>),
             Sort::App(ctor, args) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{ctor}&lt;{}&gt;&quot;</span>, args.iter().join(<span class="string">&quot;, &quot;</span>)),
+            Sort::Error =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;err&quot;</span>),
         }
     }
 }

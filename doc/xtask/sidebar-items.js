@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["XtaskCmd"],"fn":["build_sysroot","doc","install","install_driver","install_libs","main","project_root","run","test","uninstall"],"struct":["BuildSysroot","Doc","Install","Run","Test","Uninstall","Xtask"]};
+window.SIDEBAR_ITEMS = {"enum":["XtaskCmd"],"fn":["build_sysroot","default_sysroot_dir","doc","install","install_driver","install_libs","main","project_root","run","test","uninstall"],"struct":["BuildSysroot","Doc","Install","Run","Test","Uninstall","Xtask"]};

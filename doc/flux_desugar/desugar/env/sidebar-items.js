@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ScopeId"],"struct":["Env","Scope"],"type":["Result"]};

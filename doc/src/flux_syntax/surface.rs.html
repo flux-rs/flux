@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/surface.rs`."><title>surface.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../flux_syntax/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/surface.rs`."><title>surface.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -413,6 +413,32 @@
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
 <a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -428,6 +454,12 @@
 /// to them. For example, to assign a resolution to a [`Path`]. The [`NodeId`] is unique within a crate.
 </span><span class="attr">#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>NodeId(<span class="kw">pub</span>(<span class="kw">super</span>) usize);
+
+<span class="kw">impl </span>NodeId {
+    <span class="kw">pub fn </span>as_usize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
+}
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SortDecl {
@@ -488,6 +520,7 @@
     <span class="kw">pub </span>generics: Vec&lt;Ty&gt;,
     <span class="kw">pub </span>refined_by: RefinedBy,
     <span class="kw">pub </span>ty: Ty,
+    <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
 }
 
@@ -498,6 +531,14 @@
     <span class="kw">pub </span>fields: Vec&lt;<span class="prelude-ty">Option</span>&lt;Ty&gt;&gt;,
     <span class="kw">pub </span>opaque: bool,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
+    <span class="kw">pub </span>node_id: NodeId,
+}
+
+<span class="kw">impl </span>StructDef {
+    <span class="doccomment">/// Whether the struct contains any path that needs to be resolved.
+    </span><span class="kw">pub fn </span>needs_resolving(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.fields.iter().any(Option::is_some)
+    }
 }
 
 <span class="attr">#[derive(Debug)]
@@ -505,12 +546,21 @@
     <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefinedBy&gt;,
     <span class="kw">pub </span>variants: Vec&lt;<span class="prelude-ty">Option</span>&lt;VariantDef&gt;&gt;,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
+    <span class="kw">pub </span>node_id: NodeId,
+}
+
+<span class="kw">impl </span>EnumDef {
+    <span class="doccomment">/// Whether the enum contains any path that needs to be resolved.
+    </span><span class="kw">pub fn </span>needs_resolving(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.variants.iter().any(Option::is_some)
+    }
 }
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>VariantDef {
     <span class="kw">pub </span>fields: Vec&lt;Ty&gt;,
     <span class="kw">pub </span>ret: VariantRet,
+    <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
 }
 
@@ -584,6 +634,7 @@
     </span><span class="kw">pub </span>predicates: Vec&lt;WhereBoundPredicate&gt;,
     <span class="doccomment">/// source span
     </span><span class="kw">pub </span>span: Span,
+    <span class="kw">pub </span>node_id: NodeId,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -634,6 +685,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Ty {
     <span class="kw">pub </span>kind: TyKind,
+    <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
 }
 
@@ -710,7 +762,7 @@
     <span class="doccomment">/// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     </span>Bind(Ident, BindKind, Span),
     Expr(Expr),
-    Abs(Vec&lt;RefineParam&gt;, Expr, Span),
+    Abs(Vec&lt;RefineParam&gt;, Expr, NodeId, Span),
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]

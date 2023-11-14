@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0-nightly (b3aa8e716 2023-09-21)" data-channel="nightly" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../flux_middle/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2117,6 +2117,16 @@
 <a href="#2117" id="2117">2117</a>
 <a href="#2118" id="2118">2118</a>
 <a href="#2119" id="2119">2119</a>
+<a href="#2120" id="2120">2120</a>
+<a href="#2121" id="2121">2121</a>
+<a href="#2122" id="2122">2122</a>
+<a href="#2123" id="2123">2123</a>
+<a href="#2124" id="2124">2124</a>
+<a href="#2125" id="2125">2125</a>
+<a href="#2126" id="2126">2126</a>
+<a href="#2127" id="2127">2127</a>
+<a href="#2128" id="2128">2128</a>
+<a href="#2129" id="2129">2129</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2143,7 +2153,7 @@
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::IndexSlice;
-<span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::ParamConst;
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
@@ -2372,7 +2382,7 @@
 <span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>EarlyBinder&lt;T&gt;(<span class="kw">pub </span>T);
 
-<span class="attr">#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
+<span class="attr">#[derive(Clone, Eq, PartialEq, Hash, Debug, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>TupleTree&lt;T&gt;
 <span class="kw">where
     </span>[TupleTree&lt;T&gt;]: Internable,
@@ -2486,8 +2496,8 @@
     Array(Ty, Const),
     Never,
     Closure(DefId, List&lt;Ty&gt;),
-    Generator(DefId, GenericArgs),
-    GeneratorWitness(Binder&lt;List&lt;Ty&gt;&gt;),
+    Coroutine(DefId, GenericArgs),
+    CoroutineWitness(DefId, GenericArgs),
     Param(ParamTy),
 }
 
@@ -3391,7 +3401,7 @@
     }
 
     <span class="kw">pub fn </span>generator(did: DefId, args: <span class="kw">impl </span>Into&lt;List&lt;GenericArg&gt;&gt;) -&gt; Ty {
-        BaseTy::Generator(did, args.into()).into_ty()
+        BaseTy::Coroutine(did, args.into()).into_ty()
     }
 
     <span class="kw">pub fn </span>never() -&gt; Ty {
@@ -3622,8 +3632,8 @@
             | BaseTy::Tuple(<span class="kw">_</span>)
             | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::Generator(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::GeneratorWitness(<span class="kw">_</span>)
+            | BaseTy::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>)
+            | BaseTy::CoroutineWitness(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never =&gt; Sort::unit(),
         }
     }
@@ -4079,7 +4089,9 @@
                         go(cx, f, is_binder, e)<span class="question-mark">?</span>;
                         <span class="macro">w!</span>(<span class="string">&quot;,&quot;</span>)<span class="question-mark">?</span>;
                     }
-                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="bool-val">true</span>) = is_binder.as_leaf() &amp;&amp; !cx.hide_binder {
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="bool-val">true</span>) = is_binder.as_leaf()
+                    &amp;&amp; !cx.hide_binder
+                {
                     <span class="macro">w!</span>(<span class="string">&quot;@{:?}&quot;</span>, expr)<span class="question-mark">?</span>;
                 } <span class="kw">else </span>{
                     <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, expr)<span class="question-mark">?</span>;
@@ -4155,8 +4167,8 @@
                 BaseTy::Closure(did, args) =&gt; {
                     <span class="macro">w!</span>(<span class="string">&quot;Closure {:?}&lt;{:?}&gt;&quot;</span>, did, args)
                 }
-                BaseTy::Generator(did, args) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;Generator {:?}&quot;</span>, did)<span class="question-mark">?</span>;
+                BaseTy::Coroutine(did, args) =&gt; {
+                    <span class="macro">w!</span>(<span class="string">&quot;Coroutine({:?})&quot;</span>, did)<span class="question-mark">?</span>;
                     <span class="kw">let </span>args = args
                         .iter()
                         .filter(|arg| !cx.hide_regions || !<span class="macro">matches!</span>(arg, GenericArg::Lifetime(<span class="kw">_</span>)))
@@ -4166,8 +4178,16 @@
                     }
                     <span class="prelude-val">Ok</span>(())
                 }
-                BaseTy::GeneratorWitness(args) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;GeneratorWitness&lt;{:?}&gt;&quot;</span>, args)
+                BaseTy::CoroutineWitness(did, args) =&gt; {
+                    <span class="macro">w!</span>(<span class="string">&quot;CoroutineWitness({:?})&quot;</span>, did)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>args = args
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !<span class="macro">matches!</span>(arg, GenericArg::Lifetime(<span class="kw">_</span>)))
+                        .collect_vec();
+                    <span class="kw">if </span>!args.is_empty() {
+                        <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, args))<span class="question-mark">?</span>;
+                    }
+                    <span class="prelude-val">Ok</span>(())
                 }
             }
         }

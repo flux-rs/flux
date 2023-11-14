@@ -3,7 +3,7 @@ var srcIndex = JSON.parse('{\
 "flux_bin":["",[],["lib.rs","utils.rs"]],\
 "flux_common":["",[],["bug.rs","cache.rs","dbg.rs","format.rs","index.rs","iter.rs","lib.rs","mir_storage.rs"]],\
 "flux_config":["",[],["lib.rs"]],\
-"flux_desugar":["",[],["desugar.rs","lib.rs","resolver.rs"]],\
+"flux_desugar":["",[["desugar",[],["env.rs","gather.rs"]]],["desugar.rs","lib.rs","resolver.rs"]],\
 "flux_driver":["",[],["callbacks.rs","collector.rs","lib.rs"]],\
 "flux_errors":["",[],["lib.rs"]],\
 "flux_fhir_analysis":["",[["wf",[],["errors.rs","mod.rs","sortck.rs"]]],["annot_check.rs","conv.rs","lib.rs"]],\
