@@ -93,8 +93,8 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 ```json
 {
   "rust-analyzer.check.overrideCommand": [
-    "cargo-flux",
-    "check",
+    "cargo",
+    "flux",
     "--workspace",
     "--message-format=json-diagnostic-rendered-ansi"
   ]
