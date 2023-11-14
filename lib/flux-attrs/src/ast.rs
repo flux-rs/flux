@@ -15,7 +15,7 @@ use syn::{
 pub struct Items(Vec<Item>);
 
 pub enum Item {
-    Struct(syn::ItemStruct),
+    Struct(ItemStruct),
     Enum(syn::ItemEnum),
     Use(syn::ItemUse),
     Type(ItemType),
@@ -29,6 +29,55 @@ pub struct ItemFn {
     pub vis: Visibility,
     pub sig: Signature,
     pub block: Block,
+}
+
+pub struct ItemStruct {
+    pub attrs: Vec<Attribute>,
+    pub vis: Visibility,
+    pub struct_token: Token![struct],
+    pub ident: Ident,
+    pub generics: Generics,
+    pub fields: Fields,
+    pub semi_token: Option<Token![;]>,
+}
+
+pub enum Fields {
+    /// Named fields of a struct or struct variant such as `Point { x: f64,
+    /// y: f64 }`.
+    Named(FieldsNamed),
+
+    /// Unnamed fields of a tuple struct or tuple variant such as `Some(T)`.
+    Unnamed(FieldsUnnamed),
+
+    /// Unit struct or unit variant such as `None`.
+    Unit,
+}
+
+pub struct FieldsNamed {
+    pub brace_token: token::Brace,
+    pub named: Punctuated<Field, Token![,]>,
+}
+
+pub struct FieldsUnnamed {
+    pub paren_token: token::Paren,
+    pub unnamed: Punctuated<Field, Token![,]>,
+}
+
+pub struct Field {
+    pub attrs: Vec<Attribute>,
+
+    pub vis: Visibility,
+
+    pub mutability: syn::FieldMutability,
+
+    /// Name of the field, if any.
+    ///
+    /// Fields of tuple structs have no names.
+    pub ident: Option<Ident>,
+
+    pub colon_token: Option<Token![:]>,
+
+    pub ty: Type,
 }
 
 pub struct ItemType {
@@ -302,6 +351,112 @@ impl Parse for Item {
         };
         item.replace_attrs(attrs);
         Ok(item)
+    }
+}
+
+impl Parse for ItemStruct {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let vis = input.parse::<Visibility>()?;
+        let struct_token = input.parse::<Token![struct]>()?;
+        let ident = input.parse::<Ident>()?;
+        let generics = input.parse::<Generics>()?;
+        let (where_clause, fields, semi_token) = data_struct(input)?;
+        Ok(ItemStruct {
+            attrs,
+            vis,
+            struct_token,
+            ident,
+            generics: Generics { where_clause, ..generics },
+            fields,
+            semi_token,
+        })
+    }
+}
+
+fn data_struct(
+    input: ParseStream,
+) -> Result<(Option<syn::WhereClause>, Fields, Option<Token![;]>)> {
+    let mut lookahead = input.lookahead1();
+    let mut where_clause = None;
+    if lookahead.peek(Token![where]) {
+        where_clause = Some(input.parse()?);
+        lookahead = input.lookahead1();
+    }
+
+    if where_clause.is_none() && lookahead.peek(token::Paren) {
+        let fields = input.parse()?;
+
+        lookahead = input.lookahead1();
+        if lookahead.peek(Token![where]) {
+            where_clause = Some(input.parse()?);
+            lookahead = input.lookahead1();
+        }
+
+        if lookahead.peek(Token![;]) {
+            let semi = input.parse()?;
+            Ok((where_clause, Fields::Unnamed(fields), Some(semi)))
+        } else {
+            Err(lookahead.error())
+        }
+    } else if lookahead.peek(token::Brace) {
+        let fields = input.parse()?;
+        Ok((where_clause, Fields::Named(fields), None))
+    } else if lookahead.peek(Token![;]) {
+        let semi = input.parse()?;
+        Ok((where_clause, Fields::Unit, Some(semi)))
+    } else {
+        Err(lookahead.error())
+    }
+}
+
+impl Parse for FieldsUnnamed {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let content;
+        Ok(FieldsUnnamed {
+            paren_token: parenthesized!(content in input),
+            unnamed: content.parse_terminated(Field::parse_unnamed, Token![,])?,
+        })
+    }
+}
+
+impl Parse for FieldsNamed {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let content;
+        Ok(FieldsNamed {
+            brace_token: braced!(content in input),
+            named: content.parse_terminated(Field::parse_named, Token![,])?,
+        })
+    }
+}
+
+impl Field {
+    fn parse_unnamed(input: ParseStream) -> Result<Self> {
+        Ok(Field {
+            attrs: input.call(Attribute::parse_outer)?,
+            vis: input.parse()?,
+            mutability: syn::FieldMutability::None,
+            ident: None,
+            colon_token: None,
+            ty: input.parse()?,
+        })
+    }
+
+    fn parse_named(input: ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let vis: Visibility = input.parse()?;
+
+        let ident = input.parse()?;
+        let colon_token: Token![:] = input.parse()?;
+        let ty = input.parse()?;
+        Ok(Field {
+            attrs,
+            vis,
+            mutability: syn::FieldMutability::None,
+            ident: Some(ident),
+            colon_token: Some(colon_token),
+            ty,
+        })
     }
 }
 
@@ -777,7 +932,7 @@ impl Item {
             Item::Fn(ItemFn { attrs, .. })
             | Item::Impl(ItemImpl { attrs, .. })
             | Item::Enum(syn::ItemEnum { attrs, .. })
-            | Item::Struct(syn::ItemStruct { attrs, .. })
+            | Item::Struct(ItemStruct { attrs, .. })
             | Item::Use(syn::ItemUse { attrs, .. })
             | Item::Type(ItemType { attrs, .. }) => mem::replace(attrs, new),
         }
@@ -800,6 +955,67 @@ impl ToTokens for Item {
             Item::Use(item_use) => item_use.to_tokens(tokens),
             Item::Type(item_type) => item_type.to_tokens(tokens),
         }
+    }
+}
+
+impl ToTokens for ItemStruct {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let ItemStruct { attrs, vis, struct_token, ident, generics, fields, semi_token } = self;
+        tokens.append_all(attrs);
+        vis.to_tokens(tokens);
+        struct_token.to_tokens(tokens);
+        ident.to_tokens(tokens);
+        generics.to_tokens(tokens);
+        fields.to_tokens(tokens);
+        semi_token.to_tokens(tokens);
+    }
+}
+
+impl ToTokens for Fields {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Fields::Named(fields) => fields.to_tokens(tokens),
+            Fields::Unnamed(fields) => fields.to_tokens(tokens),
+            Fields::Unit => {}
+        }
+    }
+}
+
+impl ToTokens for FieldsNamed {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let FieldsNamed { brace_token, named } = self;
+        brace_token.surround(tokens, |tokens| {
+            named.to_tokens(tokens);
+        });
+    }
+}
+
+impl ToTokens for FieldsUnnamed {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let FieldsUnnamed { paren_token, unnamed } = self;
+        paren_token.surround(tokens, |tokens| {
+            unnamed.to_tokens(tokens);
+        });
+    }
+}
+
+impl ToTokens for Field {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Field { attrs, vis, mutability: _, ident, colon_token, ty } = self;
+        #[cfg(flux_sysroot)]
+        {
+            let span = colon_token.span();
+            let flux_ty = ToTokensFlux(ty);
+            quote_spanned! {span=>
+                #[flux_tool::field(#flux_ty)]
+            }
+            .to_tokens(tokens);
+        }
+        tokens.append_all(attrs);
+        vis.to_tokens(tokens);
+        ident.to_tokens(tokens);
+        colon_token.to_tokens(tokens);
+        ty.to_tokens_inner(tokens, Mode::Rust);
     }
 }
 
@@ -841,6 +1057,12 @@ impl ToTokens for ToTokensFlux<&ItemType> {
 impl ToTokens for ToTokensRust<&ItemType> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.0.to_tokens_inner(tokens, Mode::Rust);
+    }
+}
+
+impl ToTokens for ToTokensFlux<&Type> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.0.to_tokens_inner(tokens, Mode::Flux);
     }
 }
 
