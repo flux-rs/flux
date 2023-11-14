@@ -113,6 +113,7 @@ fn gather_base_sort_vars(
         }
     }
 }
+
 fn gather_sort_vars(
     generics: &FxHashSet<Symbol>,
     sort: &surface::Sort,

@@ -54,7 +54,6 @@ pub fn desugar_struct_def(
 
     let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
 
-    // Desugar and insert generics
     let predicates = cx.as_lift_cx().lift_predicates()?;
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
@@ -78,11 +77,9 @@ pub fn desugar_enum_def(
 
     let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
 
-    // Desugar and inserting generics
-    let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
-    genv.map().insert_generics(def_id, generics);
+    let predicates = cx.as_lift_cx().lift_predicates()?;
 
-    // Desugar of enum def needs to happen AFTER inserting generics. See crate level comment
+    // Desugar of enum_def needs to happen AFTER inserting generics. See #generics-and-desugaring
     let enum_def = cx.desugar_enum_def(enum_def)?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
