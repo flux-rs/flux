@@ -1,4 +1,3 @@
-
 use flux_macros::Diagnostic;
 use flux_syntax::surface::{self, BindKind, QPathExpr};
 use itertools::Itertools;
