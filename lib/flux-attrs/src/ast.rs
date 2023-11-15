@@ -12,6 +12,8 @@ use syn::{
     Attribute, Generics, Ident, Result, Token, Visibility,
 };
 
+use crate::flux_tool_attrs;
+
 pub struct Items(Vec<Item>);
 
 pub enum Item {
@@ -37,7 +39,7 @@ pub struct ItemStruct {
     pub struct_token: Token![struct],
     pub ident: Ident,
     pub generics: Generics,
-    pub refined_by: RefinedBy,
+    pub refined_by: Option<RefinedBy>,
     pub fields: Fields,
     pub semi_token: Option<Token![;]>,
 }
@@ -341,9 +343,12 @@ impl Parse for Items {
     }
 }
 
+const FLUX_ATTRS: &[&str] = &["opaque", "invariant", "trusted"];
+
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();
@@ -369,12 +374,13 @@ impl Parse for Item {
 
 impl Parse for ItemStruct {
     fn parse(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, &["opaque", "invariant"]);
         let vis = input.parse::<Visibility>()?;
         let struct_token = input.parse::<Token![struct]>()?;
         let ident = input.parse::<Ident>()?;
         let generics = input.parse::<Generics>()?;
-        let refined_by = input.parse::<RefinedBy>()?;
+        let refined_by = parse_opt_refined_by(input)?;
         let (where_clause, fields, semi_token) = data_struct(input)?;
         Ok(ItemStruct {
             attrs,
@@ -386,6 +392,14 @@ impl Parse for ItemStruct {
             fields,
             semi_token,
         })
+    }
+}
+
+fn parse_opt_refined_by(input: ParseStream) -> Result<Option<RefinedBy>> {
+    if input.peek(kw::refined) || input.peek(token::Bracket) {
+        input.parse().map(Some)
+    } else {
+        Ok(None)
     }
 }
 
@@ -602,7 +616,8 @@ impl ImplItem {
 
 impl Parse for ImplItem {
     fn parse(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();
@@ -652,7 +667,11 @@ fn parse_requires(input: ParseStream) -> Result<Option<Requires>> {
         loop {
             let tt: TokenTree = input.parse()?;
             constraint.append(tt);
-            if input.is_empty() || input.peek(kw::ensures) || input.peek(token::Brace) {
+            if input.is_empty()
+                || input.peek(kw::ensures)
+                || input.peek(token::Brace)
+                || input.peek(Token![,])
+            {
                 break;
             }
         }
@@ -798,7 +817,7 @@ impl Parse for Type {
                     len: content.parse()?,
                 })
             } else {
-                parse_rty(&content, BaseType::Slice(TypeSlice { bracket_token, ty }))?
+                parse_rty(input, BaseType::Slice(TypeSlice { bracket_token, ty }))?
             }
         } else {
             parse_rty(input, input.parse()?)?
@@ -1000,6 +1019,7 @@ impl ToTokens for Item {
 
 impl ToTokens for ItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append_all(&self.attrs);
         #[cfg(flux_sysroot)]
         {
             let refined_by = &self.refined_by;
@@ -1008,7 +1028,6 @@ impl ToTokens for ItemStruct {
             }
             .to_tokens(tokens);
         }
-        tokens.append_all(&self.attrs);
         self.vis.to_tokens(tokens);
         self.struct_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
