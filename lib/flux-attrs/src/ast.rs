@@ -12,6 +12,8 @@ use syn::{
     Attribute, Generics, Ident, Result, Token, Visibility,
 };
 
+use crate::flux_tool_attrs;
+
 pub struct Items(Vec<Item>);
 
 pub enum Item {
@@ -343,7 +345,7 @@ impl Parse for Items {
 
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();
@@ -352,6 +354,7 @@ impl Parse for Item {
         } else if lookahead.peek(Token![impl]) {
             Item::Impl(input.parse()?)
         } else if lookahead.peek(Token![struct]) {
+            flux_tool_attrs(&mut attrs, &["opaque", "invariant"]);
             Item::Struct(input.parse()?)
         } else if lookahead.peek(Token![enum]) {
             Item::Enum(input.parse()?)
@@ -369,7 +372,8 @@ impl Parse for Item {
 
 impl Parse for ItemStruct {
     fn parse(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, &["opaque", "invariant"]);
         let vis = input.parse::<Visibility>()?;
         let struct_token = input.parse::<Token![struct]>()?;
         let ident = input.parse::<Ident>()?;
@@ -1008,6 +1012,7 @@ impl ToTokens for Item {
 
 impl ToTokens for ItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append_all(&self.attrs);
         #[cfg(flux_sysroot)]
         {
             let refined_by = &self.refined_by;
@@ -1016,7 +1021,6 @@ impl ToTokens for ItemStruct {
             }
             .to_tokens(tokens);
         }
-        tokens.append_all(&self.attrs);
         self.vis.to_tokens(tokens);
         self.struct_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
