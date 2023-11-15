@@ -37,7 +37,7 @@ pub struct ItemStruct {
     pub struct_token: Token![struct],
     pub ident: Ident,
     pub generics: Generics,
-    pub refined_by: RefinedBy,
+    pub refined_by: Option<RefinedBy>,
     pub fields: Fields,
     pub semi_token: Option<Token![;]>,
 }
@@ -374,7 +374,7 @@ impl Parse for ItemStruct {
         let struct_token = input.parse::<Token![struct]>()?;
         let ident = input.parse::<Ident>()?;
         let generics = input.parse::<Generics>()?;
-        let refined_by = input.parse::<RefinedBy>()?;
+        let refined_by = parse_opt_refined_by(input)?;
         let (where_clause, fields, semi_token) = data_struct(input)?;
         Ok(ItemStruct {
             attrs,
@@ -386,6 +386,14 @@ impl Parse for ItemStruct {
             fields,
             semi_token,
         })
+    }
+}
+
+fn parse_opt_refined_by(input: ParseStream) -> Result<Option<RefinedBy>> {
+    if input.peek(kw::refined) || input.peek(token::Bracket) {
+        input.parse().map(Some)
+    } else {
+        Ok(None)
     }
 }
 
