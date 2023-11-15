@@ -343,9 +343,12 @@ impl Parse for Items {
     }
 }
 
+const FLUX_ATTRS: &[&str] = &["opaque", "invariant", "trusted"];
+
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();
@@ -354,7 +357,6 @@ impl Parse for Item {
         } else if lookahead.peek(Token![impl]) {
             Item::Impl(input.parse()?)
         } else if lookahead.peek(Token![struct]) {
-            flux_tool_attrs(&mut attrs, &["opaque", "invariant"]);
             Item::Struct(input.parse()?)
         } else if lookahead.peek(Token![enum]) {
             Item::Enum(input.parse()?)
@@ -614,7 +616,8 @@ impl ImplItem {
 
 impl Parse for ImplItem {
     fn parse(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
         let ahead = input.fork();
         let _: Visibility = ahead.parse()?;
         let lookahead = ahead.lookahead1();
@@ -664,7 +667,11 @@ fn parse_requires(input: ParseStream) -> Result<Option<Requires>> {
         loop {
             let tt: TokenTree = input.parse()?;
             constraint.append(tt);
-            if input.is_empty() || input.peek(kw::ensures) || input.peek(token::Brace) {
+            if input.is_empty()
+                || input.peek(kw::ensures)
+                || input.peek(token::Brace)
+                || input.peek(Token![,])
+            {
                 break;
             }
         }
@@ -810,7 +817,7 @@ impl Parse for Type {
                     len: content.parse()?,
                 })
             } else {
-                parse_rty(&content, BaseType::Slice(TypeSlice { bracket_token, ty }))?
+                parse_rty(input, BaseType::Slice(TypeSlice { bracket_token, ty }))?
             }
         } else {
             parse_rty(input, input.parse()?)?
