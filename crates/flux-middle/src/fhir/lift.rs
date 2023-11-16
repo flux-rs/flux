@@ -364,9 +364,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         variant: &hir::Variant,
     ) -> Result<fhir::VariantDef, ErrorGuaranteed> {
         let item = self.tcx.hir().expect_item(self.owner.def_id);
-        let hir::ItemKind::Enum(_, generics) = &item.kind else {
-            bug!("expected an enum or struct")
-        };
+        let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
 
         let fields = variant
             .data
@@ -375,24 +373,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             .map(|field| self.lift_field_def(field))
             .try_collect_exhaust()?;
 
-        let span = item.ident.span.to(generics.span);
-        let path = fhir::Path {
-            res: fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false },
-            args: vec![],
-            bindings: vec![],
-            refine: vec![],
-            span,
-        };
-        let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
-        let ret = fhir::VariantRet {
-            bty,
-            idx: fhir::RefineArg::Record(
-                self.owner.to_def_id(),
-                List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
-                vec![],
-                generics.span.shrink_to_hi(),
-            ),
-        };
+        let ret = self.lift_variant_ret_inner(item, generics);
 
         Ok(fhir::VariantDef {
             def_id: variant.def_id,
@@ -402,6 +383,37 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             span: variant.span,
             lifted: true,
         })
+    }
+
+    pub fn lift_variant_ret(&mut self) -> fhir::VariantRet {
+        let item = self.tcx.hir().expect_item(self.owner.def_id);
+        let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
+        self.lift_variant_ret_inner(item, generics)
+    }
+
+    fn lift_variant_ret_inner(
+        &mut self,
+        item: &hir::Item,
+        generics: &hir::Generics,
+    ) -> fhir::VariantRet {
+        let span = item.ident.span.to(generics.span);
+        let path = fhir::Path {
+            res: fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false },
+            args: vec![],
+            bindings: vec![],
+            refine: vec![],
+            span,
+        };
+        let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
+        fhir::VariantRet {
+            bty,
+            idx: fhir::RefineArg::Record(
+                self.owner.to_def_id(),
+                List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
+                vec![],
+                generics.span.shrink_to_hi(),
+            ),
+        }
     }
 
     fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty, ErrorGuaranteed> {

@@ -148,7 +148,9 @@ impl RustItemCtxt<'_, '_> {
             self.gather_params_ty(None, ty, TypePos::Input, &mut env)?;
         }
 
-        self.gather_params_variant_ret(&variant_def.ret, &mut env)?;
+        if let Some(ret) = &variant_def.ret {
+            self.gather_params_variant_ret(ret, &mut env)?;
+        }
 
         self.check_param_uses(&mut env, |vis| vis.visit_variant(variant_def))?;
 

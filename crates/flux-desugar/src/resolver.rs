@@ -157,7 +157,9 @@ impl<'a> ItemLikeResolver<'a> {
                 .fields
                 .iter()
                 .try_for_each_exhaust(|ty| self.resolve_ty(ty))?;
-            self.resolve_variant_ret(&variant_def.ret)?;
+            if let Some(ret) = &variant_def.ret {
+                self.resolve_variant_ret(ret)?;
+            }
         }
         Ok(())
     }
