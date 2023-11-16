@@ -18,7 +18,7 @@ pub struct Items(Vec<Item>);
 
 pub enum Item {
     Struct(ItemStruct),
-    Enum(syn::ItemEnum),
+    Enum(ItemEnum),
     Use(syn::ItemUse),
     Type(ItemType),
     Fn(ItemFn),
@@ -44,18 +44,94 @@ pub struct ItemStruct {
     pub semi_token: Option<Token![;]>,
 }
 
+#[derive(Debug)]
+pub struct ItemEnum {
+    pub attrs: Vec<Attribute>,
+    pub vis: Visibility,
+    pub enum_token: Token![enum],
+    pub ident: Ident,
+    pub generics: Generics,
+    pub refined_by: Option<RefinedBy>,
+    pub brace_token: token::Brace,
+    pub variants: Punctuated<Variant, Token![,]>,
+}
+
+#[derive(Debug)]
+pub struct Variant {
+    pub attrs: Vec<Attribute>,
+
+    /// Name of the variant.
+    pub ident: Ident,
+
+    /// Content stored in the variant.
+    pub fields: Fields,
+
+    /// Explicit discriminant: `Variant = 1`
+    pub discriminant: Option<(Token![=], syn::Expr)>,
+
+    pub ret: Option<VariantRet>,
+}
+
+impl Variant {
+    #[cfg(flux_sysroot)]
+    fn flux_tool_attr(&self) -> TokenStream {
+        let variant = ToTokensFlux(self);
+        quote! {
+            #[flux_tool::variant(#variant)]
+        }
+    }
+}
+
+impl ToTokens for ToTokensFlux<&Variant> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let variant = &self.0;
+        variant
+            .fields
+            .to_tokens(tokens, |f, tokens| f.ty.to_tokens_inner(tokens, Mode::Flux));
+        if let Some(ret) = &variant.ret {
+            if !matches!(variant.fields, Fields::Unit) {
+                ret.arrow_token.to_tokens(tokens);
+            }
+            ret.path.to_tokens_inner(tokens, Mode::Flux);
+            ret.bracket_token.surround(tokens, |tokens| {
+                ret.indices.to_tokens(tokens);
+            });
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct VariantRet {
+    pub arrow_token: Option<Token![->]>,
+    pub path: Path,
+    pub bracket_token: token::Bracket,
+    pub indices: TokenStream,
+}
+
+#[derive(Debug)]
 pub struct RefinedBy {
     pub refined_by: Option<(kw::refined, kw::by)>,
     pub bracket_token: token::Bracket,
     pub params: Punctuated<RefinedByParam, Token![,]>,
 }
 
+impl RefinedBy {
+    #[cfg(flux_sysroot)]
+    fn flux_tool_attr(&self) -> TokenStream {
+        quote! {
+            #[flux_tool::refined_by(#self)]
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct RefinedByParam {
     pub ident: Ident,
     pub colon_token: Option<Token![:]>,
     pub sort: Ident,
 }
 
+#[derive(Debug)]
 pub enum Fields {
     /// Named fields of a struct or struct variant such as `Point { x: f64,
     /// y: f64 }`.
@@ -68,16 +144,43 @@ pub enum Fields {
     Unit,
 }
 
+impl Fields {
+    fn to_tokens(&self, tokens: &mut TokenStream, mut f: impl FnMut(&Field, &mut TokenStream)) {
+        match self {
+            Fields::Named(fields) => {
+                fields.brace_token.surround(tokens, |tokens| {
+                    for param in fields.named.pairs() {
+                        f(param.value(), tokens);
+                        param.punct().to_tokens(tokens);
+                    }
+                });
+            }
+            Fields::Unnamed(fields) => {
+                fields.paren_token.surround(tokens, |tokens| {
+                    for param in fields.unnamed.pairs() {
+                        f(param.value(), tokens);
+                        param.punct().to_tokens(tokens);
+                    }
+                });
+            }
+            Fields::Unit => {}
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct FieldsNamed {
     pub brace_token: token::Brace,
     pub named: Punctuated<Field, Token![,]>,
 }
 
+#[derive(Debug)]
 pub struct FieldsUnnamed {
     pub paren_token: token::Paren,
     pub unnamed: Punctuated<Field, Token![,]>,
 }
 
+#[derive(Debug)]
 pub struct Field {
     pub attrs: Vec<Attribute>,
 
@@ -93,6 +196,52 @@ pub struct Field {
     pub colon_token: Option<Token![:]>,
 
     pub ty: Type,
+}
+
+impl Field {
+    fn parse_unnamed(input: ParseStream) -> Result<Self> {
+        Ok(Field {
+            attrs: input.call(Attribute::parse_outer)?,
+            vis: input.parse()?,
+            mutability: syn::FieldMutability::None,
+            ident: None,
+            colon_token: None,
+            ty: input.parse()?,
+        })
+    }
+
+    fn parse_named(input: ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let vis: Visibility = input.parse()?;
+
+        let ident = input.parse()?;
+        let colon_token: Token![:] = input.parse()?;
+        let ty = input.parse()?;
+        Ok(Field {
+            attrs,
+            vis,
+            mutability: syn::FieldMutability::None,
+            ident: Some(ident),
+            colon_token: Some(colon_token),
+            ty,
+        })
+    }
+
+    #[cfg(flux_sysroot)]
+    fn flux_tool_attr(&self) -> TokenStream {
+        let flux_ty = ToTokensFlux(&self.ty);
+        quote! {
+            #[flux_tool::field(#flux_ty)]
+        }
+    }
+
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append_all(&self.attrs);
+        self.vis.to_tokens(tokens);
+        self.ident.to_tokens(tokens);
+        self.colon_token.to_tokens(tokens);
+        self.ty.to_tokens_inner(tokens, Mode::Rust);
+    }
 }
 
 pub struct ItemType {
@@ -375,7 +524,7 @@ impl Parse for Item {
 impl Parse for ItemStruct {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
-        flux_tool_attrs(&mut attrs, &["opaque", "invariant"]);
+        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
         let vis = input.parse::<Visibility>()?;
         let struct_token = input.parse::<Token![struct]>()?;
         let ident = input.parse::<Ident>()?;
@@ -391,6 +540,29 @@ impl Parse for ItemStruct {
             refined_by,
             fields,
             semi_token,
+        })
+    }
+}
+
+impl Parse for ItemEnum {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        flux_tool_attrs(&mut attrs, FLUX_ATTRS);
+        let vis = input.parse::<Visibility>()?;
+        let enum_token = input.parse::<Token![enum]>()?;
+        let ident = input.parse::<Ident>()?;
+        let generics = input.parse::<Generics>()?;
+        let refined_by = parse_opt_refined_by(input)?;
+        let (where_clause, brace_token, variants) = data_enum(input)?;
+        Ok(ItemEnum {
+            attrs,
+            vis,
+            enum_token,
+            ident,
+            generics: Generics { where_clause, ..generics },
+            refined_by,
+            brace_token,
+            variants,
         })
     }
 }
@@ -422,6 +594,72 @@ impl Parse for RefinedByParam {
             ident: input.parse()?,
             colon_token: input.parse()?,
             sort: input.parse()?,
+        })
+    }
+}
+
+fn data_enum(
+    input: ParseStream,
+) -> Result<(Option<syn::WhereClause>, token::Brace, Punctuated<Variant, Token![,]>)> {
+    let where_clause = input.parse()?;
+
+    let content;
+    let brace = braced!(content in input);
+    let variants = content.parse_terminated(Variant::parse, Token![,])?;
+
+    Ok((where_clause, brace, variants))
+}
+
+impl Parse for Variant {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let _visibility: Visibility = input.parse()?;
+        let ident: Ident = input.parse()?;
+        let fields = if input.peek(token::Brace) {
+            Fields::Named(input.parse()?)
+        } else if input.peek(token::Paren) {
+            Fields::Unnamed(input.parse()?)
+        } else {
+            Fields::Unit
+        };
+        let discriminant = if input.peek(Token![=]) {
+            let eq_token: Token![=] = input.parse()?;
+            let discriminant: syn::Expr = input.parse()?;
+            Some((eq_token, discriminant))
+        } else {
+            None
+        };
+        let ret = parse_opt_variant_ret(input)?;
+        Ok(Variant { attrs, ident, fields, discriminant, ret })
+    }
+}
+
+fn parse_opt_variant_ret(input: ParseStream) -> Result<Option<VariantRet>> {
+    if input.peek(Token![->]) {
+        input.parse().map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+impl Parse for VariantRet {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut indices = TokenStream::new();
+        let content;
+        Ok(VariantRet {
+            arrow_token: input.parse()?,
+            path: input.parse()?,
+            bracket_token: bracketed!(content in input),
+            indices: {
+                loop {
+                    if content.is_empty() {
+                        break;
+                    }
+                    let tt: TokenTree = content.parse()?;
+                    indices.append(tt);
+                }
+                indices
+            },
         })
     }
 }
@@ -478,36 +716,6 @@ impl Parse for FieldsNamed {
         Ok(FieldsNamed {
             brace_token: braced!(content in input),
             named: content.parse_terminated(Field::parse_named, Token![,])?,
-        })
-    }
-}
-
-impl Field {
-    fn parse_unnamed(input: ParseStream) -> Result<Self> {
-        Ok(Field {
-            attrs: input.call(Attribute::parse_outer)?,
-            vis: input.parse()?,
-            mutability: syn::FieldMutability::None,
-            ident: None,
-            colon_token: None,
-            ty: input.parse()?,
-        })
-    }
-
-    fn parse_named(input: ParseStream) -> Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
-        let vis: Visibility = input.parse()?;
-
-        let ident = input.parse()?;
-        let colon_token: Token![:] = input.parse()?;
-        let ty = input.parse()?;
-        Ok(Field {
-            attrs,
-            vis,
-            mutability: syn::FieldMutability::None,
-            ident: Some(ident),
-            colon_token: Some(colon_token),
-            ty,
         })
     }
 }
@@ -990,7 +1198,7 @@ impl Item {
         match self {
             Item::Fn(ItemFn { attrs, .. })
             | Item::Impl(ItemImpl { attrs, .. })
-            | Item::Enum(syn::ItemEnum { attrs, .. })
+            | Item::Enum(ItemEnum { attrs, .. })
             | Item::Struct(ItemStruct { attrs, .. })
             | Item::Use(syn::ItemUse { attrs, .. })
             | Item::Type(ItemType { attrs, .. }) => mem::replace(attrs, new),
@@ -1021,19 +1229,50 @@ impl ToTokens for ItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.append_all(&self.attrs);
         #[cfg(flux_sysroot)]
-        {
-            let refined_by = &self.refined_by;
-            quote! {
-                #[flux_tool::refined_by(#refined_by)]
-            }
-            .to_tokens(tokens);
+        if let Some(refined_by) = &self.refined_by {
+            refined_by.flux_tool_attr().to_tokens(tokens);
         }
         self.vis.to_tokens(tokens);
         self.struct_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
         self.generics.to_tokens(tokens);
-        self.fields.to_tokens(tokens);
+        self.fields.to_tokens(tokens, |field, tokens| {
+            #[cfg(flux_sysroot)]
+            field.flux_tool_attr().to_tokens(tokens);
+            field.to_tokens(tokens);
+        });
         self.semi_token.to_tokens(tokens);
+    }
+}
+
+impl ToTokens for ItemEnum {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append_all(&self.attrs);
+        #[cfg(flux_sysroot)]
+        if let Some(refined_by) = &self.refined_by {
+            refined_by.flux_tool_attr().to_tokens(tokens);
+        }
+        self.vis.to_tokens(tokens);
+        self.enum_token.to_tokens(tokens);
+        self.ident.to_tokens(tokens);
+        self.generics.to_tokens(tokens);
+        self.brace_token.surround(tokens, |tokens| {
+            self.variants.to_tokens(tokens);
+        });
+    }
+}
+
+impl ToTokens for Variant {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        #[cfg(flux_sysroot)]
+        self.flux_tool_attr().to_tokens(tokens);
+        tokens.append_all(&self.attrs);
+        self.ident.to_tokens(tokens);
+        self.fields.to_tokens(tokens, Field::to_tokens);
+        if let Some((eq_token, expr)) = &self.discriminant {
+            eq_token.to_tokens(tokens);
+            expr.to_tokens(tokens);
+        }
     }
 }
 
@@ -1051,53 +1290,6 @@ impl ToTokens for RefinedByParam {
         self.ident.to_tokens(tokens);
         self.colon_token.to_tokens(tokens);
         self.sort.to_tokens(tokens);
-    }
-}
-
-impl ToTokens for Fields {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        match self {
-            Fields::Named(fields) => fields.to_tokens(tokens),
-            Fields::Unnamed(fields) => fields.to_tokens(tokens),
-            Fields::Unit => {}
-        }
-    }
-}
-
-impl ToTokens for FieldsNamed {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let FieldsNamed { brace_token, named } = self;
-        brace_token.surround(tokens, |tokens| {
-            named.to_tokens(tokens);
-        });
-    }
-}
-
-impl ToTokens for FieldsUnnamed {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let FieldsUnnamed { paren_token, unnamed } = self;
-        paren_token.surround(tokens, |tokens| {
-            unnamed.to_tokens(tokens);
-        });
-    }
-}
-
-impl ToTokens for Field {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Field { attrs, vis, mutability: _, ident, colon_token, ty } = self;
-        #[cfg(flux_sysroot)]
-        {
-            let flux_ty = ToTokensFlux(ty);
-            quote! {
-                #[flux_tool::field(#flux_ty)]
-            }
-            .to_tokens(tokens);
-        }
-        tokens.append_all(attrs);
-        vis.to_tokens(tokens);
-        ident.to_tokens(tokens);
-        colon_token.to_tokens(tokens);
-        ty.to_tokens_inner(tokens, Mode::Rust);
     }
 }
 

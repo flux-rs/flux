@@ -1,6 +1,5 @@
 use std::{
     env,
-    ffi::OsString,
     path::{Path, PathBuf},
 };
 
@@ -20,7 +19,12 @@ xflags::xflags! {
             /// Input file
             required input: PathBuf
             /// Extra options to pass to the flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
-            repeated opts: OsString
+            repeated opts: String
+        }
+        /// Expand flux macros
+        cmd expand {
+            /// Input file
+            required input: PathBuf
         }
         /// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
         cmd install {
@@ -61,14 +65,19 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::Doc(args) => doc(sh, args),
         XtaskCmd::BuildSysroot(_) => build_sysroot(&sh),
         XtaskCmd::Uninstall(_) => uninstall(&sh),
+        XtaskCmd::Expand(args) => expand(&sh, args),
     }
+}
+
+fn prepare(sh: &Shell) -> Result<(), anyhow::Error> {
+    build_sysroot(sh)?;
+    cmd!(sh, "cargo build").run()?;
+    Ok(())
 }
 
 fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let Test { filter } = args;
-    build_sysroot(&sh)?;
-    cmd!(sh, "cargo build").run()?;
-
+    prepare(&sh)?;
     if let Some(filter) = filter {
         cmd!(sh, "cargo test -p flux-tests -- --test-args {filter}").run()?;
     } else {
@@ -78,16 +87,33 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
 }
 
 fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
-    let Run { input, opts } = args;
-    build_sysroot(&sh)?;
-    cmd!(sh, "cargo build").run()?;
+    run_inner(
+        &sh,
+        args.input,
+        ["-Ztrack-diagnostics=y".to_string()]
+            .into_iter()
+            .chain(args.opts),
+    )?;
+    Ok(())
+}
 
+fn expand(sh: &Shell, args: Expand) -> Result<(), anyhow::Error> {
+    run_inner(sh, args.input, ["-Zunpretty=expanded".to_string()])?;
+    Ok(())
+}
+
+fn run_inner(
+    sh: &Shell,
+    input: PathBuf,
+    flags: impl IntoIterator<Item = String>,
+) -> Result<(), anyhow::Error> {
+    prepare(sh)?;
     let flux_path = find_flux_path();
     let _env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
     let mut rustc_flags = flux_tests::rustc_flags();
-    rustc_flags.extend(["-Ztrack-diagnostics=y".to_string()]);
+    rustc_flags.extend(flags);
 
-    cmd!(sh, "{flux_path} {rustc_flags...} {opts...} {input}").run()?;
+    cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;
     Ok(())
 }
 

@@ -441,7 +441,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 })
                 .try_collect_exhaust()?;
 
-            let ret = self.desugar_variant_ret(&variant_def.ret, &mut env)?;
+            let ret = if let Some(ret) = &variant_def.ret {
+                self.desugar_variant_ret(ret, &mut env)?
+            } else {
+                self.as_lift_cx().lift_variant_ret()
+            };
 
             Ok(fhir::VariantDef {
                 def_id: hir_variant.def_id,

@@ -120,7 +120,7 @@ impl EnumDef {
 #[derive(Debug)]
 pub struct VariantDef {
     pub fields: Vec<Ty>,
-    pub ret: VariantRet,
+    pub ret: Option<VariantRet>,
     pub node_id: NodeId,
     pub span: Span,
 }

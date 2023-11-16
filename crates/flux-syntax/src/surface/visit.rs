@@ -196,7 +196,9 @@ pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
 
 pub fn walk_variant<V: Visitor>(vis: &mut V, variant: &VariantDef) {
     walk_list!(vis, visit_ty, &variant.fields);
-    vis.visit_variant_ret(&variant.ret);
+    if let Some(ret) = &variant.ret {
+        vis.visit_variant_ret(ret);
+    }
 }
 
 pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
