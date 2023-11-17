@@ -185,7 +185,9 @@ impl RustItemCtxt<'_, '_> {
         for arg in &fn_sig.args {
             self.gather_params_fun_arg(arg, env)?;
         }
-        self.gather_params_predicates(&fn_sig.predicates, env)?;
+        if let Some(predicates) = &fn_sig.predicates {
+            self.gather_params_predicates(predicates, env)?;
+        }
         Ok(())
     }
 
@@ -483,7 +485,9 @@ impl Visitor for CheckParamUses<'_> {
             node_id,
         } = fn_sig;
 
-        walk_list!(self, visit_where_predicate, predicates);
+        if let Some(predicates) = predicates {
+            walk_list!(self, visit_where_predicate, predicates);
+        }
         if let Some(requires) = requires {
             self.visit_expr(requires);
         }

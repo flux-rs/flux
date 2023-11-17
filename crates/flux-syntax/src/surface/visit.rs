@@ -223,7 +223,9 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     if let Some(generics) = generics {
         vis.visit_generics(generics);
     }
-    walk_list!(vis, visit_where_predicate, predicates);
+    if let Some(predicates) = predicates {
+        walk_list!(vis, visit_where_predicate, predicates);
+    }
     if let Some(requires) = requires {
         vis.visit_expr(requires);
     }

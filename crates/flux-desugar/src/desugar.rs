@@ -491,7 +491,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let mut requires = vec![];
 
         // Desugar predicates -- after we have gathered the input params
-        let generic_preds = self.desugar_predicates(&fn_sig.predicates, &mut env)?;
+        let generic_preds = if let Some(predicates) = &fn_sig.predicates {
+            self.desugar_predicates(predicates, &mut env)?
+        } else {
+            self.as_lift_cx().lift_predicates()?
+        };
 
         if let Some(e) = &fn_sig.requires {
             let pred = self.desugar_expr(&mut env, e)?;

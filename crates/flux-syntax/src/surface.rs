@@ -192,7 +192,7 @@ pub struct FnSig {
     /// example: `*x: i32{v. v = n+1}` or just `x > 10`
     pub ensures: Vec<Constraint>,
     /// example: `where I: Iterator<Item = i32{v:0<=v}>`
-    pub predicates: Vec<WhereBoundPredicate>,
+    pub predicates: Option<Vec<WhereBoundPredicate>>,
     /// source span
     pub span: Span,
     pub node_id: NodeId,
