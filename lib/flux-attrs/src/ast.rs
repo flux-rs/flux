@@ -16,6 +16,7 @@ use crate::flux_tool_attrs;
 
 pub struct Items(Vec<Item>);
 
+#[derive(Debug)]
 pub enum Item {
     Struct(ItemStruct),
     Enum(ItemEnum),
@@ -23,6 +24,18 @@ pub enum Item {
     Type(ItemType),
     Fn(ItemFn),
     Impl(ItemImpl),
+    Mod(ItemMod),
+}
+
+#[derive(Debug)]
+pub struct ItemMod {
+    pub attrs: Vec<Attribute>,
+    pub vis: Visibility,
+    pub unsafety: Option<Token![unsafe]>,
+    pub mod_token: Token![mod],
+    pub ident: Ident,
+    pub content: Option<(token::Brace, Vec<Item>)>,
+    pub semi: Option<Token![;]>,
 }
 
 #[derive(Debug)]
@@ -88,6 +101,7 @@ impl ToTokens for ParamKind {
     }
 }
 
+#[derive(Debug)]
 pub struct ItemStruct {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
@@ -299,6 +313,7 @@ impl Field {
     }
 }
 
+#[derive(Debug)]
 pub struct ItemType {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
@@ -311,11 +326,13 @@ pub struct ItemType {
     pub semi_token: Token![;],
 }
 
+#[derive(Debug)]
 pub struct IndexParams {
     pub bracket_token: token::Bracket,
     pub params: Punctuated<ExistsParam, Token![,]>,
 }
 
+#[derive(Debug)]
 pub struct ItemImpl {
     pub attrs: Vec<Attribute>,
     pub impl_token: Token![impl],
@@ -327,11 +344,13 @@ pub struct ItemImpl {
     pub items: Vec<ImplItem>,
 }
 
+#[derive(Debug)]
 pub enum ImplItem {
     Fn(ImplItemFn),
     Type(syn::ImplItemType),
 }
 
+#[derive(Debug)]
 pub struct ImplItemFn {
     pub attrs: Vec<Attribute>,
     pub vis: Visibility,
@@ -560,6 +579,8 @@ impl Parse for Item {
             Item::Fn(input.parse()?)
         } else if lookahead.peek(Token![impl]) {
             Item::Impl(input.parse()?)
+        } else if lookahead.peek(Token![mod]) {
+            Item::Mod(input.parse()?)
         } else if lookahead.peek(Token![struct]) {
             Item::Struct(input.parse()?)
         } else if lookahead.peek(Token![enum]) {
@@ -571,8 +592,54 @@ impl Parse for Item {
         } else {
             return Err(lookahead.error());
         };
+
         item.replace_attrs(attrs);
         Ok(item)
+    }
+}
+
+impl Parse for ItemMod {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut attrs = input.call(Attribute::parse_outer)?;
+        let vis: Visibility = input.parse()?;
+        let unsafety: Option<Token![unsafe]> = input.parse()?;
+        let mod_token: Token![mod] = input.parse()?;
+        let ident: Ident =
+            if input.peek(Token![try]) { input.call(Ident::parse_any) } else { input.parse() }?;
+
+        let lookahead = input.lookahead1();
+        if lookahead.peek(Token![;]) {
+            Ok(ItemMod {
+                attrs,
+                vis,
+                unsafety,
+                mod_token,
+                ident,
+                content: None,
+                semi: Some(input.parse()?),
+            })
+        } else if lookahead.peek(token::Brace) {
+            let content;
+            let brace_token = braced!(content in input);
+            parse_inner(&content, &mut attrs)?;
+
+            let mut items = Vec::new();
+            while !content.is_empty() {
+                items.push(content.parse()?);
+            }
+
+            Ok(ItemMod {
+                attrs,
+                vis,
+                unsafety,
+                mod_token,
+                ident,
+                content: Some((brace_token, items)),
+                semi: None,
+            })
+        } else {
+            Err(lookahead.error())
+        }
     }
 }
 
@@ -1385,6 +1452,7 @@ impl Item {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
             Item::Fn(ItemFn { attrs, .. })
+            | Item::Mod(ItemMod { attrs, .. })
             | Item::Impl(ItemImpl { attrs, .. })
             | Item::Enum(ItemEnum { attrs, .. })
             | Item::Struct(ItemStruct { attrs, .. })
@@ -1409,7 +1477,24 @@ impl ToTokens for Item {
             Item::Enum(item_enum) => item_enum.to_tokens(tokens),
             Item::Use(item_use) => item_use.to_tokens(tokens),
             Item::Type(item_type) => item_type.to_tokens(tokens),
+            Item::Mod(item_mod) => item_mod.to_tokens(tokens),
         }
+    }
+}
+
+impl ToTokens for ItemMod {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append_all(&self.attrs);
+        self.vis.to_tokens(tokens);
+        self.unsafety.to_tokens(tokens);
+        self.mod_token.to_tokens(tokens);
+        self.ident.to_tokens(tokens);
+        if let Some((brace, items)) = &self.content {
+            brace.surround(tokens, |tokens| {
+                tokens.append_all(items);
+            });
+        }
+        self.semi.to_tokens(tokens);
     }
 }
 
@@ -1998,4 +2083,21 @@ fn outer(attrs: &[Attribute]) -> impl Iterator<Item = &Attribute> {
         }
     }
     attrs.iter().filter(is_outer)
+}
+
+fn parse_inner(input: ParseStream, attrs: &mut Vec<Attribute>) -> Result<()> {
+    while input.peek(Token![#]) && input.peek2(Token![!]) {
+        attrs.push(input.call(single_parse_inner)?);
+    }
+    Ok(())
+}
+
+fn single_parse_inner(input: ParseStream) -> Result<Attribute> {
+    let content;
+    Ok(Attribute {
+        pound_token: input.parse()?,
+        style: syn::AttrStyle::Inner(input.parse()?),
+        bracket_token: bracketed!(content in input),
+        meta: content.parse()?,
+    })
 }
