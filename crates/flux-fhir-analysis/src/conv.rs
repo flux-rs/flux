@@ -498,12 +498,20 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         enum_def
             .variants
             .iter()
-            .map(|variant_def| ConvCtxt::conv_enum_variant(genv, variant_def, wfckresults))
+            .map(|variant_def| {
+                ConvCtxt::conv_enum_variant(
+                    genv,
+                    enum_def.owner_id.to_def_id(),
+                    variant_def,
+                    wfckresults,
+                )
+            })
             .try_collect()
     }
 
     fn conv_enum_variant(
         genv: &GlobalEnv,
+        adt_def_id: DefId,
         variant: &fhir::VariantDef,
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
@@ -512,14 +520,19 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let mut env = Env::new(&[]);
         env.push_layer(Layer::list(&cx, 0, &variant.params, true));
 
+        let adt_def = genv.adt_def(adt_def_id)?;
         let fields = variant
             .fields
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
-        let args = rty::Index::from(cx.conv_refine_arg(&mut env, &variant.ret.idx));
-        let ret = cx.conv_indexed_type(&mut env, &variant.ret.bty, args)?;
-        let variant = rty::VariantSig::new(fields, ret);
+        let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx).0;
+        let variant = rty::VariantSig::new(
+            adt_def,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
+            fields,
+            idxs,
+        );
 
         Ok(rty::Binder::new(variant, env.pop_layer().into_bound_vars()))
     }
@@ -535,12 +548,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         let def_id = struct_def.owner_id.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
+            let adt_def = genv.adt_def(def_id)?;
+
             let fields = fields
                 .iter()
                 .map(|field_def| cx.conv_ty(&mut env, &field_def.ty))
                 .try_collect()?;
-
-            let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
 
             let vars = env.pop_layer().into_bound_vars();
             let idx = rty::Expr::tuple(
@@ -548,8 +561,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
                     .collect_vec(),
             );
-            let ret = rty::Ty::indexed(rty::BaseTy::adt(genv.adt_def(def_id)?, args), idx);
-            let variant = rty::VariantSig::new(fields, ret);
+            let variant = rty::VariantSig::new(
+                adt_def,
+                rty::GenericArgs::identity_for_item(genv, def_id)?,
+                fields,
+                idx,
+            );
             Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, vars)))
         } else {
             Ok(rty::Opaqueness::Opaque)

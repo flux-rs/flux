@@ -633,19 +633,16 @@ impl TypeVisitable for VariantSig {
         self.fields
             .iter()
             .try_for_each(|ty| ty.visit_with(visitor))?;
-        self.ret.visit_with(visitor)
+        self.idx.visit_with(visitor)
     }
 }
 
 impl TypeFoldable for VariantSig {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let fields = self
-            .fields
-            .iter()
-            .map(|ty| ty.try_fold_with(folder))
-            .try_collect()?;
-        let ret = self.ret.try_fold_with(folder)?;
-        Ok(VariantSig::new(fields, ret))
+        let args = self.args.try_fold_with(folder)?;
+        let fields = self.fields.try_fold_with(folder)?;
+        let idx = self.idx.try_fold_with(folder)?;
+        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx))
     }
 }
 

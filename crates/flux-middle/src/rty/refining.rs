@@ -176,19 +176,17 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_variant_def(
         &self,
+        adt_def_id: DefId,
         fields: &[rustc::ty::Ty],
-        ret: &rustc::ty::Ty,
     ) -> QueryResult<rty::PolyVariant> {
+        let adt_def = self.adt_def(adt_def_id)?;
         let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
-        let rustc::ty::TyKind::Adt(adt_def, args) = ret.kind() else {
-            bug!();
-        };
-        let args = self.iter_with_generic_params(self.generics, args, |param, arg| {
-            self.refine_generic_arg(param, arg)
-        })?;
-        let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, args);
-        let ret = rty::Ty::indexed(bty, rty::Expr::unit());
-        let value = rty::VariantSig::new(fields, ret);
+        let value = rty::VariantSig::new(
+            adt_def,
+            rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
+            fields,
+            rty::Expr::unit(),
+        );
         Ok(rty::Binder::new(value, List::empty()))
     }
 

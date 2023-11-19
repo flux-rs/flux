@@ -355,7 +355,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let evars_sol = infcx.solve()?;
         rcx.replace_evars(&evars_sol);
 
-        Ok(variant.ret.replace_evars(&evars_sol))
+        Ok(variant.ret().replace_evars(&evars_sol))
     }
 
     pub(crate) fn check_mk_array(

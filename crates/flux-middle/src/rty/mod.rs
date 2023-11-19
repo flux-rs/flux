@@ -234,8 +234,10 @@ pub type PolyVariant = Binder<VariantSig>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantSig {
+    pub adt_def: AdtDef,
+    pub args: GenericArgs,
     pub fields: List<Ty>,
-    pub ret: Ty,
+    pub idx: Expr,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -823,6 +825,10 @@ impl<T> EarlyBinder<T> {
         EarlyBinder(f(self.0))
     }
 
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<EarlyBinder<U>, E> {
+        Ok(EarlyBinder(f(self.0)?))
+    }
+
     pub fn skip_binder(self) -> T {
         self.0
     }
@@ -943,12 +949,17 @@ impl EarlyBinder<GenericPredicates> {
 }
 
 impl VariantSig {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
-        VariantSig { fields: List::from_vec(fields), ret }
+    pub fn new(adt_def: AdtDef, args: GenericArgs, fields: List<Ty>, idx: Expr) -> Self {
+        VariantSig { adt_def, args, fields, idx }
     }
 
     pub fn fields(&self) -> &[Ty] {
         &self.fields
+    }
+
+    pub fn ret(&self) -> Ty {
+        let bty = BaseTy::Adt(self.adt_def.clone(), self.args.clone());
+        Ty::indexed(bty, self.idx.clone())
     }
 }
 
@@ -1138,9 +1149,9 @@ impl<T, E> Opaqueness<Result<T, E>> {
 
 impl EarlyBinder<PolyVariant> {
     pub fn to_poly_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
-        self.as_ref().map(|poly_fn_sig| {
-            poly_fn_sig.as_ref().map(|variant| {
-                let ret = variant.ret.shift_in_escaping(1);
+        self.as_ref().map(|poly_variant| {
+            poly_variant.as_ref().map(|variant| {
+                let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
@@ -2096,7 +2107,7 @@ mod pretty {
     impl Pretty for VariantSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+            w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.idx)
         }
     }
 
