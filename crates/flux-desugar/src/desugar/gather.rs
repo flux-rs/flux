@@ -81,13 +81,15 @@ enum Param {
     Pound,
     /// A parameter declared with `x: T` syntax.
     Colon,
-    /// A parameter which we know syntactically cannot be used, e.g., when writing
+    /// A parameter that we know *syntactically* cannot be used inside a refinement. We track these
+    /// parameters to report errors at the use site. For example, consider the following function:
     ///
     /// ```ignore
     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
     /// ```
-    /// We know syntatically that `x` binds to a non-base type. We track the parameter to report
-    /// errors at the use site.
+    ///
+    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+    /// to use `x` as an index in the return type.
     SyntaxError,
 }
 
@@ -410,30 +412,20 @@ impl Env {
     fn into_desugar_env(self) -> env::Env<super::Param> {
         let name_gen = IndexGen::default();
         self.filter_map(|param, used| {
-            match param {
-                Param::Explicit(sort) => {
-                    Some(super::Param { name: name_gen.fresh(), sort, implicit: false })
-                }
-                Param::At | Param::Pound => {
-                    Some(super::Param {
-                        name: name_gen.fresh(),
-                        sort: fhir::Sort::Wildcard,
-                        implicit: true,
-                    })
-                }
+            let (sort, kind) = match param {
+                Param::Explicit(sort) => (sort, fhir::ParamKind::Explicit),
+                Param::At => (fhir::Sort::Wildcard, fhir::ParamKind::At),
+                Param::Pound => (fhir::Sort::Wildcard, fhir::ParamKind::Pound),
                 Param::Colon => {
                     if used {
-                        Some(super::Param {
-                            name: name_gen.fresh(),
-                            sort: fhir::Sort::Wildcard,
-                            implicit: true,
-                        })
+                        (fhir::Sort::Wildcard, fhir::ParamKind::Colon)
                     } else {
-                        None
+                        return None;
                     }
                 }
-                Param::SyntaxError => None,
-            }
+                Param::SyntaxError => return None,
+            };
+            Some(super::Param { name: name_gen.fresh(), sort, kind })
         })
     }
 }

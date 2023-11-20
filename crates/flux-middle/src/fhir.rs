@@ -448,9 +448,30 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Whether the parameter was implicitly scoped with `@n`, `#n` or `x: T` syntax.
-    pub implicit: bool,
+    pub kind: ParamKind,
     pub fhir_id: FhirId,
+}
+
+/// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
+/// and to control the [inference mode].
+///
+/// [inference mode]: InferMode
+#[derive(Debug, Clone, Copy)]
+pub enum ParamKind {
+    /// A parameter declared in an explicit scope
+    Explicit,
+    /// An implicitly scoped parameter declared with `@a` syntax
+    At,
+    /// An implicitly scoped parameter declared with `#a` syntax
+    Pound,
+    /// An implicitly scoped parameter declared with `x: T` syntax
+    Colon,
+}
+
+impl ParamKind {
+    fn is_implicit(&self) -> bool {
+        matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
+    }
 }
 
 /// *Infer*ence *mode* for parameter at function calls
@@ -953,7 +974,7 @@ impl RefineParam {
     }
 
     pub fn infer_mode(&self) -> InferMode {
-        if self.sort.is_pred() && !self.implicit {
+        if self.sort.is_pred() && !self.kind.is_implicit() {
             InferMode::KVar
         } else {
             InferMode::EVar

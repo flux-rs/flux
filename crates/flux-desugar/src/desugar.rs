@@ -207,7 +207,7 @@ type Env = env::Env<Param>;
 struct Param {
     name: fhir::Name,
     sort: fhir::Sort,
-    implicit: bool,
+    kind: fhir::ParamKind,
 }
 
 struct FluxItemCtxt<'a, 'tcx> {
@@ -959,7 +959,7 @@ impl Env {
             env.insert(
                 genv.sess,
                 param.name,
-                Param { name: name_gen.fresh(), sort, implicit: false },
+                Param { name: name_gen.fresh(), sort, kind: fhir::ParamKind::Explicit },
             )?;
         }
         Ok(env)
@@ -1015,12 +1015,7 @@ impl Scope<Param> {
         for (ident, param) in self.into_iter() {
             let ident = fhir::Ident::new(param.name, ident);
             let fhir_id = cx.next_fhir_id();
-            params.push(fhir::RefineParam {
-                ident,
-                sort: param.sort,
-                implicit: param.implicit,
-                fhir_id,
-            });
+            params.push(fhir::RefineParam { ident, sort: param.sort, kind: param.kind, fhir_id });
         }
         params
     }
