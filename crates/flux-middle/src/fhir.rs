@@ -17,6 +17,7 @@
 //! than the surface syntax.
 
 pub mod lift;
+pub mod visit;
 
 use std::{
     borrow::{Borrow, Cow},
