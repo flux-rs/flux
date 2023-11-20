@@ -479,7 +479,6 @@ pub enum SortCtor {
     /// User defined opaque sort
     User {
         name: Symbol,
-        arity: usize,
     },
 }
 
@@ -627,7 +626,7 @@ impl SortCtor {
         match self {
             SortCtor::Set => 1,
             SortCtor::Map => 2,
-            SortCtor::User { arity, .. } => *arity,
+            SortCtor::User { .. } => 0,
         }
     }
 }

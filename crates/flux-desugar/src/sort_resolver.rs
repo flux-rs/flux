@@ -120,7 +120,7 @@ impl<'a> SortResolver<'a> {
         } else if let Some(idx) = self.sort_params.get(&ident.name) {
             Ok(fhir::Sort::Var(*idx))
         } else if self.sort_decls.get(&ident.name).is_some() {
-            let ctor = fhir::SortCtor::User { name: ident.name, arity: 0 };
+            let ctor = fhir::SortCtor::User { name: ident.name };
             Ok(fhir::Sort::App(ctor, List::empty()))
         } else {
             Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident)))

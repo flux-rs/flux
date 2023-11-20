@@ -144,7 +144,7 @@ pub struct GeneratorObligPredicate {
 pub enum SortCtor {
     Set,
     Map,
-    User { name: Symbol, arity: usize },
+    User { name: Symbol },
 }
 
 /// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
