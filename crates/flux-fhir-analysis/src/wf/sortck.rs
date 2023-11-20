@@ -17,7 +17,7 @@ use super::errors;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    sorts: UnordMap<fhir::Name, fhir::Sort>,
+    params: UnordMap<fhir::Name, (fhir::Sort, fhir::ParamKind)>,
     unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
@@ -30,7 +30,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             genv,
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
-            sorts: Default::default(),
+            params: Default::default(),
             eq_vids: Default::default(),
         }
     }
@@ -354,7 +354,7 @@ impl<'a> InferCtxt<'a, '_> {
             } else {
                 param.sort.clone()
             };
-            self.sorts.insert(param.name(), sort);
+            self.params.insert(param.name(), (sort, param.kind));
         }
     }
 
@@ -483,7 +483,7 @@ impl<'a> InferCtxt<'a, '_> {
     }
 
     fn resolve_param(&mut self, param: &fhir::RefineParam) -> Option<fhir::Sort> {
-        if let fhir::Sort::Infer(vid) = self.sorts[&param.ident.name] {
+        if let fhir::Sort::Infer(vid) = self.params[&param.ident.name].0 {
             self.unification_table.probe_value(vid)
         } else {
             span_bug!(param.ident.span(), "expected wildcard sort")
@@ -550,6 +550,11 @@ impl<'a> InferCtxt<'a, '_> {
     pub(crate) fn into_results(self) -> WfckResults {
         self.wfckresults
     }
+
+    pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
+        let (sort, kind) = &self.params[&var.name];
+        kind.infer_mode(sort)
+    }
 }
 
 impl InferCtxt<'_, '_> {
@@ -586,9 +591,11 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for InferCtxt<'_, '_> {
     type Output = fhir::Sort;
 
     fn index(&self, var: T) -> &Self::Output {
-        self.sorts
+        &self
+            .params
             .get(var.borrow())
             .unwrap_or_else(|| bug!("no enty found for key: `{:?}`", var.borrow()))
+            .0
     }
 }
 

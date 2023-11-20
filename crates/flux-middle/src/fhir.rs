@@ -269,8 +269,15 @@ pub struct Ty {
 
 #[derive(Clone)]
 pub enum TyKind {
-    /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
-    /// technically need this variant, but we keep it around to simplify desugaring.
+    /// A type that parses as a [`BaseTy`] but was written without refinements. Most types in
+    /// this category are base types and will be converted into an [existential], e.g., `i32` is
+    /// converted into `∃v:int. i32[v]`. However, this category also contains generic variables
+    /// of kind [type] or [*special*]. We cannot distinguish these syntactially so we resolve them
+    /// later in the analysis.
+    ///
+    /// [existential]: crate::rty::TyKind::Exists
+    /// [type]: GenericParamKind::Type
+    /// [*special*]: GenericParamKind::SplTy
     BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
     Exists(Vec<RefineParam>, Box<Ty>),
@@ -452,6 +459,16 @@ pub struct RefineParam {
     pub fhir_id: FhirId,
 }
 
+impl RefineParam {
+    pub fn name(&self) -> Name {
+        self.ident.name
+    }
+
+    pub fn infer_mode(&self) -> InferMode {
+        self.kind.infer_mode(&self.sort)
+    }
+}
+
 /// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
 /// and to control the [inference mode].
 ///
@@ -471,6 +488,14 @@ pub enum ParamKind {
 impl ParamKind {
     fn is_implicit(&self) -> bool {
         matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
+    }
+
+    pub fn infer_mode(&self, sort: &Sort) -> InferMode {
+        if sort.is_pred() && !self.is_implicit() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
     }
 }
 
@@ -967,20 +992,6 @@ impl ena::unify::UnifyKey for SortVid {
 }
 
 impl ena::unify::EqUnifyValue for Sort {}
-
-impl RefineParam {
-    pub fn name(&self) -> Name {
-        self.ident.name
-    }
-
-    pub fn infer_mode(&self) -> InferMode {
-        if self.sort.is_pred() && !self.kind.is_implicit() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-}
 
 impl From<PolyFuncSort> for Sort {
     fn from(fsort: PolyFuncSort) -> Self {
