@@ -20,7 +20,7 @@ cd flux
 ```
 
 To build the source you need a nightly version of `rustc`.
-We pin the version using a [toolchain file](/rust-toolchain) (more info [here](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file)).
+We pin the version using a [toolchain file](https://github.com/flux-rs/flux/blob/main/rust-toolchain) (more info [here](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file)).
 If you are using `rustup`, no special action is needed as it should install the correct `rustc` version and components based on the information on that file.
 
 Next, run the following to build and install `flux` binaries
